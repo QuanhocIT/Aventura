@@ -1,6 +1,7 @@
-import { ref, computed, Ref } from 'vue';
 import { router } from '@inertiajs/vue3';
-import { TableItem, OrderItem } from '../types';
+import type { Ref } from 'vue';
+import { ref, computed } from 'vue';
+import type { TableItem, OrderItem } from '../types';
 
 export function useCashierTables(
     tablesData: () => TableItem[],
@@ -8,7 +9,7 @@ export function useCashierTables(
     cartNote: Ref<string>,
     isCartOpen: Ref<boolean>,
     isNotified: Ref<boolean>,
-    toast: (msg: string, type?: 'success' | 'error') => void
+    toast: (msg: string, type?: 'success' | 'error') => void,
 ) {
     const activeTable = ref<TableItem | null>(null);
     const drawerStep = ref<'select' | 'confirm'>('select');
@@ -21,21 +22,30 @@ export function useCashierTables(
     const areaList = computed(() => {
         const areas = new Set<string>();
         tablesData().forEach((t) => {
-            if (t.area) areas.add(t.area);
+            if (t.area) {
+                areas.add(t.area);
+            }
         });
+
         return Array.from(areas);
     });
 
     const filteredTables = computed(() => {
-        if (selectedArea.value === 'all') return tablesData();
+        if (selectedArea.value === 'all') {
+            return tablesData();
+        }
+
         return tablesData().filter((t) => t.area === selectedArea.value);
     });
 
     const openTableOrder = (table: TableItem) => {
         activeTable.value = table;
         isCartOpen.value = true;
+
         if (table.active_order) {
-            cartItems.value = table.active_order.items.map((item) => ({ ...item }));
+            cartItems.value = table.active_order.items.map((item) => ({
+                ...item,
+            }));
             cartNote.value = table.active_order.note || '';
             drawerStep.value = 'confirm';
             isNotified.value = true;
@@ -48,7 +58,10 @@ export function useCashierTables(
     };
 
     const openSplitOrder = () => {
-        if (!activeTable.value?.active_order) return;
+        if (!activeTable.value?.active_order) {
+            return;
+        }
+
         splitItems.value = activeTable.value.active_order.items.map((i) => ({
             ...i,
             quantity: 1,
@@ -58,7 +71,10 @@ export function useCashierTables(
     };
 
     const splitProjection = computed(() => {
-        if (!activeTable.value?.active_order) return null;
+        if (!activeTable.value?.active_order) {
+            return null;
+        }
+
         const origOrder = activeTable.value.active_order;
         const hasItems = splitItems.value.some((si) => si.quantity > 0);
 
@@ -68,7 +84,10 @@ export function useCashierTables(
         });
 
         const origSubtotal = Math.max(0, origOrder.subtotal - splitSubtotal);
-        const ratio = origOrder.subtotal > 0 ? origOrder.discount_amount / origOrder.subtotal : 0;
+        const ratio =
+            origOrder.subtotal > 0
+                ? origOrder.discount_amount / origOrder.subtotal
+                : 0;
 
         const origDiscount = Math.round(origSubtotal * ratio);
         const splitDiscount = Math.round(splitSubtotal * ratio);
@@ -88,7 +107,11 @@ export function useCashierTables(
     });
 
     const processSplit = () => {
-        if (!activeTable.value?.active_order || !splitTableId.value || isSubmittingSplit.value) {
+        if (
+            !activeTable.value?.active_order ||
+            !splitTableId.value ||
+            isSubmittingSplit.value
+        ) {
             return;
         }
 
@@ -101,6 +124,7 @@ export function useCashierTables(
 
         if (itemsToSplit.length === 0) {
             toast('Vui lòng chọn ít nhất 1 món để tách!', 'error');
+
             return;
         }
 
@@ -121,7 +145,7 @@ export function useCashierTables(
                 onFinish: () => {
                     isSubmittingSplit.value = false;
                 },
-            }
+            },
         );
     };
 

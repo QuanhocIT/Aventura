@@ -9,6 +9,7 @@ use App\Models\PerformanceReview;
 use App\Services\KpiService;
 use App\Services\QuotaService;
 use App\Support\Tenant\TenantContext;
+use App\Support\TenantRule;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -186,7 +187,7 @@ class KpiController extends Controller
         $restaurantId = $user->restaurant_id;
 
         $data = $request->validate([
-            'employee_id' => ['required', \App\Support\TenantRule::exists('employees')],
+            'employee_id' => ['required', TenantRule::exists('employees')],
             'reviewer_type' => ['required', 'in:self,manager,peer'],
             'period' => ['required', 'string', 'regex:/^\d{4}-\d{2}$/'],
             'ratings' => ['required', 'array'],

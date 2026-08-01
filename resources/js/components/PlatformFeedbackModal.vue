@@ -57,35 +57,54 @@ function submit() {
 
 <template>
     <Dialog v-model:open="isOpen">
-        <DialogContent class="sm:max-w-lg border-border/80 bg-background/95 backdrop-blur-md">
+        <DialogContent
+            class="border-border/80 bg-background/95 backdrop-blur-md sm:max-w-lg"
+        >
             <DialogHeader class="border-b border-border/40 pb-4">
-                <DialogTitle class="flex items-center gap-2 text-lg font-bold text-foreground">
-                    <div class="p-2 rounded-xl bg-primary/10 text-primary">
+                <DialogTitle
+                    class="flex items-center gap-2 text-lg font-bold text-foreground"
+                >
+                    <div class="rounded-xl bg-primary/10 p-2 text-primary">
                         <MessageSquarePlus class="size-5" />
                     </div>
                     Đánh giá Dịch vụ & Nền tảng
                 </DialogTitle>
-                <DialogDescription class="pt-1 text-xs text-muted-foreground leading-relaxed">
-                    Đóng góp ý kiến của quý doanh nghiệp giúp Aventura không ngừng tối ưu các gói cước và tính năng phần mềm.
+                <DialogDescription
+                    class="pt-1 text-xs leading-relaxed text-muted-foreground"
+                >
+                    Đóng góp ý kiến của quý doanh nghiệp giúp Aventura không
+                    ngừng tối ưu các gói cước và tính năng phần mềm.
                 </DialogDescription>
             </DialogHeader>
 
             <!-- Success confirmation state -->
-            <div v-if="isSubmitted" class="py-8 flex flex-col items-center justify-center text-center space-y-3 animate-in fade-in duration-300">
-                <div class="size-12 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
+            <div
+                v-if="isSubmitted"
+                class="flex animate-in flex-col items-center justify-center space-y-3 py-8 text-center duration-300 fade-in"
+            >
+                <div
+                    class="flex size-12 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                >
                     <CheckCircle2 class="size-8" />
                 </div>
-                <h3 class="text-base font-bold text-foreground">Gửi đánh giá thành công!</h3>
-                <p class="text-xs text-muted-foreground max-w-xs">
-                    Cảm ơn bạn đã đóng góp ý kiến. Phản hồi đã được chuyển trực tiếp tới Ban Quản Trị SuperAdmin.
+                <h3 class="text-base font-bold text-foreground">
+                    Gửi đánh giá thành công!
+                </h3>
+                <p class="max-w-xs text-xs text-muted-foreground">
+                    Cảm ơn bạn đã đóng góp ý kiến. Phản hồi đã được chuyển trực
+                    tiếp tới Ban Quản Trị SuperAdmin.
                 </p>
             </div>
 
             <!-- Form state -->
             <form v-else @submit.prevent="submit" class="space-y-4 pt-2">
                 <!-- Star Rating selector -->
-                <div class="space-y-2 text-center bg-muted/30 rounded-2xl p-4 border border-border/30">
-                    <Label class="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                <div
+                    class="space-y-2 rounded-2xl border border-border/30 bg-muted/30 p-4 text-center"
+                >
+                    <Label
+                        class="text-xs font-bold tracking-wider text-muted-foreground uppercase"
+                    >
                         Mức độ hài lòng của bạn
                     </Label>
                     <div class="flex items-center justify-center gap-2 py-1">
@@ -96,7 +115,7 @@ function submit() {
                             @click="form.rating = star"
                             @mouseenter="hoverRating = star"
                             @mouseleave="hoverRating = 0"
-                            class="p-1.5 transition-transform hover:scale-125 focus:outline-none cursor-pointer"
+                            class="cursor-pointer p-1.5 transition-transform hover:scale-125 focus:outline-none"
                         >
                             <Star
                                 class="size-7 transition-colors"
@@ -108,19 +127,27 @@ function submit() {
                             />
                         </button>
                     </div>
-                    <p class="text-xs font-semibold text-amber-600 dark:text-amber-400 h-4">
+                    <p
+                        class="h-4 text-xs font-semibold text-amber-600 dark:text-amber-400"
+                    >
                         {{ ratingLabels[hoverRating || form.rating] }}
                     </p>
                 </div>
 
                 <!-- Category select -->
                 <div class="space-y-1.5">
-                    <Label class="text-xs font-semibold text-muted-foreground">DANH MỤC ĐÁNH GIÁ</Label>
+                    <Label class="text-xs font-semibold text-muted-foreground"
+                        >DANH MỤC ĐÁNH GIÁ</Label
+                    >
                     <select
                         v-model="form.category"
-                        class="flex h-10 w-full rounded-xl border border-border bg-background px-3 py-2 text-xs font-semibold text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                        class="flex h-10 w-full rounded-xl border border-border bg-background px-3 py-2 text-xs font-semibold text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:outline-none"
                     >
-                        <option v-for="cat in categories" :key="cat.value" :value="cat.value">
+                        <option
+                            v-for="cat in categories"
+                            :key="cat.value"
+                            :value="cat.value"
+                        >
                             {{ cat.label }}
                         </option>
                     </select>
@@ -128,25 +155,32 @@ function submit() {
 
                 <!-- Comment text area -->
                 <div class="space-y-1.5">
-                    <Label class="text-xs font-semibold text-muted-foreground">NỘI DUNG ĐÁNH GIÁ / GÓP Ý</Label>
+                    <Label class="text-xs font-semibold text-muted-foreground"
+                        >NỘI DUNG ĐÁNH GIÁ / GÓP Ý</Label
+                    >
                     <textarea
                         v-model="form.content"
                         rows="4"
                         required
-                        class="flex w-full rounded-xl border border-border bg-background px-3.5 py-2.5 text-xs text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 resize-none"
+                        class="flex w-full resize-none rounded-xl border border-border bg-background px-3.5 py-2.5 text-xs text-foreground placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:outline-none"
                         placeholder="Hãy chia sẻ trải nghiệm của bạn về gói dịch vụ, tốc độ hệ thống, hoặc tính năng mong muốn cải thiện..."
                     />
-                    <span v-if="form.errors.content" class="text-[11px] font-medium text-rose-500">
+                    <span
+                        v-if="form.errors.content"
+                        class="text-[11px] font-medium text-rose-500"
+                    >
                         {{ form.errors.content }}
                     </span>
                 </div>
 
-                <div class="flex items-center justify-end gap-2 pt-2 border-t border-border/40">
+                <div
+                    class="flex items-center justify-end gap-2 border-t border-border/40 pt-2"
+                >
                     <Button
                         type="button"
                         variant="outline"
                         size="sm"
-                        class="rounded-xl cursor-pointer text-xs font-bold"
+                        class="cursor-pointer rounded-xl text-xs font-bold"
                         @click="isOpen = false"
                     >
                         Hủy
@@ -155,7 +189,7 @@ function submit() {
                         type="submit"
                         size="sm"
                         :disabled="form.processing || !form.content.trim()"
-                        class="rounded-xl cursor-pointer text-xs font-bold bg-primary text-primary-foreground gap-1.5 shadow-sm"
+                        class="cursor-pointer gap-1.5 rounded-xl bg-primary text-xs font-bold text-primary-foreground shadow-sm"
                     >
                         <Send class="size-3.5" />
                         Gửi đánh giá

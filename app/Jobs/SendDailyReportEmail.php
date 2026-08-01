@@ -15,7 +15,8 @@ class SendDailyReportEmail implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
-    public int $tries   = 2;
+    public int $tries = 2;
+
     public int $timeout = 60;
 
     public function __construct(
@@ -31,17 +32,18 @@ class SendDailyReportEmail implements ShouldQueue
         if (empty($data['owner_email'])) {
             Log::warning('SendDailyReportEmail: bỏ qua do không có owner email', [
                 'restaurant_id' => $this->restaurantId,
-                'date'          => $this->date,
+                'date' => $this->date,
             ]);
+
             return;
         }
 
         $sent = $client->sendDailyReport($data);
 
-        Log::info('SendDailyReportEmail: ' . ($sent ? 'thành công' : 'thất bại'), [
+        Log::info('SendDailyReportEmail: '.($sent ? 'thành công' : 'thất bại'), [
             'restaurant_id' => $this->restaurantId,
-            'date'          => $this->date,
-            'email'         => $data['owner_email'],
+            'date' => $this->date,
+            'email' => $data['owner_email'],
         ]);
     }
 

@@ -59,7 +59,7 @@ class PaymentGatewayDriversTest extends TestCase
         ksort($forHash);
         $parts = [];
         foreach ($forHash as $k => $v) {
-            $parts[] = $k . '=' . urlencode((string) $v);
+            $parts[] = $k.'='.urlencode((string) $v);
         }
         $params['vnp_SecureHash'] = hash_hmac('sha512', implode('&', $parts), $hashSecret);
 
@@ -113,21 +113,21 @@ class PaymentGatewayDriversTest extends TestCase
             'extraData' => '',
             'message' => 'Success',
             'orderId' => (string) $order->id,
-            'orderInfo' => 'Thanh toan don hang ' . $order->order_number,
+            'orderInfo' => 'Thanh toan don hang '.$order->order_number,
             'orderType' => 'momo_wallet',
             'partnerCode' => 'TESTPARTNER',
             'payType' => 'qr',
-            'requestId' => $order->id . '-123',
+            'requestId' => $order->id.'-123',
             'responseTime' => '1234567890',
             'resultCode' => '0',
             'transId' => '9999888877',
         ];
 
         $rawSignature = "accessKey={$callback['accessKey']}&amount={$callback['amount']}&extraData={$callback['extraData']}"
-            . "&message={$callback['message']}&orderId={$callback['orderId']}&orderInfo={$callback['orderInfo']}"
-            . "&orderType={$callback['orderType']}&partnerCode={$callback['partnerCode']}&payType={$callback['payType']}"
-            . "&requestId={$callback['requestId']}&responseTime={$callback['responseTime']}&resultCode={$callback['resultCode']}"
-            . "&transId={$callback['transId']}";
+            ."&message={$callback['message']}&orderId={$callback['orderId']}&orderInfo={$callback['orderInfo']}"
+            ."&orderType={$callback['orderType']}&partnerCode={$callback['partnerCode']}&payType={$callback['payType']}"
+            ."&requestId={$callback['requestId']}&responseTime={$callback['responseTime']}&resultCode={$callback['resultCode']}"
+            ."&transId={$callback['transId']}";
 
         $callback['signature'] = hash_hmac('sha256', $rawSignature, $secretKey);
 
@@ -154,7 +154,7 @@ class PaymentGatewayDriversTest extends TestCase
 
         // Giả lập ZaloPay gọi callback lại với data + mac hợp lệ theo key2.
         $data = json_encode([
-            'app_trans_id' => now()->format('ymd') . '_' . $order->id . '_999',
+            'app_trans_id' => now()->format('ymd').'_'.$order->id.'_999',
             'zp_trans_id' => '2205551234',
             'amount' => 300000,
         ]);

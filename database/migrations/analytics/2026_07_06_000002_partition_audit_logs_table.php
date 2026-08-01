@@ -8,6 +8,7 @@ use Illuminate\Support\Facades\Schema;
 return new class extends Migration
 {
     private const MONTHS_BACK = 24;
+
     private const MONTHS_FORWARD = 6;
 
     /**
@@ -70,7 +71,7 @@ return new class extends Migration
 
         while ($cursor->lessThanOrEqualTo($end)) {
             $boundary = $cursor->copy()->addMonth()->format('Y-m-d');
-            $name = 'p' . $cursor->format('Y_m');
+            $name = 'p'.$cursor->format('Y_m');
             $parts[] = "PARTITION {$name} VALUES LESS THAN (UNIX_TIMESTAMP('{$boundary}'))";
             $cursor = $cursor->addMonth();
         }

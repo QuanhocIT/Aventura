@@ -64,12 +64,12 @@ watch(
     () => page.props.flash,
     (flash: any) => {
         if (flash?.success) {
-toast.success(flash.success);
-}
+            toast.success(flash.success);
+        }
 
         if (flash?.error) {
-toast.error(flash.error);
-}
+            toast.error(flash.error);
+        }
     },
 );
 
@@ -152,8 +152,8 @@ const submitSettings = () => {
 // Format remaining time in seconds to human-readable string
 const formatRemainingTime = (seconds: number) => {
     if (seconds <= 0) {
-return 'Hết hạn';
-}
+        return 'Hết hạn';
+    }
 
     const minutes = Math.floor(seconds / 60);
     const secs = seconds % 60;

@@ -2,18 +2,16 @@
 
 namespace Tests\Feature;
 
-use App\Models\Order;
-use App\Models\OrderItem;
-use App\Models\Payment;
-use App\Models\Product;
-use App\Models\ProductRecipe;
 use App\Models\Ingredient;
 use App\Models\Inventory;
-use App\Models\InventoryTransaction;
 use App\Models\InventoryReservation;
+use App\Models\Order;
+use App\Models\OrderItem;
+use App\Models\Product;
+use App\Models\ProductCategory;
+use App\Models\ProductRecipe;
 use App\Models\Restaurant;
 use App\Models\RestaurantBranch;
-use App\Models\ProductCategory;
 use App\Models\Unit;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -37,7 +35,7 @@ class InventoryBOMDeductionTest extends TestCase
             'name' => 'Mon An',
             'slug' => 'mon-an',
             'display_order' => 1,
-            'status' => 'active'
+            'status' => 'active',
         ]);
 
         // Attempting to create product without description should fail validation
@@ -65,7 +63,7 @@ class InventoryBOMDeductionTest extends TestCase
         $response2->assertSessionHasNoErrors();
         $this->assertDatabaseHas('products', [
             'name' => 'Pho Dac Biet',
-            'description' => 'Pho ngon thom lung vi sa 12345'
+            'description' => 'Pho ngon thom lung vi sa 12345',
         ]);
     }
 
@@ -74,7 +72,7 @@ class InventoryBOMDeductionTest extends TestCase
         $owner = User::factory()->create();
         $restaurant = Restaurant::factory()->create(['owner_user_id' => $owner->id]);
         $branch = RestaurantBranch::factory()->create(['restaurant_id' => $restaurant->id, 'manager_user_id' => $owner->id]);
-        
+
         $cashier = User::factory()->create([
             'restaurant_id' => $restaurant->id,
             'branch_id' => $branch->id,
@@ -88,7 +86,7 @@ class InventoryBOMDeductionTest extends TestCase
             'branch_id' => $branch->id,
             'name' => 'Pho',
             'slug' => 'pho',
-            'status' => 'active'
+            'status' => 'active',
         ]);
 
         // Create Unit & Ingredient
@@ -96,7 +94,7 @@ class InventoryBOMDeductionTest extends TestCase
             'restaurant_id' => $restaurant->id,
             'name' => 'Gram',
             'symbol' => 'g',
-            'type' => 'mass'
+            'type' => 'mass',
         ]);
 
         $beef = Ingredient::create([
@@ -106,7 +104,7 @@ class InventoryBOMDeductionTest extends TestCase
             'name' => 'Thit bo',
             'sku' => 'BEEF-001',
             'average_cost' => 200,
-            'status' => 'active'
+            'status' => 'active',
         ]);
 
         // Create Inventory record with starting balance
@@ -132,7 +130,7 @@ class InventoryBOMDeductionTest extends TestCase
             'cost_price' => 20000,
             'is_active' => true,
             'is_available' => true,
-            'track_inventory' => true
+            'track_inventory' => true,
         ]);
 
         // Define recipe: 1 bowl of Pho uses 100g of Beef, waste rate 5%
@@ -142,7 +140,7 @@ class InventoryBOMDeductionTest extends TestCase
             'ingredient_id' => $beef->id,
             'unit_id' => $unit->id,
             'quantity' => 100.0,
-            'waste_rate' => 5.0
+            'waste_rate' => 5.0,
         ]);
 
         // Create Order: 2 bowls of Pho bo chin (total beef used = 2 * 100 * 1.05 = 210g)
@@ -155,7 +153,7 @@ class InventoryBOMDeductionTest extends TestCase
             'status' => 'pending',
             'payment_status' => 'unpaid',
             'subtotal' => 120000,
-            'total_amount' => 120000
+            'total_amount' => 120000,
         ]);
 
         OrderItem::create([
@@ -165,7 +163,7 @@ class InventoryBOMDeductionTest extends TestCase
             'quantity' => 2,
             'unit_price' => 60000,
             'line_total' => 120000,
-            'status' => 'pending'
+            'status' => 'pending',
         ]);
 
         // Set up holding reservation in database
@@ -176,12 +174,12 @@ class InventoryBOMDeductionTest extends TestCase
             'ingredient_id' => $beef->id,
             'reserved_quantity' => 210.0,
             'status' => 'holding',
-            'expires_at' => now()->addMinutes(30)
+            'expires_at' => now()->addMinutes(30),
         ]);
 
         // Update status to completed
         $response = $this->actingAs($cashier)->patch(route('orders.update-status', $order), [
-            'status' => 'completed'
+            'status' => 'completed',
         ]);
 
         $response->assertSessionHasNoErrors();
@@ -194,8 +192,8 @@ class InventoryBOMDeductionTest extends TestCase
         // 2. Inventory should be deducted correctly
         // 1000 - (100 * 2 * 1.05) = 1000 - 210 = 790
         $inventory->refresh();
-        $this->assertEquals(790.0, (float)$inventory->quantity_on_hand);
-        $this->assertEquals(790.0, (float)$inventory->theoretical_quantity);
+        $this->assertEquals(790.0, (float) $inventory->quantity_on_hand);
+        $this->assertEquals(790.0, (float) $inventory->theoretical_quantity);
 
         // 3. Inventory Transaction of type usage should be recorded
         $this->assertDatabaseHas('inventory_transactions', [
@@ -218,7 +216,7 @@ class InventoryBOMDeductionTest extends TestCase
         $owner = User::factory()->create();
         $restaurant = Restaurant::factory()->create(['owner_user_id' => $owner->id]);
         $branch = RestaurantBranch::factory()->create(['restaurant_id' => $restaurant->id, 'manager_user_id' => $owner->id]);
-        
+
         $cashier = User::factory()->create([
             'restaurant_id' => $restaurant->id,
             'branch_id' => $branch->id,
@@ -229,7 +227,7 @@ class InventoryBOMDeductionTest extends TestCase
             'restaurant_id' => $restaurant->id,
             'name' => 'Gram',
             'symbol' => 'g',
-            'type' => 'mass'
+            'type' => 'mass',
         ]);
 
         $ingredient = Ingredient::create([
@@ -239,7 +237,7 @@ class InventoryBOMDeductionTest extends TestCase
             'name' => 'Gia vi',
             'sku' => 'SPICE-01',
             'average_cost' => 50,
-            'status' => 'active'
+            'status' => 'active',
         ]);
 
         $order = Order::create([
@@ -251,7 +249,7 @@ class InventoryBOMDeductionTest extends TestCase
             'status' => 'pending',
             'payment_status' => 'unpaid',
             'subtotal' => 50000,
-            'total_amount' => 50000
+            'total_amount' => 50000,
         ]);
 
         $reservation = InventoryReservation::create([
@@ -261,13 +259,13 @@ class InventoryBOMDeductionTest extends TestCase
             'ingredient_id' => $ingredient->id,
             'reserved_quantity' => 100.0,
             'status' => 'holding',
-            'expires_at' => now()->addMinutes(30)
+            'expires_at' => now()->addMinutes(30),
         ]);
 
         // Update status to cancelled
         $response = $this->actingAs($cashier)->patch(route('orders.update-status', $order), [
             'status' => 'cancelled',
-            'bypass_code' => 'MANAGER123'
+            'bypass_code' => 'MANAGER123',
         ]);
 
         $response->assertSessionHasNoErrors();

@@ -1,20 +1,20 @@
 <?php
 
-use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\SuperAdmin\AccountController;
 use App\Http\Controllers\SuperAdmin\AuditLogController;
 use App\Http\Controllers\SuperAdmin\BackupMaintenanceController;
 use App\Http\Controllers\SuperAdmin\BannerController;
 use App\Http\Controllers\SuperAdmin\BillingController;
 use App\Http\Controllers\SuperAdmin\BillingOverrideController;
+use App\Http\Controllers\SuperAdmin\CampaignTemplateController;
 use App\Http\Controllers\SuperAdmin\ChatbotDiagnosticsController;
 use App\Http\Controllers\SuperAdmin\ChatbotKnowledgeController;
 use App\Http\Controllers\SuperAdmin\ChurnController;
-use App\Http\Controllers\SuperAdmin\CampaignTemplateController;
 use App\Http\Controllers\SuperAdmin\CouponController;
-use App\Http\Controllers\SuperAdmin\DemoBookingManagementController;
 use App\Http\Controllers\SuperAdmin\CustomPlanBuilderController;
 use App\Http\Controllers\SuperAdmin\DashboardController;
+use App\Http\Controllers\SuperAdmin\DemoBookingManagementController;
+use App\Http\Controllers\SuperAdmin\FirewallController;
 use App\Http\Controllers\SuperAdmin\GarbageCollectorController;
 use App\Http\Controllers\SuperAdmin\GlobalCustomersController;
 use App\Http\Controllers\SuperAdmin\GlobalFeedbackController;
@@ -23,19 +23,23 @@ use App\Http\Controllers\SuperAdmin\GlobalRevenueController;
 use App\Http\Controllers\SuperAdmin\GlobalSearchController;
 use App\Http\Controllers\SuperAdmin\ImpersonateController;
 use App\Http\Controllers\SuperAdmin\MaintenanceScheduleController;
-use App\Http\Controllers\SuperAdmin\OperationsCenterController;
 use App\Http\Controllers\SuperAdmin\MeilisearchConsoleController;
 use App\Http\Controllers\SuperAdmin\NewsPostController;
 use App\Http\Controllers\SuperAdmin\NotificationCampaignController;
+use App\Http\Controllers\SuperAdmin\OperationsCenterController;
 use App\Http\Controllers\SuperAdmin\ReferralController;
+use App\Http\Controllers\SuperAdmin\ResourceLimitController;
 use App\Http\Controllers\SuperAdmin\RestaurantController;
 use App\Http\Controllers\SuperAdmin\RestaurantCrmController;
+use App\Http\Controllers\SuperAdmin\SecurityThreatController;
 use App\Http\Controllers\SuperAdmin\ServiceMonitorController;
 use App\Http\Controllers\SuperAdmin\SubscriptionPlanController;
 use App\Http\Controllers\SuperAdmin\SupportPortalController;
 use App\Http\Controllers\SuperAdmin\SystemSettingController;
 use App\Http\Controllers\SuperAdmin\TenantHealthController;
+use App\Http\Controllers\SuperAdmin\TenantPortabilityController;
 use App\Http\Controllers\SuperAdmin\TwoFactorConfirmationController;
+use Illuminate\Support\Facades\Route;
 
 Route::prefix('super-admin')
     ->name('superadmin.')
@@ -75,7 +79,7 @@ Route::prefix('super-admin')
             Route::get('restaurants', [RestaurantController::class, 'index'])->name('restaurants.index');
             Route::get('restaurants/{restaurant}', [RestaurantController::class, 'show'])->name('restaurants.show');
             Route::get('restaurants/{restaurant}/subscriptions-history', [RestaurantController::class, 'subscriptionsHistory'])->name('restaurants.subscriptions-history');
-            Route::get('restaurants/{restaurant}/export', [\App\Http\Controllers\SuperAdmin\TenantPortabilityController::class, 'export'])
+            Route::get('restaurants/{restaurant}/export', [TenantPortabilityController::class, 'export'])
                 ->name('restaurants.export')
                 ->middleware('superadmin.stepup:always');
         });
@@ -88,7 +92,7 @@ Route::prefix('super-admin')
             Route::patch('restaurants/{restaurant}/plan', [RestaurantController::class, 'updatePlan'])->name('restaurants.plan');
             Route::patch('restaurants/{restaurant}/unflag', [RestaurantController::class, 'unflag'])->name('restaurants.unflag');
             Route::patch('restaurants/{restaurant}/storage-quota', [RestaurantController::class, 'updateStorageQuota'])->name('restaurants.storage-quota');
-            Route::post('restaurants/{restaurant}/sandbox', [\App\Http\Controllers\SuperAdmin\TenantPortabilityController::class, 'createSandbox'])->name('restaurants.sandbox');
+            Route::post('restaurants/{restaurant}/sandbox', [TenantPortabilityController::class, 'createSandbox'])->name('restaurants.sandbox');
         });
 
         // Tenant CRM mutations.
@@ -242,7 +246,7 @@ Route::prefix('super-admin')
             Route::get('settings', [SystemSettingController::class, 'index'])->name('settings.index');
             Route::post('settings', [SystemSettingController::class, 'update'])->name('settings.update');
             Route::post('settings/test-email', [SystemSettingController::class, 'testEmail'])->name('settings.test-email');
-            Route::get('resource-limits', [\App\Http\Controllers\SuperAdmin\ResourceLimitController::class, 'index'])->name('resource-limits.index');
+            Route::get('resource-limits', [ResourceLimitController::class, 'index'])->name('resource-limits.index');
             Route::get('service-monitor', [ServiceMonitorController::class, 'index'])->name('service-monitor.index');
             Route::post('service-monitor/ping', [ServiceMonitorController::class, 'pingAll'])->name('service-monitor.ping');
             Route::post('service-monitor/{service}/toggle-maintenance', [ServiceMonitorController::class, 'toggleMaintenance'])->name('service-monitor.toggle-maintenance');
@@ -265,27 +269,27 @@ Route::prefix('super-admin')
 
         // Security administration.
         Route::middleware(['superadmin.permission:superadmin.security.manage', 'superadmin.stepup'])->group(function () {
-            Route::get('firewall', [\App\Http\Controllers\SuperAdmin\FirewallController::class, 'index'])->name('firewall.index');
-            Route::delete('firewall/blocked/{ip}', [\App\Http\Controllers\SuperAdmin\FirewallController::class, 'unblock'])->name('firewall.unblock');
-            Route::post('firewall/whitelist', [\App\Http\Controllers\SuperAdmin\FirewallController::class, 'whitelist'])->name('firewall.whitelist');
-            Route::delete('firewall/whitelist/{ip}', [\App\Http\Controllers\SuperAdmin\FirewallController::class, 'removeWhitelist'])->name('firewall.whitelist.remove');
-            Route::post('firewall/settings', [\App\Http\Controllers\SuperAdmin\FirewallController::class, 'updateSettings'])->name('firewall.settings');
-            Route::get('security-center', [\App\Http\Controllers\SuperAdmin\SecurityThreatController::class, 'index'])->name('security-center.index');
-            Route::post('security-center/sessions/{id}/revoke', [\App\Http\Controllers\SuperAdmin\SecurityThreatController::class, 'revokeSession'])->name('security-center.revoke-session');
-            Route::post('security-center/users/{user}/force-logout', [\App\Http\Controllers\SuperAdmin\SecurityThreatController::class, 'forceLogoutUser'])
+            Route::get('firewall', [FirewallController::class, 'index'])->name('firewall.index');
+            Route::delete('firewall/blocked/{ip}', [FirewallController::class, 'unblock'])->name('firewall.unblock');
+            Route::post('firewall/whitelist', [FirewallController::class, 'whitelist'])->name('firewall.whitelist');
+            Route::delete('firewall/whitelist/{ip}', [FirewallController::class, 'removeWhitelist'])->name('firewall.whitelist.remove');
+            Route::post('firewall/settings', [FirewallController::class, 'updateSettings'])->name('firewall.settings');
+            Route::get('security-center', [SecurityThreatController::class, 'index'])->name('security-center.index');
+            Route::post('security-center/sessions/{id}/revoke', [SecurityThreatController::class, 'revokeSession'])->name('security-center.revoke-session');
+            Route::post('security-center/users/{user}/force-logout', [SecurityThreatController::class, 'forceLogoutUser'])
                 ->name('security-center.force-logout-user')
                 ->middleware('superadmin.stepup:always');
-            Route::post('security-center/force-logout-all', [\App\Http\Controllers\SuperAdmin\SecurityThreatController::class, 'forceLogoutAll'])
+            Route::post('security-center/force-logout-all', [SecurityThreatController::class, 'forceLogoutAll'])
                 ->name('security-center.force-logout-all')
                 ->middleware('superadmin.stepup:always');
-            Route::post('security-center/api-keys/{apiKey}/rotate', [\App\Http\Controllers\SuperAdmin\SecurityThreatController::class, 'rotateApiKey'])
+            Route::post('security-center/api-keys/{apiKey}/rotate', [SecurityThreatController::class, 'rotateApiKey'])
                 ->name('security-center.api-keys.rotate')
                 ->middleware('superadmin.stepup:always');
-            Route::post('security-center/api-keys/{apiKey}/revoke', [\App\Http\Controllers\SuperAdmin\SecurityThreatController::class, 'revokeApiKey'])
+            Route::post('security-center/api-keys/{apiKey}/revoke', [SecurityThreatController::class, 'revokeApiKey'])
                 ->name('security-center.api-keys.revoke')
                 ->middleware('superadmin.stepup:always');
-            Route::post('security-center/alerts/{alert}/acknowledge', [\App\Http\Controllers\SuperAdmin\SecurityThreatController::class, 'acknowledgeAlert'])->name('security-center.alerts.acknowledge');
-            Route::post('security-center/alerts/{alert}/resolve', [\App\Http\Controllers\SuperAdmin\SecurityThreatController::class, 'resolveAlert'])->name('security-center.alerts.resolve');
+            Route::post('security-center/alerts/{alert}/acknowledge', [SecurityThreatController::class, 'acknowledgeAlert'])->name('security-center.alerts.acknowledge');
+            Route::post('security-center/alerts/{alert}/resolve', [SecurityThreatController::class, 'resolveAlert'])->name('security-center.alerts.resolve');
         });
 
         // Security-sensitive operations center. All mutating controls require the system permission and step-up.

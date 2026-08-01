@@ -151,8 +151,8 @@ const reportStats = computed(() => ({
 // --- ACTIONS ---
 const submitReport = () => {
     if (reportForm.processing) {
-return;
-}
+        return;
+    }
 
     reportForm.post('/violations', {
         onSuccess: () => {
@@ -173,8 +173,8 @@ const openResolveModal = (report: Report) => {
 
 const submitResolve = () => {
     if (resolveForm.processing) {
-return;
-}
+        return;
+    }
 
     if (!selectedReport.value) {
         return;

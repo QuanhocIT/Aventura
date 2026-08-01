@@ -2,11 +2,7 @@ import { defineStore } from 'pinia';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
-export type TableStatus =
-    | 'available'
-    | 'occupied'
-    | 'reserved'
-    | 'cleaning';
+export type TableStatus = 'available' | 'occupied' | 'reserved' | 'cleaning';
 
 export interface RestaurantTable {
     id: number;
@@ -45,8 +41,9 @@ export const useTablesStore = defineStore('tables', {
         byId: (state) => (tableId: number) =>
             state.tables.find((t) => t.id === tableId) ?? null,
 
-        areas: (state): string[] =>
-            [...new Set(state.tables.map((t) => t.area_name))],
+        areas: (state): string[] => [
+            ...new Set(state.tables.map((t) => t.area_name)),
+        ],
     },
 
     actions: {

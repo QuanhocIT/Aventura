@@ -15,9 +15,13 @@ class MultiBranchDashboardTest extends TestCase
     use RefreshDatabase;
 
     private User $owner;
+
     private Restaurant $restaurant;
+
     private RestaurantBranch $branch1;
+
     private RestaurantBranch $branch2;
+
     private Role $ownerRole;
 
     protected function setUp(): void
@@ -32,7 +36,7 @@ class MultiBranchDashboardTest extends TestCase
             'max_branches' => 5,
             'features' => array_merge($this->restaurant->plan->features ?? [], [
                 'advanced_analytics' => true,
-            ])
+            ]),
         ]);
         $this->owner->update(['restaurant_id' => $this->restaurant->id]);
 
@@ -59,15 +63,15 @@ class MultiBranchDashboardTest extends TestCase
         $response = $this->actingAs($this->owner)->get(route('dashboard'));
 
         $response->assertOk();
-        
+
         $page = $response->original->getData()['page'];
         $this->assertEquals('Dashboard', $page['component']);
-        
+
         $props = $page['props'];
         $this->assertNull($props['branchId']);
         $this->assertCount(2, $props['branches']);
         $this->assertCount(2, $props['branchComparisons']);
-        
+
         // Assert details of branch comparisons are present
         $this->assertEquals('Chi nhánh Q1', $props['branchComparisons'][0]['name']);
         $this->assertEquals('Chi nhánh Q3', $props['branchComparisons'][1]['name']);
@@ -78,10 +82,10 @@ class MultiBranchDashboardTest extends TestCase
         $response = $this->actingAs($this->owner)->get(route('dashboard', ['branch_id' => $this->branch1->id]));
 
         $response->assertOk();
-        
+
         $page = $response->original->getData()['page'];
         $props = $page['props'];
-        
+
         $this->assertEquals($this->branch1->id, $props['branchId']);
         $this->assertCount(2, $props['branches']);
         // Comparisons table should be empty when filtering by a specific branch
@@ -91,7 +95,7 @@ class MultiBranchDashboardTest extends TestCase
     public function test_employee_restricted_to_assigned_branch(): void
     {
         $employeeRole = Role::firstOrCreate(['name' => 'manager', 'guard_name' => 'web']);
-        
+
         $employeeUser = User::factory()->create([
             'restaurant_id' => $this->restaurant->id,
             'branch_id' => $this->branch2->id,
@@ -111,10 +115,10 @@ class MultiBranchDashboardTest extends TestCase
         $response = $this->actingAs($employeeUser)->get(route('dashboard', ['branch_id' => $this->branch1->id]));
 
         $response->assertOk();
-        
+
         $page = $response->original->getData()['page'];
         $props = $page['props'];
-        
+
         // Assert that branchId defaulted back to employee's assigned branch2
         $this->assertEquals($this->branch2->id, $props['branchId']);
     }

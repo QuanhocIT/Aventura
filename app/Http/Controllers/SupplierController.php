@@ -21,6 +21,7 @@ use App\Services\PriceAnalyticsService;
 use App\Services\QuotaService;
 use App\Services\SupplierSlaService;
 use App\Support\Tenant\TenantContext;
+use App\Support\TenantRule;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
@@ -216,7 +217,7 @@ class SupplierController extends Controller
 
         $request->validate([
             'items' => ['required', 'array', 'min:1'],
-            'items.*.ingredient_id' => ['required', \App\Support\TenantRule::exists('ingredients')],
+            'items.*.ingredient_id' => ['required', TenantRule::exists('ingredients')],
             'items.*.quantity' => ['required', 'numeric', 'min:0.001'],
             'notes' => ['nullable', 'string', 'max:500'],
             'delivery_due_date' => ['nullable', 'date'],
@@ -344,7 +345,7 @@ class SupplierController extends Controller
         $maxSize = SystemSetting::get('upload_invoice_image_max', 4096);
         $request->validate([
             'items' => ['required', 'array'],
-            'items.*.ingredient_id' => ['required', \App\Support\TenantRule::exists('ingredients')],
+            'items.*.ingredient_id' => ['required', TenantRule::exists('ingredients')],
             'items.*.quantity_received' => ['required', 'numeric', 'min:0'],
             'items.*.invoice_price' => ['required', 'numeric', 'min:0'],
             'invoice_file' => ['nullable', 'file', 'image', 'mimes:jpeg,png,jpg,pdf', 'max:'.$maxSize],
@@ -672,9 +673,9 @@ class SupplierController extends Controller
 
         $request->validate([
             'items' => ['required', 'array', 'min:1'],
-            'items.*.ingredient_id' => ['required', \App\Support\TenantRule::exists('ingredients')],
+            'items.*.ingredient_id' => ['required', TenantRule::exists('ingredients')],
             'items.*.quantity' => ['required', 'numeric', 'min:0.001'],
-            'items.*.supplier_id' => ['required', \App\Support\TenantRule::exists('suppliers')],
+            'items.*.supplier_id' => ['required', TenantRule::exists('suppliers')],
             'items.*.price' => ['required', 'numeric', 'min:0'],
         ]);
 
@@ -860,6 +861,7 @@ class SupplierController extends Controller
 
         return back()->with('success', 'Đã hoàn trả tiền ký quỹ (Escrow Refunded) về tài khoản nhà hàng thành công.');
     }
+
     private function resolveOperationalBranch($user): int
     {
         $branchId = $this->tenantContext->activeBranchId()

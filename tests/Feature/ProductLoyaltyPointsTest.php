@@ -20,8 +20,11 @@ class ProductLoyaltyPointsTest extends TestCase
     use RefreshDatabase;
 
     private User $owner;
+
     private Restaurant $restaurant;
+
     private RestaurantBranch $branch;
+
     private ProductCategory $category;
 
     protected function setUp(): void
@@ -44,10 +47,10 @@ class ProductLoyaltyPointsTest extends TestCase
 
         $this->category = ProductCategory::create([
             'restaurant_id' => $this->restaurant->id,
-            'name'          => 'Phở & Bún',
-            'slug'          => 'pho-bun',
+            'name' => 'Phở & Bún',
+            'slug' => 'pho-bun',
             'display_order' => 1,
-            'status'        => 'active',
+            'status' => 'active',
         ]);
     }
 
@@ -57,14 +60,14 @@ class ProductLoyaltyPointsTest extends TestCase
 
         // Store Product with 30 earn points and 300 redeem points
         $response = $this->post(route('products.store'), [
-            'category_id'   => $this->category->id,
-            'name'          => 'Phở Bò Đặc Biệt',
-            'price'         => 50000,
-            'earn_points'   => 30,
+            'category_id' => $this->category->id,
+            'name' => 'Phở Bò Đặc Biệt',
+            'price' => 50000,
+            'earn_points' => 30,
             'redeem_points' => 300,
-            'description'   => 'Phở truyền thống gia truyền thơm ngon đậm đà',
-            'scope'         => 'branch',
-            'branch_id'     => $this->branch->id,
+            'description' => 'Phở truyền thống gia truyền thơm ngon đậm đà',
+            'scope' => 'branch',
+            'branch_id' => $this->branch->id,
         ]);
 
         $response->assertSessionHasNoErrors();
@@ -76,10 +79,10 @@ class ProductLoyaltyPointsTest extends TestCase
 
         // Update Product
         $updateResponse = $this->patch(route('products.update', $product->id), [
-            'name'          => 'Phở Bò Tái Lăn',
-            'price'         => 55000,
-            'description'   => 'Phở bò tái lăn đậm vị',
-            'earn_points'   => 50,
+            'name' => 'Phở Bò Tái Lăn',
+            'price' => 55000,
+            'description' => 'Phở bò tái lăn đậm vị',
+            'earn_points' => 50,
             'redeem_points' => 450,
         ]);
 
@@ -94,38 +97,38 @@ class ProductLoyaltyPointsTest extends TestCase
     {
         $product = Product::create([
             'restaurant_id' => $this->restaurant->id,
-            'category_id'   => $this->category->id,
-            'code'          => 'PHO-01',
-            'name'          => 'Phở Bò',
-            'slug'          => 'pho-bo',
-            'price'         => 50000,
-            'earn_points'   => 30,
+            'category_id' => $this->category->id,
+            'code' => 'PHO-01',
+            'name' => 'Phở Bò',
+            'slug' => 'pho-bo',
+            'price' => 50000,
+            'earn_points' => 30,
             'redeem_points' => 300,
-            'is_active'     => true,
-            'is_available'  => true,
+            'is_active' => true,
+            'is_available' => true,
         ]);
 
         $customer = Customer::create([
-            'restaurant_id'  => $this->restaurant->id,
-            'full_name'      => 'Khách Hàng Thân Thiết',
-            'phone'          => '0988777666',
+            'restaurant_id' => $this->restaurant->id,
+            'full_name' => 'Khách Hàng Thân Thiết',
+            'phone' => '0988777666',
             'loyalty_points' => 500, // Starts with 500 points
         ]);
 
         $order = Order::create([
             'restaurant_id' => $this->restaurant->id,
-            'order_number'  => 'ORD-TEST-001',
-            'total_amount'  => 100000,
-            'status'        => 'completed',
+            'order_number' => 'ORD-TEST-001',
+            'total_amount' => 100000,
+            'status' => 'completed',
         ]);
 
         OrderItem::create([
             'restaurant_id' => $this->restaurant->id,
-            'order_id'      => $order->id,
-            'product_id'    => $product->id,
-            'quantity'      => 2, // 2 x Phở = 2 x 30 = 60 points earned
-            'unit_price'    => 50000,
-            'line_total'    => 100000,
+            'order_id' => $order->id,
+            'product_id' => $product->id,
+            'quantity' => 2, // 2 x Phở = 2 x 30 = 60 points earned
+            'unit_price' => 50000,
+            'line_total' => 100000,
         ]);
 
         $loyaltyService = app(LoyaltyService::class);

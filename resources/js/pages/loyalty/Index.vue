@@ -13,7 +13,13 @@ import {
 import { computed } from 'vue';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+    Card,
+    CardContent,
+    CardDescription,
+    CardHeader,
+    CardTitle,
+} from '@/components/ui/card';
 import AppLayout from '@/layouts/AppLayout.vue';
 
 defineOptions({ layout: AppLayout });
@@ -55,7 +61,12 @@ const typeColor: Record<string, string> = {
 };
 
 const totalTierMembers = computed(() => {
-    return props.metrics?.tierDistribution?.reduce((acc, t) => acc + (t.count || 0), 0) || 1;
+    return (
+        props.metrics?.tierDistribution?.reduce(
+            (acc, t) => acc + (t.count || 0),
+            0,
+        ) || 1
+    );
 });
 
 const tierSegments = computed(() => {
@@ -63,14 +74,14 @@ const tierSegments = computed(() => {
     let accumulatedPercent = 0;
     const distribution = props.metrics?.tierDistribution || [];
 
-    return distribution.map(t => {
+    return distribution.map((t) => {
         const percent = ((t.count || 0) / total) * 100;
         const segment = {
             name: t.name,
             count: t.count || 0,
             percent,
             color: t.color || '#94a3b8',
-            dashOffset: 175.9 * (1 - ((t.count || 0) / total)),
+            dashOffset: 175.9 * (1 - (t.count || 0) / total),
             rotation: (accumulatedPercent / 100) * 360,
         };
         accumulatedPercent += percent;
@@ -123,38 +134,86 @@ const tierSegments = computed(() => {
         </div>
         <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
             <!-- Total Members Profiles -->
-            <Card class="shadow-xs transition-transform hover:translate-y-[-2px]">
-                <CardHeader class="flex flex-row items-center justify-between pb-2">
-                    <CardDescription class="text-xs font-bold tracking-wider text-slate-400 uppercase">Thành viên tích cực</CardDescription>
+            <Card
+                class="shadow-xs transition-transform hover:translate-y-[-2px]"
+            >
+                <CardHeader
+                    class="flex flex-row items-center justify-between pb-2"
+                >
+                    <CardDescription
+                        class="text-xs font-bold tracking-wider text-slate-400 uppercase"
+                        >Thành viên tích cực</CardDescription
+                    >
                     <Users class="size-4 text-slate-400" />
                 </CardHeader>
                 <CardContent class="pb-3">
-                    <span class="text-3xl font-black text-slate-800 dark:text-slate-100">{{ (metrics?.totalMembers ?? 0).toLocaleString() }}</span>
-                    <p class="mt-0.5 text-xs text-muted-foreground">hội viên đang hoạt động trong hệ thống</p>
+                    <span
+                        class="text-3xl font-black text-slate-800 dark:text-slate-100"
+                        >{{
+                            (metrics?.totalMembers ?? 0).toLocaleString()
+                        }}</span
+                    >
+                    <p class="mt-0.5 text-xs text-muted-foreground">
+                        hội viên đang hoạt động trong hệ thống
+                    </p>
                 </CardContent>
             </Card>
 
             <!-- Total Points Issued -->
-            <Card class="border-emerald-100 shadow-xs transition-transform hover:translate-y-[-2px] dark:border-emerald-950/20">
-                <CardHeader class="flex flex-row items-center justify-between pb-2">
-                    <CardDescription class="text-xs font-bold tracking-wider text-emerald-500 uppercase">Điểm tích lũy đã phát</CardDescription>
-                    <ArrowUpRight class="size-4 text-emerald-600 dark:text-emerald-400" />
+            <Card
+                class="border-emerald-100 shadow-xs transition-transform hover:translate-y-[-2px] dark:border-emerald-950/20"
+            >
+                <CardHeader
+                    class="flex flex-row items-center justify-between pb-2"
+                >
+                    <CardDescription
+                        class="text-xs font-bold tracking-wider text-emerald-500 uppercase"
+                        >Điểm tích lũy đã phát</CardDescription
+                    >
+                    <ArrowUpRight
+                        class="size-4 text-emerald-600 dark:text-emerald-400"
+                    />
                 </CardHeader>
                 <CardContent class="pb-3">
-                    <span class="text-3xl font-black text-emerald-600 dark:text-emerald-400">{{ (metrics?.totalPointsIssued ?? 0).toLocaleString() }} pt</span>
-                    <p class="mt-0.5 text-xs text-muted-foreground">đã được cộng qua các đơn hàng</p>
+                    <span
+                        class="text-3xl font-black text-emerald-600 dark:text-emerald-400"
+                        >{{
+                            (metrics?.totalPointsIssued ?? 0).toLocaleString()
+                        }}
+                        pt</span
+                    >
+                    <p class="mt-0.5 text-xs text-muted-foreground">
+                        đã được cộng qua các đơn hàng
+                    </p>
                 </CardContent>
             </Card>
 
             <!-- Total Points Redeemed -->
-            <Card class="border-indigo-100 shadow-xs transition-transform hover:translate-y-[-2px] dark:border-indigo-950/20">
-                <CardHeader class="flex flex-row items-center justify-between pb-2">
-                    <CardDescription class="text-xs font-bold tracking-wider text-indigo-500 uppercase">Điểm tích lũy đã đổi</CardDescription>
-                    <ArrowDownRight class="size-4 text-indigo-600 dark:text-indigo-400" />
+            <Card
+                class="border-indigo-100 shadow-xs transition-transform hover:translate-y-[-2px] dark:border-indigo-950/20"
+            >
+                <CardHeader
+                    class="flex flex-row items-center justify-between pb-2"
+                >
+                    <CardDescription
+                        class="text-xs font-bold tracking-wider text-indigo-500 uppercase"
+                        >Điểm tích lũy đã đổi</CardDescription
+                    >
+                    <ArrowDownRight
+                        class="size-4 text-indigo-600 dark:text-indigo-400"
+                    />
                 </CardHeader>
                 <CardContent class="pb-3">
-                    <span class="text-3xl font-black text-indigo-600 dark:text-indigo-400">{{ (metrics?.totalPointsRedeemed ?? 0).toLocaleString() }} pt</span>
-                    <p class="mt-0.5 text-xs text-muted-foreground">đổi lấy ưu đãi & quà tặng thành công</p>
+                    <span
+                        class="text-3xl font-black text-indigo-600 dark:text-indigo-400"
+                        >{{
+                            (metrics?.totalPointsRedeemed ?? 0).toLocaleString()
+                        }}
+                        pt</span
+                    >
+                    <p class="mt-0.5 text-xs text-muted-foreground">
+                        đổi lấy ưu đãi & quà tặng thành công
+                    </p>
                 </CardContent>
             </Card>
         </div>
@@ -162,7 +221,9 @@ const tierSegments = computed(() => {
         <!-- Retention & Loyalty Metrics Row -->
         <div class="grid grid-cols-1 gap-3 sm:grid-cols-5">
             <!-- 1. Donut chart: Tỉ lệ quy đổi (Redemption Rate) -->
-            <div class="flex flex-col items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white p-4 sm:col-span-1 dark:border-slate-800 dark:bg-slate-900/40">
+            <div
+                class="flex flex-col items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white p-4 sm:col-span-1 dark:border-slate-800 dark:bg-slate-900/40"
+            >
                 <svg width="80" height="80" viewBox="0 0 80 80">
                     <circle
                         cx="40"
@@ -181,7 +242,9 @@ const tierSegments = computed(() => {
                         stroke="#6366f1"
                         stroke-width="10"
                         stroke-dasharray="175.9"
-                        :stroke-dashoffset="175.9 * (1 - (metrics.redemptionRate ?? 0) / 100)"
+                        :stroke-dashoffset="
+                            175.9 * (1 - (metrics.redemptionRate ?? 0) / 100)
+                        "
                         stroke-linecap="round"
                         transform="rotate(-90 40 40)"
                     />
@@ -196,15 +259,26 @@ const tierSegments = computed(() => {
                         {{ metrics.redemptionRate }}%
                     </text>
                 </svg>
-                <p class="text-center text-[10px] font-bold tracking-wider text-slate-500 uppercase">
+                <p
+                    class="text-center text-[10px] font-bold tracking-wider text-slate-500 uppercase"
+                >
                     Tỷ lệ quy đổi
                 </p>
             </div>
 
             <!-- 2. Donut chart: Phân hạng hội viên (Tier distribution donut) -->
-            <div class="flex flex-col items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white p-4 sm:col-span-1 dark:border-slate-800 dark:bg-slate-900/40">
-                <div class="relative w-[80px] h-[80px] flex items-center justify-center">
-                    <svg width="80" height="80" viewBox="0 0 80 80" class="overflow-visible transform -rotate-90">
+            <div
+                class="flex flex-col items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white p-4 sm:col-span-1 dark:border-slate-800 dark:bg-slate-900/40"
+            >
+                <div
+                    class="relative flex h-[80px] w-[80px] items-center justify-center"
+                >
+                    <svg
+                        width="80"
+                        height="80"
+                        viewBox="0 0 80 80"
+                        class="-rotate-90 transform overflow-visible"
+                    >
                         <circle
                             cx="40"
                             cy="40"
@@ -228,45 +302,78 @@ const tierSegments = computed(() => {
                             :transform="`rotate(${seg.rotation} 40 40)`"
                         />
                     </svg>
-                    <div class="absolute flex flex-col items-center justify-center text-center">
-                        <span class="text-[10px] font-black text-slate-800 dark:text-slate-100">{{ metrics?.tierDistribution?.length ?? 0 }}</span>
-                        <span class="text-[6px] text-muted-foreground uppercase">Hạng</span>
+                    <div
+                        class="absolute flex flex-col items-center justify-center text-center"
+                    >
+                        <span
+                            class="text-[10px] font-black text-slate-800 dark:text-slate-100"
+                            >{{ metrics?.tierDistribution?.length ?? 0 }}</span
+                        >
+                        <span class="text-[6px] text-muted-foreground uppercase"
+                            >Hạng</span
+                        >
                     </div>
                 </div>
-                <p class="text-center text-[10px] font-bold tracking-wider text-slate-500 uppercase">
+                <p
+                    class="text-center text-[10px] font-bold tracking-wider text-slate-500 uppercase"
+                >
                     Hạng hội viên
                 </p>
             </div>
 
             <!-- 3. Hạng nhiều nhất -->
-            <div class="flex flex-col items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white p-4 sm:col-span-1 dark:border-slate-800 dark:bg-slate-900/40">
+            <div
+                class="flex flex-col items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white p-4 sm:col-span-1 dark:border-slate-800 dark:bg-slate-900/40"
+            >
                 <Award class="size-6 text-indigo-500" />
-                <span class="text-sm font-black text-slate-850 dark:text-slate-200 text-center truncate w-full px-1">
-                    {{ metrics?.tierDistribution?.length ? [...metrics.tierDistribution].sort((a,b) => (b.count || 0) - (a.count || 0))[0]?.name : '—' }}
+                <span
+                    class="text-slate-850 w-full truncate px-1 text-center text-sm font-black dark:text-slate-200"
+                >
+                    {{
+                        metrics?.tierDistribution?.length
+                            ? [...metrics.tierDistribution].sort(
+                                  (a, b) => (b.count || 0) - (a.count || 0),
+                              )[0]?.name
+                            : '—'
+                    }}
                 </span>
-                <p class="text-center text-[9px] font-bold tracking-wider text-slate-500 uppercase">
+                <p
+                    class="text-center text-[9px] font-bold tracking-wider text-slate-500 uppercase"
+                >
                     Hạng đông nhất
                 </p>
             </div>
 
             <!-- 4. Quà tặng sẵn có -->
-            <div class="flex flex-col items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white p-4 sm:col-span-1 dark:border-slate-800 dark:bg-slate-900/40">
+            <div
+                class="flex flex-col items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white p-4 sm:col-span-1 dark:border-slate-800 dark:bg-slate-900/40"
+            >
                 <Gift class="size-6 text-pink-500" />
-                <span class="text-xl font-black text-slate-850 dark:text-slate-200">
+                <span
+                    class="text-slate-850 text-xl font-black dark:text-slate-200"
+                >
                     {{ rewards?.length ?? 0 }}
                 </span>
-                <p class="text-center text-[9px] font-bold tracking-wider text-slate-500 uppercase">
+                <p
+                    class="text-center text-[9px] font-bold tracking-wider text-slate-500 uppercase"
+                >
                     Phần thưởng
                 </p>
             </div>
 
             <!-- 5. Giao dịch gần đây -->
-            <div class="flex flex-col items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white p-4 sm:col-span-1 dark:border-slate-800 dark:bg-slate-900/40">
+            <div
+                class="flex flex-col items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white p-4 sm:col-span-1 dark:border-slate-800 dark:bg-slate-900/40"
+            >
                 <History class="size-6 text-blue-500" />
-                <span class="text-xl font-black text-slate-850 dark:text-slate-200">
+                <span
+                    class="text-slate-850 text-xl font-black dark:text-slate-200"
+                >
                     {{ metrics?.recentTransactions?.length ?? 0 }}
                 </span>
-                <p class="text-center text-[9px] font-bold tracking-wider text-slate-500 uppercase">
+                <p
+                    class="text-center text-[9px] font-bold tracking-wider text-slate-500 uppercase"
+                >
                     Số giao dịch
                 </p>
             </div>
@@ -274,24 +381,34 @@ const tierSegments = computed(() => {
 
         <div class="grid grid-cols-1 gap-6 lg:grid-cols-3">
             <!-- Tier Distribution -->
-            <Card class="rounded-2xl border border-slate-100 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900/40 overflow-hidden">
-                <CardHeader class="border-b pb-3 border-slate-100 dark:border-slate-800">
-                    <CardTitle class="text-sm font-bold flex items-center gap-1.5">
-                        <Award class="size-4.5 text-indigo-500" /> Phân bố hạng thành viên
+            <Card
+                class="overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900/40"
+            >
+                <CardHeader
+                    class="border-b border-slate-100 pb-3 dark:border-slate-800"
+                >
+                    <CardTitle
+                        class="flex items-center gap-1.5 text-sm font-bold"
+                    >
+                        <Award class="size-4.5 text-indigo-500" /> Phân bố hạng
+                        thành viên
                     </CardTitle>
                 </CardHeader>
-                <CardContent class="p-5 space-y-4">
+                <CardContent class="space-y-4 p-5">
                     <!-- Stacked Horizontal Bar for Tier Distribution -->
-                    <div v-if="metrics.tierDistribution.length" class="h-3.5 w-full rounded-full bg-slate-100 dark:bg-slate-800 flex overflow-hidden">
-                        <div 
-                            v-for="tier in metrics.tierDistribution" 
-                            :key="tier.name" 
+                    <div
+                        v-if="metrics.tierDistribution.length"
+                        class="flex h-3.5 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800"
+                    >
+                        <div
+                            v-for="tier in metrics.tierDistribution"
+                            :key="tier.name"
                             :style="{
                                 width: `${(tier.count / totalTierMembers) * 100}%`,
-                                backgroundColor: tier.color || '#94a3b8'
+                                backgroundColor: tier.color || '#94a3b8',
                             }"
-                             class="h-full first:rounded-l-full last:rounded-r-full transition-all"
-                             :title="`${tier.name}: ${tier.count} (${((tier.count / totalTierMembers) * 100).toFixed(0)}%)`"
+                            class="h-full transition-all first:rounded-l-full last:rounded-r-full"
+                            :title="`${tier.name}: ${tier.count} (${((tier.count / totalTierMembers) * 100).toFixed(0)}%)`"
                         ></div>
                     </div>
 
@@ -305,42 +422,71 @@ const tierSegments = computed(() => {
                                 <span
                                     class="h-3 w-3 rounded-full"
                                     :style="{
-                                        backgroundColor: tier.color || '#94a3b8',
+                                        backgroundColor:
+                                            tier.color || '#94a3b8',
                                     }"
                                 ></span>
-                                <span class="text-xs font-semibold">{{ tier.name }}</span>
+                                <span class="text-xs font-semibold">{{
+                                    tier.name
+                                }}</span>
                             </div>
-                            <span class="text-xs font-black text-slate-700 dark:text-slate-300">
-                                {{ tier.count }} TV <span class="text-[10px] text-muted-foreground font-normal">({{ ((tier.count / totalTierMembers) * 100).toFixed(0) }}%)</span>
+                            <span
+                                class="text-xs font-black text-slate-700 dark:text-slate-300"
+                            >
+                                {{ tier.count }} TV
+                                <span
+                                    class="text-[10px] font-normal text-muted-foreground"
+                                    >({{
+                                        (
+                                            (tier.count / totalTierMembers) *
+                                            100
+                                        ).toFixed(0)
+                                    }}%)</span
+                                >
                             </span>
                         </div>
                     </div>
-                    
+
                     <div
                         v-if="!metrics.tierDistribution.length"
                         class="rounded-xl border border-dashed border-border p-6 text-center text-xs text-muted-foreground"
                     >
-                        Chưa có hạng thành viên nào. 
-                        <Link href="/loyalty/settings" class="text-indigo-600 dark:text-indigo-400 font-bold underline ml-1">Thiết lập ngay</Link>
+                        Chưa có hạng thành viên nào.
+                        <Link
+                            href="/loyalty/settings"
+                            class="ml-1 font-bold text-indigo-600 underline dark:text-indigo-400"
+                            >Thiết lập ngay</Link
+                        >
                     </div>
                 </CardContent>
             </Card>
 
             <!-- Rewards summary -->
-            <Card class="rounded-2xl border border-slate-100 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900/40 overflow-hidden">
-                <CardHeader class="border-b pb-3 border-slate-100 dark:border-slate-800">
-                    <CardTitle class="text-sm font-bold flex items-center gap-1.5">
-                        <Gift class="size-4.5 text-pink-500" /> Danh sách phần thưởng
+            <Card
+                class="overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900/40"
+            >
+                <CardHeader
+                    class="border-b border-slate-100 pb-3 dark:border-slate-800"
+                >
+                    <CardTitle
+                        class="flex items-center gap-1.5 text-sm font-bold"
+                    >
+                        <Gift class="size-4.5 text-pink-500" /> Danh sách phần
+                        thưởng
                     </CardTitle>
                 </CardHeader>
-                <CardContent class="p-5 space-y-3">
+                <CardContent class="space-y-3 p-5">
                     <div
                         v-for="r in rewards.slice(0, 5)"
                         :key="r.id"
-                        class="flex items-center justify-between text-xs border-b pb-2 last:border-0 last:pb-0"
+                        class="flex items-center justify-between border-b pb-2 text-xs last:border-0 last:pb-0"
                     >
-                        <span class="font-medium truncate mr-2">{{ r.name }}</span>
-                        <Badge variant="secondary" class="bg-pink-50 text-pink-600 dark:bg-pink-950/30 dark:text-pink-400 border-none font-bold"
+                        <span class="mr-2 truncate font-medium">{{
+                            r.name
+                        }}</span>
+                        <Badge
+                            variant="secondary"
+                            class="border-none bg-pink-50 font-bold text-pink-600 dark:bg-pink-950/30 dark:text-pink-400"
                             >{{ r.points_cost }} điểm</Badge
                         >
                     </div>
@@ -354,13 +500,20 @@ const tierSegments = computed(() => {
             </Card>
 
             <!-- Recent Transactions -->
-            <Card class="rounded-2xl border border-slate-100 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900/40 overflow-hidden">
-                <CardHeader class="border-b pb-3 border-slate-100 dark:border-slate-800">
-                    <CardTitle class="text-sm font-bold flex items-center gap-1.5">
-                        <History class="size-4.5 text-indigo-500" /> Nhật ký giao dịch gần đây
+            <Card
+                class="overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900/40"
+            >
+                <CardHeader
+                    class="border-b border-slate-100 pb-3 dark:border-slate-800"
+                >
+                    <CardTitle
+                        class="flex items-center gap-1.5 text-sm font-bold"
+                    >
+                        <History class="size-4.5 text-indigo-500" /> Nhật ký
+                        giao dịch gần đây
                     </CardTitle>
                 </CardHeader>
-                <CardContent class="p-5 max-h-64 space-y-2.5 overflow-y-auto">
+                <CardContent class="max-h-64 space-y-2.5 overflow-y-auto p-5">
                     <div
                         v-for="tx in metrics.recentTransactions.slice(0, 10)"
                         :key="tx.id"
@@ -370,20 +523,21 @@ const tierSegments = computed(() => {
                             <div class="flex items-center gap-1.5">
                                 <span
                                     :class="[
-                                        'inline-flex rounded px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider',
+                                        'inline-flex rounded px-1.5 py-0.5 text-[9px] font-bold tracking-wider uppercase',
                                         typeColor[tx.type] ?? '',
                                     ]"
                                 >
                                     {{ typeLabel[tx.type] ?? tx.type }}
                                 </span>
-                                <span class="font-bold text-slate-700 dark:text-slate-350">{{
-                                    tx.customer?.full_name ?? '—'
-                                }}</span>
+                                <span
+                                    class="dark:text-slate-350 font-bold text-slate-700"
+                                    >{{ tx.customer?.full_name ?? '—' }}</span
+                                >
                             </div>
                         </div>
                         <span
                             :class="[
-                                'font-black font-mono',
+                                'font-mono font-black',
                                 tx.points > 0
                                     ? 'text-emerald-500'
                                     : 'text-rose-500',

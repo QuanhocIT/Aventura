@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { Users, Utensils, AlertTriangle } from 'lucide-vue-next';
 import { Badge } from '@/components/ui/badge';
-import { TableItem } from '../types';
+import type { TableItem } from '../types';
 
 defineProps<{
     tables: TableItem[];
@@ -15,18 +15,31 @@ const emit = defineEmits<{
     (e: 'selectTable', table: TableItem): void;
 }>();
 
-const numberFormat = (val: number) => new Intl.NumberFormat('vi-VN').format(val);
+const numberFormat = (val: number) =>
+    new Intl.NumberFormat('vi-VN').format(val);
 
 const getStatusBadge = (status: TableItem['status']) => {
     switch (status) {
         case 'available':
-            return { label: 'Bàn Trống', class: 'bg-emerald-500/15 text-emerald-600 dark:bg-emerald-500/20' };
+            return {
+                label: 'Bàn Trống',
+                class: 'bg-emerald-500/15 text-emerald-600 dark:bg-emerald-500/20',
+            };
         case 'occupied':
-            return { label: 'Có Khách', class: 'bg-rose-500/15 text-rose-600 dark:bg-rose-500/20' };
+            return {
+                label: 'Có Khách',
+                class: 'bg-rose-500/15 text-rose-600 dark:bg-rose-500/20',
+            };
         case 'reserved':
-            return { label: 'Đã Đặt', class: 'bg-amber-500/15 text-amber-600 dark:bg-amber-500/20' };
+            return {
+                label: 'Đã Đặt',
+                class: 'bg-amber-500/15 text-amber-600 dark:bg-amber-500/20',
+            };
         default:
-            return { label: 'Dọn dẹp/Tắt', class: 'bg-slate-500/15 text-slate-600 dark:bg-slate-500/20' };
+            return {
+                label: 'Dọn dẹp/Tắt',
+                class: 'bg-slate-500/15 text-slate-600 dark:bg-slate-500/20',
+            };
     }
 };
 </script>
@@ -38,9 +51,11 @@ const getStatusBadge = (status: TableItem['status']) => {
             <button
                 @click="emit('update:selectedArea', 'all')"
                 class="rounded-xl px-4 py-2 text-xs font-bold transition-all"
-                :class="selectedArea === 'all'
-                    ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/20'
-                    : 'bg-white text-slate-600 hover:bg-slate-100 dark:bg-slate-800 dark:text-slate-300'"
+                :class="
+                    selectedArea === 'all'
+                        ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/20'
+                        : 'bg-white text-slate-600 hover:bg-slate-100 dark:bg-slate-800 dark:text-slate-300'
+                "
             >
                 Tất cả khu vực
             </button>
@@ -50,16 +65,20 @@ const getStatusBadge = (status: TableItem['status']) => {
                 :key="area"
                 @click="emit('update:selectedArea', area)"
                 class="rounded-xl px-4 py-2 text-xs font-bold transition-all"
-                :class="selectedArea === area
-                    ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/20'
-                    : 'bg-white text-slate-600 hover:bg-slate-100 dark:bg-slate-800 dark:text-slate-300'"
+                :class="
+                    selectedArea === area
+                        ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/20'
+                        : 'bg-white text-slate-600 hover:bg-slate-100 dark:bg-slate-800 dark:text-slate-300'
+                "
             >
                 {{ area }}
             </button>
         </div>
 
         <!-- Grid sơ đồ bàn -->
-        <div class="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
+        <div
+            class="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5"
+        >
             <div
                 v-for="table in tables"
                 :key="table.id"
@@ -75,17 +94,25 @@ const getStatusBadge = (status: TableItem['status']) => {
                     <div class="flex items-center gap-2">
                         <div
                             class="flex size-9 items-center justify-center rounded-xl font-bold transition-colors"
-                            :class="table.status === 'occupied'
-                                ? 'bg-rose-100 text-rose-600 dark:bg-rose-950/40'
-                                : table.status === 'reserved'
-                                  ? 'bg-amber-100 text-amber-600 dark:bg-amber-950/40'
-                                  : 'bg-emerald-100 text-emerald-600 dark:bg-emerald-950/40'"
+                            :class="
+                                table.status === 'occupied'
+                                    ? 'bg-rose-100 text-rose-600 dark:bg-rose-950/40'
+                                    : table.status === 'reserved'
+                                      ? 'bg-amber-100 text-amber-600 dark:bg-amber-950/40'
+                                      : 'bg-emerald-100 text-emerald-600 dark:bg-emerald-950/40'
+                            "
                         >
                             <Utensils class="size-4" />
                         </div>
                         <div class="text-left">
-                            <h4 class="font-black text-slate-800 dark:text-slate-100">Bàn {{ table.name }}</h4>
-                            <span class="text-[10px] text-muted-foreground">{{ table.area || 'Chung' }}</span>
+                            <h4
+                                class="font-black text-slate-800 dark:text-slate-100"
+                            >
+                                Bàn {{ table.name }}
+                            </h4>
+                            <span class="text-[10px] text-muted-foreground">{{
+                                table.area || 'Chung'
+                            }}</span>
                         </div>
                     </div>
 
@@ -98,14 +125,20 @@ const getStatusBadge = (status: TableItem['status']) => {
                     </Badge>
                 </div>
 
-                <div class="mt-4 flex items-center justify-between border-t border-slate-100 pt-3 text-xs dark:border-slate-800">
+                <div
+                    class="mt-4 flex items-center justify-between border-t border-slate-100 pt-3 text-xs dark:border-slate-800"
+                >
                     <div class="flex items-center gap-1 text-slate-500">
                         <Users class="size-3.5" />
-                        <span class="text-[11px] font-medium">{{ table.capacity }} chỗ</span>
+                        <span class="text-[11px] font-medium"
+                            >{{ table.capacity }} chỗ</span
+                        >
                     </div>
 
                     <div v-if="table.active_order" class="text-right">
-                        <span class="block font-mono text-xs font-black text-indigo-600 dark:text-indigo-400">
+                        <span
+                            class="block font-mono text-xs font-black text-indigo-600 dark:text-indigo-400"
+                        >
                             {{ numberFormat(table.active_order.total_amount) }}đ
                         </span>
                     </div>
@@ -113,7 +146,10 @@ const getStatusBadge = (status: TableItem['status']) => {
 
                 <!-- Split Order / Red Flag Badge -->
                 <div
-                    v-if="table.active_order?.is_split || table.active_order?.is_red_flagged"
+                    v-if="
+                        table.active_order?.is_split ||
+                        table.active_order?.is_red_flagged
+                    "
                     class="absolute top-1.5 right-1.5 flex gap-1"
                 >
                     <span

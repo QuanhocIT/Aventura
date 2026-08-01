@@ -13,6 +13,7 @@ use App\Models\User;
 use App\Services\EInvoiceService;
 use App\Services\OrderSplitService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Validation\ValidationException;
 use Tests\TestCase;
 
 class Phase3FeaturesTest extends TestCase
@@ -20,6 +21,7 @@ class Phase3FeaturesTest extends TestCase
     use RefreshDatabase;
 
     private Restaurant $restaurant;
+
     private User $user;
 
     private RestaurantBranch $branch;
@@ -181,7 +183,7 @@ class Phase3FeaturesTest extends TestCase
     {
         $order = $this->makeOrderWithItems([50000]);
 
-        $this->expectException(\Illuminate\Validation\ValidationException::class);
+        $this->expectException(ValidationException::class);
         app(OrderSplitService::class)->splitOrder($order, [$order->items()->first()->id], $this->user);
     }
 
@@ -221,7 +223,7 @@ class Phase3FeaturesTest extends TestCase
         $busy = RestaurantTable::factory()->create(['restaurant_id' => $this->restaurant->id, 'status' => 'occupied']);
         $order = $this->makeOrderWithItems([50000, 20000]);
 
-        $this->expectException(\Illuminate\Validation\ValidationException::class);
+        $this->expectException(ValidationException::class);
         app(OrderSplitService::class)->moveTable($order, $busy->id, $this->user);
     }
 }

@@ -24,7 +24,7 @@ class SuperAdminValidatorReportMail extends Mailable
     public function envelope(): Envelope
     {
         return new Envelope(
-            subject: '🔍 BÁO CÁO KIỂM ĐỊNH HOẠT ĐỘNG DOANH NGHIỆP - ' . $this->checkedDate,
+            subject: '🔍 BÁO CÁO KIỂM ĐỊNH HOẠT ĐỘNG DOANH NGHIỆP - '.$this->checkedDate,
         );
     }
 

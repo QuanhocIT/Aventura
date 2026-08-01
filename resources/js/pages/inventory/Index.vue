@@ -115,35 +115,37 @@ const paginatedProducts = computed(() => {
 });
 
 const totalRecipePages = computed(() => {
-    return props.products ? Math.ceil(props.products.length / recipePerPage) : 0;
+    return props.products
+        ? Math.ceil(props.products.length / recipePerPage)
+        : 0;
 });
 
 const visibleRecipePages = computed(() => {
     const pages = [];
     const total = totalRecipePages.value;
     const current = recipeCurrentPage.value;
-    
+
     if (total <= 5) {
         for (let i = 1; i <= total; i++) {
-pages.push(i);
-}
+            pages.push(i);
+        }
     } else {
         pages.push(1);
 
         if (current > 3) {
-pages.push('...');
-}
-        
+            pages.push('...');
+        }
+
         const start = Math.max(2, current - 1);
         const end = Math.min(total - 1, current + 1);
 
         for (let i = start; i <= end; i++) {
-pages.push(i);
-}
-        
+            pages.push(i);
+        }
+
         if (current < total - 2) {
-pages.push('...');
-}
+            pages.push('...');
+        }
 
         pages.push(total);
     }
@@ -223,7 +225,9 @@ const handleAutoPo = () => {
         {},
         {
             onSuccess: () => {
-                toast.success('Đã tự động tạo Đơn mua hàng nháp (Auto PO) thành công!');
+                toast.success(
+                    'Đã tự động tạo Đơn mua hàng nháp (Auto PO) thành công!',
+                );
             },
             onError: () => {
                 toast.error('Lỗi khi tạo đơn mua hàng tự động.');
@@ -231,7 +235,7 @@ const handleAutoPo = () => {
             onFinish: () => {
                 isGeneratingAutoPo.value = false;
             },
-        }
+        },
     );
 };
 
@@ -317,10 +321,12 @@ const submitIngredient = () => {
 
 const activeProductRecipes = computed(() => {
     if (!activeProduct.value) {
-return [];
-}
+        return [];
+    }
 
-    const updatedProduct = props.products.find(p => p.id === activeProduct.value!.id);
+    const updatedProduct = props.products.find(
+        (p) => p.id === activeProduct.value!.id,
+    );
 
     return updatedProduct ? updatedProduct.recipes : [];
 });
@@ -334,7 +340,7 @@ const deleteRecipe = (recipeId: number) => {
             },
             onError: () => {
                 toast.error('Có lỗi xảy ra khi xóa.');
-            }
+            },
         });
     }
 };
@@ -354,19 +360,21 @@ const removeRecipeRow = (index: number) => {
 const openAddRecipeModal = (prod: Product) => {
     activeProduct.value = prod;
     recipeForm.product_id = String(prod.id);
-    
+
     if (prod.recipes && prod.recipes.length > 0) {
-        recipeForm.items = prod.recipes.map(r => ({
+        recipeForm.items = prod.recipes.map((r) => ({
             ingredient_id: String(r.ingredient_id),
             quantity: String(r.quantity),
             waste_rate: String(r.waste_rate ?? 0),
         }));
     } else {
-        recipeForm.items = [{
-            ingredient_id: '',
-            quantity: '',
-            waste_rate: '0',
-        }];
+        recipeForm.items = [
+            {
+                ingredient_id: '',
+                quantity: '',
+                waste_rate: '0',
+            },
+        ];
     }
 
     showAddRecipe.value = true;
@@ -453,8 +461,8 @@ const submitWaste = () => {
                 <AlertTriangle class="mt-0.5 size-4 shrink-0 text-rose-500" />
                 <div>
                     <span class="font-bold"
-                        >{{ lowStockIngredients.length }} nguyên liệu SẮP HẾT HÀNG
-                        (&lt;5 đơn vị):</span
+                        >{{ lowStockIngredients.length }} nguyên liệu SẮP HẾT
+                        HÀNG (&lt;5 đơn vị):</span
                     >
                     {{
                         lowStockIngredients
@@ -474,7 +482,11 @@ const submitWaste = () => {
                 @click="handleAutoPo"
             >
                 <ShoppingCart class="mr-1.5 size-3.5" />
-                {{ isGeneratingAutoPo ? 'Đang tạo đơn...' : 'Tự động tạo Đơn Mua Hàng 1-Click' }}
+                {{
+                    isGeneratingAutoPo
+                        ? 'Đang tạo đơn...'
+                        : 'Tự động tạo Đơn Mua Hàng 1-Click'
+                }}
             </Button>
         </div>
 
@@ -767,9 +779,16 @@ const submitWaste = () => {
                                 </div>
 
                                 <!-- Pagination controls for recipes list -->
-                                <div v-if="totalRecipePages > 1" class="flex items-center justify-between border-t border-border p-4 bg-slate-50/50 dark:bg-slate-900/10">
-                                    <span class="text-xs text-muted-foreground font-medium">
-                                        Trang {{ recipeCurrentPage }} / {{ totalRecipePages }} (Tổng {{ products.length }} món)
+                                <div
+                                    v-if="totalRecipePages > 1"
+                                    class="flex items-center justify-between border-t border-border bg-slate-50/50 p-4 dark:bg-slate-900/10"
+                                >
+                                    <span
+                                        class="text-xs font-medium text-muted-foreground"
+                                    >
+                                        Trang {{ recipeCurrentPage }} /
+                                        {{ totalRecipePages }} (Tổng
+                                        {{ products.length }} món)
                                     </span>
                                     <div class="flex items-center gap-1.5">
                                         <Button
@@ -777,19 +796,35 @@ const submitWaste = () => {
                                             variant="outline"
                                             :disabled="recipeCurrentPage === 1"
                                             @click="recipeCurrentPage--"
-                                            class="h-7 w-7 p-0 flex items-center justify-center rounded-lg"
+                                            class="flex h-7 w-7 items-center justify-center rounded-lg p-0"
                                         >
                                             <ChevronLeft class="size-3.5" />
                                         </Button>
-                                        
-                                        <template v-for="(page, idx) in visibleRecipePages" :key="idx">
-                                            <span v-if="page === '...'" class="px-1.5 text-xs text-muted-foreground font-bold select-none">...</span>
+
+                                        <template
+                                            v-for="(
+                                                page, idx
+                                            ) in visibleRecipePages"
+                                            :key="idx"
+                                        >
+                                            <span
+                                                v-if="page === '...'"
+                                                class="px-1.5 text-xs font-bold text-muted-foreground select-none"
+                                                >...</span
+                                            >
                                             <Button
                                                 v-else
                                                 size="sm"
-                                                :variant="recipeCurrentPage === page ? 'default' : 'outline'"
-                                                @click="recipeCurrentPage = Number(page)"
-                                                class="h-7 min-w-[28px] px-1 text-xs font-bold rounded-lg"
+                                                :variant="
+                                                    recipeCurrentPage === page
+                                                        ? 'default'
+                                                        : 'outline'
+                                                "
+                                                @click="
+                                                    recipeCurrentPage =
+                                                        Number(page)
+                                                "
+                                                class="h-7 min-w-[28px] rounded-lg px-1 text-xs font-bold"
                                             >
                                                 {{ page }}
                                             </Button>
@@ -798,9 +833,12 @@ const submitWaste = () => {
                                         <Button
                                             size="sm"
                                             variant="outline"
-                                            :disabled="recipeCurrentPage === totalRecipePages"
+                                            :disabled="
+                                                recipeCurrentPage ===
+                                                totalRecipePages
+                                            "
                                             @click="recipeCurrentPage++"
-                                            class="h-7 w-7 p-0 flex items-center justify-center rounded-lg"
+                                            class="flex h-7 w-7 items-center justify-center rounded-lg p-0"
                                         >
                                             <ChevronRight class="size-3.5" />
                                         </Button>
@@ -1617,94 +1655,104 @@ const submitWaste = () => {
             class="fixed inset-0 z-50 overflow-y-auto bg-black/60 p-4 backdrop-blur-sm"
             @click.self="showAddIngredient = false"
         >
-            <div class="flex min-h-full items-center justify-center" @click.self="showAddIngredient = false">
+            <div
+                class="flex min-h-full items-center justify-center"
+                @click.self="showAddIngredient = false"
+            >
                 <Card class="w-full max-w-md">
-                <CardHeader>
-                    <div class="flex items-center justify-between">
-                        <CardTitle class="flex items-center gap-2 text-base">
-                            <Beaker class="size-5 text-indigo-500" />Thêm nguyên
-                            liệu thô mới
-                        </CardTitle>
-                        <button
-                            @click="showAddIngredient = false"
-                            class="cursor-pointer rounded-lg p-1.5 text-muted-foreground hover:bg-muted"
-                        >
-                            <X class="size-4" />
-                        </button>
-                    </div>
-                    <CardDescription class="text-xs"
-                        >Nguyên liệu này sẽ xuất hiện trong danh sách khi thiết
-                        lập công thức định lượng.</CardDescription
-                    >
-                </CardHeader>
-                <CardContent>
-                    <form @submit.prevent="submitIngredient" class="space-y-4">
-                        <div class="space-y-1.5">
-                            <Label class="text-xs"
-                                >Tên nguyên liệu
-                                <span class="text-rose-500">*</span></Label
+                    <CardHeader>
+                        <div class="flex items-center justify-between">
+                            <CardTitle
+                                class="flex items-center gap-2 text-base"
                             >
-                            <Input
-                                v-model="ingredientForm.name"
-                                placeholder="Ví dụ: Thịt bò, Bánh phở, Nước mắm..."
-                                required
-                            />
+                                <Beaker class="size-5 text-indigo-500" />Thêm
+                                nguyên liệu thô mới
+                            </CardTitle>
+                            <button
+                                @click="showAddIngredient = false"
+                                class="cursor-pointer rounded-lg p-1.5 text-muted-foreground hover:bg-muted"
+                            >
+                                <X class="size-4" />
+                            </button>
                         </div>
-                        <div class="grid grid-cols-2 gap-4">
+                        <CardDescription class="text-xs"
+                            >Nguyên liệu này sẽ xuất hiện trong danh sách khi
+                            thiết lập công thức định lượng.</CardDescription
+                        >
+                    </CardHeader>
+                    <CardContent>
+                        <form
+                            @submit.prevent="submitIngredient"
+                            class="space-y-4"
+                        >
                             <div class="space-y-1.5">
                                 <Label class="text-xs"
-                                    >Đơn vị tính
+                                    >Tên nguyên liệu
                                     <span class="text-rose-500">*</span></Label
                                 >
-                                <select
-                                    v-model="ingredientForm.unit_id"
-                                    required
-                                    class="w-full rounded-xl border border-border bg-background px-3 py-2.5 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 focus:outline-none"
-                                >
-                                    <option value="" disabled>
-                                        Chọn đơn vị
-                                    </option>
-                                    <option
-                                        v-for="u in units"
-                                        :key="u.id"
-                                        :value="u.id"
-                                    >
-                                        {{ u.name }} ({{ u.symbol }})
-                                    </option>
-                                </select>
-                            </div>
-                            <div class="space-y-1.5">
-                                <Label class="text-xs">Danh mục</Label>
                                 <Input
-                                    v-model="ingredientForm.category"
-                                    placeholder="Thịt, Rau củ..."
+                                    v-model="ingredientForm.name"
+                                    placeholder="Ví dụ: Thịt bò, Bánh phở, Nước mắm..."
+                                    required
                                 />
                             </div>
-                        </div>
-                        <div class="flex justify-end gap-2 pt-2">
-                            <Button
-                                type="button"
-                                variant="outline"
-                                size="sm"
-                                @click="showAddIngredient = false"
-                                >Hủy</Button
-                            >
-                            <Button
-                                type="submit"
-                                size="sm"
-                                class="bg-indigo-600 text-white"
-                                :disabled="ingredientForm.processing"
-                            >
-                                {{
-                                    ingredientForm.processing
-                                        ? 'Đang lưu...'
-                                        : 'Thêm nguyên liệu'
-                                }}
-                            </Button>
-                        </div>
-                    </form>
-                </CardContent>
-            </Card>
+                            <div class="grid grid-cols-2 gap-4">
+                                <div class="space-y-1.5">
+                                    <Label class="text-xs"
+                                        >Đơn vị tính
+                                        <span class="text-rose-500"
+                                            >*</span
+                                        ></Label
+                                    >
+                                    <select
+                                        v-model="ingredientForm.unit_id"
+                                        required
+                                        class="w-full rounded-xl border border-border bg-background px-3 py-2.5 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 focus:outline-none"
+                                    >
+                                        <option value="" disabled>
+                                            Chọn đơn vị
+                                        </option>
+                                        <option
+                                            v-for="u in units"
+                                            :key="u.id"
+                                            :value="u.id"
+                                        >
+                                            {{ u.name }} ({{ u.symbol }})
+                                        </option>
+                                    </select>
+                                </div>
+                                <div class="space-y-1.5">
+                                    <Label class="text-xs">Danh mục</Label>
+                                    <Input
+                                        v-model="ingredientForm.category"
+                                        placeholder="Thịt, Rau củ..."
+                                    />
+                                </div>
+                            </div>
+                            <div class="flex justify-end gap-2 pt-2">
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    @click="showAddIngredient = false"
+                                    >Hủy</Button
+                                >
+                                <Button
+                                    type="submit"
+                                    size="sm"
+                                    class="bg-indigo-600 text-white"
+                                    :disabled="ingredientForm.processing"
+                                >
+                                    {{
+                                        ingredientForm.processing
+                                            ? 'Đang lưu...'
+                                            : 'Thêm nguyên liệu'
+                                    }}
+                                </Button>
+                            </div>
+                        </form>
+                    </CardContent>
+                </Card>
             </div>
         </div>
     </Transition>
@@ -1723,145 +1771,214 @@ const submitWaste = () => {
             class="fixed inset-0 z-50 overflow-y-auto bg-black/60 p-4 backdrop-blur-sm"
             @click.self="showAddRecipe = false"
         >
-            <div class="flex min-h-full items-center justify-center" @click.self="showAddRecipe = false">
+            <div
+                class="flex min-h-full items-center justify-center"
+                @click.self="showAddRecipe = false"
+            >
                 <Card class="w-full max-w-2xl">
-                <CardHeader>
-                    <div class="flex items-center justify-between">
-                        <CardTitle class="flex items-center gap-2 text-base">
-                            <Scale class="size-5 text-indigo-500" />Định lượng công thức:
-                            {{ activeProduct.name }}
-                        </CardTitle>
-                        <button
-                            @click="showAddRecipe = false"
-                            class="cursor-pointer rounded-lg p-1.5 text-muted-foreground hover:bg-muted"
+                    <CardHeader>
+                        <div class="flex items-center justify-between">
+                            <CardTitle
+                                class="flex items-center gap-2 text-base"
+                            >
+                                <Scale class="size-5 text-indigo-500" />Định
+                                lượng công thức:
+                                {{ activeProduct.name }}
+                            </CardTitle>
+                            <button
+                                @click="showAddRecipe = false"
+                                class="cursor-pointer rounded-lg p-1.5 text-muted-foreground hover:bg-muted"
+                            >
+                                <X class="size-4" />
+                            </button>
+                        </div>
+                        <CardDescription class="text-xs"
+                            >Thiết lập đầy đủ các nguyên liệu và khối lượng/thể
+                            tích cấu thành nên món ăn này.</CardDescription
                         >
-                            <X class="size-4" />
-                        </button>
-                    </div>
-                    <CardDescription class="text-xs"
-                        >Thiết lập đầy đủ các nguyên liệu và khối lượng/thể tích cấu thành nên món ăn này.</CardDescription
-                    >
-                </CardHeader>
-                <CardContent>
-                    <form @submit.prevent="submitRecipe" class="space-y-4">
-                        <div class="space-y-3">
-                            <!-- Table Headers -->
-                            <div class="flex items-center justify-between text-[11px] font-bold text-muted-foreground uppercase tracking-wider pb-1.5 border-b border-border">
-                                <span class="w-[45%]">Nguyên liệu <span class="text-rose-500">*</span></span>
-                                <span class="w-[25%]">Định lượng <span class="text-rose-500">*</span></span>
-                                <span class="w-[20%]">Hao hụt (%)</span>
-                                <span class="w-[10%] text-center">Xóa</span>
-                            </div>
-                            
-                            <!-- Recipe rows -->
-                            <div v-if="recipeForm.items.length" class="space-y-2.5 max-h-[300px] overflow-y-auto pr-1">
-                                <div v-for="(item, index) in recipeForm.items" :key="index" class="flex items-center gap-3">
-                                    <!-- Ingredient Select -->
-                                    <div class="w-[45%]">
-                                        <select
-                                            v-model="item.ingredient_id"
-                                            required
-                                            class="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 focus:outline-none"
-                                        >
-                                            <option value="" disabled>Chọn nguyên liệu</option>
-                                            <option
-                                                v-for="ing in ingredients"
-                                                :key="ing.id"
-                                                :value="String(ing.id)"
-                                                :disabled="recipeForm.items.some((x: any, idx: number) => x.ingredient_id === String(ing.id) && idx !== index)"
+                    </CardHeader>
+                    <CardContent>
+                        <form @submit.prevent="submitRecipe" class="space-y-4">
+                            <div class="space-y-3">
+                                <!-- Table Headers -->
+                                <div
+                                    class="flex items-center justify-between border-b border-border pb-1.5 text-[11px] font-bold tracking-wider text-muted-foreground uppercase"
+                                >
+                                    <span class="w-[45%]"
+                                        >Nguyên liệu
+                                        <span class="text-rose-500"
+                                            >*</span
+                                        ></span
+                                    >
+                                    <span class="w-[25%]"
+                                        >Định lượng
+                                        <span class="text-rose-500"
+                                            >*</span
+                                        ></span
+                                    >
+                                    <span class="w-[20%]">Hao hụt (%)</span>
+                                    <span class="w-[10%] text-center">Xóa</span>
+                                </div>
+
+                                <!-- Recipe rows -->
+                                <div
+                                    v-if="recipeForm.items.length"
+                                    class="max-h-[300px] space-y-2.5 overflow-y-auto pr-1"
+                                >
+                                    <div
+                                        v-for="(
+                                            item, index
+                                        ) in recipeForm.items"
+                                        :key="index"
+                                        class="flex items-center gap-3"
+                                    >
+                                        <!-- Ingredient Select -->
+                                        <div class="w-[45%]">
+                                            <select
+                                                v-model="item.ingredient_id"
+                                                required
+                                                class="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 focus:outline-none"
                                             >
-                                                {{ ing.name }} ({{ ing.unit?.symbol ?? 'đơn vị' }})
-                                            </option>
-                                        </select>
-                                    </div>
+                                                <option value="" disabled>
+                                                    Chọn nguyên liệu
+                                                </option>
+                                                <option
+                                                    v-for="ing in ingredients"
+                                                    :key="ing.id"
+                                                    :value="String(ing.id)"
+                                                    :disabled="
+                                                        recipeForm.items.some(
+                                                            (
+                                                                x: any,
+                                                                idx: number,
+                                                            ) =>
+                                                                x.ingredient_id ===
+                                                                    String(
+                                                                        ing.id,
+                                                                    ) &&
+                                                                idx !== index,
+                                                        )
+                                                    "
+                                                >
+                                                    {{ ing.name }} ({{
+                                                        ing.unit?.symbol ??
+                                                        'đơn vị'
+                                                    }})
+                                                </option>
+                                            </select>
+                                        </div>
 
-                                    <!-- Quantity Input -->
-                                    <div class="w-[25%] relative">
-                                        <Input
-                                            type="number"
-                                            step="0.001"
-                                            v-model="item.quantity"
-                                            placeholder="150"
-                                            required
-                                            class="h-9 pr-10 text-xs"
-                                        />
-                                        <span class="absolute top-1/2 right-2.5 -translate-y-1/2 text-[10px] font-bold text-slate-400 select-none">
-                                            {{
-                                                ingredients.find(i => String(i.id) === item.ingredient_id)?.unit?.symbol ?? 'đv'
-                                            }}
-                                        </span>
-                                    </div>
+                                        <!-- Quantity Input -->
+                                        <div class="relative w-[25%]">
+                                            <Input
+                                                type="number"
+                                                step="0.001"
+                                                v-model="item.quantity"
+                                                placeholder="150"
+                                                required
+                                                class="h-9 pr-10 text-xs"
+                                            />
+                                            <span
+                                                class="absolute top-1/2 right-2.5 -translate-y-1/2 text-[10px] font-bold text-slate-400 select-none"
+                                            >
+                                                {{
+                                                    ingredients.find(
+                                                        (i) =>
+                                                            String(i.id) ===
+                                                            item.ingredient_id,
+                                                    )?.unit?.symbol ?? 'đv'
+                                                }}
+                                            </span>
+                                        </div>
 
-                                    <!-- Waste Rate Input -->
-                                    <div class="w-[20%]">
-                                        <Input
-                                            type="number"
-                                            v-model="item.waste_rate"
-                                            placeholder="0"
-                                            class="h-9 text-xs"
-                                        />
-                                    </div>
+                                        <!-- Waste Rate Input -->
+                                        <div class="w-[20%]">
+                                            <Input
+                                                type="number"
+                                                v-model="item.waste_rate"
+                                                placeholder="0"
+                                                class="h-9 text-xs"
+                                            />
+                                        </div>
 
-                                    <!-- Delete Row Button -->
-                                    <div class="w-[10%] flex justify-center">
-                                        <Button
-                                            type="button"
-                                            variant="ghost"
-                                            size="sm"
-                                            class="h-8 w-8 p-0 text-rose-500 hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-950/30"
-                                            @click="removeRecipeRow(Number(index))"
+                                        <!-- Delete Row Button -->
+                                        <div
+                                            class="flex w-[10%] justify-center"
                                         >
-                                            <Trash2 class="size-4" />
-                                        </Button>
+                                            <Button
+                                                type="button"
+                                                variant="ghost"
+                                                size="sm"
+                                                class="h-8 w-8 p-0 text-rose-500 hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-950/30"
+                                                @click="
+                                                    removeRecipeRow(
+                                                        Number(index),
+                                                    )
+                                                "
+                                            >
+                                                <Trash2 class="size-4" />
+                                            </Button>
+                                        </div>
                                     </div>
                                 </div>
+
+                                <!-- Empty State inside form -->
+                                <div
+                                    v-else
+                                    class="rounded-xl border border-dashed border-border bg-muted/10 p-6 text-center text-xs text-muted-foreground"
+                                >
+                                    Chưa thêm nguyên liệu nào. Nhấn nút "Thêm
+                                    nguyên liệu" bên dưới để bắt đầu thiết lập.
+                                </div>
+
+                                <!-- Add Row Button -->
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    @click="addRecipeRow"
+                                    class="text-indigo-650 dark:border-indigo-850 mt-2 flex items-center gap-1.5 border-indigo-200 text-xs hover:bg-indigo-50 dark:text-indigo-400"
+                                >
+                                    <Plus class="size-3.5" /> Thêm nguyên liệu
+                                </Button>
                             </div>
-                            
-                            <!-- Empty State inside form -->
-                            <div v-else class="rounded-xl border border-dashed border-border bg-muted/10 p-6 text-center text-xs text-muted-foreground">
-                                Chưa thêm nguyên liệu nào. Nhấn nút "Thêm nguyên liệu" bên dưới để bắt đầu thiết lập.
+
+                            <!-- Footer Info Banner -->
+                            <div
+                                class="flex items-start gap-2 rounded-xl border border-indigo-500/20 bg-indigo-500/5 p-3 text-[11px] text-indigo-700 dark:text-indigo-400"
+                            >
+                                <Info class="mt-0.5 size-3.5 shrink-0" />
+                                Hệ thống sẽ dùng toàn bộ các định lượng này để
+                                tự động tính tổng COGS (giá vốn) cho món ăn khi
+                                hoàn thành đơn.
                             </div>
 
-                            <!-- Add Row Button -->
-                            <Button
-                                type="button"
-                                variant="outline"
-                                size="sm"
-                                @click="addRecipeRow"
-                                class="mt-2 text-xs text-indigo-650 border-indigo-200 hover:bg-indigo-50 dark:border-indigo-850 dark:text-indigo-400 flex items-center gap-1.5"
-                            >
-                                <Plus class="size-3.5" /> Thêm nguyên liệu
-                            </Button>
-                        </div>
-
-                        <!-- Footer Info Banner -->
-                        <div class="flex items-start gap-2 rounded-xl border border-indigo-500/20 bg-indigo-500/5 p-3 text-[11px] text-indigo-700 dark:text-indigo-400">
-                            <Info class="mt-0.5 size-3.5 shrink-0" />
-                            Hệ thống sẽ dùng toàn bộ các định lượng này để tự động tính tổng COGS (giá vốn) cho món ăn khi hoàn thành đơn.
-                        </div>
-
-                        <!-- Modal Footer Action Buttons -->
-                        <div class="flex justify-end gap-2 pt-2">
-                            <Button
-                                type="button"
-                                variant="outline"
-                                size="sm"
-                                @click="showAddRecipe = false"
-                            >
-                                Hủy
-                            </Button>
-                            <Button
-                                type="submit"
-                                size="sm"
-                                class="bg-indigo-600 text-white"
-                                :disabled="recipeForm.processing"
-                            >
-                                {{ recipeForm.processing ? 'Đang lưu...' : 'Lưu công thức' }}
-                            </Button>
-                        </div>
-                    </form>
-                </CardContent>
-            </Card>
+                            <!-- Modal Footer Action Buttons -->
+                            <div class="flex justify-end gap-2 pt-2">
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    @click="showAddRecipe = false"
+                                >
+                                    Hủy
+                                </Button>
+                                <Button
+                                    type="submit"
+                                    size="sm"
+                                    class="bg-indigo-600 text-white"
+                                    :disabled="recipeForm.processing"
+                                >
+                                    {{
+                                        recipeForm.processing
+                                            ? 'Đang lưu...'
+                                            : 'Lưu công thức'
+                                    }}
+                                </Button>
+                            </div>
+                        </form>
+                    </CardContent>
+                </Card>
             </div>
         </div>
     </Transition>

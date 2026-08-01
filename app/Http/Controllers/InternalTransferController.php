@@ -9,6 +9,7 @@ use App\Models\InventoryTransaction;
 use App\Models\RestaurantBranch;
 use App\Services\AnalyticsServiceClient;
 use App\Services\CircuitBreaker;
+use App\Support\TenantRule;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -195,9 +196,9 @@ class InternalTransferController extends Controller
         $user = $request->user();
 
         $request->validate([
-            'from_branch_id' => ['required', \App\Support\TenantRule::exists('restaurant_branches')],
-            'to_branch_id' => ['required', \App\Support\TenantRule::exists('restaurant_branches'), 'different:from_branch_id'],
-            'ingredient_id' => ['required', \App\Support\TenantRule::exists('ingredients')],
+            'from_branch_id' => ['required', TenantRule::exists('restaurant_branches')],
+            'to_branch_id' => ['required', TenantRule::exists('restaurant_branches'), 'different:from_branch_id'],
+            'ingredient_id' => ['required', TenantRule::exists('ingredients')],
             'quantity' => ['required', 'numeric', 'min:0.001'],
             'notes' => ['nullable', 'string', 'max:500'],
         ]);

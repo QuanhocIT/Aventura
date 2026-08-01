@@ -25,6 +25,7 @@ use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 use Spatie\Permission\Models\Role;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class EmployeeManagementController extends Controller
 {
@@ -533,7 +534,7 @@ class EmployeeManagementController extends Controller
     /**
      * Stream ảnh CCCD từ disk private — chỉ Owner/Manager cùng nhà hàng.
      */
-    public function citizenIdImage(Request $request, Employee $employee, string $side): \Symfony\Component\HttpFoundation\StreamedResponse
+    public function citizenIdImage(Request $request, Employee $employee, string $side): StreamedResponse
     {
         $user = $request->user();
 
@@ -1100,6 +1101,7 @@ class EmployeeManagementController extends Controller
 
         return back()->with('success', 'Đã lưu cấu hình ca làm việc mới.');
     }
+
     private function assertManagerSlotAvailable(int $restaurantId, int $branchId, ?int $exceptUserId = null): void
     {
         $occupied = DB::table('restaurant_branches')

@@ -12,9 +12,9 @@ class TenantSecurityScanTest extends TestCase
      */
     public function test_raw_queries_must_contain_restaurant_id_or_be_explicitly_exempted()
     {
-        $finder = new Finder();
+        $finder = new Finder;
         $finder->files()
-            ->in(__DIR__ . '/../../app')
+            ->in(__DIR__.'/../../app')
             ->exclude('Console/Commands')
             ->exclude('Http/Controllers/SuperAdmin')
             ->notName('DatabaseBackupService.php')
@@ -43,7 +43,7 @@ class TenantSecurityScanTest extends TestCase
                         }
                     }
 
-                    if (!preg_match('/restaurant_id|branch_id|tenant_id|withoutGlobalScope/i', $context)) {
+                    if (! preg_match('/restaurant_id|branch_id|tenant_id|withoutGlobalScope/i', $context)) {
                         $violations[] = sprintf(
                             "File: %s:%d\nLine: %s",
                             $file->getRelativePathname(),
@@ -55,10 +55,10 @@ class TenantSecurityScanTest extends TestCase
             }
         }
 
-        if (!empty($violations)) {
+        if (! empty($violations)) {
             $this->fail(
-                "Found raw SQL queries without explicit tenant isolation (restaurant_id/branch_id) check or exemption comment:\n\n" .
-                implode("\n\n", $violations) .
+                "Found raw SQL queries without explicit tenant isolation (restaurant_id/branch_id) check or exemption comment:\n\n".
+                implode("\n\n", $violations).
                 "\n\nTo bypass this check, append a comment like '// @bypass-tenant-check' to the raw query line."
             );
         }

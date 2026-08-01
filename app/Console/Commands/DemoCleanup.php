@@ -78,7 +78,7 @@ class DemoCleanup extends Command
         $this->newLine();
         $this->line('  <options=bold>Nhà hàng SẼ BỊ XOÁ (kèm toàn bộ dữ liệu con):</>');
         $this->table(['ID', 'Tên', 'Số đơn', 'Tài khoản'], $rows);
-        $this->line('  Giữ lại: nhà hàng ID ' . $keepIds->implode(', ') . ' + tài khoản super_admin.');
+        $this->line('  Giữ lại: nhà hàng ID '.$keepIds->implode(', ').' + tài khoản super_admin.');
 
         if (! $this->option('force')) {
             $this->newLine();
@@ -105,7 +105,7 @@ class DemoCleanup extends Command
         });
 
         $this->newLine();
-        $this->info("✅ Đã ẩn {$deletedR} nhà hàng và xoá {$deletedU} tài khoản. Giữ lại nhà hàng ID " . $keepIds->implode(', ') . '.');
+        $this->info("✅ Đã ẩn {$deletedR} nhà hàng và xoá {$deletedU} tài khoản. Giữ lại nhà hàng ID ".$keepIds->implode(', ').'.');
 
         return self::SUCCESS;
     }

@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\AuditLog;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Spatie\Permission\Models\Permission;
@@ -13,8 +14,11 @@ class SuperAdminRbacTest extends TestCase
     use RefreshDatabase;
 
     private User $systemAdmin;
+
     private User $billingAdmin;
+
     private User $supportSpecialist;
+
     private User $legacySuperAdmin;
 
     protected function setUp(): void
@@ -234,8 +238,8 @@ class SuperAdminRbacTest extends TestCase
         $this->billingAdmin->refresh();
         $this->assertTrue($this->billingAdmin->hasRole('support_specialist'));
         $this->assertFalse($this->billingAdmin->hasRole('billing_admin'));
-        $this->assertTrue(\App\Models\AuditLog::where('action', 'update_admin_role.before')->exists());
-        $this->assertTrue(\App\Models\AuditLog::where('action', 'update_admin_role.after')->exists());
+        $this->assertTrue(AuditLog::where('action', 'update_admin_role.before')->exists());
+        $this->assertTrue(AuditLog::where('action', 'update_admin_role.after')->exists());
     }
 
     public function test_system_admin_cannot_promote_tenant_user_to_platform_admin(): void

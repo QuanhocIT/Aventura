@@ -21,8 +21,8 @@ class DebtReminderMail extends Mailable
     public function envelope(): Envelope
     {
         $subject = $this->type === 'payable'
-            ? '⏰ NHẮC NHỞ CÔNG NỢ PHẢI TRẢ (PO #' . ($this->debt->purchaseOrder?->po_number ?? 'N/A') . ') - Aventura'
-            : '⏰ NHẮC NHỞ THANH TOÁN CÔNG NỢ (Hóa đơn #' . ($this->debt->order?->order_number ?? 'N/A') . ') - Aventura';
+            ? '⏰ NHẮC NHỞ CÔNG NỢ PHẢI TRẢ (PO #'.($this->debt->purchaseOrder?->po_number ?? 'N/A').') - Aventura'
+            : '⏰ NHẮC NHỞ THANH TOÁN CÔNG NỢ (Hóa đơn #'.($this->debt->order?->order_number ?? 'N/A').') - Aventura';
 
         return new Envelope(
             subject: $subject,

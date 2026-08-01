@@ -91,12 +91,12 @@ watch(
     () => page.props.flash,
     (flash: any) => {
         if (flash?.success) {
-toast.success(flash.success);
-}
+            toast.success(flash.success);
+        }
 
         if (flash?.error) {
-toast.error(flash.error);
-}
+            toast.error(flash.error);
+        }
     },
 );
 
@@ -146,22 +146,22 @@ const thresholdAdvice = computed(() => {
     const val = form.chatbot_similarity_threshold;
 
     if (val === undefined || val === null) {
-return { status: 'neutral', text: 'Chưa nhập ngưỡng.' };
-}
+        return { status: 'neutral', text: 'Chưa nhập ngưỡng.' };
+    }
 
     if (val < 0.2) {
-return {
+        return {
             status: 'warning',
             text: 'Ngưỡng quá thấp (< 0.20) có thể khiến chatbot phản hồi sai lệch, nhầm chủ đề.',
         };
-}
+    }
 
     if (val > 0.5) {
-return {
+        return {
             status: 'warning',
             text: 'Ngưỡng quá cao (> 0.50) yêu cầu khách nhập cực kỳ chính xác mới khớp câu hỏi.',
         };
-}
+    }
 
     return { status: 'ok', text: 'Mức độ tương đồng tối ưu (0.2 -> 0.4).' };
 });
@@ -170,22 +170,22 @@ const cacheTtlAdvice = computed(() => {
     const val = form.chatbot_cache_ttl;
 
     if (val === undefined || val === null) {
-return { status: 'neutral', text: 'Chưa nhập TTL.' };
-}
+        return { status: 'neutral', text: 'Chưa nhập TTL.' };
+    }
 
     if (val < 60) {
-return {
+        return {
             status: 'warning',
             text: 'Thời gian cache quá thấp tăng số lần truy vấn tới DB của Python NLP service.',
         };
-}
+    }
 
     if (val > 3600) {
-return {
+        return {
             status: 'warning',
             text: 'Thời gian cache quá dài làm chậm việc cập nhật Q&A mới lên chatbot.',
         };
-}
+    }
 
     return { status: 'ok', text: 'Thời gian sống cache tối ưu.' };
 });
@@ -216,11 +216,11 @@ const smtpPortAdvice = computed(() => {
 
     if (form.mail_driver === 'smtp') {
         if (port === 25) {
-return {
+            return {
                 status: 'warning',
                 text: 'Cổng 25 thường bị chặn bởi các nhà cung cấp cloud. Hãy dùng 587 hoặc 465.',
             };
-}
+        }
     }
 
     return { status: 'ok', text: 'Cổng gửi mail an toàn.' };

@@ -9,6 +9,7 @@ use Illuminate\Console\Command;
 class CalculatePromotionAnalytics extends Command
 {
     protected $signature = 'promotions:calculate-analytics {--date=}';
+
     protected $description = 'Calculate daily promotion analytics snapshots for all restaurants';
 
     public function handle(PromotionAnalyticsService $analytics): int

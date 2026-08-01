@@ -39,13 +39,13 @@ class WeatherForecastServiceTest extends TestCase
             'api.openweathermap.org/*' => Http::response([
                 'list' => [
                     [
-                        'dt_txt' => $tomorrow . ' 12:00:00',
+                        'dt_txt' => $tomorrow.' 12:00:00',
                         'main' => ['temp' => 33.5],
                         'weather' => [['main' => 'Clear']],
                         'wind' => ['speed' => 2.1],
                     ],
                     [
-                        'dt_txt' => $dayAfter . ' 12:00:00',
+                        'dt_txt' => $dayAfter.' 12:00:00',
                         'main' => ['temp' => 24.0],
                         'weather' => [['main' => 'Rain']],
                         'wind' => ['speed' => 3.0],

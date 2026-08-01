@@ -174,8 +174,8 @@ const isSendingSwapRequest = ref(false);
 // Handle Swap Submit
 const submitSwapRequest = async () => {
     if (isSendingSwapRequest.value) {
-return;
-}
+        return;
+    }
 
     isSendingSwapRequest.value = true;
     swapErrors.value = {};
@@ -218,8 +218,8 @@ const handleSwapResponse = async (
     action: 'accept' | 'cancel' | 'reject',
 ) => {
     if (isRespondingSwap.value[swapId]) {
-return;
-}
+        return;
+    }
 
     isRespondingSwap.value[swapId] = true;
 

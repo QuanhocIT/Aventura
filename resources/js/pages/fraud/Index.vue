@@ -26,7 +26,9 @@ import { toast } from 'vue-sonner';
 import { confirmDialog } from '@/composables/useConfirm';
 import AppLayout from '@/layouts/AppLayout.vue';
 
-const ManagerPinModal = defineAsyncComponent(() => import('@/components/ManagerPinModal.vue'));
+const ManagerPinModal = defineAsyncComponent(
+    () => import('@/components/ManagerPinModal.vue'),
+);
 
 defineOptions({ layout: AppLayout });
 
@@ -244,45 +246,63 @@ const aiAlerts = computed((): AiFraudAlert[] =>
 );
 
 /** Tab 'audit' */
-const auditData = computed((): AuditLogsData =>
-    props.activeTab === 'audit' && !Array.isArray(props.data)
-        ? (props.data as AuditLogsData)
-        : { logs: [], count: 0 },
+const auditData = computed(
+    (): AuditLogsData =>
+        props.activeTab === 'audit' && !Array.isArray(props.data)
+            ? (props.data as AuditLogsData)
+            : { logs: [], count: 0 },
 );
 
 /** Tab 'cash' */
-const cashData = computed((): CashShortfallData =>
-    props.activeTab === 'cash' && !Array.isArray(props.data)
-        ? (props.data as CashShortfallData)
-        : { flagged_count: 0, total_shortage: 0, cashiers: [] },
+const cashData = computed(
+    (): CashShortfallData =>
+        props.activeTab === 'cash' && !Array.isArray(props.data)
+            ? (props.data as CashShortfallData)
+            : { flagged_count: 0, total_shortage: 0, cashiers: [] },
 );
 
 /** Tab 'discount' */
-const discountData = computed((): DiscountAnomalyData =>
-    props.activeTab === 'discount' && !Array.isArray(props.data)
-        ? (props.data as DiscountAnomalyData)
-        : { flagged_days: 0, total_excess_discount: 0, days: [] },
+const discountData = computed(
+    (): DiscountAnomalyData =>
+        props.activeTab === 'discount' && !Array.isArray(props.data)
+            ? (props.data as DiscountAnomalyData)
+            : { flagged_days: 0, total_excess_discount: 0, days: [] },
 );
 
 /** Tab 'cancel' */
-const cancelData = computed((): CancellationData =>
-    props.activeTab === 'cancel' && !Array.isArray(props.data)
-        ? (props.data as CancellationData)
-        : { flagged_cashiers_count: 0, total_cancelled_value: 0, cashiers: [], standalone_high_value: [] },
+const cancelData = computed(
+    (): CancellationData =>
+        props.activeTab === 'cancel' && !Array.isArray(props.data)
+            ? (props.data as CancellationData)
+            : {
+                  flagged_cashiers_count: 0,
+                  total_cancelled_value: 0,
+                  cashiers: [],
+                  standalone_high_value: [],
+              },
 );
 
 /** Tab 'waste' */
-const wasteData = computed((): WasteData =>
-    props.activeTab === 'waste' && !Array.isArray(props.data)
-        ? (props.data as WasteData)
-        : { total_waste_cost: 0, flagged_entries_count: 0, flagged_days_count: 0, top_employees: [], large_entries: [], flagged_days: [] },
+const wasteData = computed(
+    (): WasteData =>
+        props.activeTab === 'waste' && !Array.isArray(props.data)
+            ? (props.data as WasteData)
+            : {
+                  total_waste_cost: 0,
+                  flagged_entries_count: 0,
+                  flagged_days_count: 0,
+                  top_employees: [],
+                  large_entries: [],
+                  flagged_days: [],
+              },
 );
 
 /** Tab 'revenue' */
-const revenueData = computed((): RevenueDiscrepancyData =>
-    props.activeTab === 'revenue' && !Array.isArray(props.data)
-        ? (props.data as RevenueDiscrepancyData)
-        : { flagged_days_count: 0, max_discrepancy_pct: 0, days: [] },
+const revenueData = computed(
+    (): RevenueDiscrepancyData =>
+        props.activeTab === 'revenue' && !Array.isArray(props.data)
+            ? (props.data as RevenueDiscrepancyData)
+            : { flagged_days_count: 0, max_discrepancy_pct: 0, days: [] },
 );
 
 // ── Period navigation ──────────────────────────────────────────────────────────
@@ -593,13 +613,13 @@ const pct = (v: number) => v.toFixed(1) + '%';
 
         <!-- ── Tab bar ─────────────────────────────────────────────────────── -->
         <div
-            class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-1 rounded-xl border border-border bg-muted/30 p-1"
+            class="grid grid-cols-2 gap-1 rounded-xl border border-border bg-muted/30 p-1 sm:grid-cols-4 lg:grid-cols-7"
         >
             <button
                 v-for="tab in tabs"
                 :key="tab.key"
                 @click="switchTab(tab.key)"
-                class="relative flex cursor-pointer items-center justify-center gap-2 rounded-lg px-3.5 py-2 text-sm font-medium transition w-full"
+                class="relative flex w-full cursor-pointer items-center justify-center gap-2 rounded-lg px-3.5 py-2 text-sm font-medium transition"
                 :class="
                     activeTab === tab.key
                         ? 'bg-card text-foreground shadow-sm'
@@ -621,609 +641,778 @@ const pct = (v: number) => v.toFixed(1) + '%';
         <div :key="activeTab" class="animate-fade-in space-y-6">
             <!-- ══ TAB: AI CẢNH BÁO (ai) ═══════════════════════════════════════ -->
             <template v-if="activeTab === 'ai'">
-            <div
-                v-if="!aiAlerts.length"
-                class="flex flex-col items-center gap-3 rounded-2xl border border-border bg-card py-16 text-center text-muted-foreground"
-            >
-                <ShieldAlert class="size-12 text-emerald-500 opacity-25" />
-                <p class="font-medium text-emerald-600 dark:text-emerald-400">
-                    Hệ thống an toàn. Không phát hiện bất thường nào.
-                </p>
-            </div>
-
-            <div v-else class="w-full space-y-4">
                 <div
-                    class="flex items-center gap-3 rounded-xl border border-rose-200 bg-rose-50/50 px-4 py-2.5 text-sm text-rose-800 dark:border-rose-900 dark:bg-rose-900/20 dark:text-rose-300"
+                    v-if="!aiAlerts.length"
+                    class="flex flex-col items-center gap-3 rounded-2xl border border-border bg-card py-16 text-center text-muted-foreground"
                 >
-                    <ShieldAlert
-                        class="size-4 shrink-0 animate-pulse text-rose-500"
-                    />
-                    <span
-                        >Thuật toán AI phát hiện
-                        <strong>{{ aiAlerts.length }} cảnh báo rủi ro cao</strong>
-                        dựa trên phân tích nhật ký tĩnh audit_logs.</span
+                    <ShieldAlert class="size-12 text-emerald-500 opacity-25" />
+                    <p
+                        class="font-medium text-emerald-600 dark:text-emerald-400"
                     >
+                        Hệ thống an toàn. Không phát hiện bất thường nào.
+                    </p>
                 </div>
 
-                <div class="grid gap-4 md:grid-cols-2">
+                <div v-else class="w-full space-y-4">
                     <div
-                        v-for="alert in aiAlerts"
-                        :key="alert.id"
-                        class="relative overflow-hidden rounded-2xl border border-border bg-card p-5 shadow-sm transition duration-200 hover:shadow-md"
+                        class="flex items-center gap-3 rounded-xl border border-rose-200 bg-rose-50/50 px-4 py-2.5 text-sm text-rose-800 dark:border-rose-900 dark:bg-rose-900/20 dark:text-rose-300"
                     >
-                        <div
-                            class="absolute top-0 right-0 h-1.5 w-full"
-                            :class="
-                                alert.severity === 'critical'
-                                    ? 'bg-red-500'
-                                    : 'bg-rose-500'
-                            "
-                        ></div>
-
-                        <div class="flex items-start justify-between gap-4">
-                            <div>
-                                <span
-                                    class="rounded-full bg-rose-100 px-2 py-0.5 text-[10px] font-bold tracking-wider text-rose-800 uppercase dark:bg-rose-900/40 dark:text-rose-300"
-                                >
-                                    AI Flagged
-                                </span>
-                                <h3
-                                    class="mt-2 text-base font-bold text-foreground"
-                                >
-                                    {{ alert.violation_type }}
-                                </h3>
-                                <p class="mt-0.5 text-xs text-muted-foreground">
-                                    Nhân viên:
-                                    <strong class="text-foreground">{{
-                                        alert.employee_name
-                                    }}</strong>
-                                </p>
-                            </div>
-
-                            <div class="text-right">
-                                <span
-                                    class="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-black shadow-sm"
-                                    :class="
-                                        alert.severity === 'critical'
-                                            ? 'bg-red-500/10 text-red-600'
-                                            : 'bg-rose-500/10 text-rose-600'
-                                    "
-                                >
-                                    {{ alert.risk_score }}% Risk
-                                </span>
-                                <p
-                                    class="mt-1 text-[10px] text-muted-foreground"
-                                >
-                                    {{ alert.occurred_at }}
-                                </p>
-                            </div>
-                        </div>
-
-                        <p
-                            class="mt-3.5 text-sm leading-relaxed text-muted-foreground"
-                        >
-                            {{ alert.description }}
-                        </p>
-
-                        <div
-                            class="mt-4 rounded-xl border border-border/40 bg-muted/40 p-3 text-xs text-muted-foreground"
-                        >
-                            <span
-                                class="font-bold text-rose-600 dark:text-rose-400"
-                                >AI Reasoning:</span
+                        <ShieldAlert
+                            class="size-4 shrink-0 animate-pulse text-rose-500"
+                        />
+                        <span
+                            >Thuật toán AI phát hiện
+                            <strong
+                                >{{ aiAlerts.length }} cảnh báo rủi ro
+                                cao</strong
                             >
-                            {{ alert.reason }}
-                        </div>
-
-                        <div
-                            class="mt-4 flex items-center justify-between border-t border-border/40 pt-3"
+                            dựa trên phân tích nhật ký tĩnh audit_logs.</span
                         >
-                            <div class="text-xs text-muted-foreground">
-                                Phạt đề xuất:
-                                <span class="font-semibold text-rose-600">{{
-                                    alert.penalty_amount > 0
-                                        ? vnd(alert.penalty_amount)
-                                        : 'Cảnh cáo'
-                                }}</span>
-                            </div>
-                            <div class="flex items-center gap-2">
-                                <button
-                                    v-if="
-                                        alert.id.includes('log') &&
-                                        alert.violation_type.includes(
-                                            'Tách bàn',
-                                        )
-                                    "
-                                    @click="
-                                        overrideSplit(
-                                            parseInt(alert.id.replace('ai-log-', ''), 10),
-                                        )
-                                    "
-                                    class="inline-flex cursor-pointer items-center gap-1.5 rounded-xl border border-emerald-500 px-3 py-1.5 text-xs font-semibold text-emerald-600 transition hover:bg-emerald-50 active:scale-95 dark:hover:bg-emerald-950/20"
-                                >
-                                    Duyệt đối soát
-                                </button>
-                                <button
-                                    @click="
-                                        openViolation({
-                                            employee_id: alert.employee_id ?? 0,
-                                            employee_name: alert.employee_name,
-                                            violation_type:
-                                                alert.violation_type,
-                                            description:
-                                                alert.description +
-                                                ' (Phát hiện tự động bởi AI Fraud engine với độ tin cậy ' +
-                                                alert.risk_score +
-                                                '%)',
-                                            penalty_amount:
-                                                alert.penalty_amount,
-                                            occurred_at: alert.occurred_at,
-                                        })
-                                    "
-                                    class="inline-flex cursor-pointer items-center gap-1.5 rounded-xl bg-rose-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-rose-700 active:scale-95"
-                                >
-                                    <Plus class="size-3" /> Ghi vi phạm
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </template>
-
-        <!-- ══ TAB: NHẬT KÝ KIỂM TOÁN (audit) ═══════════════════════════════ -->
-        <template v-else-if="activeTab === 'audit'">
-            <div
-                v-if="!auditData.logs.length"
-                class="flex flex-col items-center gap-3 rounded-2xl border border-border bg-card py-16 text-center text-muted-foreground"
-            >
-                <List class="size-12 opacity-25" />
-                <p class="font-medium">
-                    Không có nhật ký kiểm toán nào trong kỳ này
-                </p>
-            </div>
-
-            <div v-else class="w-full space-y-3">
-                <div
-                    class="w-full overflow-hidden rounded-2xl border border-border bg-card shadow-sm"
-                >
-                    <div
-                        class="hidden grid-cols-[auto_1.5fr_1fr_1.5fr_auto_auto] gap-4 border-b border-border bg-muted/40 px-5 py-3 text-[10px] font-semibold tracking-wider text-muted-foreground uppercase lg:grid"
-                    >
-                        <div></div>
-                        <div>Thời gian / Thiết bị</div>
-                        <div>Người thực hiện</div>
-                        <div>Hành động</div>
-                        <div>Đối tượng</div>
-                        <div class="text-right">Sự kiện</div>
                     </div>
 
-                    <div
-                        v-for="log in auditData.logs"
-                        :key="log.id"
-                        class="border-b border-border last:border-0"
-                    >
+                    <div class="grid gap-4 md:grid-cols-2">
                         <div
-                            class="grid cursor-pointer grid-cols-[auto_1fr_auto] items-center gap-3 px-4 py-3.5 transition hover:bg-muted/30 lg:grid-cols-[auto_1.5fr_1fr_1.5fr_auto_auto] lg:gap-4 lg:px-5"
-                            @click="toggleExpand('audit-' + log.id)"
-                        >
-                            <component
-                                :is="
-                                    expandedKey === 'audit-' + log.id
-                                        ? ChevronUp
-                                        : ChevronDown
-                                "
-                                class="size-4 shrink-0 text-muted-foreground"
-                            />
-                            <div>
-                                <p class="text-sm font-semibold">
-                                    {{ log.created_at }}
-                                </p>
-                                <p
-                                    class="flex items-center gap-1 text-xs text-muted-foreground"
-                                >
-                                    <Globe class="size-3" />
-                                    {{ log.ip_address }}
-                                </p>
-                            </div>
-                            <div class="hidden lg:block">
-                                <p class="text-sm font-medium">
-                                    {{ log.user_name }}
-                                </p>
-                                <p
-                                    class="text-xs font-semibold tracking-wider text-muted-foreground uppercase"
-                                >
-                                    {{ log.user_role }}
-                                </p>
-                            </div>
-                            <div class="hidden lg:block">
-                                <span
-                                    class="inline-flex items-center gap-1 rounded bg-muted px-2 py-0.5 text-xs font-bold text-muted-foreground"
-                                >
-                                    {{ log.action_label }}
-                                </span>
-                            </div>
-                            <div
-                                class="hidden font-mono text-xs text-muted-foreground lg:block"
-                            >
-                                {{ log.subject_type }} #{{ log.subject_id }}
-                            </div>
-                            <div class="text-right">
-                                <span
-                                    class="rounded-full px-2 py-0.5 text-[10px] font-bold tracking-wider uppercase"
-                                    :class="
-                                        log.event === 'created'
-                                            ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300'
-                                            : log.event === 'updated'
-                                              ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300'
-                                              : 'bg-rose-100 text-rose-800 dark:bg-rose-900/40 dark:text-rose-300'
-                                    "
-                                >
-                                    {{ log.event }}
-                                </span>
-                            </div>
-                        </div>
-
-                        <Transition
-                            enter-active-class="transition-all duration-200"
-                            enter-from-class="opacity-0 max-h-0"
-                            enter-to-class="opacity-100 max-h-[800px]"
-                            leave-active-class="transition-all duration-150"
-                            leave-from-class="opacity-100 max-h-[800px]"
-                            leave-to-class="opacity-0 max-h-0"
+                            v-for="alert in aiAlerts"
+                            :key="alert.id"
+                            class="relative overflow-hidden rounded-2xl border border-border bg-card p-5 shadow-sm transition duration-200 hover:shadow-md"
                         >
                             <div
-                                v-if="expandedKey === 'audit-' + log.id"
-                                class="overflow-hidden border-t border-border/50 bg-muted/20 px-5 py-4"
-                            >
-                                <div class="grid gap-4 md:grid-cols-2">
-                                    <!-- Old values -->
-                                    <div
-                                        class="rounded-xl border border-border bg-card p-3 shadow-sm"
-                                    >
-                                        <p
-                                            class="mb-2 flex items-center gap-1 text-xs font-semibold text-rose-600 dark:text-rose-400"
-                                        >
-                                            <XCircle class="size-3.5" /> Dữ liệu
-                                            trước (old_values)
-                                        </p>
-                                        <pre
-                                            class="max-h-[250px] overflow-y-auto rounded-lg border border-border/50 bg-muted/40 p-2.5 font-mono text-[11px] whitespace-pre-wrap text-muted-foreground"
-                                            >{{
-                                                log.old_values
-                                                    ? JSON.stringify(
-                                                          log.old_values,
-                                                          null,
-                                                          2,
-                                                      )
-                                                    : '— (N/A)'
-                                            }}</pre
-                                        >
-                                    </div>
-
-                                    <!-- New values -->
-                                    <div
-                                        class="rounded-xl border border-border bg-card p-3 shadow-sm"
-                                    >
-                                        <p
-                                            class="mb-2 flex items-center gap-1 text-xs font-semibold text-emerald-600 dark:text-emerald-400"
-                                        >
-                                            <CheckCircle class="size-3.5" /> Dữ
-                                            liệu sau (new_values)
-                                        </p>
-                                        <pre
-                                            class="max-h-[250px] overflow-y-auto rounded-lg border border-border/50 bg-muted/40 p-2.5 font-mono text-[11px] whitespace-pre-wrap text-foreground"
-                                            >{{
-                                                log.new_values
-                                                    ? JSON.stringify(
-                                                          log.new_values,
-                                                          null,
-                                                          2,
-                                                      )
-                                                    : '— (N/A)'
-                                            }}</pre
-                                        >
-                                    </div>
-                                </div>
-                                <div
-                                    class="mt-3 flex items-center gap-1 text-[11px] text-muted-foreground italic"
-                                >
-                                    User Agent: {{ log.user_agent }}
-                                </div>
-                            </div>
-                        </Transition>
-                    </div>
-                </div>
-            </div>
-        </template>
-
-        <!-- ══ TAB: THIẾU QUỸ (cash) ═══════════════════════════════════════ -->
-        <template v-else-if="activeTab === 'cash'">
-            <div
-                v-if="!cashData.cashiers?.length"
-                class="flex flex-col items-center gap-3 rounded-2xl border border-border bg-card py-16 text-center text-muted-foreground"
-            >
-                <Banknote class="size-12 opacity-25" />
-                <p class="font-medium">
-                    Không phát hiện thu ngân nào bị âm quỹ trong kỳ này
-                </p>
-            </div>
-
-            <div v-else class="space-y-5">
-                <div
-                    class="flex items-center gap-3 rounded-xl border border-rose-200 bg-rose-50/50 px-4 py-2.5 text-sm text-rose-800 dark:border-rose-900 dark:bg-rose-900/20 dark:text-rose-300"
-                >
-                    <TrendingDown class="size-4 shrink-0 text-rose-500" />
-                    <span
-                        >Tổng thiếu hụt quỹ:
-                        <strong>{{
-                            vnd(Math.abs(cashData.total_shortage))
-                        }}</strong>
-                        từ {{ cashData.flagged_count }} thu ngân</span
-                    >
-                </div>
-
-                <div class="space-y-4">
-                    <div
-                        v-for="cashier in cashData.cashiers"
-                        :key="cashier.cashier_user_id"
-                        class="border-b border-border last:border-0"
-                    >
-                        <div
-                            class="grid cursor-pointer grid-cols-[auto_1fr_auto] items-center gap-3 px-4 py-3.5 transition hover:bg-muted/30 lg:grid-cols-[auto_1fr_auto_auto_auto] lg:gap-4 lg:px-5"
-                            @click="
-                                toggleExpand('cash-' + cashier.cashier_user_id)
-                            "
-                        >
-                            <component
-                                :is="
-                                    expandedKey ===
-                                    'cash-' + cashier.cashier_user_id
-                                        ? ChevronUp
-                                        : ChevronDown
+                                class="absolute top-0 right-0 h-1.5 w-full"
+                                :class="
+                                    alert.severity === 'critical'
+                                        ? 'bg-red-500'
+                                        : 'bg-rose-500'
                                 "
-                                class="size-4 shrink-0 text-muted-foreground"
-                            />
-                            <div>
-                                <p class="text-sm font-semibold">
-                                    {{ cashier.cashier_name }}
-                                </p>
-                                <p
-                                    class="text-xs text-muted-foreground lg:hidden"
-                                >
-                                    {{ cashier.shortfall_count }} lần ·
-                                    {{
-                                        vnd(Math.abs(cashier.total_difference))
-                                    }}
-                                </p>
-                            </div>
-                            <div class="hidden text-right lg:block">
-                                <p
-                                    class="text-sm font-semibold text-rose-600 dark:text-rose-400"
-                                >
-                                    {{ cashier.shortfall_count }} lần
-                                </p>
-                            </div>
-                            <div class="hidden text-right lg:block">
-                                <p
-                                    class="text-sm font-bold text-rose-600 dark:text-rose-400"
-                                >
-                                    {{
-                                        vnd(Math.abs(cashier.total_difference))
-                                    }}
-                                </p>
-                            </div>
-                            <div class="flex items-center gap-2">
-                                <span
-                                    class="rounded-full px-2.5 py-1 text-[11px] font-semibold"
-                                    :class="
-                                        severityConfig[
-                                            cashier.severity as Severity
-                                        ].cls
-                                    "
-                                >
-                                    {{
-                                        severityConfig[
-                                            cashier.severity as Severity
-                                        ].label
-                                    }}
-                                </span>
-                            </div>
-                        </div>
+                            ></div>
 
-                        <Transition
-                            enter-active-class="transition-all duration-200"
-                            enter-from-class="opacity-0 max-h-0"
-                            enter-to-class="opacity-100 max-h-[600px]"
-                            leave-active-class="transition-all duration-150"
-                            leave-from-class="opacity-100 max-h-[600px]"
-                            leave-to-class="opacity-0 max-h-0"
-                        >
+                            <div class="flex items-start justify-between gap-4">
+                                <div>
+                                    <span
+                                        class="rounded-full bg-rose-100 px-2 py-0.5 text-[10px] font-bold tracking-wider text-rose-800 uppercase dark:bg-rose-900/40 dark:text-rose-300"
+                                    >
+                                        AI Flagged
+                                    </span>
+                                    <h3
+                                        class="mt-2 text-base font-bold text-foreground"
+                                    >
+                                        {{ alert.violation_type }}
+                                    </h3>
+                                    <p
+                                        class="mt-0.5 text-xs text-muted-foreground"
+                                    >
+                                        Nhân viên:
+                                        <strong class="text-foreground">{{
+                                            alert.employee_name
+                                        }}</strong>
+                                    </p>
+                                </div>
+
+                                <div class="text-right">
+                                    <span
+                                        class="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-black shadow-sm"
+                                        :class="
+                                            alert.severity === 'critical'
+                                                ? 'bg-red-500/10 text-red-600'
+                                                : 'bg-rose-500/10 text-rose-600'
+                                        "
+                                    >
+                                        {{ alert.risk_score }}% Risk
+                                    </span>
+                                    <p
+                                        class="mt-1 text-[10px] text-muted-foreground"
+                                    >
+                                        {{ alert.occurred_at }}
+                                    </p>
+                                </div>
+                            </div>
+
+                            <p
+                                class="mt-3.5 text-sm leading-relaxed text-muted-foreground"
+                            >
+                                {{ alert.description }}
+                            </p>
+
                             <div
-                                v-if="
-                                    expandedKey ===
-                                    'cash-' + cashier.cashier_user_id
-                                "
-                                class="overflow-hidden border-t border-border/50 bg-muted/20 px-5 py-4"
+                                class="mt-4 rounded-xl border border-border/40 bg-muted/40 p-3 text-xs text-muted-foreground"
                             >
-                                <div
-                                    class="mb-3 grid grid-cols-3 gap-2 rounded-lg bg-muted/30 px-3 py-2 text-xs font-semibold tracking-wider text-muted-foreground uppercase"
+                                <span
+                                    class="font-bold text-rose-600 dark:text-rose-400"
+                                    >AI Reasoning:</span
                                 >
-                                    <span>Ngày</span
-                                    ><span class="text-right">Kỳ vọng</span
-                                    ><span class="text-right"
-                                        >Thực tế / Chênh lệch</span
-                                    >
-                                </div>
-                                <div
-                                    v-for="c in cashier.closings"
-                                    :key="c.id"
-                                    class="grid grid-cols-3 gap-2 border-b border-border/30 px-3 py-2 text-sm last:border-0"
-                                >
-                                    <div>
-                                        <p class="font-medium">
-                                            {{ c.closing_date }}
-                                        </p>
-                                        <p
-                                            class="text-xs text-muted-foreground"
-                                        >
-                                            {{ c.shift_name }}
-                                        </p>
-                                    </div>
-                                    <div
-                                        class="text-right text-muted-foreground"
-                                    >
-                                        {{ compact(c.expected_cash) }}
-                                    </div>
-                                    <div class="text-right">
-                                        <p class="font-semibold">
-                                            {{ compact(c.actual_cash) }}
-                                        </p>
-                                        <p
-                                            class="text-xs font-bold text-rose-600 dark:text-rose-400"
-                                        >
-                                            {{ vnd(c.cash_difference) }}
-                                        </p>
-                                    </div>
-                                </div>
+                                {{ alert.reason }}
+                            </div>
 
-                                <div v-if="canAct" class="mt-3">
+                            <div
+                                class="mt-4 flex items-center justify-between border-t border-border/40 pt-3"
+                            >
+                                <div class="text-xs text-muted-foreground">
+                                    Phạt đề xuất:
+                                    <span class="font-semibold text-rose-600">{{
+                                        alert.penalty_amount > 0
+                                            ? vnd(alert.penalty_amount)
+                                            : 'Cảnh cáo'
+                                    }}</span>
+                                </div>
+                                <div class="flex items-center gap-2">
+                                    <button
+                                        v-if="
+                                            alert.id.includes('log') &&
+                                            alert.violation_type.includes(
+                                                'Tách bàn',
+                                            )
+                                        "
+                                        @click="
+                                            overrideSplit(
+                                                parseInt(
+                                                    alert.id.replace(
+                                                        'ai-log-',
+                                                        '',
+                                                    ),
+                                                    10,
+                                                ),
+                                            )
+                                        "
+                                        class="inline-flex cursor-pointer items-center gap-1.5 rounded-xl border border-emerald-500 px-3 py-1.5 text-xs font-semibold text-emerald-600 transition hover:bg-emerald-50 active:scale-95 dark:hover:bg-emerald-950/20"
+                                    >
+                                        Duyệt đối soát
+                                    </button>
                                     <button
                                         @click="
                                             openViolation({
                                                 employee_id:
-                                                    cashier.cashier_user_id,
+                                                    alert.employee_id ?? 0,
                                                 employee_name:
-                                                    cashier.cashier_name,
+                                                    alert.employee_name,
                                                 violation_type:
-                                                    'Thiếu quỹ thu ngân',
+                                                    alert.violation_type,
                                                 description:
-                                                    cashier.shortfall_count +
-                                                    ' lần thiếu quỹ, tổng ' +
-                                                    vnd(
-                                                        Math.abs(
-                                                            cashier.total_difference,
-                                                        ),
-                                                    ),
-                                                penalty_amount: Math.abs(
-                                                    cashier.total_difference,
-                                                ),
-                                                occurred_at:
-                                                    cashier.closings[0]
-                                                        ?.closing_date ?? '',
+                                                    alert.description +
+                                                    ' (Phát hiện tự động bởi AI Fraud engine với độ tin cậy ' +
+                                                    alert.risk_score +
+                                                    '%)',
+                                                penalty_amount:
+                                                    alert.penalty_amount,
+                                                occurred_at: alert.occurred_at,
                                             })
                                         "
-                                        class="inline-flex cursor-pointer items-center gap-2 rounded-lg bg-rose-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-rose-700 active:scale-95"
+                                        class="inline-flex cursor-pointer items-center gap-1.5 rounded-xl bg-rose-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-rose-700 active:scale-95"
                                     >
-                                        <Plus class="size-3.5" /> Ghi vi phạm
+                                        <Plus class="size-3" /> Ghi vi phạm
                                     </button>
                                 </div>
                             </div>
-                        </Transition>
+                        </div>
                     </div>
                 </div>
-            </div>
-        </template>
+            </template>
 
-        <!-- ══ TAB: CHIẾT KHẤU (discount) ══════════════════════════════════ -->
-        <template v-else-if="activeTab === 'discount'">
-            <div
-                v-if="!discountData.days?.length"
-                class="flex flex-col items-center gap-3 rounded-2xl border border-border bg-card py-16 text-center text-muted-foreground"
-            >
-                <Percent class="size-12 opacity-25" />
-                <p class="font-medium">
-                    Không phát hiện ngày nào có tỷ lệ chiết khấu bất thường
-                </p>
-            </div>
-
-            <div v-else class="space-y-5">
+            <!-- ══ TAB: NHẬT KÝ KIỂM TOÁN (audit) ═══════════════════════════════ -->
+            <template v-else-if="activeTab === 'audit'">
                 <div
-                    class="flex items-center gap-3 rounded-xl border border-amber-200 bg-amber-50/50 px-4 py-2.5 text-sm text-amber-800 dark:border-amber-900 dark:bg-amber-900/20 dark:text-amber-300"
+                    v-if="!auditData.logs.length"
+                    class="flex flex-col items-center gap-3 rounded-2xl border border-border bg-card py-16 text-center text-muted-foreground"
                 >
-                    <TrendingDown class="size-4 shrink-0 text-amber-500" />
-                    <span>Tổng chiết khấu bất thường:
-                        <strong>{{ vnd(discountData.total_excess_discount) }}</strong>
-                        trong {{ discountData.flagged_days }} ngày</span>
+                    <List class="size-12 opacity-25" />
+                    <p class="font-medium">
+                        Không có nhật ký kiểm toán nào trong kỳ này
+                    </p>
                 </div>
 
-                <div class="space-y-4">
+                <div v-else class="w-full space-y-3">
                     <div
-                        v-for="day in discountData.days"
-                        :key="day.order_date"
-                        class="border-b border-border last:border-0"
+                        class="w-full overflow-hidden rounded-2xl border border-border bg-card shadow-sm"
                     >
                         <div
-                            class="grid cursor-pointer grid-cols-[auto_1fr_auto] items-center gap-3 px-4 py-3.5 transition hover:bg-muted/30 lg:grid-cols-[auto_1fr_auto_auto_auto] lg:gap-4 lg:px-5"
-                            @click="toggleExpand('disc-' + day.order_date)"
+                            class="hidden grid-cols-[auto_1.5fr_1fr_1.5fr_auto_auto] gap-4 border-b border-border bg-muted/40 px-5 py-3 text-[10px] font-semibold tracking-wider text-muted-foreground uppercase lg:grid"
                         >
-                            <component
-                                :is="
-                                    expandedKey === 'disc-' + day.order_date
-                                        ? ChevronUp
-                                        : ChevronDown
-                                "
-                                class="size-4 shrink-0 text-muted-foreground"
-                            />
-                            <div>
-                                <p class="text-sm font-semibold">
-                                    {{ day.order_date }}
-                                </p>
-                                <p
-                                    class="text-xs text-muted-foreground lg:hidden"
-                                >
-                                    {{ day.order_count }} đơn · CK
-                                    {{ pct(day.discount_rate_pct) }}
-                                </p>
-                            </div>
-                            <div
-                                class="hidden text-right text-sm text-muted-foreground lg:block"
-                            >
-                                {{ day.order_count }}
-                            </div>
-                            <div class="hidden text-right lg:block">
-                                <p
-                                    class="text-sm font-bold text-amber-600 dark:text-amber-400"
-                                >
-                                    {{ vnd(day.discount_total) }}
-                                </p>
-                            </div>
-                            <div class="flex items-center justify-end gap-2">
-                                <span
-                                    class="rounded-full bg-amber-100 px-2.5 py-1 text-[11px] font-bold text-amber-800 dark:bg-amber-900/40 dark:text-amber-300"
-                                >
-                                    {{ pct(day.discount_rate_pct) }}
-                                </span>
-                            </div>
+                            <div></div>
+                            <div>Thời gian / Thiết bị</div>
+                            <div>Người thực hiện</div>
+                            <div>Hành động</div>
+                            <div>Đối tượng</div>
+                            <div class="text-right">Sự kiện</div>
                         </div>
 
-                        <Transition
-                            enter-active-class="transition-all duration-200"
-                            enter-from-class="opacity-0 max-h-0"
-                            enter-to-class="opacity-100 max-h-[600px]"
-                            leave-active-class="transition-all duration-150"
-                            leave-from-class="opacity-100 max-h-[600px]"
-                            leave-to-class="opacity-0 max-h-0"
+                        <div
+                            v-for="log in auditData.logs"
+                            :key="log.id"
+                            class="border-b border-border last:border-0"
                         >
                             <div
-                                v-if="expandedKey === 'disc-' + day.order_date"
-                                class="overflow-hidden border-t border-border/50 bg-muted/20 px-5 py-4"
+                                class="grid cursor-pointer grid-cols-[auto_1fr_auto] items-center gap-3 px-4 py-3.5 transition hover:bg-muted/30 lg:grid-cols-[auto_1.5fr_1fr_1.5fr_auto_auto] lg:gap-4 lg:px-5"
+                                @click="toggleExpand('audit-' + log.id)"
                             >
-                                <p
-                                    v-if="!day.orders.length"
-                                    class="text-xs text-muted-foreground"
-                                >
-                                    Không có đơn đơn lẻ vượt ngưỡng 15%
-                                </p>
-                                <div v-else>
-                                    <p
-                                        class="mb-2 text-xs font-semibold tracking-wider text-muted-foreground uppercase"
-                                    >
-                                        Đơn hàng chiết khấu cao (>15%)
+                                <component
+                                    :is="
+                                        expandedKey === 'audit-' + log.id
+                                            ? ChevronUp
+                                            : ChevronDown
+                                    "
+                                    class="size-4 shrink-0 text-muted-foreground"
+                                />
+                                <div>
+                                    <p class="text-sm font-semibold">
+                                        {{ log.created_at }}
                                     </p>
-                                    <div class="space-y-1.5">
+                                    <p
+                                        class="flex items-center gap-1 text-xs text-muted-foreground"
+                                    >
+                                        <Globe class="size-3" />
+                                        {{ log.ip_address }}
+                                    </p>
+                                </div>
+                                <div class="hidden lg:block">
+                                    <p class="text-sm font-medium">
+                                        {{ log.user_name }}
+                                    </p>
+                                    <p
+                                        class="text-xs font-semibold tracking-wider text-muted-foreground uppercase"
+                                    >
+                                        {{ log.user_role }}
+                                    </p>
+                                </div>
+                                <div class="hidden lg:block">
+                                    <span
+                                        class="inline-flex items-center gap-1 rounded bg-muted px-2 py-0.5 text-xs font-bold text-muted-foreground"
+                                    >
+                                        {{ log.action_label }}
+                                    </span>
+                                </div>
+                                <div
+                                    class="hidden font-mono text-xs text-muted-foreground lg:block"
+                                >
+                                    {{ log.subject_type }} #{{ log.subject_id }}
+                                </div>
+                                <div class="text-right">
+                                    <span
+                                        class="rounded-full px-2 py-0.5 text-[10px] font-bold tracking-wider uppercase"
+                                        :class="
+                                            log.event === 'created'
+                                                ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300'
+                                                : log.event === 'updated'
+                                                  ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300'
+                                                  : 'bg-rose-100 text-rose-800 dark:bg-rose-900/40 dark:text-rose-300'
+                                        "
+                                    >
+                                        {{ log.event }}
+                                    </span>
+                                </div>
+                            </div>
+
+                            <Transition
+                                enter-active-class="transition-all duration-200"
+                                enter-from-class="opacity-0 max-h-0"
+                                enter-to-class="opacity-100 max-h-[800px]"
+                                leave-active-class="transition-all duration-150"
+                                leave-from-class="opacity-100 max-h-[800px]"
+                                leave-to-class="opacity-0 max-h-0"
+                            >
+                                <div
+                                    v-if="expandedKey === 'audit-' + log.id"
+                                    class="overflow-hidden border-t border-border/50 bg-muted/20 px-5 py-4"
+                                >
+                                    <div class="grid gap-4 md:grid-cols-2">
+                                        <!-- Old values -->
                                         <div
-                                            v-for="o in day.orders"
+                                            class="rounded-xl border border-border bg-card p-3 shadow-sm"
+                                        >
+                                            <p
+                                                class="mb-2 flex items-center gap-1 text-xs font-semibold text-rose-600 dark:text-rose-400"
+                                            >
+                                                <XCircle class="size-3.5" /> Dữ
+                                                liệu trước (old_values)
+                                            </p>
+                                            <pre
+                                                class="max-h-[250px] overflow-y-auto rounded-lg border border-border/50 bg-muted/40 p-2.5 font-mono text-[11px] whitespace-pre-wrap text-muted-foreground"
+                                                >{{
+                                                    log.old_values
+                                                        ? JSON.stringify(
+                                                              log.old_values,
+                                                              null,
+                                                              2,
+                                                          )
+                                                        : '— (N/A)'
+                                                }}</pre
+                                            >
+                                        </div>
+
+                                        <!-- New values -->
+                                        <div
+                                            class="rounded-xl border border-border bg-card p-3 shadow-sm"
+                                        >
+                                            <p
+                                                class="mb-2 flex items-center gap-1 text-xs font-semibold text-emerald-600 dark:text-emerald-400"
+                                            >
+                                                <CheckCircle class="size-3.5" />
+                                                Dữ liệu sau (new_values)
+                                            </p>
+                                            <pre
+                                                class="max-h-[250px] overflow-y-auto rounded-lg border border-border/50 bg-muted/40 p-2.5 font-mono text-[11px] whitespace-pre-wrap text-foreground"
+                                                >{{
+                                                    log.new_values
+                                                        ? JSON.stringify(
+                                                              log.new_values,
+                                                              null,
+                                                              2,
+                                                          )
+                                                        : '— (N/A)'
+                                                }}</pre
+                                            >
+                                        </div>
+                                    </div>
+                                    <div
+                                        class="mt-3 flex items-center gap-1 text-[11px] text-muted-foreground italic"
+                                    >
+                                        User Agent: {{ log.user_agent }}
+                                    </div>
+                                </div>
+                            </Transition>
+                        </div>
+                    </div>
+                </div>
+            </template>
+
+            <!-- ══ TAB: THIẾU QUỸ (cash) ═══════════════════════════════════════ -->
+            <template v-else-if="activeTab === 'cash'">
+                <div
+                    v-if="!cashData.cashiers?.length"
+                    class="flex flex-col items-center gap-3 rounded-2xl border border-border bg-card py-16 text-center text-muted-foreground"
+                >
+                    <Banknote class="size-12 opacity-25" />
+                    <p class="font-medium">
+                        Không phát hiện thu ngân nào bị âm quỹ trong kỳ này
+                    </p>
+                </div>
+
+                <div v-else class="space-y-5">
+                    <div
+                        class="flex items-center gap-3 rounded-xl border border-rose-200 bg-rose-50/50 px-4 py-2.5 text-sm text-rose-800 dark:border-rose-900 dark:bg-rose-900/20 dark:text-rose-300"
+                    >
+                        <TrendingDown class="size-4 shrink-0 text-rose-500" />
+                        <span
+                            >Tổng thiếu hụt quỹ:
+                            <strong>{{
+                                vnd(Math.abs(cashData.total_shortage))
+                            }}</strong>
+                            từ {{ cashData.flagged_count }} thu ngân</span
+                        >
+                    </div>
+
+                    <div class="space-y-4">
+                        <div
+                            v-for="cashier in cashData.cashiers"
+                            :key="cashier.cashier_user_id"
+                            class="border-b border-border last:border-0"
+                        >
+                            <div
+                                class="grid cursor-pointer grid-cols-[auto_1fr_auto] items-center gap-3 px-4 py-3.5 transition hover:bg-muted/30 lg:grid-cols-[auto_1fr_auto_auto_auto] lg:gap-4 lg:px-5"
+                                @click="
+                                    toggleExpand(
+                                        'cash-' + cashier.cashier_user_id,
+                                    )
+                                "
+                            >
+                                <component
+                                    :is="
+                                        expandedKey ===
+                                        'cash-' + cashier.cashier_user_id
+                                            ? ChevronUp
+                                            : ChevronDown
+                                    "
+                                    class="size-4 shrink-0 text-muted-foreground"
+                                />
+                                <div>
+                                    <p class="text-sm font-semibold">
+                                        {{ cashier.cashier_name }}
+                                    </p>
+                                    <p
+                                        class="text-xs text-muted-foreground lg:hidden"
+                                    >
+                                        {{ cashier.shortfall_count }} lần ·
+                                        {{
+                                            vnd(
+                                                Math.abs(
+                                                    cashier.total_difference,
+                                                ),
+                                            )
+                                        }}
+                                    </p>
+                                </div>
+                                <div class="hidden text-right lg:block">
+                                    <p
+                                        class="text-sm font-semibold text-rose-600 dark:text-rose-400"
+                                    >
+                                        {{ cashier.shortfall_count }} lần
+                                    </p>
+                                </div>
+                                <div class="hidden text-right lg:block">
+                                    <p
+                                        class="text-sm font-bold text-rose-600 dark:text-rose-400"
+                                    >
+                                        {{
+                                            vnd(
+                                                Math.abs(
+                                                    cashier.total_difference,
+                                                ),
+                                            )
+                                        }}
+                                    </p>
+                                </div>
+                                <div class="flex items-center gap-2">
+                                    <span
+                                        class="rounded-full px-2.5 py-1 text-[11px] font-semibold"
+                                        :class="
+                                            severityConfig[
+                                                cashier.severity as Severity
+                                            ].cls
+                                        "
+                                    >
+                                        {{
+                                            severityConfig[
+                                                cashier.severity as Severity
+                                            ].label
+                                        }}
+                                    </span>
+                                </div>
+                            </div>
+
+                            <Transition
+                                enter-active-class="transition-all duration-200"
+                                enter-from-class="opacity-0 max-h-0"
+                                enter-to-class="opacity-100 max-h-[600px]"
+                                leave-active-class="transition-all duration-150"
+                                leave-from-class="opacity-100 max-h-[600px]"
+                                leave-to-class="opacity-0 max-h-0"
+                            >
+                                <div
+                                    v-if="
+                                        expandedKey ===
+                                        'cash-' + cashier.cashier_user_id
+                                    "
+                                    class="overflow-hidden border-t border-border/50 bg-muted/20 px-5 py-4"
+                                >
+                                    <div
+                                        class="mb-3 grid grid-cols-3 gap-2 rounded-lg bg-muted/30 px-3 py-2 text-xs font-semibold tracking-wider text-muted-foreground uppercase"
+                                    >
+                                        <span>Ngày</span
+                                        ><span class="text-right">Kỳ vọng</span
+                                        ><span class="text-right"
+                                            >Thực tế / Chênh lệch</span
+                                        >
+                                    </div>
+                                    <div
+                                        v-for="c in cashier.closings"
+                                        :key="c.id"
+                                        class="grid grid-cols-3 gap-2 border-b border-border/30 px-3 py-2 text-sm last:border-0"
+                                    >
+                                        <div>
+                                            <p class="font-medium">
+                                                {{ c.closing_date }}
+                                            </p>
+                                            <p
+                                                class="text-xs text-muted-foreground"
+                                            >
+                                                {{ c.shift_name }}
+                                            </p>
+                                        </div>
+                                        <div
+                                            class="text-right text-muted-foreground"
+                                        >
+                                            {{ compact(c.expected_cash) }}
+                                        </div>
+                                        <div class="text-right">
+                                            <p class="font-semibold">
+                                                {{ compact(c.actual_cash) }}
+                                            </p>
+                                            <p
+                                                class="text-xs font-bold text-rose-600 dark:text-rose-400"
+                                            >
+                                                {{ vnd(c.cash_difference) }}
+                                            </p>
+                                        </div>
+                                    </div>
+
+                                    <div v-if="canAct" class="mt-3">
+                                        <button
+                                            @click="
+                                                openViolation({
+                                                    employee_id:
+                                                        cashier.cashier_user_id,
+                                                    employee_name:
+                                                        cashier.cashier_name,
+                                                    violation_type:
+                                                        'Thiếu quỹ thu ngân',
+                                                    description:
+                                                        cashier.shortfall_count +
+                                                        ' lần thiếu quỹ, tổng ' +
+                                                        vnd(
+                                                            Math.abs(
+                                                                cashier.total_difference,
+                                                            ),
+                                                        ),
+                                                    penalty_amount: Math.abs(
+                                                        cashier.total_difference,
+                                                    ),
+                                                    occurred_at:
+                                                        cashier.closings[0]
+                                                            ?.closing_date ??
+                                                        '',
+                                                })
+                                            "
+                                            class="inline-flex cursor-pointer items-center gap-2 rounded-lg bg-rose-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-rose-700 active:scale-95"
+                                        >
+                                            <Plus class="size-3.5" /> Ghi vi
+                                            phạm
+                                        </button>
+                                    </div>
+                                </div>
+                            </Transition>
+                        </div>
+                    </div>
+                </div>
+            </template>
+
+            <!-- ══ TAB: CHIẾT KHẤU (discount) ══════════════════════════════════ -->
+            <template v-else-if="activeTab === 'discount'">
+                <div
+                    v-if="!discountData.days?.length"
+                    class="flex flex-col items-center gap-3 rounded-2xl border border-border bg-card py-16 text-center text-muted-foreground"
+                >
+                    <Percent class="size-12 opacity-25" />
+                    <p class="font-medium">
+                        Không phát hiện ngày nào có tỷ lệ chiết khấu bất thường
+                    </p>
+                </div>
+
+                <div v-else class="space-y-5">
+                    <div
+                        class="flex items-center gap-3 rounded-xl border border-amber-200 bg-amber-50/50 px-4 py-2.5 text-sm text-amber-800 dark:border-amber-900 dark:bg-amber-900/20 dark:text-amber-300"
+                    >
+                        <TrendingDown class="size-4 shrink-0 text-amber-500" />
+                        <span
+                            >Tổng chiết khấu bất thường:
+                            <strong>{{
+                                vnd(discountData.total_excess_discount)
+                            }}</strong>
+                            trong {{ discountData.flagged_days }} ngày</span
+                        >
+                    </div>
+
+                    <div class="space-y-4">
+                        <div
+                            v-for="day in discountData.days"
+                            :key="day.order_date"
+                            class="border-b border-border last:border-0"
+                        >
+                            <div
+                                class="grid cursor-pointer grid-cols-[auto_1fr_auto] items-center gap-3 px-4 py-3.5 transition hover:bg-muted/30 lg:grid-cols-[auto_1fr_auto_auto_auto] lg:gap-4 lg:px-5"
+                                @click="toggleExpand('disc-' + day.order_date)"
+                            >
+                                <component
+                                    :is="
+                                        expandedKey === 'disc-' + day.order_date
+                                            ? ChevronUp
+                                            : ChevronDown
+                                    "
+                                    class="size-4 shrink-0 text-muted-foreground"
+                                />
+                                <div>
+                                    <p class="text-sm font-semibold">
+                                        {{ day.order_date }}
+                                    </p>
+                                    <p
+                                        class="text-xs text-muted-foreground lg:hidden"
+                                    >
+                                        {{ day.order_count }} đơn · CK
+                                        {{ pct(day.discount_rate_pct) }}
+                                    </p>
+                                </div>
+                                <div
+                                    class="hidden text-right text-sm text-muted-foreground lg:block"
+                                >
+                                    {{ day.order_count }}
+                                </div>
+                                <div class="hidden text-right lg:block">
+                                    <p
+                                        class="text-sm font-bold text-amber-600 dark:text-amber-400"
+                                    >
+                                        {{ vnd(day.discount_total) }}
+                                    </p>
+                                </div>
+                                <div
+                                    class="flex items-center justify-end gap-2"
+                                >
+                                    <span
+                                        class="rounded-full bg-amber-100 px-2.5 py-1 text-[11px] font-bold text-amber-800 dark:bg-amber-900/40 dark:text-amber-300"
+                                    >
+                                        {{ pct(day.discount_rate_pct) }}
+                                    </span>
+                                </div>
+                            </div>
+
+                            <Transition
+                                enter-active-class="transition-all duration-200"
+                                enter-from-class="opacity-0 max-h-0"
+                                enter-to-class="opacity-100 max-h-[600px]"
+                                leave-active-class="transition-all duration-150"
+                                leave-from-class="opacity-100 max-h-[600px]"
+                                leave-to-class="opacity-0 max-h-0"
+                            >
+                                <div
+                                    v-if="
+                                        expandedKey === 'disc-' + day.order_date
+                                    "
+                                    class="overflow-hidden border-t border-border/50 bg-muted/20 px-5 py-4"
+                                >
+                                    <p
+                                        v-if="!day.orders.length"
+                                        class="text-xs text-muted-foreground"
+                                    >
+                                        Không có đơn đơn lẻ vượt ngưỡng 15%
+                                    </p>
+                                    <div v-else>
+                                        <p
+                                            class="mb-2 text-xs font-semibold tracking-wider text-muted-foreground uppercase"
+                                        >
+                                            Đơn hàng chiết khấu cao (>15%)
+                                        </p>
+                                        <div class="space-y-1.5">
+                                            <div
+                                                v-for="o in day.orders"
+                                                :key="o.id"
+                                                class="flex items-center justify-between rounded-lg border border-border bg-card px-3 py-2 text-sm"
+                                            >
+                                                <div>
+                                                    <p class="font-medium">
+                                                        {{ o.order_number }}
+                                                    </p>
+                                                    <p
+                                                        class="text-xs text-muted-foreground"
+                                                    >
+                                                        {{ o.cashier_name }}
+                                                    </p>
+                                                </div>
+                                                <div class="text-right">
+                                                    <p
+                                                        class="font-bold text-amber-600"
+                                                    >
+                                                        -{{
+                                                            vnd(
+                                                                o.discount_amount,
+                                                            )
+                                                        }}
+                                                    </p>
+                                                    <p
+                                                        class="text-xs text-muted-foreground"
+                                                    >
+                                                        {{
+                                                            pct(
+                                                                o.discount_rate_pct,
+                                                            )
+                                                        }}
+                                                        của
+                                                        {{ vnd(o.subtotal) }}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </Transition>
+                        </div>
+                    </div>
+                </div>
+            </template>
+
+            <!-- ══ TAB: HỦY ĐƠN (cancel) ═══════════════════════════════════════ -->
+            <template v-else-if="activeTab === 'cancel'">
+                <div
+                    v-if="
+                        !cancelData.cashiers?.length &&
+                        !cancelData.standalone_high_value?.length
+                    "
+                    class="flex flex-col items-center gap-3 rounded-2xl border border-border bg-card py-16 text-center text-muted-foreground"
+                >
+                    <XCircle class="size-12 opacity-25" />
+                    <p class="font-medium">
+                        Không phát hiện hủy đơn bất thường trong kỳ này
+                    </p>
+                </div>
+
+                <div v-else class="space-y-6">
+                    <div v-if="cancelData.cashiers?.length" class="space-y-4">
+                        <h3 class="text-sm font-bold text-foreground">
+                            Thu ngân có tỷ lệ hủy bất thường
+                        </h3>
+                        <div
+                            v-for="cashier in cancelData.cashiers"
+                            :key="cashier.cancelled_by ?? 'unknown'"
+                            class="border-b border-border last:border-0"
+                        >
+                            <div
+                                class="grid cursor-pointer grid-cols-[auto_1fr_auto_auto] items-center gap-3 px-4 py-3.5 transition hover:bg-muted/30 lg:gap-4 lg:px-5"
+                                @click="
+                                    toggleExpand(
+                                        'cancel-' + cashier.cancelled_by,
+                                    )
+                                "
+                            >
+                                <component
+                                    :is="
+                                        expandedKey ===
+                                        'cancel-' + cashier.cancelled_by
+                                            ? ChevronUp
+                                            : ChevronDown
+                                    "
+                                    class="size-4 shrink-0 text-muted-foreground"
+                                />
+                                <div>
+                                    <p class="text-sm font-semibold">
+                                        {{ cashier.cashier_name }}
+                                    </p>
+                                    <p class="text-xs text-muted-foreground">
+                                        {{ cashier.cancelled_count }} đơn hủy ·
+                                        {{ vnd(cashier.total_value_cancelled) }}
+                                    </p>
+                                </div>
+                                <span
+                                    class="text-sm font-bold text-rose-600 dark:text-rose-400"
+                                    >{{ cashier.cancelled_count }} đơn</span
+                                >
+                                <span
+                                    class="rounded-full bg-rose-100 px-2.5 py-1 text-[11px] font-semibold text-rose-700 dark:bg-rose-900/40 dark:text-rose-300"
+                                >
+                                    {{
+                                        cashier.flag_reason === 'both'
+                                            ? 'Số lượng & Giá trị'
+                                            : cashier.flag_reason === 'count'
+                                              ? 'Số lượng'
+                                              : 'Giá trị cao'
+                                    }}
+                                </span>
+                            </div>
+
+                            <Transition
+                                enter-active-class="transition-all duration-200"
+                                enter-from-class="opacity-0 max-h-0"
+                                enter-to-class="opacity-100 max-h-[600px]"
+                                leave-active-class="transition-all duration-150"
+                                leave-from-class="opacity-100 max-h-[600px]"
+                                leave-to-class="opacity-0 max-h-0"
+                            >
+                                <div
+                                    v-if="
+                                        expandedKey ===
+                                        'cancel-' + cashier.cancelled_by
+                                    "
+                                    class="overflow-hidden border-t border-border/50 bg-muted/20 px-5 py-4"
+                                >
+                                    <div
+                                        v-if="cashier.orders.length"
+                                        class="mb-3 space-y-1.5"
+                                    >
+                                        <div
+                                            v-for="o in cashier.orders"
                                             :key="o.id"
                                             class="flex items-center justify-between rounded-lg border border-border bg-card px-3 py-2 text-sm"
                                         >
@@ -1234,461 +1423,368 @@ const pct = (v: number) => v.toFixed(1) + '%';
                                                 <p
                                                     class="text-xs text-muted-foreground"
                                                 >
-                                                    {{ o.cashier_name }}
+                                                    {{ o.cancelled_date }}
                                                 </p>
                                             </div>
-                                            <div class="text-right">
-                                                <p
-                                                    class="font-bold text-amber-600"
-                                                >
-                                                    -{{
-                                                        vnd(o.discount_amount)
-                                                    }}
-                                                </p>
-                                                <p
-                                                    class="text-xs text-muted-foreground"
-                                                >
-                                                    {{
-                                                        pct(o.discount_rate_pct)
-                                                    }}
-                                                    của {{ vnd(o.subtotal) }}
-                                                </p>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </Transition>
-                    </div>
-                </div>
-            </div>
-        </template>
-
-        <!-- ══ TAB: HỦY ĐƠN (cancel) ═══════════════════════════════════════ -->
-        <template v-else-if="activeTab === 'cancel'">
-            <div
-                v-if="
-                    !cancelData.cashiers?.length &&
-                    !cancelData.standalone_high_value?.length
-                "
-                class="flex flex-col items-center gap-3 rounded-2xl border border-border bg-card py-16 text-center text-muted-foreground"
-            >
-                <XCircle class="size-12 opacity-25" />
-                <p class="font-medium">
-                    Không phát hiện hủy đơn bất thường trong kỳ này
-                </p>
-            </div>
-
-            <div v-else class="space-y-6">
-                <div
-                    v-if="cancelData.cashiers?.length"
-                    class="space-y-4"
-                >
-                    <h3 class="text-sm font-bold text-foreground">Thu ngân có tỷ lệ hủy bất thường</h3>
-                    <div
-                        v-for="cashier in cancelData.cashiers"
-                        :key="cashier.cancelled_by ?? 'unknown'"
-                        class="border-b border-border last:border-0"
-                    >
-                        <div
-                            class="grid cursor-pointer grid-cols-[auto_1fr_auto_auto] items-center gap-3 px-4 py-3.5 transition hover:bg-muted/30 lg:gap-4 lg:px-5"
-                            @click="
-                                toggleExpand('cancel-' + cashier.cancelled_by)
-                            "
-                        >
-                            <component
-                                :is="
-                                    expandedKey ===
-                                    'cancel-' + cashier.cancelled_by
-                                        ? ChevronUp
-                                        : ChevronDown
-                                "
-                                class="size-4 shrink-0 text-muted-foreground"
-                            />
-                            <div>
-                                <p class="text-sm font-semibold">
-                                    {{ cashier.cashier_name }}
-                                </p>
-                                <p class="text-xs text-muted-foreground">
-                                    {{ cashier.cancelled_count }} đơn hủy ·
-                                    {{ vnd(cashier.total_value_cancelled) }}
-                                </p>
-                            </div>
-                            <span
-                                class="text-sm font-bold text-rose-600 dark:text-rose-400"
-                                >{{ cashier.cancelled_count }} đơn</span
-                            >
-                            <span
-                                class="rounded-full bg-rose-100 px-2.5 py-1 text-[11px] font-semibold text-rose-700 dark:bg-rose-900/40 dark:text-rose-300"
-                            >
-                                {{
-                                    cashier.flag_reason === 'both'
-                                        ? 'Số lượng & Giá trị'
-                                        : cashier.flag_reason === 'count'
-                                          ? 'Số lượng'
-                                          : 'Giá trị cao'
-                                }}
-                            </span>
-                        </div>
-
-                        <Transition
-                            enter-active-class="transition-all duration-200"
-                            enter-from-class="opacity-0 max-h-0"
-                            enter-to-class="opacity-100 max-h-[600px]"
-                            leave-active-class="transition-all duration-150"
-                            leave-from-class="opacity-100 max-h-[600px]"
-                            leave-to-class="opacity-0 max-h-0"
-                        >
-                            <div
-                                v-if="
-                                    expandedKey ===
-                                    'cancel-' + cashier.cancelled_by
-                                "
-                                class="overflow-hidden border-t border-border/50 bg-muted/20 px-5 py-4"
-                            >
-                                <div
-                                    v-if="cashier.orders.length"
-                                    class="mb-3 space-y-1.5"
-                                >
-                                    <div
-                                        v-for="o in cashier.orders"
-                                        :key="o.id"
-                                        class="flex items-center justify-between rounded-lg border border-border bg-card px-3 py-2 text-sm"
-                                    >
-                                        <div>
-                                            <p class="font-medium">
-                                                {{ o.order_number }}
-                                            </p>
                                             <p
-                                                class="text-xs text-muted-foreground"
+                                                class="font-bold text-rose-600 dark:text-rose-400"
                                             >
-                                                {{ o.cancelled_date }}
+                                                {{ vnd(o.total_amount) }}
                                             </p>
                                         </div>
-                                        <p
-                                            class="font-bold text-rose-600 dark:text-rose-400"
+                                    </div>
+                                    <div v-if="canAct">
+                                        <button
+                                            @click="
+                                                openViolation({
+                                                    employee_id:
+                                                        cashier.cancelled_by ??
+                                                        0,
+                                                    employee_name:
+                                                        cashier.cashier_name,
+                                                    violation_type:
+                                                        'Hủy đơn bất thường',
+                                                    description:
+                                                        cashier.cancelled_count +
+                                                        ' đơn hủy, tổng ' +
+                                                        vnd(
+                                                            cashier.total_value_cancelled,
+                                                        ),
+                                                    penalty_amount: 0,
+                                                    occurred_at:
+                                                        cashier.orders[0]
+                                                            ?.cancelled_date ??
+                                                        '',
+                                                })
+                                            "
+                                            class="inline-flex cursor-pointer items-center gap-2 rounded-lg bg-rose-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-rose-700 active:scale-95"
                                         >
-                                            {{ vnd(o.total_amount) }}
-                                        </p>
+                                            <Plus class="size-3.5" /> Ghi vi
+                                            phạm
+                                        </button>
                                     </div>
                                 </div>
-                                <div v-if="canAct">
-                                    <button
-                                        @click="
-                                            openViolation({
-                                                employee_id:
-                                                    cashier.cancelled_by ?? 0,
-                                                employee_name:
-                                                    cashier.cashier_name,
-                                                violation_type:
-                                                    'Hủy đơn bất thường',
-                                                description:
-                                                    cashier.cancelled_count +
-                                                    ' đơn hủy, tổng ' +
-                                                    vnd(
-                                                        cashier.total_value_cancelled,
-                                                    ),
-                                                penalty_amount: 0,
-                                                occurred_at:
-                                                    cashier.orders[0]
-                                                        ?.cancelled_date ?? '',
-                                            })
-                                        "
-                                        class="inline-flex cursor-pointer items-center gap-2 rounded-lg bg-rose-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-rose-700 active:scale-95"
-                                    >
-                                        <Plus class="size-3.5" /> Ghi vi phạm
-                                    </button>
-                                </div>
-                            </div>
-                        </Transition>
-                    </div>
-                </div>
-
-                <!-- Standalone high-value cancellations -->
-                <div
-                    v-if="cancelData.standalone_high_value?.length"
-                    class="space-y-4"
-                >
-                    <h3 class="text-sm font-bold text-foreground">Đơn hủy giá trị cao đơn lẻ</h3>
-                    <div
-                        v-for="o in cancelData.standalone_high_value"
-                        :key="o.id"
-                        class="flex items-center justify-between border-b border-border px-5 py-3 transition last:border-0 hover:bg-muted/20"
-                    >
-                        <div>
-                            <p class="text-sm font-medium">
-                                {{ o.order_number }}
-                            </p>
-                            <p class="text-xs text-muted-foreground">
-                                {{ o.cancelled_by_name }} ·
-                                {{ o.cancelled_date }}
-                            </p>
+                            </Transition>
                         </div>
-                        <p class="font-bold text-rose-600 dark:text-rose-400">
-                            {{ vnd(o.total_amount) }}
-                        </p>
                     </div>
-                </div>
-            </div>
-        </template>
 
-        <!-- ══ TAB: HAO HỤT KHO (waste) ════════════════════════════════════ -->
-        <template v-else-if="activeTab === 'waste'">
-            <div
-                v-if="!wasteData.large_entries?.length && !wasteData.flagged_days?.length"
-                class="flex flex-col items-center gap-3 rounded-2xl border border-border bg-card py-16 text-center text-muted-foreground"
-            >
-                <Package class="size-12 opacity-25" />
-                <p class="font-medium">
-                    Không phát hiện hao hụt bất thường trong kỳ này
-                </p>
-            </div>
-
-            <div v-else class="space-y-6">
-                <div class="grid gap-3 grid-cols-3">
-                    <div class="rounded-xl border border-border bg-card p-4">
-                        <p class="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Tổng giá trị hao hụt</p>
-                        <p class="mt-1 text-2xl font-black text-rose-600">{{
-                            compact(wasteData.total_waste_cost)
-                        }}</p>
-                    </div>
-                    <div class="rounded-xl border border-border bg-card p-4">
-                        <p class="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Giao dịch lớn</p>
-                        <p class="mt-1 text-2xl font-black text-amber-600">{{
-                            wasteData.flagged_entries_count
-                        }}</p>
-                    </div>
-                    <div class="rounded-xl border border-border bg-card p-4">
-                        <p class="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Ngày đỉnh hao hụt</p>
-                        <p class="mt-1 text-2xl font-black text-orange-600">{{
-                            wasteData.flagged_days_count
-                        }}</p>
-                    </div>
-                </div>
-
-                <div
-                    v-if="wasteData.large_entries?.length"
-                    class="space-y-3"
-                >
-                    <h3 class="text-sm font-bold">Giao dịch hao hụt lớn (&gt;500K)</h3>
+                    <!-- Standalone high-value cancellations -->
                     <div
-                        v-for="entry in wasteData.large_entries"
-                        :key="entry.id"
-                        class="grid grid-cols-[1fr_auto_auto] items-center gap-3 border-b border-border px-5 py-3 transition last:border-0 hover:bg-muted/20"
+                        v-if="cancelData.standalone_high_value?.length"
+                        class="space-y-4"
                     >
-                        <div>
-                            <p class="text-sm font-medium">
-                                {{ entry.ingredient_name }}
-                            </p>
-                            <p class="text-xs text-muted-foreground">
-                                {{ entry.employee_name }}
-                                <span v-if="entry.occurred_at">
-                                    · {{ entry.occurred_at }}</span
-                                >
-                                <span v-if="entry.notes" class="italic">
-                                    · {{ entry.notes }}</span
-                                >
-                            </p>
-                        </div>
-                        <p class="font-mono text-sm text-muted-foreground">
-                            {{ entry.quantity.toFixed(3) }}
-                        </p>
-                        <p
-                            class="text-right font-bold text-amber-600 dark:text-amber-400"
+                        <h3 class="text-sm font-bold text-foreground">
+                            Đơn hủy giá trị cao đơn lẻ
+                        </h3>
+                        <div
+                            v-for="o in cancelData.standalone_high_value"
+                            :key="o.id"
+                            class="flex items-center justify-between border-b border-border px-5 py-3 transition last:border-0 hover:bg-muted/20"
                         >
-                            {{ vnd(entry.total_cost) }}
-                        </p>
-                    </div>
-                </div>
-
-                <!-- Flagged days -->
-                <div
-                    v-if="wasteData.flagged_days?.length"
-                    class="w-full overflow-hidden rounded-2xl border border-border bg-card shadow-sm"
-                >
-                    <div
-                        class="border-b border-border bg-muted/40 px-5 py-3 text-xs font-semibold tracking-wider text-muted-foreground uppercase"
-                    >
-                        Ngày có hao hụt tổng &gt;1,000,000đ
-                    </div>
-                    <div
-                        v-for="day in wasteData.flagged_days"
-                        :key="day.waste_date"
-                        class="flex items-center justify-between border-b border-border px-5 py-3 transition last:border-0 hover:bg-muted/20"
-                    >
-                        <div>
-                            <p class="text-sm font-medium">
-                                {{ day.waste_date }}
-                            </p>
-                            <p class="text-xs text-muted-foreground">
-                                {{ day.entry_count }} lần ghi nhận
-                            </p>
-                        </div>
-                        <p class="font-bold text-amber-600 dark:text-amber-400">
-                            {{ vnd(day.daily_waste_cost) }}
-                        </p>
-                    </div>
-                </div>
-
-                <!-- Top employees by waste -->
-                <div
-                    v-if="wasteData.top_employees?.length"
-                    class="w-full overflow-hidden rounded-2xl border border-border bg-card shadow-sm"
-                >
-                    <div
-                        class="border-b border-border bg-muted/40 px-5 py-3 text-xs font-semibold tracking-wider text-muted-foreground uppercase"
-                    >
-                        Nhân viên ghi nhận hao hụt nhiều nhất
-                    </div>
-                    <div
-                        v-for="emp in wasteData.top_employees"
-                        :key="emp.performed_by ?? 'unknown'"
-                        class="flex items-center justify-between border-b border-border px-5 py-3 transition last:border-0 hover:bg-muted/20"
-                    >
-                        <div class="flex items-center gap-3">
-                            <div
-                                class="flex h-8 w-8 items-center justify-center rounded-full bg-amber-500/10 text-xs font-bold text-amber-600"
-                            >
-                                {{ emp.employee_name?.slice(0, 1) ?? '?' }}
-                            </div>
                             <div>
                                 <p class="text-sm font-medium">
-                                    {{ emp.employee_name }}
+                                    {{ o.order_number }}
                                 </p>
                                 <p class="text-xs text-muted-foreground">
-                                    {{ emp.waste_entry_count }} lần
+                                    {{ o.cancelled_by_name }} ·
+                                    {{ o.cancelled_date }}
                                 </p>
                             </div>
+                            <p
+                                class="font-bold text-rose-600 dark:text-rose-400"
+                            >
+                                {{ vnd(o.total_amount) }}
+                            </p>
                         </div>
-                        <div class="text-right">
+                    </div>
+                </div>
+            </template>
+
+            <!-- ══ TAB: HAO HỤT KHO (waste) ════════════════════════════════════ -->
+            <template v-else-if="activeTab === 'waste'">
+                <div
+                    v-if="
+                        !wasteData.large_entries?.length &&
+                        !wasteData.flagged_days?.length
+                    "
+                    class="flex flex-col items-center gap-3 rounded-2xl border border-border bg-card py-16 text-center text-muted-foreground"
+                >
+                    <Package class="size-12 opacity-25" />
+                    <p class="font-medium">
+                        Không phát hiện hao hụt bất thường trong kỳ này
+                    </p>
+                </div>
+
+                <div v-else class="space-y-6">
+                    <div class="grid grid-cols-3 gap-3">
+                        <div
+                            class="rounded-xl border border-border bg-card p-4"
+                        >
+                            <p
+                                class="text-[10px] font-bold tracking-wider text-muted-foreground uppercase"
+                            >
+                                Tổng giá trị hao hụt
+                            </p>
+                            <p class="mt-1 text-2xl font-black text-rose-600">
+                                {{ compact(wasteData.total_waste_cost) }}
+                            </p>
+                        </div>
+                        <div
+                            class="rounded-xl border border-border bg-card p-4"
+                        >
+                            <p
+                                class="text-[10px] font-bold tracking-wider text-muted-foreground uppercase"
+                            >
+                                Giao dịch lớn
+                            </p>
+                            <p class="mt-1 text-2xl font-black text-amber-600">
+                                {{ wasteData.flagged_entries_count }}
+                            </p>
+                        </div>
+                        <div
+                            class="rounded-xl border border-border bg-card p-4"
+                        >
+                            <p
+                                class="text-[10px] font-bold tracking-wider text-muted-foreground uppercase"
+                            >
+                                Ngày đỉnh hao hụt
+                            </p>
+                            <p class="mt-1 text-2xl font-black text-orange-600">
+                                {{ wasteData.flagged_days_count }}
+                            </p>
+                        </div>
+                    </div>
+
+                    <div
+                        v-if="wasteData.large_entries?.length"
+                        class="space-y-3"
+                    >
+                        <h3 class="text-sm font-bold">
+                            Giao dịch hao hụt lớn (&gt;500K)
+                        </h3>
+                        <div
+                            v-for="entry in wasteData.large_entries"
+                            :key="entry.id"
+                            class="grid grid-cols-[1fr_auto_auto] items-center gap-3 border-b border-border px-5 py-3 transition last:border-0 hover:bg-muted/20"
+                        >
+                            <div>
+                                <p class="text-sm font-medium">
+                                    {{ entry.ingredient_name }}
+                                </p>
+                                <p class="text-xs text-muted-foreground">
+                                    {{ entry.employee_name }}
+                                    <span v-if="entry.occurred_at">
+                                        · {{ entry.occurred_at }}</span
+                                    >
+                                    <span v-if="entry.notes" class="italic">
+                                        · {{ entry.notes }}</span
+                                    >
+                                </p>
+                            </div>
+                            <p class="font-mono text-sm text-muted-foreground">
+                                {{ entry.quantity.toFixed(3) }}
+                            </p>
+                            <p
+                                class="text-right font-bold text-amber-600 dark:text-amber-400"
+                            >
+                                {{ vnd(entry.total_cost) }}
+                            </p>
+                        </div>
+                    </div>
+
+                    <!-- Flagged days -->
+                    <div
+                        v-if="wasteData.flagged_days?.length"
+                        class="w-full overflow-hidden rounded-2xl border border-border bg-card shadow-sm"
+                    >
+                        <div
+                            class="border-b border-border bg-muted/40 px-5 py-3 text-xs font-semibold tracking-wider text-muted-foreground uppercase"
+                        >
+                            Ngày có hao hụt tổng &gt;1,000,000đ
+                        </div>
+                        <div
+                            v-for="day in wasteData.flagged_days"
+                            :key="day.waste_date"
+                            class="flex items-center justify-between border-b border-border px-5 py-3 transition last:border-0 hover:bg-muted/20"
+                        >
+                            <div>
+                                <p class="text-sm font-medium">
+                                    {{ day.waste_date }}
+                                </p>
+                                <p class="text-xs text-muted-foreground">
+                                    {{ day.entry_count }} lần ghi nhận
+                                </p>
+                            </div>
                             <p
                                 class="font-bold text-amber-600 dark:text-amber-400"
                             >
-                                {{ vnd(emp.total_waste_cost) }}
+                                {{ vnd(day.daily_waste_cost) }}
                             </p>
-                            <button
-                                v-if="canAct"
-                                @click="
-                                    openViolation({
-                                        employee_id: emp.performed_by,
-                                        employee_name: emp.employee_name,
-                                        violation_type:
-                                            'Hao hụt nguyên liệu bất thường',
-                                        description:
-                                            emp.waste_entry_count +
-                                            ' lần hao hụt, tổng ' +
-                                            vnd(emp.total_waste_cost),
-                                        penalty_amount: 0,
-                                        occurred_at: new Date()
-                                            .toISOString()
-                                            .slice(0, 10),
-                                    })
-                                "
-                                class="mt-1 inline-flex cursor-pointer items-center gap-1 rounded text-[11px] font-semibold text-rose-600 hover:underline dark:text-rose-400"
-                            >
-                                <Plus class="size-3" /> Ghi vi phạm
-                            </button>
                         </div>
                     </div>
-                </div>
-            </div>
-        </template>
 
-        <!-- ══ TAB: BẤT THƯỜNG DOANH THU (revenue) ═════════════════════════ -->
-        <template v-else-if="activeTab === 'revenue'">
-            <div
-                v-if="!revenueData.days?.length"
-                class="flex flex-col items-center gap-3 rounded-2xl border border-border bg-card py-16 text-center text-muted-foreground"
-            >
-                <BarChart3 class="size-12 opacity-25" />
-                <p class="font-medium">
-                    Không có bất thường doanh thu trong kỳ này
-                </p>
-                <p class="text-sm">
-                    Hệ thống đối chiếu báo cáo tự động với tổng chốt ca đã xác
-                    nhận
-                </p>
-            </div>
-
-            <div v-else class="w-full space-y-3">
-                <div
-                    class="flex items-center gap-3 rounded-xl border border-orange-200 bg-orange-50/50 px-4 py-2.5 text-sm text-orange-800 dark:border-orange-900 dark:bg-orange-900/20 dark:text-orange-300"
-                >
-                    <AlertTriangle class="size-4 shrink-0" />
-                    <span
-                        >{{ revenueData.flagged_days_count }} ngày có chênh lệch &gt;5% ·
-                        Lớn nhất:
-                        <strong>{{
-                            pct(revenueData.max_discrepancy_pct)
-                        }}</strong></span
-                    >
-                </div>
-
-                <div
-                    class="w-full overflow-hidden rounded-2xl border border-border bg-card shadow-sm"
-                >
+                    <!-- Top employees by waste -->
                     <div
-                        class="hidden grid-cols-[1fr_1fr_1fr_auto_auto] gap-4 border-b border-border bg-muted/40 px-5 py-3 text-[10px] font-semibold tracking-wider text-muted-foreground uppercase lg:grid"
+                        v-if="wasteData.top_employees?.length"
+                        class="w-full overflow-hidden rounded-2xl border border-border bg-card shadow-sm"
                     >
-                        <div>Ngày</div>
-                        <div class="text-right">Báo cáo tự động</div>
-                        <div class="text-right">Tổng chốt ca</div>
-                        <div class="text-right">Chênh lệch</div>
-                        <div class="text-right">Mức độ</div>
-                    </div>
-
-                    <div
-                        v-for="day in revenueData.days"
-                        :key="day.summary_date"
-                        class="grid grid-cols-[1fr_auto] items-center gap-3 border-b border-border px-4 py-3.5 transition last:border-0 hover:bg-muted/20 lg:grid-cols-[1fr_1fr_1fr_auto_auto] lg:gap-4 lg:px-5"
-                    >
-                        <div>
-                            <p class="text-sm font-semibold">
-                                {{ day.summary_date }}
-                            </p>
+                        <div
+                            class="border-b border-border bg-muted/40 px-5 py-3 text-xs font-semibold tracking-wider text-muted-foreground uppercase"
+                        >
+                            Nhân viên ghi nhận hao hụt nhiều nhất
                         </div>
                         <div
-                            class="hidden text-right text-sm text-muted-foreground lg:block"
+                            v-for="emp in wasteData.top_employees"
+                            :key="emp.performed_by ?? 'unknown'"
+                            class="flex items-center justify-between border-b border-border px-5 py-3 transition last:border-0 hover:bg-muted/20"
                         >
-                            {{ compact(day.summary_net_revenue) }}
+                            <div class="flex items-center gap-3">
+                                <div
+                                    class="flex h-8 w-8 items-center justify-center rounded-full bg-amber-500/10 text-xs font-bold text-amber-600"
+                                >
+                                    {{ emp.employee_name?.slice(0, 1) ?? '?' }}
+                                </div>
+                                <div>
+                                    <p class="text-sm font-medium">
+                                        {{ emp.employee_name }}
+                                    </p>
+                                    <p class="text-xs text-muted-foreground">
+                                        {{ emp.waste_entry_count }} lần
+                                    </p>
+                                </div>
+                            </div>
+                            <div class="text-right">
+                                <p
+                                    class="font-bold text-amber-600 dark:text-amber-400"
+                                >
+                                    {{ vnd(emp.total_waste_cost) }}
+                                </p>
+                                <button
+                                    v-if="canAct"
+                                    @click="
+                                        openViolation({
+                                            employee_id: emp.performed_by,
+                                            employee_name: emp.employee_name,
+                                            violation_type:
+                                                'Hao hụt nguyên liệu bất thường',
+                                            description:
+                                                emp.waste_entry_count +
+                                                ' lần hao hụt, tổng ' +
+                                                vnd(emp.total_waste_cost),
+                                            penalty_amount: 0,
+                                            occurred_at: new Date()
+                                                .toISOString()
+                                                .slice(0, 10),
+                                        })
+                                    "
+                                    class="mt-1 inline-flex cursor-pointer items-center gap-1 rounded text-[11px] font-semibold text-rose-600 hover:underline dark:text-rose-400"
+                                >
+                                    <Plus class="size-3" /> Ghi vi phạm
+                                </button>
+                            </div>
                         </div>
-                        <div class="hidden text-right text-sm lg:block">
-                            <p>{{ compact(day.shift_total) }}</p>
-                            <p
-                                v-if="day.shift_total === 0"
-                                class="text-xs text-amber-500"
-                            >
-                                Chưa có chốt ca
-                            </p>
-                        </div>
-                        <div class="text-right">
-                            <p
-                                class="text-sm font-bold"
-                                :class="
-                                    day.difference >= 0
-                                        ? 'text-emerald-600'
-                                        : 'text-rose-600'
-                                "
-                            >
-                                {{ day.difference >= 0 ? '+' : ''
-                                }}{{ compact(day.difference) }}
-                            </p>
-                            <p class="text-xs text-muted-foreground">
-                                {{ pct(day.difference_pct) }}
-                            </p>
-                        </div>
-                        <span
-                            class="rounded-full px-2.5 py-1 text-[11px] font-semibold"
-                            :class="
-                                severityConfig[day.severity as Severity].cls
-                            "
-                        >
-                            {{ severityConfig[day.severity as Severity].label }}
-                        </span>
                     </div>
                 </div>
-            </div>
-        </template>
+            </template>
+
+            <!-- ══ TAB: BẤT THƯỜNG DOANH THU (revenue) ═════════════════════════ -->
+            <template v-else-if="activeTab === 'revenue'">
+                <div
+                    v-if="!revenueData.days?.length"
+                    class="flex flex-col items-center gap-3 rounded-2xl border border-border bg-card py-16 text-center text-muted-foreground"
+                >
+                    <BarChart3 class="size-12 opacity-25" />
+                    <p class="font-medium">
+                        Không có bất thường doanh thu trong kỳ này
+                    </p>
+                    <p class="text-sm">
+                        Hệ thống đối chiếu báo cáo tự động với tổng chốt ca đã
+                        xác nhận
+                    </p>
+                </div>
+
+                <div v-else class="w-full space-y-3">
+                    <div
+                        class="flex items-center gap-3 rounded-xl border border-orange-200 bg-orange-50/50 px-4 py-2.5 text-sm text-orange-800 dark:border-orange-900 dark:bg-orange-900/20 dark:text-orange-300"
+                    >
+                        <AlertTriangle class="size-4 shrink-0" />
+                        <span
+                            >{{ revenueData.flagged_days_count }} ngày có chênh
+                            lệch &gt;5% · Lớn nhất:
+                            <strong>{{
+                                pct(revenueData.max_discrepancy_pct)
+                            }}</strong></span
+                        >
+                    </div>
+
+                    <div
+                        class="w-full overflow-hidden rounded-2xl border border-border bg-card shadow-sm"
+                    >
+                        <div
+                            class="hidden grid-cols-[1fr_1fr_1fr_auto_auto] gap-4 border-b border-border bg-muted/40 px-5 py-3 text-[10px] font-semibold tracking-wider text-muted-foreground uppercase lg:grid"
+                        >
+                            <div>Ngày</div>
+                            <div class="text-right">Báo cáo tự động</div>
+                            <div class="text-right">Tổng chốt ca</div>
+                            <div class="text-right">Chênh lệch</div>
+                            <div class="text-right">Mức độ</div>
+                        </div>
+
+                        <div
+                            v-for="day in revenueData.days"
+                            :key="day.summary_date"
+                            class="grid grid-cols-[1fr_auto] items-center gap-3 border-b border-border px-4 py-3.5 transition last:border-0 hover:bg-muted/20 lg:grid-cols-[1fr_1fr_1fr_auto_auto] lg:gap-4 lg:px-5"
+                        >
+                            <div>
+                                <p class="text-sm font-semibold">
+                                    {{ day.summary_date }}
+                                </p>
+                            </div>
+                            <div
+                                class="hidden text-right text-sm text-muted-foreground lg:block"
+                            >
+                                {{ compact(day.summary_net_revenue) }}
+                            </div>
+                            <div class="hidden text-right text-sm lg:block">
+                                <p>{{ compact(day.shift_total) }}</p>
+                                <p
+                                    v-if="day.shift_total === 0"
+                                    class="text-xs text-amber-500"
+                                >
+                                    Chưa có chốt ca
+                                </p>
+                            </div>
+                            <div class="text-right">
+                                <p
+                                    class="text-sm font-bold"
+                                    :class="
+                                        day.difference >= 0
+                                            ? 'text-emerald-600'
+                                            : 'text-rose-600'
+                                    "
+                                >
+                                    {{ day.difference >= 0 ? '+' : ''
+                                    }}{{ compact(day.difference) }}
+                                </p>
+                                <p class="text-xs text-muted-foreground">
+                                    {{ pct(day.difference_pct) }}
+                                </p>
+                            </div>
+                            <span
+                                class="rounded-full px-2.5 py-1 text-[11px] font-semibold"
+                                :class="
+                                    severityConfig[day.severity as Severity].cls
+                                "
+                            >
+                                {{
+                                    severityConfig[day.severity as Severity]
+                                        .label
+                                }}
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            </template>
         </div>
     </div>
 

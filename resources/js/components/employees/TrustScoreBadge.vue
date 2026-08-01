@@ -53,7 +53,7 @@ const config = computed(() => {
 
 <template>
     <span
-        class="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-bold transition-all shadow-sm"
+        class="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-bold shadow-sm transition-all"
         :class="config.cls"
         :title="`Điểm tín nhiệm nhân viên: ${score}/100`"
     >

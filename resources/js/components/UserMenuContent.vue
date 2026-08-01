@@ -23,7 +23,10 @@ defineProps<Props>();
 const page = usePage();
 const roles = computed(() => {
     const raw = page.props.roles ?? [];
-    return Array.isArray(raw) ? raw : Object.values(raw as Record<string, string>);
+
+    return Array.isArray(raw)
+        ? raw
+        : Object.values(raw as Record<string, string>);
 });
 const isSuperAdmin = computed(() => roles.value.includes('super_admin'));
 
@@ -74,5 +77,8 @@ const handleLogout = () => {
         Log out
     </DropdownMenuItem>
 
-    <PlatformFeedbackModal v-if="!isSuperAdmin" v-model:open="showFeedbackModal" />
+    <PlatformFeedbackModal
+        v-if="!isSuperAdmin"
+        v-model:open="showFeedbackModal"
+    />
 </template>

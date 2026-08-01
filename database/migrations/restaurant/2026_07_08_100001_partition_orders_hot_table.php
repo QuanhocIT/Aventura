@@ -1,8 +1,8 @@
 <?php
 
 use Illuminate\Database\Migrations\Migration;
-use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 
 /**
@@ -30,7 +30,8 @@ use Illuminate\Support\Facades\Schema;
  */
 return new class extends Migration
 {
-    private const MONTHS_BACK    = 6;  // Partition ngược 6 tháng
+    private const MONTHS_BACK = 6;  // Partition ngược 6 tháng
+
     private const MONTHS_FORWARD = 6;  // Partition tới 6 tháng
 
     public function up(): void
@@ -49,7 +50,7 @@ return new class extends Migration
         );
 
         if (! empty($existing)) {
-            \Illuminate\Support\Facades\Log::info('Migration partition_orders: bảng đã partition, bỏ qua.');
+            Log::info('Migration partition_orders: bảng đã partition, bỏ qua.');
 
             return;
         }
@@ -71,9 +72,9 @@ return new class extends Migration
 
         if (! empty($referencingFks)) {
             $tables = implode(', ', array_unique(array_map(fn ($f) => $f->TABLE_NAME, $referencingFks)));
-            \Illuminate\Support\Facades\Log::warning(
+            Log::warning(
                 "Migration partition_orders: bỏ qua partition vì còn FK tham chiếu từ [{$tables}]. "
-                . 'Áp dụng thủ công trong maintenance window khi cần tối ưu bảng orders lớn.'
+                .'Áp dụng thủ công trong maintenance window khi cần tối ưu bảng orders lớn.'
             );
 
             return;
@@ -142,16 +143,16 @@ return new class extends Migration
      */
     private function buildMonthlyPartitionSql(int $monthsBack, int $monthsForward): string
     {
-        $start  = now()->startOfMonth()->subMonths($monthsBack);
-        $end    = now()->startOfMonth()->addMonths($monthsForward);
-        $parts  = [];
+        $start = now()->startOfMonth()->subMonths($monthsBack);
+        $end = now()->startOfMonth()->addMonths($monthsForward);
+        $parts = [];
         $cursor = $start->copy();
 
         while ($cursor->lessThanOrEqualTo($end)) {
             $boundary = $cursor->copy()->addMonth()->format('Y-m-d');
-            $name     = 'p' . $cursor->format('Y_m');
-            $parts[]  = "PARTITION {$name} VALUES LESS THAN (UNIX_TIMESTAMP('{$boundary}'))";
-            $cursor   = $cursor->addMonth();
+            $name = 'p'.$cursor->format('Y_m');
+            $parts[] = "PARTITION {$name} VALUES LESS THAN (UNIX_TIMESTAMP('{$boundary}'))";
+            $cursor = $cursor->addMonth();
         }
 
         $parts[] = 'PARTITION pFuture VALUES LESS THAN (MAXVALUE)';
@@ -165,9 +166,9 @@ return new class extends Migration
     private function dropIndexIfExists(string $table, string $indexName): void
     {
         $exists = DB::select(
-            "SELECT INDEX_NAME FROM information_schema.statistics
+            'SELECT INDEX_NAME FROM information_schema.statistics
              WHERE table_schema = DATABASE() AND table_name = ? AND index_name = ?
-             LIMIT 1",
+             LIMIT 1',
             [$table, $indexName]
         );
 

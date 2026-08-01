@@ -148,7 +148,9 @@ export function useOfflineQueue(
     function removeQueuedItem(id: string) {
         const queue = readQueue().filter((i) => i.id !== id);
         writeQueue(queue);
-        activeConflicts.value = activeConflicts.value.filter((c) => c.item.id !== id);
+        activeConflicts.value = activeConflicts.value.filter(
+            (c) => c.item.id !== id,
+        );
     }
 
     return {

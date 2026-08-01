@@ -2,8 +2,7 @@
 
 namespace Tests\Feature;
 
-use App\Models\Order;
-use App\Models\OrderItem;
+use App\Models\Area;
 use App\Models\Product;
 use App\Models\ProductCategory;
 use App\Models\Restaurant;
@@ -18,12 +17,19 @@ class KitchenMenuAvailabilityTest extends TestCase
     use RefreshDatabase;
 
     protected User $owner;
+
     protected User $kitchenStaff;
+
     protected User $cashier;
+
     protected Restaurant $restaurant;
+
     protected RestaurantBranch $branch;
+
     protected ProductCategory $category;
+
     protected Product $product;
+
     protected RestaurantTable $table;
 
     protected function setUp(): void
@@ -33,7 +39,7 @@ class KitchenMenuAvailabilityTest extends TestCase
         $this->owner = User::factory()->create();
         $this->restaurant = Restaurant::factory()->create(['owner_user_id' => $this->owner->id]);
         $this->branch = RestaurantBranch::factory()->create(['restaurant_id' => $this->restaurant->id, 'manager_user_id' => $this->owner->id]);
-        
+
         $this->owner->forceFill(['restaurant_id' => $this->restaurant->id, 'branch_id' => $this->branch->id])->save();
         $this->owner->assignRole('owner');
 
@@ -49,7 +55,7 @@ class KitchenMenuAvailabilityTest extends TestCase
             'name' => 'Thực Đơn',
             'slug' => 'thuc-don',
             'display_order' => 1,
-            'status' => 'active'
+            'status' => 'active',
         ]);
 
         $this->product = Product::create([
@@ -64,25 +70,25 @@ class KitchenMenuAvailabilityTest extends TestCase
             'cost_price' => 15000,
             'is_active' => true,
             'is_available' => true,
-            'track_inventory' => false
+            'track_inventory' => false,
         ]);
 
         $this->table = RestaurantTable::create([
             'restaurant_id' => $this->restaurant->id,
             'branch_id' => $this->branch->id,
-            'area_id' => \App\Models\Area::firstOrCreate(['restaurant_id' => $this->restaurant->id, 'code' => 'SANH-TEST'], ['name' => 'Sảnh Test', 'display_order' => 1, 'status' => 'active'])->id,
+            'area_id' => Area::firstOrCreate(['restaurant_id' => $this->restaurant->id, 'code' => 'SANH-TEST'], ['name' => 'Sảnh Test', 'display_order' => 1, 'status' => 'active'])->id,
             'name' => 'T1',
             'capacity' => 4,
             'status' => 'available',
             'qr_token' => 'qr-token-test-123',
-            'qr_code' => 'QR-T1-' . $this->restaurant->id
+            'qr_code' => 'QR-T1-'.$this->restaurant->id,
         ]);
     }
 
     public function test_kitchen_staff_can_pause_product(): void
     {
         $response = $this->actingAs($this->kitchenStaff)->post(route('kitchen.products.pause', $this->product), [
-            'minutes' => 30
+            'minutes' => 30,
         ]);
 
         $response->assertRedirect();
@@ -95,7 +101,7 @@ class KitchenMenuAvailabilityTest extends TestCase
     public function test_kitchen_staff_can_mark_product_out_of_stock(): void
     {
         $response = $this->actingAs($this->kitchenStaff)->post(route('kitchen.products.out-of-stock', $this->product), [
-            'minutes' => 120
+            'minutes' => 120,
         ]);
 
         $response->assertRedirect();
@@ -123,7 +129,7 @@ class KitchenMenuAvailabilityTest extends TestCase
     public function test_cashier_cannot_order_paused_product_via_pos(): void
     {
         $this->product->update([
-            'paused_until' => now()->addMinutes(30)
+            'paused_until' => now()->addMinutes(30),
         ]);
 
         $response = $this->actingAs($this->cashier)->post(route('orders.store'), [
@@ -131,39 +137,39 @@ class KitchenMenuAvailabilityTest extends TestCase
             'items' => [
                 [
                     'product_id' => $this->product->id,
-                    'quantity' => 1
-                ]
-            ]
+                    'quantity' => 1,
+                ],
+            ],
         ]);
 
         $response->assertSessionHasErrors(['items']);
         $this->assertDatabaseMissing('orders', [
-            'restaurant_id' => $this->restaurant->id
+            'restaurant_id' => $this->restaurant->id,
         ]);
     }
 
     public function test_customer_cannot_order_paused_product_via_qr(): void
     {
         $this->product->update([
-            'paused_until' => now()->addMinutes(30)
+            'paused_until' => now()->addMinutes(30),
         ]);
 
         $response = $this->post(route('customer.qr-order.submit', [
             'restaurant' => $this->restaurant->id,
-            'token' => $this->table->qr_token
+            'token' => $this->table->qr_token,
         ]), [
             'customer_name' => 'Khách Ăn Thử',
             'items' => [
                 [
                     'product_id' => $this->product->id,
-                    'quantity' => 2
-                ]
-            ]
+                    'quantity' => 2,
+                ],
+            ],
         ]);
 
         $response->assertStatus(422);
         $this->assertDatabaseMissing('temporary_orders', [
-            'restaurant_id' => $this->restaurant->id
+            'restaurant_id' => $this->restaurant->id,
         ]);
     }
 }

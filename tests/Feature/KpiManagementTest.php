@@ -2,22 +2,22 @@
 
 namespace Tests\Feature;
 
+use App\Models\CustomerFeedback;
 use App\Models\Employee;
 use App\Models\EmployeeKpi;
-use App\Models\KpiMetric;
 use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\Payment;
-use App\Models\CustomerFeedback;
-use App\Models\ShiftClosing;
+use App\Models\PerformanceReview;
+use App\Models\Product;
 use App\Models\Restaurant;
 use App\Models\RestaurantBranch;
-use App\Models\ScheduleAssignment;
-use App\Models\WorkShift;
 use App\Models\Salary;
 use App\Models\SalaryAdjustment;
+use App\Models\ScheduleAssignment;
+use App\Models\ShiftClosing;
 use App\Models\User;
-use Carbon\Carbon;
+use App\Models\WorkShift;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Artisan;
 use Spatie\Permission\Models\Role;
@@ -28,13 +28,21 @@ class KpiManagementTest extends TestCase
     use RefreshDatabase;
 
     protected User $owner;
+
     protected Restaurant $restaurant;
+
     protected RestaurantBranch $branch;
+
     protected Employee $waiterEmployee;
+
     protected Employee $chefEmployee;
+
     protected Employee $cashierEmployee;
+
     protected User $waiterUser;
+
     protected User $chefUser;
+
     protected User $cashierUser;
 
     protected function setUp(): void
@@ -185,7 +193,7 @@ class KpiManagementTest extends TestCase
         ]);
 
         // Create a waiter order item to measure service speed (prepared to served)
-        $product = \App\Models\Product::create([
+        $product = Product::create([
             'restaurant_id' => $this->restaurant->id,
             'name' => 'Mock Dish',
             'code' => 'MOCK-DISH',
@@ -223,16 +231,16 @@ class KpiManagementTest extends TestCase
         $servedMetric = $kpi->metrics()->where('metric_code', 'waiter_orders_served')->first();
         $this->assertNotNull($servedMetric);
         // 2 orders / 1 shift = 2 orders/shift
-        $this->assertEquals(2.0, (float)$servedMetric->actual_value);
+        $this->assertEquals(2.0, (float) $servedMetric->actual_value);
 
         $ratingMetric = $kpi->metrics()->where('metric_code', 'waiter_customer_rating')->first();
         $this->assertNotNull($ratingMetric);
-        $this->assertEquals(5.0, (float)$ratingMetric->actual_value);
+        $this->assertEquals(5.0, (float) $ratingMetric->actual_value);
 
         $speedMetric = $kpi->metrics()->where('metric_code', 'waiter_service_speed')->first();
         $this->assertNotNull($speedMetric);
-        $this->assertEquals(4.0, (float)$speedMetric->actual_value);
-        $this->assertTrue((bool)$speedMetric->is_achieved); // 4 minutes <= 5 target
+        $this->assertEquals(4.0, (float) $speedMetric->actual_value);
+        $this->assertTrue((bool) $speedMetric->is_achieved); // 4 minutes <= 5 target
     }
 
     /**
@@ -298,14 +306,14 @@ class KpiManagementTest extends TestCase
 
         $this->assertNotNull($kpi);
         $revenueMetric = $kpi->metrics()->where('metric_code', 'cashier_processed_revenue')->first();
-        $this->assertEquals(50000000, (float)$revenueMetric->actual_value);
-        $this->assertTrue((bool)$revenueMetric->is_achieved); // Target 50,000,000 achieved
+        $this->assertEquals(50000000, (float) $revenueMetric->actual_value);
+        $this->assertTrue((bool) $revenueMetric->is_achieved); // Target 50,000,000 achieved
         // Commission = 50,000,000 * 0.2% = 100,000
-        $this->assertEquals(100000, (float)$revenueMetric->commission_earned);
+        $this->assertEquals(100000, (float) $revenueMetric->commission_earned);
 
         $errorMetric = $kpi->metrics()->where('metric_code', 'cashier_error_rate')->first();
-        $this->assertEquals(0, (float)$errorMetric->actual_value);
-        $this->assertTrue((bool)$errorMetric->is_achieved); // Target 0 error achieved
+        $this->assertEquals(0, (float) $errorMetric->actual_value);
+        $this->assertTrue((bool) $errorMetric->is_achieved); // Target 0 error achieved
     }
 
     /**
@@ -335,8 +343,8 @@ class KpiManagementTest extends TestCase
             'employee_id' => $this->chefEmployee->id,
             'shift_id' => $shift->id,
             'scheduled_date' => $dateStr,
-            'check_in_at' => $dateStr . ' 13:00:00',
-            'check_out_at' => $dateStr . ' 17:00:00',
+            'check_in_at' => $dateStr.' 13:00:00',
+            'check_out_at' => $dateStr.' 17:00:00',
             'status' => 'completed',
         ]);
 
@@ -349,7 +357,7 @@ class KpiManagementTest extends TestCase
             'total_amount' => 300000,
         ]);
 
-        $product = \App\Models\Product::create([
+        $product = Product::create([
             'restaurant_id' => $this->restaurant->id,
             'name' => 'Steak',
             'code' => 'STEAK',
@@ -363,9 +371,9 @@ class KpiManagementTest extends TestCase
             'order_id' => $order->id,
             'product_id' => $product->id,
             'quantity' => 1,
-            'sent_to_kitchen_at' => $dateStr . ' 13:10:00',
-            'prepared_at' => $dateStr . ' 13:20:00',
-            'created_at' => $dateStr . ' 13:10:00',
+            'sent_to_kitchen_at' => $dateStr.' 13:10:00',
+            'prepared_at' => $dateStr.' 13:20:00',
+            'created_at' => $dateStr.' 13:10:00',
             'status' => 'served',
         ]);
 
@@ -383,7 +391,7 @@ class KpiManagementTest extends TestCase
             'order_id' => $order2->id,
             'product_id' => $product->id,
             'quantity' => 1,
-            'created_at' => $dateStr . ' 14:00:00',
+            'created_at' => $dateStr.' 14:00:00',
             'status' => 'cancelled',
         ]);
 
@@ -410,20 +418,20 @@ class KpiManagementTest extends TestCase
 
         $prepTimeMetric = $kpi->metrics()->where('metric_code', 'chef_prep_time')->first();
         $this->assertNotNull($prepTimeMetric);
-        $this->assertEquals(10.0, (float)$prepTimeMetric->actual_value); // 10 minutes
-        $this->assertTrue((bool)$prepTimeMetric->is_achieved); // Target 15 achieved (10 <= 15)
+        $this->assertEquals(10.0, (float) $prepTimeMetric->actual_value); // 10 minutes
+        $this->assertTrue((bool) $prepTimeMetric->is_achieved); // Target 15 achieved (10 <= 15)
 
         $rejectionMetric = $kpi->metrics()->where('metric_code', 'chef_rejection_rate')->first();
         $this->assertNotNull($rejectionMetric);
         // Total items in shifts = 2 (Steak prepared + Steak cancelled)
         // Rejection rate = 1/2 * 100 = 50%
-        $this->assertEquals(50.0, (float)$rejectionMetric->actual_value);
-        $this->assertFalse((bool)$rejectionMetric->is_achieved); // Target 2% not achieved (50 > 2)
+        $this->assertEquals(50.0, (float) $rejectionMetric->actual_value);
+        $this->assertFalse((bool) $rejectionMetric->is_achieved); // Target 2% not achieved (50 > 2)
 
         $foodRatingMetric = $kpi->metrics()->where('metric_code', 'chef_food_rating')->first();
         $this->assertNotNull($foodRatingMetric);
-        $this->assertEquals(5.0, (float)$foodRatingMetric->actual_value);
-        $this->assertTrue((bool)$foodRatingMetric->is_achieved); // Target 4.5 achieved
+        $this->assertEquals(5.0, (float) $foodRatingMetric->actual_value);
+        $this->assertTrue((bool) $foodRatingMetric->is_achieved); // Target 4.5 achieved
     }
 
     /**
@@ -470,7 +478,7 @@ class KpiManagementTest extends TestCase
             ->first();
 
         $this->assertNotNull($salary);
-        $this->assertEquals(8350000, (float)$salary->net_salary); // base(8M) + bonus(150k) + commission(200k)
+        $this->assertEquals(8350000, (float) $salary->net_salary); // base(8M) + bonus(150k) + commission(200k)
 
         $adjustments = SalaryAdjustment::withoutGlobalScopes()
             ->where('salary_id', $salary->id)
@@ -483,14 +491,14 @@ class KpiManagementTest extends TestCase
             ->where('reason', 'like', 'Thưởng vượt chỉ tiêu%')
             ->first();
         $this->assertNotNull($bonusAdjustment);
-        $this->assertEquals(150000, (float)$bonusAdjustment->amount);
+        $this->assertEquals(150000, (float) $bonusAdjustment->amount);
 
         $commissionAdjustment = SalaryAdjustment::withoutGlobalScopes()
             ->where('salary_id', $salary->id)
             ->where('reason', 'like', 'Thưởng hoa hồng%')
             ->first();
         $this->assertNotNull($commissionAdjustment);
-        $this->assertEquals(200000, (float)$commissionAdjustment->amount);
+        $this->assertEquals(200000, (float) $commissionAdjustment->amount);
     }
 
     /**
@@ -516,13 +524,13 @@ class KpiManagementTest extends TestCase
         $response->assertRedirect();
         $response->assertSessionHasNoErrors();
 
-        $review = \App\Models\PerformanceReview::where('employee_id', $this->waiterEmployee->id)
+        $review = PerformanceReview::where('employee_id', $this->waiterEmployee->id)
             ->where('period', $period)
             ->first();
 
         $this->assertNotNull($review);
         $this->assertEquals('manager', $review->reviewer_type);
-        $this->assertEquals(4.5, (float)$review->average_score); // (4+5+4+5)/4 = 4.5
+        $this->assertEquals(4.5, (float) $review->average_score); // (4+5+4+5)/4 = 4.5
         $this->assertEquals('Rất tích cực làm việc, kỹ năng nghiệp vụ giỏi.', $review->comments);
     }
 }

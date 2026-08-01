@@ -16,7 +16,8 @@ const getMinutesElapsed = () => {
         return 0;
     }
 
-    const diffMs = nowTime.value.getTime() - new Date(props.sentAtRaw).getTime();
+    const diffMs =
+        nowTime.value.getTime() - new Date(props.sentAtRaw).getTime();
 
     return Math.max(0, Math.floor(diffMs / 60000));
 };
@@ -52,7 +53,9 @@ onUnmounted(() => {
 </script>
 
 <template>
-    <div class="flex flex-wrap items-center gap-3 text-[10px] font-semibold text-muted-foreground">
+    <div
+        class="flex flex-wrap items-center gap-3 text-[10px] font-semibold text-muted-foreground"
+    >
         <span class="flex items-center gap-1">
             <Clock class="size-3 text-indigo-500" />
             Nhận: {{ sentAtFormatted }}
@@ -74,10 +77,7 @@ onUnmounted(() => {
             <Clock class="size-3 shrink-0" />
             Chờ {{ elapsed }}p / chuẩn {{ prepMinutes }}p
         </span>
-        <span
-            v-else
-            class="font-medium text-slate-500"
-        >
+        <span v-else class="font-medium text-slate-500">
             Chờ {{ elapsed }}p / {{ prepMinutes }}p
         </span>
     </div>

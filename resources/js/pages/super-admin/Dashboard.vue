@@ -3459,29 +3459,50 @@ function cohortCellStyle(value: number | null): string {
                     <!-- Phân trang cục bộ cho bảng hiệu suất -->
                     <div
                         v-if="planPerformanceTotalPages > 1"
-                        class="flex items-center justify-between border-t border-border/40 px-4 py-3 bg-muted/10 dark:bg-slate-900/10"
+                        class="flex items-center justify-between border-t border-border/40 bg-muted/10 px-4 py-3 dark:bg-slate-900/10"
                     >
                         <div class="text-[11px] text-muted-foreground">
-                            Hiển thị {{ Math.min(planPerformance.length, (planPerformancePage - 1) * planPerformancePerPage + 1) }}-{{ Math.min(planPerformance.length, planPerformancePage * planPerformancePerPage) }} trên {{ planPerformance.length }} gói
+                            Hiển thị
+                            {{
+                                Math.min(
+                                    planPerformance.length,
+                                    (planPerformancePage - 1) *
+                                        planPerformancePerPage +
+                                        1,
+                                )
+                            }}-{{
+                                Math.min(
+                                    planPerformance.length,
+                                    planPerformancePage *
+                                        planPerformancePerPage,
+                                )
+                            }}
+                            trên {{ planPerformance.length }} gói
                         </div>
                         <div class="flex items-center gap-1">
                             <Button
                                 :disabled="planPerformancePage <= 1"
                                 variant="outline"
                                 size="sm"
-                                class="h-7 text-[10px] px-2"
+                                class="h-7 px-2 text-[10px]"
                                 @click="planPerformancePage--"
                             >
                                 ← Trước
                             </Button>
-                            <span class="text-[11px] font-semibold text-muted-foreground px-2">
-                                Trang {{ planPerformancePage }} / {{ planPerformanceTotalPages }}
+                            <span
+                                class="px-2 text-[11px] font-semibold text-muted-foreground"
+                            >
+                                Trang {{ planPerformancePage }} /
+                                {{ planPerformanceTotalPages }}
                             </span>
                             <Button
-                                :disabled="planPerformancePage >= planPerformanceTotalPages"
+                                :disabled="
+                                    planPerformancePage >=
+                                    planPerformanceTotalPages
+                                "
                                 variant="outline"
                                 size="sm"
-                                class="h-7 text-[10px] px-2"
+                                class="h-7 px-2 text-[10px]"
                                 @click="planPerformancePage++"
                             >
                                 Sau →

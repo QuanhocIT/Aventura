@@ -2,6 +2,8 @@
 
 namespace Tests\Feature\Smoke;
 
+use App\Http\Middleware\SecurityFirewallMiddleware;
+use App\Http\Middleware\TenantRateLimit;
 use App\Models\Customer;
 use App\Models\NewsPost;
 use App\Models\OnlineStoreConfig;
@@ -26,6 +28,7 @@ class CustomerSmokeTest extends TestCase
     use DatabaseTransactions;
 
     private User $owner;
+
     private int $rid;
 
     protected function setUp(): void
@@ -33,8 +36,8 @@ class CustomerSmokeTest extends TestCase
         parent::setUp();
 
         $this->withoutMiddleware([
-            \App\Http\Middleware\SecurityFirewallMiddleware::class,
-            \App\Http\Middleware\TenantRateLimit::class,
+            SecurityFirewallMiddleware::class,
+            TenantRateLimit::class,
         ]);
 
         $this->owner = User::whereHas('roles', fn ($q) => $q->where('name', 'owner'))
@@ -48,7 +51,7 @@ class CustomerSmokeTest extends TestCase
     {
         foreach (['/', '/tin-tuc', '/feedback/new', '/status', '/api/status-data', '/api/health'] as $uri) {
             $res = $this->get($uri);
-            $this->assertLessThan(500, $res->getStatusCode(), "$uri 5xx: " . optional($res->exception)->getMessage());
+            $this->assertLessThan(500, $res->getStatusCode(), "$uri 5xx: ".optional($res->exception)->getMessage());
         }
     }
 
@@ -57,7 +60,7 @@ class CustomerSmokeTest extends TestCase
         $post = NewsPost::create([
             'author_id' => $this->owner->id,
             'title' => 'Bài viết smoke test',
-            'slug' => 'bai-viet-smoke-' . uniqid(),
+            'slug' => 'bai-viet-smoke-'.uniqid(),
             'excerpt' => 'Tóm tắt',
             'content' => 'Nội dung kiểm thử.',
             'category' => 'news',
@@ -72,7 +75,7 @@ class CustomerSmokeTest extends TestCase
 
     public function test_storefront_browse_checkout_and_track(): void
     {
-        $slug = 'smoke-store-' . uniqid();
+        $slug = 'smoke-store-'.uniqid();
         // updateOrCreate theo restaurant_id: tenant có thể đã có Online Store (backfill/
         // onboarding) → tránh vi phạm unique(restaurant_id).
         OnlineStoreConfig::withoutGlobalScopes()->updateOrCreate(
@@ -108,11 +111,11 @@ class CustomerSmokeTest extends TestCase
         ]);
 
         $this->assertLessThan(500, $checkout->getStatusCode(),
-            'Checkout 5xx: ' . optional($checkout->exception)->getMessage());
+            'Checkout 5xx: '.optional($checkout->exception)->getMessage());
         $checkout->assertOk();
 
         $orderNumber = $checkout->json('order_number') ?? $checkout->json('order.order_number');
-        $this->assertNotEmpty($orderNumber, 'Checkout response missing order_number: ' . $checkout->getContent());
+        $this->assertNotEmpty($orderNumber, 'Checkout response missing order_number: '.$checkout->getContent());
 
         $this->get("/order/track/{$orderNumber}")->assertOk();
         $this->getJson("/api/online/order/{$orderNumber}/status")->assertOk();
@@ -138,9 +141,9 @@ class CustomerSmokeTest extends TestCase
             'items' => [['product_id' => $product->id, 'quantity' => 1]],
         ]);
         $this->assertLessThan(500, $submit->getStatusCode(),
-            'QR submit 5xx: ' . optional($submit->exception)->getMessage());
+            'QR submit 5xx: '.optional($submit->exception)->getMessage());
         $this->assertContains($submit->getStatusCode(), [200, 201],
-            'QR submit unexpected: ' . $submit->getContent());
+            'QR submit unexpected: '.$submit->getContent());
 
         $this->postJson("/customer/order/call-staff/{$this->rid}", [
             'table_id' => $table->id,
@@ -151,7 +154,7 @@ class CustomerSmokeTest extends TestCase
             'table_id' => $table->id,
         ]);
         $this->assertLessThan(500, $payReq->getStatusCode(),
-            'Payment request 5xx: ' . optional($payReq->exception)->getMessage());
+            'Payment request 5xx: '.optional($payReq->exception)->getMessage());
 
         $feedback = $this->postJson("/customer/order/feedback/{$this->rid}", [
             'table_id' => $table->id,
@@ -161,7 +164,7 @@ class CustomerSmokeTest extends TestCase
             'submitted_by_name' => 'Khách QR',
         ]);
         $this->assertLessThan(500, $feedback->getStatusCode(),
-            'QR feedback 5xx: ' . optional($feedback->exception)->getMessage());
+            'QR feedback 5xx: '.optional($feedback->exception)->getMessage());
     }
 
     // ── Customer portal + coupon wallet (signed-token protected) ───────────
@@ -174,7 +177,7 @@ class CustomerSmokeTest extends TestCase
             ->orderBy('id')->value('phone');
         $this->assertNotNull($phone, 'No customer with phone for portal test');
 
-        $valid = hash('sha256', $this->rid . $phone . config('app.key'));
+        $valid = hash('sha256', $this->rid.$phone.config('app.key'));
 
         $this->get("/customer/portal/dashboard/{$this->rid}/{$phone}?token={$valid}")->assertOk();
         $this->get("/customer/portal/dashboard/{$this->rid}/{$phone}?token=sai-token")->assertForbidden();
@@ -182,7 +185,7 @@ class CustomerSmokeTest extends TestCase
 
         $wallet = $this->get("/customer/coupons/{$this->rid}/{$phone}?token={$valid}");
         $this->assertLessThan(500, $wallet->getStatusCode(),
-            'Wallet 5xx: ' . optional($wallet->exception)->getMessage());
+            'Wallet 5xx: '.optional($wallet->exception)->getMessage());
         $this->get("/customer/coupons/{$this->rid}/{$phone}?token=sai-token")->assertForbidden();
     }
 
@@ -210,13 +213,13 @@ class CustomerSmokeTest extends TestCase
         ]);
 
         $this->assertLessThan(500, $res->getStatusCode(),
-            'Reservation 5xx: ' . optional($res->exception)->getMessage());
+            'Reservation 5xx: '.optional($res->exception)->getMessage());
         $this->assertTrue(
             DB::table('table_reservations')
                 ->where('restaurant_id', $this->rid)
                 ->where('guest_phone', '0900000003')
                 ->exists(),
-            'Reservation row not created. Response: ' . $res->getStatusCode()
+            'Reservation row not created. Response: '.$res->getStatusCode()
         );
     }
 
@@ -240,10 +243,10 @@ class CustomerSmokeTest extends TestCase
 
         $page = $this->actingAs($payer)->get("/billing/pay/{$sub->transaction_code}");
         $this->assertLessThan(500, $page->getStatusCode(),
-            'Pay page 5xx: ' . optional($page->exception)->getMessage());
+            'Pay page 5xx: '.optional($page->exception)->getMessage());
 
         $check = $this->actingAs($payer)->get("/api/billing/check/{$sub->transaction_code}");
         $this->assertLessThan(500, $check->getStatusCode(),
-            'Billing check 5xx: ' . optional($check->exception)->getMessage());
+            'Billing check 5xx: '.optional($check->exception)->getMessage());
     }
 }

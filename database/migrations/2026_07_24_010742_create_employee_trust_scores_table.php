@@ -14,11 +14,11 @@ return new class extends Migration
         Schema::create('employee_trust_scores', function (Blueprint $table) {
             $table->id();
             $table->foreignId('employee_id')
-                  ->constrained()
-                  ->cascadeOnDelete();
+                ->constrained()
+                ->cascadeOnDelete();
             $table->foreignId('restaurant_id')
-                  ->constrained()
-                  ->cascadeOnDelete();
+                ->constrained()
+                ->cascadeOnDelete();
 
             // Điểm tín nhiệm tổng hợp (0–100)
             $table->decimal('score', 5, 2)->default(100.00);

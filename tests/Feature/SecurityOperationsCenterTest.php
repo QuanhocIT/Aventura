@@ -3,12 +3,10 @@
 namespace Tests\Feature;
 
 use App\Models\ApiKey;
-use App\Models\AuditLog;
 use App\Models\MaintenanceMode;
 use App\Models\Restaurant;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Facades\Auth;
 use Tests\TestCase;
 
 class SecurityOperationsCenterTest extends TestCase

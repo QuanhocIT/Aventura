@@ -30,6 +30,7 @@ class RecalculateTrustScoresJob implements ShouldQueue
         if ($this->restaurantId) {
             $service->recalculateAll($this->restaurantId);
             Log::info("Recalculated trust scores for restaurant #{$this->restaurantId}");
+
             return;
         }
 

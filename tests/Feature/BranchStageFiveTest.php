@@ -2,15 +2,14 @@
 
 namespace Tests\Feature;
 
+use App\Console\Commands\AuditBranchData;
 use App\Models\Area;
 use App\Models\Employee;
-use App\Models\Ingredient;
 use App\Models\Order;
 use App\Models\Product;
 use App\Models\ProductCategory;
 use App\Models\Restaurant;
 use App\Models\RestaurantBranch;
-use App\Models\RestaurantTable;
 use App\Models\Unit;
 use App\Models\User;
 use App\Services\OrderStatsCacheService;
@@ -24,11 +23,17 @@ class BranchStageFiveTest extends TestCase
     use RefreshDatabase;
 
     private Restaurant $restaurant;
+
     private RestaurantBranch $branchA;
+
     private RestaurantBranch $branchB;
+
     private User $owner;
+
     private Area $areaA;
+
     private Product $productA;
+
     private Unit $unit;
 
     protected function setUp(): void
@@ -201,7 +206,7 @@ class BranchStageFiveTest extends TestCase
             'status' => 'active',
         ]);
 
-        $report = app(\App\Console\Commands\AuditBranchData::class)
+        $report = app(AuditBranchData::class)
             ->buildReport($this->restaurant->id);
         $areaFinding = collect($report['tables'])->firstWhere('table', 'areas');
 

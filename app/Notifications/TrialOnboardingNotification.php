@@ -36,7 +36,7 @@ class TrialOnboardingNotification extends Notification
         return (new MailMessage)
             ->subject("Chào mừng {$this->restaurantName} đến Aventura!")
             ->greeting("Xin chào {$notifiable->name}!")
-            ->line("Cảm ơn bạn đã đăng ký Aventura. Tài khoản dùng thử 14 ngày của bạn đã sẵn sàng.")
+            ->line('Cảm ơn bạn đã đăng ký Aventura. Tài khoản dùng thử 14 ngày của bạn đã sẵn sàng.')
             ->line('Bước tiếp theo: Thêm thực đơn và cấu hình bàn ăn để bắt đầu nhận đơn.')
             ->action('Bắt đầu thiết lập', url('/dashboard'))
             ->line('Cần hỗ trợ? Chatbot AI của chúng tôi sẵn sàng 24/7.');
@@ -71,7 +71,7 @@ class TrialOnboardingNotification extends Notification
     private function day12($notifiable): MailMessage
     {
         return (new MailMessage)
-            ->subject("⚡ Còn 2 ngày — Nâng cấp để không gián đoạn")
+            ->subject('⚡ Còn 2 ngày — Nâng cấp để không gián đoạn')
             ->greeting("Xin chào {$notifiable->name}!")
             ->line("Thời gian dùng thử của {$this->restaurantName} sắp hết.")
             ->line('Nếu không nâng cấp, tài khoản sẽ chuyển về gói Free với giới hạn:')

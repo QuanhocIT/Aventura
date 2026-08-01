@@ -2,12 +2,15 @@
 
 namespace Tests\Feature;
 
+use App\Events\OrderPaid;
+use App\Models\Area;
 use App\Models\Order;
+use App\Models\Payment;
 use App\Models\Restaurant;
+use App\Models\RestaurantBranch;
 use App\Models\RestaurantTable;
 use App\Models\User;
-use App\Models\Payment;
-use App\Events\OrderPaid;
+use App\Services\OrderService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Event;
 use Tests\TestCase;
@@ -40,11 +43,11 @@ class QrPaymentTest extends TestCase
 
         // 1. Setup restaurant, branch, area, and owner user
         $restaurant = Restaurant::factory()->create();
-        $branch = \App\Models\RestaurantBranch::factory()->create([
+        $branch = RestaurantBranch::factory()->create([
             'restaurant_id' => $restaurant->id,
             'manager_user_id' => null,
         ]);
-        $area = \App\Models\Area::factory()->create([
+        $area = Area::factory()->create([
             'restaurant_id' => $restaurant->id,
             'branch_id' => $branch->id,
         ]);
@@ -126,7 +129,7 @@ class QrPaymentTest extends TestCase
         Event::fake();
 
         $restaurant = Restaurant::factory()->create();
-        $branch = \App\Models\RestaurantBranch::factory()->create([
+        $branch = RestaurantBranch::factory()->create([
             'restaurant_id' => $restaurant->id,
             'manager_user_id' => null,
         ]);
@@ -193,8 +196,8 @@ class QrPaymentTest extends TestCase
 
         $paymentData = ['payment_method' => 'bank_transfer', 'cash_received' => 80000.0, 'change_amount' => 0];
 
-        $firstResult = app(\App\Services\OrderService::class)->payOrder($staleCopyA, $paymentData, $user);
-        $secondResult = app(\App\Services\OrderService::class)->payOrder($staleCopyB, $paymentData, $user);
+        $firstResult = app(OrderService::class)->payOrder($staleCopyA, $paymentData, $user);
+        $secondResult = app(OrderService::class)->payOrder($staleCopyB, $paymentData, $user);
 
         // Caller (webhook controller) dựa vào bool này để không bắn lại event OrderPaid
         $this->assertTrue($firstResult);
@@ -209,7 +212,7 @@ class QrPaymentTest extends TestCase
     public function test_vietqr_webhook_fails_with_invalid_description()
     {
         $payload = [
-            'description' => "Chuyen khoan khong co ma don hang",
+            'description' => 'Chuyen khoan khong co ma don hang',
             'amount' => 100000,
         ];
 

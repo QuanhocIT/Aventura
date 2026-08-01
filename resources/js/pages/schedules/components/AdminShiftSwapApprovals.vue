@@ -24,8 +24,8 @@ const isProcessing = ref(false);
 
 const approveSwap = (swapId: number) => {
     if (isProcessing.value) {
-return;
-}
+        return;
+    }
 
     isProcessing.value = true;
     router.patch(

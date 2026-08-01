@@ -8,9 +8,9 @@ use App\Models\Restaurant;
 use App\Models\RestaurantBranch;
 use App\Models\SubscriptionPlan;
 use App\Models\User;
-use App\Models\Employee;
 use App\Support\Tenant\TenantContext;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
@@ -19,12 +19,19 @@ class MenuEngineeringBcgTest extends TestCase
     use RefreshDatabase;
 
     private User $owner;
+
     private User $cashier;
+
     private Restaurant $restaurant;
+
     private RestaurantBranch $branch;
+
     private Role $ownerRole;
+
     private Role $cashierRole;
+
     private SubscriptionPlan $premiumPlan;
+
     private SubscriptionPlan $basicPlan;
 
     protected function setUp(): void
@@ -65,7 +72,7 @@ class MenuEngineeringBcgTest extends TestCase
         // 3. Tenant & Owner Setup
         $this->owner = User::factory()->create(['status' => 'active']);
         $this->owner->assignRole($this->ownerRole);
-        
+
         $this->restaurant = Restaurant::factory()->create([
             'owner_user_id' => $this->owner->id,
             'plan_id' => $this->premiumPlan->id,
@@ -85,13 +92,13 @@ class MenuEngineeringBcgTest extends TestCase
         $this->cashier = User::factory()->create([
             'restaurant_id' => $this->restaurant->id,
             'branch_id' => $this->branch->id,
-            'status' => 'active'
+            'status' => 'active',
         ]);
         $this->cashier->assignRole($this->cashierRole);
 
         // Assign manage_orders permission to owner/manager role (owner has it by default usually)
         $this->ownerRole->givePermissionTo(
-            \Spatie\Permission\Models\Permission::firstOrCreate(['name' => 'manage_orders', 'guard_name' => 'web'])
+            Permission::firstOrCreate(['name' => 'manage_orders', 'guard_name' => 'web'])
         );
     }
 
@@ -133,7 +140,7 @@ class MenuEngineeringBcgTest extends TestCase
             ->assertStatus(403);
 
         $response->assertJsonFragment([
-            'feature' => 'ai_advisor'
+            'feature' => 'ai_advisor',
         ]);
     }
 
@@ -145,7 +152,7 @@ class MenuEngineeringBcgTest extends TestCase
         $cat = ProductCategory::create([
             'restaurant_id' => $this->restaurant->id,
             'name' => 'Đồ ăn',
-            'slug' => 'do-an'
+            'slug' => 'do-an',
         ]);
 
         $productA = Product::create([
@@ -181,7 +188,7 @@ class MenuEngineeringBcgTest extends TestCase
             ]);
 
         $response->assertRedirect();
-        
+
         $this->assertDatabaseHas('products', [
             'restaurant_id' => $this->restaurant->id,
             'name' => 'Combo Bún Chả & Trà Đá',
@@ -201,7 +208,7 @@ class MenuEngineeringBcgTest extends TestCase
         $cat = ProductCategory::create([
             'restaurant_id' => $this->restaurant->id,
             'name' => 'Đồ ăn',
-            'slug' => 'do-an'
+            'slug' => 'do-an',
         ]);
 
         $productA = Product::create([

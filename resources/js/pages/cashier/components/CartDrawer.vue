@@ -1,9 +1,16 @@
 <script setup lang="ts">
-import { X, ShoppingCart, Plus, Minus, Trash2, CheckCircle2 as CheckIcon } from 'lucide-vue-next';
+import {
+    X,
+    ShoppingCart,
+    Plus,
+    Minus,
+    Trash2,
+    CheckCircle2 as CheckIcon,
+} from 'lucide-vue-next';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
-import { OrderItem, TableItem } from '../types';
+import type { OrderItem, TableItem } from '../types';
 
 const props = defineProps<{
     isCartOpen: boolean;
@@ -32,7 +39,8 @@ const emit = defineEmits<{
     (e: 'openSplitOrder'): void;
 }>();
 
-const numberFormat = (val: number) => new Intl.NumberFormat('vi-VN').format(val);
+const numberFormat = (val: number) =>
+    new Intl.NumberFormat('vi-VN').format(val);
 </script>
 
 <template>
@@ -41,14 +49,22 @@ const numberFormat = (val: number) => new Intl.NumberFormat('vi-VN').format(val)
         class="fixed inset-y-0 right-0 z-50 flex w-full max-w-md flex-col bg-white shadow-2xl transition-all duration-300 dark:bg-slate-900"
     >
         <!-- Header Drawer -->
-        <div class="flex items-center justify-between border-b border-slate-200 p-4 dark:border-slate-800">
+        <div
+            class="flex items-center justify-between border-b border-slate-200 p-4 dark:border-slate-800"
+        >
             <div class="flex items-center gap-2">
-                <div class="flex size-9 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600 dark:bg-indigo-950/40">
+                <div
+                    class="flex size-9 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600 dark:bg-indigo-950/40"
+                >
                     <ShoppingCart class="size-5" />
                 </div>
                 <div class="text-left">
                     <h3 class="font-black text-slate-800 dark:text-slate-100">
-                        {{ activeTable ? `Bàn ${activeTable.name}` : 'Chi tiết giỏ hàng' }}
+                        {{
+                            activeTable
+                                ? `Bàn ${activeTable.name}`
+                                : 'Chi tiết giỏ hàng'
+                        }}
                     </h3>
                     <span class="text-[10px] text-muted-foreground">
                         {{ activeTable?.area || 'Chưa chọn bàn' }}
@@ -68,9 +84,14 @@ const numberFormat = (val: number) => new Intl.NumberFormat('vi-VN').format(val)
 
         <!-- Danh sách món ăn trong giỏ -->
         <div class="flex-1 overflow-y-auto p-4">
-            <div v-if="cartItems.length === 0" class="flex h-64 flex-col items-center justify-center text-slate-400">
+            <div
+                v-if="cartItems.length === 0"
+                class="flex h-64 flex-col items-center justify-center text-slate-400"
+            >
                 <ShoppingCart class="size-12 stroke-1" />
-                <p class="mt-2 text-xs font-bold">Chưa có món nào trong giỏ hàng</p>
+                <p class="mt-2 text-xs font-bold">
+                    Chưa có món nào trong giỏ hàng
+                </p>
                 <p class="text-[10px]">Vui lòng chọn món từ menu bên trái</p>
             </div>
 
@@ -81,30 +102,42 @@ const numberFormat = (val: number) => new Intl.NumberFormat('vi-VN').format(val)
                     class="flex items-center justify-between rounded-2xl border border-slate-100 bg-slate-50/50 p-3 dark:border-slate-800/60 dark:bg-slate-950/40"
                 >
                     <div class="flex flex-col text-left">
-                        <span class="text-xs font-bold text-slate-800 dark:text-slate-200">
+                        <span
+                            class="text-xs font-bold text-slate-800 dark:text-slate-200"
+                        >
                             {{ item.product_name }}
                         </span>
-                        <span class="font-mono text-xs font-bold text-indigo-600 dark:text-indigo-400">
+                        <span
+                            class="font-mono text-xs font-bold text-indigo-600 dark:text-indigo-400"
+                        >
                             {{ numberFormat(item.price) }}đ
                         </span>
                         <Input
                             type="text"
                             placeholder="Ghi chú món..."
                             :value="item.notes"
-                            @input="item.notes = ($event.target as HTMLInputElement).value"
+                            @input="
+                                item.notes = (
+                                    $event.target as HTMLInputElement
+                                ).value
+                            "
                             class="mt-1.5 h-7 rounded-lg text-[10px]"
                         />
                     </div>
 
                     <div class="flex items-center gap-2">
-                        <div class="flex items-center gap-1 rounded-xl bg-white p-1 shadow-sm dark:bg-slate-800">
+                        <div
+                            class="flex items-center gap-1 rounded-xl bg-white p-1 shadow-sm dark:bg-slate-800"
+                        >
                             <button
                                 @click="emit('decreaseQty', item)"
                                 class="flex size-6 items-center justify-center rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700"
                             >
                                 <Minus class="size-3" />
                             </button>
-                            <span class="w-5 text-center font-mono text-xs font-bold">
+                            <span
+                                class="w-5 text-center font-mono text-xs font-bold"
+                            >
                                 {{ item.quantity }}
                             </span>
                             <button
@@ -126,12 +159,20 @@ const numberFormat = (val: number) => new Intl.NumberFormat('vi-VN').format(val)
                 </div>
 
                 <div class="mt-2 text-left">
-                    <label class="mb-1 block text-[11px] font-bold text-slate-500">Ghi chú đơn hàng:</label>
+                    <label
+                        class="mb-1 block text-[11px] font-bold text-slate-500"
+                        >Ghi chú đơn hàng:</label
+                    >
                     <Input
                         type="text"
                         placeholder="Nhập ghi chú chung cho toàn bộ đơn..."
                         :value="cartNote"
-                        @input="emit('update:cartNote', ($event.target as HTMLInputElement).value)"
+                        @input="
+                            emit(
+                                'update:cartNote',
+                                ($event.target as HTMLInputElement).value,
+                            )
+                        "
                         class="h-9 rounded-xl text-xs"
                     />
                 </div>
@@ -139,7 +180,9 @@ const numberFormat = (val: number) => new Intl.NumberFormat('vi-VN').format(val)
         </div>
 
         <!-- Footer Drawer -->
-        <div class="flex flex-col gap-3 border-t border-slate-200 p-4 dark:border-slate-800">
+        <div
+            class="flex flex-col gap-3 border-t border-slate-200 p-4 dark:border-slate-800"
+        >
             <div class="flex justify-between text-xs font-medium">
                 <span class="text-slate-500">Tổng số món:</span>
                 <span class="font-bold">{{ totalCartQty }} món</span>
@@ -194,7 +237,11 @@ const numberFormat = (val: number) => new Intl.NumberFormat('vi-VN').format(val)
             <!-- Phím bổ sung khi đã thông báo -->
             <div
                 class="flex gap-2"
-                v-if="drawerStep === 'confirm' && activeTable?.active_order && isNotified"
+                v-if="
+                    drawerStep === 'confirm' &&
+                    activeTable?.active_order &&
+                    isNotified
+                "
             >
                 <Button
                     variant="outline"

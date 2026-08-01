@@ -13,6 +13,7 @@ use App\Services\QuotaService;
 use App\Services\ShiftSwapService;
 use App\Services\TimeClockService;
 use App\Support\Tenant\TenantContext;
+use App\Support\TenantRule;
 use App\Support\VietnameseDate;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
@@ -554,7 +555,7 @@ class ScheduleController extends Controller
         abort_unless($request->user()->hasAnyRole(['owner', 'manager']), 403);
 
         $data = $request->validate([
-            'assignment_id' => ['required', \App\Support\TenantRule::exists('schedule_assignments')],
+            'assignment_id' => ['required', TenantRule::exists('schedule_assignments')],
             'notes' => ['nullable', 'string', 'max:250'],
             'apply_violation' => ['nullable', 'boolean'],
             'penalty_amount' => ['nullable', 'numeric', 'min:0'],
@@ -574,7 +575,7 @@ class ScheduleController extends Controller
         abort_unless($request->user()->hasAnyRole(['owner', 'manager']), 403);
 
         $data = $request->validate([
-            'assignment_id' => ['required', \App\Support\TenantRule::exists('schedule_assignments')],
+            'assignment_id' => ['required', TenantRule::exists('schedule_assignments')],
             'notes' => ['nullable', 'string', 'max:250'],
             'apply_violation' => ['nullable', 'boolean'],
             'penalty_amount' => ['nullable', 'numeric', 'min:0'],
@@ -594,7 +595,7 @@ class ScheduleController extends Controller
         abort_unless($request->user()->hasAnyRole(['owner', 'manager']), 403);
 
         $data = $request->validate([
-            'assignment_id' => ['required', \App\Support\TenantRule::exists('schedule_assignments')],
+            'assignment_id' => ['required', TenantRule::exists('schedule_assignments')],
             'notes' => ['nullable', 'string', 'max:250'],
             'apply_violation' => ['nullable', 'boolean'],
             'penalty_amount' => ['nullable', 'numeric', 'min:0'],
@@ -619,7 +620,7 @@ class ScheduleController extends Controller
 
         $data = $request->validate([
             'registrations' => ['nullable', 'array'],
-            'registrations.*.shift_id' => ['required', \App\Support\TenantRule::exists('work_shifts')],
+            'registrations.*.shift_id' => ['required', TenantRule::exists('work_shifts')],
             'registrations.*.date' => ['required', 'date_format:Y-m-d'],
         ]);
 
@@ -656,7 +657,7 @@ class ScheduleController extends Controller
         abort_unless($request->user()->hasAnyRole(['owner', 'manager']), 403);
 
         $data = $request->validate([
-            'assignment_id' => ['required', \App\Support\TenantRule::exists('schedule_assignments')],
+            'assignment_id' => ['required', TenantRule::exists('schedule_assignments')],
         ]);
 
         $sa = ScheduleAssignment::findOrFail($data['assignment_id']);
@@ -706,7 +707,7 @@ class ScheduleController extends Controller
         abort_unless($request->user()->hasAnyRole(['owner', 'manager']), 403);
 
         $data = $request->validate([
-            'registration_id' => ['required', \App\Support\TenantRule::exists('schedule_registrations')],
+            'registration_id' => ['required', TenantRule::exists('schedule_registrations')],
         ]);
 
         $reg = ScheduleRegistration::with('employee')->findOrFail($data['registration_id']);
@@ -884,8 +885,8 @@ class ScheduleController extends Controller
         }
 
         $data = $request->validate([
-            'requester_assignment_id' => ['required', \App\Support\TenantRule::exists('schedule_assignments')],
-            'receiver_assignment_id' => ['required', \App\Support\TenantRule::exists('schedule_assignments')],
+            'requester_assignment_id' => ['required', TenantRule::exists('schedule_assignments')],
+            'receiver_assignment_id' => ['required', TenantRule::exists('schedule_assignments')],
             'notes' => ['nullable', 'string', 'max:250'],
         ]);
 

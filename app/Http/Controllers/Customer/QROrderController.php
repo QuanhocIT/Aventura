@@ -20,6 +20,7 @@ use App\Models\ScheduleAssignment;
 use App\Models\TemporaryOrder;
 use App\Models\WorkShift;
 use App\Services\CdpService;
+use App\Support\TenantRule;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -257,7 +258,7 @@ class QROrderController extends Controller
             'session_id' => ['nullable', 'string', 'max:255'],
             'redeem_points' => ['nullable', 'integer', 'min:0'],
             'items' => ['required', 'array', 'min:1'],
-            'items.*.product_id' => ['required', \App\Support\TenantRule::exists('products', restaurantId: (int) $restaurantId)],
+            'items.*.product_id' => ['required', TenantRule::exists('products', restaurantId: (int) $restaurantId)],
             'items.*.quantity' => ['required', 'numeric', 'min:1'],
             'items.*.notes' => ['nullable', 'string', 'max:255'],
         ]);
@@ -411,7 +412,7 @@ class QROrderController extends Controller
     public function callStaff(Request $request, $restaurantId): JsonResponse
     {
         $data = $request->validate([
-            'table_id' => ['required', \App\Support\TenantRule::exists('restaurant_tables', restaurantId: (int) $restaurantId)],
+            'table_id' => ['required', TenantRule::exists('restaurant_tables', restaurantId: (int) $restaurantId)],
             'message' => ['nullable', 'string', 'max:100'],
         ]);
 
@@ -436,7 +437,7 @@ class QROrderController extends Controller
     public function paymentRequest(Request $request, $restaurantId): JsonResponse
     {
         $data = $request->validate([
-            'table_id' => ['required', \App\Support\TenantRule::exists('restaurant_tables', restaurantId: (int) $restaurantId)],
+            'table_id' => ['required', TenantRule::exists('restaurant_tables', restaurantId: (int) $restaurantId)],
         ]);
 
         $table = RestaurantTable::where('restaurant_id', $restaurantId)
@@ -471,8 +472,8 @@ class QROrderController extends Controller
     public function submitFeedback(Request $request, $restaurantId): JsonResponse
     {
         $data = $request->validate([
-            'table_id' => ['required', \App\Support\TenantRule::exists('restaurant_tables', restaurantId: (int) $restaurantId)],
-            'order_id' => ['nullable', \App\Support\TenantRule::exists('orders', restaurantId: (int) $restaurantId)],
+            'table_id' => ['required', TenantRule::exists('restaurant_tables', restaurantId: (int) $restaurantId)],
+            'order_id' => ['nullable', TenantRule::exists('orders', restaurantId: (int) $restaurantId)],
             'rating' => ['required', 'integer', 'min:1', 'max:5'],
             'content' => ['nullable', 'string', 'max:1000'],
             'is_anonymous' => ['required', 'boolean'],

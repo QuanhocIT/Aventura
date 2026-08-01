@@ -16,9 +16,7 @@ use App\Models\RestaurantRevenueSummary;
 use App\Models\RestaurantTable;
 use App\Models\Unit;
 use App\Models\User;
-use Carbon\Carbon;
 use Illuminate\Database\Seeder;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
 class QuickDemoSeeder extends Seeder
@@ -34,8 +32,9 @@ class QuickDemoSeeder extends Seeder
     {
         foreach ($this->emails as $email) {
             $user = User::where('email', $email)->first();
-            if (!$user || !$user->restaurant_id) {
+            if (! $user || ! $user->restaurant_id) {
                 $this->command->warn("Skip {$email} — không tìm thấy");
+
                 continue;
             }
 
@@ -107,7 +106,7 @@ class QuickDemoSeeder extends Seeder
         $ingredients = [];
         foreach (['Thịt bò' => 320, 'Thịt heo' => 180, 'Gạo' => 35, 'Rau sống' => 25, 'Bún' => 30] as $ingName => $cost) {
             $ing = Ingredient::firstOrCreate(
-                ['restaurant_id' => $rid, 'sku' => 'ING-' . Str::upper(Str::slug($ingName))],
+                ['restaurant_id' => $rid, 'sku' => 'ING-'.Str::upper(Str::slug($ingName))],
                 ['name' => $ingName, 'unit_id' => $unitG->id, 'category_name' => 'Nguyên liệu', 'min_stock_level' => 500, 'reorder_level' => 1000, 'average_cost' => $cost, 'status' => 'active']
             );
             $ingredients[] = $ing;
@@ -120,7 +119,7 @@ class QuickDemoSeeder extends Seeder
 
         for ($i = 0; $i < 10; $i++) {
             Customer::firstOrCreate(
-                ['restaurant_id' => $rid, 'phone' => '09' . rand(10000000, 99999999)],
+                ['restaurant_id' => $rid, 'phone' => '09'.rand(10000000, 99999999)],
                 ['full_name' => fake('vi_VN')->name(), 'membership_level' => ['silver', 'gold', 'platinum'][rand(0, 2)], 'loyalty_points' => rand(0, 500), 'total_spent' => rand(100000, 5000000)]
             );
         }
@@ -139,7 +138,7 @@ class QuickDemoSeeder extends Seeder
                 $table = $tables->random();
                 $status = rand(1, 10) <= 8 ? 'completed' : (rand(1, 10) <= 5 ? 'pending' : 'cancelled');
                 $channel = ['dine_in', 'dine_in', 'dine_in', 'takeaway', 'delivery'][rand(0, 4)];
-                $orderNumber = 'ORD-' . $date->format('ymd') . '-' . str_pad($o + 1, 3, '0', STR_PAD_LEFT);
+                $orderNumber = 'ORD-'.$date->format('ymd').'-'.str_pad($o + 1, 3, '0', STR_PAD_LEFT);
 
                 $order = Order::firstOrCreate(
                     ['restaurant_id' => $rid, 'order_number' => $orderNumber],
@@ -153,7 +152,7 @@ class QuickDemoSeeder extends Seeder
                     ]
                 );
 
-                if (!$order->wasRecentlyCreated) {
+                if (! $order->wasRecentlyCreated) {
                     continue;
                 }
 
@@ -217,6 +216,6 @@ class QuickDemoSeeder extends Seeder
             );
         }
 
-        $this->command->info("  → {$rid}: Products=" . count($products) . ", ~" . (31 * 15) . " orders, 31 ngày revenue");
+        $this->command->info("  → {$rid}: Products=".count($products).', ~'.(31 * 15).' orders, 31 ngày revenue');
     }
 }

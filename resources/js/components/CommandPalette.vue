@@ -205,8 +205,8 @@ function handleKeyDown(e: KeyboardEvent) {
     }
 
     if (!isOpen.value) {
-return;
-}
+        return;
+    }
 
     if (e.key === 'Escape') {
         isOpen.value = false;
@@ -245,7 +245,6 @@ onUnmounted(() => {
 </script>
 
 <template>
-
     <!-- Modal Backdrop -->
     <div
         v-if="isOpen"

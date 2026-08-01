@@ -1,5 +1,5 @@
-import { ref, onMounted, onUnmounted } from 'vue';
 import { router } from '@inertiajs/vue3';
+import { ref, onMounted, onUnmounted } from 'vue';
 
 export function useCashierRealtime(restaurantId: () => number | undefined) {
     const wsConnected = ref(true);
@@ -8,16 +8,25 @@ export function useCashierRealtime(restaurantId: () => number | undefined) {
     let fallbackPollInterval: ReturnType<typeof setInterval> | null = null;
 
     const triggerPollingFallback = () => {
-        if (pollingActive.value) return;
+        if (pollingActive.value) {
+            return;
+        }
+
         pollingActive.value = true;
         fallbackPollInterval = setInterval(() => {
-            router.reload({ only: ['qrOrders', 'tablesData', 'externalOrders'] });
+            router.reload({
+                only: ['qrOrders', 'tablesData', 'externalOrders'],
+            });
         }, 8000);
     };
 
     const stopPollingFallback = () => {
-        if (!pollingActive.value) return;
+        if (!pollingActive.value) {
+            return;
+        }
+
         pollingActive.value = false;
+
         if (fallbackPollInterval) {
             clearInterval(fallbackPollInterval);
             fallbackPollInterval = null;
@@ -26,9 +35,14 @@ export function useCashierRealtime(restaurantId: () => number | undefined) {
 
     const startHeartbeat = () => {
         wsCheckInterval = setInterval(() => {
-            if (window.Echo && window.Echo.connector && window.Echo.connector.pusher) {
+            if (
+                window.Echo &&
+                window.Echo.connector &&
+                window.Echo.connector.pusher
+            ) {
                 const state = window.Echo.connector.pusher.connection.state;
-                wsConnected.value = (state === 'connected');
+                wsConnected.value = state === 'connected';
+
                 if (state === 'disconnected' || state === 'failed') {
                     triggerPollingFallback();
                 } else if (state === 'connected') {
@@ -45,21 +59,34 @@ export function useCashierRealtime(restaurantId: () => number | undefined) {
         startHeartbeat();
 
         const restId = restaurantId();
+
         if (window.Echo && restId) {
             window.Echo.private(`restaurant.${restId}`)
                 .listen('.OrderCreated', () => {
-                    router.reload({ only: ['qrOrders', 'tablesData', 'externalOrders'] });
+                    router.reload({
+                        only: ['qrOrders', 'tablesData', 'externalOrders'],
+                    });
                 })
                 .listen('.OrderStatusUpdated', () => {
-                    router.reload({ only: ['tablesData', 'completedHistory', 'externalOrders'] });
+                    router.reload({
+                        only: [
+                            'tablesData',
+                            'completedHistory',
+                            'externalOrders',
+                        ],
+                    });
                 });
         }
     });
 
     onUnmounted(() => {
-        if (wsCheckInterval) clearInterval(wsCheckInterval);
+        if (wsCheckInterval) {
+            clearInterval(wsCheckInterval);
+        }
+
         stopPollingFallback();
         const restId = restaurantId();
+
         if (window.Echo && restId) {
             window.Echo.leave(`restaurant.${restId}`);
         }

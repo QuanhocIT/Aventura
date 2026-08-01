@@ -43,18 +43,18 @@ const registerStatusLabel = computed(() => {
 
 const maxVal = computed(() => {
     if (!props.cashFlowSummary?.chart) {
-return 1;
-}
+        return 1;
+    }
 
     let max = 0;
     props.cashFlowSummary.chart.forEach((d) => {
         if (d.in > max) {
-max = d.in;
-}
+            max = d.in;
+        }
 
         if (d.out > max) {
-max = d.out;
-}
+            max = d.out;
+        }
     });
 
     return max || 1;

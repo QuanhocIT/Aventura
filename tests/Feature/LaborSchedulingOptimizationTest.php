@@ -41,20 +41,20 @@ class LaborSchedulingOptimizationTest extends TestCase
         // Create active work shifts
         $shift1 = WorkShift::create([
             'restaurant_id' => $restaurant->id,
-            'name'          => 'Ca Sáng (06:00 - 14:00)',
-            'code'          => 'CA_SANG',
-            'start_time'    => '06:00:00',
-            'end_time'      => '14:00:00',
-            'status'        => 'active',
+            'name' => 'Ca Sáng (06:00 - 14:00)',
+            'code' => 'CA_SANG',
+            'start_time' => '06:00:00',
+            'end_time' => '14:00:00',
+            'status' => 'active',
         ]);
 
         $shift2 = WorkShift::create([
             'restaurant_id' => $restaurant->id,
-            'name'          => 'Ca Chiều (14:00 - 22:00)',
-            'code'          => 'CA_CHIEU',
-            'start_time'    => '14:00:00',
-            'end_time'      => '22:00:00',
-            'status'        => 'active',
+            'name' => 'Ca Chiều (14:00 - 22:00)',
+            'code' => 'CA_CHIEU',
+            'start_time' => '14:00:00',
+            'end_time' => '22:00:00',
+            'status' => 'active',
         ]);
 
         // Access employees index page (EmployeeManagementController@employeesPage)
@@ -109,49 +109,49 @@ class LaborSchedulingOptimizationTest extends TestCase
         // Create shift for target day (Morning shift: 08:00 - 16:00)
         $targetShift = WorkShift::create([
             'restaurant_id' => $restaurant->id,
-            'name'          => 'Ca Sáng (08:00 - 16:00)',
-            'code'          => 'CA_SANG_TEST',
-            'start_time'    => '08:00:00',
-            'end_time'      => '16:00:00',
-            'status'        => 'active',
+            'name' => 'Ca Sáng (08:00 - 16:00)',
+            'code' => 'CA_SANG_TEST',
+            'start_time' => '08:00:00',
+            'end_time' => '16:00:00',
+            'status' => 'active',
         ]);
 
         // Shift 2 (Afternoon shift: 16:00 - 00:00)
         $afternoonShift = WorkShift::create([
             'restaurant_id' => $restaurant->id,
-            'name'          => 'Ca Chiều (16:00 - 00:00)',
-            'code'          => 'CA_CHIEU_TEST',
-            'start_time'    => '16:00:00',
-            'end_time'      => '00:00:00',
-            'status'        => 'active',
-            'is_overnight'  => true,
+            'name' => 'Ca Chiều (16:00 - 00:00)',
+            'code' => 'CA_CHIEU_TEST',
+            'start_time' => '16:00:00',
+            'end_time' => '00:00:00',
+            'status' => 'active',
+            'is_overnight' => true,
         ]);
 
         // Employee A: Leaves request
         $empA = Employee::create([
             'restaurant_id' => $restaurant->id,
-            'full_name'     => 'Employee A',
+            'full_name' => 'Employee A',
             'employee_code' => 'EMPA',
-            'status'        => 'active',
-            'role_id'       => $role->id,
+            'status' => 'active',
+            'role_id' => $role->id,
         ]);
 
         // Employee B: Replacement candidate 1 (will be overloaded with shifts)
         $empB = Employee::create([
             'restaurant_id' => $restaurant->id,
-            'full_name'     => 'Employee B',
+            'full_name' => 'Employee B',
             'employee_code' => 'EMPB',
-            'status'        => 'active',
-            'role_id'       => $role->id,
+            'status' => 'active',
+            'role_id' => $role->id,
         ]);
 
         // Employee C: Replacement candidate 2 (will have rest hours violation)
         $empC = Employee::create([
             'restaurant_id' => $restaurant->id,
-            'full_name'     => 'Employee C',
+            'full_name' => 'Employee C',
             'employee_code' => 'EMPC',
-            'status'        => 'active',
-            'role_id'       => $role->id,
+            'status' => 'active',
+            'role_id' => $role->id,
         ]);
 
         $targetDate = Carbon::now()->startOfWeek(Carbon::MONDAY)->addDays(6); // Sunday of current week
@@ -160,43 +160,43 @@ class LaborSchedulingOptimizationTest extends TestCase
 
         // Assign Employee A to the target shift on Sunday
         $assignmentA = ScheduleAssignment::create([
-            'restaurant_id'  => $restaurant->id,
-            'employee_id'    => $empA->id,
-            'shift_id'       => $targetShift->id,
+            'restaurant_id' => $restaurant->id,
+            'employee_id' => $empA->id,
+            'shift_id' => $targetShift->id,
             'scheduled_date' => $targetDateStr,
-            'status'         => 'scheduled',
+            'status' => 'scheduled',
         ]);
 
         // Setup Employee B: 6 shifts already this week (Monday to Saturday)
         $startOfWeek = Carbon::now()->startOfWeek(Carbon::MONDAY);
         for ($i = 0; $i < 6; $i++) {
             ScheduleAssignment::create([
-                'restaurant_id'  => $restaurant->id,
-                'employee_id'    => $empB->id,
-                'shift_id'       => $targetShift->id,
+                'restaurant_id' => $restaurant->id,
+                'employee_id' => $empB->id,
+                'shift_id' => $targetShift->id,
                 'scheduled_date' => $startOfWeek->copy()->addDays($i)->toDateString(),
-                'status'         => 'scheduled',
+                'status' => 'scheduled',
             ]);
         }
 
         // Setup Employee C: has a shift on Saturday (yesterday) Ca Chiều (16:00 - 00:00)
         ScheduleAssignment::create([
-            'restaurant_id'  => $restaurant->id,
-            'employee_id'    => $empC->id,
-            'shift_id'       => $afternoonShift->id,
+            'restaurant_id' => $restaurant->id,
+            'employee_id' => $empC->id,
+            'shift_id' => $afternoonShift->id,
             'scheduled_date' => $saturdayStr,
-            'status'         => 'scheduled',
+            'status' => 'scheduled',
         ]);
 
         // Create LeaveRequest for Employee A on Sunday
         $leave = LeaveRequest::create([
             'restaurant_id' => $restaurant->id,
-            'employee_id'   => $empA->id,
-            'requested_by'  => $owner->id,
-            'leave_type'    => 'annual',
-            'start_date'    => $targetDateStr,
-            'end_date'      => $targetDateStr,
-            'status'        => 'pending',
+            'employee_id' => $empA->id,
+            'requested_by' => $owner->id,
+            'leave_type' => 'annual',
+            'start_date' => $targetDateStr,
+            'end_date' => $targetDateStr,
+            'status' => 'pending',
         ]);
 
         // Fetch replacement suggestions
@@ -211,7 +211,7 @@ class LaborSchedulingOptimizationTest extends TestCase
 
         $assignmentData = $json['assignments'][0];
         $this->assertEquals($assignmentA->id, $assignmentData['assignment_id']);
-        
+
         $suggestions = $assignmentData['suggestions'];
         $this->assertNotEmpty($suggestions);
 

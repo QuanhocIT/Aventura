@@ -2,13 +2,17 @@
 
 namespace App\Console\Commands;
 
-use App\Models\Restaurant;
+use App\Models\Employee;
+use App\Models\Ingredient;
+use App\Models\Product;
+use App\Models\RestaurantTable;
 use App\Models\User;
 use Illuminate\Console\Command;
 
 class SyncOnboardingStatus extends Command
 {
     protected $signature = 'onboarding:sync';
+
     protected $description = 'Auto-detect onboarding completion for all restaurants';
 
     public function handle(): int
@@ -23,23 +27,25 @@ class SyncOnboardingStatus extends Command
 
         foreach ($owners as $owner) {
             $rid = $owner->restaurant_id;
-            if (!$rid) continue;
+            if (! $rid) {
+                continue;
+            }
 
             $status = $owner->onboarding_status ?? [];
 
-            if (empty($status['day_1']) && \App\Models\Product::where('restaurant_id', $rid)->exists()) {
+            if (empty($status['day_1']) && Product::where('restaurant_id', $rid)->exists()) {
                 $status['day_1'] = ['completed_at' => now()->toIso8601String()];
             }
 
-            if (empty($status['day_2']) && \App\Models\RestaurantTable::where('restaurant_id', $rid)->count() >= 3) {
+            if (empty($status['day_2']) && RestaurantTable::where('restaurant_id', $rid)->count() >= 3) {
                 $status['day_2'] = ['completed_at' => now()->toIso8601String()];
             }
 
-            if (empty($status['day_3']) && \App\Models\Ingredient::where('restaurant_id', $rid)->exists()) {
+            if (empty($status['day_3']) && Ingredient::where('restaurant_id', $rid)->exists()) {
                 $status['day_3'] = ['completed_at' => now()->toIso8601String()];
             }
 
-            if (empty($status['day_4']) && \App\Models\Employee::where('restaurant_id', $rid)->where('status', 'active')->count() >= 2) {
+            if (empty($status['day_4']) && Employee::where('restaurant_id', $rid)->where('status', 'active')->count() >= 2) {
                 $status['day_4'] = ['completed_at' => now()->toIso8601String()];
             }
 
@@ -57,6 +63,7 @@ class SyncOnboardingStatus extends Command
         }
 
         $this->info("Synced onboarding for {$updated} owners.");
+
         return self::SUCCESS;
     }
 }

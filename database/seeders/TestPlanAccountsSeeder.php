@@ -2,12 +2,12 @@
 
 namespace Database\Seeders;
 
-use App\Models\Restaurant;
 use App\Models\RestaurantSubscription;
 use App\Models\SubscriptionPlan;
 use App\Models\User;
 use App\Services\Onboarding\RestaurantOnboardingService;
 use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\Cache;
 
 class TestPlanAccountsSeeder extends Seeder
 {
@@ -17,51 +17,52 @@ class TestPlanAccountsSeeder extends Seeder
 
         $accounts = [
             [
-                'name'            => 'Test Free',
+                'name' => 'Test Free',
                 'restaurant_name' => 'Nhà hàng Free',
-                'email'           => 'free@test.com',
-                'password'        => 'password',
-                'phone'           => '0900000010',
-                'target_plan'     => 'free',
+                'email' => 'free@test.com',
+                'password' => 'password',
+                'phone' => '0900000010',
+                'target_plan' => 'free',
             ],
             [
-                'name'            => 'Test Starter',
+                'name' => 'Test Starter',
                 'restaurant_name' => 'Nhà hàng Cơ Bản',
-                'email'           => 'starter@test.com',
-                'password'        => 'password',
-                'phone'           => '0900000020',
-                'target_plan'     => 'starter',
+                'email' => 'starter@test.com',
+                'password' => 'password',
+                'phone' => '0900000020',
+                'target_plan' => 'starter',
             ],
             [
-                'name'            => 'Test Pro',
+                'name' => 'Test Pro',
                 'restaurant_name' => 'Nhà hàng Chuyên Nghiệp',
-                'email'           => 'pro@test.com',
-                'password'        => 'password',
-                'phone'           => '0900000030',
-                'target_plan'     => 'pro',
+                'email' => 'pro@test.com',
+                'password' => 'password',
+                'phone' => '0900000030',
+                'target_plan' => 'pro',
             ],
             [
-                'name'            => 'Test Enterprise',
+                'name' => 'Test Enterprise',
                 'restaurant_name' => 'Nhà hàng Doanh Nghiệp',
-                'email'           => 'enterprise@test.com',
-                'password'        => 'password',
-                'phone'           => '0900000040',
-                'target_plan'     => 'enterprise',
+                'email' => 'enterprise@test.com',
+                'password' => 'password',
+                'phone' => '0900000040',
+                'target_plan' => 'enterprise',
             ],
         ];
 
         foreach ($accounts as $acc) {
             if (User::where('email', $acc['email'])->exists()) {
                 $this->command->info("Đã tồn tại: {$acc['email']} — bỏ qua");
+
                 continue;
             }
 
             $user = $onboarding->onboard([
-                'name'            => $acc['name'],
+                'name' => $acc['name'],
                 'restaurant_name' => $acc['restaurant_name'],
-                'email'           => $acc['email'],
-                'password'        => $acc['password'],
-                'phone'           => $acc['phone'],
+                'email' => $acc['email'],
+                'password' => $acc['password'],
+                'phone' => $acc['phone'],
             ]);
 
             $targetPlan = SubscriptionPlan::where('code', $acc['target_plan'])->first();
@@ -74,11 +75,11 @@ class TestPlanAccountsSeeder extends Seeder
                     ->first()
                     ?->update([
                         'plan_id' => $targetPlan->id,
-                        'status'  => 'active',
-                        'price'   => $targetPlan->price,
+                        'status' => 'active',
+                        'price' => $targetPlan->price,
                     ]);
 
-                \Illuminate\Support\Facades\Cache::forget("quota_summary:{$restaurant->id}");
+                Cache::forget("quota_summary:{$restaurant->id}");
             }
 
             $this->command->info("Tạo xong: {$acc['email']} — Gói: {$acc['target_plan']}");

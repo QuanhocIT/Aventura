@@ -3,12 +3,12 @@
 namespace App\Http\Controllers;
 
 use App\Models\LeaveRequest;
-use App\Models\Employee;
 use App\Models\ShiftSwap;
 use App\Services\LeaveRequestService;
 use App\Services\QuotaService;
 use App\Services\ScheduleAssignmentService;
 use App\Services\ShiftSwapService;
+use App\Support\TenantRule;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -94,7 +94,7 @@ class LeaveScheduleController extends Controller
     public function storeLeaveRequest(Request $request): RedirectResponse
     {
         $data = $request->validate([
-            'employee_id' => ['required', 'integer', \App\Support\TenantRule::exists('employees')],
+            'employee_id' => ['required', 'integer', TenantRule::exists('employees')],
             'leave_type' => ['required', 'string', 'in:annual,sick,unpaid,emergency,resignation'],
             'start_date' => ['required', 'date'],
             'end_date' => ['required', 'date', 'after_or_equal:start_date'],

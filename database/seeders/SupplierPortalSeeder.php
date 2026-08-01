@@ -19,7 +19,7 @@ class SupplierPortalSeeder extends Seeder
     {
         // 1. Get first restaurant
         $restaurant = Restaurant::first();
-        if (!$restaurant) {
+        if (! $restaurant) {
             $restaurant = Restaurant::create([
                 'name' => 'Aventura Diner',
                 'status' => 'active',
@@ -47,7 +47,7 @@ class SupplierPortalSeeder extends Seeder
 
         // 4. Create supplier user
         $supplierUser = User::where('email', 'supplier@example.com')->first();
-        if (!$supplierUser) {
+        if (! $supplierUser) {
             $supplierUser = User::create([
                 'name' => 'Đại diện Đà Lạt Veggies',
                 'email' => 'supplier@example.com',
@@ -68,7 +68,7 @@ class SupplierPortalSeeder extends Seeder
 
         // 5. Create units if not existing
         $unitKg = Unit::where('symbol', 'kg')->first();
-        if (!$unitKg) {
+        if (! $unitKg) {
             $unitKg = Unit::create([
                 'restaurant_id' => $restaurant->id,
                 'name' => 'Kilôgam',
@@ -99,7 +99,7 @@ class SupplierPortalSeeder extends Seeder
                 'category_name' => 'Rau củ tươi',
                 'description' => 'Khoai tây đỏ vỏ mỏng ruột vàng dẻo bùi.',
                 'price' => 22000,
-            ]
+            ],
         ];
 
         foreach ($ingredientsData as $ingData) {
@@ -108,7 +108,7 @@ class SupplierPortalSeeder extends Seeder
                 ->where('sku', $ingData['sku'])
                 ->first();
 
-            if (!$ingredient) {
+            if (! $ingredient) {
                 $ingredient = Ingredient::create([
                     'restaurant_id' => $restaurant->id,
                     'supplier_id' => $supplier->id,
@@ -166,7 +166,7 @@ class SupplierPortalSeeder extends Seeder
                 'notes' => 'Giao hàng buổi sáng trước 8h.',
             ]
         );
-        
+
         $romaine = Ingredient::withoutGlobalScopes()->where('sku', 'ROM-SAL-01')->first();
         if ($romaine) {
             $po1->items()->firstOrCreate(
@@ -193,7 +193,7 @@ class SupplierPortalSeeder extends Seeder
                 'notes' => 'Hàng tươi trong ngày.',
             ]
         );
-        
+
         $tomato = Ingredient::withoutGlobalScopes()->where('sku', 'BEEF-TOM-02')->first();
         if ($tomato) {
             $po2->items()->firstOrCreate(

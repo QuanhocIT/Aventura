@@ -2,7 +2,6 @@
 
 namespace App\Console\Commands;
 
-use App\Models\Restaurant;
 use App\Models\User;
 use App\Services\Onboarding\DemoDataSeederService;
 use Illuminate\Console\Command;
@@ -23,7 +22,7 @@ class SeedRestaurantDemoData extends Command
 
     public function handle(): int
     {
-        $email    = $this->option('email');
+        $email = $this->option('email');
         $template = $this->option('template');
 
         $this->info("Starting demo seeding for: {$email} (template: {$template})");
@@ -31,12 +30,14 @@ class SeedRestaurantDemoData extends Command
         $owner = User::where('email', $email)->first();
         if (! $owner) {
             $this->error("User with email {$email} not found!");
+
             return self::FAILURE;
         }
 
         $restaurant = $owner->restaurant;
         if (! $restaurant) {
             $this->error("No restaurant found for user {$owner->name}!");
+
             return self::FAILURE;
         }
 

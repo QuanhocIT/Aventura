@@ -233,7 +233,7 @@ class TableReservationController extends Controller
         abort_if($reservation->restaurant_id !== $user->restaurant_id, 403);
 
         try {
-            DB::transaction(function () use ($reservation, $user) {
+            DB::transaction(function () use ($reservation) {
                 $lockedReservation = TableReservation::where('id', $reservation->id)->lockForUpdate()->firstOrFail();
                 if ($lockedReservation->status !== 'confirmed') {
                     throw new \Exception('Chỉ đánh dấu no-show cho đặt bàn đã xác nhận.');

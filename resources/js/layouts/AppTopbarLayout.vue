@@ -37,7 +37,13 @@ const roles = computed(() => {
 const hasRole = (...roleNames: string[]) =>
     roles.value.some((r: string) => roleNames.includes(r));
 const isSuperAdmin = computed(() =>
-    hasRole('super_admin', 'system_admin', 'billing_admin', 'support_specialist', 'admin'),
+    hasRole(
+        'super_admin',
+        'system_admin',
+        'billing_admin',
+        'support_specialist',
+        'admin',
+    ),
 );
 const isOwner = computed(() => hasRole('owner'));
 

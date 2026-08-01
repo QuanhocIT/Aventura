@@ -21,19 +21,21 @@ class LaunchCheck extends Command
     protected $description = 'Kiểm tra cấu hình production trước khi mở bán (không sửa gì).';
 
     private int $fail = 0;
+
     private int $warn = 0;
+
     private int $pass = 0;
 
     public function handle(): int
     {
         $this->newLine();
         $this->line('  <options=bold>KIỂM TRA SẴN SÀNG PRODUCTION — Aventura</>');
-        $this->line('  ' . str_repeat('─', 58));
+        $this->line('  '.str_repeat('─', 58));
 
         // ── Cốt lõi & bảo mật ────────────────────────────────────────────────
         $this->section('Cốt lõi & bảo mật');
         $this->assert('APP_ENV = production', app()->environment('production'),
-            "đang là '" . app()->environment() . "'", 'warn');
+            "đang là '".app()->environment()."'", 'warn');
         $this->assert('APP_DEBUG = false', config('app.debug') === false,
             'APP_DEBUG=true sẽ LỘ thông tin nhạy cảm ra người dùng', 'fail');
         $this->assert('APP_KEY đã đặt', ! empty(config('app.key')),
@@ -47,7 +49,11 @@ class LaunchCheck extends Command
         // ── Cơ sở dữ liệu ────────────────────────────────────────────────────
         $this->section('Cơ sở dữ liệu');
         $dbOk = false;
-        try { DB::connection()->getPdo(); $dbOk = true; } catch (\Throwable $e) {}
+        try {
+            DB::connection()->getPdo();
+            $dbOk = true;
+        } catch (\Throwable $e) {
+        }
         $this->assert('Kết nối DB', $dbOk, 'không kết nối được MySQL', 'fail');
         if ($dbOk) {
             $pending = $this->pendingMigrations();
@@ -59,10 +65,14 @@ class LaunchCheck extends Command
         $this->section('Cache / Queue / Realtime');
         $cacheOk = false;
         $token = bin2hex(random_bytes(8));
-        try { Cache::put('__launch_check', $token, 5); $cacheOk = Cache::get('__launch_check') === $token; } catch (\Throwable $e) {}
+        try {
+            Cache::put('__launch_check', $token, 5);
+            $cacheOk = Cache::get('__launch_check') === $token;
+        } catch (\Throwable $e) {
+        }
         $this->assert('Cache hoạt động', $cacheOk, 'không ghi/đọc được cache', 'fail');
         $this->assert('QUEUE dùng redis (không sync)', config('queue.default') === 'redis',
-            "đang '" . config('queue.default') . "' — production nên dùng redis + queue worker", 'warn');
+            "đang '".config('queue.default')."' — production nên dùng redis + queue worker", 'warn');
         $this->assert('Realtime: broadcast = reverb', config('broadcasting.default') === 'reverb',
             'KDS/thông báo realtime cần Reverb', 'warn');
         $reverbKey = config('reverb.apps.apps.0.key') ?? env('REVERB_APP_KEY');
@@ -100,19 +110,22 @@ class LaunchCheck extends Command
 
         // ── Tổng kết ─────────────────────────────────────────────────────────
         $this->newLine();
-        $this->line('  ' . str_repeat('─', 58));
+        $this->line('  '.str_repeat('─', 58));
         $this->line(sprintf('  <fg=green>PASS %d</>   <fg=yellow>CẢNH BÁO %d</>   <fg=red>LỖI %d</>',
             $this->pass, $this->warn, $this->fail));
 
         if ($this->fail > 0) {
             $this->error('  ✗ Có LỖI chặn — chưa nên mở bán. Sửa các mục LỖI ở trên.');
+
             return self::FAILURE;
         }
         if ($this->warn > 0) {
             $this->warn('  ! Chạy được nhưng còn cảnh báo — nên xử lý trước khi phục vụ khách thật.');
+
             return self::SUCCESS;
         }
         $this->info('  ✓ Sẵn sàng go-live!');
+
         return self::SUCCESS;
     }
 

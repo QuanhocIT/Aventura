@@ -271,7 +271,9 @@ defineOptions({
                             >
                             <Select
                                 name="status"
-                                :default-value="editingBranch?.status ?? 'active'"
+                                :default-value="
+                                    editingBranch?.status ?? 'active'
+                                "
                             >
                                 <SelectTrigger class="rounded-xl">
                                     <SelectValue />
@@ -372,14 +374,18 @@ defineOptions({
                                 <SelectValue placeholder="Chưa gán quản lý" />
                             </SelectTrigger>
                             <SelectContent>
-                                <SelectItem value="0">Chưa gán quản lý</SelectItem>
+                                <SelectItem value="0"
+                                    >Chưa gán quản lý</SelectItem
+                                >
                                 <SelectItem
                                     v-for="manager in managerCandidates"
                                     :key="manager.id"
                                     :value="String(manager.id)"
                                 >
                                     {{ manager.name }}
-                                    <template v-if="manager.assigned_branch_name">
+                                    <template
+                                        v-if="manager.assigned_branch_name"
+                                    >
                                         — {{ manager.assigned_branch_name }}
                                     </template>
                                 </SelectItem>

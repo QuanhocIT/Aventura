@@ -2,6 +2,8 @@
 
 namespace Tests\Feature\Smoke;
 
+use App\Http\Middleware\SecurityFirewallMiddleware;
+use App\Http\Middleware\TenantRateLimit;
 use App\Models\User;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\DB;
@@ -24,8 +26,8 @@ class OrderActionsSmokeTest extends TestCase
     {
         parent::setUp();
         $this->withoutMiddleware([
-            \App\Http\Middleware\SecurityFirewallMiddleware::class,
-            \App\Http\Middleware\TenantRateLimit::class,
+            SecurityFirewallMiddleware::class,
+            TenantRateLimit::class,
         ]);
     }
 
@@ -42,21 +44,21 @@ class OrderActionsSmokeTest extends TestCase
             'item_ids' => [$itemId],
         ]);
         $this->assertLessThan(500, $split->getStatusCode(),
-            'split 5xx: ' . optional($split->exception)->getMessage());
+            'split 5xx: '.optional($split->exception)->getMessage());
 
         if ($tableId) {
             $move = $this->actingAs($owner)->post("/orders/{$splitOrderId}/move-table", [
                 'table_id' => $tableId,
             ]);
             $this->assertLessThan(500, $move->getStatusCode(),
-                'move-table 5xx: ' . optional($move->exception)->getMessage());
+                'move-table 5xx: '.optional($move->exception)->getMessage());
         }
 
         $merge = $this->actingAs($owner)->post("/orders/{$mergeTargetId}/merge", [
             'target_order_id' => $splitOrderId,
         ]);
         $this->assertLessThan(500, $merge->getStatusCode(),
-            'merge 5xx: ' . optional($merge->exception)->getMessage());
+            'merge 5xx: '.optional($merge->exception)->getMessage());
     }
 
     /**

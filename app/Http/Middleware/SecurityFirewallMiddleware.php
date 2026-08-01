@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Models\SystemSetting;
 use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
@@ -33,7 +34,7 @@ class SecurityFirewallMiddleware
         $ip = $request->ip();
 
         // 1. Whitelist Check: If IP is whitelisted, bypass all WAF and Rate Limiting
-        $whitelist = json_decode(\App\Models\SystemSetting::get('firewall_whitelist', '[]'), true);
+        $whitelist = json_decode(SystemSetting::get('firewall_whitelist', '[]'), true);
         if (in_array($ip, $whitelist, true)) {
             return $next($request);
         }
@@ -57,8 +58,8 @@ class SecurityFirewallMiddleware
         }
 
         // 4. Determine Rate Limiting limits
-        $maxAttempts = (int) (\App\Models\SystemSetting::get('rate_limit_global_max') ?? config('firewall.rate_limit.global.max_attempts', 60));
-        $decaySeconds = (int) (\App\Models\SystemSetting::get('rate_limit_global_decay') ?? config('firewall.rate_limit.global.decay_seconds', 60));
+        $maxAttempts = (int) (SystemSetting::get('rate_limit_global_max') ?? config('firewall.rate_limit.global.max_attempts', 60));
+        $decaySeconds = (int) (SystemSetting::get('rate_limit_global_decay') ?? config('firewall.rate_limit.global.decay_seconds', 60));
 
         // Route-specific Rate Limits overrides: Chặn spam login & brute force (tối đa 5 lần thử trong 15 phút)
         $rateLimitKeyPrefix = 'rate_limit';
@@ -67,20 +68,20 @@ class SecurityFirewallMiddleware
         if ($isAuthRoute) {
             $maxAttempts = 5;
             $decaySeconds = 900; // 15 phút
-            $rateLimitKeyPrefix = 'rate_limit:auth:' . str_replace('/', '_', $request->path());
+            $rateLimitKeyPrefix = 'rate_limit:auth:'.str_replace('/', '_', $request->path());
         }
 
         $user = $request->user();
         $token = $request->bearerToken();
 
         if ($request->is('register') || $request->is('forgot-password')) {
-            $key = $rateLimitKeyPrefix . ':ip:' . $ip;
+            $key = $rateLimitKeyPrefix.':ip:'.$ip;
         } elseif ($user) {
-            $key = $rateLimitKeyPrefix . ':user:' . $user->id;
+            $key = $rateLimitKeyPrefix.':user:'.$user->id;
         } elseif ($token) {
-            $key = $rateLimitKeyPrefix . ':token:' . sha1($token);
+            $key = $rateLimitKeyPrefix.':token:'.sha1($token);
         } else {
-            $key = $rateLimitKeyPrefix . ':ip:' . $ip;
+            $key = $rateLimitKeyPrefix.':ip:'.$ip;
         }
 
         if (RateLimiter::tooManyAttempts($key, $maxAttempts)) {
@@ -92,16 +93,16 @@ class SecurityFirewallMiddleware
                     'message' => $message,
                     'retry_after' => $retryAfter,
                 ], 429)->withHeaders([
-                    'X-RateLimit-Limit'     => $maxAttempts,
+                    'X-RateLimit-Limit' => $maxAttempts,
                     'X-RateLimit-Remaining' => 0,
-                    'Retry-After'           => $retryAfter,
+                    'Retry-After' => $retryAfter,
                 ]);
             }
 
             return response($message, 429)->withHeaders([
-                'X-RateLimit-Limit'     => $maxAttempts,
+                'X-RateLimit-Limit' => $maxAttempts,
                 'X-RateLimit-Remaining' => 0,
-                'Retry-After'           => $retryAfter,
+                'Retry-After' => $retryAfter,
             ]);
         }
 
@@ -113,7 +114,7 @@ class SecurityFirewallMiddleware
 
         if (method_exists($response, 'withHeaders')) {
             return $response->withHeaders([
-                'X-RateLimit-Limit'     => $maxAttempts,
+                'X-RateLimit-Limit' => $maxAttempts,
                 'X-RateLimit-Remaining' => $remaining,
             ]);
         }

@@ -14,6 +14,7 @@ use App\Notifications\LeaveRequestNotification;
 use App\Notifications\ShiftSwapNotification;
 use App\Services\KpiService;
 use App\Services\SalaryService;
+use App\Support\TenantRule;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -436,8 +437,8 @@ class EmployeePortalController extends Controller
         }
 
         $data = $request->validate([
-            'requester_assignment_id' => ['required', \App\Support\TenantRule::exists('schedule_assignments')],
-            'receiver_assignment_id' => ['required', \App\Support\TenantRule::exists('schedule_assignments')],
+            'requester_assignment_id' => ['required', TenantRule::exists('schedule_assignments')],
+            'receiver_assignment_id' => ['required', TenantRule::exists('schedule_assignments')],
             'notes' => ['nullable', 'string', 'max:250'],
         ]);
 

@@ -11,7 +11,7 @@ return new class extends Migration
 
         foreach ($legacyCodes as $oldCode) {
             $legacyPlan = DB::table('subscription_plans')->where('code', $oldCode)->first();
-            if (!$legacyPlan) {
+            if (! $legacyPlan) {
                 continue;
             }
 
@@ -21,7 +21,7 @@ return new class extends Migration
             };
 
             $newPlan = DB::table('subscription_plans')->where('code', $newCode)->first();
-            if (!$newPlan) {
+            if (! $newPlan) {
                 continue;
             }
 

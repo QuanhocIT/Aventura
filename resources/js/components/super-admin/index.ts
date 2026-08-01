@@ -13,4 +13,3 @@ export { default as TerminalCard } from './TerminalCard.vue';
 export { default as GradientDivider } from './GradientDivider.vue';
 export { default as SectionCard } from './SectionCard.vue';
 export { default as TypeToConfirmModal } from './TypeToConfirmModal.vue';
-

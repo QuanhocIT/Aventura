@@ -2,8 +2,14 @@
 
 namespace Tests\Feature;
 
+use App\Events\Customer\FeedbackSubmitted;
+use App\Events\Customer\PaymentRequested;
+use App\Events\Customer\StaffCalled;
+use App\Events\Customer\TemporaryOrderCreated;
+use App\Events\Customer\TemporaryOrderEscalated;
+use App\Events\Customer\TemporaryOrderUpdated;
+use App\Jobs\VerifyTemporaryOrderDelayJob;
 use App\Models\Area;
-use App\Models\AuditLog;
 use App\Models\CustomerFeedback;
 use App\Models\Employee;
 use App\Models\Ingredient;
@@ -20,33 +26,34 @@ use App\Models\TemporaryOrder;
 use App\Models\Unit;
 use App\Models\User;
 use App\Models\WorkShift;
-use App\Jobs\VerifyTemporaryOrderDelayJob;
-use App\Events\Customer\TemporaryOrderCreated;
-use App\Events\Customer\TemporaryOrderUpdated;
-use App\Events\Customer\TemporaryOrderEscalated;
-use App\Events\Customer\StaffCalled;
-use App\Events\Customer\PaymentRequested;
-use App\Events\Customer\FeedbackSubmitted;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
+use Inertia\Testing\AssertableInertia as Assert;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
-use Inertia\Testing\AssertableInertia as Assert;
 
 class QROrderingLifecycleTest extends TestCase
 {
     use RefreshDatabase;
 
     protected User $owner;
+
     protected User $manager;
+
     protected User $staff;
+
     protected Restaurant $restaurant;
+
     protected RestaurantBranch $branch;
+
     protected Area $area;
+
     protected RestaurantTable $table;
+
     protected ProductCategory $category;
+
     protected Role $staffRole;
 
     protected function setUp(): void
@@ -54,30 +61,30 @@ class QROrderingLifecycleTest extends TestCase
         parent::setUp();
 
         // Setup Spatie roles
-        $ownerRole   = Role::firstOrCreate(['name' => 'owner', 'guard_name' => 'web']);
+        $ownerRole = Role::firstOrCreate(['name' => 'owner', 'guard_name' => 'web']);
         $managerRole = Role::firstOrCreate(['name' => 'manager', 'guard_name' => 'web']);
-        $this->staffRole   = Role::firstOrCreate(['name' => 'staff', 'guard_name' => 'web']);
+        $this->staffRole = Role::firstOrCreate(['name' => 'staff', 'guard_name' => 'web']);
 
         // Create users
         $this->owner = User::factory()->create(['status' => 'active', 'email_verified_at' => now()]);
         $this->owner->assignRole($ownerRole);
 
         $this->restaurant = Restaurant::factory()->create(['owner_user_id' => $this->owner->id]);
-        $this->branch     = RestaurantBranch::factory()->create([
+        $this->branch = RestaurantBranch::factory()->create([
             'restaurant_id' => $this->restaurant->id,
-            'manager_user_id' => $this->owner->id
+            'manager_user_id' => $this->owner->id,
         ]);
 
         $this->owner->forceFill([
             'restaurant_id' => $this->restaurant->id,
-            'branch_id'     => $this->branch->id
+            'branch_id' => $this->branch->id,
         ])->save();
 
         // Create manager
         $this->manager = User::factory()->create([
             'restaurant_id' => $this->restaurant->id,
-            'branch_id'     => $this->branch->id,
-            'status'        => 'active',
+            'branch_id' => $this->branch->id,
+            'status' => 'active',
             'email_verified_at' => now(),
         ]);
         $this->manager->assignRole($managerRole);
@@ -85,8 +92,8 @@ class QROrderingLifecycleTest extends TestCase
         // Create staff
         $this->staff = User::factory()->create([
             'restaurant_id' => $this->restaurant->id,
-            'branch_id'     => $this->branch->id,
-            'status'        => 'active',
+            'branch_id' => $this->branch->id,
+            'status' => 'active',
             'email_verified_at' => now(),
         ]);
         $this->staff->assignRole($this->staffRole);
@@ -94,30 +101,30 @@ class QROrderingLifecycleTest extends TestCase
         // Area & Table setup
         $this->area = Area::factory()->create([
             'restaurant_id' => $this->restaurant->id,
-            'branch_id'     => $this->branch->id,
-            'name'          => 'Khu VIP 1',
-            'code'          => 'VIP1'
+            'branch_id' => $this->branch->id,
+            'name' => 'Khu VIP 1',
+            'code' => 'VIP1',
         ]);
 
         $this->table = RestaurantTable::create([
             'restaurant_id' => $this->restaurant->id,
-            'branch_id'     => $this->branch->id,
-            'area_id'       => $this->area->id,
-            'name'          => 'Bàn 10',
-            'qr_code'       => 'QR-VIP1-B10',
-            'qr_token'      => 'token-b10-secret',
-            'capacity'      => 4,
-            'status'        => 'available',
+            'branch_id' => $this->branch->id,
+            'area_id' => $this->area->id,
+            'name' => 'Bàn 10',
+            'qr_code' => 'QR-VIP1-B10',
+            'qr_token' => 'token-b10-secret',
+            'capacity' => 4,
+            'status' => 'available',
         ]);
 
         // Category setup
         $this->category = ProductCategory::factory()->create([
             'restaurant_id' => $this->restaurant->id,
-            'branch_id'     => $this->branch->id,
-            'name'          => 'Đặc Sản',
-            'slug'          => 'dac-san',
-            'status'        => 'active',
-            'display_order' => 1
+            'branch_id' => $this->branch->id,
+            'name' => 'Đặc Sản',
+            'slug' => 'dac-san',
+            'status' => 'active',
+            'display_order' => 1,
         ]);
     }
 
@@ -129,77 +136,77 @@ class QROrderingLifecycleTest extends TestCase
         // Setup Unit
         $unit = Unit::create([
             'restaurant_id' => $this->restaurant->id,
-            'name'          => 'Gram',
-            'symbol'        => 'g',
-            'type'          => 'mass'
+            'name' => 'Gram',
+            'symbol' => 'g',
+            'type' => 'mass',
         ]);
 
         // Setup Ingredients
         $ingShrimp = Ingredient::create([
             'restaurant_id' => $this->restaurant->id,
-            'unit_id'       => $unit->id,
-            'name'          => 'Tôm Sú',
-            'sku'           => 'ING-SHRIMP',
-            'status'        => 'active'
+            'unit_id' => $unit->id,
+            'name' => 'Tôm Sú',
+            'sku' => 'ING-SHRIMP',
+            'status' => 'active',
         ]);
 
         $ingBeef = Ingredient::create([
             'restaurant_id' => $this->restaurant->id,
-            'unit_id'       => $unit->id,
-            'name'          => 'Bò Mỹ',
-            'sku'           => 'ING-BEEF',
-            'status'        => 'active'
+            'unit_id' => $unit->id,
+            'name' => 'Bò Mỹ',
+            'sku' => 'ING-BEEF',
+            'status' => 'active',
         ]);
 
         // Setup Products
         $prodSoup = Product::factory()->create([
             'restaurant_id' => $this->restaurant->id,
-            'branch_id'     => $this->branch->id,
-            'category_id'   => $this->category->id,
-            'name'          => 'Lẩu Tôm Sú',
-            'code'          => 'PROD-SOUP',
-            'price'         => 350000,
-            'is_active'     => true,
-            'is_available'  => true,
+            'branch_id' => $this->branch->id,
+            'category_id' => $this->category->id,
+            'name' => 'Lẩu Tôm Sú',
+            'code' => 'PROD-SOUP',
+            'price' => 350000,
+            'is_active' => true,
+            'is_available' => true,
             'track_inventory' => true,
         ]);
 
         $prodBeef = Product::factory()->create([
             'restaurant_id' => $this->restaurant->id,
-            'branch_id'     => $this->branch->id,
-            'category_id'   => $this->category->id,
-            'name'          => 'Bò Cuộn',
-            'code'          => 'PROD-BEEF',
-            'price'         => 180000,
-            'is_active'     => true,
-            'is_available'  => true,
+            'branch_id' => $this->branch->id,
+            'category_id' => $this->category->id,
+            'name' => 'Bò Cuộn',
+            'code' => 'PROD-BEEF',
+            'price' => 180000,
+            'is_active' => true,
+            'is_available' => true,
             'track_inventory' => true,
         ]);
 
         // Recipes (BOM)
         ProductRecipe::create([
             'restaurant_id' => $this->restaurant->id,
-            'product_id'    => $prodSoup->id,
+            'product_id' => $prodSoup->id,
             'ingredient_id' => $ingShrimp->id,
-            'unit_id'       => $unit->id,
-            'quantity'      => 200.0,
-            'waste_rate'    => 10.0, // 200 * 1.1 = 220g required
+            'unit_id' => $unit->id,
+            'quantity' => 200.0,
+            'waste_rate' => 10.0, // 200 * 1.1 = 220g required
         ]);
 
         ProductRecipe::create([
             'restaurant_id' => $this->restaurant->id,
-            'product_id'    => $prodBeef->id,
+            'product_id' => $prodBeef->id,
             'ingredient_id' => $ingBeef->id,
-            'unit_id'       => $unit->id,
-            'quantity'      => 100.0,
-            'waste_rate'    => 0.0, // 100g required
+            'unit_id' => $unit->id,
+            'quantity' => 100.0,
+            'waste_rate' => 0.0, // 100g required
         ]);
 
         // Inventory
         // Shrimp: 100g (insufficient for 1 unit of prodSoup which requires 220g)
         Inventory::create([
             'restaurant_id' => $this->restaurant->id,
-            'branch_id'     => $this->branch->id,
+            'branch_id' => $this->branch->id,
             'ingredient_id' => $ingShrimp->id,
             'quantity_on_hand' => 100.0,
             'theoretical_quantity' => 100.0,
@@ -208,7 +215,7 @@ class QROrderingLifecycleTest extends TestCase
         // Beef: 500g (sufficient for 1 unit of prodBeef which requires 100g)
         Inventory::create([
             'restaurant_id' => $this->restaurant->id,
-            'branch_id'     => $this->branch->id,
+            'branch_id' => $this->branch->id,
             'ingredient_id' => $ingBeef->id,
             'quantity_on_hand' => 500.0,
             'theoretical_quantity' => 500.0,
@@ -217,42 +224,42 @@ class QROrderingLifecycleTest extends TestCase
         // Setup shift & schedules for resolveCurrentShiftStaff
         $shift = WorkShift::factory()->create([
             'restaurant_id' => $this->restaurant->id,
-            'branch_id'     => $this->branch->id,
-            'name'          => 'Ca Sáng',
-            'code'          => 'CS1',
-            'start_time'    => '00:00:00',
-            'end_time'      => '23:59:59',
-            'status'        => 'active'
+            'branch_id' => $this->branch->id,
+            'name' => 'Ca Sáng',
+            'code' => 'CS1',
+            'start_time' => '00:00:00',
+            'end_time' => '23:59:59',
+            'status' => 'active',
         ]);
 
         $employee = Employee::create([
             'restaurant_id' => $this->restaurant->id,
             'employee_code' => 'EMP-WAIT-1',
-            'full_name'     => 'Nhân Viên Hùng',
-            'email'         => 'waiter1@aventura.com',
-            'phone'         => '0988112233',
+            'full_name' => 'Nhân Viên Hùng',
+            'email' => 'waiter1@aventura.com',
+            'phone' => '0988112233',
             'citizen_id_number' => '123456789012',
-            'address'       => 'Hà Nội',
-            'hire_date'     => today(),
-            'base_salary'   => 5000000,
-            'job_title'     => 'Phục vụ',
+            'address' => 'Hà Nội',
+            'hire_date' => today(),
+            'base_salary' => 5000000,
+            'job_title' => 'Phục vụ',
             'employment_type' => 'full_time',
-            'status'        => 'active',
-            'role_id'       => $this->staffRole->id,
-            'user_id'       => $this->staff->id
+            'status' => 'active',
+            'role_id' => $this->staffRole->id,
+            'user_id' => $this->staff->id,
         ]);
 
         ScheduleAssignment::create([
-            'restaurant_id'  => $this->restaurant->id,
-            'branch_id'      => $this->branch->id,
-            'employee_id'    => $employee->id,
-            'shift_id'       => $shift->id,
+            'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
+            'employee_id' => $employee->id,
+            'shift_id' => $shift->id,
             'scheduled_date' => today()->toDateString(),
         ]);
 
         $response = $this->get(route('customer.qr-order.show', [
             'restaurant' => $this->restaurant->id,
-            'token'      => $this->table->qr_token
+            'token' => $this->table->qr_token,
         ]));
 
         $response->assertOk();
@@ -278,31 +285,31 @@ class QROrderingLifecycleTest extends TestCase
 
         $product = Product::factory()->create([
             'restaurant_id' => $this->restaurant->id,
-            'branch_id'     => $this->branch->id,
-            'category_id'   => $this->category->id,
-            'name'          => 'Bò Cuộn',
-            'code'          => 'PROD-BEEF',
-            'price'         => 180000,
-            'is_active'     => true,
-            'is_available'  => true,
+            'branch_id' => $this->branch->id,
+            'category_id' => $this->category->id,
+            'name' => 'Bò Cuộn',
+            'code' => 'PROD-BEEF',
+            'price' => 180000,
+            'is_active' => true,
+            'is_available' => true,
             'track_inventory' => false, // bypass inventory check
         ]);
 
         $payload = [
-            'customer_name'  => 'Anh Quân',
+            'customer_name' => 'Anh Quân',
             'customer_phone' => '0912345678',
             'items' => [
                 [
                     'product_id' => $product->id,
-                    'quantity'   => 2,
-                    'notes'      => 'Ít cay'
-                ]
-            ]
+                    'quantity' => 2,
+                    'notes' => 'Ít cay',
+                ],
+            ],
         ];
 
         $response = $this->postJson(route('customer.qr-order.submit', [
             'restaurant' => $this->restaurant->id,
-            'token'      => $this->table->qr_token
+            'token' => $this->table->qr_token,
         ]), $payload);
 
         $response->assertOk();
@@ -311,10 +318,10 @@ class QROrderingLifecycleTest extends TestCase
 
         $this->assertDatabaseHas('temporary_orders', [
             'restaurant_id' => $this->restaurant->id,
-            'table_id'      => $this->table->id,
+            'table_id' => $this->table->id,
             'customer_name' => 'Anh Quân',
-            'status'        => 'waiting_verification',
-            'total_amount'  => 360000.0,
+            'status' => 'waiting_verification',
+            'total_amount' => 360000.0,
         ]);
 
         // Verify delay job dispatched
@@ -334,67 +341,67 @@ class QROrderingLifecycleTest extends TestCase
         // Setup Unit
         $unit = Unit::create([
             'restaurant_id' => $this->restaurant->id,
-            'name'          => 'Gram',
-            'symbol'        => 'g',
-            'type'          => 'mass'
+            'name' => 'Gram',
+            'symbol' => 'g',
+            'type' => 'mass',
         ]);
 
         $ingBeef = Ingredient::create([
             'restaurant_id' => $this->restaurant->id,
-            'unit_id'       => $unit->id,
-            'name'          => 'Bò Mỹ',
-            'sku'           => 'ING-BEEF',
-            'status'        => 'active'
+            'unit_id' => $unit->id,
+            'name' => 'Bò Mỹ',
+            'sku' => 'ING-BEEF',
+            'status' => 'active',
         ]);
 
         $product = Product::factory()->create([
             'restaurant_id' => $this->restaurant->id,
-            'branch_id'     => $this->branch->id,
-            'category_id'   => $this->category->id,
-            'name'          => 'Bò Cuộn',
-            'code'          => 'PROD-BEEF',
-            'price'         => 180000,
-            'is_active'     => true,
-            'is_available'  => true,
+            'branch_id' => $this->branch->id,
+            'category_id' => $this->category->id,
+            'name' => 'Bò Cuộn',
+            'code' => 'PROD-BEEF',
+            'price' => 180000,
+            'is_active' => true,
+            'is_available' => true,
             'track_inventory' => true,
         ]);
 
         ProductRecipe::create([
             'restaurant_id' => $this->restaurant->id,
-            'product_id'    => $product->id,
+            'product_id' => $product->id,
             'ingredient_id' => $ingBeef->id,
-            'unit_id'       => $unit->id,
-            'quantity'      => 100.0,
-            'waste_rate'    => 0.0,
+            'unit_id' => $unit->id,
+            'quantity' => 100.0,
+            'waste_rate' => 0.0,
         ]);
 
         // Beef stock: 50g (insufficient since ordering 1 unit requires 100g)
         Inventory::create([
             'restaurant_id' => $this->restaurant->id,
-            'branch_id'     => $this->branch->id,
+            'branch_id' => $this->branch->id,
             'ingredient_id' => $ingBeef->id,
             'quantity_on_hand' => 50.0,
             'theoretical_quantity' => 50.0,
         ]);
 
         $payload = [
-            'customer_name'  => 'Anh Quân',
+            'customer_name' => 'Anh Quân',
             'items' => [
                 [
                     'product_id' => $product->id,
-                    'quantity'   => 1,
-                ]
-            ]
+                    'quantity' => 1,
+                ],
+            ],
         ];
 
         $response = $this->postJson(route('customer.qr-order.submit', [
             'restaurant' => $this->restaurant->id,
-            'token'      => $this->table->qr_token
+            'token' => $this->table->qr_token,
         ]), $payload);
 
         $response->assertStatus(422);
         $response->assertJsonFragment([
-            'message' => "Món 'Bò Cuộn' đã hết nguyên liệu chế biến."
+            'message' => "Món 'Bò Cuộn' đã hết nguyên liệu chế biến.",
         ]);
     }
 
@@ -407,12 +414,12 @@ class QROrderingLifecycleTest extends TestCase
 
         $tempOrder = TemporaryOrder::create([
             'restaurant_id' => $this->restaurant->id,
-            'branch_id'     => $this->branch->id,
-            'table_id'      => $this->table->id,
+            'branch_id' => $this->branch->id,
+            'table_id' => $this->table->id,
             'customer_name' => 'Anh Quân',
-            'status'        => 'waiting_verification',
-            'cart_data'     => [],
-            'total_amount'  => 0.0
+            'status' => 'waiting_verification',
+            'cart_data' => [],
+            'total_amount' => 0.0,
         ]);
 
         $job = new VerifyTemporaryOrderDelayJob($tempOrder->id);
@@ -424,9 +431,9 @@ class QROrderingLifecycleTest extends TestCase
         // Assert audit logs table records the escalation
         $this->assertDatabaseHas('audit_logs', [
             'restaurant_id' => $this->restaurant->id,
-            'action'        => 'temporary_order_escalated',
-            'subject_id'    => $tempOrder->id,
-            'event'         => 'updated'
+            'action' => 'temporary_order_escalated',
+            'subject_id' => $tempOrder->id,
+            'event' => 'updated',
         ]);
 
         Event::assertDispatched(TemporaryOrderEscalated::class);
@@ -445,39 +452,39 @@ class QROrderingLifecycleTest extends TestCase
             '*/api/analytics/upsell-suggestion' => Http::response([
                 'suggestion' => 'Khách gọi Bò Cuộn, khuyên dùng kèm Coca Lạnh để tăng hương vị!',
                 'recommended_item' => 'Coca Lạnh',
-                'confidence' => 0.92
-            ], 200)
+                'confidence' => 0.92,
+            ], 200),
         ]);
 
         $product = Product::factory()->create([
             'restaurant_id' => $this->restaurant->id,
-            'branch_id'     => $this->branch->id,
-            'category_id'   => $this->category->id,
-            'name'          => 'Bò Cuộn',
-            'code'          => 'PROD-BEEF',
-            'price'         => 180000,
-            'is_active'     => true,
-            'is_available'  => true,
+            'branch_id' => $this->branch->id,
+            'category_id' => $this->category->id,
+            'name' => 'Bò Cuộn',
+            'code' => 'PROD-BEEF',
+            'price' => 180000,
+            'is_active' => true,
+            'is_available' => true,
             'track_inventory' => false,
         ]);
 
         $tempOrder = TemporaryOrder::create([
             'restaurant_id' => $this->restaurant->id,
-            'branch_id'     => $this->branch->id,
-            'table_id'      => $this->table->id,
+            'branch_id' => $this->branch->id,
+            'table_id' => $this->table->id,
             'customer_name' => 'Anh Quân',
-            'status'        => 'waiting_verification',
-            'cart_data'     => [
+            'status' => 'waiting_verification',
+            'cart_data' => [
                 [
                     'product_id' => $product->id,
-                    'name'       => $product->name,
-                    'sku'        => $product->code,
-                    'quantity'   => 2,
+                    'name' => $product->name,
+                    'sku' => $product->code,
+                    'quantity' => 2,
                     'unit_price' => 180000,
-                    'line_total' => 360000
-                ]
+                    'line_total' => 360000,
+                ],
             ],
-            'total_amount'  => 360000
+            'total_amount' => 360000,
         ]);
 
         $response = $this->actingAs($this->staff)
@@ -486,7 +493,7 @@ class QROrderingLifecycleTest extends TestCase
         $response->assertOk();
         $response->assertJsonPath('success', true);
         $response->assertJsonStructure(['success', 'message', 'order_id', 'upsell']);
-        
+
         $tempOrder->refresh();
         $this->assertEquals('confirmed', $tempOrder->status);
         $this->assertNotNull($tempOrder->order_id);
@@ -515,17 +522,17 @@ class QROrderingLifecycleTest extends TestCase
 
         $tempOrder = TemporaryOrder::create([
             'restaurant_id' => $this->restaurant->id,
-            'branch_id'     => $this->branch->id,
-            'table_id'      => $this->table->id,
+            'branch_id' => $this->branch->id,
+            'table_id' => $this->table->id,
             'customer_name' => 'Anh Quân',
-            'status'        => 'waiting_verification',
-            'cart_data'     => [],
-            'total_amount'  => 0.0
+            'status' => 'waiting_verification',
+            'cart_data' => [],
+            'total_amount' => 0.0,
         ]);
 
         $response = $this->actingAs($this->staff)
             ->postJson(route('temporary-orders.cancel', $tempOrder->id), [
-                'reason' => 'Đơn spam phá hoại từ xa'
+                'reason' => 'Đơn spam phá hoại từ xa',
             ]);
 
         $response->assertOk();
@@ -539,8 +546,8 @@ class QROrderingLifecycleTest extends TestCase
         // Assert audit logs contains cancel details
         $this->assertDatabaseHas('audit_logs', [
             'restaurant_id' => $this->restaurant->id,
-            'action'        => 'temporary_order_cancelled',
-            'subject_id'    => $tempOrder->id,
+            'action' => 'temporary_order_cancelled',
+            'subject_id' => $tempOrder->id,
         ]);
 
         Event::assertDispatched(TemporaryOrderUpdated::class);
@@ -554,20 +561,20 @@ class QROrderingLifecycleTest extends TestCase
         // Create a cancelled temporary order
         $tempOrder = TemporaryOrder::create([
             'restaurant_id' => $this->restaurant->id,
-            'branch_id'     => $this->branch->id,
-            'table_id'      => $this->table->id,
+            'branch_id' => $this->branch->id,
+            'table_id' => $this->table->id,
             'customer_name' => 'Khách Hủy',
-            'status'        => 'cancelled',
-            'cancelled_by'  => $this->staff->id,
+            'status' => 'cancelled',
+            'cancelled_by' => $this->staff->id,
             'cancellation_reason' => 'Không đúng món',
-            'cart_data'     => [
+            'cart_data' => [
                 [
                     'name' => 'Món Ăn Hủy',
-                    'quantity' => 1
-                ]
+                    'quantity' => 1,
+                ],
             ],
-            'total_amount'  => 100000,
-            'updated_at'    => now()
+            'total_amount' => 100000,
+            'updated_at' => now(),
         ]);
 
         $response = $this->actingAs($this->manager)
@@ -594,7 +601,7 @@ class QROrderingLifecycleTest extends TestCase
         // 1. Call staff
         $response = $this->postJson(route('customer.qr-order.call-staff', $this->restaurant->id), [
             'table_id' => $this->table->id,
-            'message'  => 'Cần thêm bát đũa'
+            'message' => 'Cần thêm bát đũa',
         ]);
 
         $response->assertOk();
@@ -609,15 +616,15 @@ class QROrderingLifecycleTest extends TestCase
 
         // Create unpaid active order
         $order = Order::create([
-            'restaurant_id'  => $this->restaurant->id,
-            'branch_id'      => $this->branch->id,
-            'table_id'       => $this->table->id,
-            'created_by'     => $this->owner->id,
-            'order_number'   => 'ORD-MOCK',
-            'channel'        => 'qr',
-            'status'         => 'confirmed',
+            'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
+            'table_id' => $this->table->id,
+            'created_by' => $this->owner->id,
+            'order_number' => 'ORD-MOCK',
+            'channel' => 'qr',
+            'status' => 'confirmed',
             'payment_status' => 'unpaid',
-            'total_amount'   => 100000
+            'total_amount' => 100000,
         ]);
 
         $response = $this->postJson(route('customer.qr-order.payment-request', $this->restaurant->id), [
@@ -629,27 +636,27 @@ class QROrderingLifecycleTest extends TestCase
 
         // 3. Feedback submit with ratings
         $feedbackPayload = [
-            'table_id'     => $this->table->id,
-            'order_id'     => $order->id,
-            'rating'       => 5,
-            'content'      => 'Món ăn ngon và phục vụ tốt!',
+            'table_id' => $this->table->id,
+            'order_id' => $order->id,
+            'rating' => 5,
+            'content' => 'Món ăn ngon và phục vụ tốt!',
             'is_anonymous' => false,
             'submitted_by_name' => 'Anh Quân',
             'submitted_by_phone' => '0912345678',
             'items_rating' => [
                 [
                     'product_id' => 99,
-                    'rating'     => 5,
-                    'comment'    => 'Quá ngon!'
-                ]
+                    'rating' => 5,
+                    'comment' => 'Quá ngon!',
+                ],
             ],
             'staff_rating' => [
                 [
                     'employee_id' => 88,
-                    'rating'      => 4,
-                    'comment'     => 'Nhanh nhẹn'
-                ]
-            ]
+                    'rating' => 4,
+                    'comment' => 'Nhanh nhẹn',
+                ],
+            ],
         ];
 
         $response = $this->postJson(route('customer.qr-order.feedback', $this->restaurant->id), $feedbackPayload);
@@ -659,8 +666,8 @@ class QROrderingLifecycleTest extends TestCase
 
         $this->assertDatabaseHas('customer_feedback', [
             'restaurant_id' => $this->restaurant->id,
-            'order_id'      => $order->id,
-            'rating'        => 5,
+            'order_id' => $order->id,
+            'rating' => 5,
             'submitted_by_name' => 'Anh Quân',
             'submitted_by_phone' => '0912345678',
         ]);

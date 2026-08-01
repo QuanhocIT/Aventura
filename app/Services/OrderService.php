@@ -190,9 +190,9 @@ class OrderService
                 $lineTotal = (float) $product->price * (float) $itemData['quantity'];
                 $subtotal += $lineTotal;
 
-                        $itemsToCreate[] = [
-                            'restaurant_id' => $restaurantId,
-                            'product_id' => $product->id,
+                $itemsToCreate[] = [
+                    'restaurant_id' => $restaurantId,
+                    'product_id' => $product->id,
                     'quantity' => (float) $itemData['quantity'],
                     'unit_price' => (float) $product->price,
                     'discount_amount' => 0,

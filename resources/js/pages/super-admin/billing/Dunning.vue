@@ -127,8 +127,8 @@ function closePause() {
 
 function submitPause() {
     if (!pauseSubId.value) {
-return;
-}
+        return;
+    }
 
     router.post(
         `/super-admin/billing/dunning/${pauseSubId.value}/pause`,

@@ -3,8 +3,8 @@
 namespace App\Services;
 
 use Carbon\CarbonInterface;
-use Illuminate\Support\Collection as SupportCollection;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Collection as SupportCollection;
 use Illuminate\Support\Facades\DB;
 
 /**

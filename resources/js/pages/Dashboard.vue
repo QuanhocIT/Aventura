@@ -34,7 +34,6 @@ import DashboardKPIs from '@/components/dashboard/DashboardKPIs.vue';
 import OperationsCenter from '@/components/dashboard/operations/OperationsCenter.vue';
 import QuickActions from '@/components/dashboard/QuickActions.vue';
 import DashboardSidebar from '@/components/dashboard/sidebar/DashboardSidebar.vue';
-import { useBranchContext } from '@/composables/useBranchContext';
 import { Button } from '@/components/ui/button';
 import {
     Card,
@@ -43,6 +42,7 @@ import {
     CardHeader,
     CardTitle,
 } from '@/components/ui/card';
+import { useBranchContext } from '@/composables/useBranchContext';
 
 interface OperationFeedItem {
     type: string;
@@ -190,7 +190,11 @@ const roles = computed(() => (page.props as any).roles ?? []);
 const { isAllBranches, switchBranch } = useBranchContext();
 
 const currentBranchName = computed(() => {
-    if (isAllBranches.value || props.branchId === null || props.branchId === undefined) {
+    if (
+        isAllBranches.value ||
+        props.branchId === null ||
+        props.branchId === undefined
+    ) {
         return 'Toàn chuỗi';
     }
 
@@ -208,8 +212,8 @@ const formatVND = (value: number) => {
     const num = Number(value);
 
     if (isNaN(num) || num === undefined || num === null) {
-return '0 ₫';
-}
+        return '0 ₫';
+    }
 
     return new Intl.NumberFormat('vi-VN', {
         style: 'currency',
@@ -270,16 +274,27 @@ function getTableStatusInfo(status: string) {
         >
             <div>
                 <h2
-                    class="flex items-center gap-2.5 text-xl font-black tracking-tight text-slate-850 dark:text-slate-100"
+                    class="text-slate-850 flex items-center gap-2.5 text-xl font-black tracking-tight dark:text-slate-100"
                 >
                     <span
                         class="size-2.5 animate-pulse rounded-full bg-teal-500 shadow-sm shadow-teal-500"
                     />
-                    {{ isAllBranches ? 'Trung tâm chỉ huy chuỗi' : 'Báo cáo chi nhánh' }}
+                    {{
+                        isAllBranches
+                            ? 'Trung tâm chỉ huy chuỗi'
+                            : 'Báo cáo chi nhánh'
+                    }}
                 </h2>
-                <p class="mt-1 text-xs font-medium text-slate-500 dark:text-slate-400">
-                    Đang xem: <strong class="text-slate-700 dark:text-slate-200">{{ currentBranchName }}</strong>
-                    <span class="ml-1">· Header là nơi chuyển đổi chi nhánh.</span>
+                <p
+                    class="mt-1 text-xs font-medium text-slate-500 dark:text-slate-400"
+                >
+                    Đang xem:
+                    <strong class="text-slate-700 dark:text-slate-200">{{
+                        currentBranchName
+                    }}</strong>
+                    <span class="ml-1"
+                        >· Header là nơi chuyển đổi chi nhánh.</span
+                    >
                 </p>
             </div>
         </div>
@@ -655,13 +670,33 @@ function getTableStatusInfo(status: string) {
                 <div class="lg:col-span-2">
                     <Deferred data="revenueChartData">
                         <template #fallback>
-                            <div class="rounded-2xl border border-slate-100 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900/40">
-                                <div class="flex items-center justify-between mb-6">
-                                    <div class="h-5 w-40 animate-pulse rounded bg-slate-200 dark:bg-slate-800" />
-                                    <div class="h-8 w-24 animate-pulse rounded-lg bg-slate-100 dark:bg-slate-800/80" />
+                            <div
+                                class="rounded-2xl border border-slate-100 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900/40"
+                            >
+                                <div
+                                    class="mb-6 flex items-center justify-between"
+                                >
+                                    <div
+                                        class="h-5 w-40 animate-pulse rounded bg-slate-200 dark:bg-slate-800"
+                                    />
+                                    <div
+                                        class="h-8 w-24 animate-pulse rounded-lg bg-slate-100 dark:bg-slate-800/80"
+                                    />
                                 </div>
-                                <div class="h-[250px] w-full flex items-end gap-3 pt-4">
-                                    <div v-for="n in 7" :key="n" class="w-full bg-slate-100 dark:bg-slate-800/60 rounded-t-lg animate-pulse" :style="{ height: [40, 70, 50, 90, 60, 85, 30][n-1] + '%' }" />
+                                <div
+                                    class="flex h-[250px] w-full items-end gap-3 pt-4"
+                                >
+                                    <div
+                                        v-for="n in 7"
+                                        :key="n"
+                                        class="w-full animate-pulse rounded-t-lg bg-slate-100 dark:bg-slate-800/60"
+                                        :style="{
+                                            height:
+                                                [40, 70, 50, 90, 60, 85, 30][
+                                                    n - 1
+                                                ] + '%',
+                                        }"
+                                    />
                                 </div>
                             </div>
                         </template>
@@ -1061,13 +1096,33 @@ function getTableStatusInfo(status: string) {
                 <div class="space-y-6 lg:col-span-2">
                     <Deferred data="revenueChartData">
                         <template #fallback>
-                            <div class="rounded-2xl border border-slate-100 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900/40">
-                                <div class="flex items-center justify-between mb-6">
-                                    <div class="h-5 w-40 animate-pulse rounded bg-slate-200 dark:bg-slate-800" />
-                                    <div class="h-8 w-24 animate-pulse rounded-lg bg-slate-100 dark:bg-slate-800/80" />
+                            <div
+                                class="rounded-2xl border border-slate-100 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900/40"
+                            >
+                                <div
+                                    class="mb-6 flex items-center justify-between"
+                                >
+                                    <div
+                                        class="h-5 w-40 animate-pulse rounded bg-slate-200 dark:bg-slate-800"
+                                    />
+                                    <div
+                                        class="h-8 w-24 animate-pulse rounded-lg bg-slate-100 dark:bg-slate-800/80"
+                                    />
                                 </div>
-                                <div class="h-[250px] w-full flex items-end gap-3 pt-4">
-                                    <div v-for="n in 7" :key="n" class="w-full bg-slate-100 dark:bg-slate-800/60 rounded-t-lg animate-pulse" :style="{ height: [40, 70, 50, 90, 60, 85, 30][n-1] + '%' }" />
+                                <div
+                                    class="flex h-[250px] w-full items-end gap-3 pt-4"
+                                >
+                                    <div
+                                        v-for="n in 7"
+                                        :key="n"
+                                        class="w-full animate-pulse rounded-t-lg bg-slate-100 dark:bg-slate-800/60"
+                                        :style="{
+                                            height:
+                                                [40, 70, 50, 90, 60, 85, 30][
+                                                    n - 1
+                                                ] + '%',
+                                        }"
+                                    />
                                 </div>
                             </div>
                         </template>
@@ -1079,13 +1134,25 @@ function getTableStatusInfo(status: string) {
                     <div class="grid grid-cols-1 gap-6 md:grid-cols-2">
                         <Deferred data="channelChartData">
                             <template #fallback>
-                                <div class="rounded-2xl border border-slate-100 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900/40">
-                                    <div class="flex items-center justify-between mb-4">
-                                        <div class="h-4 w-32 animate-pulse rounded bg-slate-200 dark:bg-slate-800" />
+                                <div
+                                    class="rounded-2xl border border-slate-100 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900/40"
+                                >
+                                    <div
+                                        class="mb-4 flex items-center justify-between"
+                                    >
+                                        <div
+                                            class="h-4 w-32 animate-pulse rounded bg-slate-200 dark:bg-slate-800"
+                                        />
                                     </div>
-                                    <div class="flex items-center justify-center h-[200px]">
-                                        <div class="h-28 w-28 rounded-full border-[12px] border-slate-100 dark:border-slate-800/80 animate-pulse flex items-center justify-center">
-                                            <div class="h-10 w-10 rounded-full bg-slate-50 dark:bg-slate-900" />
+                                    <div
+                                        class="flex h-[200px] items-center justify-center"
+                                    >
+                                        <div
+                                            class="flex h-28 w-28 animate-pulse items-center justify-center rounded-full border-[12px] border-slate-100 dark:border-slate-800/80"
+                                        >
+                                            <div
+                                                class="h-10 w-10 rounded-full bg-slate-50 dark:bg-slate-900"
+                                            />
                                         </div>
                                     </div>
                                 </div>
@@ -1096,17 +1163,38 @@ function getTableStatusInfo(status: string) {
                         </Deferred>
                         <Deferred data="peakHoursChartData">
                             <template #fallback>
-                                <div class="rounded-2xl border border-slate-100 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900/40">
-                                    <div class="flex items-center justify-between mb-4">
-                                        <div class="h-4 w-32 animate-pulse rounded bg-slate-200 dark:bg-slate-800" />
+                                <div
+                                    class="rounded-2xl border border-slate-100 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900/40"
+                                >
+                                    <div
+                                        class="mb-4 flex items-center justify-between"
+                                    >
+                                        <div
+                                            class="h-4 w-32 animate-pulse rounded bg-slate-200 dark:bg-slate-800"
+                                        />
                                     </div>
-                                    <div class="h-[200px] w-full flex items-end gap-1.5 pt-4">
-                                        <div v-for="n in 12" :key="n" class="w-full bg-slate-100 dark:bg-slate-800/60 rounded-t animate-pulse" :style="{ height: [20, 35, 60, 80, 50, 40, 75, 90, 85, 45, 30, 15][n-1] + '%' }" />
+                                    <div
+                                        class="flex h-[200px] w-full items-end gap-1.5 pt-4"
+                                    >
+                                        <div
+                                            v-for="n in 12"
+                                            :key="n"
+                                            class="w-full animate-pulse rounded-t bg-slate-100 dark:bg-slate-800/60"
+                                            :style="{
+                                                height:
+                                                    [
+                                                        20, 35, 60, 80, 50, 40,
+                                                        75, 90, 85, 45, 30, 15,
+                                                    ][n - 1] + '%',
+                                            }"
+                                        />
                                     </div>
                                 </div>
                             </template>
                             <PeakHoursChart
-                                :peak-hours-chart-data="props.peakHoursChartData"
+                                :peak-hours-chart-data="
+                                    props.peakHoursChartData
+                                "
                             />
                         </Deferred>
                     </div>
@@ -1464,13 +1552,33 @@ function getTableStatusInfo(status: string) {
                 <div class="space-y-6 lg:col-span-2">
                     <Deferred data="revenueChartData">
                         <template #fallback>
-                            <div class="rounded-2xl border border-slate-100 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900/40">
-                                <div class="flex items-center justify-between mb-6">
-                                    <div class="h-5 w-40 animate-pulse rounded bg-slate-200 dark:bg-slate-800" />
-                                    <div class="h-8 w-24 animate-pulse rounded-lg bg-slate-100 dark:bg-slate-800/80" />
+                            <div
+                                class="rounded-2xl border border-slate-100 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900/40"
+                            >
+                                <div
+                                    class="mb-6 flex items-center justify-between"
+                                >
+                                    <div
+                                        class="h-5 w-40 animate-pulse rounded bg-slate-200 dark:bg-slate-800"
+                                    />
+                                    <div
+                                        class="h-8 w-24 animate-pulse rounded-lg bg-slate-100 dark:bg-slate-800/80"
+                                    />
                                 </div>
-                                <div class="h-[250px] w-full flex items-end gap-3 pt-4">
-                                    <div v-for="n in 7" :key="n" class="w-full bg-slate-100 dark:bg-slate-800/60 rounded-t-lg animate-pulse" :style="{ height: [40, 70, 50, 90, 60, 85, 30][n-1] + '%' }" />
+                                <div
+                                    class="flex h-[250px] w-full items-end gap-3 pt-4"
+                                >
+                                    <div
+                                        v-for="n in 7"
+                                        :key="n"
+                                        class="w-full animate-pulse rounded-t-lg bg-slate-100 dark:bg-slate-800/60"
+                                        :style="{
+                                            height:
+                                                [40, 70, 50, 90, 60, 85, 30][
+                                                    n - 1
+                                                ] + '%',
+                                        }"
+                                    />
                                 </div>
                             </div>
                         </template>
@@ -1482,13 +1590,25 @@ function getTableStatusInfo(status: string) {
                     <div class="grid grid-cols-1 gap-6 md:grid-cols-2">
                         <Deferred data="channelChartData">
                             <template #fallback>
-                                <div class="rounded-2xl border border-slate-100 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900/40">
-                                    <div class="flex items-center justify-between mb-4">
-                                        <div class="h-4 w-32 animate-pulse rounded bg-slate-200 dark:bg-slate-800" />
+                                <div
+                                    class="rounded-2xl border border-slate-100 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900/40"
+                                >
+                                    <div
+                                        class="mb-4 flex items-center justify-between"
+                                    >
+                                        <div
+                                            class="h-4 w-32 animate-pulse rounded bg-slate-200 dark:bg-slate-800"
+                                        />
                                     </div>
-                                    <div class="flex items-center justify-center h-[200px]">
-                                        <div class="h-28 w-28 rounded-full border-[12px] border-slate-100 dark:border-slate-800/80 animate-pulse flex items-center justify-center">
-                                            <div class="h-10 w-10 rounded-full bg-slate-50 dark:bg-slate-900" />
+                                    <div
+                                        class="flex h-[200px] items-center justify-center"
+                                    >
+                                        <div
+                                            class="flex h-28 w-28 animate-pulse items-center justify-center rounded-full border-[12px] border-slate-100 dark:border-slate-800/80"
+                                        >
+                                            <div
+                                                class="h-10 w-10 rounded-full bg-slate-50 dark:bg-slate-900"
+                                            />
                                         </div>
                                     </div>
                                 </div>
@@ -1499,42 +1619,85 @@ function getTableStatusInfo(status: string) {
                         </Deferred>
                         <Deferred data="peakHoursChartData">
                             <template #fallback>
-                                <div class="rounded-2xl border border-slate-100 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900/40">
-                                    <div class="flex items-center justify-between mb-4">
-                                        <div class="h-4 w-32 animate-pulse rounded bg-slate-200 dark:bg-slate-800" />
+                                <div
+                                    class="rounded-2xl border border-slate-100 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900/40"
+                                >
+                                    <div
+                                        class="mb-4 flex items-center justify-between"
+                                    >
+                                        <div
+                                            class="h-4 w-32 animate-pulse rounded bg-slate-200 dark:bg-slate-800"
+                                        />
                                     </div>
-                                    <div class="h-[200px] w-full flex items-end gap-1.5 pt-4">
-                                        <div v-for="n in 12" :key="n" class="w-full bg-slate-100 dark:bg-slate-800/60 rounded-t animate-pulse" :style="{ height: [20, 35, 60, 80, 50, 40, 75, 90, 85, 45, 30, 15][n-1] + '%' }" />
+                                    <div
+                                        class="flex h-[200px] w-full items-end gap-1.5 pt-4"
+                                    >
+                                        <div
+                                            v-for="n in 12"
+                                            :key="n"
+                                            class="w-full animate-pulse rounded-t bg-slate-100 dark:bg-slate-800/60"
+                                            :style="{
+                                                height:
+                                                    [
+                                                        20, 35, 60, 80, 50, 40,
+                                                        75, 90, 85, 45, 30, 15,
+                                                    ][n - 1] + '%',
+                                            }"
+                                        />
                                     </div>
                                 </div>
                             </template>
                             <PeakHoursChart
-                                :peak-hours-chart-data="props.peakHoursChartData"
+                                :peak-hours-chart-data="
+                                    props.peakHoursChartData
+                                "
                             />
                         </Deferred>
                     </div>
                     <Deferred data="topProductsChartData">
                         <template #fallback>
-                            <div class="rounded-2xl border border-slate-100 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900/40">
-                                <div class="flex items-center justify-between mb-5">
-                                    <div class="h-4 w-40 animate-pulse rounded bg-slate-200 dark:bg-slate-800" />
+                            <div
+                                class="rounded-2xl border border-slate-100 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900/40"
+                            >
+                                <div
+                                    class="mb-5 flex items-center justify-between"
+                                >
+                                    <div
+                                        class="h-4 w-40 animate-pulse rounded bg-slate-200 dark:bg-slate-800"
+                                    />
                                 </div>
                                 <div class="space-y-4">
-                                    <div v-for="n in 5" :key="n" class="flex items-center justify-between gap-4">
-                                        <div class="flex items-center gap-3 w-full">
-                                            <div class="h-8 w-8 rounded-full bg-slate-100 dark:bg-slate-800 animate-pulse shrink-0" />
-                                            <div class="space-y-1.5 w-full">
-                                                <div class="h-3 w-1/3 bg-slate-200 dark:bg-slate-800 rounded animate-pulse" />
-                                                <div class="h-2 w-1/2 bg-slate-100 dark:bg-slate-800/60 rounded animate-pulse" />
+                                    <div
+                                        v-for="n in 5"
+                                        :key="n"
+                                        class="flex items-center justify-between gap-4"
+                                    >
+                                        <div
+                                            class="flex w-full items-center gap-3"
+                                        >
+                                            <div
+                                                class="h-8 w-8 shrink-0 animate-pulse rounded-full bg-slate-100 dark:bg-slate-800"
+                                            />
+                                            <div class="w-full space-y-1.5">
+                                                <div
+                                                    class="h-3 w-1/3 animate-pulse rounded bg-slate-200 dark:bg-slate-800"
+                                                />
+                                                <div
+                                                    class="h-2 w-1/2 animate-pulse rounded bg-slate-100 dark:bg-slate-800/60"
+                                                />
                                             </div>
                                         </div>
-                                        <div class="h-4 w-12 bg-slate-200 dark:bg-slate-800 rounded animate-pulse shrink-0" />
+                                        <div
+                                            class="h-4 w-12 shrink-0 animate-pulse rounded bg-slate-200 dark:bg-slate-800"
+                                        />
                                     </div>
                                 </div>
                             </div>
                         </template>
                         <TopProductsLeaderboard
-                            :top-products-chart-data="props.topProductsChartData"
+                            :top-products-chart-data="
+                                props.topProductsChartData
+                            "
                         />
                     </Deferred>
                     <OperationsCenter
@@ -1829,13 +1992,33 @@ function getTableStatusInfo(status: string) {
                 <div class="space-y-6 lg:col-span-2">
                     <Deferred :data="['revenueChartData', 'forecastData']">
                         <template #fallback>
-                            <div class="rounded-2xl border border-slate-100 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900/40">
-                                <div class="flex items-center justify-between mb-6">
-                                    <div class="h-5 w-40 animate-pulse rounded bg-slate-200 dark:bg-slate-800" />
-                                    <div class="h-8 w-24 animate-pulse rounded-lg bg-slate-100 dark:bg-slate-800/80" />
+                            <div
+                                class="rounded-2xl border border-slate-100 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900/40"
+                            >
+                                <div
+                                    class="mb-6 flex items-center justify-between"
+                                >
+                                    <div
+                                        class="h-5 w-40 animate-pulse rounded bg-slate-200 dark:bg-slate-800"
+                                    />
+                                    <div
+                                        class="h-8 w-24 animate-pulse rounded-lg bg-slate-100 dark:bg-slate-800/80"
+                                    />
                                 </div>
-                                <div class="h-[250px] w-full flex items-end gap-3 pt-4">
-                                    <div v-for="n in 7" :key="n" class="w-full bg-slate-100 dark:bg-slate-800/60 rounded-t-lg animate-pulse" :style="{ height: [40, 70, 50, 90, 60, 85, 30][n-1] + '%' }" />
+                                <div
+                                    class="flex h-[250px] w-full items-end gap-3 pt-4"
+                                >
+                                    <div
+                                        v-for="n in 7"
+                                        :key="n"
+                                        class="w-full animate-pulse rounded-t-lg bg-slate-100 dark:bg-slate-800/60"
+                                        :style="{
+                                            height:
+                                                [40, 70, 50, 90, 60, 85, 30][
+                                                    n - 1
+                                                ] + '%',
+                                        }"
+                                    />
                                 </div>
                             </div>
                         </template>
@@ -1847,13 +2030,25 @@ function getTableStatusInfo(status: string) {
                     <div class="grid grid-cols-1 gap-6 md:grid-cols-2">
                         <Deferred data="channelChartData">
                             <template #fallback>
-                                <div class="rounded-2xl border border-slate-100 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900/40">
-                                    <div class="flex items-center justify-between mb-4">
-                                        <div class="h-4 w-32 animate-pulse rounded bg-slate-200 dark:bg-slate-800" />
+                                <div
+                                    class="rounded-2xl border border-slate-100 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900/40"
+                                >
+                                    <div
+                                        class="mb-4 flex items-center justify-between"
+                                    >
+                                        <div
+                                            class="h-4 w-32 animate-pulse rounded bg-slate-200 dark:bg-slate-800"
+                                        />
                                     </div>
-                                    <div class="flex items-center justify-center h-[200px]">
-                                        <div class="h-28 w-28 rounded-full border-[12px] border-slate-100 dark:border-slate-800/80 animate-pulse flex items-center justify-center">
-                                            <div class="h-10 w-10 rounded-full bg-slate-50 dark:bg-slate-900" />
+                                    <div
+                                        class="flex h-[200px] items-center justify-center"
+                                    >
+                                        <div
+                                            class="flex h-28 w-28 animate-pulse items-center justify-center rounded-full border-[12px] border-slate-100 dark:border-slate-800/80"
+                                        >
+                                            <div
+                                                class="h-10 w-10 rounded-full bg-slate-50 dark:bg-slate-900"
+                                            />
                                         </div>
                                     </div>
                                 </div>
@@ -1864,42 +2059,85 @@ function getTableStatusInfo(status: string) {
                         </Deferred>
                         <Deferred data="peakHoursChartData">
                             <template #fallback>
-                                <div class="rounded-2xl border border-slate-100 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900/40">
-                                    <div class="flex items-center justify-between mb-4">
-                                        <div class="h-4 w-32 animate-pulse rounded bg-slate-200 dark:bg-slate-800" />
+                                <div
+                                    class="rounded-2xl border border-slate-100 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900/40"
+                                >
+                                    <div
+                                        class="mb-4 flex items-center justify-between"
+                                    >
+                                        <div
+                                            class="h-4 w-32 animate-pulse rounded bg-slate-200 dark:bg-slate-800"
+                                        />
                                     </div>
-                                    <div class="h-[200px] w-full flex items-end gap-1.5 pt-4">
-                                        <div v-for="n in 12" :key="n" class="w-full bg-slate-100 dark:bg-slate-800/60 rounded-t animate-pulse" :style="{ height: [20, 35, 60, 80, 50, 40, 75, 90, 85, 45, 30, 15][n-1] + '%' }" />
+                                    <div
+                                        class="flex h-[200px] w-full items-end gap-1.5 pt-4"
+                                    >
+                                        <div
+                                            v-for="n in 12"
+                                            :key="n"
+                                            class="w-full animate-pulse rounded-t bg-slate-100 dark:bg-slate-800/60"
+                                            :style="{
+                                                height:
+                                                    [
+                                                        20, 35, 60, 80, 50, 40,
+                                                        75, 90, 85, 45, 30, 15,
+                                                    ][n - 1] + '%',
+                                            }"
+                                        />
                                     </div>
                                 </div>
                             </template>
                             <PeakHoursChart
-                                :peak-hours-chart-data="props.peakHoursChartData"
+                                :peak-hours-chart-data="
+                                    props.peakHoursChartData
+                                "
                             />
                         </Deferred>
                     </div>
                     <Deferred data="topProductsChartData">
                         <template #fallback>
-                            <div class="rounded-2xl border border-slate-100 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900/40">
-                                <div class="flex items-center justify-between mb-5">
-                                    <div class="h-4 w-40 animate-pulse rounded bg-slate-200 dark:bg-slate-800" />
+                            <div
+                                class="rounded-2xl border border-slate-100 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900/40"
+                            >
+                                <div
+                                    class="mb-5 flex items-center justify-between"
+                                >
+                                    <div
+                                        class="h-4 w-40 animate-pulse rounded bg-slate-200 dark:bg-slate-800"
+                                    />
                                 </div>
                                 <div class="space-y-4">
-                                    <div v-for="n in 5" :key="n" class="flex items-center justify-between gap-4">
-                                        <div class="flex items-center gap-3 w-full">
-                                            <div class="h-8 w-8 rounded-full bg-slate-100 dark:bg-slate-800 animate-pulse shrink-0" />
-                                            <div class="space-y-1.5 w-full">
-                                                <div class="h-3 w-1/3 bg-slate-200 dark:bg-slate-800 rounded animate-pulse" />
-                                                <div class="h-2 w-1/2 bg-slate-100 dark:bg-slate-800/60 rounded animate-pulse" />
+                                    <div
+                                        v-for="n in 5"
+                                        :key="n"
+                                        class="flex items-center justify-between gap-4"
+                                    >
+                                        <div
+                                            class="flex w-full items-center gap-3"
+                                        >
+                                            <div
+                                                class="h-8 w-8 shrink-0 animate-pulse rounded-full bg-slate-100 dark:bg-slate-800"
+                                            />
+                                            <div class="w-full space-y-1.5">
+                                                <div
+                                                    class="h-3 w-1/3 animate-pulse rounded bg-slate-200 dark:bg-slate-800"
+                                                />
+                                                <div
+                                                    class="h-2 w-1/2 animate-pulse rounded bg-slate-100 dark:bg-slate-800/60"
+                                                />
                                             </div>
                                         </div>
-                                        <div class="h-4 w-12 bg-slate-200 dark:bg-slate-800 rounded animate-pulse shrink-0" />
+                                        <div
+                                            class="h-4 w-12 shrink-0 animate-pulse rounded bg-slate-200 dark:bg-slate-800"
+                                        />
                                     </div>
                                 </div>
                             </div>
                         </template>
                         <TopProductsLeaderboard
-                            :top-products-chart-data="props.topProductsChartData"
+                            :top-products-chart-data="
+                                props.topProductsChartData
+                            "
                         />
                     </Deferred>
                     <OperationsCenter

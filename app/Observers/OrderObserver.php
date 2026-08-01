@@ -2,8 +2,9 @@
 
 namespace App\Observers;
 
-use App\Models\Order;
 use App\Jobs\LogDiscountAppliedJob;
+use App\Jobs\SendReviewRequestEmail;
+use App\Models\Order;
 
 class OrderObserver
 {
@@ -11,8 +12,8 @@ class OrderObserver
     {
         if ($order->isDirty('status') && $order->status === 'completed') {
             $order->loadMissing('customer');
-            if ($order->customer && !empty($order->customer->email)) {
-                \App\Jobs\SendReviewRequestEmail::dispatch($order->id)->delay(now()->addHours(2));
+            if ($order->customer && ! empty($order->customer->email)) {
+                SendReviewRequestEmail::dispatch($order->id)->delay(now()->addHours(2));
             }
         }
 

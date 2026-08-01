@@ -18,6 +18,7 @@ use App\Models\WorkShift;
 use App\Services\QuotaService;
 use App\Services\SalaryService;
 use App\Support\Tenant\TenantContext;
+use App\Support\TenantRule;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -314,7 +315,7 @@ class ShiftClosingController extends Controller
         abort_unless($user->hasAnyRole(['owner', 'manager', 'cashier']), 403);
 
         $data = $request->validate([
-            'shift_id' => ['required', 'integer', \App\Support\TenantRule::exists('work_shifts')],
+            'shift_id' => ['required', 'integer', TenantRule::exists('work_shifts')],
             'closing_date' => ['required', 'date', 'before_or_equal:today'],
             'actual_cash' => ['required', 'numeric', 'min:0'],
             'other_expense_amount' => ['nullable', 'numeric', 'min:0'],

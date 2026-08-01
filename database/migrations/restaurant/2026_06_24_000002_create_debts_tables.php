@@ -10,32 +10,32 @@ return new class extends Migration
     {
         // 1. Update purchase_orders table (payment_status already exists)
         Schema::table('purchase_orders', function (Blueprint $table) {
-            if (!Schema::hasColumn('purchase_orders', 'payment_terms')) {
+            if (! Schema::hasColumn('purchase_orders', 'payment_terms')) {
                 $table->string('payment_terms', 50)->nullable()->after('status');
             }
-            if (!Schema::hasColumn('purchase_orders', 'due_date')) {
+            if (! Schema::hasColumn('purchase_orders', 'due_date')) {
                 $table->date('due_date')->nullable()->after('payment_terms');
             }
         });
 
         // 2. Update customers table
         Schema::table('customers', function (Blueprint $table) {
-            if (!Schema::hasColumn('customers', 'is_vip')) {
+            if (! Schema::hasColumn('customers', 'is_vip')) {
                 $table->boolean('is_vip')->default(false)->after('loyalty_points');
             }
-            if (!Schema::hasColumn('customers', 'is_b2b')) {
+            if (! Schema::hasColumn('customers', 'is_b2b')) {
                 $table->boolean('is_b2b')->default(false)->after('is_vip');
             }
-            if (!Schema::hasColumn('customers', 'credit_limit')) {
+            if (! Schema::hasColumn('customers', 'credit_limit')) {
                 $table->decimal('credit_limit', 12, 2)->default(0)->after('is_b2b');
             }
-            if (!Schema::hasColumn('customers', 'current_debt')) {
+            if (! Schema::hasColumn('customers', 'current_debt')) {
                 $table->decimal('current_debt', 12, 2)->default(0)->after('credit_limit');
             }
         });
 
         // 3. Create account_payables table (Supplier Debt)
-        if (!Schema::hasTable('account_payables')) {
+        if (! Schema::hasTable('account_payables')) {
             Schema::create('account_payables', function (Blueprint $table) {
                 $table->id();
                 $table->foreignId('restaurant_id')->constrained('restaurants')->cascadeOnDelete();
@@ -53,7 +53,7 @@ return new class extends Migration
         }
 
         // 4. Create account_receivables table (Customer Debt)
-        if (!Schema::hasTable('account_receivables')) {
+        if (! Schema::hasTable('account_receivables')) {
             Schema::create('account_receivables', function (Blueprint $table) {
                 $table->id();
                 $table->foreignId('restaurant_id')->constrained('restaurants')->cascadeOnDelete();

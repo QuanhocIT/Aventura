@@ -1,15 +1,18 @@
-import { ref, computed, Ref } from 'vue';
-import axios from 'axios';
 import { router } from '@inertiajs/vue3';
-import { TableItem, CustomerItem } from '../types';
+import axios from 'axios';
+import type { Ref } from 'vue';
+import { ref, computed } from 'vue';
+import type { TableItem, CustomerItem } from '../types';
 
 export function useCashierPayment(
     activeTable: Ref<TableItem | null>,
     isCartOpen: Ref<boolean>,
-    toast: (msg: string, type?: 'success' | 'error') => void
+    toast: (msg: string, type?: 'success' | 'error') => void,
 ) {
     const showPaymentModal = ref(false);
-    const paymentMethod = ref<'cash' | 'bank_transfer' | 'card' | 'ewallet' | 'debt'>('cash');
+    const paymentMethod = ref<
+        'cash' | 'bank_transfer' | 'card' | 'ewallet' | 'debt'
+    >('cash');
     const cashReceived = ref<number>(0);
     const searchCustomerPhone = ref('');
     const isSearchingCustomer = ref(false);
@@ -29,11 +32,15 @@ export function useCashierPayment(
 
     const changeAmount = computed(() => {
         const total = activeTable.value?.active_order?.total_amount ?? 0;
+
         return Math.max(0, cashReceived.value - total);
     });
 
     const searchCustomer = () => {
-        if (!searchCustomerPhone.value.trim()) return;
+        if (!searchCustomerPhone.value.trim()) {
+            return;
+        }
+
         isSearchingCustomer.value = true;
         axios
             .get('/api/customers/search', {
@@ -42,7 +49,9 @@ export function useCashierPayment(
             .then((res) => {
                 if (res.data.customer) {
                     foundCustomer.value = res.data.customer;
-                    toast(`Đã tìm thấy khách hàng: ${res.data.customer.full_name}`);
+                    toast(
+                        `Đã tìm thấy khách hàng: ${res.data.customer.full_name}`,
+                    );
                 } else {
                     toast('Không tìm thấy thông tin khách hàng.', 'error');
                 }
@@ -70,13 +79,24 @@ export function useCashierPayment(
     };
 
     const processPayment = () => {
-        if (!activeTable.value?.active_order || isPaying.value) return;
+        if (!activeTable.value?.active_order || isPaying.value) {
+            return;
+        }
 
-        const redeemPoints = Math.max(0, Math.floor(loyaltyPointsToRedeem.value ?? 0));
+        const redeemPoints = Math.max(
+            0,
+            Math.floor(loyaltyPointsToRedeem.value ?? 0),
+        );
+
         if (redeemPoints > 0 && foundCustomer.value) {
             const availablePoints = foundCustomer.value.loyalty_points ?? 0;
+
             if (redeemPoints > availablePoints) {
-                toast(`Không đủ điểm: Khách chỉ có ${availablePoints} điểm.`, 'error');
+                toast(
+                    `Không đủ điểm: Khách chỉ có ${availablePoints} điểm.`,
+                    'error',
+                );
+
                 return;
             }
         }
@@ -87,16 +107,19 @@ export function useCashierPayment(
                 payment_method: paymentMethod.value,
                 cash_received: cashReceived.value,
                 change_amount: changeAmount.value,
-                customer_id: foundCustomer.value ? foundCustomer.value.id : null,
+                customer_id: foundCustomer.value
+                    ? foundCustomer.value.id
+                    : null,
                 redeem_points: redeemPoints > 0 ? redeemPoints : undefined,
             })
             .then(() => {
                 showPaymentModal.value = false;
                 isCartOpen.value = false;
                 loyaltyPointsToRedeem.value = 0;
-                const msg = redeemPoints > 0
-                    ? `Thanh toán thành công! Đã đổi ${redeemPoints} điểm loyalty.`
-                    : 'Đã thanh toán hóa đơn thành công. Bàn đã chuyển sang trạng thái trống.';
+                const msg =
+                    redeemPoints > 0
+                        ? `Thanh toán thành công! Đã đổi ${redeemPoints} điểm loyalty.`
+                        : 'Đã thanh toán hóa đơn thành công. Bàn đã chuyển sang trạng thái trống.';
                 toast(msg);
                 router.reload({
                     only: ['tablesData', 'shiftInfo', 'completedHistory'],
@@ -105,7 +128,7 @@ export function useCashierPayment(
             .catch((err) => {
                 toast(
                     err.response?.data?.message || 'Lỗi xử lý thanh toán.',
-                    'error'
+                    'error',
                 );
             })
             .finally(() => {

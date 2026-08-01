@@ -4,9 +4,9 @@ namespace App\Services;
 
 use App\Models\InventoryBatch;
 use App\Models\InventoryTransaction;
+use App\Support\Tenant\TenantContext;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
-use App\Support\Tenant\TenantContext;
 
 class WasteAnalyticsService
 {

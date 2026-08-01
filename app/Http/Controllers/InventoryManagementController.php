@@ -21,6 +21,7 @@ use App\Services\ProductCostService;
 use App\Services\QuotaService;
 use App\Services\SalaryService;
 use App\Support\Tenant\TenantContext;
+use App\Support\TenantRule;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -250,9 +251,9 @@ class InventoryManagementController extends Controller
         $branchId = $this->requireActiveBranch($request);
 
         $data = $request->validate([
-            'product_id' => ['required', \App\Support\TenantRule::exists('products')],
+            'product_id' => ['required', TenantRule::exists('products')],
             'items' => ['nullable', 'array'],
-            'items.*.ingredient_id' => ['required', \App\Support\TenantRule::exists('ingredients')],
+            'items.*.ingredient_id' => ['required', TenantRule::exists('ingredients')],
             'items.*.quantity' => ['required', 'numeric', 'min:0.001'],
             'items.*.waste_rate' => ['nullable', 'numeric', 'min:0', 'max:100'],
         ]);
@@ -334,7 +335,7 @@ class InventoryManagementController extends Controller
 
         $data = $request->validate([
             'name' => ['required', 'string', 'max:255'],
-            'unit_id' => ['required', \App\Support\TenantRule::exists('units')],
+            'unit_id' => ['required', TenantRule::exists('units')],
             'category' => ['nullable', 'string', 'max:100'],
         ]);
 
@@ -362,10 +363,10 @@ class InventoryManagementController extends Controller
 
         $maxSize = SystemSetting::get('upload_invoice_image_max', 4096);
         $data = $request->validate([
-            'ingredient_id' => ['required', \App\Support\TenantRule::exists('ingredients')],
+            'ingredient_id' => ['required', TenantRule::exists('ingredients')],
             'quantity' => ['required', 'numeric', 'min:0.001'],
             'unit_cost' => ['required', 'numeric', 'min:0'],
-            'supplier_id' => ['nullable', \App\Support\TenantRule::exists('suppliers')],
+            'supplier_id' => ['nullable', TenantRule::exists('suppliers')],
             'notes' => ['nullable', 'string', 'max:500'],
             'occurred_at' => ['nullable', 'date'],
             'invoice_file' => ['required', 'file', 'image', 'mimes:jpeg,png,jpg,gif,pdf', 'max:'.$maxSize],
@@ -672,9 +673,9 @@ class InventoryManagementController extends Controller
         abort_unless($request->user()->hasAnyRole(['owner', 'manager', 'inventory_staff']), 403);
 
         $data = $request->validate([
-            'ingredient_id' => ['required', \App\Support\TenantRule::exists('ingredients')],
+            'ingredient_id' => ['required', TenantRule::exists('ingredients')],
             'quantity' => ['required', 'numeric', 'min:0.001'],
-            'employee_id' => ['nullable', \App\Support\TenantRule::exists('employees')],
+            'employee_id' => ['nullable', TenantRule::exists('employees')],
             'waste_category' => ['nullable', 'string', 'in:spoilage,expired,damaged,cooking_loss,theft,other'],
             'notes' => ['nullable', 'string', 'max:500'],
         ]);
@@ -768,7 +769,7 @@ class InventoryManagementController extends Controller
 
         $data = $request->validate([
             'reconcile_items' => ['required', 'array'],
-            'reconcile_items.*.ingredient_id' => ['required', \App\Support\TenantRule::exists('ingredients')],
+            'reconcile_items.*.ingredient_id' => ['required', TenantRule::exists('ingredients')],
             'reconcile_items.*.physical_qty' => ['required', 'numeric', 'min:0'],
             'notes' => ['nullable', 'string', 'max:500'],
         ]);
@@ -863,6 +864,7 @@ class InventoryManagementController extends Controller
 
         return back()->with('success', 'Đã hoàn thành kiểm kho và đối chiếu lệch.');
     }
+
     private function requireActiveBranch(Request $request): int
     {
         $branchId = $this->tenantContext->activeBranchId()

@@ -18,8 +18,8 @@ const isProcessing = ref(false);
 
 const acceptSwapRequest = (swapId: number) => {
     if (isProcessing.value) {
-return;
-}
+        return;
+    }
 
     isProcessing.value = true;
     router.post(
@@ -47,8 +47,8 @@ return;
 
 const cancelSwapRequest = (swapId: number) => {
     if (isProcessing.value) {
-return;
-}
+        return;
+    }
 
     isProcessing.value = true;
     router.post(

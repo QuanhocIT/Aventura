@@ -7,6 +7,7 @@ use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Str;
 use Laravel\Fortify\Contracts\LoginResponse as LoginResponseContract;
+use Spatie\Permission\PermissionRegistrar;
 
 class CustomLoginResponse implements LoginResponseContract
 {
@@ -42,6 +43,7 @@ class CustomLoginResponse implements LoginResponseContract
                     if (! in_array($cycle, ['monthly', 'yearly'])) {
                         $cycle = 'monthly';
                     }
+
                     return redirect()->route('billing.checkout', ['plan' => $desiredCode, 'cycle' => $cycle]);
                 }
             }
@@ -53,7 +55,7 @@ class CustomLoginResponse implements LoginResponseContract
     public static function redirectForUser(User $user): RedirectResponse
     {
         try {
-            app(\Spatie\Permission\PermissionRegistrar::class)->forgetCachedPermissions();
+            app(PermissionRegistrar::class)->forgetCachedPermissions();
         } catch (\Throwable $e) {
             //
         }

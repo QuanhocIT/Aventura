@@ -8,6 +8,7 @@ use App\Models\WorkShift;
 use App\Services\QuotaService;
 use App\Support\MaterializedViews\MaterializedViewReader;
 use App\Support\Tenant\TenantContext;
+use App\Support\TenantRule;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -131,7 +132,7 @@ class CashFlowController extends Controller
         $branchId = $this->requireActiveBranch($user);
 
         $data = $request->validate([
-            'shift_id' => ['required', 'integer', \App\Support\TenantRule::exists('work_shifts')],
+            'shift_id' => ['required', 'integer', TenantRule::exists('work_shifts')],
             'opening_balance' => ['required', 'numeric', 'min:0'],
             'expense_budget' => ['nullable', 'numeric', 'min:0'],
             'notes' => ['nullable', 'string', 'max:500'],

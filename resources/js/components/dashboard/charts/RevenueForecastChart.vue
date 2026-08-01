@@ -85,7 +85,10 @@ const calculatedItems = computed(() => {
 
         const centerX = CHART_LEFT + i * step + step / 2;
         const barX = centerX - bw / 2;
-        const barHeight = Math.max((rev / maxRev) * MAX_BAR_HEIGHT, rev > 0 ? 4 : 0);
+        const barHeight = Math.max(
+            (rev / maxRev) * MAX_BAR_HEIGHT,
+            rev > 0 ? 4 : 0,
+        );
         const barY = BASE_Y - barHeight;
 
         const lineY = BASE_Y - (ord / maxOrd) * MAX_BAR_HEIGHT;
@@ -111,7 +114,9 @@ const ordersLinePath = computed(() => {
     }
 
     return list
-        .map((item, i) => `${i === 0 ? 'M' : 'L'} ${item.centerX} ${item.lineY}`)
+        .map(
+            (item, i) => `${i === 0 ? 'M' : 'L'} ${item.centerX} ${item.lineY}`,
+        )
         .join(' ');
 });
 
@@ -139,19 +144,32 @@ function formatMoneyShort(v: number): string {
 <template>
     <Deferred data="revenueChartData">
         <template #fallback>
-            <Card class="relative overflow-hidden border border-border bg-card text-card-foreground shadow-sm">
-                <CardContent class="h-[350px] w-full animate-pulse flex flex-col items-center justify-center p-6 gap-3">
-                    <BarChart3 class="size-8 text-slate-400 animate-pulse" />
-                    <span class="text-xs text-slate-400 font-bold tracking-tight">Đang tải phân tích doanh thu...</span>
+            <Card
+                class="relative overflow-hidden border border-border bg-card text-card-foreground shadow-sm"
+            >
+                <CardContent
+                    class="flex h-[350px] w-full animate-pulse flex-col items-center justify-center gap-3 p-6"
+                >
+                    <BarChart3 class="size-8 animate-pulse text-slate-400" />
+                    <span
+                        class="text-xs font-bold tracking-tight text-slate-400"
+                        >Đang tải phân tích doanh thu...</span
+                    >
                 </CardContent>
             </Card>
         </template>
 
-        <Card class="relative overflow-hidden border border-border bg-card text-card-foreground shadow-sm transition-all duration-300 hover:shadow-md">
-            <CardHeader class="border-b border-border/50 bg-slate-50/40 pb-3 dark:bg-slate-900/20">
+        <Card
+            class="relative overflow-hidden border border-border bg-card text-card-foreground shadow-sm transition-all duration-300 hover:shadow-md"
+        >
+            <CardHeader
+                class="border-b border-border/50 bg-slate-50/40 pb-3 dark:bg-slate-900/20"
+            >
                 <div class="flex flex-wrap items-center justify-between gap-3">
                     <div>
-                        <CardTitle class="flex items-center gap-2 text-base font-black text-foreground">
+                        <CardTitle
+                            class="flex items-center gap-2 text-base font-black text-foreground"
+                        >
                             <TrendingUp class="size-4 text-violet-500" />
                             {{
                                 hasForecast
@@ -162,27 +180,40 @@ function formatMoneyShort(v: number): string {
                         <p class="mt-0.5 text-xs text-muted-foreground">
                             <span v-if="hasForecast">
                                 Cột đặc = Thực tế · Cột viền đứt =
-                                <span class="font-bold text-indigo-500">AI dự báo</span>
+                                <span class="font-bold text-indigo-500"
+                                    >AI dự báo</span
+                                >
                             </span>
                             <span v-else>
-                                Theo dõi doanh thu thực tế và tổng số lượng đơn hàng theo ngày.
+                                Theo dõi doanh thu thực tế và tổng số lượng đơn
+                                hàng theo ngày.
                             </span>
                             <span
-                                v-if="hasForecast && forecastData?.confidence_label"
+                                v-if="
+                                    hasForecast &&
+                                    forecastData?.confidence_label
+                                "
                                 class="ml-1.5 inline-flex items-center gap-1 rounded-full bg-indigo-500/10 px-2 py-0.5 font-mono text-[10px] font-extrabold text-indigo-600 dark:text-indigo-400"
                             >
-                                <Sparkles class="size-3" /> Độ tin cậy: {{ forecastData.confidence_label }}
+                                <Sparkles class="size-3" /> Độ tin cậy:
+                                {{ forecastData.confidence_label }}
                             </span>
                         </p>
                     </div>
 
                     <div class="flex items-center gap-4 text-xs font-bold">
                         <span class="flex items-center gap-1.5 text-indigo-500">
-                            <span class="h-3 w-3 rounded-xs bg-indigo-500"></span>
+                            <span
+                                class="h-3 w-3 rounded-xs bg-indigo-500"
+                            ></span>
                             Doanh thu
                         </span>
-                        <span class="flex items-center gap-1.5 text-emerald-500">
-                            <span class="h-3 w-3 rounded-full border-2 border-emerald-500 bg-card"></span>
+                        <span
+                            class="flex items-center gap-1.5 text-emerald-500"
+                        >
+                            <span
+                                class="h-3 w-3 rounded-full border-2 border-emerald-500 bg-card"
+                            ></span>
                             Đơn hàng
                         </span>
                     </div>
@@ -193,7 +224,10 @@ function formatMoneyShort(v: number): string {
                 <div v-if="revenueChartList.length" class="relative">
                     <!-- Floating Tooltip Box -->
                     <div
-                        v-if="activeHoverIndex !== null && calculatedItems[activeHoverIndex]"
+                        v-if="
+                            activeHoverIndex !== null &&
+                            calculatedItems[activeHoverIndex]
+                        "
                         class="pointer-events-none absolute z-20 rounded-xl border border-slate-700/60 bg-slate-900/95 p-3 text-xs text-white shadow-2xl backdrop-blur-md transition-all duration-150"
                         :style="{
                             left: `${(calculatedItems[activeHoverIndex].centerX / SVG_WIDTH) * 100}%`,
@@ -201,51 +235,118 @@ function formatMoneyShort(v: number): string {
                             top: '-15px',
                         }"
                     >
-                        <p class="mb-1 border-b border-slate-700/80 pb-1 font-bold text-slate-300">
+                        <p
+                            class="mb-1 border-b border-slate-700/80 pb-1 font-bold text-slate-300"
+                        >
                             Ngày {{ calculatedItems[activeHoverIndex].date }}
-                            <span v-if="calculatedItems[activeHoverIndex].is_forecast" class="ml-1 text-indigo-400">(AI dự báo)</span>
+                            <span
+                                v-if="
+                                    calculatedItems[activeHoverIndex]
+                                        .is_forecast
+                                "
+                                class="ml-1 text-indigo-400"
+                                >(AI dự báo)</span
+                            >
                         </p>
                         <p class="flex justify-between gap-4">
                             <span class="text-slate-400">Doanh thu:</span>
-                            <span class="font-mono font-bold text-indigo-400">{{ formatMoneyFull(calculatedItems[activeHoverIndex].revenue) }}</span>
+                            <span class="font-mono font-bold text-indigo-400">{{
+                                formatMoneyFull(
+                                    calculatedItems[activeHoverIndex].revenue,
+                                )
+                            }}</span>
                         </p>
                         <p class="mt-0.5 flex justify-between gap-4">
                             <span class="text-slate-400">Đơn hàng:</span>
-                            <span class="font-mono font-bold text-emerald-400">{{ calculatedItems[activeHoverIndex].orders }} đơn</span>
+                            <span class="font-mono font-bold text-emerald-400"
+                                >{{
+                                    calculatedItems[activeHoverIndex].orders
+                                }}
+                                đơn</span
+                            >
                         </p>
                     </div>
 
                     <!-- SVG Chart -->
-                    <svg viewBox="0 0 700 210" class="h-52 w-full overflow-visible select-none">
+                    <svg
+                        viewBox="0 0 700 210"
+                        class="h-52 w-full overflow-visible select-none"
+                    >
                         <defs>
-                            <linearGradient id="revGrad" x1="0" y1="0" x2="0" y2="1">
+                            <linearGradient
+                                id="revGrad"
+                                x1="0"
+                                y1="0"
+                                x2="0"
+                                y2="1"
+                            >
                                 <stop offset="0%" stop-color="#6366f1" />
                                 <stop offset="100%" stop-color="#4f46e5" />
                             </linearGradient>
-                            <linearGradient id="forecastGrad" x1="0" y1="0" x2="0" y2="1">
-                                <stop offset="0%" stop-color="#a5b4fc" stop-opacity="0.6" />
-                                <stop offset="100%" stop-color="#818cf8" stop-opacity="0.3" />
+                            <linearGradient
+                                id="forecastGrad"
+                                x1="0"
+                                y1="0"
+                                x2="0"
+                                y2="1"
+                            >
+                                <stop
+                                    offset="0%"
+                                    stop-color="#a5b4fc"
+                                    stop-opacity="0.6"
+                                />
+                                <stop
+                                    offset="100%"
+                                    stop-color="#818cf8"
+                                    stop-opacity="0.3"
+                                />
                             </linearGradient>
                         </defs>
 
                         <!-- Y-Axis Grid Lines -->
-                        <g class="stroke-border/40" stroke-width="1" stroke-dasharray="4 4">
+                        <g
+                            class="stroke-border/40"
+                            stroke-width="1"
+                            stroke-dasharray="4 4"
+                        >
                             <line x1="45" y1="30" x2="665" y2="30" />
                             <line x1="45" y1="97" x2="665" y2="97" />
                             <line x1="45" y1="165" x2="665" y2="165" />
                         </g>
 
                         <!-- Base line -->
-                        <line x1="45" y1="165" x2="665" y2="165" class="stroke-border" stroke-width="1.5" />
+                        <line
+                            x1="45"
+                            y1="165"
+                            x2="665"
+                            y2="165"
+                            class="stroke-border"
+                            stroke-width="1.5"
+                        />
 
                         <!-- Y-Axis Labels -->
-                        <text x="38" y="34" text-anchor="end" class="fill-muted-foreground font-mono text-[9px] font-bold">
+                        <text
+                            x="38"
+                            y="34"
+                            text-anchor="end"
+                            class="fill-muted-foreground font-mono text-[9px] font-bold"
+                        >
                             {{ formatMoneyShort(maxRevenue) }}
                         </text>
-                        <text x="38" y="101" text-anchor="end" class="fill-muted-foreground font-mono text-[9px] font-bold">
+                        <text
+                            x="38"
+                            y="101"
+                            text-anchor="end"
+                            class="fill-muted-foreground font-mono text-[9px] font-bold"
+                        >
                             {{ formatMoneyShort(Math.round(maxRevenue / 2)) }}
                         </text>
-                        <text x="38" y="168" text-anchor="end" class="fill-muted-foreground font-mono text-[9px] font-bold">
+                        <text
+                            x="38"
+                            y="168"
+                            text-anchor="end"
+                            class="fill-muted-foreground font-mono text-[9px] font-bold"
+                        >
                             0
                         </text>
 
@@ -269,14 +370,23 @@ function formatMoneyShort(v: number): string {
                                 :width="item.barWidth"
                                 :height="item.barHeight"
                                 rx="4"
-                                :fill="item.is_forecast ? 'url(#forecastGrad)' : 'url(#revGrad)'"
+                                :fill="
+                                    item.is_forecast
+                                        ? 'url(#forecastGrad)'
+                                        : 'url(#revGrad)'
+                                "
                                 :stroke="item.is_forecast ? '#818cf8' : 'none'"
                                 :stroke-width="item.is_forecast ? 1.5 : 0"
-                                :stroke-dasharray="item.is_forecast ? '4 3' : 'none'"
+                                :stroke-dasharray="
+                                    item.is_forecast ? '4 3' : 'none'
+                                "
                                 class="cursor-pointer transition-all duration-200"
                                 :class="{
-                                    'opacity-100 brightness-115 filter drop-shadow-md': activeHoverIndex === item.index,
-                                    'opacity-85': activeHoverIndex !== null && activeHoverIndex !== item.index
+                                    'opacity-100 brightness-115 drop-shadow-md filter':
+                                        activeHoverIndex === item.index,
+                                    'opacity-85':
+                                        activeHoverIndex !== null &&
+                                        activeHoverIndex !== item.index,
                                 }"
                                 @mouseenter="activeHoverIndex = item.index"
                                 @mouseleave="activeHoverIndex = null"
@@ -294,7 +404,10 @@ function formatMoneyShort(v: number): string {
                         />
 
                         <!-- Dots on line for each day -->
-                        <g v-for="item in calculatedItems" :key="'dot-' + item.date">
+                        <g
+                            v-for="item in calculatedItems"
+                            :key="'dot-' + item.date"
+                        >
                             <circle
                                 :cx="item.centerX"
                                 :cy="item.lineY"
@@ -317,13 +430,13 @@ function formatMoneyShort(v: number): string {
                             :x="item.centerX"
                             y="185"
                             text-anchor="middle"
-                            class="transition-colors duration-150 font-sans text-[10px] font-medium"
+                            class="font-sans text-[10px] font-medium transition-colors duration-150"
                             :class="[
                                 activeHoverIndex === item.index
                                     ? 'fill-foreground font-extrabold'
                                     : item.is_forecast
                                       ? 'fill-indigo-400 font-bold'
-                                      : 'fill-muted-foreground'
+                                      : 'fill-muted-foreground',
                             ]"
                         >
                             {{ item.date }}
@@ -336,7 +449,9 @@ function formatMoneyShort(v: number): string {
                     class="flex flex-col items-center justify-center py-10 text-sm text-muted-foreground"
                 >
                     <BarChart3 class="mb-2 size-8 text-muted-foreground/30" />
-                    <p class="font-semibold">Chưa có dữ liệu doanh số tuần này</p>
+                    <p class="font-semibold">
+                        Chưa có dữ liệu doanh số tuần này
+                    </p>
                 </div>
 
                 <!-- Upgrade AI forecasting banner -->
@@ -345,7 +460,8 @@ function formatMoneyShort(v: number): string {
                     class="mt-3 flex items-center justify-between rounded-xl border border-dashed border-indigo-200/80 bg-indigo-50/50 p-3 text-xs dark:border-indigo-900/40 dark:bg-indigo-950/20"
                 >
                     <span class="font-medium text-muted-foreground">
-                        💡 Muốn dự báo doanh thu 7 ngày tiếp theo bằng Trí Tuệ Nhân Tạo (AI)?
+                        💡 Muốn dự báo doanh thu 7 ngày tiếp theo bằng Trí Tuệ
+                        Nhân Tạo (AI)?
                     </span>
                     <Link
                         href="/billing/checkout"
@@ -358,4 +474,3 @@ function formatMoneyShort(v: number): string {
         </Card>
     </Deferred>
 </template>
-

@@ -3,8 +3,8 @@ import { Link, usePage } from '@inertiajs/vue3';
 import { AlertTriangle, Bell, Star } from 'lucide-vue-next';
 import { computed, ref } from 'vue';
 import AppearanceToggleInline from '@/components/AppearanceToggleInline.vue';
-import Breadcrumbs from '@/components/Breadcrumbs.vue';
 import BranchContextSelector from '@/components/BranchContextSelector.vue';
+import Breadcrumbs from '@/components/Breadcrumbs.vue';
 import PlatformFeedbackModal from '@/components/PlatformFeedbackModal.vue';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {
@@ -45,12 +45,19 @@ const isSuperAdminRoute = computed(() => page.url.startsWith('/super-admin'));
 const roles = computed(() => {
     const raw = page.props.roles ?? [];
 
-    return Array.isArray(raw) ? raw : Object.values(raw as Record<string, string>);
+    return Array.isArray(raw)
+        ? raw
+        : Object.values(raw as Record<string, string>);
 });
 
 const isSuperAdmin = computed(() =>
     roles.value.some((role) =>
-        ['super_admin', 'system_admin', 'billing_admin', 'support_specialist'].includes(role),
+        [
+            'super_admin',
+            'system_admin',
+            'billing_admin',
+            'support_specialist',
+        ].includes(role),
     ),
 );
 const { isAllBranches } = useBranchContext();
@@ -97,7 +104,7 @@ const showFeedbackModal = ref(false);
             <button
                 v-if="user && !isSuperAdmin"
                 @click="showFeedbackModal = true"
-                class="shadow-2xs flex cursor-pointer items-center gap-1.5 rounded-xl border border-amber-500/30 bg-amber-500/10 px-2.5 py-1.5 text-xs font-bold text-amber-600 transition-all hover:bg-amber-500/20 hover:scale-[1.02] dark:text-amber-400"
+                class="flex cursor-pointer items-center gap-1.5 rounded-xl border border-amber-500/30 bg-amber-500/10 px-2.5 py-1.5 text-xs font-bold text-amber-600 shadow-2xs transition-all hover:scale-[1.02] hover:bg-amber-500/20 dark:text-amber-400"
                 title="Gửi đánh giá gói dịch vụ & hệ thống Aventura"
             >
                 <Star class="size-3.5 fill-amber-400 text-amber-400" />
@@ -149,9 +156,12 @@ const showFeedbackModal = ref(false);
         class="mx-4 mt-2 flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5 text-xs font-medium text-amber-800 md:mx-6 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-200"
         role="status"
     >
-        <AlertTriangle class="size-4 shrink-0 text-amber-600 dark:text-amber-400" />
+        <AlertTriangle
+            class="size-4 shrink-0 text-amber-600 dark:text-amber-400"
+        />
         <span>
-            Bạn đang xem dữ liệu <strong>Toàn chuỗi</strong>. Các số liệu đang được tổng hợp từ các chi nhánh.
+            Bạn đang xem dữ liệu <strong>Toàn chuỗi</strong>. Các số liệu đang
+            được tổng hợp từ các chi nhánh.
         </span>
     </div>
 

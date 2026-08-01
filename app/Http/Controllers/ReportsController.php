@@ -4,9 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Jobs\SendDailyReportEmail;
 use App\Models\OperatingExpense;
-use App\Models\RestaurantRevenueSummary;
-use App\Models\Salary;
 use App\Models\RestaurantBranch;
+use App\Models\Salary;
 use App\Services\BranchReportService;
 use App\Services\DailyReportService;
 use App\Services\MenuInsightService;

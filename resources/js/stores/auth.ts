@@ -29,8 +29,7 @@ export const useAuthStore = defineStore('auth', {
             state.permissions.includes(permission),
 
         /** Kiểm tra role cụ thể */
-        hasRole: (state) => (role: string) =>
-            state.roles.includes(role),
+        hasRole: (state) => (role: string) => state.roles.includes(role),
 
         /** Bất kỳ role nào trong danh sách */
         hasAnyRole: (state) => (roles: string[]) =>

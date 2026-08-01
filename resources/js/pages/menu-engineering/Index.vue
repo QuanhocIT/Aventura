@@ -767,62 +767,147 @@ const needsAttention = computed(
 
                 <!-- BCG Actions / Recommendations List -->
                 <div class="mt-8 border-t border-border pt-6 text-left">
-                    <h3 class="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-1.5 mb-4">
-                        <Sparkles class="size-4 text-violet-500 animate-pulse" />
-                        Gợi ý thông minh từ ma trận BCG (BCG Actionable Recommendations)
+                    <h3
+                        class="mb-4 flex items-center gap-1.5 text-xs font-bold text-slate-900 dark:text-white"
+                    >
+                        <Sparkles
+                            class="size-4 animate-pulse text-violet-500"
+                        />
+                        Gợi ý thông minh từ ma trận BCG (BCG Actionable
+                        Recommendations)
                     </h3>
-                    
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+
+                    <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
                         <!-- Stars -->
-                        <div class="rounded-xl border border-emerald-500/20 bg-emerald-500/[0.02] p-4 space-y-2">
-                            <h4 class="text-xs font-extrabold text-emerald-600 dark:text-emerald-400 uppercase tracking-wide flex items-center gap-1">
-                                <span>⭐</span> Stars (Món ăn Ngôi sao - {{ bcgStats.star.length }} món)
+                        <div
+                            class="space-y-2 rounded-xl border border-emerald-500/20 bg-emerald-500/[0.02] p-4"
+                        >
+                            <h4
+                                class="flex items-center gap-1 text-xs font-extrabold tracking-wide text-emerald-600 uppercase dark:text-emerald-400"
+                            >
+                                <span>⭐</span> Stars (Món ăn Ngôi sao -
+                                {{ bcgStats.star.length }} món)
                             </h4>
-                            <ul v-if="bcgStats.star.length" class="space-y-1.5 text-xs text-slate-600 dark:text-slate-350">
-                                <li v-for="item in bcgStats.star" :key="item.product_id">
-                                    • <strong class="text-slate-900 dark:text-white">{{ item.name }}</strong>: {{ item.ai_recommendation }}
+                            <ul
+                                v-if="bcgStats.star.length"
+                                class="dark:text-slate-350 space-y-1.5 text-xs text-slate-600"
+                            >
+                                <li
+                                    v-for="item in bcgStats.star"
+                                    :key="item.product_id"
+                                >
+                                    •
+                                    <strong
+                                        class="text-slate-900 dark:text-white"
+                                        >{{ item.name }}</strong
+                                    >: {{ item.ai_recommendation }}
                                 </li>
                             </ul>
-                            <p v-else class="text-xs text-muted-foreground italic">Chưa phát hiện món ăn Ngôi sao.</p>
+                            <p
+                                v-else
+                                class="text-xs text-muted-foreground italic"
+                            >
+                                Chưa phát hiện món ăn Ngôi sao.
+                            </p>
                         </div>
 
                         <!-- Plowhorses -->
-                        <div class="rounded-xl border border-amber-500/20 bg-amber-500/[0.02] p-4 space-y-2">
-                            <h4 class="text-xs font-extrabold text-amber-600 dark:text-amber-400 uppercase tracking-wide flex items-center gap-1">
-                                <span>🐎</span> Plowhorses (Món ăn Bò sữa - {{ bcgStats.plowhorse.length }} món)
+                        <div
+                            class="space-y-2 rounded-xl border border-amber-500/20 bg-amber-500/[0.02] p-4"
+                        >
+                            <h4
+                                class="flex items-center gap-1 text-xs font-extrabold tracking-wide text-amber-600 uppercase dark:text-amber-400"
+                            >
+                                <span>🐎</span> Plowhorses (Món ăn Bò sữa -
+                                {{ bcgStats.plowhorse.length }} món)
                             </h4>
-                            <ul v-if="bcgStats.plowhorse.length" class="space-y-1.5 text-xs text-slate-600 dark:text-slate-350">
-                                <li v-for="item in bcgStats.plowhorse" :key="item.product_id">
-                                    • <strong class="text-slate-900 dark:text-white">{{ item.name }}</strong>: {{ item.ai_recommendation }}
+                            <ul
+                                v-if="bcgStats.plowhorse.length"
+                                class="dark:text-slate-350 space-y-1.5 text-xs text-slate-600"
+                            >
+                                <li
+                                    v-for="item in bcgStats.plowhorse"
+                                    :key="item.product_id"
+                                >
+                                    •
+                                    <strong
+                                        class="text-slate-900 dark:text-white"
+                                        >{{ item.name }}</strong
+                                    >: {{ item.ai_recommendation }}
                                 </li>
                             </ul>
-                            <p v-else class="text-xs text-muted-foreground italic">Chưa phát hiện món ăn Bò sữa.</p>
+                            <p
+                                v-else
+                                class="text-xs text-muted-foreground italic"
+                            >
+                                Chưa phát hiện món ăn Bò sữa.
+                            </p>
                         </div>
 
                         <!-- Puzzles -->
-                        <div class="rounded-xl border border-indigo-500/20 bg-indigo-500/[0.02] p-4 space-y-2">
-                            <h4 class="text-xs font-extrabold text-indigo-600 dark:text-indigo-400 uppercase tracking-wide flex items-center gap-1">
-                                <span>🧩</span> Puzzles (Món ăn Câu đố - {{ bcgStats.puzzle.length }} món)
+                        <div
+                            class="space-y-2 rounded-xl border border-indigo-500/20 bg-indigo-500/[0.02] p-4"
+                        >
+                            <h4
+                                class="flex items-center gap-1 text-xs font-extrabold tracking-wide text-indigo-600 uppercase dark:text-indigo-400"
+                            >
+                                <span>🧩</span> Puzzles (Món ăn Câu đố -
+                                {{ bcgStats.puzzle.length }} món)
                             </h4>
-                            <ul v-if="bcgStats.puzzle.length" class="space-y-1.5 text-xs text-slate-600 dark:text-slate-350">
-                                <li v-for="item in bcgStats.puzzle" :key="item.product_id">
-                                    • <strong class="text-slate-900 dark:text-white">{{ item.name }}</strong>: {{ item.ai_recommendation }}
+                            <ul
+                                v-if="bcgStats.puzzle.length"
+                                class="dark:text-slate-350 space-y-1.5 text-xs text-slate-600"
+                            >
+                                <li
+                                    v-for="item in bcgStats.puzzle"
+                                    :key="item.product_id"
+                                >
+                                    •
+                                    <strong
+                                        class="text-slate-900 dark:text-white"
+                                        >{{ item.name }}</strong
+                                    >: {{ item.ai_recommendation }}
                                 </li>
                             </ul>
-                            <p v-else class="text-xs text-muted-foreground italic">Chưa phát hiện món ăn Câu đố.</p>
+                            <p
+                                v-else
+                                class="text-xs text-muted-foreground italic"
+                            >
+                                Chưa phát hiện món ăn Câu đố.
+                            </p>
                         </div>
 
                         <!-- Dogs -->
-                        <div class="rounded-xl border border-red-500/20 bg-red-500/[0.02] p-4 space-y-2">
-                            <h4 class="text-xs font-extrabold text-red-600 dark:text-red-400 uppercase tracking-wide flex items-center gap-1">
-                                <span>🐶</span> Dogs (Món ăn Thú cưng - {{ bcgStats.dog.length }} món)
+                        <div
+                            class="space-y-2 rounded-xl border border-red-500/20 bg-red-500/[0.02] p-4"
+                        >
+                            <h4
+                                class="flex items-center gap-1 text-xs font-extrabold tracking-wide text-red-600 uppercase dark:text-red-400"
+                            >
+                                <span>🐶</span> Dogs (Món ăn Thú cưng -
+                                {{ bcgStats.dog.length }} món)
                             </h4>
-                            <ul v-if="bcgStats.dog.length" class="space-y-1.5 text-xs text-slate-600 dark:text-slate-350">
-                                <li v-for="item in bcgStats.dog" :key="item.product_id">
-                                    • <strong class="text-slate-900 dark:text-white">{{ item.name }}</strong>: {{ item.ai_recommendation }}
+                            <ul
+                                v-if="bcgStats.dog.length"
+                                class="dark:text-slate-350 space-y-1.5 text-xs text-slate-600"
+                            >
+                                <li
+                                    v-for="item in bcgStats.dog"
+                                    :key="item.product_id"
+                                >
+                                    •
+                                    <strong
+                                        class="text-slate-900 dark:text-white"
+                                        >{{ item.name }}</strong
+                                    >: {{ item.ai_recommendation }}
                                 </li>
                             </ul>
-                            <p v-else class="text-xs text-muted-foreground italic">Chưa phát hiện món ăn Thú cưng.</p>
+                            <p
+                                v-else
+                                class="text-xs text-muted-foreground italic"
+                            >
+                                Chưa phát hiện món ăn Thú cưng.
+                            </p>
                         </div>
                     </div>
                 </div>

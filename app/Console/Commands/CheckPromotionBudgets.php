@@ -8,6 +8,7 @@ use Illuminate\Console\Command;
 class CheckPromotionBudgets extends Command
 {
     protected $signature = 'promotions:check-budgets';
+
     protected $description = 'Deactivate promotions that have exhausted their budget cap';
 
     public function handle(): int

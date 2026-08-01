@@ -8,6 +8,7 @@ use App\Models\RecurringExpense;
 use App\Services\ProfitLossService;
 use App\Services\QuotaService;
 use App\Support\Tenant\TenantContext;
+use App\Support\TenantRule;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -181,7 +182,7 @@ class ExpenseController extends Controller
         abort_unless($request->user()->hasAnyRole(['owner', 'manager']), 403);
 
         $data = $request->validate([
-            'category_id' => ['nullable', \App\Support\TenantRule::exists('expense_categories')],
+            'category_id' => ['nullable', TenantRule::exists('expense_categories')],
             'amount' => ['required', 'numeric', 'min:0'],
             'expense_date' => ['required', 'date'],
             'description' => ['nullable', 'string', 'max:1000'],
@@ -218,7 +219,7 @@ class ExpenseController extends Controller
         abort_unless($request->user()->canAccessBranch($expense->branch_id), 403);
 
         $data = $request->validate([
-            'category_id' => ['nullable', \App\Support\TenantRule::exists('expense_categories')],
+            'category_id' => ['nullable', TenantRule::exists('expense_categories')],
             'amount' => ['required', 'numeric', 'min:0'],
             'expense_date' => ['required', 'date'],
             'description' => ['nullable', 'string', 'max:1000'],
@@ -267,7 +268,7 @@ class ExpenseController extends Controller
         abort_unless($request->user()->hasAnyRole(['owner', 'manager']), 403);
 
         $data = $request->validate([
-            'category_id' => ['required', \App\Support\TenantRule::exists('expense_categories')],
+            'category_id' => ['required', TenantRule::exists('expense_categories')],
             'name' => ['required', 'string', 'max:255'],
             'amount' => ['required', 'numeric', 'min:0'],
             'frequency' => ['required', 'in:weekly,monthly,quarterly,yearly'],
@@ -302,7 +303,7 @@ class ExpenseController extends Controller
         abort_unless($request->user()->canAccessBranch($recurring->branch_id), 403);
 
         $data = $request->validate([
-            'category_id' => ['sometimes', 'required', \App\Support\TenantRule::exists('expense_categories')],
+            'category_id' => ['sometimes', 'required', TenantRule::exists('expense_categories')],
             'name' => ['sometimes', 'required', 'string', 'max:255'],
             'amount' => ['sometimes', 'required', 'numeric', 'min:0'],
             'frequency' => ['sometimes', 'required', 'in:weekly,monthly,quarterly,yearly'],

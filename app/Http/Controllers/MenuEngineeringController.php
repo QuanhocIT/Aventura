@@ -6,6 +6,7 @@ use App\Models\MenuPriceTest;
 use App\Models\Product;
 use App\Services\MenuInsightService;
 use App\Services\QuotaService;
+use App\Support\TenantRule;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -63,7 +64,7 @@ class MenuEngineeringController extends Controller
     {
         $data = $request->validate([
             'items' => ['required', 'array'],
-            'items.*.id' => ['required', 'integer', \App\Support\TenantRule::exists('products')],
+            'items.*.id' => ['required', 'integer', TenantRule::exists('products')],
             'items.*.display_order' => ['required', 'integer', 'min:0'],
         ]);
 
@@ -91,7 +92,7 @@ class MenuEngineeringController extends Controller
     public function storePriceTest(Request $request): RedirectResponse
     {
         $data = $request->validate([
-            'product_id' => ['required', \App\Support\TenantRule::exists('products')],
+            'product_id' => ['required', TenantRule::exists('products')],
             'name' => ['required', 'string', 'max:100'],
             'test_price' => ['required', 'numeric', 'min:1000'],
             'start_at' => ['required', 'date', 'after_or_equal:today'],

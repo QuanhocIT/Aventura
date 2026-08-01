@@ -2,22 +2,21 @@
 
 namespace Tests\Feature;
 
+use App\Models\Area;
+use App\Models\CustomerFeedback;
+use App\Models\Employee;
 use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\Product;
 use App\Models\Promotion;
-use App\Models\AuditLog;
 use App\Models\Restaurant;
 use App\Models\RestaurantBranch;
 use App\Models\RestaurantTable;
-use App\Models\User;
-use App\Models\Employee;
-use App\Models\WorkShift;
 use App\Models\ScheduleAssignment;
-use App\Models\CustomerFeedback;
+use App\Models\User;
+use App\Models\WorkShift;
 use App\Support\Tenant\TenantContext;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Facades\Http;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
@@ -26,13 +25,21 @@ class CustomerFeedbackTest extends TestCase
     use RefreshDatabase;
 
     private User $owner;
+
     private User $manager;
+
     private User $cashier;
+
     private Employee $cashierEmp;
+
     private Restaurant $restaurant;
+
     private RestaurantBranch $branch;
+
     private Role $ownerRole;
+
     private Role $managerRole;
+
     private Role $cashierRole;
 
     protected function setUp(): void
@@ -65,7 +72,7 @@ class CustomerFeedbackTest extends TestCase
         $this->manager = User::factory()->create([
             'restaurant_id' => $this->restaurant->id,
             'branch_id' => $this->branch->id,
-            'status' => 'active'
+            'status' => 'active',
         ]);
         $this->manager->assignRole($this->managerRole);
 
@@ -90,7 +97,7 @@ class CustomerFeedbackTest extends TestCase
         $this->cashier = User::factory()->create([
             'restaurant_id' => $this->restaurant->id,
             'branch_id' => $this->branch->id,
-            'status' => 'active'
+            'status' => 'active',
         ]);
         $this->cashier->assignRole($this->cashierRole);
 
@@ -255,13 +262,13 @@ class CustomerFeedbackTest extends TestCase
         app(TenantContext::class)->setRestaurantId($this->restaurant->id);
 
         $product = Product::factory()->create(['name' => 'Súp Gà Ngô Non', 'restaurant_id' => $this->restaurant->id]);
-        
-        $area = \App\Models\Area::create([
+
+        $area = Area::create([
             'restaurant_id' => $this->restaurant->id,
             'branch_id' => $this->branch->id,
             'name' => 'Khu A',
             'code' => 'khu-a',
-            'status' => 'active'
+            'status' => 'active',
         ]);
 
         $table = RestaurantTable::create([
@@ -309,7 +316,7 @@ class CustomerFeedbackTest extends TestCase
 
         // Kiểm tra xem dữ liệu map trả về trong Inertia render có chính xác ca chịu trách nhiệm
         $feedbacksData = $response->original->getData()['page']['props']['feedbacks'];
-        
+
         $targetFb = collect($feedbacksData)->firstWhere('id', $feedback->id);
         $this->assertNotNull($targetFb);
         $this->assertEquals('Ca Chieu', $targetFb['responsible_shift']);
@@ -343,16 +350,16 @@ class CustomerFeedbackTest extends TestCase
                 [
                     'product_id' => 10,
                     'rating' => 4,
-                    'comment' => 'Ngon nhưng hơi nguội'
-                ]
+                    'comment' => 'Ngon nhưng hơi nguội',
+                ],
             ],
             'staff_rating' => [
                 [
                     'employee_id' => $this->cashierEmp->id,
                     'rating' => 5,
-                    'comment' => 'Nhiệt tình'
-                ]
-            ]
+                    'comment' => 'Nhiệt tình',
+                ],
+            ],
         ]);
 
         $response->assertStatus(200)

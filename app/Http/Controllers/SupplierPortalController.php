@@ -9,6 +9,7 @@ use App\Models\Supplier;
 use App\Models\SupplierPriceHistory;
 use App\Models\SystemSetting;
 use App\Models\Unit;
+use App\Support\TenantRule;
 use Carbon\Carbon;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -155,7 +156,7 @@ class SupplierPortalController extends Controller
             'name' => ['required', 'string', 'max:255'],
             'sku' => ['required', 'string', 'max:100'],
             'price' => ['required', 'numeric', 'min:0'],
-            'unit_id' => ['required', 'integer', \App\Support\TenantRule::exists('units', restaurantId: (int) $supplier->restaurant_id)],
+            'unit_id' => ['required', 'integer', TenantRule::exists('units', restaurantId: (int) $supplier->restaurant_id)],
             'category_name' => ['nullable', 'string', 'max:100'],
             'description' => ['nullable', 'string'],
             'status' => ['required', 'in:active,inactive'],

@@ -2,24 +2,25 @@
 
 namespace Tests\Feature;
 
+use App\Mail\DebtReminderMail;
 use App\Models\AccountPayable;
 use App\Models\AccountReceivable;
 use App\Models\Customer;
 use App\Models\Ingredient;
 use App\Models\Order;
-use App\Models\OrderItem;
 use App\Models\Payment;
+use App\Models\Product;
 use App\Models\PurchaseOrder;
 use App\Models\Restaurant;
 use App\Models\RestaurantBranch;
 use App\Models\Supplier;
+use App\Models\Unit;
 use App\Models\User;
-use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Mail;
 use Spatie\Permission\Models\Role;
-use App\Mail\DebtReminderMail;
 use Tests\TestCase;
 
 class DebtManagementTest extends TestCase
@@ -27,9 +28,13 @@ class DebtManagementTest extends TestCase
     use RefreshDatabase;
 
     protected User $owner;
+
     protected Restaurant $restaurant;
+
     protected RestaurantBranch $branch;
+
     protected Supplier $supplier;
+
     protected Ingredient $ingredient;
 
     protected function setUp(): void
@@ -66,7 +71,7 @@ class DebtManagementTest extends TestCase
             'status' => 'active',
         ]);
 
-        $unit = \App\Models\Unit::create([
+        $unit = Unit::create([
             'restaurant_id' => $this->restaurant->id,
             'name' => 'Cái',
             'symbol' => 'cai',
@@ -95,14 +100,14 @@ class DebtManagementTest extends TestCase
                 [
                     'ingredient_id' => $this->ingredient->id,
                     'quantity' => 10,
-                ]
+                ],
             ],
             'notes' => 'Test PO',
         ]);
 
         $response->assertSessionHasNoErrors();
         $response->assertRedirect();
-        
+
         $po = PurchaseOrder::where('supplier_id', $this->supplier->id)->first();
         $this->assertNotNull($po);
         $this->assertEquals('NET_30', $po->payment_terms);
@@ -139,7 +144,7 @@ class DebtManagementTest extends TestCase
                     'ingredient_id' => $this->ingredient->id,
                     'quantity_received' => 10,
                     'invoice_price' => 10000,
-                ]
+                ],
             ],
             'rating' => 5,
             'rating_notes' => 'Good',
@@ -164,7 +169,7 @@ class DebtManagementTest extends TestCase
      */
     public function test_order_pay_with_debt_method()
     {
-        $product = \App\Models\Product::create([
+        $product = Product::create([
             'restaurant_id' => $this->restaurant->id,
             'name' => 'Coca Cola',
             'code' => 'COCA-COLA',
@@ -229,7 +234,7 @@ class DebtManagementTest extends TestCase
             'payment_method' => 'debt',
             'customer_id' => $customer->id,
         ]);
-        
+
         $response->assertSessionHasNoErrors();
         $response->assertRedirect();
 
@@ -266,10 +271,10 @@ class DebtManagementTest extends TestCase
             'payment_method' => 'bank_transfer',
             'notes' => 'Partial repayment',
         ]);
-        
+
         $response->assertSessionHasNoErrors();
         $response->assertRedirect();
-        
+
         $payable->refresh();
         $this->assertEquals(20000, $payable->paid_amount);
         $this->assertEquals('partially_paid', $payable->status);
@@ -298,7 +303,7 @@ class DebtManagementTest extends TestCase
             'payment_method' => 'cash',
             'notes' => 'Full collection',
         ]);
-        
+
         $response->assertSessionHasNoErrors();
         $response->assertRedirect();
 
@@ -344,7 +349,7 @@ class DebtManagementTest extends TestCase
             'status' => 'unpaid',
         ]);
 
-        \Illuminate\Support\Facades\Cache::flush();
+        Cache::flush();
         $exitCode = Artisan::call('debts:send-reminders');
         $this->assertEquals(0, $exitCode);
 

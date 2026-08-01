@@ -103,32 +103,32 @@ const colors = computed(() => colorClasses[props.color] ?? colorClasses.sky);
 
 const trendIcon = computed(() => {
     if (props.trend === 'up') {
-return TrendingUp;
-}
+        return TrendingUp;
+    }
 
     if (props.trend === 'down') {
-return TrendingDown;
-}
+        return TrendingDown;
+    }
 
     return Minus;
 });
 
 const trendColor = computed(() => {
     if (props.trend === 'up') {
-return 'text-emerald-600 dark:text-emerald-400';
-}
+        return 'text-emerald-600 dark:text-emerald-400';
+    }
 
     if (props.trend === 'down') {
-return 'text-rose-600 dark:text-rose-400';
-}
+        return 'text-rose-600 dark:text-rose-400';
+    }
 
     return 'text-muted-foreground';
 });
 
 const sparklinePoints = computed(() => {
     if (!props.sparkline?.length) {
-return '';
-}
+        return '';
+    }
 
     const max = Math.max(...props.sparkline);
     const min = Math.min(...props.sparkline);

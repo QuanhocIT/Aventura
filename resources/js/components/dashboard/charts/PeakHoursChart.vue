@@ -81,27 +81,43 @@ const hoveredBar = computed(() =>
 <template>
     <Deferred data="peakHoursChartData">
         <template #fallback>
-            <Card class="border border-border bg-card text-card-foreground shadow-sm">
-                <CardContent class="h-[270px] w-full animate-pulse flex flex-col items-center justify-center p-6 gap-3">
-                    <Activity class="size-6 text-slate-400 animate-pulse" />
-                    <span class="text-xs text-slate-400 font-bold tracking-tight">Đang tải biểu đồ giờ cao điểm...</span>
+            <Card
+                class="border border-border bg-card text-card-foreground shadow-sm"
+            >
+                <CardContent
+                    class="flex h-[270px] w-full animate-pulse flex-col items-center justify-center gap-3 p-6"
+                >
+                    <Activity class="size-6 animate-pulse text-slate-400" />
+                    <span
+                        class="text-xs font-bold tracking-tight text-slate-400"
+                        >Đang tải biểu đồ giờ cao điểm...</span
+                    >
                 </CardContent>
             </Card>
         </template>
 
-        <Card class="overflow-hidden border border-border bg-card text-card-foreground shadow-sm transition-all duration-300 hover:shadow-md">
-            <CardHeader class="border-b border-border/50 bg-slate-50/40 pb-3 dark:bg-slate-900/20">
+        <Card
+            class="overflow-hidden border border-border bg-card text-card-foreground shadow-sm transition-all duration-300 hover:shadow-md"
+        >
+            <CardHeader
+                class="border-b border-border/50 bg-slate-50/40 pb-3 dark:bg-slate-900/20"
+            >
                 <div class="flex flex-wrap items-center justify-between gap-2">
                     <div>
-                        <CardTitle class="flex items-center gap-2 text-sm font-black text-foreground">
+                        <CardTitle
+                            class="flex items-center gap-2 text-sm font-black text-foreground"
+                        >
                             <Activity class="size-4 text-rose-500" />
                             Phân phối giờ cao điểm
                         </CardTitle>
                         <p class="mt-0.5 text-xs text-muted-foreground">
-                            Tần suất đơn hàng theo các giờ trong ngày (30 ngày qua)
+                            Tần suất đơn hàng theo các giờ trong ngày (30 ngày
+                            qua)
                         </p>
                     </div>
-                    <div class="flex items-center gap-1.5 rounded-full bg-rose-500/10 px-2.5 py-0.5 text-[11px] font-bold text-rose-600 dark:text-rose-400">
+                    <div
+                        class="flex items-center gap-1.5 rounded-full bg-rose-500/10 px-2.5 py-0.5 text-[11px] font-bold text-rose-600 dark:text-rose-400"
+                    >
                         <Flame class="size-3.5" />
                         Cao điểm: 11h–13h & 18h–20h
                     </div>
@@ -119,10 +135,17 @@ const hoveredBar = computed(() =>
                     }"
                 >
                     <p class="font-bold text-slate-300">
-                        Khung {{ hoveredBar.raw.hour }}:00 - {{ hoveredBar.raw.hour + 1 }}:00
-                        <span v-if="isPeakHour(hoveredBar.raw.hour)" class="ml-1 text-rose-400">🔥 Peak</span>
+                        Khung {{ hoveredBar.raw.hour }}:00 -
+                        {{ hoveredBar.raw.hour + 1 }}:00
+                        <span
+                            v-if="isPeakHour(hoveredBar.raw.hour)"
+                            class="ml-1 text-rose-400"
+                            >🔥 Peak</span
+                        >
                     </p>
-                    <p class="mt-0.5 font-mono text-sm font-black text-amber-400">
+                    <p
+                        class="mt-0.5 font-mono text-sm font-black text-amber-400"
+                    >
                         {{ hoveredBar.raw.count.toLocaleString() }} đơn hàng
                     </p>
                 </div>
@@ -252,7 +275,7 @@ const hoveredBar = computed(() =>
                                 rx="4"
                                 class="cursor-pointer transition-all duration-200"
                                 :class="{
-                                    'opacity-100 brightness-115 filter drop-shadow-md':
+                                    'opacity-100 brightness-115 drop-shadow-md filter':
                                         hoveredIdx === bar.index,
                                     'opacity-80':
                                         hoveredIdx !== null &&
@@ -267,7 +290,7 @@ const hoveredBar = computed(() =>
                                 :x="bar.x + bar.width / 2"
                                 :y="VIEW_HEIGHT - PADDING_BOTTOM + 16"
                                 text-anchor="middle"
-                                class="transition-colors duration-150 font-sans text-[10px] font-semibold"
+                                class="font-sans text-[10px] font-semibold transition-colors duration-150"
                                 :class="[
                                     hoveredIdx === bar.index
                                         ? 'fill-foreground font-extrabold'

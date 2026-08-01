@@ -23,7 +23,7 @@ class GenerateDailyRevenueReport extends Command
             ? Carbon::parse($this->argument('date'))->toDateString()
             : today()->toDateString();
 
-        $noEmail      = $this->option('no-email');
+        $noEmail = $this->option('no-email');
         $restaurantId = $this->option('restaurant');
 
         $this->info("Bắt đầu tạo báo cáo ngày {$date}...");
@@ -40,7 +40,7 @@ class GenerateDailyRevenueReport extends Command
         try {
             $data = $service->generateForRestaurant($restaurantId, $date);
             $data = $service->fillComparison($data);
-            $this->info("✓ Restaurant #{$restaurantId} ({$data['restaurant_name']}): net_revenue = " . number_format($data['net_revenue'], 0, ',', '.') . 'đ');
+            $this->info("✓ Restaurant #{$restaurantId} ({$data['restaurant_name']}): net_revenue = ".number_format($data['net_revenue'], 0, ',', '.').'đ');
 
             if (! $noEmail && ! empty($data['owner_email'])) {
                 SendDailyReportEmail::dispatch($restaurantId, $date);
@@ -50,6 +50,7 @@ class GenerateDailyRevenueReport extends Command
             return Command::SUCCESS;
         } catch (\Throwable $e) {
             $this->error("✗ Restaurant #{$restaurantId}: {$e->getMessage()}");
+
             return Command::FAILURE;
         }
     }
@@ -57,8 +58,8 @@ class GenerateDailyRevenueReport extends Command
     private function processAll(string $date, bool $noEmail, DailyReportService $service): int
     {
         $processed = 0;
-        $failed    = 0;
-        $skipped   = 0;
+        $failed = 0;
+        $skipped = 0;
 
         Restaurant::where('status', 'active')
             ->with('owner')
@@ -67,6 +68,7 @@ class GenerateDailyRevenueReport extends Command
                     if (empty($restaurant->owner?->email)) {
                         $this->line("  - Skip #{$restaurant->id} ({$restaurant->name}): không có owner email");
                         $skipped++;
+
                         continue;
                     }
 
@@ -98,7 +100,7 @@ class GenerateDailyRevenueReport extends Command
         $this->info("Hoàn tất: {$processed} thành công, {$failed} lỗi, {$skipped} bỏ qua.");
 
         if (! $noEmail && $processed > 0) {
-            $this->info("Email được dispatch vào queue.");
+            $this->info('Email được dispatch vào queue.');
         }
 
         return $failed > 0 ? Command::FAILURE : Command::SUCCESS;

@@ -2,7 +2,6 @@
 
 namespace Tests\Feature;
 
-use App\Models\AuditLog;
 use App\Models\Restaurant;
 use App\Models\RestaurantFollowup;
 use App\Models\RestaurantInternalNote;
@@ -22,6 +21,7 @@ class SuperAdminCrmAndMaintenanceTest extends TestCase
     use RefreshDatabase;
 
     private User $admin;
+
     private Restaurant $restaurant;
 
     protected function setUp(): void

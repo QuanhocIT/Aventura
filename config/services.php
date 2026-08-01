@@ -25,9 +25,9 @@ return [
     ],
 
     'google' => [
-        'client_id'     => env('GOOGLE_CLIENT_ID'),
+        'client_id' => env('GOOGLE_CLIENT_ID'),
         'client_secret' => env('GOOGLE_CLIENT_SECRET'),
-        'redirect'      => env('GOOGLE_REDIRECT_URI'),
+        'redirect' => env('GOOGLE_REDIRECT_URI'),
     ],
 
     'sepay' => [
@@ -37,7 +37,6 @@ return [
         'checkout_url' => env('SEPAY_CHECKOUT_URL', 'https://qr.sepay.vn/img'),
         'qr_template' => env('SEPAY_QR_TEMPLATE', 'compact'),
     ],
-
 
     'email_microservice' => [
         'url' => env('EMAIL_SERVICE_URL', ''),

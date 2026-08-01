@@ -24,13 +24,13 @@ return new class extends Migration
         $now = now();
 
         foreach ($restaurants as $r) {
-            $slug = $r->slug ?: Str::slug($r->name) . '-' . Str::lower(Str::random(4));
+            $slug = $r->slug ?: Str::slug($r->name).'-'.Str::lower(Str::random(4));
 
             DB::table('online_store_configs')->insert([
                 'restaurant_id' => $r->id,
                 'is_active' => true,
                 'slug' => $slug,
-                'description' => 'Đặt món trực tuyến tại ' . $r->name,
+                'description' => 'Đặt món trực tuyến tại '.$r->name,
                 'min_order_amount' => 0,
                 'delivery_base_fee' => 15000,
                 'delivery_fee_per_km' => 5000,

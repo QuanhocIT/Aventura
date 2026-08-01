@@ -10,6 +10,7 @@ use App\Services\CdpService;
 use App\Services\MaterializedViewRefresher;
 use App\Services\QuotaService;
 use App\Support\MaterializedViews\MaterializedViewReader;
+use App\Support\TenantRule;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -160,7 +161,7 @@ class CdpController extends Controller
             'restaurant_id' => ['required', 'integer'],
             'session_id' => ['required', 'string', 'max:255'],
             'event_type' => ['required', 'string', 'max:100'],
-            'product_id' => ['nullable', 'integer', \App\Support\TenantRule::exists('products')],
+            'product_id' => ['nullable', 'integer', TenantRule::exists('products')],
             'quantity' => ['nullable', 'numeric'],
             'meta_data' => ['nullable', 'array'],
             'customer_phone' => ['nullable', 'string', 'max:20'],

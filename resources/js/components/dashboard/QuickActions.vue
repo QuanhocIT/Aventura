@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { usePage } from '@inertiajs/vue3';
-import { computed } from 'vue';
 import {
     ShoppingCart,
     Package,
@@ -11,6 +10,7 @@ import {
     PlusCircle,
     Receipt,
 } from 'lucide-vue-next';
+import { computed } from 'vue';
 
 const page = usePage();
 const roles = computed<string[]>(() => (page.props as any).roles ?? []);
@@ -76,12 +76,15 @@ const allActions = [
 
 const quickActions = computed(() => {
     const userRoles = roles.value;
-    if (!userRoles || userRoles.length === 0) return allActions.slice(0, 6);
+
+    if (!userRoles || userRoles.length === 0) {
+        return allActions.slice(0, 6);
+    }
 
     // Ưu tiên hiển thị các mục thuộc vai trò người dùng
-    return allActions.filter(action => 
-        action.roles.some(r => userRoles.includes(r))
-    ).slice(0, 6);
+    return allActions
+        .filter((action) => action.roles.some((r) => userRoles.includes(r)))
+        .slice(0, 6);
 });
 </script>
 

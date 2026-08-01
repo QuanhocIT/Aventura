@@ -69,8 +69,8 @@ async function fetchTracking() {
 
 onMounted(() => {
     if (!tracking.value) {
-fetchTracking();
-}
+        fetchTracking();
+    }
 
     pollInterval = setInterval(fetchTracking, 15000);
 

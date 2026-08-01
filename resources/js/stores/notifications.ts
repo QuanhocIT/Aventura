@@ -46,7 +46,10 @@ export const useNotificationsStore = defineStore('notifications', {
 
         unreadAlerts: (state) =>
             state.notifications.filter(
-                (n) => !n.read && n.severity !== 'info' && n.severity !== 'success',
+                (n) =>
+                    !n.read &&
+                    n.severity !== 'info' &&
+                    n.severity !== 'success',
             ),
 
         latestUnread: (state): AppNotification | null =>
@@ -79,8 +82,8 @@ export const useNotificationsStore = defineStore('notifications', {
             const n = this.notifications.find((n) => n.id === id);
 
             if (n) {
-n.read = true;
-}
+                n.read = true;
+            }
         },
 
         markAllRead() {
@@ -134,7 +137,11 @@ n.read = true;
         /**
          * Helper: push cảnh báo bếp quá giờ SLA
          */
-        pushKitchenLate(itemName: string, tableName: string, minutesLate: number) {
+        pushKitchenLate(
+            itemName: string,
+            tableName: string,
+            minutesLate: number,
+        ) {
             this.push({
                 type: 'kitchen_late',
                 title: 'Món vượt SLA',

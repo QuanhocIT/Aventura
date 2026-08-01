@@ -48,7 +48,7 @@ return new class extends Migration
         if ($superAdminRole) {
             $systemAdminRole = Role::where('name', 'system_admin')->first();
             foreach ($superAdminRole->users as $user) {
-                if (!$user->hasRole('system_admin')) {
+                if (! $user->hasRole('system_admin')) {
                     $user->assignRole($systemAdminRole);
                 }
             }

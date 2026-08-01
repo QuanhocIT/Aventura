@@ -12,7 +12,8 @@ trait GeneratesSignedCaptcha
     protected function generateCaptchaToken(string $answer, int $ttlSeconds = 600): string
     {
         $expiry = time() + $ttlSeconds;
-        return Crypt::encryptString($answer . '|' . $expiry);
+
+        return Crypt::encryptString($answer.'|'.$expiry);
     }
 
     /**
@@ -33,11 +34,11 @@ trait GeneratesSignedCaptcha
 
             [$expectedAnswer, $expiry] = $parts;
 
-            if (time() > (int)$expiry) {
+            if (time() > (int) $expiry) {
                 return false; // Expired
             }
 
-            return (int)$answer === (int)$expectedAnswer;
+            return (int) $answer === (int) $expectedAnswer;
         } catch (\Throwable) {
             return false;
         }

@@ -34,12 +34,13 @@ class PurgeOldOrderArchives extends Command
     {
         if (DB::connection()->getDriverName() !== 'mysql') {
             $this->warn('orders:purge chỉ hỗ trợ MySQL/MariaDB. Bỏ qua.');
+
             return self::SUCCESS;
         }
 
-        $months  = (int) $this->option('months');
+        $months = (int) $this->option('months');
         $confirm = (bool) $this->option('confirm');
-        $cutoff  = now()->subMonths($months)->startOfMonth();
+        $cutoff = now()->subMonths($months)->startOfMonth();
 
         $this->info("orders:purge — retention {$months} tháng (cutoff: {$cutoff->format('Y-m')})");
         $this->info($confirm ? '⚠️  Chế độ THỰC THI — các partition sẽ bị DROP vĩnh viễn.' : '🔍 Chế độ DRY-RUN — không có thay đổi nào được thực hiện.');
@@ -54,7 +55,7 @@ class PurgeOldOrderArchives extends Command
 
         $this->newLine();
         $verb = $confirm ? 'đã DROP' : 'sẽ được DROP (dry-run)';
-        $this->info("Hoàn tất: {$totalDropped} partition {$verb} trên tổng " . count(self::ARCHIVE_TABLES) . ' bảng.');
+        $this->info("Hoàn tất: {$totalDropped} partition {$verb} trên tổng ".count(self::ARCHIVE_TABLES).' bảng.');
 
         if (! $confirm && $totalDropped > 0) {
             $this->comment('👆 Chạy lại với --confirm để thực sự xóa các partition trên.');
@@ -69,6 +70,7 @@ class PurgeOldOrderArchives extends Command
 
         if (empty($partitions)) {
             $this->warn("  {$table}: không tìm thấy partition (bảng chưa được phân vùng?)");
+
             return 0;
         }
 
@@ -96,18 +98,19 @@ class PurgeOldOrderArchives extends Command
 
         if (empty($toDrop)) {
             $this->line("  ✓ {$table}: không có partition nào cần xóa (tất cả trong retention {$cutoff->diffInMonths(now())} tháng).");
+
             return 0;
         }
 
         $list = implode(', ', $toDrop);
-        $this->line("  🗑  {$table}: " . count($toDrop) . " partition sẽ bị DROP [{$list}]");
+        $this->line("  🗑  {$table}: ".count($toDrop)." partition sẽ bị DROP [{$list}]");
 
         // Hiển thị ước tính dữ liệu sẽ mất (thông tin từ information_schema)
         $this->showPartitionSizes($table, $toDrop);
 
         if ($confirm) {
             DB::statement("ALTER TABLE {$table} DROP PARTITION {$list}");
-            $this->info("  ✅ {$table}: đã DROP " . count($toDrop) . ' partition thành công.');
+            $this->info("  ✅ {$table}: đã DROP ".count($toDrop).' partition thành công.');
         }
 
         return count($toDrop);
@@ -131,11 +134,11 @@ class PurgeOldOrderArchives extends Command
             array_merge([$table], $partitionNames)
         );
 
-        $totalRows  = 0;
+        $totalRows = 0;
         $totalBytes = 0;
 
         foreach ($rows as $row) {
-            $totalRows  += (int) $row->row_estimate;
+            $totalRows += (int) $row->row_estimate;
             $totalBytes += (int) $row->size_bytes;
         }
 

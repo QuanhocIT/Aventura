@@ -18,6 +18,7 @@ class BusinessGoalsTest extends TestCase
     use RefreshDatabase;
 
     private User $owner;
+
     private Restaurant $restaurant;
 
     protected function setUp(): void

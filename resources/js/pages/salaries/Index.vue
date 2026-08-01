@@ -266,7 +266,14 @@ function exportCSV() {
     ];
     const bom = '\uFEFF';
     const csv =
-        bom + rows.map((r) => r.map((v) => `"${String(v ?? '').replace(/"/g, '""')}"`).join(';')).join('\r\n');
+        bom +
+        rows
+            .map((r) =>
+                r
+                    .map((v) => `"${String(v ?? '').replace(/"/g, '""')}"`)
+                    .join(';'),
+            )
+            .join('\r\n');
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -307,8 +314,8 @@ const actionProcessing = ref(false);
 
 function approveSalary(salary: SalaryRow) {
     if (actionProcessing.value) {
-return;
-}
+        return;
+    }
 
     actionProcessing.value = true;
     router.patch(
@@ -327,8 +334,8 @@ return;
 
 function markPaid(salary: SalaryRow) {
     if (actionProcessing.value) {
-return;
-}
+        return;
+    }
 
     actionProcessing.value = true;
     router.patch(
@@ -395,16 +402,16 @@ const showBulkApproveModal = ref(false);
 
 function openBulkApproveModal() {
     if (selectedIds.value.length === 0) {
-return;
-}
+        return;
+    }
 
     showBulkApproveModal.value = true;
 }
 
 function submitBulkApprove() {
     if (selectedIds.value.length === 0 || bulkApproving.value) {
-return;
-}
+        return;
+    }
 
     bulkApproving.value = true;
     router.post(
@@ -412,11 +419,14 @@ return;
         { salary_ids: selectedIds.value },
         {
             onSuccess: () => {
-                toast.success(`Đã phê duyệt thành công ${selectedIds.value.length} bảng lương!`);
+                toast.success(
+                    `Đã phê duyệt thành công ${selectedIds.value.length} bảng lương!`,
+                );
                 selectedIds.value = [];
                 showBulkApproveModal.value = false;
             },
-            onError: () => toast.error('Có lỗi xảy ra khi phê duyệt hàng loạt.'),
+            onError: () =>
+                toast.error('Có lỗi xảy ra khi phê duyệt hàng loạt.'),
             onFinish: () => {
                 bulkApproving.value = false;
             },
@@ -459,8 +469,8 @@ function openBulkDialog() {
 
 function submitBulkAdj() {
     if (bulkForm.processing) {
-return;
-}
+        return;
+    }
 
     bulkForm.salary_ids = selectedIds.value;
     bulkForm.post('/salaries/adjustments/bulk', {
@@ -497,8 +507,8 @@ function openAdjDialog(salary: SalaryRow) {
 
 function submitAdj() {
     if (adjForm.processing) {
-return;
-}
+        return;
+    }
 
     if (!adjTarget.value) {
         return;
@@ -891,10 +901,15 @@ const compact = (v: number) =>
                             <!-- Nhân viên -->
                             <div class="min-w-0">
                                 <div class="flex items-center gap-2">
-                                    <p class="truncate text-sm font-bold text-slate-900 dark:text-white">
+                                    <p
+                                        class="truncate text-sm font-bold text-slate-900 dark:text-white"
+                                    >
                                         {{ s.employee_name }}
                                     </p>
-                                    <TrustScoreBadge :score="s.trust_score" :show-label="false" />
+                                    <TrustScoreBadge
+                                        :score="s.trust_score"
+                                        :show-label="false"
+                                    />
                                     <!-- Cảnh báo khi có khiếu nại (Disputed) -->
                                     <span
                                         v-if="
@@ -910,18 +925,30 @@ const compact = (v: number) =>
                                         KHIẾU NẠI
                                     </span>
                                 </div>
-                                <div class="mt-1 flex items-center gap-2 text-[10px] font-medium text-slate-400">
-                                    <span>{{ s.job_title || 'Nhân viên' }}</span>
+                                <div
+                                    class="mt-1 flex items-center gap-2 text-[10px] font-medium text-slate-400"
+                                >
+                                    <span>{{
+                                        s.job_title || 'Nhân viên'
+                                    }}</span>
                                     <span>·</span>
                                     <span
                                         class="inline-flex items-center gap-1 rounded px-1.5 py-0.5 font-bold"
                                         :class="{
-                                            'bg-indigo-50 text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-300': s.compensation_type === 'fixed',
-                                            'bg-purple-50 text-purple-700 dark:bg-purple-950/40 dark:text-purple-300': s.compensation_type === 'hourly',
-                                            'bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300': s.compensation_type === 'shift',
+                                            'bg-indigo-50 text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-300':
+                                                s.compensation_type === 'fixed',
+                                            'bg-purple-50 text-purple-700 dark:bg-purple-950/40 dark:text-purple-300':
+                                                s.compensation_type ===
+                                                'hourly',
+                                            'bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300':
+                                                s.compensation_type === 'shift',
                                         }"
                                     >
-                                        {{ s.breakdown?.compensation_type_label || 'Lương cố định' }}
+                                        {{
+                                            s.breakdown
+                                                ?.compensation_type_label ||
+                                            'Lương cố định'
+                                        }}
                                     </span>
                                 </div>
                             </div>
@@ -1017,49 +1044,162 @@ const compact = (v: number) =>
                                         class="flex flex-col justify-between space-y-3 rounded-2xl border border-indigo-100 bg-white p-4 shadow-sm dark:border-indigo-900/30 dark:bg-slate-950"
                                     >
                                         <div>
-                                            <div class="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
-                                                <p class="flex items-center gap-1.5 text-xs font-bold text-indigo-700 dark:text-indigo-300">
-                                                    <Calculator class="size-4 text-indigo-600" />
-                                                    Giải Trình Công Thức Lương Gốc
+                                            <div
+                                                class="flex items-center justify-between border-b border-slate-100 pb-2 dark:border-slate-800"
+                                            >
+                                                <p
+                                                    class="flex items-center gap-1.5 text-xs font-bold text-indigo-700 dark:text-indigo-300"
+                                                >
+                                                    <Calculator
+                                                        class="size-4 text-indigo-600"
+                                                    />
+                                                    Giải Trình Công Thức Lương
+                                                    Gốc
                                                 </p>
-                                                <span class="rounded bg-indigo-50 px-2 py-0.5 text-[10px] font-black text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-300">
-                                                    {{ s.breakdown?.compensation_type_label }}
+                                                <span
+                                                    class="rounded bg-indigo-50 px-2 py-0.5 text-[10px] font-black text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-300"
+                                                >
+                                                    {{
+                                                        s.breakdown
+                                                            ?.compensation_type_label
+                                                    }}
                                                 </span>
                                             </div>
 
                                             <!-- Formular text callout -->
-                                            <div class="mt-3 rounded-xl border border-indigo-200/60 bg-indigo-50/50 p-3 text-xs font-mono font-bold text-indigo-900 dark:border-indigo-900/40 dark:bg-indigo-950/30 dark:text-indigo-200">
-                                                <p class="text-[10px] font-bold uppercase tracking-wider text-indigo-500">Công thức thực tính:</p>
-                                                <p class="mt-1 text-xs leading-relaxed">
-                                                    {{ s.breakdown?.formula_text || 'Chưa có thông tin giải trình' }}
+                                            <div
+                                                class="mt-3 rounded-xl border border-indigo-200/60 bg-indigo-50/50 p-3 font-mono text-xs font-bold text-indigo-900 dark:border-indigo-900/40 dark:bg-indigo-950/30 dark:text-indigo-200"
+                                            >
+                                                <p
+                                                    class="text-[10px] font-bold tracking-wider text-indigo-500 uppercase"
+                                                >
+                                                    Công thức thực tính:
+                                                </p>
+                                                <p
+                                                    class="mt-1 text-xs leading-relaxed"
+                                                >
+                                                    {{
+                                                        s.breakdown
+                                                            ?.formula_text ||
+                                                        'Chưa có thông tin giải trình'
+                                                    }}
                                                 </p>
                                             </div>
 
                                             <!-- Mini indicators -->
-                                            <div class="mt-3 grid grid-cols-2 gap-2 text-xs">
-                                                <div class="rounded-lg bg-slate-50 p-2.5 dark:bg-slate-900">
-                                                    <p class="text-[10px] font-medium text-slate-400">Mức lương / Đơn giá</p>
-                                                    <p class="mt-0.5 font-mono font-bold text-slate-800 dark:text-slate-200">
-                                                        {{ s.compensation_type === 'fixed' ? vnd(s.contract_base_salary) : vnd(s.pay_rate) + (s.compensation_type === 'hourly' ? '/h' : '/ca') }}
+                                            <div
+                                                class="mt-3 grid grid-cols-2 gap-2 text-xs"
+                                            >
+                                                <div
+                                                    class="rounded-lg bg-slate-50 p-2.5 dark:bg-slate-900"
+                                                >
+                                                    <p
+                                                        class="text-[10px] font-medium text-slate-400"
+                                                    >
+                                                        Mức lương / Đơn giá
+                                                    </p>
+                                                    <p
+                                                        class="mt-0.5 font-mono font-bold text-slate-800 dark:text-slate-200"
+                                                    >
+                                                        {{
+                                                            s.compensation_type ===
+                                                            'fixed'
+                                                                ? vnd(
+                                                                      s.contract_base_salary,
+                                                                  )
+                                                                : vnd(
+                                                                      s.pay_rate,
+                                                                  ) +
+                                                                  (s.compensation_type ===
+                                                                  'hourly'
+                                                                      ? '/h'
+                                                                      : '/ca')
+                                                        }}
                                                     </p>
                                                 </div>
-                                                <div v-if="s.compensation_type === 'fixed'" class="rounded-lg bg-slate-50 p-2.5 dark:bg-slate-900">
-                                                    <p class="text-[10px] font-medium text-slate-400">Công tính lương</p>
-                                                    <p class="mt-0.5 font-mono font-bold text-slate-800 dark:text-slate-200">
-                                                        {{ s.breakdown?.total_paid_days }}/{{ s.breakdown?.standard_days }} ngày
-                                                        <span class="text-[9px] font-normal text-muted-foreground">({{ s.breakdown?.actual_work_days }} làm + {{ s.breakdown?.paid_leave_days }} phép)</span>
+                                                <div
+                                                    v-if="
+                                                        s.compensation_type ===
+                                                        'fixed'
+                                                    "
+                                                    class="rounded-lg bg-slate-50 p-2.5 dark:bg-slate-900"
+                                                >
+                                                    <p
+                                                        class="text-[10px] font-medium text-slate-400"
+                                                    >
+                                                        Công tính lương
+                                                    </p>
+                                                    <p
+                                                        class="mt-0.5 font-mono font-bold text-slate-800 dark:text-slate-200"
+                                                    >
+                                                        {{
+                                                            s.breakdown
+                                                                ?.total_paid_days
+                                                        }}/{{
+                                                            s.breakdown
+                                                                ?.standard_days
+                                                        }}
+                                                        ngày
+                                                        <span
+                                                            class="text-[9px] font-normal text-muted-foreground"
+                                                            >({{
+                                                                s.breakdown
+                                                                    ?.actual_work_days
+                                                            }}
+                                                            làm +
+                                                            {{
+                                                                s.breakdown
+                                                                    ?.paid_leave_days
+                                                            }}
+                                                            phép)</span
+                                                        >
                                                     </p>
                                                 </div>
-                                                <div v-else-if="s.compensation_type === 'hourly'" class="rounded-lg bg-slate-50 p-2.5 dark:bg-slate-900">
-                                                    <p class="text-[10px] font-medium text-slate-400">Giờ làm & OT</p>
-                                                    <p class="mt-0.5 font-mono font-bold text-slate-800 dark:text-slate-200">
-                                                        {{ s.breakdown?.regular_hours }}h <span class="text-amber-600">(+{{ s.breakdown?.ot_hours }}h OT)</span>
+                                                <div
+                                                    v-else-if="
+                                                        s.compensation_type ===
+                                                        'hourly'
+                                                    "
+                                                    class="rounded-lg bg-slate-50 p-2.5 dark:bg-slate-900"
+                                                >
+                                                    <p
+                                                        class="text-[10px] font-medium text-slate-400"
+                                                    >
+                                                        Giờ làm & OT
+                                                    </p>
+                                                    <p
+                                                        class="mt-0.5 font-mono font-bold text-slate-800 dark:text-slate-200"
+                                                    >
+                                                        {{
+                                                            s.breakdown
+                                                                ?.regular_hours
+                                                        }}h
+                                                        <span
+                                                            class="text-amber-600"
+                                                            >(+{{
+                                                                s.breakdown
+                                                                    ?.ot_hours
+                                                            }}h OT)</span
+                                                        >
                                                     </p>
                                                 </div>
-                                                <div v-else class="rounded-lg bg-slate-50 p-2.5 dark:bg-slate-900">
-                                                    <p class="text-[10px] font-medium text-slate-400">Số ca hoàn thành</p>
-                                                    <p class="mt-0.5 font-mono font-bold text-slate-800 dark:text-slate-200">
-                                                        {{ s.breakdown?.completed_shifts_count }} ca
+                                                <div
+                                                    v-else
+                                                    class="rounded-lg bg-slate-50 p-2.5 dark:bg-slate-900"
+                                                >
+                                                    <p
+                                                        class="text-[10px] font-medium text-slate-400"
+                                                    >
+                                                        Số ca hoàn thành
+                                                    </p>
+                                                    <p
+                                                        class="mt-0.5 font-mono font-bold text-slate-800 dark:text-slate-200"
+                                                    >
+                                                        {{
+                                                            s.breakdown
+                                                                ?.completed_shifts_count
+                                                        }}
+                                                        ca
                                                     </p>
                                                 </div>
                                             </div>
@@ -1070,30 +1210,71 @@ const compact = (v: number) =>
                                     <div
                                         class="space-y-3 rounded-2xl border bg-white p-4 shadow-sm dark:bg-slate-950"
                                     >
-                                        <p class="border-b pb-2 text-xs font-bold text-slate-700 dark:text-slate-300">
+                                        <p
+                                            class="border-b pb-2 text-xs font-bold text-slate-700 dark:text-slate-300"
+                                        >
                                             Cơ Cấu Lương Thực Nhận
                                         </p>
-                                        <div class="space-y-2 text-xs font-semibold">
-                                            <div class="flex justify-between text-slate-600 dark:text-slate-300">
-                                                <span class="font-medium">Lương gốc thực tính</span>
-                                                <span class="font-mono">{{ vnd(s.base_salary) }}</span>
+                                        <div
+                                            class="space-y-2 text-xs font-semibold"
+                                        >
+                                            <div
+                                                class="flex justify-between text-slate-600 dark:text-slate-300"
+                                            >
+                                                <span class="font-medium"
+                                                    >Lương gốc thực tính</span
+                                                >
+                                                <span class="font-mono">{{
+                                                    vnd(s.base_salary)
+                                                }}</span>
                                             </div>
-                                            <div v-if="s.bonus_amount > 0" class="flex justify-between text-emerald-600">
-                                                <span class="font-medium">Tổng thưởng (+)</span>
-                                                <span class="font-mono font-bold">+{{ vnd(s.bonus_amount) }}</span>
+                                            <div
+                                                v-if="s.bonus_amount > 0"
+                                                class="flex justify-between text-emerald-600"
+                                            >
+                                                <span class="font-medium"
+                                                    >Tổng thưởng (+)</span
+                                                >
+                                                <span
+                                                    class="font-mono font-bold"
+                                                    >+{{
+                                                        vnd(s.bonus_amount)
+                                                    }}</span
+                                                >
                                             </div>
-                                            <div v-if="s.deduction_amount > 0" class="flex justify-between text-rose-600">
-                                                <span class="font-medium">Tổng khấu trừ (-)</span>
-                                                <span class="font-mono font-bold">-{{ vnd(s.deduction_amount) }}</span>
+                                            <div
+                                                v-if="s.deduction_amount > 0"
+                                                class="flex justify-between text-rose-600"
+                                            >
+                                                <span class="font-medium"
+                                                    >Tổng khấu trừ (-)</span
+                                                >
+                                                <span
+                                                    class="font-mono font-bold"
+                                                    >-{{
+                                                        vnd(s.deduction_amount)
+                                                    }}</span
+                                                >
                                             </div>
-                                            <div class="flex justify-between border-t border-slate-100 pt-2 text-slate-800 dark:border-slate-800 dark:text-slate-200">
-                                                <span class="font-bold">Lương NET thực nhận</span>
-                                                <span class="font-mono text-base font-black text-indigo-600 dark:text-indigo-400">
+                                            <div
+                                                class="flex justify-between border-t border-slate-100 pt-2 text-slate-800 dark:border-slate-800 dark:text-slate-200"
+                                            >
+                                                <span class="font-bold"
+                                                    >Lương NET thực nhận</span
+                                                >
+                                                <span
+                                                    class="font-mono text-base font-black text-indigo-600 dark:text-indigo-400"
+                                                >
                                                     {{ vnd(s.net_salary) }}
                                                 </span>
                                             </div>
-                                            <div v-if="s.paid_at" class="mt-2 flex items-center gap-1 border-t pt-2 font-mono text-[10px] text-slate-400">
-                                                <Clock class="size-3" /> Đã chi trả thành công lúc: {{ s.paid_at }}
+                                            <div
+                                                v-if="s.paid_at"
+                                                class="mt-2 flex items-center gap-1 border-t pt-2 font-mono text-[10px] text-slate-400"
+                                            >
+                                                <Clock class="size-3" /> Đã chi
+                                                trả thành công lúc:
+                                                {{ s.paid_at }}
                                             </div>
                                         </div>
                                     </div>
@@ -1103,22 +1284,38 @@ const compact = (v: number) =>
                                         class="flex flex-col justify-between space-y-3 rounded-2xl border bg-white p-4 shadow-sm dark:bg-slate-950"
                                     >
                                         <div>
-                                            <div class="flex items-center justify-between border-b pb-2">
-                                                <p class="text-xs font-bold text-slate-700 dark:text-slate-300">
-                                                    Điều Chỉnh Lương ({{ s.adjustments.length }})
+                                            <div
+                                                class="flex items-center justify-between border-b pb-2"
+                                            >
+                                                <p
+                                                    class="text-xs font-bold text-slate-700 dark:text-slate-300"
+                                                >
+                                                    Điều Chỉnh Lương ({{
+                                                        s.adjustments.length
+                                                    }})
                                                 </p>
                                                 <button
                                                     @click="openAdjDialog(s)"
                                                     class="inline-flex items-center gap-1 text-[10px] font-bold text-indigo-600 hover:underline"
                                                 >
-                                                    <Plus class="size-3" /> Thêm khoản
+                                                    <Plus class="size-3" /> Thêm
+                                                    khoản
                                                 </button>
                                             </div>
 
-                                            <div v-if="s.adjustments.length === 0" class="py-3 text-xs text-slate-400 italic">
-                                                Không có khoản điều chỉnh nào trong tháng.
+                                            <div
+                                                v-if="
+                                                    s.adjustments.length === 0
+                                                "
+                                                class="py-3 text-xs text-slate-400 italic"
+                                            >
+                                                Không có khoản điều chỉnh nào
+                                                trong tháng.
                                             </div>
-                                            <div v-else class="mt-2 max-h-[140px] space-y-2 overflow-y-auto pr-1">
+                                            <div
+                                                v-else
+                                                class="mt-2 max-h-[140px] space-y-2 overflow-y-auto pr-1"
+                                            >
                                                 <div
                                                     v-for="a in s.adjustments"
                                                     :key="a.id"
@@ -1127,41 +1324,72 @@ const compact = (v: number) =>
                                                     <div class="min-w-0 pr-2">
                                                         <span
                                                             class="rounded px-1.5 py-0.5 text-[9px] font-bold uppercase"
-                                                            :class="adjTypeColor[a.type as AdjType]"
+                                                            :class="
+                                                                adjTypeColor[
+                                                                    a.type as AdjType
+                                                                ]
+                                                            "
                                                         >
-                                                            {{ adjTypeLabel[a.type as AdjType] }}
+                                                            {{
+                                                                adjTypeLabel[
+                                                                    a.type as AdjType
+                                                                ]
+                                                            }}
                                                         </span>
-                                                        <p class="mt-0.5 truncate text-[11px] font-medium text-slate-600 dark:text-slate-300" :title="a.reason">
+                                                        <p
+                                                            class="mt-0.5 truncate text-[11px] font-medium text-slate-600 dark:text-slate-300"
+                                                            :title="a.reason"
+                                                        >
                                                             {{ a.reason }}
                                                         </p>
                                                     </div>
                                                     <span
                                                         class="shrink-0 font-mono text-xs font-bold"
-                                                        :class="a.type === 'bonus' ? 'text-emerald-600' : 'text-rose-600'"
+                                                        :class="
+                                                            a.type === 'bonus'
+                                                                ? 'text-emerald-600'
+                                                                : 'text-rose-600'
+                                                        "
                                                     >
-                                                        {{ a.type === 'bonus' ? '+' : '-' }}{{ vnd(a.amount) }}
+                                                        {{
+                                                            a.type === 'bonus'
+                                                                ? '+'
+                                                                : '-'
+                                                        }}{{ vnd(a.amount) }}
                                                     </span>
                                                 </div>
                                             </div>
                                         </div>
 
                                         <!-- Action Buttons inside expanded -->
-                                        <div class="flex items-center gap-2 border-t pt-3">
+                                        <div
+                                            class="flex items-center gap-2 border-t pt-3"
+                                        >
                                             <Button
-                                                v-if="canApprove && s.status === 'draft'"
+                                                v-if="
+                                                    canApprove &&
+                                                    s.status === 'draft'
+                                                "
                                                 size="sm"
                                                 class="h-8 flex-1 rounded-xl bg-indigo-600 text-xs font-bold text-white hover:bg-indigo-700"
                                                 @click="approveSalary(s)"
                                             >
-                                                <Check class="size-3.5 mr-1" /> Duyệt bảng lương
+                                                <Check class="mr-1 size-3.5" />
+                                                Duyệt bảng lương
                                             </Button>
                                             <Button
-                                                v-if="canApprove && s.status === 'approved'"
+                                                v-if="
+                                                    canApprove &&
+                                                    s.status === 'approved'
+                                                "
                                                 size="sm"
                                                 class="h-8 flex-1 rounded-xl bg-emerald-600 text-xs font-bold text-white hover:bg-emerald-700"
                                                 @click="markPaid(s)"
                                             >
-                                                <BadgeDollarSign class="size-3.5 mr-1" /> Đánh dấu đã chi trả
+                                                <BadgeDollarSign
+                                                    class="mr-1 size-3.5"
+                                                />
+                                                Đánh dấu đã chi trả
                                             </Button>
                                             <Button
                                                 variant="outline"
@@ -1169,7 +1397,10 @@ const compact = (v: number) =>
                                                 class="h-8 rounded-xl border-slate-200 text-xs font-bold text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300"
                                                 @click="openPayStub(s)"
                                             >
-                                                <Printer class="size-3.5 mr-1" /> Phiếu lương
+                                                <Printer
+                                                    class="mr-1 size-3.5"
+                                                />
+                                                Phiếu lương
                                             </Button>
                                         </div>
                                     </div>
@@ -1545,10 +1776,12 @@ const compact = (v: number) =>
     <!-- ══ Floating Bulk Action Bar ════════════════════════════════════════════ -->
     <div
         v-if="selectedIds.length > 0 && canApprove"
-        class="fixed bottom-6 left-1/2 z-40 flex -translate-x-1/2 items-center gap-4 rounded-2xl border border-indigo-200 bg-slate-900 px-6 py-3.5 text-white shadow-2xl transition-all animate-in fade-in slide-in-from-bottom-5 dark:border-indigo-900"
+        class="fixed bottom-6 left-1/2 z-40 flex -translate-x-1/2 animate-in items-center gap-4 rounded-2xl border border-indigo-200 bg-slate-900 px-6 py-3.5 text-white shadow-2xl transition-all slide-in-from-bottom-5 fade-in dark:border-indigo-900"
     >
         <div class="flex items-center gap-2">
-            <span class="flex h-7 w-7 items-center justify-center rounded-full bg-indigo-600 text-xs font-black">
+            <span
+                class="flex h-7 w-7 items-center justify-center rounded-full bg-indigo-600 text-xs font-black"
+            >
                 {{ selectedIds.length }}
             </span>
             <span class="text-xs font-bold text-slate-200">
@@ -1562,7 +1795,7 @@ const compact = (v: number) =>
                 class="h-8 rounded-xl bg-indigo-600 px-3 text-xs font-bold text-white hover:bg-indigo-500"
                 @click="openBulkApproveModal"
             >
-                <Check class="size-3.5 mr-1" />
+                <Check class="mr-1 size-3.5" />
                 Phê duyệt hàng loạt
             </Button>
             <Button
@@ -1571,7 +1804,7 @@ const compact = (v: number) =>
                 class="h-8 rounded-xl border-slate-700 bg-slate-800 px-3 text-xs font-bold text-slate-200 hover:bg-slate-700"
                 @click="openBulkDialog"
             >
-                <Plus class="size-3.5 mr-1" />
+                <Plus class="mr-1 size-3.5" />
                 Điều chỉnh hàng loạt
             </Button>
             <button
@@ -1598,9 +1831,13 @@ const compact = (v: number) =>
             class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs"
             @click.self="showBulkApproveModal = false"
         >
-            <Card class="w-full max-w-md overflow-hidden rounded-3xl border border-indigo-200 bg-card p-6 shadow-2xl">
+            <Card
+                class="w-full max-w-md overflow-hidden rounded-3xl border border-indigo-200 bg-card p-6 shadow-2xl"
+            >
                 <div class="flex items-center gap-3">
-                    <div class="flex h-12 w-12 items-center justify-center rounded-2xl bg-indigo-50 text-indigo-600 dark:bg-indigo-950/40">
+                    <div
+                        class="flex h-12 w-12 items-center justify-center rounded-2xl bg-indigo-50 text-indigo-600 dark:bg-indigo-950/40"
+                    >
                         <Check class="size-6 text-indigo-600" />
                     </div>
                     <div>
@@ -1608,17 +1845,27 @@ const compact = (v: number) =>
                             Xác Nhận Phê Duyệt Hàng Loạt
                         </h2>
                         <p class="text-xs text-muted-foreground">
-                            Phê duyệt {{ selectedIds.length }} bảng lương đã chọn
+                            Phê duyệt {{ selectedIds.length }} bảng lương đã
+                            chọn
                         </p>
                     </div>
                 </div>
 
-                <div class="mt-4 rounded-xl border bg-muted/40 p-3 text-xs text-muted-foreground leading-relaxed">
-                    Sau khi phê duyệt, thông báo xác nhận sẽ được gửi tới tài khoản từng nhân viên. Bạn có chắc chắn muốn duyệt {{ selectedIds.length }} phiếu lương này?
+                <div
+                    class="mt-4 rounded-xl border bg-muted/40 p-3 text-xs leading-relaxed text-muted-foreground"
+                >
+                    Sau khi phê duyệt, thông báo xác nhận sẽ được gửi tới tài
+                    khoản từng nhân viên. Bạn có chắc chắn muốn duyệt
+                    {{ selectedIds.length }} phiếu lương này?
                 </div>
 
                 <div class="mt-6 flex justify-end gap-3">
-                    <Button variant="outline" size="sm" class="rounded-xl" @click="showBulkApproveModal = false">
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        class="rounded-xl"
+                        @click="showBulkApproveModal = false"
+                    >
                         Hủy
                     </Button>
                     <Button
@@ -1627,7 +1874,9 @@ const compact = (v: number) =>
                         :disabled="bulkApproving"
                         @click="submitBulkApprove"
                     >
-                        {{ bulkApproving ? 'Đang duyệt...' : 'Đồng ý phê duyệt' }}
+                        {{
+                            bulkApproving ? 'Đang duyệt...' : 'Đồng ý phê duyệt'
+                        }}
                     </Button>
                 </div>
             </Card>
@@ -1645,12 +1894,16 @@ const compact = (v: number) =>
     >
         <div
             v-if="payStubTarget"
-            class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs print:p-0 print:bg-white"
+            class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs print:bg-white print:p-0"
             @click.self="closePayStub"
         >
-            <div class="relative w-full max-w-2xl overflow-hidden rounded-3xl border bg-card p-6 shadow-2xl dark:border-slate-800 print:shadow-none print:border-0 print:p-8">
+            <div
+                class="relative w-full max-w-2xl overflow-hidden rounded-3xl border bg-card p-6 shadow-2xl dark:border-slate-800 print:border-0 print:p-8 print:shadow-none"
+            >
                 <!-- Close & Print buttons -->
-                <div class="flex items-center justify-between border-b pb-4 print:hidden">
+                <div
+                    class="flex items-center justify-between border-b pb-4 print:hidden"
+                >
                     <div class="flex items-center gap-2">
                         <Printer class="size-5 text-indigo-600" />
                         <h2 class="text-base font-extrabold text-foreground">
@@ -1658,10 +1911,18 @@ const compact = (v: number) =>
                         </h2>
                     </div>
                     <div class="flex items-center gap-2">
-                        <Button size="sm" variant="outline" class="h-8 rounded-xl text-xs font-bold" @click="printPayStub">
-                            <Printer class="size-3.5 mr-1" /> In phiếu lương
+                        <Button
+                            size="sm"
+                            variant="outline"
+                            class="h-8 rounded-xl text-xs font-bold"
+                            @click="printPayStub"
+                        >
+                            <Printer class="mr-1 size-3.5" /> In phiếu lương
                         </Button>
-                        <button @click="closePayStub" class="rounded-full p-1 text-muted-foreground hover:bg-muted">
+                        <button
+                            @click="closePayStub"
+                            class="rounded-full p-1 text-muted-foreground hover:bg-muted"
+                        >
                             <X class="size-5" />
                         </button>
                     </div>
@@ -1670,69 +1931,134 @@ const compact = (v: number) =>
                 <!-- Pay Stub Content -->
                 <div class="mt-4 space-y-5 text-xs text-foreground">
                     <!-- Title banner -->
-                    <div class="text-center border-b pb-4">
-                        <h1 class="text-xl font-black tracking-tight text-indigo-950 dark:text-indigo-200 uppercase">
+                    <div class="border-b pb-4 text-center">
+                        <h1
+                            class="text-xl font-black tracking-tight text-indigo-950 uppercase dark:text-indigo-200"
+                        >
                             PHIẾU LƯƠNG NHÂN VIÊN
                         </h1>
-                        <p class="mt-1 font-semibold text-muted-foreground">Kỳ lương: Tháng {{ period }}</p>
+                        <p class="mt-1 font-semibold text-muted-foreground">
+                            Kỳ lương: Tháng {{ period }}
+                        </p>
                     </div>
 
                     <!-- Employee metadata -->
-                    <div class="grid grid-cols-2 gap-4 rounded-2xl bg-muted/30 p-4 border">
+                    <div
+                        class="grid grid-cols-2 gap-4 rounded-2xl border bg-muted/30 p-4"
+                    >
                         <div>
-                            <p class="text-[10px] font-bold uppercase text-muted-foreground">Họ và tên nhân viên:</p>
-                            <p class="text-sm font-black text-foreground mt-0.5">{{ payStubTarget.employee_name }}</p>
-                            <p class="text-xs text-muted-foreground mt-0.5">Mã NV: {{ payStubTarget.employee_code }}</p>
+                            <p
+                                class="text-[10px] font-bold text-muted-foreground uppercase"
+                            >
+                                Họ và tên nhân viên:
+                            </p>
+                            <p
+                                class="mt-0.5 text-sm font-black text-foreground"
+                            >
+                                {{ payStubTarget.employee_name }}
+                            </p>
+                            <p class="mt-0.5 text-xs text-muted-foreground">
+                                Mã NV: {{ payStubTarget.employee_code }}
+                            </p>
                         </div>
                         <div>
-                            <p class="text-[10px] font-bold uppercase text-muted-foreground">Chức vụ / Hợp đồng:</p>
-                            <p class="text-sm font-bold text-foreground mt-0.5">{{ payStubTarget.job_title || 'Nhân viên' }}</p>
-                            <p class="text-xs text-indigo-600 dark:text-indigo-400 font-bold mt-0.5">
-                                {{ payStubTarget.breakdown?.compensation_type_label }}
+                            <p
+                                class="text-[10px] font-bold text-muted-foreground uppercase"
+                            >
+                                Chức vụ / Hợp đồng:
+                            </p>
+                            <p class="mt-0.5 text-sm font-bold text-foreground">
+                                {{ payStubTarget.job_title || 'Nhân viên' }}
+                            </p>
+                            <p
+                                class="mt-0.5 text-xs font-bold text-indigo-600 dark:text-indigo-400"
+                            >
+                                {{
+                                    payStubTarget.breakdown
+                                        ?.compensation_type_label
+                                }}
                             </p>
                         </div>
                     </div>
 
                     <!-- Formula breakdown box -->
-                    <div class="rounded-2xl border border-indigo-200 bg-indigo-50/50 p-4 dark:border-indigo-900/40 dark:bg-indigo-950/20">
-                        <p class="text-[10px] font-bold uppercase tracking-wider text-indigo-600">Giải trình công thức tính lương gốc:</p>
-                        <p class="mt-1 font-mono font-bold text-xs leading-relaxed text-indigo-950 dark:text-indigo-200">
+                    <div
+                        class="rounded-2xl border border-indigo-200 bg-indigo-50/50 p-4 dark:border-indigo-900/40 dark:bg-indigo-950/20"
+                    >
+                        <p
+                            class="text-[10px] font-bold tracking-wider text-indigo-600 uppercase"
+                        >
+                            Giải trình công thức tính lương gốc:
+                        </p>
+                        <p
+                            class="mt-1 font-mono text-xs leading-relaxed font-bold text-indigo-950 dark:text-indigo-200"
+                        >
                             {{ payStubTarget.breakdown?.formula_text }}
                         </p>
                     </div>
 
                     <!-- Earnings & Deductions Table -->
-                    <div class="space-y-2 border rounded-2xl p-4 bg-card">
-                        <p class="font-bold text-xs text-foreground uppercase tracking-wider">Chi Tiết Thu Nhập & Khấu Trừ</p>
+                    <div class="space-y-2 rounded-2xl border bg-card p-4">
+                        <p
+                            class="text-xs font-bold tracking-wider text-foreground uppercase"
+                        >
+                            Chi Tiết Thu Nhập & Khấu Trừ
+                        </p>
                         <div class="space-y-1.5 pt-2">
-                            <div class="flex justify-between py-1 border-b border-dashed">
+                            <div
+                                class="flex justify-between border-b border-dashed py-1"
+                            >
                                 <span>Lương gốc thực tính</span>
-                                <span class="font-mono font-bold">{{ vnd(payStubTarget.base_salary) }}</span>
+                                <span class="font-mono font-bold">{{
+                                    vnd(payStubTarget.base_salary)
+                                }}</span>
                             </div>
-                            <div v-if="payStubTarget.bonus_amount > 0" class="flex justify-between py-1 border-b border-dashed text-emerald-600">
+                            <div
+                                v-if="payStubTarget.bonus_amount > 0"
+                                class="flex justify-between border-b border-dashed py-1 text-emerald-600"
+                            >
                                 <span>Tổng cộng các khoản thưởng (+)</span>
-                                <span class="font-mono font-bold">+{{ vnd(payStubTarget.bonus_amount) }}</span>
+                                <span class="font-mono font-bold"
+                                    >+{{
+                                        vnd(payStubTarget.bonus_amount)
+                                    }}</span
+                                >
                             </div>
-                            <div v-if="payStubTarget.deduction_amount > 0" class="flex justify-between py-1 border-b border-dashed text-rose-600">
+                            <div
+                                v-if="payStubTarget.deduction_amount > 0"
+                                class="flex justify-between border-b border-dashed py-1 text-rose-600"
+                            >
                                 <span>Tổng cộng các khoản khấu trừ (-)</span>
-                                <span class="font-mono font-bold">-{{ vnd(payStubTarget.deduction_amount) }}</span>
+                                <span class="font-mono font-bold"
+                                    >-{{
+                                        vnd(payStubTarget.deduction_amount)
+                                    }}</span
+                                >
                             </div>
-                            <div class="flex justify-between py-2 text-sm font-black text-indigo-600 dark:text-indigo-400">
+                            <div
+                                class="flex justify-between py-2 text-sm font-black text-indigo-600 dark:text-indigo-400"
+                            >
                                 <span>THỰC LÃNH (NET SALARY)</span>
-                                <span class="font-mono text-base">{{ vnd(payStubTarget.net_salary) }}</span>
+                                <span class="font-mono text-base">{{
+                                    vnd(payStubTarget.net_salary)
+                                }}</span>
                             </div>
                         </div>
                     </div>
 
                     <!-- Signature line -->
-                    <div class="grid grid-cols-2 text-center pt-8 print:pt-12">
+                    <div class="grid grid-cols-2 pt-8 text-center print:pt-12">
                         <div>
-                            <p class="font-bold text-xs">Người Duyệt Lương</p>
-                            <p class="text-[10px] text-muted-foreground mt-1">(Ký & ghi rõ họ tên)</p>
+                            <p class="text-xs font-bold">Người Duyệt Lương</p>
+                            <p class="mt-1 text-[10px] text-muted-foreground">
+                                (Ký & ghi rõ họ tên)
+                            </p>
                         </div>
                         <div>
-                            <p class="font-bold text-xs">Người Nhận Lương</p>
-                            <p class="text-[10px] text-muted-foreground mt-1">(Ký & ghi rõ họ tên)</p>
+                            <p class="text-xs font-bold">Người Nhận Lương</p>
+                            <p class="mt-1 text-[10px] text-muted-foreground">
+                                (Ký & ghi rõ họ tên)
+                            </p>
                         </div>
                     </div>
                 </div>

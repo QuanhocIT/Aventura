@@ -99,26 +99,32 @@ const submitWorkflow = () => {
 
 const printOrderSlip = () => {
     if (!selectedOrder.value) {
-return;
-}
+        return;
+    }
 
     const printWindow = window.open('', '_blank');
 
     if (!printWindow) {
-        toast.error('Vui lòng cho phép trình duyệt hiển thị pop-up để in vận đơn.');
+        toast.error(
+            'Vui lòng cho phép trình duyệt hiển thị pop-up để in vận đơn.',
+        );
 
         return;
     }
-    
-    const itemsHtml = selectedOrder.value.items.map((item: any) => `
+
+    const itemsHtml = selectedOrder.value.items
+        .map(
+            (item: any) => `
         <tr>
             <td style="padding: 8px; border-bottom: 1px solid #ddd;">${item.ingredient_name}</td>
             <td style="padding: 8px; border-bottom: 1px solid #ddd; text-align: center;">${item.quantity_ordered} ${item.unit_symbol}</td>
             <td style="padding: 8px; border-bottom: 1px solid #ddd; text-align: right;">${item.price_per_unit.toLocaleString('vi-VN')}đ</td>
             <td style="padding: 8px; border-bottom: 1px solid #ddd; text-align: right; font-weight: bold;">${(item.quantity_ordered * item.price_per_unit).toLocaleString('vi-VN')}đ</td>
         </tr>
-    `).join('');
-    
+    `,
+        )
+        .join('');
+
     printWindow.document.write(`
         <html>
         <head>
@@ -467,7 +473,7 @@ return;
                     </div>
 
                     <div
-                        class="flex justify-end border-t border-slate-800 pt-4 gap-2"
+                        class="flex justify-end gap-2 border-t border-slate-800 pt-4"
                     >
                         <button
                             type="button"

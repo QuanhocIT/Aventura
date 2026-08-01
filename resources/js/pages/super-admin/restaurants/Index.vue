@@ -185,9 +185,18 @@ function applyFilter() {
         '/super-admin/restaurants',
         {
             search: search.value || undefined,
-            status: status.value && status.value !== 'all' ? status.value : undefined,
-            plan: planFilter.value && planFilter.value !== 'all' ? planFilter.value : undefined,
-            flagged: flaggedFilter.value && flaggedFilter.value !== 'all' ? flaggedFilter.value : undefined,
+            status:
+                status.value && status.value !== 'all'
+                    ? status.value
+                    : undefined,
+            plan:
+                planFilter.value && planFilter.value !== 'all'
+                    ? planFilter.value
+                    : undefined,
+            flagged:
+                flaggedFilter.value && flaggedFilter.value !== 'all'
+                    ? flaggedFilter.value
+                    : undefined,
         },
         { preserveState: true, replace: true },
     );

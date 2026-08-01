@@ -4,6 +4,7 @@ namespace App\Console\Commands;
 
 use App\Models\Product;
 use App\Models\ProductCategory;
+use App\Models\Restaurant;
 use App\Models\User;
 use Illuminate\Console\Command;
 use Illuminate\Support\Str;
@@ -33,10 +34,10 @@ class ImportMenu extends Command
     public function handle(): int
     {
         if ($this->option('sample')) {
-            $this->line("name,category,price,cost_price,description,sku");
-            $this->line("Phở bò tái,Món nước,65000,28000,Phở bò truyền thống,PHO-TAI");
-            $this->line("Cơm sườn,Cơm,55000,22000,,COM-SUON");
-            $this->line("Trà chanh,Đồ uống,25000,8000,,");
+            $this->line('name,category,price,cost_price,description,sku');
+            $this->line('Phở bò tái,Món nước,65000,28000,Phở bò truyền thống,PHO-TAI');
+            $this->line('Cơm sườn,Cơm,55000,22000,,COM-SUON');
+            $this->line('Trà chanh,Đồ uống,25000,8000,,');
 
             return self::SUCCESS;
         }
@@ -90,6 +91,7 @@ class ImportMenu extends Command
             if ($name === '' || $catName === '' || $price <= 0) {
                 $skipped++;
                 $this->warn("  Bỏ qua dòng {$line}: thiếu name/category/price hợp lệ.");
+
                 continue;
             }
 
@@ -103,7 +105,7 @@ class ImportMenu extends Command
             $cost = isset($idx['cost_price']) ? (float) preg_replace('/[^\d.]/', '', (string) ($row[$idx['cost_price']] ?? '0')) : 0;
             $desc = isset($idx['description']) ? trim((string) ($row[$idx['description']] ?? '')) : null;
             $sku = isset($idx['sku']) ? trim((string) ($row[$idx['sku']] ?? '')) : '';
-            $code = $sku !== '' ? $sku : 'SP-' . strtoupper(Str::random(6));
+            $code = $sku !== '' ? $sku : 'SP-'.strtoupper(Str::random(6));
 
             $existing = Product::where('restaurant_id', $rid)
                 ->where('category_id', $category->id)
@@ -114,7 +116,7 @@ class ImportMenu extends Command
                 [
                     'category_id' => $category->id,
                     'name' => $name,
-                    'slug' => Str::slug($name) . '-' . Str::lower(Str::random(4)),
+                    'slug' => Str::slug($name).'-'.Str::lower(Str::random(4)),
                     'description' => $desc,
                     'price' => $price,
                     'cost_price' => $cost,
@@ -143,7 +145,7 @@ class ImportMenu extends Command
     private function resolveRestaurant()
     {
         if ($rid = $this->option('restaurant')) {
-            $r = \App\Models\Restaurant::find($rid);
+            $r = Restaurant::find($rid);
             if (! $r) {
                 $this->error("Không tìm thấy nhà hàng ID {$rid}.");
             }

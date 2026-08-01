@@ -6,6 +6,7 @@ use App\Models\Area;
 use App\Models\RestaurantTable;
 use App\Models\User;
 use App\Support\Tenant\TenantContext;
+use App\Support\TenantRule;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
@@ -145,7 +146,7 @@ class TablesController extends Controller
 
         $data = $request->validate([
             'name' => ['required', 'string', 'max:50'],
-            'area_id' => ['required', \App\Support\TenantRule::exists('areas')],
+            'area_id' => ['required', TenantRule::exists('areas')],
             'capacity' => ['required', 'integer', 'min:1', 'max:100'],
             'branch_id' => [
                 'required', 'integer',

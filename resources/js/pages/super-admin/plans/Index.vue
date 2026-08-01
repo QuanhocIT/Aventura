@@ -331,8 +331,8 @@ const filteredRestaurants = computed(() => {
     const q = restaurantSearch.value.trim().toLowerCase();
 
     if (!q) {
-return restaurants.value;
-}
+        return restaurants.value;
+    }
 
     return restaurants.value.filter(
         (r) =>
@@ -482,7 +482,8 @@ const FEATURE_DESCRIPTIONS: Record<string, string> = {
     email_reports: 'Báo cáo tự động gửi trực tiếp đến email của quản lý.',
     ai_advisor: 'AI phân tích và gợi ý tối ưu giá, thực đơn kinh doanh.',
     ai_forecasting: 'AI phân tích dữ liệu cũ để dự đoán lượng hàng cần nhập.',
-    delivery_integration: 'Tự động đồng bộ đơn hàng từ GrabFood, ShopeeFood, Be.',
+    delivery_integration:
+        'Tự động đồng bộ đơn hàng từ GrabFood, ShopeeFood, Be.',
     e_invoice: 'Xuất hóa đơn điện tử VAT trực tiếp từ máy POS bán hàng.',
     multi_branch_sync: 'Tự động đồng bộ thực đơn và giá giữa các chi nhánh.',
     multi_currency: 'Hỗ trợ thanh toán nhiều loại tiền tệ và ngôn ngữ.',
@@ -642,20 +643,25 @@ const planIcon: Record<string, any> = {
                             plan.code === 'pro' && !plan.is_deleted,
                         'border-violet-500/50 bg-gradient-to-b from-violet-500/[0.04] to-transparent shadow-md ring-1 ring-violet-500/20':
                             plan.code === 'enterprise' && !plan.is_deleted,
-                        'border-rose-500/40 bg-rose-500/[0.02] opacity-80 border-dashed':
+                        'border-dashed border-rose-500/40 bg-rose-500/[0.02] opacity-80':
                             plan.is_deleted || plan.status === 'inactive',
                     }"
                 >
                     <CardHeader class="min-h-[218px] pb-4">
-                        <div class="mb-2 flex min-h-12 items-start justify-between">
+                        <div
+                            class="mb-2 flex min-h-12 items-start justify-between"
+                        >
                             <CardTitle
                                 class="flex items-center gap-1.5 text-xl font-black"
                                 :class="{
-                                    'text-primary': plan.code === 'pro' && !plan.is_deleted,
+                                    'text-primary':
+                                        plan.code === 'pro' && !plan.is_deleted,
                                     'text-violet-500':
-                                        plan.code === 'enterprise' && !plan.is_deleted,
+                                        plan.code === 'enterprise' &&
+                                        !plan.is_deleted,
                                     'text-rose-500 line-through opacity-80':
-                                        plan.is_deleted || plan.status === 'inactive',
+                                        plan.is_deleted ||
+                                        plan.status === 'inactive',
                                 }"
                             >
                                 <component
@@ -666,7 +672,10 @@ const planIcon: Record<string, any> = {
                             </CardTitle>
                             <div class="flex items-center gap-1">
                                 <Badge
-                                    v-if="plan.is_deleted || plan.status === 'inactive'"
+                                    v-if="
+                                        plan.is_deleted ||
+                                        plan.status === 'inactive'
+                                    "
                                     variant="destructive"
                                     class="rounded-full border border-rose-500/30 bg-rose-500/10 px-2 py-0 text-[9px] font-extrabold text-rose-500 uppercase"
                                     >Ngừng cung cấp</Badge
@@ -691,7 +700,7 @@ const planIcon: Record<string, any> = {
                                     variant="ghost"
                                     size="icon"
                                     title="Chỉnh sửa gói"
-                                    class="ml-1 size-7 rounded-full hover:bg-muted/70 cursor-pointer"
+                                    class="ml-1 size-7 cursor-pointer rounded-full hover:bg-muted/70"
                                     @click="startEdit(plan)"
                                 >
                                     <Edit2
@@ -699,11 +708,14 @@ const planIcon: Record<string, any> = {
                                     />
                                 </Button>
                                 <Button
-                                    v-if="!plan.is_deleted && plan.status === 'active'"
+                                    v-if="
+                                        !plan.is_deleted &&
+                                        plan.status === 'active'
+                                    "
                                     variant="ghost"
                                     size="icon"
                                     title="Ngừng cung cấp (Xóa mềm)"
-                                    class="size-7 rounded-full text-muted-foreground hover:bg-rose-500/15 hover:text-rose-500 transition-colors cursor-pointer"
+                                    class="size-7 cursor-pointer rounded-full text-muted-foreground transition-colors hover:bg-rose-500/15 hover:text-rose-500"
                                     @click="confirmDelete(plan)"
                                 >
                                     <Trash2 class="size-3.5" />
@@ -713,7 +725,7 @@ const planIcon: Record<string, any> = {
                                     variant="ghost"
                                     size="icon"
                                     title="Khôi phục gói"
-                                    class="size-7 rounded-full text-emerald-600 hover:bg-emerald-500/15 hover:text-emerald-500 transition-colors cursor-pointer"
+                                    class="size-7 cursor-pointer rounded-full text-emerald-600 transition-colors hover:bg-emerald-500/15 hover:text-emerald-500"
                                     @click="confirmRestore(plan)"
                                 >
                                     <RotateCcw class="size-3.5" />
@@ -997,17 +1009,20 @@ const planIcon: Record<string, any> = {
         </div>
 
         <!-- Pagination Controls -->
-        <div v-if="totalPages > 1" class="mt-4 flex items-center justify-center gap-3 animate-in fade-in slide-in-from-bottom-2 duration-300">
+        <div
+            v-if="totalPages > 1"
+            class="mt-4 flex animate-in items-center justify-center gap-3 duration-300 fade-in slide-in-from-bottom-2"
+        >
             <Button
                 variant="outline"
                 size="sm"
                 :disabled="currentPage === 1"
                 @click="currentPage--"
-                class="rounded-xl border-border/80 px-4 py-2 cursor-pointer transition-all duration-300 hover:bg-muted"
+                class="cursor-pointer rounded-xl border-border/80 px-4 py-2 transition-all duration-300 hover:bg-muted"
             >
                 Trang trước
             </Button>
-            
+
             <div class="flex items-center gap-1.5">
                 <Button
                     v-for="page in totalPages"
@@ -1015,8 +1030,12 @@ const planIcon: Record<string, any> = {
                     size="sm"
                     :variant="currentPage === page ? 'default' : 'outline'"
                     @click="currentPage = page"
-                    class="size-9 rounded-xl font-bold transition-all duration-300 cursor-pointer"
-                    :class="currentPage === page ? 'bg-indigo-600 text-white shadow-xs scale-[1.05]' : 'border-border/80 hover:bg-muted'"
+                    class="size-9 cursor-pointer rounded-xl font-bold transition-all duration-300"
+                    :class="
+                        currentPage === page
+                            ? 'scale-[1.05] bg-indigo-600 text-white shadow-xs'
+                            : 'border-border/80 hover:bg-muted'
+                    "
                 >
                     {{ page }}
                 </Button>
@@ -1027,7 +1046,7 @@ const planIcon: Record<string, any> = {
                 size="sm"
                 :disabled="currentPage === totalPages"
                 @click="currentPage++"
-                class="rounded-xl border-border/80 px-4 py-2 cursor-pointer transition-all duration-300 hover:bg-muted"
+                class="cursor-pointer rounded-xl border-border/80 px-4 py-2 transition-all duration-300 hover:bg-muted"
             >
                 Trang sau
             </Button>
@@ -1042,19 +1061,25 @@ const planIcon: Record<string, any> = {
         <!-- ── PLAN EDIT SHEET (DRAWER) ── -->
         <Sheet v-model:open="isEditing">
             <SheetContent
-                class="overflow-y-auto sm:max-w-xl border-l border-zinc-200/50 bg-background/95 backdrop-blur-md dark:border-zinc-800/50"
+                class="overflow-y-auto border-l border-zinc-200/50 bg-background/95 backdrop-blur-md sm:max-w-xl dark:border-zinc-800/50"
                 @close="editingId = null"
             >
                 <SheetHeader class="border-b border-border pb-5">
-                    <SheetTitle class="flex items-center justify-between text-xl font-bold">
+                    <SheetTitle
+                        class="flex items-center justify-between text-xl font-bold"
+                    >
                         <div class="flex items-center gap-2.5">
-                            <div class="p-2 rounded-xl bg-indigo-500/10 text-indigo-500 shadow-2xs">
+                            <div
+                                class="rounded-xl bg-indigo-500/10 p-2 text-indigo-500 shadow-2xs"
+                            >
                                 <component
                                     :is="planIcon[editingPlanCode] ?? Edit2"
                                     class="size-5 animate-pulse"
                                 />
                             </div>
-                            <span class="bg-gradient-to-r from-slate-900 to-slate-700 bg-clip-text text-transparent dark:from-white dark:to-zinc-300">
+                            <span
+                                class="bg-gradient-to-r from-slate-900 to-slate-700 bg-clip-text text-transparent dark:from-white dark:to-zinc-300"
+                            >
                                 Chỉnh sửa gói dịch vụ
                             </span>
                         </div>
@@ -1065,20 +1090,28 @@ const planIcon: Record<string, any> = {
                             {{ editingPlanCode }}
                         </Badge>
                     </SheetTitle>
-                    <SheetDescription class="pt-1.5 text-xs text-muted-foreground">
-                        Cập nhật thông tin chi tiết, cấu hình giới hạn tài nguyên và tính năng cho gói <span class="font-bold text-foreground">{{ form.name }}</span>
+                    <SheetDescription
+                        class="pt-1.5 text-xs text-muted-foreground"
+                    >
+                        Cập nhật thông tin chi tiết, cấu hình giới hạn tài
+                        nguyên và tính năng cho gói
+                        <span class="font-bold text-foreground">{{
+                            form.name
+                        }}</span>
                     </SheetDescription>
                 </SheetHeader>
 
                 <!-- Tab Selector -->
-                <div class="my-5 flex rounded-xl border border-border/80 bg-muted/40 p-1 shadow-2xs">
+                <div
+                    class="my-5 flex rounded-xl border border-border/80 bg-muted/40 p-1 shadow-2xs"
+                >
                     <button
                         type="button"
                         @click="activeTab = 'info'"
-                        class="flex-1 cursor-pointer rounded-lg py-2.5 text-center text-xs font-bold transition-all duration-300 flex items-center justify-center gap-1.5"
+                        class="flex flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-lg py-2.5 text-center text-xs font-bold transition-all duration-300"
                         :class="
                             activeTab === 'info'
-                                ? 'bg-background text-foreground shadow-sm scale-[1.02]'
+                                ? 'scale-[1.02] bg-background text-foreground shadow-sm'
                                 : 'text-muted-foreground hover:text-foreground'
                         "
                     >
@@ -1088,10 +1121,10 @@ const planIcon: Record<string, any> = {
                     <button
                         type="button"
                         @click="activeTab = 'features'"
-                        class="flex-1 cursor-pointer rounded-lg py-2.5 text-center text-xs font-bold transition-all duration-300 flex items-center justify-center gap-1.5"
+                        class="flex flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-lg py-2.5 text-center text-xs font-bold transition-all duration-300"
                         :class="
                             activeTab === 'features'
-                                ? 'bg-background text-foreground shadow-sm scale-[1.02]'
+                                ? 'scale-[1.02] bg-background text-foreground shadow-sm'
                                 : 'text-muted-foreground hover:text-foreground'
                         "
                     >
@@ -1107,71 +1140,106 @@ const planIcon: Record<string, any> = {
                     <!-- Tab 1: Info & Limits -->
                     <div
                         v-show="activeTab === 'info'"
-                        class="animate-in space-y-6 duration-300 fade-in zoom-in-95"
+                        class="animate-in space-y-6 duration-300 zoom-in-95 fade-in"
                     >
                         <!-- Group 1: General Info Card -->
-                        <div class="rounded-2xl border border-border/60 bg-card p-4.5 shadow-2xs space-y-4">
-                            <h3 class="text-xs font-bold tracking-wider text-muted-foreground uppercase flex items-center gap-1.5 border-b border-border/40 pb-2">
+                        <div
+                            class="space-y-4 rounded-2xl border border-border/60 bg-card p-4.5 shadow-2xs"
+                        >
+                            <h3
+                                class="flex items-center gap-1.5 border-b border-border/40 pb-2 text-xs font-bold tracking-wider text-muted-foreground uppercase"
+                            >
                                 <Tag class="size-3.5 text-indigo-500" />
                                 Thông tin cơ bản
                             </h3>
-                            
+
                             <div class="grid grid-cols-2 gap-4">
                                 <div class="col-span-2 grid gap-1.5">
-                                    <Label class="text-[11px] font-semibold text-muted-foreground">TÊN GÓI</Label>
+                                    <Label
+                                        class="text-[11px] font-semibold text-muted-foreground"
+                                        >TÊN GÓI</Label
+                                    >
                                     <div class="relative flex items-center">
-                                        <div class="pointer-events-none absolute left-3.5 text-muted-foreground">
-                                            <Tag class="size-4 text-indigo-500" />
+                                        <div
+                                            class="pointer-events-none absolute left-3.5 text-muted-foreground"
+                                        >
+                                            <Tag
+                                                class="size-4 text-indigo-500"
+                                            />
                                         </div>
                                         <Input
                                             v-model="form.name"
-                                            class="rounded-xl border-border pl-10 focus-visible:border-indigo-500 focus-visible:ring-indigo-500/20 bg-background/50 focus:bg-background"
+                                            class="rounded-xl border-border bg-background/50 pl-10 focus:bg-background focus-visible:border-indigo-500 focus-visible:ring-indigo-500/20"
                                         />
                                     </div>
                                 </div>
-                                
+
                                 <div class="col-span-2 grid gap-1.5">
-                                    <Label class="text-[11px] font-semibold text-muted-foreground">MÔ TẢ NGẮN (HIỂN THỊ TRÊN TRANG KHÁCH)</Label>
+                                    <Label
+                                        class="text-[11px] font-semibold text-muted-foreground"
+                                        >MÔ TẢ NGẮN (HIỂN THỊ TRÊN TRANG
+                                        KHÁCH)</Label
+                                    >
                                     <div class="relative">
                                         <textarea
                                             v-model="form.description"
                                             rows="2"
-                                            class="flex w-full resize-none rounded-xl border border-border border-input bg-background/50 py-2.5 pr-3 pl-10 text-sm text-foreground focus-visible:border-indigo-500 focus-visible:ring-2 focus-visible:ring-indigo-500/20 focus-visible:ring-ring focus-visible:outline-none focus:bg-background transition-all"
+                                            class="flex w-full resize-none rounded-xl border border-border border-input bg-background/50 py-2.5 pr-3 pl-10 text-sm text-foreground transition-all focus:bg-background focus-visible:border-indigo-500 focus-visible:ring-2 focus-visible:ring-indigo-500/20 focus-visible:ring-ring focus-visible:outline-none"
                                             placeholder="Mô tả ngắn về gói dịch vụ..."
                                         />
-                                        <div class="pointer-events-none absolute top-3 left-3.5 text-muted-foreground">
-                                            <FileText class="size-4 text-indigo-500" />
+                                        <div
+                                            class="pointer-events-none absolute top-3 left-3.5 text-muted-foreground"
+                                        >
+                                            <FileText
+                                                class="size-4 text-indigo-500"
+                                            />
                                         </div>
                                     </div>
                                 </div>
 
                                 <div class="grid gap-1.5">
-                                    <Label class="text-[11px] font-semibold text-muted-foreground">GIÁ (VND/THÁNG)</Label>
+                                    <Label
+                                        class="text-[11px] font-semibold text-muted-foreground"
+                                        >GIÁ (VND/THÁNG)</Label
+                                    >
                                     <div class="relative flex items-center">
-                                        <div class="pointer-events-none absolute left-3.5 text-muted-foreground">
-                                            <Coins class="size-4 text-indigo-500" />
+                                        <div
+                                            class="pointer-events-none absolute left-3.5 text-muted-foreground"
+                                        >
+                                            <Coins
+                                                class="size-4 text-indigo-500"
+                                            />
                                         </div>
                                         <Input
                                             v-model.number="form.price"
                                             type="number"
                                             min="0"
-                                            class="rounded-xl border-border pl-10 focus-visible:border-indigo-500 focus-visible:ring-indigo-500/20 bg-background/50 focus:bg-background"
+                                            class="rounded-xl border-border bg-background/50 pl-10 focus:bg-background focus-visible:border-indigo-500 focus-visible:ring-indigo-500/20"
                                         />
                                     </div>
                                 </div>
 
                                 <div class="grid gap-1.5">
-                                    <Label class="text-[11px] font-semibold text-muted-foreground">CHIẾT KHẤU GÓI NĂM (%)</Label>
+                                    <Label
+                                        class="text-[11px] font-semibold text-muted-foreground"
+                                        >CHIẾT KHẤU GÓI NĂM (%)</Label
+                                    >
                                     <div class="relative flex items-center">
-                                        <div class="pointer-events-none absolute left-3.5 text-muted-foreground">
-                                            <Percent class="size-4 text-indigo-500" />
+                                        <div
+                                            class="pointer-events-none absolute left-3.5 text-muted-foreground"
+                                        >
+                                            <Percent
+                                                class="size-4 text-indigo-500"
+                                            />
                                         </div>
                                         <Input
-                                            v-model.number="form.yearly_discount_percent"
+                                            v-model.number="
+                                                form.yearly_discount_percent
+                                            "
                                             type="number"
                                             min="0"
                                             max="100"
-                                            class="rounded-xl border-border pl-10 focus-visible:border-indigo-500 focus-visible:ring-indigo-500/20 bg-background/50 focus:bg-background"
+                                            class="rounded-xl border-border bg-background/50 pl-10 focus:bg-background focus-visible:border-indigo-500 focus-visible:ring-indigo-500/20"
                                         />
                                     </div>
                                 </div>
@@ -1179,169 +1247,367 @@ const planIcon: Record<string, any> = {
                         </div>
 
                         <!-- Group 2: Operational Limits Card -->
-                        <div class="rounded-2xl border border-border/60 bg-card p-4.5 shadow-2xs space-y-4">
-                            <h3 class="text-xs font-bold tracking-wider text-muted-foreground uppercase flex items-center gap-1.5 border-b border-border/40 pb-2">
+                        <div
+                            class="space-y-4 rounded-2xl border border-border/60 bg-card p-4.5 shadow-2xs"
+                        >
+                            <h3
+                                class="flex items-center gap-1.5 border-b border-border/40 pb-2 text-xs font-bold tracking-wider text-muted-foreground uppercase"
+                            >
                                 <Building2 class="size-3.5 text-indigo-500" />
                                 Hạn mức tài nguyên
                             </h3>
 
                             <div class="grid grid-cols-2 gap-4">
                                 <!-- Branches Limit -->
-                                <div class="grid gap-1.5 col-span-2 sm:col-span-1">
-                                    <Label class="text-[11px] font-semibold text-muted-foreground">CHI NHÁNH TỐI ĐA</Label>
+                                <div
+                                    class="col-span-2 grid gap-1.5 sm:col-span-1"
+                                >
+                                    <Label
+                                        class="text-[11px] font-semibold text-muted-foreground"
+                                        >CHI NHÁNH TỐI ĐA</Label
+                                    >
                                     <div class="relative flex items-center">
-                                        <div class="pointer-events-none absolute left-3.5 text-muted-foreground z-10">
-                                            <Building2 class="size-4 text-indigo-500" />
+                                        <div
+                                            class="pointer-events-none absolute left-3.5 z-10 text-muted-foreground"
+                                        >
+                                            <Building2
+                                                class="size-4 text-indigo-500"
+                                            />
                                         </div>
                                         <Input
-                                            :type="form.max_branches === -1 ? 'text' : 'number'"
-                                            :value="form.max_branches === -1 ? 'Vô hạn (Không giới hạn)' : form.max_branches"
-                                            @input="(e: Event) => {
-                                                if (form.max_branches !== -1) {
-                                                    form.max_branches = (e.target as HTMLInputElement).value === '' ? 1 : parseInt((e.target as HTMLInputElement).value)
+                                            :type="
+                                                form.max_branches === -1
+                                                    ? 'text'
+                                                    : 'number'
+                                            "
+                                            :value="
+                                                form.max_branches === -1
+                                                    ? 'Vô hạn (Không giới hạn)'
+                                                    : form.max_branches
+                                            "
+                                            @input="
+                                                (e: Event) => {
+                                                    if (
+                                                        form.max_branches !== -1
+                                                    ) {
+                                                        form.max_branches =
+                                                            (
+                                                                e.target as HTMLInputElement
+                                                            ).value === ''
+                                                                ? 1
+                                                                : parseInt(
+                                                                      (
+                                                                          e.target as HTMLInputElement
+                                                                      ).value,
+                                                                  );
+                                                    }
                                                 }
-                                            }"
+                                            "
                                             :disabled="form.max_branches === -1"
-                                            class="rounded-xl border-border pl-10 pr-24 focus-visible:border-indigo-500 focus-visible:ring-indigo-500/20 w-full"
-                                            :class="form.max_branches === -1 ? 'bg-indigo-500/[0.03] text-indigo-600 font-bold border-indigo-500/20 dark:text-indigo-400 dark:bg-indigo-500/[0.05]' : 'bg-background/50 focus:bg-background'"
+                                            class="w-full rounded-xl border-border pr-24 pl-10 focus-visible:border-indigo-500 focus-visible:ring-indigo-500/20"
+                                            :class="
+                                                form.max_branches === -1
+                                                    ? 'border-indigo-500/20 bg-indigo-500/[0.03] font-bold text-indigo-600 dark:bg-indigo-500/[0.05] dark:text-indigo-400'
+                                                    : 'bg-background/50 focus:bg-background'
+                                            "
                                         />
                                         <button
                                             type="button"
-                                            @click="form.max_branches = form.max_branches === -1 ? 1 : -1"
-                                            class="absolute right-2 px-2.5 py-1 rounded-lg text-[10px] font-bold tracking-wider uppercase transition-all duration-200 cursor-pointer"
-                                            :class="form.max_branches === -1 
-                                                ? 'bg-indigo-500 text-white shadow-xs hover:bg-indigo-600' 
-                                                : 'bg-zinc-100 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-700'"
+                                            @click="
+                                                form.max_branches =
+                                                    form.max_branches === -1
+                                                        ? 1
+                                                        : -1
+                                            "
+                                            class="absolute right-2 cursor-pointer rounded-lg px-2.5 py-1 text-[10px] font-bold tracking-wider uppercase transition-all duration-200"
+                                            :class="
+                                                form.max_branches === -1
+                                                    ? 'bg-indigo-500 text-white shadow-xs hover:bg-indigo-600'
+                                                    : 'bg-zinc-100 text-zinc-500 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-700'
+                                            "
                                         >
-                                            {{ form.max_branches === -1 ? 'Giới hạn' : 'Vô hạn' }}
+                                            {{
+                                                form.max_branches === -1
+                                                    ? 'Giới hạn'
+                                                    : 'Vô hạn'
+                                            }}
                                         </button>
                                     </div>
                                 </div>
 
                                 <!-- Tables Limit -->
-                                <div class="grid gap-1.5 col-span-2 sm:col-span-1">
-                                    <Label class="text-[11px] font-semibold text-muted-foreground">BÀN TỐI ĐA</Label>
+                                <div
+                                    class="col-span-2 grid gap-1.5 sm:col-span-1"
+                                >
+                                    <Label
+                                        class="text-[11px] font-semibold text-muted-foreground"
+                                        >BÀN TỐI ĐA</Label
+                                    >
                                     <div class="relative flex items-center">
-                                        <div class="pointer-events-none absolute left-3.5 text-muted-foreground z-10">
-                                            <Table class="size-4 text-indigo-500" />
+                                        <div
+                                            class="pointer-events-none absolute left-3.5 z-10 text-muted-foreground"
+                                        >
+                                            <Table
+                                                class="size-4 text-indigo-500"
+                                            />
                                         </div>
                                         <Input
-                                            :type="form.max_tables === -1 ? 'text' : 'number'"
-                                            :value="form.max_tables === -1 ? 'Vô hạn (Không giới hạn)' : form.max_tables"
-                                            @input="(e: Event) => {
-                                                if (form.max_tables !== -1) {
-                                                    form.max_tables = (e.target as HTMLInputElement).value === '' ? 1 : parseInt((e.target as HTMLInputElement).value)
+                                            :type="
+                                                form.max_tables === -1
+                                                    ? 'text'
+                                                    : 'number'
+                                            "
+                                            :value="
+                                                form.max_tables === -1
+                                                    ? 'Vô hạn (Không giới hạn)'
+                                                    : form.max_tables
+                                            "
+                                            @input="
+                                                (e: Event) => {
+                                                    if (
+                                                        form.max_tables !== -1
+                                                    ) {
+                                                        form.max_tables =
+                                                            (
+                                                                e.target as HTMLInputElement
+                                                            ).value === ''
+                                                                ? 1
+                                                                : parseInt(
+                                                                      (
+                                                                          e.target as HTMLInputElement
+                                                                      ).value,
+                                                                  );
+                                                    }
                                                 }
-                                            }"
+                                            "
                                             :disabled="form.max_tables === -1"
-                                            class="rounded-xl border-border pl-10 pr-24 focus-visible:border-indigo-500 focus-visible:ring-indigo-500/20 w-full"
-                                            :class="form.max_tables === -1 ? 'bg-indigo-500/[0.03] text-indigo-600 font-bold border-indigo-500/20 dark:text-indigo-400 dark:bg-indigo-500/[0.05]' : 'bg-background/50 focus:bg-background'"
+                                            class="w-full rounded-xl border-border pr-24 pl-10 focus-visible:border-indigo-500 focus-visible:ring-indigo-500/20"
+                                            :class="
+                                                form.max_tables === -1
+                                                    ? 'border-indigo-500/20 bg-indigo-500/[0.03] font-bold text-indigo-600 dark:bg-indigo-500/[0.05] dark:text-indigo-400'
+                                                    : 'bg-background/50 focus:bg-background'
+                                            "
                                         />
                                         <button
                                             type="button"
-                                            @click="form.max_tables = form.max_tables === -1 ? 15 : -1"
-                                            class="absolute right-2 px-2.5 py-1 rounded-lg text-[10px] font-bold tracking-wider uppercase transition-all duration-200 cursor-pointer"
-                                            :class="form.max_tables === -1 
-                                                ? 'bg-indigo-500 text-white shadow-xs hover:bg-indigo-600' 
-                                                : 'bg-zinc-100 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-700'"
+                                            @click="
+                                                form.max_tables =
+                                                    form.max_tables === -1
+                                                        ? 15
+                                                        : -1
+                                            "
+                                            class="absolute right-2 cursor-pointer rounded-lg px-2.5 py-1 text-[10px] font-bold tracking-wider uppercase transition-all duration-200"
+                                            :class="
+                                                form.max_tables === -1
+                                                    ? 'bg-indigo-500 text-white shadow-xs hover:bg-indigo-600'
+                                                    : 'bg-zinc-100 text-zinc-500 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-700'
+                                            "
                                         >
-                                            {{ form.max_tables === -1 ? 'Giới hạn' : 'Vô hạn' }}
+                                            {{
+                                                form.max_tables === -1
+                                                    ? 'Giới hạn'
+                                                    : 'Vô hạn'
+                                            }}
                                         </button>
                                     </div>
                                 </div>
 
                                 <!-- Users Limit -->
-                                <div class="grid gap-1.5 col-span-2 sm:col-span-1">
-                                    <Label class="text-[11px] font-semibold text-muted-foreground">NHÂN VIÊN TỐI ĐA</Label>
+                                <div
+                                    class="col-span-2 grid gap-1.5 sm:col-span-1"
+                                >
+                                    <Label
+                                        class="text-[11px] font-semibold text-muted-foreground"
+                                        >NHÂN VIÊN TỐI ĐA</Label
+                                    >
                                     <div class="relative flex items-center">
-                                        <div class="pointer-events-none absolute left-3.5 text-muted-foreground z-10">
-                                            <Users class="size-4 text-indigo-500" />
+                                        <div
+                                            class="pointer-events-none absolute left-3.5 z-10 text-muted-foreground"
+                                        >
+                                            <Users
+                                                class="size-4 text-indigo-500"
+                                            />
                                         </div>
                                         <Input
-                                            :type="form.max_users === -1 ? 'text' : 'number'"
-                                            :value="form.max_users === -1 ? 'Vô hạn (Không giới hạn)' : form.max_users"
-                                            @input="(e: Event) => {
-                                                if (form.max_users !== -1) {
-                                                    form.max_users = (e.target as HTMLInputElement).value === '' ? 1 : parseInt((e.target as HTMLInputElement).value)
+                                            :type="
+                                                form.max_users === -1
+                                                    ? 'text'
+                                                    : 'number'
+                                            "
+                                            :value="
+                                                form.max_users === -1
+                                                    ? 'Vô hạn (Không giới hạn)'
+                                                    : form.max_users
+                                            "
+                                            @input="
+                                                (e: Event) => {
+                                                    if (form.max_users !== -1) {
+                                                        form.max_users =
+                                                            (
+                                                                e.target as HTMLInputElement
+                                                            ).value === ''
+                                                                ? 1
+                                                                : parseInt(
+                                                                      (
+                                                                          e.target as HTMLInputElement
+                                                                      ).value,
+                                                                  );
+                                                    }
                                                 }
-                                            }"
+                                            "
                                             :disabled="form.max_users === -1"
-                                            class="rounded-xl border-border pl-10 pr-24 focus-visible:border-indigo-500 focus-visible:ring-indigo-500/20 w-full"
-                                            :class="form.max_users === -1 ? 'bg-indigo-500/[0.03] text-indigo-600 font-bold border-indigo-500/20 dark:text-indigo-400 dark:bg-indigo-500/[0.05]' : 'bg-background/50 focus:bg-background'"
+                                            class="w-full rounded-xl border-border pr-24 pl-10 focus-visible:border-indigo-500 focus-visible:ring-indigo-500/20"
+                                            :class="
+                                                form.max_users === -1
+                                                    ? 'border-indigo-500/20 bg-indigo-500/[0.03] font-bold text-indigo-600 dark:bg-indigo-500/[0.05] dark:text-indigo-400'
+                                                    : 'bg-background/50 focus:bg-background'
+                                            "
                                         />
                                         <button
                                             type="button"
-                                            @click="form.max_users = form.max_users === -1 ? 5 : -1"
-                                            class="absolute right-2 px-2.5 py-1 rounded-lg text-[10px] font-bold tracking-wider uppercase transition-all duration-200 cursor-pointer"
-                                            :class="form.max_users === -1 
-                                                ? 'bg-indigo-500 text-white shadow-xs hover:bg-indigo-600' 
-                                                : 'bg-zinc-100 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-700'"
+                                            @click="
+                                                form.max_users =
+                                                    form.max_users === -1
+                                                        ? 5
+                                                        : -1
+                                            "
+                                            class="absolute right-2 cursor-pointer rounded-lg px-2.5 py-1 text-[10px] font-bold tracking-wider uppercase transition-all duration-200"
+                                            :class="
+                                                form.max_users === -1
+                                                    ? 'bg-indigo-500 text-white shadow-xs hover:bg-indigo-600'
+                                                    : 'bg-zinc-100 text-zinc-500 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-700'
+                                            "
                                         >
-                                            {{ form.max_users === -1 ? 'Giới hạn' : 'Vô hạn' }}
+                                            {{
+                                                form.max_users === -1
+                                                    ? 'Giới hạn'
+                                                    : 'Vô hạn'
+                                            }}
                                         </button>
                                     </div>
                                 </div>
 
                                 <!-- Areas Limit -->
-                                <div class="grid gap-1.5 col-span-2 sm:col-span-1">
-                                    <Label class="text-[11px] font-semibold text-muted-foreground">KHU VỰC TỐI ĐA</Label>
+                                <div
+                                    class="col-span-2 grid gap-1.5 sm:col-span-1"
+                                >
+                                    <Label
+                                        class="text-[11px] font-semibold text-muted-foreground"
+                                        >KHU VỰC TỐI ĐA</Label
+                                    >
                                     <div class="relative flex items-center">
-                                        <div class="pointer-events-none absolute left-3.5 text-muted-foreground z-10">
-                                            <Layers class="size-4 text-indigo-500" />
+                                        <div
+                                            class="pointer-events-none absolute left-3.5 z-10 text-muted-foreground"
+                                        >
+                                            <Layers
+                                                class="size-4 text-indigo-500"
+                                            />
                                         </div>
                                         <Input
-                                            :type="form.max_areas === -1 ? 'text' : 'number'"
-                                            :value="form.max_areas === -1 ? 'Vô hạn (Không giới hạn)' : form.max_areas"
-                                            @input="(e: Event) => {
-                                                if (form.max_areas !== -1) {
-                                                    form.max_areas = (e.target as HTMLInputElement).value === '' ? 1 : parseInt((e.target as HTMLInputElement).value)
+                                            :type="
+                                                form.max_areas === -1
+                                                    ? 'text'
+                                                    : 'number'
+                                            "
+                                            :value="
+                                                form.max_areas === -1
+                                                    ? 'Vô hạn (Không giới hạn)'
+                                                    : form.max_areas
+                                            "
+                                            @input="
+                                                (e: Event) => {
+                                                    if (form.max_areas !== -1) {
+                                                        form.max_areas =
+                                                            (
+                                                                e.target as HTMLInputElement
+                                                            ).value === ''
+                                                                ? 1
+                                                                : parseInt(
+                                                                      (
+                                                                          e.target as HTMLInputElement
+                                                                      ).value,
+                                                                  );
+                                                    }
                                                 }
-                                            }"
+                                            "
                                             :disabled="form.max_areas === -1"
-                                            class="rounded-xl border-border pl-10 pr-24 focus-visible:border-indigo-500 focus-visible:ring-indigo-500/20 w-full"
-                                            :class="form.max_areas === -1 ? 'bg-indigo-500/[0.03] text-indigo-600 font-bold border-indigo-500/20 dark:text-indigo-400 dark:bg-indigo-500/[0.05]' : 'bg-background/50 focus:bg-background'"
+                                            class="w-full rounded-xl border-border pr-24 pl-10 focus-visible:border-indigo-500 focus-visible:ring-indigo-500/20"
+                                            :class="
+                                                form.max_areas === -1
+                                                    ? 'border-indigo-500/20 bg-indigo-500/[0.03] font-bold text-indigo-600 dark:bg-indigo-500/[0.05] dark:text-indigo-400'
+                                                    : 'bg-background/50 focus:bg-background'
+                                            "
                                         />
                                         <button
                                             type="button"
-                                            @click="form.max_areas = form.max_areas === -1 ? 2 : -1"
-                                            class="absolute right-2 px-2.5 py-1 rounded-lg text-[10px] font-bold tracking-wider uppercase transition-all duration-200 cursor-pointer"
-                                            :class="form.max_areas === -1 
-                                                ? 'bg-indigo-500 text-white shadow-xs hover:bg-indigo-600' 
-                                                : 'bg-zinc-100 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-700'"
+                                            @click="
+                                                form.max_areas =
+                                                    form.max_areas === -1
+                                                        ? 2
+                                                        : -1
+                                            "
+                                            class="absolute right-2 cursor-pointer rounded-lg px-2.5 py-1 text-[10px] font-bold tracking-wider uppercase transition-all duration-200"
+                                            :class="
+                                                form.max_areas === -1
+                                                    ? 'bg-indigo-500 text-white shadow-xs hover:bg-indigo-600'
+                                                    : 'bg-zinc-100 text-zinc-500 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-700'
+                                            "
                                         >
-                                            {{ form.max_areas === -1 ? 'Giới hạn' : 'Vô hạn' }}
+                                            {{
+                                                form.max_areas === -1
+                                                    ? 'Giới hạn'
+                                                    : 'Vô hạn'
+                                            }}
                                         </button>
                                     </div>
                                 </div>
 
                                 <!-- API Rate Limit -->
-                                <div class="grid gap-1.5 col-span-2 sm:col-span-1">
-                                    <Label class="text-[11px] font-semibold text-muted-foreground">API RATE LIMIT (REQ/PHÚT)</Label>
+                                <div
+                                    class="col-span-2 grid gap-1.5 sm:col-span-1"
+                                >
+                                    <Label
+                                        class="text-[11px] font-semibold text-muted-foreground"
+                                        >API RATE LIMIT (REQ/PHÚT)</Label
+                                    >
                                     <div class="relative flex items-center">
-                                        <div class="pointer-events-none absolute left-3.5 text-muted-foreground">
-                                            <Activity class="size-4 text-indigo-500" />
+                                        <div
+                                            class="pointer-events-none absolute left-3.5 text-muted-foreground"
+                                        >
+                                            <Activity
+                                                class="size-4 text-indigo-500"
+                                            />
                                         </div>
                                         <Input
                                             v-model.number="form.api_rate_limit"
                                             type="number"
                                             min="10"
-                                            class="rounded-xl border-border pl-10 focus-visible:border-indigo-500 focus-visible:ring-indigo-500/20 bg-background/50 focus:bg-background"
+                                            class="rounded-xl border-border bg-background/50 pl-10 focus:bg-background focus-visible:border-indigo-500 focus-visible:ring-indigo-500/20"
                                         />
                                     </div>
                                 </div>
 
                                 <!-- Storage Limit -->
-                                <div class="grid gap-1.5 col-span-2 sm:col-span-1">
-                                    <Label class="text-[11px] font-semibold text-muted-foreground">DUNG LƯỢNG LƯU TRỮ (MB)</Label>
+                                <div
+                                    class="col-span-2 grid gap-1.5 sm:col-span-1"
+                                >
+                                    <Label
+                                        class="text-[11px] font-semibold text-muted-foreground"
+                                        >DUNG LƯỢNG LƯU TRỮ (MB)</Label
+                                    >
                                     <div class="relative flex items-center">
-                                        <div class="pointer-events-none absolute left-3.5 text-muted-foreground">
-                                            <HardDrive class="size-4 text-indigo-500" />
+                                        <div
+                                            class="pointer-events-none absolute left-3.5 text-muted-foreground"
+                                        >
+                                            <HardDrive
+                                                class="size-4 text-indigo-500"
+                                            />
                                         </div>
                                         <Input
                                             v-model.number="form.max_storage_mb"
                                             type="number"
                                             min="1"
-                                            class="rounded-xl border-border pl-10 focus-visible:border-indigo-500 focus-visible:ring-indigo-500/20 bg-background/50 focus:bg-background"
+                                            class="rounded-xl border-border bg-background/50 pl-10 focus:bg-background focus-visible:border-indigo-500 focus-visible:ring-indigo-500/20"
                                         />
                                     </div>
                                 </div>
@@ -1352,21 +1618,30 @@ const planIcon: Record<string, any> = {
                     <!-- Tab 2: Feature Toggles -->
                     <div
                         v-show="activeTab === 'features'"
-                        class="animate-in space-y-6 duration-300 fade-in zoom-in-95"
+                        class="animate-in space-y-6 duration-300 zoom-in-95 fade-in"
                     >
                         <div
                             v-for="category in FEATURE_CATEGORIES"
                             :key="category.name"
                             class="space-y-4 rounded-2xl border border-border/80 bg-card p-5 shadow-2xs"
                         >
-                            <div class="flex items-center gap-2.5 border-b border-border/50 pb-3">
-                                <div class="p-1.5 rounded-lg bg-indigo-500/10 text-indigo-500">
+                            <div
+                                class="flex items-center gap-2.5 border-b border-border/50 pb-3"
+                            >
+                                <div
+                                    class="rounded-lg bg-indigo-500/10 p-1.5 text-indigo-500"
+                                >
                                     <component
-                                        :is="categoryIcon[category.icon] ?? Sparkles"
+                                        :is="
+                                            categoryIcon[category.icon] ??
+                                            Sparkles
+                                        "
                                         class="size-4"
                                     />
                                 </div>
-                                <h3 class="text-xs font-bold tracking-wider text-foreground uppercase">
+                                <h3
+                                    class="text-xs font-bold tracking-wider text-foreground uppercase"
+                                >
                                     {{ category.name }}
                                 </h3>
                             </div>
@@ -1375,21 +1650,31 @@ const planIcon: Record<string, any> = {
                                 <div
                                     v-for="key in category.keys"
                                     :key="key"
-                                    class="flex items-center justify-between rounded-xl border border-border bg-zinc-50/50 dark:bg-zinc-950/20 p-3.5 transition-all duration-300 hover:shadow-2xs hover:border-indigo-500/20"
+                                    class="flex items-center justify-between rounded-xl border border-border bg-zinc-50/50 p-3.5 transition-all duration-300 hover:border-indigo-500/20 hover:shadow-2xs dark:bg-zinc-950/20"
                                     :class="{
                                         'border-indigo-500/25 bg-gradient-to-r from-indigo-500/[0.03] to-violet-500/[0.03] shadow-[0_0_15px_rgba(99,102,241,0.05)]':
                                             (form as any)[key],
                                     }"
                                 >
-                                    <div class="flex flex-col gap-0.5 animate-in fade-in duration-300">
-                                        <span class="pr-2 text-xs font-bold text-foreground">
+                                    <div
+                                        class="flex animate-in flex-col gap-0.5 duration-300 fade-in"
+                                    >
+                                        <span
+                                            class="pr-2 text-xs font-bold text-foreground"
+                                        >
                                             {{ getFeatureLabel(key) }}
                                         </span>
-                                        <span class="text-[10px] text-muted-foreground leading-normal max-w-sm">
-                                            {{ FEATURE_DESCRIPTIONS[key] ?? '' }}
+                                        <span
+                                            class="max-w-sm text-[10px] leading-normal text-muted-foreground"
+                                        >
+                                            {{
+                                                FEATURE_DESCRIPTIONS[key] ?? ''
+                                            }}
                                         </span>
                                     </div>
-                                    <label class="relative inline-flex shrink-0 cursor-pointer items-center">
+                                    <label
+                                        class="relative inline-flex shrink-0 cursor-pointer items-center"
+                                    >
                                         <input
                                             type="checkbox"
                                             v-model="(form as any)[key]"
@@ -1410,7 +1695,7 @@ const planIcon: Record<string, any> = {
                             size="lg"
                             @click="editingId && save(editingId)"
                             :disabled="form.processing"
-                            class="flex-1 cursor-pointer rounded-xl border-none bg-gradient-to-r from-indigo-600 to-violet-600 py-6 text-xs font-bold tracking-wider text-white uppercase shadow-md transition-all duration-300 hover:-translate-y-0.5 hover:from-indigo-500 hover:to-violet-500 hover:shadow-lg active:translate-y-0 focus:ring-2 focus:ring-indigo-500/20"
+                            class="flex-1 cursor-pointer rounded-xl border-none bg-gradient-to-r from-indigo-600 to-violet-600 py-6 text-xs font-bold tracking-wider text-white uppercase shadow-md transition-all duration-300 hover:-translate-y-0.5 hover:from-indigo-500 hover:to-violet-500 hover:shadow-lg focus:ring-2 focus:ring-indigo-500/20 active:translate-y-0"
                         >
                             <Save class="mr-1.5 size-4" />
                             {{
@@ -1443,34 +1728,45 @@ const planIcon: Record<string, any> = {
             "
         >
             <DialogContent
-                class="max-h-[90vh] overflow-y-auto rounded-2xl sm:max-w-xl border border-zinc-200/50 bg-background/95 backdrop-blur-md dark:border-zinc-800/50"
+                class="max-h-[90vh] overflow-y-auto rounded-2xl border border-zinc-200/50 bg-background/95 backdrop-blur-md sm:max-w-xl dark:border-zinc-800/50"
             >
                 <DialogHeader class="border-b border-border pb-5">
-                    <DialogTitle class="flex items-center gap-2.5 text-xl font-bold">
-                        <div class="p-2 rounded-xl bg-indigo-500/10 text-indigo-500 shadow-2xs">
+                    <DialogTitle
+                        class="flex items-center gap-2.5 text-xl font-bold"
+                    >
+                        <div
+                            class="rounded-xl bg-indigo-500/10 p-2 text-indigo-500 shadow-2xs"
+                        >
                             <component
                                 :is="planIcon[createForm.code] ?? Sparkles"
                                 class="size-5"
                             />
                         </div>
-                        <span class="bg-gradient-to-r from-slate-900 to-slate-700 bg-clip-text text-transparent dark:from-white dark:to-zinc-300">
+                        <span
+                            class="bg-gradient-to-r from-slate-900 to-slate-700 bg-clip-text text-transparent dark:from-white dark:to-zinc-300"
+                        >
                             Tạo gói dịch vụ mới
                         </span>
                     </DialogTitle>
-                    <DialogDescription class="pt-1.5 text-xs text-muted-foreground">
-                        Gói dịch vụ mới sẽ được thêm vào hệ thống và hiển thị ngay trên trang khách hàng sau khi tạo.
+                    <DialogDescription
+                        class="pt-1.5 text-xs text-muted-foreground"
+                    >
+                        Gói dịch vụ mới sẽ được thêm vào hệ thống và hiển thị
+                        ngay trên trang khách hàng sau khi tạo.
                     </DialogDescription>
                 </DialogHeader>
 
                 <!-- Tab Selector for Create -->
-                <div class="my-5 flex rounded-xl border border-border/80 bg-muted/40 p-1 shadow-2xs">
+                <div
+                    class="my-5 flex rounded-xl border border-border/80 bg-muted/40 p-1 shadow-2xs"
+                >
                     <button
                         type="button"
                         @click="activeCreateTab = 'info'"
-                        class="flex-1 cursor-pointer rounded-lg py-2.5 text-center text-xs font-bold transition-all duration-300 flex items-center justify-center gap-1.5"
+                        class="flex flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-lg py-2.5 text-center text-xs font-bold transition-all duration-300"
                         :class="
                             activeCreateTab === 'info'
-                                ? 'bg-background text-foreground shadow-sm scale-[1.02]'
+                                ? 'scale-[1.02] bg-background text-foreground shadow-sm'
                                 : 'text-muted-foreground hover:text-foreground'
                         "
                     >
@@ -1480,17 +1776,18 @@ const planIcon: Record<string, any> = {
                     <button
                         type="button"
                         @click="activeCreateTab = 'features'"
-                        class="flex-1 cursor-pointer rounded-lg py-2.5 text-center text-xs font-bold transition-all duration-300 flex items-center justify-center gap-1.5"
+                        class="flex flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-lg py-2.5 text-center text-xs font-bold transition-all duration-300"
                         :class="
                             activeCreateTab === 'features'
-                                ? 'bg-background text-foreground shadow-sm scale-[1.02]'
+                                ? 'scale-[1.02] bg-background text-foreground shadow-sm'
                                 : 'text-muted-foreground hover:text-foreground'
                         "
                     >
                         <Sparkles class="size-3.5 text-indigo-500" />
                         Tính năng ({{
-                            ALL_FEATURES.filter((f) => (createForm as any)[f.key])
-                                .length
+                            ALL_FEATURES.filter(
+                                (f) => (createForm as any)[f.key],
+                            ).length
                         }})
                     </button>
                 </div>
@@ -1502,29 +1799,39 @@ const planIcon: Record<string, any> = {
                     <!-- Tab 1: Info & Limits -->
                     <div
                         v-show="activeCreateTab === 'info'"
-                        class="animate-in space-y-6 duration-300 fade-in zoom-in-95"
+                        class="animate-in space-y-6 duration-300 zoom-in-95 fade-in"
                     >
                         <!-- Group 1: General Info Card -->
-                        <div class="rounded-2xl border border-border/60 bg-card p-4.5 shadow-2xs space-y-4">
-                            <h3 class="text-xs font-bold tracking-wider text-muted-foreground uppercase flex items-center gap-1.5 border-b border-border/40 pb-2">
+                        <div
+                            class="space-y-4 rounded-2xl border border-border/60 bg-card p-4.5 shadow-2xs"
+                        >
+                            <h3
+                                class="flex items-center gap-1.5 border-b border-border/40 pb-2 text-xs font-bold tracking-wider text-muted-foreground uppercase"
+                            >
                                 <Tag class="size-3.5 text-indigo-500" />
                                 Thông tin cơ bản
                             </h3>
 
                             <div class="grid grid-cols-2 gap-4">
                                 <div class="grid gap-1.5">
-                                    <Label class="text-[11px] font-semibold text-muted-foreground flex items-center gap-0.5">
+                                    <Label
+                                        class="flex items-center gap-0.5 text-[11px] font-semibold text-muted-foreground"
+                                    >
                                         MÃ GÓI (CODE)
                                         <span class="text-destructive">*</span>
                                     </Label>
                                     <div class="relative flex items-center">
-                                        <div class="pointer-events-none absolute left-3.5 text-muted-foreground">
-                                            <Lock class="size-4 text-indigo-500" />
+                                        <div
+                                            class="pointer-events-none absolute left-3.5 text-muted-foreground"
+                                        >
+                                            <Lock
+                                                class="size-4 text-indigo-500"
+                                            />
                                         </div>
                                         <Input
                                             v-model="createForm.code"
                                             placeholder="vd: starter"
-                                            class="rounded-xl border-border pl-10 focus-visible:border-indigo-500 focus-visible:ring-indigo-500/20 bg-background/50 focus:bg-background"
+                                            class="rounded-xl border-border bg-background/50 pl-10 focus:bg-background focus-visible:border-indigo-500 focus-visible:ring-indigo-500/20"
                                         />
                                     </div>
                                     <p
@@ -1536,37 +1843,51 @@ const planIcon: Record<string, any> = {
                                 </div>
 
                                 <div class="grid gap-1.5">
-                                    <Label class="text-[11px] font-semibold text-muted-foreground flex items-center gap-0.5">
+                                    <Label
+                                        class="flex items-center gap-0.5 text-[11px] font-semibold text-muted-foreground"
+                                    >
                                         CHU KỲ THANH TOÁN
                                         <span class="text-destructive">*</span>
                                     </Label>
                                     <Select v-model="createForm.billing_cycle">
                                         <SelectTrigger
-                                            class="h-9 rounded-xl border-border text-sm focus:border-indigo-500 focus:ring-indigo-500/20 bg-background/50 focus:bg-background"
+                                            class="h-9 rounded-xl border-border bg-background/50 text-sm focus:border-indigo-500 focus:bg-background focus:ring-indigo-500/20"
                                         >
                                             <SelectValue />
                                         </SelectTrigger>
                                         <SelectContent class="rounded-xl">
-                                            <SelectItem value="monthly">Hàng tháng</SelectItem>
-                                            <SelectItem value="yearly">Hàng năm</SelectItem>
-                                            <SelectItem value="quarterly">Hàng quý</SelectItem>
+                                            <SelectItem value="monthly"
+                                                >Hàng tháng</SelectItem
+                                            >
+                                            <SelectItem value="yearly"
+                                                >Hàng năm</SelectItem
+                                            >
+                                            <SelectItem value="quarterly"
+                                                >Hàng quý</SelectItem
+                                            >
                                         </SelectContent>
                                     </Select>
                                 </div>
 
                                 <div class="col-span-2 grid gap-1.5">
-                                    <Label class="text-[11px] font-semibold text-muted-foreground flex items-center gap-0.5">
+                                    <Label
+                                        class="flex items-center gap-0.5 text-[11px] font-semibold text-muted-foreground"
+                                    >
                                         TÊN GÓI
                                         <span class="text-destructive">*</span>
                                     </Label>
                                     <div class="relative flex items-center">
-                                        <div class="pointer-events-none absolute left-3.5 text-muted-foreground">
-                                            <Tag class="size-4 text-indigo-500" />
+                                        <div
+                                            class="pointer-events-none absolute left-3.5 text-muted-foreground"
+                                        >
+                                            <Tag
+                                                class="size-4 text-indigo-500"
+                                            />
                                         </div>
                                         <Input
                                             v-model="createForm.name"
                                             placeholder="vd: Gói Khởi Nghiệp"
-                                            class="rounded-xl border-border pl-10 focus-visible:border-indigo-500 focus-visible:ring-indigo-500/20 bg-background/50 focus:bg-background"
+                                            class="rounded-xl border-border bg-background/50 pl-10 focus:bg-background focus-visible:border-indigo-500 focus-visible:ring-indigo-500/20"
                                         />
                                     </div>
                                     <p
@@ -1578,50 +1899,73 @@ const planIcon: Record<string, any> = {
                                 </div>
 
                                 <div class="col-span-2 grid gap-1.5">
-                                    <Label class="text-[11px] font-semibold text-muted-foreground">MÔ TẢ NGẮN (HIỂN THỊ TRANG KHÁCH)</Label>
+                                    <Label
+                                        class="text-[11px] font-semibold text-muted-foreground"
+                                        >MÔ TẢ NGẮN (HIỂN THỊ TRANG
+                                        KHÁCH)</Label
+                                    >
                                     <div class="relative">
                                         <textarea
                                             v-model="createForm.description"
                                             rows="2"
-                                            class="flex w-full resize-none rounded-xl border border-border border-input bg-background/50 py-2.5 pr-3 pl-10 text-sm text-foreground focus-visible:border-indigo-500 focus-visible:ring-2 focus-visible:ring-indigo-500/20 focus-visible:ring-ring focus-visible:outline-none focus:bg-background transition-all"
+                                            class="flex w-full resize-none rounded-xl border border-border border-input bg-background/50 py-2.5 pr-3 pl-10 text-sm text-foreground transition-all focus:bg-background focus-visible:border-indigo-500 focus-visible:ring-2 focus-visible:ring-indigo-500/20 focus-visible:ring-ring focus-visible:outline-none"
                                             placeholder="Mô tả ngắn gọn về gói..."
                                         />
-                                        <div class="pointer-events-none absolute top-3 left-3.5 text-muted-foreground">
-                                            <FileText class="size-4 text-indigo-500" />
+                                        <div
+                                            class="pointer-events-none absolute top-3 left-3.5 text-muted-foreground"
+                                        >
+                                            <FileText
+                                                class="size-4 text-indigo-500"
+                                            />
                                         </div>
                                     </div>
                                 </div>
 
                                 <div class="grid gap-1.5">
-                                    <Label class="text-[11px] font-semibold text-muted-foreground flex items-center gap-0.5">
+                                    <Label
+                                        class="flex items-center gap-0.5 text-[11px] font-semibold text-muted-foreground"
+                                    >
                                         GIÁ (VND/THÁNG)
                                         <span class="text-destructive">*</span>
                                     </Label>
                                     <div class="relative flex items-center">
-                                        <div class="pointer-events-none absolute left-3.5 text-muted-foreground">
-                                            <Coins class="size-4 text-indigo-500" />
+                                        <div
+                                            class="pointer-events-none absolute left-3.5 text-muted-foreground"
+                                        >
+                                            <Coins
+                                                class="size-4 text-indigo-500"
+                                            />
                                         </div>
                                         <Input
                                             v-model.number="createForm.price"
                                             type="number"
                                             min="0"
-                                            class="rounded-xl border-border pl-10 focus-visible:border-indigo-500 focus-visible:ring-indigo-500/20 bg-background/50 focus:bg-background"
+                                            class="rounded-xl border-border bg-background/50 pl-10 focus:bg-background focus-visible:border-indigo-500 focus-visible:ring-indigo-500/20"
                                         />
                                     </div>
                                 </div>
 
                                 <div class="grid gap-1.5">
-                                    <Label class="text-[11px] font-semibold text-muted-foreground">CHIẾT KHẤU GÓI NĂM (%)</Label>
+                                    <Label
+                                        class="text-[11px] font-semibold text-muted-foreground"
+                                        >CHIẾT KHẤU GÓI NĂM (%)</Label
+                                    >
                                     <div class="relative flex items-center">
-                                        <div class="pointer-events-none absolute left-3.5 text-muted-foreground">
-                                            <Percent class="size-4 text-indigo-500" />
+                                        <div
+                                            class="pointer-events-none absolute left-3.5 text-muted-foreground"
+                                        >
+                                            <Percent
+                                                class="size-4 text-indigo-500"
+                                            />
                                         </div>
                                         <Input
-                                            v-model.number="createForm.yearly_discount_percent"
+                                            v-model.number="
+                                                createForm.yearly_discount_percent
+                                            "
                                             type="number"
                                             min="0"
                                             max="100"
-                                            class="rounded-xl border-border pl-10 focus-visible:border-indigo-500 focus-visible:ring-indigo-500/20 bg-background/50 focus:bg-background"
+                                            class="rounded-xl border-border bg-background/50 pl-10 focus:bg-background focus-visible:border-indigo-500 focus-visible:ring-indigo-500/20"
                                         />
                                     </div>
                                 </div>
@@ -1629,169 +1973,388 @@ const planIcon: Record<string, any> = {
                         </div>
 
                         <!-- Group 2: Operational Limits Card -->
-                        <div class="rounded-2xl border border-border/60 bg-card p-4.5 shadow-2xs space-y-4">
-                            <h3 class="text-xs font-bold tracking-wider text-muted-foreground uppercase flex items-center gap-1.5 border-b border-border/40 pb-2">
+                        <div
+                            class="space-y-4 rounded-2xl border border-border/60 bg-card p-4.5 shadow-2xs"
+                        >
+                            <h3
+                                class="flex items-center gap-1.5 border-b border-border/40 pb-2 text-xs font-bold tracking-wider text-muted-foreground uppercase"
+                            >
                                 <Building2 class="size-3.5 text-indigo-500" />
                                 Hạn mức tài nguyên
                             </h3>
 
                             <div class="grid grid-cols-2 gap-4">
                                 <!-- Branches Limit -->
-                                <div class="grid gap-1.5 col-span-2 sm:col-span-1">
-                                    <Label class="text-[11px] font-semibold text-muted-foreground">CHI NHÁNH TỐI ĐA</Label>
+                                <div
+                                    class="col-span-2 grid gap-1.5 sm:col-span-1"
+                                >
+                                    <Label
+                                        class="text-[11px] font-semibold text-muted-foreground"
+                                        >CHI NHÁNH TỐI ĐA</Label
+                                    >
                                     <div class="relative flex items-center">
-                                        <div class="pointer-events-none absolute left-3.5 text-muted-foreground z-10">
-                                            <Building2 class="size-4 text-indigo-500" />
+                                        <div
+                                            class="pointer-events-none absolute left-3.5 z-10 text-muted-foreground"
+                                        >
+                                            <Building2
+                                                class="size-4 text-indigo-500"
+                                            />
                                         </div>
                                         <Input
-                                            :type="createForm.max_branches === -1 ? 'text' : 'number'"
-                                            :value="createForm.max_branches === -1 ? 'Vô hạn (Không giới hạn)' : createForm.max_branches"
-                                            @input="(e: Event) => {
-                                                if (createForm.max_branches !== -1) {
-                                                    createForm.max_branches = (e.target as HTMLInputElement).value === '' ? 1 : parseInt((e.target as HTMLInputElement).value)
+                                            :type="
+                                                createForm.max_branches === -1
+                                                    ? 'text'
+                                                    : 'number'
+                                            "
+                                            :value="
+                                                createForm.max_branches === -1
+                                                    ? 'Vô hạn (Không giới hạn)'
+                                                    : createForm.max_branches
+                                            "
+                                            @input="
+                                                (e: Event) => {
+                                                    if (
+                                                        createForm.max_branches !==
+                                                        -1
+                                                    ) {
+                                                        createForm.max_branches =
+                                                            (
+                                                                e.target as HTMLInputElement
+                                                            ).value === ''
+                                                                ? 1
+                                                                : parseInt(
+                                                                      (
+                                                                          e.target as HTMLInputElement
+                                                                      ).value,
+                                                                  );
+                                                    }
                                                 }
-                                            }"
-                                            :disabled="createForm.max_branches === -1"
-                                            class="rounded-xl border-border pl-10 pr-24 focus-visible:border-indigo-500 focus-visible:ring-indigo-500/20 w-full"
-                                            :class="createForm.max_branches === -1 ? 'bg-indigo-500/[0.03] text-indigo-600 font-bold border-indigo-500/20 dark:text-indigo-400 dark:bg-indigo-500/[0.05]' : 'bg-background/50 focus:bg-background'"
+                                            "
+                                            :disabled="
+                                                createForm.max_branches === -1
+                                            "
+                                            class="w-full rounded-xl border-border pr-24 pl-10 focus-visible:border-indigo-500 focus-visible:ring-indigo-500/20"
+                                            :class="
+                                                createForm.max_branches === -1
+                                                    ? 'border-indigo-500/20 bg-indigo-500/[0.03] font-bold text-indigo-600 dark:bg-indigo-500/[0.05] dark:text-indigo-400'
+                                                    : 'bg-background/50 focus:bg-background'
+                                            "
                                         />
                                         <button
                                             type="button"
-                                            @click="createForm.max_branches = createForm.max_branches === -1 ? 1 : -1"
-                                            class="absolute right-2 px-2.5 py-1 rounded-lg text-[10px] font-bold tracking-wider uppercase transition-all duration-200 cursor-pointer"
-                                            :class="createForm.max_branches === -1 
-                                                ? 'bg-indigo-500 text-white shadow-xs hover:bg-indigo-600' 
-                                                : 'bg-zinc-100 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-700'"
+                                            @click="
+                                                createForm.max_branches =
+                                                    createForm.max_branches ===
+                                                    -1
+                                                        ? 1
+                                                        : -1
+                                            "
+                                            class="absolute right-2 cursor-pointer rounded-lg px-2.5 py-1 text-[10px] font-bold tracking-wider uppercase transition-all duration-200"
+                                            :class="
+                                                createForm.max_branches === -1
+                                                    ? 'bg-indigo-500 text-white shadow-xs hover:bg-indigo-600'
+                                                    : 'bg-zinc-100 text-zinc-500 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-700'
+                                            "
                                         >
-                                            {{ createForm.max_branches === -1 ? 'Giới hạn' : 'Vô hạn' }}
+                                            {{
+                                                createForm.max_branches === -1
+                                                    ? 'Giới hạn'
+                                                    : 'Vô hạn'
+                                            }}
                                         </button>
                                     </div>
                                 </div>
 
                                 <!-- Tables Limit -->
-                                <div class="grid gap-1.5 col-span-2 sm:col-span-1">
-                                    <Label class="text-[11px] font-semibold text-muted-foreground">BÀN TỐI ĐA</Label>
+                                <div
+                                    class="col-span-2 grid gap-1.5 sm:col-span-1"
+                                >
+                                    <Label
+                                        class="text-[11px] font-semibold text-muted-foreground"
+                                        >BÀN TỐI ĐA</Label
+                                    >
                                     <div class="relative flex items-center">
-                                        <div class="pointer-events-none absolute left-3.5 text-muted-foreground z-10">
-                                            <Table class="size-4 text-indigo-500" />
+                                        <div
+                                            class="pointer-events-none absolute left-3.5 z-10 text-muted-foreground"
+                                        >
+                                            <Table
+                                                class="size-4 text-indigo-500"
+                                            />
                                         </div>
                                         <Input
-                                            :type="createForm.max_tables === -1 ? 'text' : 'number'"
-                                            :value="createForm.max_tables === -1 ? 'Vô hạn (Không giới hạn)' : createForm.max_tables"
-                                            @input="(e: Event) => {
-                                                if (createForm.max_tables !== -1) {
-                                                    createForm.max_tables = (e.target as HTMLInputElement).value === '' ? 1 : parseInt((e.target as HTMLInputElement).value)
+                                            :type="
+                                                createForm.max_tables === -1
+                                                    ? 'text'
+                                                    : 'number'
+                                            "
+                                            :value="
+                                                createForm.max_tables === -1
+                                                    ? 'Vô hạn (Không giới hạn)'
+                                                    : createForm.max_tables
+                                            "
+                                            @input="
+                                                (e: Event) => {
+                                                    if (
+                                                        createForm.max_tables !==
+                                                        -1
+                                                    ) {
+                                                        createForm.max_tables =
+                                                            (
+                                                                e.target as HTMLInputElement
+                                                            ).value === ''
+                                                                ? 1
+                                                                : parseInt(
+                                                                      (
+                                                                          e.target as HTMLInputElement
+                                                                      ).value,
+                                                                  );
+                                                    }
                                                 }
-                                            }"
-                                            :disabled="createForm.max_tables === -1"
-                                            class="rounded-xl border-border pl-10 pr-24 focus-visible:border-indigo-500 focus-visible:ring-indigo-500/20 w-full"
-                                            :class="createForm.max_tables === -1 ? 'bg-indigo-500/[0.03] text-indigo-600 font-bold border-indigo-500/20 dark:text-indigo-400 dark:bg-indigo-500/[0.05]' : 'bg-background/50 focus:bg-background'"
+                                            "
+                                            :disabled="
+                                                createForm.max_tables === -1
+                                            "
+                                            class="w-full rounded-xl border-border pr-24 pl-10 focus-visible:border-indigo-500 focus-visible:ring-indigo-500/20"
+                                            :class="
+                                                createForm.max_tables === -1
+                                                    ? 'border-indigo-500/20 bg-indigo-500/[0.03] font-bold text-indigo-600 dark:bg-indigo-500/[0.05] dark:text-indigo-400'
+                                                    : 'bg-background/50 focus:bg-background'
+                                            "
                                         />
                                         <button
                                             type="button"
-                                            @click="createForm.max_tables = createForm.max_tables === -1 ? 15 : -1"
-                                            class="absolute right-2 px-2.5 py-1 rounded-lg text-[10px] font-bold tracking-wider uppercase transition-all duration-200 cursor-pointer"
-                                            :class="createForm.max_tables === -1 
-                                                ? 'bg-indigo-500 text-white shadow-xs hover:bg-indigo-600' 
-                                                : 'bg-zinc-100 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-700'"
+                                            @click="
+                                                createForm.max_tables =
+                                                    createForm.max_tables === -1
+                                                        ? 15
+                                                        : -1
+                                            "
+                                            class="absolute right-2 cursor-pointer rounded-lg px-2.5 py-1 text-[10px] font-bold tracking-wider uppercase transition-all duration-200"
+                                            :class="
+                                                createForm.max_tables === -1
+                                                    ? 'bg-indigo-500 text-white shadow-xs hover:bg-indigo-600'
+                                                    : 'bg-zinc-100 text-zinc-500 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-700'
+                                            "
                                         >
-                                            {{ createForm.max_tables === -1 ? 'Giới hạn' : 'Vô hạn' }}
+                                            {{
+                                                createForm.max_tables === -1
+                                                    ? 'Giới hạn'
+                                                    : 'Vô hạn'
+                                            }}
                                         </button>
                                     </div>
                                 </div>
 
                                 <!-- Users Limit -->
-                                <div class="grid gap-1.5 col-span-2 sm:col-span-1">
-                                    <Label class="text-[11px] font-semibold text-muted-foreground">NHÂN VIÊN TỐI ĐA</Label>
+                                <div
+                                    class="col-span-2 grid gap-1.5 sm:col-span-1"
+                                >
+                                    <Label
+                                        class="text-[11px] font-semibold text-muted-foreground"
+                                        >NHÂN VIÊN TỐI ĐA</Label
+                                    >
                                     <div class="relative flex items-center">
-                                        <div class="pointer-events-none absolute left-3.5 text-muted-foreground z-10">
-                                            <Users class="size-4 text-indigo-500" />
+                                        <div
+                                            class="pointer-events-none absolute left-3.5 z-10 text-muted-foreground"
+                                        >
+                                            <Users
+                                                class="size-4 text-indigo-500"
+                                            />
                                         </div>
                                         <Input
-                                            :type="createForm.max_users === -1 ? 'text' : 'number'"
-                                            :value="createForm.max_users === -1 ? 'Vô hạn (Không giới hạn)' : createForm.max_users"
-                                            @input="(e: Event) => {
-                                                if (createForm.max_users !== -1) {
-                                                    createForm.max_users = (e.target as HTMLInputElement).value === '' ? 1 : parseInt((e.target as HTMLInputElement).value)
+                                            :type="
+                                                createForm.max_users === -1
+                                                    ? 'text'
+                                                    : 'number'
+                                            "
+                                            :value="
+                                                createForm.max_users === -1
+                                                    ? 'Vô hạn (Không giới hạn)'
+                                                    : createForm.max_users
+                                            "
+                                            @input="
+                                                (e: Event) => {
+                                                    if (
+                                                        createForm.max_users !==
+                                                        -1
+                                                    ) {
+                                                        createForm.max_users =
+                                                            (
+                                                                e.target as HTMLInputElement
+                                                            ).value === ''
+                                                                ? 1
+                                                                : parseInt(
+                                                                      (
+                                                                          e.target as HTMLInputElement
+                                                                      ).value,
+                                                                  );
+                                                    }
                                                 }
-                                            }"
-                                            :disabled="createForm.max_users === -1"
-                                            class="rounded-xl border-border pl-10 pr-24 focus-visible:border-indigo-500 focus-visible:ring-indigo-500/20 w-full"
-                                            :class="createForm.max_users === -1 ? 'bg-indigo-500/[0.03] text-indigo-600 font-bold border-indigo-500/20 dark:text-indigo-400 dark:bg-indigo-500/[0.05]' : 'bg-background/50 focus:bg-background'"
+                                            "
+                                            :disabled="
+                                                createForm.max_users === -1
+                                            "
+                                            class="w-full rounded-xl border-border pr-24 pl-10 focus-visible:border-indigo-500 focus-visible:ring-indigo-500/20"
+                                            :class="
+                                                createForm.max_users === -1
+                                                    ? 'border-indigo-500/20 bg-indigo-500/[0.03] font-bold text-indigo-600 dark:bg-indigo-500/[0.05] dark:text-indigo-400'
+                                                    : 'bg-background/50 focus:bg-background'
+                                            "
                                         />
                                         <button
                                             type="button"
-                                            @click="createForm.max_users = createForm.max_users === -1 ? 5 : -1"
-                                            class="absolute right-2 px-2.5 py-1 rounded-lg text-[10px] font-bold tracking-wider uppercase transition-all duration-200 cursor-pointer"
-                                            :class="createForm.max_users === -1 
-                                                ? 'bg-indigo-500 text-white shadow-xs hover:bg-indigo-600' 
-                                                : 'bg-zinc-100 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-700'"
+                                            @click="
+                                                createForm.max_users =
+                                                    createForm.max_users === -1
+                                                        ? 5
+                                                        : -1
+                                            "
+                                            class="absolute right-2 cursor-pointer rounded-lg px-2.5 py-1 text-[10px] font-bold tracking-wider uppercase transition-all duration-200"
+                                            :class="
+                                                createForm.max_users === -1
+                                                    ? 'bg-indigo-500 text-white shadow-xs hover:bg-indigo-600'
+                                                    : 'bg-zinc-100 text-zinc-500 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-700'
+                                            "
                                         >
-                                            {{ createForm.max_users === -1 ? 'Giới hạn' : 'Vô hạn' }}
+                                            {{
+                                                createForm.max_users === -1
+                                                    ? 'Giới hạn'
+                                                    : 'Vô hạn'
+                                            }}
                                         </button>
                                     </div>
                                 </div>
 
                                 <!-- Areas Limit -->
-                                <div class="grid gap-1.5 col-span-2 sm:col-span-1">
-                                    <Label class="text-[11px] font-semibold text-muted-foreground">KHU VỰC TỐI ĐA</Label>
+                                <div
+                                    class="col-span-2 grid gap-1.5 sm:col-span-1"
+                                >
+                                    <Label
+                                        class="text-[11px] font-semibold text-muted-foreground"
+                                        >KHU VỰC TỐI ĐA</Label
+                                    >
                                     <div class="relative flex items-center">
-                                        <div class="pointer-events-none absolute left-3.5 text-muted-foreground z-10">
-                                            <Layers class="size-4 text-indigo-500" />
+                                        <div
+                                            class="pointer-events-none absolute left-3.5 z-10 text-muted-foreground"
+                                        >
+                                            <Layers
+                                                class="size-4 text-indigo-500"
+                                            />
                                         </div>
                                         <Input
-                                            :type="createForm.max_areas === -1 ? 'text' : 'number'"
-                                            :value="createForm.max_areas === -1 ? 'Vô hạn (Không giới hạn)' : createForm.max_areas"
-                                            @input="(e: Event) => {
-                                                if (createForm.max_areas !== -1) {
-                                                    createForm.max_areas = (e.target as HTMLInputElement).value === '' ? 1 : parseInt((e.target as HTMLInputElement).value)
+                                            :type="
+                                                createForm.max_areas === -1
+                                                    ? 'text'
+                                                    : 'number'
+                                            "
+                                            :value="
+                                                createForm.max_areas === -1
+                                                    ? 'Vô hạn (Không giới hạn)'
+                                                    : createForm.max_areas
+                                            "
+                                            @input="
+                                                (e: Event) => {
+                                                    if (
+                                                        createForm.max_areas !==
+                                                        -1
+                                                    ) {
+                                                        createForm.max_areas =
+                                                            (
+                                                                e.target as HTMLInputElement
+                                                            ).value === ''
+                                                                ? 1
+                                                                : parseInt(
+                                                                      (
+                                                                          e.target as HTMLInputElement
+                                                                      ).value,
+                                                                  );
+                                                    }
                                                 }
-                                            }"
-                                            :disabled="createForm.max_areas === -1"
-                                            class="rounded-xl border-border pl-10 pr-24 focus-visible:border-indigo-500 focus-visible:ring-indigo-500/20 w-full"
-                                            :class="createForm.max_areas === -1 ? 'bg-indigo-500/[0.03] text-indigo-600 font-bold border-indigo-500/20 dark:text-indigo-400 dark:bg-indigo-500/[0.05]' : 'bg-background/50 focus:bg-background'"
+                                            "
+                                            :disabled="
+                                                createForm.max_areas === -1
+                                            "
+                                            class="w-full rounded-xl border-border pr-24 pl-10 focus-visible:border-indigo-500 focus-visible:ring-indigo-500/20"
+                                            :class="
+                                                createForm.max_areas === -1
+                                                    ? 'border-indigo-500/20 bg-indigo-500/[0.03] font-bold text-indigo-600 dark:bg-indigo-500/[0.05] dark:text-indigo-400'
+                                                    : 'bg-background/50 focus:bg-background'
+                                            "
                                         />
                                         <button
                                             type="button"
-                                            @click="createForm.max_areas = createForm.max_areas === -1 ? 2 : -1"
-                                            class="absolute right-2 px-2.5 py-1 rounded-lg text-[10px] font-bold tracking-wider uppercase transition-all duration-200 cursor-pointer"
-                                            :class="createForm.max_areas === -1 
-                                                ? 'bg-indigo-500 text-white shadow-xs hover:bg-indigo-600' 
-                                                : 'bg-zinc-100 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-700'"
+                                            @click="
+                                                createForm.max_areas =
+                                                    createForm.max_areas === -1
+                                                        ? 2
+                                                        : -1
+                                            "
+                                            class="absolute right-2 cursor-pointer rounded-lg px-2.5 py-1 text-[10px] font-bold tracking-wider uppercase transition-all duration-200"
+                                            :class="
+                                                createForm.max_areas === -1
+                                                    ? 'bg-indigo-500 text-white shadow-xs hover:bg-indigo-600'
+                                                    : 'bg-zinc-100 text-zinc-500 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-700'
+                                            "
                                         >
-                                            {{ createForm.max_areas === -1 ? 'Giới hạn' : 'Vô hạn' }}
+                                            {{
+                                                createForm.max_areas === -1
+                                                    ? 'Giới hạn'
+                                                    : 'Vô hạn'
+                                            }}
                                         </button>
                                     </div>
                                 </div>
 
                                 <!-- API Rate Limit -->
-                                <div class="grid gap-1.5 col-span-2 sm:col-span-1">
-                                    <Label class="text-[11px] font-semibold text-muted-foreground">API RATE LIMIT (REQ/PHÚT)</Label>
+                                <div
+                                    class="col-span-2 grid gap-1.5 sm:col-span-1"
+                                >
+                                    <Label
+                                        class="text-[11px] font-semibold text-muted-foreground"
+                                        >API RATE LIMIT (REQ/PHÚT)</Label
+                                    >
                                     <div class="relative flex items-center">
-                                        <div class="pointer-events-none absolute left-3.5 text-muted-foreground">
-                                            <Activity class="size-4 text-indigo-500" />
+                                        <div
+                                            class="pointer-events-none absolute left-3.5 text-muted-foreground"
+                                        >
+                                            <Activity
+                                                class="size-4 text-indigo-500"
+                                            />
                                         </div>
                                         <Input
-                                            v-model.number="createForm.api_rate_limit"
+                                            v-model.number="
+                                                createForm.api_rate_limit
+                                            "
                                             type="number"
                                             min="10"
-                                            class="rounded-xl border-border pl-10 focus-visible:border-indigo-500 focus-visible:ring-indigo-500/20 bg-background/50 focus:bg-background"
+                                            class="rounded-xl border-border bg-background/50 pl-10 focus:bg-background focus-visible:border-indigo-500 focus-visible:ring-indigo-500/20"
                                         />
                                     </div>
                                 </div>
 
                                 <!-- Storage Limit -->
-                                <div class="grid gap-1.5 col-span-2 sm:col-span-1">
-                                    <Label class="text-[11px] font-semibold text-muted-foreground">DUNG LƯỢNG LƯU TRỮ (MB)</Label>
+                                <div
+                                    class="col-span-2 grid gap-1.5 sm:col-span-1"
+                                >
+                                    <Label
+                                        class="text-[11px] font-semibold text-muted-foreground"
+                                        >DUNG LƯỢNG LƯU TRỮ (MB)</Label
+                                    >
                                     <div class="relative flex items-center">
-                                        <div class="pointer-events-none absolute left-3.5 text-muted-foreground">
-                                            <HardDrive class="size-4 text-indigo-500" />
+                                        <div
+                                            class="pointer-events-none absolute left-3.5 text-muted-foreground"
+                                        >
+                                            <HardDrive
+                                                class="size-4 text-indigo-500"
+                                            />
                                         </div>
                                         <Input
-                                            v-model.number="createForm.max_storage_mb"
+                                            v-model.number="
+                                                createForm.max_storage_mb
+                                            "
                                             type="number"
                                             min="1"
-                                            class="rounded-xl border-border pl-10 focus-visible:border-indigo-500 focus-visible:ring-indigo-500/20 bg-background/50 focus:bg-background"
+                                            class="rounded-xl border-border bg-background/50 pl-10 focus:bg-background focus-visible:border-indigo-500 focus-visible:ring-indigo-500/20"
                                         />
                                     </div>
                                 </div>
@@ -1802,21 +2365,30 @@ const planIcon: Record<string, any> = {
                     <!-- Tab 2: Feature Toggles for Create -->
                     <div
                         v-show="activeCreateTab === 'features'"
-                        class="animate-in space-y-6 duration-300 fade-in zoom-in-95"
+                        class="animate-in space-y-6 duration-300 zoom-in-95 fade-in"
                     >
                         <div
                             v-for="category in FEATURE_CATEGORIES"
                             :key="category.name"
                             class="space-y-4 rounded-2xl border border-border/80 bg-card p-5 shadow-2xs"
                         >
-                            <div class="flex items-center gap-2.5 border-b border-border/50 pb-3">
-                                <div class="p-1.5 rounded-lg bg-indigo-500/10 text-indigo-500">
+                            <div
+                                class="flex items-center gap-2.5 border-b border-border/50 pb-3"
+                            >
+                                <div
+                                    class="rounded-lg bg-indigo-500/10 p-1.5 text-indigo-500"
+                                >
                                     <component
-                                        :is="categoryIcon[category.icon] ?? Sparkles"
+                                        :is="
+                                            categoryIcon[category.icon] ??
+                                            Sparkles
+                                        "
                                         class="size-4"
                                     />
                                 </div>
-                                <h3 class="text-xs font-bold tracking-wider text-foreground uppercase">
+                                <h3
+                                    class="text-xs font-bold tracking-wider text-foreground uppercase"
+                                >
                                     {{ category.name }}
                                 </h3>
                             </div>
@@ -1825,21 +2397,31 @@ const planIcon: Record<string, any> = {
                                 <div
                                     v-for="key in category.keys"
                                     :key="key"
-                                    class="flex items-center justify-between rounded-xl border border-border bg-zinc-50/50 dark:bg-zinc-950/20 p-3.5 transition-all duration-300 hover:shadow-2xs hover:border-indigo-500/20"
+                                    class="flex items-center justify-between rounded-xl border border-border bg-zinc-50/50 p-3.5 transition-all duration-300 hover:border-indigo-500/20 hover:shadow-2xs dark:bg-zinc-950/20"
                                     :class="{
                                         'border-indigo-500/25 bg-gradient-to-r from-indigo-500/[0.03] to-violet-500/[0.03] shadow-[0_0_15px_rgba(99,102,241,0.05)]':
                                             (createForm as any)[key],
                                     }"
                                 >
-                                    <div class="flex flex-col gap-0.5 animate-in fade-in duration-300">
-                                        <span class="pr-2 text-xs font-bold text-foreground">
+                                    <div
+                                        class="flex animate-in flex-col gap-0.5 duration-300 fade-in"
+                                    >
+                                        <span
+                                            class="pr-2 text-xs font-bold text-foreground"
+                                        >
                                             {{ getFeatureLabel(key) }}
                                         </span>
-                                        <span class="text-[10px] text-muted-foreground leading-normal max-w-sm">
-                                            {{ FEATURE_DESCRIPTIONS[key] ?? '' }}
+                                        <span
+                                            class="max-w-sm text-[10px] leading-normal text-muted-foreground"
+                                        >
+                                            {{
+                                                FEATURE_DESCRIPTIONS[key] ?? ''
+                                            }}
                                         </span>
                                     </div>
-                                    <label class="relative inline-flex shrink-0 cursor-pointer items-center">
+                                    <label
+                                        class="relative inline-flex shrink-0 cursor-pointer items-center"
+                                    >
                                         <input
                                             type="checkbox"
                                             v-model="(createForm as any)[key]"
@@ -1859,7 +2441,7 @@ const planIcon: Record<string, any> = {
                             type="submit"
                             size="lg"
                             :disabled="createForm.processing"
-                            class="flex-1 cursor-pointer rounded-xl border-none bg-gradient-to-r from-indigo-600 to-violet-600 py-6 text-xs font-bold tracking-wider text-white uppercase shadow-md transition-all duration-300 hover:-translate-y-0.5 hover:from-indigo-500 hover:to-violet-500 hover:shadow-lg active:translate-y-0 focus:ring-2 focus:ring-indigo-500/20"
+                            class="flex-1 cursor-pointer rounded-xl border-none bg-gradient-to-r from-indigo-600 to-violet-600 py-6 text-xs font-bold tracking-wider text-white uppercase shadow-md transition-all duration-300 hover:-translate-y-0.5 hover:from-indigo-500 hover:to-violet-500 hover:shadow-lg focus:ring-2 focus:ring-indigo-500/20 active:translate-y-0"
                         >
                             <Plus class="mr-1.5 size-4" />
                             {{
@@ -2298,26 +2880,65 @@ const planIcon: Record<string, any> = {
         <Dialog v-model:open="isDeleteModalOpen">
             <DialogContent class="sm:max-w-md">
                 <DialogHeader>
-                    <DialogTitle class="flex items-center gap-2 text-rose-500 font-bold">
+                    <DialogTitle
+                        class="flex items-center gap-2 font-bold text-rose-500"
+                    >
                         <AlertTriangle class="size-5" />
                         Ngừng cung cấp gói {{ planToDelete?.name }}
                     </DialogTitle>
-                    <DialogDescription class="pt-2 text-xs leading-relaxed space-y-2">
-                        <p class="text-foreground font-medium">
-                            Bạn có chắc chắn muốn xóa (ngừng cung cấp) gói dịch vụ <span class="font-bold text-rose-500">{{ planToDelete?.name }}</span>?
+                    <DialogDescription
+                        class="space-y-2 pt-2 text-xs leading-relaxed"
+                    >
+                        <p class="font-medium text-foreground">
+                            Bạn có chắc chắn muốn xóa (ngừng cung cấp) gói dịch
+                            vụ
+                            <span class="font-bold text-rose-500">{{
+                                planToDelete?.name
+                            }}</span
+                            >?
                         </p>
-                        <div class="rounded-xl border border-rose-500/20 bg-rose-500/5 p-3 text-rose-600 dark:text-rose-400 font-semibold space-y-1">
-                            <p class="text-[11px] font-bold uppercase tracking-wider">🔒 Quy tắc Xóa mềm (Soft Delete):</p>
-                            <ul class="list-disc list-inside text-[11px] font-normal space-y-0.5">
-                                <li>Gói này sẽ <strong>không hiển thị</strong> trên trang đăng ký hoặc nâng cấp cho khách hàng mới.</li>
-                                <li>Những nhà hàng <strong>đã mua/đang dùng gói này vẫn được tiếp tục sử dụng</strong> bình thường cho tới hết hạn.</li>
+                        <div
+                            class="space-y-1 rounded-xl border border-rose-500/20 bg-rose-500/5 p-3 font-semibold text-rose-600 dark:text-rose-400"
+                        >
+                            <p
+                                class="text-[11px] font-bold tracking-wider uppercase"
+                            >
+                                🔒 Quy tắc Xóa mềm (Soft Delete):
+                            </p>
+                            <ul
+                                class="list-inside list-disc space-y-0.5 text-[11px] font-normal"
+                            >
+                                <li>
+                                    Gói này sẽ
+                                    <strong>không hiển thị</strong> trên trang
+                                    đăng ký hoặc nâng cấp cho khách hàng mới.
+                                </li>
+                                <li>
+                                    Những nhà hàng
+                                    <strong
+                                        >đã mua/đang dùng gói này vẫn được tiếp
+                                        tục sử dụng</strong
+                                    >
+                                    bình thường cho tới hết hạn.
+                                </li>
                             </ul>
                         </div>
                     </DialogDescription>
                 </DialogHeader>
                 <div class="mt-4 flex justify-end gap-2">
-                    <Button variant="outline" size="sm" class="cursor-pointer" @click="isDeleteModalOpen = false">Hủy</Button>
-                    <Button variant="destructive" size="sm" class="font-bold cursor-pointer" @click="executeDelete">
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        class="cursor-pointer"
+                        @click="isDeleteModalOpen = false"
+                        >Hủy</Button
+                    >
+                    <Button
+                        variant="destructive"
+                        size="sm"
+                        class="cursor-pointer font-bold"
+                        @click="executeDelete"
+                    >
                         Xác nhận Ngừng cung cấp
                     </Button>
                 </div>
@@ -2328,17 +2949,35 @@ const planIcon: Record<string, any> = {
         <Dialog v-model:open="isRestoreModalOpen">
             <DialogContent class="sm:max-w-md">
                 <DialogHeader>
-                    <DialogTitle class="flex items-center gap-2 text-emerald-600 dark:text-emerald-400 font-bold">
+                    <DialogTitle
+                        class="flex items-center gap-2 font-bold text-emerald-600 dark:text-emerald-400"
+                    >
                         <RotateCcw class="size-5" />
                         Khôi phục gói {{ planToRestore?.name }}
                     </DialogTitle>
-                    <DialogDescription class="pt-2 text-xs leading-relaxed text-foreground font-medium">
-                        Bạn có chắc chắn muốn khôi phục và tiếp tục mở bán gói <span class="font-bold text-emerald-500">{{ planToRestore?.name }}</span> cho khách hàng mới?
+                    <DialogDescription
+                        class="pt-2 text-xs leading-relaxed font-medium text-foreground"
+                    >
+                        Bạn có chắc chắn muốn khôi phục và tiếp tục mở bán gói
+                        <span class="font-bold text-emerald-500">{{
+                            planToRestore?.name
+                        }}</span>
+                        cho khách hàng mới?
                     </DialogDescription>
                 </DialogHeader>
                 <div class="mt-4 flex justify-end gap-2">
-                    <Button variant="outline" size="sm" class="cursor-pointer" @click="isRestoreModalOpen = false">Hủy</Button>
-                    <Button class="bg-emerald-600 text-white hover:bg-emerald-700 font-bold cursor-pointer" size="sm" @click="executeRestore">
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        class="cursor-pointer"
+                        @click="isRestoreModalOpen = false"
+                        >Hủy</Button
+                    >
+                    <Button
+                        class="cursor-pointer bg-emerald-600 font-bold text-white hover:bg-emerald-700"
+                        size="sm"
+                        @click="executeRestore"
+                    >
                         Xác nhận Khôi phục
                     </Button>
                 </div>

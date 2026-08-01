@@ -78,7 +78,10 @@ function applyFilter() {
     router.get(
         '/super-admin/customers',
         {
-            restaurant_id: restaurantId.value && restaurantId.value !== 'all' ? restaurantId.value : undefined,
+            restaurant_id:
+                restaurantId.value && restaurantId.value !== 'all'
+                    ? restaurantId.value
+                    : undefined,
             search: search.value || undefined,
             vip: vip.value && vip.value !== 'all' ? vip.value : undefined,
         },
@@ -92,16 +95,16 @@ function formatVND(val: number) {
 
 const vipRatio = computed(() => {
     if (props.stats.total === 0) {
-return 0;
-}
+        return 0;
+    }
 
     return Math.round((props.stats.vip / props.stats.total) * 100);
 });
 
 const spentRatio = computed(() => {
     if (props.stats.total === 0) {
-return 0;
-}
+        return 0;
+    }
 
     return Math.round((props.stats.has_spent / props.stats.total) * 100);
 });
@@ -137,8 +140,8 @@ const chartPoints = computed(() => {
 
 const growthLinePath = computed(() => {
     if (chartPoints.value.length === 0) {
-return '';
-}
+        return '';
+    }
 
     return chartPoints.value
         .map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`)
@@ -147,8 +150,8 @@ return '';
 
 const growthAreaPath = computed(() => {
     if (chartPoints.value.length === 0) {
-return '';
-}
+        return '';
+    }
 
     const points = chartPoints.value;
     const start = `M ${points[0].x} 100`;

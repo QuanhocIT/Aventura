@@ -5,10 +5,10 @@ namespace Tests\Feature\Billing;
 use App\Models\Restaurant;
 use App\Models\SubscriptionPlan;
 use App\Models\User;
+use App\Services\QuotaService;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
-use Illuminate\Foundation\Testing\RefreshDatabase;
-use App\Services\QuotaService;
 
 class MultiTenantPlanInheritanceTest extends TestCase
 {
@@ -18,30 +18,30 @@ class MultiTenantPlanInheritanceTest extends TestCase
     {
         // 1. Create PRO plan
         $proPlan = SubscriptionPlan::updateOrCreate(['code' => 'pro'], [
-            'name'           => 'Pro',
-            'price'          => 499000,
-            'billing_cycle'  => 'monthly',
-            'max_branches'   => 999, // high quota
-            'max_tables'     => 999,
-            'max_users'      => 999,
-            'features'       => [
+            'name' => 'Pro',
+            'price' => 499000,
+            'billing_cycle' => 'monthly',
+            'max_branches' => 999, // high quota
+            'max_tables' => 999,
+            'max_users' => 999,
+            'features' => [
                 'ai_features' => true,
             ],
-            'status'         => 'active',
+            'status' => 'active',
         ]);
 
         // 2. Create FREE plan
         $freePlan = SubscriptionPlan::updateOrCreate(['code' => 'free'], [
-            'name'           => 'Free',
-            'price'          => 0,
-            'billing_cycle'  => 'monthly',
-            'max_branches'   => 1,
-            'max_tables'     => 10,
-            'max_users'      => 5,
-            'features'       => [
+            'name' => 'Free',
+            'price' => 0,
+            'billing_cycle' => 'monthly',
+            'max_branches' => 1,
+            'max_tables' => 10,
+            'max_users' => 5,
+            'features' => [
                 'ai_features' => false,
             ],
-            'status'         => 'active',
+            'status' => 'active',
         ]);
 
         $ownerRole = Role::firstOrCreate(['name' => 'owner', 'guard_name' => 'web']);

@@ -2,17 +2,46 @@
 
 namespace App\Providers;
 
+use App\Models\AuditLog;
+use App\Models\InventoryTransaction;
+use App\Models\LoginEvent;
+use App\Models\MediaAsset;
+use App\Models\Order;
+use App\Models\Payment;
+use App\Models\ShiftClosing;
+use App\Models\SystemSetting;
+use App\Models\ViolationReport;
+use App\Observers\AuditLogObserver;
+use App\Observers\MediaAssetObserver;
+use App\Observers\OrderObserver;
+use App\Observers\PaymentObserver;
+use App\Observers\SalaryRecalculationObserver;
+use App\Repositories\Eloquent\EloquentOrderRepository;
+use App\Repositories\OrderRepositoryInterface;
+use App\Services\SecurityAlertService;
+use App\Support\MaterializedViews\MaterializedViewRegistry;
+use App\Support\Tenant\TenantContext;
 use Carbon\CarbonImmutable;
+use Illuminate\Auth\Events\Failed;
+use Illuminate\Auth\Events\Login;
 use Illuminate\Auth\Events\Registered;
 use Illuminate\Auth\Listeners\SendEmailVerificationNotification;
+use Illuminate\Cache\RateLimiting\Limit;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
-use Illuminate\Cache\RateLimiting\Limit;
-use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\RateLimiter;
+use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\URL;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Validation\Rules\Password;
+use Symfony\Component\Mailer\Transport\Smtp\EsmtpTransport;
+use Symfony\Component\Mailer\Transport\Smtp\Stream\SocketStream;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -21,16 +50,16 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        $this->app->singleton(\App\Support\Tenant\TenantContext::class, function () {
-            return new \App\Support\Tenant\TenantContext();
+        $this->app->singleton(TenantContext::class, function () {
+            return new TenantContext;
         });
 
         $this->app->bind(
-            \App\Repositories\OrderRepositoryInterface::class,
-            \App\Repositories\Eloquent\EloquentOrderRepository::class
+            OrderRepositoryInterface::class,
+            EloquentOrderRepository::class
         );
 
-        $this->app->singleton(\App\Support\MaterializedViews\MaterializedViewRegistry::class);
+        $this->app->singleton(MaterializedViewRegistry::class);
     }
 
     /**
@@ -40,13 +69,13 @@ class AppServiceProvider extends ServiceProvider
     {
         $this->bootLocalIpv4SmtpTransport();
 
-        if (!app()->runningInConsole()) {
+        if (! app()->runningInConsole()) {
             if (
                 str_contains(request()->getHost(), 'ngrok') ||
                 request()->header('X-Forwarded-Proto') === 'https' ||
                 (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https')
             ) {
-                \Illuminate\Support\Facades\URL::forceScheme('https');
+                URL::forceScheme('https');
             }
         }
 
@@ -58,26 +87,26 @@ class AppServiceProvider extends ServiceProvider
             database_path('migrations/system'),
         ]);
 
-        \App\Models\Order::observe(\App\Observers\OrderObserver::class);
-        \App\Models\AuditLog::observe(\App\Observers\AuditLogObserver::class);
-        \App\Models\ViolationReport::observe(\App\Observers\SalaryRecalculationObserver::class);
-        \App\Models\ShiftClosing::observe(\App\Observers\SalaryRecalculationObserver::class);
-        \App\Models\InventoryTransaction::observe(\App\Observers\SalaryRecalculationObserver::class);
-        \App\Models\MediaAsset::observe(\App\Observers\MediaAssetObserver::class);
-        \App\Models\Payment::observe(\App\Observers\PaymentObserver::class);
+        Order::observe(OrderObserver::class);
+        AuditLog::observe(AuditLogObserver::class);
+        ViolationReport::observe(SalaryRecalculationObserver::class);
+        ShiftClosing::observe(SalaryRecalculationObserver::class);
+        InventoryTransaction::observe(SalaryRecalculationObserver::class);
+        MediaAsset::observe(MediaAssetObserver::class);
+        Payment::observe(PaymentObserver::class);
 
         // Tự gửi email xác thực ngay sau khi đăng ký (Laravel không tự đăng ký
         // listener này khi project không có EventServiceProvider riêng).
         Event::listen(Registered::class, SendEmailVerificationNotification::class);
 
         // Lưu trữ ID nhân viên và thời gian kết thúc ca trực vào Session khi login thành công
-        Event::listen(\Illuminate\Auth\Events\Login::class, function (\Illuminate\Auth\Events\Login $event) {
+        Event::listen(Login::class, function (Login $event) {
             $user = $event->user;
             session(['security_session_version' => (int) ($user->security_session_version ?? 0)]);
 
             try {
-                if (\Illuminate\Support\Facades\Schema::hasTable('login_events')) {
-                    \App\Models\LoginEvent::create([
+                if (Schema::hasTable('login_events')) {
+                    LoginEvent::create([
                         'user_id' => $user->id,
                         'email' => $user->email,
                         'status' => 'success',
@@ -94,7 +123,7 @@ class AppServiceProvider extends ServiceProvider
             if ($employee) {
                 session([
                     'employee_id' => $employee->id,
-                    'shift_allowed_until' => $employee->getShiftAllowedUntil()
+                    'shift_allowed_until' => $employee->getShiftAllowedUntil(),
                 ]);
             } else {
                 session()->forget(['employee_id', 'shift_allowed_until']);
@@ -102,18 +131,18 @@ class AppServiceProvider extends ServiceProvider
         });
 
         // Bảo mật trang Pulse: Chỉ cho phép Chủ nhà hàng (owner) hoặc Quản lý (manager) xem
-        \Illuminate\Support\Facades\Gate::define('viewPulse', function ($user = null) {
+        Gate::define('viewPulse', function ($user = null) {
             return optional($user)->hasAnyRole(['owner', 'manager']);
         });
 
         // WAF Rule: Listen to failed login attempts to block IP
-        Event::listen(\Illuminate\Auth\Events\Failed::class, function (\Illuminate\Auth\Events\Failed $event) {
+        Event::listen(Failed::class, function (Failed $event) {
             $ip = request()->ip();
 
             try {
-                if (\Illuminate\Support\Facades\Schema::hasTable('login_events')) {
+                if (Schema::hasTable('login_events')) {
                     $credentials = $event->credentials ?? [];
-                    \App\Models\LoginEvent::create([
+                    LoginEvent::create([
                         'user_id' => $event->user?->id,
                         'email' => $event->user?->email ?: ($credentials['email'] ?? $credentials['username'] ?? null),
                         'status' => 'failed',
@@ -129,12 +158,12 @@ class AppServiceProvider extends ServiceProvider
 
             $key = "waf:failed_attempts:{$ip}";
 
-            $maxAttempts = (int) (\App\Models\SystemSetting::get('waf_login_max_attempts') ?? config('firewall.waf.login.max_attempts', 5));
-            $decaySeconds = (int) (\App\Models\SystemSetting::get('waf_login_decay_seconds') ?? config('firewall.waf.login.decay_seconds', 10));
-            $blockMinutes = (int) (\App\Models\SystemSetting::get('waf_login_block_minutes') ?? config('firewall.waf.login.block_minutes', 30));
+            $maxAttempts = (int) (SystemSetting::get('waf_login_max_attempts') ?? config('firewall.waf.login.max_attempts', 5));
+            $decaySeconds = (int) (SystemSetting::get('waf_login_decay_seconds') ?? config('firewall.waf.login.decay_seconds', 10));
+            $blockMinutes = (int) (SystemSetting::get('waf_login_block_minutes') ?? config('firewall.waf.login.block_minutes', 30));
 
             $now = time();
-            $attempts = \Illuminate\Support\Facades\Cache::get($key, []);
+            $attempts = Cache::get($key, []);
 
             // Filter out attempts outside the decay time window
             $attempts = array_filter($attempts, function ($timestamp) use ($now, $decaySeconds) {
@@ -145,27 +174,27 @@ class AppServiceProvider extends ServiceProvider
 
             if (count($attempts) >= $maxAttempts) {
                 // Block the IP
-                \Illuminate\Support\Facades\Cache::put("waf:blocked:{$ip}", true, $blockMinutes * 60);
+                Cache::put("waf:blocked:{$ip}", true, $blockMinutes * 60);
 
                 // Add to blocked list in cache for Admin UI
-                $blockedList = \Illuminate\Support\Facades\Cache::get('waf:blocked_list', []);
+                $blockedList = Cache::get('waf:blocked_list', []);
                 // Filter out expired ones
                 $blockedList = array_filter($blockedList, function ($expiry) {
                     return $expiry > time();
                 });
                 $blockedList[$ip] = time() + ($blockMinutes * 60);
-                \Illuminate\Support\Facades\Cache::put('waf:blocked_list', $blockedList, 86400 * 30);
+                Cache::put('waf:blocked_list', $blockedList, 86400 * 30);
 
                 // Log security warning
-                \Illuminate\Support\Facades\Log::warning("WAF Blocked IP {$ip} due to {$maxAttempts} failed login attempts within {$decaySeconds}s.");
+                Log::warning("WAF Blocked IP {$ip} due to {$maxAttempts} failed login attempts within {$decaySeconds}s.");
 
                 // Send Telegram Alert
-                \App\Services\SecurityAlertService::sendWafBlockAlert($ip, $maxAttempts, $decaySeconds, $blockMinutes);
+                SecurityAlertService::sendWafBlockAlert($ip, $maxAttempts, $decaySeconds, $blockMinutes);
 
                 // Clear attempts history
-                \Illuminate\Support\Facades\Cache::forget($key);
+                Cache::forget($key);
             } else {
-                \Illuminate\Support\Facades\Cache::put($key, $attempts, $decaySeconds);
+                Cache::put($key, $attempts, $decaySeconds);
             }
         });
 
@@ -180,38 +209,38 @@ class AppServiceProvider extends ServiceProvider
     protected function loadDynamicSettings(): void
     {
         try {
-            $mailDriver = \App\Models\SystemSetting::get('mail_driver');
+            $mailDriver = SystemSetting::get('mail_driver');
             if ($mailDriver) {
                 config(['mail.default' => $mailDriver]);
 
                 if ($mailDriver === 'smtp') {
                     config([
-                        'mail.mailers.smtp.host' => \App\Models\SystemSetting::get('mail_smtp_host', config('mail.mailers.smtp.host')),
-                        'mail.mailers.smtp.port' => (int) \App\Models\SystemSetting::get('mail_smtp_port', config('mail.mailers.smtp.port', 587)),
-                        'mail.mailers.smtp.username' => \App\Models\SystemSetting::get('mail_smtp_username', config('mail.mailers.smtp.username')),
-                        'mail.mailers.smtp.password' => \App\Models\SystemSetting::get('mail_smtp_password', config('mail.mailers.smtp.password')),
-                        'mail.mailers.smtp.encryption' => \App\Models\SystemSetting::get('mail_smtp_encryption', config('mail.mailers.smtp.encryption', 'tls')),
+                        'mail.mailers.smtp.host' => SystemSetting::get('mail_smtp_host', config('mail.mailers.smtp.host')),
+                        'mail.mailers.smtp.port' => (int) SystemSetting::get('mail_smtp_port', config('mail.mailers.smtp.port', 587)),
+                        'mail.mailers.smtp.username' => SystemSetting::get('mail_smtp_username', config('mail.mailers.smtp.username')),
+                        'mail.mailers.smtp.password' => SystemSetting::get('mail_smtp_password', config('mail.mailers.smtp.password')),
+                        'mail.mailers.smtp.encryption' => SystemSetting::get('mail_smtp_encryption', config('mail.mailers.smtp.encryption', 'tls')),
                     ]);
                 } elseif ($mailDriver === 'ses') {
                     config([
-                        'services.ses.key' => \App\Models\SystemSetting::get('mail_ses_key', config('services.ses.key')),
-                        'services.ses.secret' => \App\Models\SystemSetting::get('mail_ses_secret', config('services.ses.secret')),
-                        'services.ses.region' => \App\Models\SystemSetting::get('mail_ses_region', config('services.ses.region', 'us-east-1')),
+                        'services.ses.key' => SystemSetting::get('mail_ses_key', config('services.ses.key')),
+                        'services.ses.secret' => SystemSetting::get('mail_ses_secret', config('services.ses.secret')),
+                        'services.ses.region' => SystemSetting::get('mail_ses_region', config('services.ses.region', 'us-east-1')),
                     ]);
                 } elseif ($mailDriver === 'mailgun') {
                     config([
-                        'services.mailgun.domain' => \App\Models\SystemSetting::get('mail_mailgun_domain', config('services.mailgun.domain')),
-                        'services.mailgun.secret' => \App\Models\SystemSetting::get('mail_mailgun_secret', config('services.mailgun.secret')),
-                        'services.mailgun.endpoint' => \App\Models\SystemSetting::get('mail_mailgun_endpoint', config('services.mailgun.endpoint', 'api.mailgun.net')),
+                        'services.mailgun.domain' => SystemSetting::get('mail_mailgun_domain', config('services.mailgun.domain')),
+                        'services.mailgun.secret' => SystemSetting::get('mail_mailgun_secret', config('services.mailgun.secret')),
+                        'services.mailgun.endpoint' => SystemSetting::get('mail_mailgun_endpoint', config('services.mailgun.endpoint', 'api.mailgun.net')),
                     ]);
                 }
 
-                $fromAddress = \App\Models\SystemSetting::get('mail_from_address');
+                $fromAddress = SystemSetting::get('mail_from_address');
                 if ($fromAddress) {
                     config(['mail.from.address' => $fromAddress]);
                 }
 
-                $fromName = \App\Models\SystemSetting::get('mail_from_name');
+                $fromName = SystemSetting::get('mail_from_name');
                 if ($fromName) {
                     config(['mail.from.name' => $fromName]);
                 }
@@ -231,8 +260,8 @@ class AppServiceProvider extends ServiceProvider
         RateLimiter::for('employee_portal', function (Request $request) {
             return Limit::perMinute(60)
                 ->by($request->user()?->id ?? $request->ip())
-                ->response(fn() => response()->json([
-                    'message'     => 'Quá nhiều yêu cầu trong thời gian ngắn. Vui lòng chờ một lúc rồi thử lại.',
+                ->response(fn () => response()->json([
+                    'message' => 'Quá nhiều yêu cầu trong thời gian ngắn. Vui lòng chờ một lúc rồi thử lại.',
                     'retry_after' => 60,
                 ], 429));
         });
@@ -240,8 +269,8 @@ class AppServiceProvider extends ServiceProvider
         RateLimiter::for('voucher_apply', function (Request $request) {
             return Limit::perMinute(10)
                 ->by($request->user()?->id ?? $request->ip())
-                ->response(fn() => response()->json([
-                    'message'     => 'Quá nhiều yêu cầu áp dụng mã giảm giá. Vui lòng thử lại sau.',
+                ->response(fn () => response()->json([
+                    'message' => 'Quá nhiều yêu cầu áp dụng mã giảm giá. Vui lòng thử lại sau.',
                     'retry_after' => 60,
                 ], 429));
         });
@@ -249,8 +278,8 @@ class AppServiceProvider extends ServiceProvider
         RateLimiter::for('qr_order_submit', function (Request $request) {
             return Limit::perMinute(5)
                 ->by($request->ip())
-                ->response(fn() => response()->json([
-                    'message'     => 'Quá nhiều yêu cầu gửi đơn hàng. Vui lòng thử lại sau.',
+                ->response(fn () => response()->json([
+                    'message' => 'Quá nhiều yêu cầu gửi đơn hàng. Vui lòng thử lại sau.',
                     'retry_after' => 60,
                 ], 429));
         });
@@ -293,12 +322,12 @@ class AppServiceProvider extends ServiceProvider
             return;
         }
 
-        \Illuminate\Support\Facades\Mail::extend('smtp', function (array $config) {
+        Mail::extend('smtp', function (array $config) {
             $host = $config['host'] ?? 'smtp.gmail.com';
             $port = (int) ($config['port'] ?? 587);
             $implicitTls = ($config['scheme'] ?? null) === 'smtps' || $port === 465;
 
-            $transport = new \Symfony\Component\Mailer\Transport\Smtp\EsmtpTransport(
+            $transport = new EsmtpTransport(
                 $host,
                 $port,
                 $implicitTls ?: null,
@@ -308,7 +337,7 @@ class AppServiceProvider extends ServiceProvider
             $ipv4 = gethostbynamel($host)[0] ?? null;
             $stream = $transport->getStream();
             if ($ipv4 && $ipv4 !== $host
-                && $stream instanceof \Symfony\Component\Mailer\Transport\Smtp\Stream\SocketStream) {
+                && $stream instanceof SocketStream) {
                 $stream->setHost($ipv4);
                 $stream->setStreamOptions(['ssl' => ['peer_name' => $host]]);
             }

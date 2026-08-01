@@ -52,7 +52,7 @@ class LeaveRequestService
         }
 
         // 2. Department/Role Quota Check (Max 30% role limit)
-            $totalRoleEmployees = Employee::where('restaurant_id', $actingUser->restaurant_id)
+        $totalRoleEmployees = Employee::where('restaurant_id', $actingUser->restaurant_id)
             ->where('branch_id', $employee->branch_id)
             ->where('role_id', $employee->role_id)
             ->where('status', 'active')

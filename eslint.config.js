@@ -1,5 +1,9 @@
 import stylistic from '@stylistic/eslint-plugin';
-import { defineConfigWithVueTs, vueTsConfigs } from '@vue/eslint-config-typescript';
+import {
+    configureVueProject,
+    defineConfigWithVueTs,
+    vueTsConfigs,
+} from '@vue/eslint-config-typescript';
 import prettier from 'eslint-config-prettier/flat';
 import importPlugin from 'eslint-plugin-import';
 import vue from 'eslint-plugin-vue';
@@ -20,6 +24,8 @@ const paddingAroundControl = [
         { blankLine: 'always', prev: stmt, next: '*' },
     ]),
 ];
+
+configureVueProject({ rootDir: 'resources/js' });
 
 export default defineConfigWithVueTs(
     vue.configs['flat/essential'],
@@ -82,6 +88,8 @@ export default defineConfigWithVueTs(
             'public',
             'bootstrap/ssr',
             'services/**',
+            'services/.pytest_cache/**',
+            '**/.pytest_cache/**',
             'tests/load/**',
             'tailwind.config.js',
             'vite.config.ts',

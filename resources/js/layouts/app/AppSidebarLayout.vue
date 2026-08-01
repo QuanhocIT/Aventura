@@ -1,7 +1,13 @@
 <script setup lang="ts">
 import { Link, usePage, router } from '@inertiajs/vue3';
 import { AlertTriangle } from 'lucide-vue-next';
-import { computed, defineAsyncComponent, ref, onMounted, onUnmounted } from 'vue';
+import {
+    computed,
+    defineAsyncComponent,
+    ref,
+    onMounted,
+    onUnmounted,
+} from 'vue';
 import AppContent from '@/components/AppContent.vue';
 import AppShell from '@/components/AppShell.vue';
 import AppSidebar from '@/components/AppSidebar.vue';
@@ -46,7 +52,13 @@ const roles = computed(() => {
 const hasRole = (...roleNames: string[]) =>
     roles.value.some((r: string) => roleNames.includes(r));
 const isSuperAdmin = computed(() =>
-    hasRole('super_admin', 'system_admin', 'billing_admin', 'support_specialist', 'admin'),
+    hasRole(
+        'super_admin',
+        'system_admin',
+        'billing_admin',
+        'support_specialist',
+        'admin',
+    ),
 );
 const isOwner = computed(() => hasRole('owner'));
 
@@ -331,9 +343,7 @@ onUnmounted(() => {
             v-if="showChatbot && deferredWidgetsReady"
             source="support"
         />
-        <LazyCommandPalette
-            v-if="isSuperAdmin && deferredWidgetsReady"
-        />
+        <LazyCommandPalette v-if="isSuperAdmin && deferredWidgetsReady" />
 
         <!-- Shift Expired Modal Overlay -->
         <div

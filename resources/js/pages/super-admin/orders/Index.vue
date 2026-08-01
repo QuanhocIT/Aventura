@@ -17,11 +17,7 @@ import {
     MapPin,
 } from 'lucide-vue-next';
 import { ref, watch, computed } from 'vue';
-import {
-    PageHeader,
-    FilterBar,
-    Pagination,
-} from '@/components/super-admin';
+import { PageHeader, FilterBar, Pagination } from '@/components/super-admin';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import {
@@ -118,8 +114,14 @@ function applyFilter() {
     router.get(
         '/super-admin/orders',
         {
-            restaurant_id: restaurantId.value && restaurantId.value !== 'all' ? restaurantId.value : undefined,
-            status: status.value && status.value !== 'all' ? status.value : undefined,
+            restaurant_id:
+                restaurantId.value && restaurantId.value !== 'all'
+                    ? restaurantId.value
+                    : undefined,
+            status:
+                status.value && status.value !== 'all'
+                    ? status.value
+                    : undefined,
             type: type.value && type.value !== 'all' ? type.value : undefined,
             search: search.value || undefined,
             date_from: dateFrom.value || undefined,
@@ -163,8 +165,8 @@ const completionRate = computed(() => {
     const total = props.stats.total_today;
 
     if (total === 0) {
-return 0;
-}
+        return 0;
+    }
 
     return Math.round((props.stats.completed_today / total) * 100);
 });
@@ -173,8 +175,8 @@ const averageOrderValue = computed(() => {
     const completed = props.stats.completed_today;
 
     if (completed === 0) {
-return 0;
-}
+        return 0;
+    }
 
     return Math.round(props.stats.revenue_today / completed);
 });
@@ -221,8 +223,8 @@ const channelSlices = computed(() => {
         props.stats.delivery_today;
 
     if (total === 0) {
-return [];
-}
+        return [];
+    }
 
     const posPct = (props.stats.pos_today / total) * 100;
     const qrPct = (props.stats.qr_today / total) * 100;
@@ -287,8 +289,8 @@ const chartPoints = computed(() => {
     const trend = props.stats.revenue_trend;
 
     if (!trend || trend.length === 0) {
-return '';
-}
+        return '';
+    }
 
     const maxRev = Math.max(...trend.map((p) => p.revenue), 100000);
 
@@ -306,8 +308,8 @@ const chartAreaPath = computed(() => {
     const points = chartPoints.value;
 
     if (!points) {
-return '';
-}
+        return '';
+    }
 
     const lastX = 500;
 
@@ -480,7 +482,8 @@ return '';
                                 Xu xu hướng Doanh thu gói dịch vụ 7 ngày
                             </h3>
                             <p class="text-[11px] text-muted-foreground">
-                                Biểu đồ tổng doanh thu các gói dịch vụ đã thanh toán
+                                Biểu đồ tổng doanh thu các gói dịch vụ đã thanh
+                                toán
                             </p>
                         </div>
                         <div
@@ -586,7 +589,7 @@ return '';
                                             1,
                                         )) *
                                         75
-                                  "
+                                "
                                 r="3.5"
                                 fill="#ffffff"
                                 stroke="#10b981"
@@ -784,13 +787,13 @@ return '';
                         >
                             <th class="w-[160px] p-4">Số hóa đơn</th>
                             <th class="p-4">Nhà hàng</th>
-                            <th class="w-[180px] p-4 text-center">Gói dịch vụ</th>
+                            <th class="w-[180px] p-4 text-center">
+                                Gói dịch vụ
+                            </th>
                             <th class="w-[130px] p-4 text-center">
                                 Trạng thái
                             </th>
-                            <th class="w-[130px] p-4 text-center">
-                                Chu kỳ
-                            </th>
+                            <th class="w-[130px] p-4 text-center">Chu kỳ</th>
                             <th class="w-[140px] p-4 text-right">Tổng tiền</th>
                             <th class="w-[160px] p-4 text-center">Ngày tạo</th>
                             <th class="w-[120px] p-4 pr-6 text-right">
@@ -828,7 +831,9 @@ return '';
 
                             <!-- Plan Name -->
                             <td class="p-4 text-center">
-                                <span class="font-bold text-slate-700 dark:text-slate-300">
+                                <span
+                                    class="font-bold text-slate-700 dark:text-slate-300"
+                                >
                                     {{ order.plan_name }}
                                 </span>
                             </td>
@@ -863,8 +868,9 @@ return '';
                                     ]"
                                 >
                                     {{
-                                        billingCycleLabel[order.billing_cycle] ??
-                                        order.billing_cycle
+                                        billingCycleLabel[
+                                            order.billing_cycle
+                                        ] ?? order.billing_cycle
                                     }}
                                 </span>
                             </td>
@@ -934,7 +940,8 @@ return '';
                         Hóa đơn: {{ selectedOrder?.order_number }}
                     </DialogTitle>
                     <DialogDescription class="text-xs">
-                        Chi tiết thanh toán, thông tin người mua và gói dịch vụ đăng ký.
+                        Chi tiết thanh toán, thông tin người mua và gói dịch vụ
+                        đăng ký.
                     </DialogDescription>
                 </DialogHeader>
 
@@ -947,7 +954,7 @@ return '';
                         class="space-y-2.5 rounded-xl border border-emerald-500/20 bg-emerald-500/[0.03] p-3.5 text-xs dark:bg-emerald-500/[0.05]"
                     >
                         <div
-                            class="flex items-center gap-2 font-bold text-emerald-600 dark:text-emerald-400 border-b border-emerald-500/20 pb-2 text-[11px] uppercase tracking-wider"
+                            class="flex items-center gap-2 border-b border-emerald-500/20 pb-2 text-[11px] font-bold tracking-wider text-emerald-600 uppercase dark:text-emerald-400"
                         >
                             <User class="size-4 text-emerald-500" />
                             <span>Thông tin người mua / Khách hàng</span>
@@ -955,58 +962,75 @@ return '';
                         <div class="grid grid-cols-2 gap-3 pt-0.5">
                             <div>
                                 <span
-                                    class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider"
+                                    class="block text-[10px] font-bold tracking-wider text-slate-400 uppercase"
                                     >Người mua / Đại diện</span
                                 >
                                 <span
-                                    class="font-bold text-slate-800 dark:text-slate-200 text-xs"
-                                    >{{ selectedOrder.buyer_name || 'Chưa cập nhật' }}</span
+                                    class="text-xs font-bold text-slate-800 dark:text-slate-200"
+                                    >{{
+                                        selectedOrder.buyer_name ||
+                                        'Chưa cập nhật'
+                                    }}</span
                                 >
                             </div>
                             <div>
                                 <span
-                                    class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider"
+                                    class="block text-[10px] font-bold tracking-wider text-slate-400 uppercase"
                                     >Số điện thoại</span
                                 >
                                 <span
-                                    class="flex items-center gap-1 font-mono font-bold text-slate-800 dark:text-slate-200 text-xs"
+                                    class="flex items-center gap-1 font-mono text-xs font-bold text-slate-800 dark:text-slate-200"
                                 >
                                     <Phone class="size-3 text-slate-400" />
-                                    {{ selectedOrder.buyer_phone || 'Chưa cập nhật' }}
+                                    {{
+                                        selectedOrder.buyer_phone ||
+                                        'Chưa cập nhật'
+                                    }}
                                 </span>
                             </div>
                             <div class="col-span-2">
                                 <span
-                                    class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider"
+                                    class="block text-[10px] font-bold tracking-wider text-slate-400 uppercase"
                                     >Email liên hệ / Hóa đơn</span
                                 >
                                 <span
-                                    class="block font-mono font-bold text-slate-800 dark:text-slate-200 text-xs truncate"
+                                    class="block truncate font-mono text-xs font-bold text-slate-800 dark:text-slate-200"
                                     :title="selectedOrder.buyer_email"
                                 >
-                                    {{ selectedOrder.buyer_email || 'Chưa cập nhật' }}
+                                    {{
+                                        selectedOrder.buyer_email ||
+                                        'Chưa cập nhật'
+                                    }}
                                 </span>
                             </div>
                             <div>
                                 <span
-                                    class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider"
+                                    class="block text-[10px] font-bold tracking-wider text-slate-400 uppercase"
                                     >Mã số thuế</span
                                 >
                                 <span
-                                    class="font-mono font-bold text-slate-800 dark:text-slate-200 text-xs"
-                                    >{{ selectedOrder.tax_code || 'Chưa cập nhật' }}</span
+                                    class="font-mono text-xs font-bold text-slate-800 dark:text-slate-200"
+                                    >{{
+                                        selectedOrder.tax_code ||
+                                        'Chưa cập nhật'
+                                    }}</span
                                 >
                             </div>
                             <div class="col-span-2">
                                 <span
-                                    class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider"
+                                    class="block text-[10px] font-bold tracking-wider text-slate-400 uppercase"
                                     >Địa chỉ</span
                                 >
                                 <span
-                                    class="flex items-center gap-1.5 font-medium text-slate-700 dark:text-slate-300 text-xs"
+                                    class="flex items-center gap-1.5 text-xs font-medium text-slate-700 dark:text-slate-300"
                                 >
-                                    <MapPin class="size-3 text-slate-400 shrink-0" />
-                                    {{ selectedOrder.buyer_address || 'Chưa cập nhật' }}
+                                    <MapPin
+                                        class="size-3 shrink-0 text-slate-400"
+                                    />
+                                    {{
+                                        selectedOrder.buyer_address ||
+                                        'Chưa cập nhật'
+                                    }}
                                 </span>
                             </div>
                         </div>
@@ -1067,7 +1091,13 @@ return '';
                             <span
                                 class="mt-0.5 flex items-center gap-1 font-bold text-slate-700 dark:text-slate-300"
                             >
-                                {{ (selectedOrder?.billing_cycle && billingCycleLabel[selectedOrder.billing_cycle]) ?? selectedOrder?.billing_cycle }}
+                                {{
+                                    (selectedOrder?.billing_cycle &&
+                                        billingCycleLabel[
+                                            selectedOrder.billing_cycle
+                                        ]) ??
+                                    selectedOrder?.billing_cycle
+                                }}
                             </span>
                         </div>
                         <div>
@@ -1077,7 +1107,11 @@ return '';
                             <span
                                 class="mt-0.5 flex items-center gap-1 font-bold text-slate-700 dark:text-slate-300"
                             >
-                                {{ (selectedOrder?.type && typeLabel[selectedOrder.type]) ?? selectedOrder?.type }}
+                                {{
+                                    (selectedOrder?.type &&
+                                        typeLabel[selectedOrder.type]) ??
+                                    selectedOrder?.type
+                                }}
                             </span>
                         </div>
                         <div class="col-span-2">
@@ -1085,7 +1119,7 @@ return '';
                                 >Email nhận hóa đơn</span
                             >
                             <span
-                                class="mt-0.5 block font-medium text-slate-700 dark:text-slate-300 truncate font-mono"
+                                class="mt-0.5 block truncate font-mono font-medium text-slate-700 dark:text-slate-300"
                                 :title="selectedOrder?.recipient_email"
                             >
                                 {{ selectedOrder?.recipient_email }}
@@ -1104,7 +1138,8 @@ return '';
                                 "
                             >
                                 {{
-                                    (selectedOrder?.status && statusLabel[selectedOrder.status]) ??
+                                    (selectedOrder?.status &&
+                                        statusLabel[selectedOrder.status]) ??
                                     selectedOrder?.status
                                 }}
                             </span>
@@ -1118,7 +1153,8 @@ return '';
                         <span
                             class="flex items-center gap-1 text-xs font-bold tracking-wider text-slate-400 uppercase"
                         >
-                            <CreditCard class="size-4 text-emerald-400" /> Tổng tiền thanh toán
+                            <CreditCard class="size-4 text-emerald-400" /> Tổng
+                            tiền thanh toán
                         </span>
                         <span class="text-base font-black text-emerald-400">
                             {{ selectedOrder.total_amount }}đ

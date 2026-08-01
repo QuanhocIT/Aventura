@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\ScheduleAssignment;
 use App\Models\ViolationReport;
 use App\Services\QuotaService;
+use App\Support\TenantRule;
 use Carbon\Carbon;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -370,7 +371,7 @@ class AttendanceController extends Controller
         abort_unless($request->user()->hasAnyRole(['owner', 'manager']), 403);
 
         $data = $request->validate([
-            'assignment_id' => ['required', \App\Support\TenantRule::exists('schedule_assignments')],
+            'assignment_id' => ['required', TenantRule::exists('schedule_assignments')],
             'notes' => ['nullable', 'string', 'max:250'],
             'apply_violation' => ['nullable', 'boolean'],
             'penalty_amount' => ['nullable', 'numeric', 'min:0'],
@@ -403,7 +404,7 @@ class AttendanceController extends Controller
         abort_unless($request->user()->hasAnyRole(['owner', 'manager']), 403);
 
         $data = $request->validate([
-            'assignment_id' => ['required', \App\Support\TenantRule::exists('schedule_assignments')],
+            'assignment_id' => ['required', TenantRule::exists('schedule_assignments')],
             'notes' => ['nullable', 'string', 'max:250'],
             'apply_violation' => ['nullable', 'boolean'],
             'penalty_amount' => ['nullable', 'numeric', 'min:0'],
@@ -436,7 +437,7 @@ class AttendanceController extends Controller
         abort_unless($request->user()->hasAnyRole(['owner', 'manager']), 403);
 
         $data = $request->validate([
-            'assignment_id' => ['required', \App\Support\TenantRule::exists('schedule_assignments')],
+            'assignment_id' => ['required', TenantRule::exists('schedule_assignments')],
             'notes' => ['nullable', 'string', 'max:250'],
             'apply_violation' => ['nullable', 'boolean'],
             'penalty_amount' => ['nullable', 'numeric', 'min:0'],

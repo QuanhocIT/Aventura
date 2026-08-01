@@ -35,7 +35,14 @@ import AppLayout from '@/layouts/AppLayout.vue';
 
 defineOptions({ layout: AppLayout });
 
-type Area = { id: number; name: string; code: string; tables_count: number; branch_id: number | null; branch_name?: string | null };
+type Area = {
+    id: number;
+    name: string;
+    code: string;
+    tables_count: number;
+    branch_id: number | null;
+    branch_name?: string | null;
+};
 type PendingItem = {
     name: string;
     quantity: number;
@@ -99,8 +106,18 @@ const areaForm = useForm({
 });
 const tableForm = useForm({
     name: '',
-    area_id: props.areas.find((area) => Number(area.branch_id) === Number(props.activeBranchId ?? props.branches[0]?.id))?.id
-        ? String(props.areas.find((area) => Number(area.branch_id) === Number(props.activeBranchId ?? props.branches[0]?.id))?.id)
+    area_id: props.areas.find(
+        (area) =>
+            Number(area.branch_id) ===
+            Number(props.activeBranchId ?? props.branches[0]?.id),
+    )?.id
+        ? String(
+              props.areas.find(
+                  (area) =>
+                      Number(area.branch_id) ===
+                      Number(props.activeBranchId ?? props.branches[0]?.id),
+              )?.id,
+          )
         : '',
     capacity: '4',
     branch_id: props.activeBranchId ?? props.branches[0]?.id ?? '',
@@ -108,14 +125,22 @@ const tableForm = useForm({
 const editForm = useForm({ name: '', capacity: '', status: '' });
 
 const availableAreas = computed(() =>
-    props.areas.filter((area) => Number(area.branch_id) === Number(tableForm.branch_id)),
+    props.areas.filter(
+        (area) => Number(area.branch_id) === Number(tableForm.branch_id),
+    ),
 );
 
 watch(
     () => tableForm.branch_id,
     () => {
-        if (!availableAreas.value.some((area) => String(area.id) === String(tableForm.area_id))) {
-            tableForm.area_id = availableAreas.value[0]?.id ? String(availableAreas.value[0].id) : '';
+        if (
+            !availableAreas.value.some(
+                (area) => String(area.id) === String(tableForm.area_id),
+            )
+        ) {
+            tableForm.area_id = availableAreas.value[0]?.id
+                ? String(availableAreas.value[0].id)
+                : '';
         }
     },
 );
@@ -642,69 +667,78 @@ const vnd = (value: number) => {
                 <Card
                     class="w-full max-w-sm animate-in rounded-2xl duration-150 zoom-in-95 fade-in"
                 >
-                <CardHeader>
-                    <div class="flex items-center justify-between">
-                        <CardTitle class="text-base">Tạo khu vực mới</CardTitle>
-                        <button
-                            @click="showAddArea = false"
-                            class="text-muted-foreground hover:text-foreground"
-                        >
-                            <X class="size-4" />
-                        </button>
-                    </div>
-                    <CardDescription
-                        >Ví dụ: Tầng trệt, Phòng VIP 1, Ban
-                        công...</CardDescription
-                    >
-                </CardHeader>
-                <CardContent>
-                    <form @submit.prevent="submitArea" class="space-y-4">
-                        <div class="grid gap-1.5">
-                            <Label
-                                >Tên khu vực
-                                <span class="text-rose-500">*</span></Label
+                    <CardHeader>
+                        <div class="flex items-center justify-between">
+                            <CardTitle class="text-base"
+                                >Tạo khu vực mới</CardTitle
                             >
-                            <Input
-                                v-model="areaForm.name"
-                                placeholder="VD: Phòng VIP"
-                                required
-                                autofocus
-                            />
-                        </div>
-                        <div class="grid gap-1.5">
-                            <Label>Chi nhánh <span class="text-rose-500">*</span></Label>
-                            <select
-                                v-model="areaForm.branch_id"
-                                required
-                                class="w-full rounded-md border border-slate-200 bg-background px-3 py-2 text-sm font-semibold text-slate-700 focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:outline-none"
-                            >
-                                <option v-for="branch in branches" :key="branch.id" :value="branch.id">
-                                    {{ branch.name }}
-                                </option>
-                            </select>
-                        </div>
-                        <div class="flex justify-end gap-2">
-                            <Button
-                                type="button"
-                                variant="outline"
+                            <button
                                 @click="showAddArea = false"
-                                >Hủy</Button
+                                class="text-muted-foreground hover:text-foreground"
                             >
-                            <Button
-                                type="submit"
-                                class="bg-teal-650 text-white"
-                                :disabled="areaForm.processing"
-                            >
-                                {{
-                                    areaForm.processing
-                                        ? 'Đang tạo...'
-                                        : 'Tạo khu vực'
-                                }}
-                            </Button>
+                                <X class="size-4" />
+                            </button>
                         </div>
-                    </form>
-                </CardContent>
-            </Card>
+                        <CardDescription
+                            >Ví dụ: Tầng trệt, Phòng VIP 1, Ban
+                            công...</CardDescription
+                        >
+                    </CardHeader>
+                    <CardContent>
+                        <form @submit.prevent="submitArea" class="space-y-4">
+                            <div class="grid gap-1.5">
+                                <Label
+                                    >Tên khu vực
+                                    <span class="text-rose-500">*</span></Label
+                                >
+                                <Input
+                                    v-model="areaForm.name"
+                                    placeholder="VD: Phòng VIP"
+                                    required
+                                    autofocus
+                                />
+                            </div>
+                            <div class="grid gap-1.5">
+                                <Label
+                                    >Chi nhánh
+                                    <span class="text-rose-500">*</span></Label
+                                >
+                                <select
+                                    v-model="areaForm.branch_id"
+                                    required
+                                    class="w-full rounded-md border border-slate-200 bg-background px-3 py-2 text-sm font-semibold text-slate-700 focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:outline-none"
+                                >
+                                    <option
+                                        v-for="branch in branches"
+                                        :key="branch.id"
+                                        :value="branch.id"
+                                    >
+                                        {{ branch.name }}
+                                    </option>
+                                </select>
+                            </div>
+                            <div class="flex justify-end gap-2">
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    @click="showAddArea = false"
+                                    >Hủy</Button
+                                >
+                                <Button
+                                    type="submit"
+                                    class="bg-teal-650 text-white"
+                                    :disabled="areaForm.processing"
+                                >
+                                    {{
+                                        areaForm.processing
+                                            ? 'Đang tạo...'
+                                            : 'Tạo khu vực'
+                                    }}
+                                </Button>
+                            </div>
+                        </form>
+                    </CardContent>
+                </Card>
             </div>
         </div>
 
@@ -717,97 +751,108 @@ const vnd = (value: number) => {
                 <Card
                     class="w-full max-w-sm animate-in rounded-2xl duration-150 zoom-in-95 fade-in"
                 >
-                <CardHeader>
-                    <div class="flex items-center justify-between">
-                        <CardTitle class="text-base">Thêm bàn mới</CardTitle>
-                        <button
-                            @click="showAddTable = false"
-                            class="text-muted-foreground hover:text-foreground"
-                        >
-                            <X class="size-4" />
-                        </button>
-                    </div>
-                </CardHeader>
-                <CardContent>
-                    <form @submit.prevent="submitTable" class="space-y-4">
-                        <div class="grid gap-1.5">
-                            <Label
-                                >Tên bàn
-                                <span class="text-rose-500">*</span></Label
+                    <CardHeader>
+                        <div class="flex items-center justify-between">
+                            <CardTitle class="text-base"
+                                >Thêm bàn mới</CardTitle
                             >
-                            <Input
-                                v-model="tableForm.name"
-                                placeholder="VD: Bàn 01, B2..."
-                                required
-                            />
-                        </div>
-                        <div class="grid gap-1.5">
-                            <Label>Chi nhánh <span class="text-rose-500">*</span></Label>
-                            <select
-                                v-model="tableForm.branch_id"
-                                required
-                                class="w-full rounded-md border border-slate-200 bg-background px-3 py-2 text-sm font-semibold text-slate-700 focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:outline-none"
+                            <button
+                                @click="showAddTable = false"
+                                class="text-muted-foreground hover:text-foreground"
                             >
-                                <option v-for="branch in branches" :key="branch.id" :value="branch.id">
-                                    {{ branch.name }}
-                                </option>
-                            </select>
+                                <X class="size-4" />
+                            </button>
                         </div>
-                        <div class="grid grid-cols-2 gap-4">
+                    </CardHeader>
+                    <CardContent>
+                        <form @submit.prevent="submitTable" class="space-y-4">
                             <div class="grid gap-1.5">
                                 <Label
-                                    >Khu vực
+                                    >Tên bàn
+                                    <span class="text-rose-500">*</span></Label
+                                >
+                                <Input
+                                    v-model="tableForm.name"
+                                    placeholder="VD: Bàn 01, B2..."
+                                    required
+                                />
+                            </div>
+                            <div class="grid gap-1.5">
+                                <Label
+                                    >Chi nhánh
                                     <span class="text-rose-500">*</span></Label
                                 >
                                 <select
-                                    v-model="tableForm.area_id"
+                                    v-model="tableForm.branch_id"
                                     required
-                                    class="w-full rounded-md border border-slate-200 bg-background px-3 py-2 text-sm focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:outline-none"
+                                    class="w-full rounded-md border border-slate-200 bg-background px-3 py-2 text-sm font-semibold text-slate-700 focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:outline-none"
                                 >
-                                    <option value="" disabled>
-                                        Chọn khu vực
-                                    </option>
                                     <option
-                                        v-for="a in availableAreas"
-                                        :key="a.id"
-                                        :value="a.id"
+                                        v-for="branch in branches"
+                                        :key="branch.id"
+                                        :value="branch.id"
                                     >
-                                        {{ a.name }}
+                                        {{ branch.name }}
                                     </option>
                                 </select>
                             </div>
-                            <div class="grid gap-1.5">
-                                <Label>Sức chứa (người)</Label>
-                                <Input
-                                    type="number"
-                                    v-model="tableForm.capacity"
-                                    min="1"
-                                    max="100"
-                                />
+                            <div class="grid grid-cols-2 gap-4">
+                                <div class="grid gap-1.5">
+                                    <Label
+                                        >Khu vực
+                                        <span class="text-rose-500"
+                                            >*</span
+                                        ></Label
+                                    >
+                                    <select
+                                        v-model="tableForm.area_id"
+                                        required
+                                        class="w-full rounded-md border border-slate-200 bg-background px-3 py-2 text-sm focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:outline-none"
+                                    >
+                                        <option value="" disabled>
+                                            Chọn khu vực
+                                        </option>
+                                        <option
+                                            v-for="a in availableAreas"
+                                            :key="a.id"
+                                            :value="a.id"
+                                        >
+                                            {{ a.name }}
+                                        </option>
+                                    </select>
+                                </div>
+                                <div class="grid gap-1.5">
+                                    <Label>Sức chứa (người)</Label>
+                                    <Input
+                                        type="number"
+                                        v-model="tableForm.capacity"
+                                        min="1"
+                                        max="100"
+                                    />
+                                </div>
                             </div>
-                        </div>
-                        <div class="flex justify-end gap-2">
-                            <Button
-                                type="button"
-                                variant="outline"
-                                @click="showAddTable = false"
-                                >Hủy</Button
-                            >
-                            <Button
-                                type="submit"
-                                class="bg-teal-650 text-white"
-                                :disabled="tableForm.processing"
-                            >
-                                {{
-                                    tableForm.processing
-                                        ? 'Đang thêm...'
-                                        : 'Thêm bàn'
-                                }}
-                            </Button>
-                        </div>
-                    </form>
-                </CardContent>
-            </Card>
+                            <div class="flex justify-end gap-2">
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    @click="showAddTable = false"
+                                    >Hủy</Button
+                                >
+                                <Button
+                                    type="submit"
+                                    class="bg-teal-650 text-white"
+                                    :disabled="tableForm.processing"
+                                >
+                                    {{
+                                        tableForm.processing
+                                            ? 'Đang thêm...'
+                                            : 'Thêm bàn'
+                                    }}
+                                </Button>
+                            </div>
+                        </form>
+                    </CardContent>
+                </Card>
             </div>
         </div>
 
@@ -820,85 +865,91 @@ const vnd = (value: number) => {
                 <Card
                     class="w-full max-w-sm animate-in rounded-2xl duration-150 zoom-in-95 fade-in"
                 >
-                <CardHeader>
-                    <div class="flex items-center justify-between">
-                        <CardTitle class="flex items-center gap-2 text-base"
-                            ><Pencil class="size-4 text-teal-600" />Sửa
-                            bàn</CardTitle
-                        >
-                        <button
-                            @click="editingTable = null"
-                            class="text-muted-foreground hover:text-foreground"
-                        >
-                            <X class="size-4" />
-                        </button>
-                    </div>
-                </CardHeader>
-                <CardContent>
-                    <form @submit.prevent="submitEdit" class="space-y-4">
-                        <div class="grid gap-1.5">
-                            <Label>Tên bàn</Label>
-                            <Input v-model="editForm.name" required />
-                        </div>
-                        <div class="grid grid-cols-2 gap-4">
-                            <div class="grid gap-1.5">
-                                <Label>Sức chứa</Label>
-                                <Input
-                                    type="number"
-                                    v-model="editForm.capacity"
-                                    min="1"
-                                />
-                            </div>
-                            <div class="grid gap-1.5">
-                                <Label>Trạng thái</Label>
-                                <select
-                                    v-model="editForm.status"
-                                    class="w-full rounded-md border border-slate-200 bg-background px-3 py-2 text-sm focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:outline-none"
-                                >
-                                    <option value="available">Trống</option>
-                                    <option value="occupied">Có khách</option>
-                                    <option value="reserved">Đặt trước</option>
-                                    <option value="cleaning">
-                                        Chờ dọn bàn
-                                    </option>
-                                    <option value="inactive">Ngưng dùng</option>
-                                </select>
-                            </div>
-                        </div>
-                        <div class="mt-4 grid gap-1.5 border-t pt-2">
-                            <Label>QR Code gọi món</Label>
-                            <Button
-                                type="button"
-                                variant="outline"
-                                @click="showQrModal(editingTable!)"
-                                class="flex h-9 w-full items-center gap-1.5 text-xs"
+                    <CardHeader>
+                        <div class="flex items-center justify-between">
+                            <CardTitle class="flex items-center gap-2 text-base"
+                                ><Pencil class="size-4 text-teal-600" />Sửa
+                                bàn</CardTitle
                             >
-                                <QrCode class="size-4 text-teal-600" /> Xem mã
-                                QR & Link đặt món
-                            </Button>
-                        </div>
-                        <div class="flex justify-end gap-2">
-                            <Button
-                                type="button"
-                                variant="outline"
+                            <button
                                 @click="editingTable = null"
-                                >Hủy</Button
+                                class="text-muted-foreground hover:text-foreground"
                             >
-                            <Button
-                                type="submit"
-                                class="bg-teal-650 text-white"
-                                :disabled="editForm.processing"
-                            >
-                                {{
-                                    editForm.processing
-                                        ? 'Đang lưu...'
-                                        : 'Lưu thay đổi'
-                                }}
-                            </Button>
+                                <X class="size-4" />
+                            </button>
                         </div>
-                    </form>
-                </CardContent>
-            </Card>
+                    </CardHeader>
+                    <CardContent>
+                        <form @submit.prevent="submitEdit" class="space-y-4">
+                            <div class="grid gap-1.5">
+                                <Label>Tên bàn</Label>
+                                <Input v-model="editForm.name" required />
+                            </div>
+                            <div class="grid grid-cols-2 gap-4">
+                                <div class="grid gap-1.5">
+                                    <Label>Sức chứa</Label>
+                                    <Input
+                                        type="number"
+                                        v-model="editForm.capacity"
+                                        min="1"
+                                    />
+                                </div>
+                                <div class="grid gap-1.5">
+                                    <Label>Trạng thái</Label>
+                                    <select
+                                        v-model="editForm.status"
+                                        class="w-full rounded-md border border-slate-200 bg-background px-3 py-2 text-sm focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:outline-none"
+                                    >
+                                        <option value="available">Trống</option>
+                                        <option value="occupied">
+                                            Có khách
+                                        </option>
+                                        <option value="reserved">
+                                            Đặt trước
+                                        </option>
+                                        <option value="cleaning">
+                                            Chờ dọn bàn
+                                        </option>
+                                        <option value="inactive">
+                                            Ngưng dùng
+                                        </option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="mt-4 grid gap-1.5 border-t pt-2">
+                                <Label>QR Code gọi món</Label>
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    @click="showQrModal(editingTable!)"
+                                    class="flex h-9 w-full items-center gap-1.5 text-xs"
+                                >
+                                    <QrCode class="size-4 text-teal-600" /> Xem
+                                    mã QR & Link đặt món
+                                </Button>
+                            </div>
+                            <div class="flex justify-end gap-2">
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    @click="editingTable = null"
+                                    >Hủy</Button
+                                >
+                                <Button
+                                    type="submit"
+                                    class="bg-teal-650 text-white"
+                                    :disabled="editForm.processing"
+                                >
+                                    {{
+                                        editForm.processing
+                                            ? 'Đang lưu...'
+                                            : 'Lưu thay đổi'
+                                    }}
+                                </Button>
+                            </div>
+                        </form>
+                    </CardContent>
+                </Card>
             </div>
         </div>
 
@@ -947,76 +998,85 @@ const vnd = (value: number) => {
                 <Card
                     class="w-full max-w-md animate-in rounded-2xl border border-teal-500/20 shadow-2xl duration-150 zoom-in-95 fade-in"
                 >
-                <CardHeader class="border-b pb-3">
-                    <div class="flex items-center justify-between">
-                        <CardTitle class="flex items-center gap-2 text-base">
-                            <QrCode
-                                class="text-teal-650 size-5 animate-pulse"
-                            />
-                            Mã QR Gọi Món - {{ selectedQrTable.name }}
-                        </CardTitle>
-                        <button
-                            @click="selectedQrTable = null"
-                            class="text-muted-foreground hover:text-foreground"
-                        >
-                            <X class="size-4" />
-                        </button>
-                    </div>
-                    <CardDescription>
-                        Khu vực: {{ selectedQrTable.area?.name || 'Mặc định' }}
-                    </CardDescription>
-                </CardHeader>
-                <CardContent class="flex flex-col items-center space-y-5 pt-6">
-                    <div
-                        class="flex items-center justify-center rounded-2xl border border-slate-100 bg-white p-4 shadow-inner"
-                    >
-                        <img
-                            :src="
-                                'https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=' +
-                                encodeURIComponent(getQrUrl(selectedQrTable))
-                            "
-                            :alt="'Mã QR Bàn ' + selectedQrTable.name"
-                            class="size-56 object-contain"
-                        />
-                    </div>
-
-                    <div class="w-full space-y-2">
-                        <Label class="text-xs font-semibold text-slate-500"
-                            >Liên kết đặt món của bàn:</Label
-                        >
-                        <div class="flex items-center gap-2">
-                            <Input
-                                readonly
-                                :value="getQrUrl(selectedQrTable)"
-                                class="border-slate-200 bg-slate-50 font-mono text-xs select-all dark:bg-slate-900"
-                            />
-                            <Button
-                                size="sm"
-                                variant="outline"
-                                @click="copyLink(selectedQrTable)"
+                    <CardHeader class="border-b pb-3">
+                        <div class="flex items-center justify-between">
+                            <CardTitle
+                                class="flex items-center gap-2 text-base"
                             >
-                                Sao chép
+                                <QrCode
+                                    class="text-teal-650 size-5 animate-pulse"
+                                />
+                                Mã QR Gọi Món - {{ selectedQrTable.name }}
+                            </CardTitle>
+                            <button
+                                @click="selectedQrTable = null"
+                                class="text-muted-foreground hover:text-foreground"
+                            >
+                                <X class="size-4" />
+                            </button>
+                        </div>
+                        <CardDescription>
+                            Khu vực:
+                            {{ selectedQrTable.area?.name || 'Mặc định' }}
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent
+                        class="flex flex-col items-center space-y-5 pt-6"
+                    >
+                        <div
+                            class="flex items-center justify-center rounded-2xl border border-slate-100 bg-white p-4 shadow-inner"
+                        >
+                            <img
+                                :src="
+                                    'https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=' +
+                                    encodeURIComponent(
+                                        getQrUrl(selectedQrTable),
+                                    )
+                                "
+                                :alt="'Mã QR Bàn ' + selectedQrTable.name"
+                                class="size-56 object-contain"
+                            />
+                        </div>
+
+                        <div class="w-full space-y-2">
+                            <Label class="text-xs font-semibold text-slate-500"
+                                >Liên kết đặt món của bàn:</Label
+                            >
+                            <div class="flex items-center gap-2">
+                                <Input
+                                    readonly
+                                    :value="getQrUrl(selectedQrTable)"
+                                    class="border-slate-200 bg-slate-50 font-mono text-xs select-all dark:bg-slate-900"
+                                />
+                                <Button
+                                    size="sm"
+                                    variant="outline"
+                                    @click="copyLink(selectedQrTable)"
+                                >
+                                    Sao chép
+                                </Button>
+                            </div>
+                        </div>
+
+                        <div
+                            class="flex w-full items-center gap-3 border-t pt-3"
+                        >
+                            <Button
+                                class="flex-1 rounded-xl bg-teal-600 font-semibold text-white hover:bg-teal-700"
+                                @click="printQrCode(selectedQrTable)"
+                            >
+                                In mã QR
+                            </Button>
+                            <Button
+                                variant="outline"
+                                class="flex-1 rounded-xl border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-slate-800"
+                                @click="regenerateQrCode(selectedQrTable)"
+                            >
+                                Tạo lại mã
                             </Button>
                         </div>
-                    </div>
-
-                    <div class="flex w-full items-center gap-3 border-t pt-3">
-                        <Button
-                            class="flex-1 rounded-xl bg-teal-600 font-semibold text-white hover:bg-teal-700"
-                            @click="printQrCode(selectedQrTable)"
-                        >
-                            In mã QR
-                        </Button>
-                        <Button
-                            variant="outline"
-                            class="flex-1 rounded-xl border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-slate-800"
-                            @click="regenerateQrCode(selectedQrTable)"
-                        >
-                            Tạo lại mã
-                        </Button>
-                    </div>
-                </CardContent>
-            </Card>
+                    </CardContent>
+                </Card>
             </div>
         </div>
 
@@ -1075,7 +1135,7 @@ const vnd = (value: number) => {
                                 class="rounded-lg p-1.5 text-slate-400 transition-all hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-950/50"
                                 :class="
                                     getAreaTablesCount(area) > 0
-                                        ? 'opacity-30 cursor-not-allowed hover:bg-transparent hover:text-slate-400'
+                                        ? 'cursor-not-allowed opacity-30 hover:bg-transparent hover:text-slate-400'
                                         : 'opacity-0 group-hover:opacity-100 focus:opacity-100'
                                 "
                             >
@@ -1182,7 +1242,7 @@ const vnd = (value: number) => {
                                 <!-- Snap to grid toggle shown in edit layout mode -->
                                 <div
                                     v-if="isEditLayout"
-                                    class="flex items-center gap-2 mr-3 border-r pr-3 border-slate-250 dark:border-slate-800"
+                                    class="border-slate-250 mr-3 flex items-center gap-2 border-r pr-3 dark:border-slate-800"
                                 >
                                     <Label
                                         for="snap-grid-toggle"

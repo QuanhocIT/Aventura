@@ -1,7 +1,16 @@
 <script setup lang="ts">
 import { Head, useForm } from '@inertiajs/vue3';
 import axios from 'axios';
-import { Plus, Edit2, Package, Tag, ShieldCheck, X, Clock, Loader2 } from 'lucide-vue-next';
+import {
+    Plus,
+    Edit2,
+    Package,
+    Tag,
+    ShieldCheck,
+    X,
+    Clock,
+    Loader2,
+} from 'lucide-vue-next';
 import { ref, computed } from 'vue';
 
 const props = defineProps<{
@@ -65,7 +74,9 @@ const openAnalyticsModal = async (item: any) => {
     analyticsData.value = null;
 
     try {
-        const response = await axios.get(`/suppliers/${props.supplier.id}/ingredients/${item.id}/price-analytics`);
+        const response = await axios.get(
+            `/suppliers/${props.supplier.id}/ingredients/${item.id}/price-analytics`,
+        );
         analyticsData.value = response.data;
     } catch (err) {
         console.error(err);
@@ -363,7 +374,7 @@ const openAnalyticsModal = async (item: any) => {
             @click.self="showAnalyticsModal = false"
         >
             <div
-                class="w-full max-w-lg animate-in overflow-hidden rounded-2xl border border-slate-800 bg-slate-900 shadow-2xl duration-150 zoom-in-95 fade-in text-left text-slate-100"
+                class="w-full max-w-lg animate-in overflow-hidden rounded-2xl border border-slate-800 bg-slate-900 text-left text-slate-100 shadow-2xl duration-150 zoom-in-95 fade-in"
             >
                 <div
                     class="flex items-center justify-between border-b border-slate-800 bg-slate-950 px-6 py-4"
@@ -373,7 +384,9 @@ const openAnalyticsModal = async (item: any) => {
                             Phân tích giá & Biến động AI
                         </h3>
                         <p class="text-[10px] text-slate-400">
-                            Vật tư: {{ selectedIngredient.name }} ({{ selectedIngredient.sku }})
+                            Vật tư: {{ selectedIngredient.name }} ({{
+                                selectedIngredient.sku
+                            }})
                         </p>
                     </div>
                     <button
@@ -384,82 +397,162 @@ const openAnalyticsModal = async (item: any) => {
                     </button>
                 </div>
 
-                <div class="p-6 space-y-5">
-                    <div v-if="loadingAnalytics" class="flex flex-col items-center py-10 space-y-2">
-                        <div class="h-8 w-8 animate-spin rounded-full border-4 border-emerald-500 border-t-transparent"></div>
-                        <p class="text-xs text-slate-400">Đang phân tích dữ liệu lịch sử giá bằng AI...</p>
+                <div class="space-y-5 p-6">
+                    <div
+                        v-if="loadingAnalytics"
+                        class="flex flex-col items-center space-y-2 py-10"
+                    >
+                        <div
+                            class="h-8 w-8 animate-spin rounded-full border-4 border-emerald-500 border-t-transparent"
+                        ></div>
+                        <p class="text-xs text-slate-400">
+                            Đang phân tích dữ liệu lịch sử giá bằng AI...
+                        </p>
                     </div>
 
                     <div v-else-if="analyticsData" class="space-y-4">
                         <!-- AI recommendation -->
-                        <div class="rounded-xl border border-violet-500/20 bg-violet-500/10 p-4 space-y-1">
-                            <h4 class="text-xs font-black text-violet-400 uppercase tracking-wide flex items-center gap-1.5">
+                        <div
+                            class="space-y-1 rounded-xl border border-violet-500/20 bg-violet-500/10 p-4"
+                        >
+                            <h4
+                                class="flex items-center gap-1.5 text-xs font-black tracking-wide text-violet-400 uppercase"
+                            >
                                 <span>🧠</span> Đề xuất AI dự báo giá
                             </h4>
-                            <p class="text-xs text-slate-200 leading-relaxed">
+                            <p class="text-xs leading-relaxed text-slate-200">
                                 {{ analyticsData.recommendation }}
                             </p>
                         </div>
 
                         <!-- Volatility metrics cards -->
                         <div class="grid grid-cols-2 gap-4">
-                            <div class="rounded-xl border border-slate-800 bg-slate-950/40 p-4 space-y-1 text-center">
-                                <span class="text-[9px] font-bold text-slate-400 uppercase">Xu hướng giá</span>
-                                <div class="flex items-center justify-center gap-1.5 pt-1">
-                                    <span 
+                            <div
+                                class="space-y-1 rounded-xl border border-slate-800 bg-slate-950/40 p-4 text-center"
+                            >
+                                <span
+                                    class="text-[9px] font-bold text-slate-400 uppercase"
+                                    >Xu hướng giá</span
+                                >
+                                <div
+                                    class="flex items-center justify-center gap-1.5 pt-1"
+                                >
+                                    <span
                                         class="inline-flex rounded-full px-2 py-0.5 text-[10px] font-black uppercase"
                                         :class="{
-                                            'bg-rose-950 text-rose-400 border border-rose-900/50': analyticsData.trend === 'rising',
-                                            'bg-emerald-950 text-emerald-400 border border-emerald-900/50': analyticsData.trend === 'falling',
-                                            'bg-slate-800 text-slate-350': analyticsData.trend === 'stable'
+                                            'border border-rose-900/50 bg-rose-950 text-rose-400':
+                                                analyticsData.trend ===
+                                                'rising',
+                                            'border border-emerald-900/50 bg-emerald-950 text-emerald-400':
+                                                analyticsData.trend ===
+                                                'falling',
+                                            'text-slate-350 bg-slate-800':
+                                                analyticsData.trend ===
+                                                'stable',
                                         }"
                                     >
-                                        {{ 
-                                            analyticsData.trend === 'rising' 
-                                                ? 'Tăng trưởng' 
-                                                : analyticsData.trend === 'falling' 
-                                                  ? 'Giảm giá' 
+                                        {{
+                                            analyticsData.trend === 'rising'
+                                                ? 'Tăng trưởng'
+                                                : analyticsData.trend ===
+                                                    'falling'
+                                                  ? 'Giảm giá'
                                                   : 'Ổn định'
                                         }}
                                     </span>
                                 </div>
                             </div>
 
-                            <div class="rounded-xl border border-slate-800 bg-slate-950/40 p-4 space-y-1 text-center">
-                                <span class="text-[9px] font-bold text-slate-400 uppercase">Tỷ lệ thay đổi</span>
-                                <p 
-                                    class="text-base font-black pt-0.5 font-mono"
-                                    :class="analyticsData.percentage_change >= 0 ? 'text-rose-400' : 'text-emerald-400'"
+                            <div
+                                class="space-y-1 rounded-xl border border-slate-800 bg-slate-950/40 p-4 text-center"
+                            >
+                                <span
+                                    class="text-[9px] font-bold text-slate-400 uppercase"
+                                    >Tỷ lệ thay đổi</span
                                 >
-                                    {{ analyticsData.percentage_change >= 0 ? '+' : '' }}{{ analyticsData.percentage_change }}%
+                                <p
+                                    class="pt-0.5 font-mono text-base font-black"
+                                    :class="
+                                        analyticsData.percentage_change >= 0
+                                            ? 'text-rose-400'
+                                            : 'text-emerald-400'
+                                    "
+                                >
+                                    {{
+                                        analyticsData.percentage_change >= 0
+                                            ? '+'
+                                            : ''
+                                    }}{{ analyticsData.percentage_change }}%
                                 </p>
                             </div>
                         </div>
 
                         <!-- Price history averages or points table -->
                         <div class="space-y-2">
-                            <h4 class="text-xs font-bold text-slate-300">Nhật ký điều chỉnh giá gần đây</h4>
-                            <div class="max-h-40 overflow-y-auto rounded-xl border border-slate-850 bg-slate-950/20">
-                                <table class="w-full text-xs text-left">
-                                    <thead class="bg-slate-900 text-slate-400 sticky top-0 text-[10px] uppercase font-bold">
+                            <h4 class="text-xs font-bold text-slate-300">
+                                Nhật ký điều chỉnh giá gần đây
+                            </h4>
+                            <div
+                                class="border-slate-850 max-h-40 overflow-y-auto rounded-xl border bg-slate-950/20"
+                            >
+                                <table class="w-full text-left text-xs">
+                                    <thead
+                                        class="sticky top-0 bg-slate-900 text-[10px] font-bold text-slate-400 uppercase"
+                                    >
                                         <tr>
-                                            <th class="px-4 py-2">Ngày áp dụng</th>
-                                            <th class="px-4 py-2 text-right">Đơn giá niêm yết</th>
+                                            <th class="px-4 py-2">
+                                                Ngày áp dụng
+                                            </th>
+                                            <th class="px-4 py-2 text-right">
+                                                Đơn giá niêm yết
+                                            </th>
                                         </tr>
                                     </thead>
                                     <tbody class="divide-y divide-slate-800/40">
-                                        <tr 
-                                            v-for="(historyItem, idx) in (analyticsData.monthly_averages || [])" 
+                                        <tr
+                                            v-for="(
+                                                historyItem, idx
+                                            ) in analyticsData.monthly_averages ||
+                                            []"
                                             :key="idx"
                                             class="hover:bg-slate-800/20"
                                         >
-                                            <td class="px-4 py-2.5 font-medium text-slate-300">{{ historyItem.month || historyItem.date || 'Tháng ' + (Number(idx) + 1) }}</td>
-                                            <td class="px-4 py-2.5 text-right font-bold text-emerald-400 font-mono">
-                                                {{ (historyItem.average_price || historyItem.price || 0).toLocaleString('vi-VN') }}đ
+                                            <td
+                                                class="px-4 py-2.5 font-medium text-slate-300"
+                                            >
+                                                {{
+                                                    historyItem.month ||
+                                                    historyItem.date ||
+                                                    'Tháng ' + (Number(idx) + 1)
+                                                }}
+                                            </td>
+                                            <td
+                                                class="px-4 py-2.5 text-right font-mono font-bold text-emerald-400"
+                                            >
+                                                {{
+                                                    (
+                                                        historyItem.average_price ||
+                                                        historyItem.price ||
+                                                        0
+                                                    ).toLocaleString('vi-VN')
+                                                }}đ
                                             </td>
                                         </tr>
-                                        <tr v-if="!(analyticsData.monthly_averages || []).length">
-                                            <td colspan="2" class="px-4 py-6 text-center text-slate-500">Chưa ghi nhận sự thay đổi giá nào khác.</td>
+                                        <tr
+                                            v-if="
+                                                !(
+                                                    analyticsData.monthly_averages ||
+                                                    []
+                                                ).length
+                                            "
+                                        >
+                                            <td
+                                                colspan="2"
+                                                class="px-4 py-6 text-center text-slate-500"
+                                            >
+                                                Chưa ghi nhận sự thay đổi giá
+                                                nào khác.
+                                            </td>
                                         </tr>
                                     </tbody>
                                 </table>
@@ -468,11 +561,13 @@ const openAnalyticsModal = async (item: any) => {
                     </div>
                 </div>
 
-                <div class="flex items-center justify-end bg-slate-950 px-6 py-4 border-t border-slate-800">
+                <div
+                    class="flex items-center justify-end border-t border-slate-800 bg-slate-950 px-6 py-4"
+                >
                     <button
                         type="button"
                         @click="showAnalyticsModal = false"
-                        class="rounded-xl border border-slate-800 bg-slate-900 px-4 py-2 text-xs font-bold text-slate-350 hover:bg-slate-800 hover:text-white transition-all cursor-pointer"
+                        class="text-slate-350 cursor-pointer rounded-xl border border-slate-800 bg-slate-900 px-4 py-2 text-xs font-bold transition-all hover:bg-slate-800 hover:text-white"
                     >
                         Đóng lại
                     </button>

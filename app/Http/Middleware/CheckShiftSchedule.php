@@ -58,7 +58,7 @@ class CheckShiftSchedule
         }
 
         $restaurantId = $user->restaurant_id;
-        $now          = now(); // Đã đúng timezone vì config/app.php = Asia/Ho_Chi_Minh
+        $now = now(); // Đã đúng timezone vì config/app.php = Asia/Ho_Chi_Minh
 
         $isInShift = ScheduleAssignment::where('restaurant_id', $restaurantId)
             ->where('employee_id', function ($query) use ($user) {
@@ -74,14 +74,14 @@ class CheckShiftSchedule
                 // Đang trong giờ ca (start_time <= now <= end_time)
                 $q->where(function ($inner) use ($now) {
                     $inner->where('start_time', '<=', $now->format('H:i:s'))
-                          ->where('end_time', '>=', $now->format('H:i:s'));
+                        ->where('end_time', '>=', $now->format('H:i:s'));
                 })
                 // HOẶC trong grace period: ca đã kết thúc nhưng chưa quá GRACE_MINUTES
-                ->orWhere(function ($inner) use ($now) {
-                    $graceTime = $now->copy()->subMinutes(self::GRACE_MINUTES);
-                    $inner->where('end_time', '>=', $graceTime->format('H:i:s'))
-                          ->where('end_time', '<', $now->format('H:i:s'));
-                });
+                    ->orWhere(function ($inner) use ($now) {
+                        $graceTime = $now->copy()->subMinutes(self::GRACE_MINUTES);
+                        $inner->where('end_time', '>=', $graceTime->format('H:i:s'))
+                            ->where('end_time', '<', $now->format('H:i:s'));
+                    });
             })
             ->exists();
 
@@ -95,8 +95,8 @@ class CheckShiftSchedule
 
             // JSON / API request → 403 JSON
             return response()->json([
-                'message'      => 'Truy cập bị từ chối: Ngoài giờ ca làm việc.',
-                'grace_period' => self::GRACE_MINUTES . ' phút sau khi ca kết thúc',
+                'message' => 'Truy cập bị từ chối: Ngoài giờ ca làm việc.',
+                'grace_period' => self::GRACE_MINUTES.' phút sau khi ca kết thúc',
                 'current_time' => $now->format('H:i:s d/m/Y'),
             ], 403);
         }

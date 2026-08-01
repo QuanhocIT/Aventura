@@ -18,37 +18,43 @@ import AppLayout from '@/layouts/AppLayout.vue';
 defineOptions({ layout: AppLayout });
 
 const props = defineProps<{
-        restaurant: { lat: number; lng: number; name: string };
-        heatmap?: { lat: number; lng: number; count: number; revenue: number }[];
-        zoneStats?: {
-            zones: {
-                zone: string;
-                orders: number;
-                revenue: number;
-                avg_order: number;
-            }[];
-            avg_distance: number;
-            max_distance: number;
-            total_deliveries: number;
-        };
-        topAreas?: { area: string; orders: number; revenue: number }[];
-        channels?: {
-            channel: string;
-            label: string;
+    restaurant: { lat: number; lng: number; name: string };
+    heatmap?: { lat: number; lng: number; count: number; revenue: number }[];
+    zoneStats?: {
+        zones: {
+            zone: string;
             orders: number;
             revenue: number;
+            avg_order: number;
         }[];
-        branchSuggestions?: {
-            lat: number;
-            lng: number;
-            reason: string;
-            score: number;
-        }[];
-        days: number;
-    }>();
+        avg_distance: number;
+        max_distance: number;
+        total_deliveries: number;
+    };
+    topAreas?: { area: string; orders: number; revenue: number }[];
+    channels?: {
+        channel: string;
+        label: string;
+        orders: number;
+        revenue: number;
+    }[];
+    branchSuggestions?: {
+        lat: number;
+        lng: number;
+        reason: string;
+        score: number;
+    }[];
+    days: number;
+}>();
 
 const isLoading = computed(() => {
-    return !props.zoneStats || !props.heatmap || !props.topAreas || !props.channels || !props.branchSuggestions;
+    return (
+        !props.zoneStats ||
+        !props.heatmap ||
+        !props.topAreas ||
+        !props.channels ||
+        !props.branchSuggestions
+    );
 });
 
 const totalDeliveryRevenue = computed(() => {
@@ -108,8 +114,10 @@ const initMap = async () => {
 
         // Fix default Leaflet icon paths
         const DefaultIcon = L.icon({
-            iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
-            shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
+            iconUrl:
+                'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
+            shadowUrl:
+                'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
             iconSize: [25, 41],
             iconAnchor: [12, 41],
             popupAnchor: [1, -34],
@@ -143,30 +151,32 @@ const initMap = async () => {
 
 const drawRestaurantMarker = () => {
     if (!map || !L) {
-return;
-}
+        return;
+    }
 
     if (restaurantMarker) {
-map.removeLayer(restaurantMarker);
-}
+        map.removeLayer(restaurantMarker);
+    }
 
     restaurantMarker = L.marker([props.restaurant.lat, props.restaurant.lng])
         .addTo(map)
-        .bindPopup(`<strong>${props.restaurant.name}</strong><br/>📍 Cửa hàng chính`);
+        .bindPopup(
+            `<strong>${props.restaurant.name}</strong><br/>📍 Cửa hàng chính`,
+        );
 };
 
 const drawMapLayers = () => {
     if (!map || !L || isLoading.value) {
-return;
-}
+        return;
+    }
 
     if (heatmapGroup) {
-heatmapGroup.clearLayers();
-}
+        heatmapGroup.clearLayers();
+    }
 
     if (suggestionsGroup) {
-suggestionsGroup.clearLayers();
-}
+        suggestionsGroup.clearLayers();
+    }
 
     // 1. Heatmap points
     if (props.heatmap && props.heatmap.length > 0) {
@@ -182,7 +192,9 @@ suggestionsGroup.clearLayers();
                 stroke: false,
             })
                 .addTo(heatmapGroup)
-                .bindPopup(`<strong>Vùng giao hàng</strong><br/>Số đơn: ${point.count}<br/>Doanh thu: ${point.revenue.toLocaleString()}đ`);
+                .bindPopup(
+                    `<strong>Vùng giao hàng</strong><br/>Số đơn: ${point.count}<br/>Doanh thu: ${point.revenue.toLocaleString()}đ`,
+                );
         });
     }
 
@@ -198,9 +210,7 @@ suggestionsGroup.clearLayers();
 
             L.marker([suggestion.lat, suggestion.lng], {
                 icon: suggestionIcon,
-            })
-                .addTo(suggestionsGroup)
-                .bindPopup(`
+            }).addTo(suggestionsGroup).bindPopup(`
                     <div class="p-1 min-w-[200px]">
                         <span class="inline-block bg-violet-100 text-violet-800 dark:bg-violet-950 dark:text-violet-300 font-bold text-[10px] px-2 py-0.5 rounded-full mb-1">
                             Gợi ý chi nhánh ${idx + 1} (Điểm: ${suggestion.score}/100)
@@ -227,9 +237,13 @@ watch(isLoading, (loading) => {
     }
 });
 
-watch(() => [props.heatmap, props.branchSuggestions], () => {
-    drawMapLayers();
-}, { deep: true });
+watch(
+    () => [props.heatmap, props.branchSuggestions],
+    () => {
+        drawMapLayers();
+    },
+    { deep: true },
+);
 
 onUnmounted(() => {
     if (map) {
@@ -248,7 +262,10 @@ onUnmounted(() => {
     <Head title="Phân tích địa lý" />
 
     <!-- Skeleton loading state -->
-    <div v-if="isLoading" class="mx-auto flex w-full max-w-7xl flex-col gap-5 p-4 lg:p-6 animate-pulse">
+    <div
+        v-if="isLoading"
+        class="mx-auto flex w-full max-w-7xl animate-pulse flex-col gap-5 p-4 lg:p-6"
+    >
         <!-- Header skeleton -->
         <div class="flex items-center gap-3 border-b border-border pb-5">
             <div class="h-11 w-11 rounded-2xl bg-muted"></div>
@@ -260,7 +277,7 @@ onUnmounted(() => {
         <!-- Map skeleton -->
         <Card class="border border-border bg-card">
             <CardContent class="p-0">
-                <div class="p-5 space-y-2">
+                <div class="space-y-2 p-5">
                     <div class="h-4 w-36 rounded bg-muted"></div>
                     <div class="h-3 w-64 rounded bg-muted"></div>
                 </div>
@@ -270,7 +287,7 @@ onUnmounted(() => {
         <!-- KPI cards skeleton -->
         <div class="grid grid-cols-2 gap-3 lg:grid-cols-4">
             <Card v-for="i in 4" :key="i">
-                <CardContent class="p-4 space-y-3">
+                <CardContent class="space-y-3 p-4">
                     <div class="h-3 w-16 rounded bg-muted"></div>
                     <div class="h-6 w-24 rounded bg-muted"></div>
                     <div class="h-2 w-20 rounded bg-muted"></div>
@@ -280,7 +297,7 @@ onUnmounted(() => {
         <!-- 3 columns skeleton -->
         <div class="grid grid-cols-1 gap-6 lg:grid-cols-3">
             <Card v-for="i in 3" :key="i">
-                <CardContent class="p-5 space-y-4">
+                <CardContent class="space-y-4 p-5">
                     <div class="h-4 w-40 rounded bg-muted"></div>
                     <div class="space-y-2" v-for="j in 4" :key="j">
                         <div class="flex justify-between">
@@ -320,24 +337,38 @@ onUnmounted(() => {
 
         <!-- Interactive Map Container -->
         <Card v-if="!showMap" class="border border-border bg-card shadow-sm">
-            <CardContent class="flex flex-col items-center justify-center p-12 text-center">
-                <div class="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-teal-500/10 text-teal-600 dark:text-teal-400">
+            <CardContent
+                class="flex flex-col items-center justify-center p-12 text-center"
+            >
+                <div
+                    class="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-teal-500/10 text-teal-600 dark:text-teal-400"
+                >
                     <MapPin class="size-8 animate-bounce" />
                 </div>
-                <h3 class="mb-2 text-lg font-semibold">Bản đồ nhiệt & Gợi ý mở rộng</h3>
+                <h3 class="mb-2 text-lg font-semibold">
+                    Bản đồ nhiệt & Gợi ý mở rộng
+                </h3>
                 <p class="mb-6 max-w-md text-sm text-muted-foreground">
-                    Tải và hiển thị mật độ đơn hàng thực tế của nhà hàng cùng các khu vực đề xuất mở chi nhánh do AI đề xuất trên bản đồ tương tác.
+                    Tải và hiển thị mật độ đơn hàng thực tế của nhà hàng cùng
+                    các khu vực đề xuất mở chi nhánh do AI đề xuất trên bản đồ
+                    tương tác.
                 </p>
-                <Button @click="toggleMap" class="bg-teal-600 hover:bg-teal-700 text-white shadow-sm font-semibold transition-all">
+                <Button
+                    @click="toggleMap"
+                    class="bg-teal-600 font-semibold text-white shadow-sm transition-all hover:bg-teal-700"
+                >
                     <Navigation class="mr-2 size-4" />
                     Vị trí trên bản đồ
                 </Button>
             </CardContent>
         </Card>
 
-        <Card v-else class="overflow-hidden border border-border bg-card shadow-sm animate-in fade-in duration-300">
+        <Card
+            v-else
+            class="animate-in overflow-hidden border border-border bg-card shadow-sm duration-300 fade-in"
+        >
             <CardContent class="relative p-0">
-                <div class="px-5 pt-5 pb-3 flex justify-between items-center">
+                <div class="flex items-center justify-between px-5 pt-5 pb-3">
                     <div>
                         <div class="mb-1 flex items-center gap-2">
                             <Navigation class="size-4 text-teal-500" />
@@ -346,10 +377,16 @@ onUnmounted(() => {
                             </p>
                         </div>
                         <p class="text-xs text-muted-foreground">
-                            Xem mật độ đơn hàng thực tế (Vòng tròn đỏ) và các khu vực AI gợi ý mở chi nhánh (Marker số màu tím).
+                            Xem mật độ đơn hàng thực tế (Vòng tròn đỏ) và các
+                            khu vực AI gợi ý mở chi nhánh (Marker số màu tím).
                         </p>
                     </div>
-                    <Button @click="toggleMap" variant="outline" size="sm" class="font-semibold text-xs border-border hover:bg-muted text-muted-foreground hover:text-foreground">
+                    <Button
+                        @click="toggleMap"
+                        variant="outline"
+                        size="sm"
+                        class="border-border text-xs font-semibold text-muted-foreground hover:bg-muted hover:text-foreground"
+                    >
                         Ẩn bản đồ
                     </Button>
                 </div>
@@ -630,8 +667,8 @@ onUnmounted(() => {
                                                     (point.count /
                                                         Math.max(
                                                             1,
-                                                            heatmap![0]?.count ??
-                                                                1,
+                                                            heatmap![0]
+                                                                ?.count ?? 1,
                                                         )) *
                                                         100,
                                                 ) + '%',

@@ -33,7 +33,9 @@ import {
 } from 'lucide-vue-next';
 import { computed, ref, onMounted, onUnmounted } from 'vue';
 import {
+    PageHeader,
     StatusBadge,
+    StatCard,
     Pagination,
     LedIndicator,
     ProgressBar,
@@ -761,257 +763,81 @@ function formatMins(mins: number): string {
 </script>
 
 <template>
-    <Head title="DevOps & Support Portal" />
+    <Head title="Hỗ trợ kỹ thuật" />
 
-    <div
-        class="anim-fade-in mx-auto flex w-full max-w-[1600px] flex-col gap-8 p-6"
-    >
+    <div class="anim-fade-in space-y-6 px-6 py-5">
         <!-- ============================================================ -->
         <!-- HEADER SECTION (Glassmorphism + Neon accents)               -->
         <!-- ============================================================ -->
-        <div
-            class="relative flex flex-wrap items-center justify-between gap-6 rounded-2xl border border-slate-100 bg-white/40 p-6 shadow-xs backdrop-blur-md transition-all duration-300 dark:border-slate-800/80 dark:bg-slate-900/40"
+        <PageHeader
+            title="Hỗ trợ kỹ thuật"
+            subtitle="Giám sát hạ tầng, ticket hỗ trợ, thông báo hệ thống và kho tài liệu."
+            :icon="Headset"
         >
-            <div
-                class="pointer-events-none absolute inset-0 rounded-2xl bg-gradient-to-r from-violet-500/5 via-transparent to-indigo-500/5"
-            />
-            <div class="relative z-10 flex items-center gap-4">
-                <div
-                    class="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-500 to-indigo-600 shadow-md shadow-indigo-500/10"
-                >
-                    <Headset class="animate-bounce-gentle size-6 text-white" />
-                </div>
-                <div>
-                    <h1
-                        class="bg-gradient-to-r from-slate-900 via-slate-800 to-indigo-950 bg-clip-text text-2xl font-black tracking-tight text-transparent dark:from-white dark:to-slate-300"
-                    >
-                        DevOps & Support Portal
-                    </h1>
-                    <p
-                        class="mt-1 flex flex-wrap items-center gap-1.5 text-xs font-semibold text-slate-500 dark:text-slate-400"
-                    >
-                        <span>Giám sát hạ tầng</span>
-                        <span class="text-slate-300 dark:text-slate-700"
-                            >•</span
-                        >
-                        <span>Ticket hỗ trợ</span>
-                        <span class="text-slate-300 dark:text-slate-700"
-                            >•</span
-                        >
-                        <span>Broadcast Realtime</span>
-                        <span class="text-slate-300 dark:text-slate-700"
-                            >•</span
-                        >
-                        <span>Knowledge Base</span>
-                    </p>
-                </div>
-            </div>
-
-            <div class="relative z-10 flex flex-wrap items-center gap-3">
-                <div
+            <template #actions>
+                <span
                     :class="[
-                        'flex items-center gap-2 rounded-full px-4 py-1.5 text-xs font-bold transition-all duration-300',
+                        'inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold',
                         systemHealth.bg,
                         systemHealth.color,
                     ]"
                 >
-                    <span
-                        :class="['size-2.5 rounded-full', systemHealth.dot]"
-                    />
+                    <span :class="['size-2 rounded-full', systemHealth.dot]" />
                     {{ systemHealth.label }}
-                </div>
-
-                <a
-                    :href="exportUrl"
-                    class="flex h-9 items-center gap-2 rounded-xl border border-emerald-500/20 bg-white px-4 text-xs font-semibold text-emerald-600 transition-all hover:bg-emerald-500/5 hover:text-emerald-500 dark:bg-slate-900"
-                >
-                    <Download class="size-4" />
+                </span>
+                <Button as="a" :href="exportUrl" variant="outline">
+                    <Download class="mr-2 size-4" />
                     Xuất CSV
-                </a>
-
-                <Button
-                    variant="outline"
-                    size="sm"
-                    @click="runAlertCheck"
-                    class="flex h-9 items-center gap-2 rounded-xl border-amber-500/20 px-4 font-semibold text-amber-600 transition-all hover:bg-amber-500/5 hover:text-amber-500"
-                >
-                    <Siren class="size-4 animate-pulse" />
-                    Quét Cảnh Báo
                 </Button>
-
+                <Button variant="outline" @click="runAlertCheck">
+                    <Siren class="mr-2 size-4" />
+                    Quét cảnh báo
+                </Button>
                 <Button
                     variant="outline"
-                    size="sm"
                     @click="
                         router.reload({
                             only: ['stats', 'monitoring', 'tickets', 'alerts'],
                         })
                     "
-                    class="flex h-9 items-center gap-2 rounded-xl border-indigo-500/20 px-4 font-semibold text-indigo-600 transition-all hover:bg-indigo-500/5 hover:text-indigo-500"
                 >
-                    <RefreshCcw
-                        class="size-4 transition-transform duration-500 hover:rotate-180"
-                    />
-                    Làm Mới
+                    <RefreshCcw class="mr-2 size-4" />
+                    Làm mới
                 </Button>
-            </div>
-        </div>
+            </template>
+        </PageHeader>
 
-        <!-- ============================================================ -->
-        <!-- KPI STATS CARDS WITH VIBRANT NEON GRADIENTS                  -->
-        <!-- ============================================================ -->
-        <div
-            class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5"
-        >
-            <!-- Ticket mở -->
-            <Card
-                class="group relative overflow-hidden rounded-2xl border-0 border-t border-sky-500/20 bg-gradient-to-br from-sky-500/5 to-indigo-500/10 transition-all duration-300 hover:shadow-lg hover:shadow-sky-500/5 dark:from-sky-950/20 dark:to-indigo-950/10"
-            >
-                <div
-                    class="absolute -right-4 -bottom-4 size-24 rounded-full bg-sky-500/10 blur-xl transition-transform duration-500 group-hover:scale-125"
-                />
-                <CardContent
-                    class="relative z-10 flex items-center justify-between p-5"
-                >
-                    <div>
-                        <p
-                            class="text-xs font-bold tracking-wider text-sky-600 uppercase dark:text-sky-400"
-                        >
-                            Ticket đang mở
-                        </p>
-                        <p
-                            class="mt-2 text-3xl font-black text-slate-800 dark:text-white"
-                        >
-                            {{ stats.tickets_open ?? 0 }}
-                        </p>
-                    </div>
-                    <div
-                        class="flex h-12 w-12 items-center justify-center rounded-xl bg-sky-500/10 text-sky-600 dark:bg-sky-500/20 dark:text-sky-300"
-                    >
-                        <Ticket class="size-5" />
-                    </div>
-                </CardContent>
-            </Card>
-
-            <!-- Nguy cấp -->
-            <Card
-                class="group relative overflow-hidden rounded-2xl border-0 border-t border-rose-500/20 bg-gradient-to-br from-rose-500/5 to-red-500/10 transition-all duration-300 hover:shadow-lg hover:shadow-rose-500/5 dark:from-rose-950/20 dark:to-red-950/10"
-            >
-                <div
-                    class="absolute -right-4 -bottom-4 size-24 rounded-full bg-rose-500/10 blur-xl transition-transform duration-500 group-hover:scale-125"
-                />
-                <CardContent
-                    class="relative z-10 flex items-center justify-between p-5"
-                >
-                    <div>
-                        <p
-                            class="text-xs font-bold tracking-wider text-rose-600 uppercase dark:text-rose-400"
-                        >
-                            Nguy cấp (Sự cố)
-                        </p>
-                        <p
-                            class="mt-2 text-3xl font-black text-rose-600 dark:text-rose-400"
-                        >
-                            {{ stats.tickets_critical ?? 0 }}
-                        </p>
-                    </div>
-                    <div
-                        class="flex h-12 w-12 items-center justify-center rounded-xl bg-rose-500/10 text-rose-600 dark:bg-rose-500/20 dark:text-rose-300"
-                    >
-                        <LifeBuoy class="size-5" />
-                    </div>
-                </CardContent>
-            </Card>
-
-            <!-- Alert mở -->
-            <Card
-                class="group relative overflow-hidden rounded-2xl border-0 border-t border-amber-500/20 bg-gradient-to-br from-amber-500/5 to-orange-500/10 transition-all duration-300 hover:shadow-lg hover:shadow-amber-500/5 dark:from-amber-950/20 dark:to-orange-950/10"
-            >
-                <div
-                    class="absolute -right-4 -bottom-4 size-24 rounded-full bg-amber-500/10 blur-xl transition-transform duration-500 group-hover:scale-125"
-                />
-                <CardContent
-                    class="relative z-10 flex items-center justify-between p-5"
-                >
-                    <div>
-                        <p
-                            class="text-xs font-bold tracking-wider text-amber-600 uppercase dark:text-amber-400"
-                        >
-                            Cảnh báo kích hoạt
-                        </p>
-                        <p
-                            class="mt-2 text-3xl font-black text-slate-800 dark:text-white"
-                        >
-                            {{ stats.alerts_open ?? 0 }}
-                        </p>
-                    </div>
-                    <div
-                        class="flex h-12 w-12 items-center justify-center rounded-xl bg-amber-500/10 text-amber-600 dark:bg-amber-500/20 dark:text-amber-300"
-                    >
-                        <AlertTriangle class="size-5" />
-                    </div>
-                </CardContent>
-            </Card>
-
-            <!-- Broadcast live -->
-            <Card
-                class="group relative overflow-hidden rounded-2xl border-0 border-t border-violet-500/20 bg-gradient-to-br from-violet-500/5 to-purple-500/10 transition-all duration-300 hover:shadow-lg hover:shadow-violet-500/5 dark:from-violet-950/20 dark:to-purple-950/10"
-            >
-                <div
-                    class="absolute -right-4 -bottom-4 size-24 rounded-full bg-violet-500/10 blur-xl transition-transform duration-500 group-hover:scale-125"
-                />
-                <CardContent
-                    class="relative z-10 flex items-center justify-between p-5"
-                >
-                    <div>
-                        <p
-                            class="text-xs font-bold tracking-wider text-violet-600 uppercase dark:text-violet-400"
-                        >
-                            Broadcast Realtime
-                        </p>
-                        <p
-                            class="mt-2 text-3xl font-black text-slate-800 dark:text-white"
-                        >
-                            {{ stats.announcements_live ?? 0 }}
-                        </p>
-                    </div>
-                    <div
-                        class="flex h-12 w-12 items-center justify-center rounded-xl bg-violet-500/10 text-violet-600 dark:bg-violet-500/20 dark:text-violet-300"
-                    >
-                        <Radio class="size-5 animate-pulse" />
-                    </div>
-                </CardContent>
-            </Card>
-
-            <!-- Bài KB -->
-            <Card
-                class="group relative overflow-hidden rounded-2xl border-0 border-t border-emerald-500/20 bg-gradient-to-br from-emerald-500/5 to-teal-500/10 transition-all duration-300 hover:shadow-lg hover:shadow-emerald-500/5 dark:from-emerald-950/20 dark:to-teal-950/10"
-            >
-                <div
-                    class="absolute -right-4 -bottom-4 size-24 rounded-full bg-emerald-500/10 blur-xl transition-transform duration-500 group-hover:scale-125"
-                />
-                <CardContent
-                    class="relative z-10 flex items-center justify-between p-5"
-                >
-                    <div>
-                        <p
-                            class="text-xs font-bold tracking-wider text-emerald-600 uppercase dark:text-emerald-400"
-                        >
-                            Tài liệu HD (KB)
-                        </p>
-                        <p
-                            class="mt-2 text-3xl font-black text-slate-800 dark:text-white"
-                        >
-                            {{ stats.kb_published ?? 0 }}
-                        </p>
-                    </div>
-                    <div
-                        class="flex h-12 w-12 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-300"
-                    >
-                        <BookOpenText class="size-5" />
-                    </div>
-                </CardContent>
-            </Card>
+        <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+            <StatCard
+                label="Ticket đang mở"
+                :value="stats.tickets_open ?? 0"
+                :icon="Ticket"
+                color="sky"
+            />
+            <StatCard
+                label="Sự cố nghiêm trọng"
+                :value="stats.tickets_critical ?? 0"
+                :icon="LifeBuoy"
+                color="rose"
+            />
+            <StatCard
+                label="Cảnh báo đang hoạt động"
+                :value="stats.alerts_open ?? 0"
+                :icon="AlertTriangle"
+                color="amber"
+            />
+            <StatCard
+                label="Thông báo trực tuyến"
+                :value="stats.announcements_live ?? 0"
+                :icon="Radio"
+                color="violet"
+            />
+            <StatCard
+                label="Tài liệu hướng dẫn"
+                :value="stats.kb_published ?? 0"
+                :icon="BookOpenText"
+                color="emerald"
+            />
         </div>
 
         <!-- ============================================================ -->
@@ -1027,14 +853,14 @@ function formatMins(mins: number): string {
                         class="flex h-10 items-center gap-2 rounded-xl px-5 text-xs font-bold transition-all data-[state=active]:bg-white data-[state=active]:text-indigo-600 data-[state=active]:shadow-sm dark:data-[state=active]:bg-slate-800 dark:data-[state=active]:text-white"
                     >
                         <Activity class="size-4 shrink-0" />
-                        <span>Hạ Tầng</span>
+                        <span>Hạ tầng</span>
                     </TabsTrigger>
                     <TabsTrigger
                         value="tickets"
                         class="relative flex h-10 items-center gap-2 rounded-xl px-5 text-xs font-bold transition-all data-[state=active]:bg-white data-[state=active]:text-indigo-600 data-[state=active]:shadow-sm dark:data-[state=active]:bg-slate-800 dark:data-[state=active]:text-white"
                     >
                         <Ticket class="size-4 shrink-0" />
-                        <span>Hỗ Trợ</span>
+                        <span>Hỗ trợ</span>
                         <span
                             v-if="(stats.tickets_open ?? 0) > 0"
                             class="ml-1 flex h-5 items-center justify-center rounded-full bg-rose-500 px-2 py-0.5 text-[9px] font-black text-white shadow-sm shadow-rose-500/30"
@@ -1047,7 +873,7 @@ function formatMins(mins: number): string {
                         class="relative flex h-10 items-center gap-2 rounded-xl px-5 text-xs font-bold transition-all data-[state=active]:bg-white data-[state=active]:text-indigo-600 data-[state=active]:shadow-sm dark:data-[state=active]:bg-slate-800 dark:data-[state=active]:text-white"
                     >
                         <Clock class="size-4 shrink-0" />
-                        <span>Giám Sát SLA</span>
+                        <span>Giám sát SLA</span>
                         <span
                             v-if="(sla_stats.sla_warning ?? 0) > 0"
                             class="ml-1 flex h-5 animate-pulse items-center justify-center rounded-full bg-amber-500 px-2 py-0.5 text-[9px] font-black text-white shadow-sm shadow-amber-500/30"
@@ -1066,21 +892,21 @@ function formatMins(mins: number): string {
                         class="flex h-10 items-center gap-2 rounded-xl px-5 text-xs font-bold transition-all data-[state=active]:bg-white data-[state=active]:text-indigo-600 data-[state=active]:shadow-sm dark:data-[state=active]:bg-slate-800 dark:data-[state=active]:text-white"
                     >
                         <Radio class="size-4 shrink-0" />
-                        <span>Broadcast</span>
+                        <span>Thông báo trực tuyến</span>
                     </TabsTrigger>
                     <TabsTrigger
                         value="alerts"
                         class="flex h-10 items-center gap-2 rounded-xl px-5 text-xs font-bold transition-all data-[state=active]:bg-white data-[state=active]:text-indigo-600 data-[state=active]:shadow-sm dark:data-[state=active]:bg-slate-800 dark:data-[state=active]:text-white"
                     >
                         <Siren class="size-4 shrink-0" />
-                        <span>Cảnh Báo Rules</span>
+                        <span>Quy tắc cảnh báo</span>
                     </TabsTrigger>
                     <TabsTrigger
                         value="kb"
                         class="flex h-10 items-center gap-2 rounded-xl px-5 text-xs font-bold transition-all data-[state=active]:bg-white data-[state=active]:text-indigo-600 data-[state=active]:shadow-sm dark:data-[state=active]:bg-slate-800 dark:data-[state=active]:text-white"
                     >
                         <BookOpenText class="size-4 shrink-0" />
-                        <span>Knowledge Base</span>
+                        <span>Kho tài liệu</span>
                     </TabsTrigger>
                 </TabsList>
             </div>
@@ -1105,7 +931,7 @@ function formatMins(mins: number): string {
                                 <p
                                     class="text-xs font-bold tracking-wider text-slate-500 uppercase"
                                 >
-                                    Failed Jobs
+                                    Công việc lỗi
                                 </p>
                                 <div
                                     :class="[
@@ -1145,7 +971,7 @@ function formatMins(mins: number): string {
                                 <p
                                     class="text-xs font-bold tracking-wider text-slate-500 uppercase"
                                 >
-                                    Pending Jobs
+                                    Công việc đang chờ
                                 </p>
                                 <div
                                     class="rounded-xl bg-amber-500/10 p-2 text-amber-500"
@@ -1175,7 +1001,7 @@ function formatMins(mins: number): string {
                                 <p
                                     class="text-xs font-bold tracking-wider text-slate-500 uppercase"
                                 >
-                                    API Error Rate
+                                    Tỷ lệ lỗi API
                                 </p>
                                 <div
                                     :class="[
@@ -1243,7 +1069,7 @@ function formatMins(mins: number): string {
                                 <p
                                     class="text-xs font-bold tracking-wider text-slate-500 uppercase"
                                 >
-                                    Slow Queries
+                                    Truy vấn chậm
                                 </p>
                                 <div
                                     :class="[

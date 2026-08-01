@@ -2,6 +2,8 @@
 
 namespace Tests\Feature\Smoke;
 
+use App\Http\Middleware\SecurityFirewallMiddleware;
+use App\Http\Middleware\TenantRateLimit;
 use App\Models\Area;
 use App\Models\Employee;
 use App\Models\Restaurant;
@@ -23,8 +25,8 @@ class ReportedActionsTest extends TestCase
         parent::setUp();
         $this->withSession(['superadmin.2fa_verified_until' => now()->addMinutes(15)->timestamp]);
         $this->withoutMiddleware([
-            \App\Http\Middleware\SecurityFirewallMiddleware::class,
-            \App\Http\Middleware\TenantRateLimit::class,
+            SecurityFirewallMiddleware::class,
+            TenantRateLimit::class,
         ]);
     }
 
@@ -47,7 +49,7 @@ class ReportedActionsTest extends TestCase
         $res = $this->actingAs($this->superAdmin())->post("/super-admin/impersonate/{$ownerId}");
 
         $this->assertLessThan(500, $res->getStatusCode(),
-            'Impersonate 5xx: ' . optional($res->exception)->getMessage());
+            'Impersonate 5xx: '.optional($res->exception)->getMessage());
     }
 
     public function test_super_admin_update_restaurant_status_does_not_500(): void
@@ -62,7 +64,7 @@ class ReportedActionsTest extends TestCase
             ]);
 
         $this->assertLessThan(500, $res->getStatusCode(),
-            'Status update 5xx: ' . optional($res->exception)->getMessage());
+            'Status update 5xx: '.optional($res->exception)->getMessage());
 
         // Restore whatever it was.
         $restaurant->newQuery()->whereKey($restaurant->id)->update(['status' => $original]);
@@ -80,20 +82,20 @@ class ReportedActionsTest extends TestCase
                 'restaurant_id' => $restaurant->id,
                 'branch_id' => null,
                 'name' => 'Smoke Area',
-                'code' => 'SMOKE' . random_int(1000, 9999),
+                'code' => 'SMOKE'.random_int(1000, 9999),
             ]);
             $table = RestaurantTable::create([
                 'restaurant_id' => $restaurant->id,
                 'branch_id' => null,
                 'area_id' => $area->id,
-                'name' => 'Smoke Table ' . random_int(1000, 9999),
+                'name' => 'Smoke Table '.random_int(1000, 9999),
                 'capacity' => 4,
                 'status' => 'available',
             ]);
             $employee = Employee::create([
                 'restaurant_id' => $restaurant->id,
                 'full_name' => 'Smoke Employee',
-                'employee_code' => 'SMK' . random_int(1000, 9999),
+                'employee_code' => 'SMK'.random_int(1000, 9999),
                 'job_title' => 'Quản lý',
                 'status' => 'active',
                 'base_salary' => 10000000,

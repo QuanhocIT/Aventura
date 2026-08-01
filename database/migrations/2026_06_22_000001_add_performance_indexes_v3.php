@@ -85,7 +85,7 @@ return new class extends Migration
     private function indexExists(string $table, string $indexName): bool
     {
         $driver = DB::connection()->getDriverName();
-        
+
         if ($driver === 'sqlite') {
             try {
                 $results = DB::select("PRAGMA index_list(`{$table}`)");
@@ -94,16 +94,18 @@ return new class extends Migration
                         return true;
                     }
                 }
-            } catch (\Throwable $e) {
+            } catch (Throwable $e) {
                 return false;
             }
+
             return false;
         }
 
         try {
             $indexes = DB::select("SHOW INDEX FROM `{$table}` WHERE Key_name = ?", [$indexName]);
+
             return count($indexes) > 0;
-        } catch (\Throwable $e) {
+        } catch (Throwable $e) {
             return false;
         }
     }

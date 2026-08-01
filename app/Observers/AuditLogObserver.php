@@ -2,12 +2,11 @@
 
 namespace App\Observers;
 
+use App\Events\FraudAlertTriggered;
+use App\Jobs\SendFraudAlertEmailJob;
 use App\Models\AuditLog;
 use App\Models\Employee;
 use App\Models\ViolationReport;
-use App\Events\FraudAlertTriggered;
-use App\Jobs\SendFraudAlertEmailJob;
-use Carbon\Carbon;
 use Illuminate\Support\Facades\Log;
 
 class AuditLogObserver
@@ -21,14 +20,14 @@ class AuditLogObserver
         $isBypassAction = str_ends_with($log->action, '_bypass') || (is_array($log->new_values) && ($log->new_values['bypass_code_used'] ?? false));
 
         // Only run audit check for typical operational logs or bypass actions
-        if (!in_array($log->action, ['price_modified', 'order_cancelled', 'discount_applied']) && !$isBypassAction) {
+        if (! in_array($log->action, ['price_modified', 'order_cancelled', 'discount_applied']) && ! $isBypassAction) {
             return;
         }
 
         $restaurantId = $log->restaurant_id;
         $userId = $log->user_id;
 
-        if (!$restaurantId || !$userId) {
+        if (! $restaurantId || ! $userId) {
             return;
         }
 
@@ -79,7 +78,7 @@ class AuditLogObserver
                 $type = 'AI: Hủy đơn hàng liên tục nhạy cảm';
                 $severity = 'critical';
                 $riskScore = 98.0;
-                
+
                 // Attempt to retrieve order value if available
                 $orderVal = 0.0;
                 if ($log->new_values && isset($log->new_values['total_amount'])) {
@@ -115,7 +114,7 @@ class AuditLogObserver
                 ->where('user_id', $userId)
                 ->where(function ($query) {
                     $query->where('action', 'like', '%_bypass')
-                          ->orWhere('new_values->bypass_code_used', true);
+                        ->orWhere('new_values->bypass_code_used', true);
                 })
                 ->where('created_at', '>=', now()->subMinutes(30))
                 ->count();
@@ -135,40 +134,40 @@ class AuditLogObserver
                 if ($employeeId) {
                     // 1. Create a Violation Report
                     $violation = ViolationReport::create([
-                        'restaurant_id'  => $restaurantId,
-                        'employee_id'    => $employeeId,
-                        'reported_by'    => null, // Reported by system
+                        'restaurant_id' => $restaurantId,
+                        'employee_id' => $employeeId,
+                        'reported_by' => null, // Reported by system
                         'violation_type' => $type,
-                        'severity'       => $severity,
-                        'description'    => $description,
+                        'severity' => $severity,
+                        'description' => $description,
                         'penalty_amount' => $penaltyAmount,
-                        'occurred_at'    => now(),
-                        'status'         => 'open',
+                        'occurred_at' => now(),
+                        'status' => 'open',
                     ]);
                     $violationId = $violation->id;
                 }
 
                 // 2. Dispatch Realtime WebSocket Event
                 $alertData = [
-                    'id'             => 'ai-realtime-' . ($violationId ?? uniqid()),
-                    'employee_name'  => $employeeName,
+                    'id' => 'ai-realtime-'.($violationId ?? uniqid()),
+                    'employee_name' => $employeeName,
                     'violation_type' => $type,
-                    'severity'       => $severity,
-                    'description'    => $description,
-                    'risk_score'     => $riskScore,
+                    'severity' => $severity,
+                    'description' => $description,
+                    'risk_score' => $riskScore,
                 ];
                 event(new FraudAlertTriggered($restaurantId, $alertData));
 
                 // 3. Dispatch Background Job to Email Owner
                 SendFraudAlertEmailJob::dispatch($restaurantId, $alertData);
 
-                Log::info("AuditLogObserver: Đã kích hoạt cảnh báo rủi ro gian lận", [
+                Log::info('AuditLogObserver: Đã kích hoạt cảnh báo rủi ro gian lận', [
                     'restaurant_id' => $restaurantId,
-                    'violation_id'  => $violationId,
-                    'type'          => $type
+                    'violation_id' => $violationId,
+                    'type' => $type,
                 ]);
             } catch (\Throwable $e) {
-                Log::error("AuditLogObserver error: " . $e->getMessage());
+                Log::error('AuditLogObserver error: '.$e->getMessage());
             }
         }
     }

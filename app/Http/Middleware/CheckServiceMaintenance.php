@@ -10,9 +10,7 @@ use Symfony\Component\HttpFoundation\Response;
 
 class CheckServiceMaintenance
 {
-    public function __construct(private ServiceMonitorService $monitorService)
-    {
-    }
+    public function __construct(private ServiceMonitorService $monitorService) {}
 
     /**
      * Handle an incoming request.
@@ -36,7 +34,7 @@ class CheckServiceMaintenance
 
         // Check if MySQL database is under maintenance
         if ($this->monitorService->isMaintenance('mysql')) {
-            $message = $this->monitorService->getMaintenanceMessage('mysql') 
+            $message = $this->monitorService->getMaintenanceMessage('mysql')
                 ?: 'Hệ thống cơ sở dữ liệu MySQL đang được bảo trì nâng cấp. Vui lòng quay lại sau.';
 
             return $this->maintenanceResponse($request, $message);

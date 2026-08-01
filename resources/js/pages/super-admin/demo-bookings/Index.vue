@@ -15,6 +15,14 @@ import {
     Trash2,
 } from 'lucide-vue-next';
 import { computed, ref } from 'vue';
+import {
+    DataTable,
+    FilterBar,
+    PageHeader,
+    Pagination,
+    StatCard,
+    StatusBadge,
+} from '@/components/super-admin';
 import { Button } from '@/components/ui/button';
 import {
     Dialog,
@@ -24,14 +32,6 @@ import {
     DialogHeader,
     DialogTitle,
 } from '@/components/ui/dialog';
-import {
-    DataTable,
-    FilterBar,
-    PageHeader,
-    Pagination,
-    StatCard,
-    StatusBadge,
-} from '@/components/super-admin';
 import AppLayout from '@/layouts/AppLayout.vue';
 
 defineOptions({ layout: AppLayout });

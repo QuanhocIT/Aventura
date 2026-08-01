@@ -127,7 +127,10 @@ function applyFilters() {
         '/super-admin/chatbot',
         {
             search: searchQuery.value || undefined,
-            category: categoryFilter.value && categoryFilter.value !== 'all' ? categoryFilter.value : undefined,
+            category:
+                categoryFilter.value && categoryFilter.value !== 'all'
+                    ? categoryFilter.value
+                    : undefined,
         },
         { preserveState: true, replace: true },
     );

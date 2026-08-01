@@ -4,7 +4,6 @@ namespace App\Http\Controllers\SuperAdmin;
 
 use App\Http\Controllers\Controller;
 use App\Models\ApiKey;
-use App\Models\AuditLog;
 use App\Models\LoginEvent;
 use App\Models\SecurityAlert;
 use App\Models\User;
@@ -299,6 +298,7 @@ class SecurityThreatController extends Controller
         }
 
         $events = LoginEvent::where('occurred_at', '>=', now()->subDay())->get();
+
         return [
             ['label' => 'Đăng nhập thất bại', 'value' => $events->where('status', 'failed')->count()],
             ['label' => 'IP bị WAF khóa', 'value' => count($this->blockedIps())],

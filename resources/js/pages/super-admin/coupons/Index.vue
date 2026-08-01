@@ -600,9 +600,9 @@ const chartAreaPath = computed(() => {
                             class="text-[11px] leading-relaxed font-semibold text-muted-foreground"
                         >
                             <span v-if="stats.total_uses === 0">
-                                Chưa ghi nhận lượt áp dụng khuyến mãi nào. Hệ thống
-                                khuyên bạn nên chạy chiến dịch khuyến mãi dùng
-                                mã
+                                Chưa ghi nhận lượt áp dụng khuyến mãi nào. Hệ
+                                thống khuyên bạn nên chạy chiến dịch khuyến mãi
+                                dùng mã
                                 <code
                                     class="rounded bg-indigo-500/10 px-1 py-0.5 font-mono font-bold text-indigo-500"
                                     >AVENTURACARE30</code
@@ -610,10 +610,11 @@ const chartAreaPath = computed(() => {
                                 để kích cầu đối tác.
                             </span>
                             <span v-else-if="stats.active > 0">
-                                Chiến dịch khuyến mãi đang vận hành ổn định. Tỷ lệ
-                                khuyến mãi hoạt động đạt {{ couponSuccessRate }}%.
-                                Hãy cân nhắc tung mã cố định thay vì % để đo
-                                lường lòng trung thành của chủ nhà hàng.
+                                Chiến dịch khuyến mãi đang vận hành ổn định. Tỷ
+                                lệ khuyến mãi hoạt động đạt
+                                {{ couponSuccessRate }}%. Hãy cân nhắc tung mã
+                                cố định thay vì % để đo lường lòng trung thành
+                                của chủ nhà hàng.
                             </span>
                             <span v-else>
                                 Không có mã giảm giá nào đang hoạt động. Hãy tạo

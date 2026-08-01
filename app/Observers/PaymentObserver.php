@@ -2,10 +2,10 @@
 
 namespace App\Observers;
 
-use App\Models\Payment;
 use App\Models\CashRegister;
 use App\Models\CashTransaction;
 use App\Models\Order;
+use App\Models\Payment;
 
 class PaymentObserver
 {
@@ -56,17 +56,17 @@ class PaymentObserver
             }
 
             CashTransaction::create([
-                'restaurant_id'    => $payment->restaurant_id,
-                'branch_id'        => $payment->branch_id,
+                'restaurant_id' => $payment->restaurant_id,
+                'branch_id' => $payment->branch_id,
                 'cash_register_id' => $register->id,
-                'type'             => 'in',
-                'amount'           => $payment->amount,
-                'source'           => 'order',
-                'reference_id'     => $payment->order_id,
-                'reference_type'   => Order::class,
-                'notes'            => "Thanh toán đơn hàng #{$orderNumber}",
-                'created_by'       => $userId,
-                'occurred_at'      => $payment->paid_at ?? now(),
+                'type' => 'in',
+                'amount' => $payment->amount,
+                'source' => 'order',
+                'reference_id' => $payment->order_id,
+                'reference_type' => Order::class,
+                'notes' => "Thanh toán đơn hàng #{$orderNumber}",
+                'created_by' => $userId,
+                'occurred_at' => $payment->paid_at ?? now(),
             ]);
         }
     }

@@ -1,5 +1,5 @@
-import { ref, onMounted, onUnmounted  } from 'vue';
-import type {Ref} from 'vue';
+import { ref, onMounted, onUnmounted } from 'vue';
+import type { Ref } from 'vue';
 
 interface ScrollRevealOptions {
     threshold?: number;
@@ -22,8 +22,8 @@ export function useScrollReveal(
                 : target.value;
 
         if (!el) {
-return;
-}
+            return;
+        }
 
         observer = new IntersectionObserver(
             ([entry]) => {
@@ -32,8 +32,8 @@ return;
                     el.classList.add('revealed');
 
                     if (once) {
-observer?.unobserve(entry.target);
-}
+                        observer?.unobserve(entry.target);
+                    }
                 } else if (!once) {
                     isVisible.value = false;
                     el.classList.remove('revealed');
@@ -67,8 +67,8 @@ export function useScrollRevealAll(
                         entry.target.classList.add('revealed');
 
                         if (once) {
-observer?.unobserve(entry.target);
-}
+                            observer?.unobserve(entry.target);
+                        }
                     }
                 });
             },

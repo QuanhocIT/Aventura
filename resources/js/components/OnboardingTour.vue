@@ -144,8 +144,13 @@ const updateTargetPosition = () => {
 
         // Tự động scroll phần tử vào tầm nhìn nếu cần
         const stepKey = `${currentDay.value}_${activeStepIndex.value}_${activeStep.value.selector}`;
+
         if (lastScrolledStep.value !== stepKey) {
-            el.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
+            el.scrollIntoView({
+                behavior: 'smooth',
+                block: 'center',
+                inline: 'nearest',
+            });
             lastScrolledStep.value = stepKey;
         }
 

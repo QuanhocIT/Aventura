@@ -700,7 +700,7 @@ function toggleAction(actionId: number) {
                                     <!-- Title label -->
                                     <span
                                         :class="[
-                                            'max-w-[130px] sm:max-w-[190px] truncate rounded-md border bg-card/95 px-2 py-0.5 text-[9px] font-bold shadow-xs',
+                                            'max-w-[130px] truncate rounded-md border bg-card/95 px-2 py-0.5 text-[9px] font-bold shadow-xs sm:max-w-[190px]',
                                             m.reached
                                                 ? 'border-emerald-500/30 text-emerald-500 dark:border-emerald-500/40 dark:text-emerald-400'
                                                 : 'border-border/60 text-muted-foreground',

@@ -15,7 +15,7 @@ class CustomerPortalTokenSecurityTest extends TestCase
 
     private function tokenFor(int $restaurantId, string $phone): string
     {
-        return hash('sha256', $restaurantId . $phone . config('app.key'));
+        return hash('sha256', $restaurantId.$phone.config('app.key'));
     }
 
     public function test_coupon_wallet_rejects_request_without_valid_token(): void
@@ -43,7 +43,7 @@ class CustomerPortalTokenSecurityTest extends TestCase
 
         $token = $this->tokenFor($restaurant->id, $customer->phone);
 
-        $response = $this->get(route('customer.coupons.wallet', [$restaurant->id, $customer->phone]) . '?token=' . $token);
+        $response = $this->get(route('customer.coupons.wallet', [$restaurant->id, $customer->phone]).'?token='.$token);
 
         $response->assertOk();
     }
@@ -72,7 +72,7 @@ class CustomerPortalTokenSecurityTest extends TestCase
         $token = $this->tokenFor($restaurantA->id, $customer->phone);
 
         $response = $this->postJson(
-            route('customer.coupons.claim', [$restaurantA->id, $customer->phone]) . '?token=' . $token,
+            route('customer.coupons.claim', [$restaurantA->id, $customer->phone]).'?token='.$token,
             ['promotion_id' => $foreignPromotion->id]
         );
 
@@ -139,7 +139,7 @@ class CustomerPortalTokenSecurityTest extends TestCase
         $token = $this->tokenFor($restaurant->id, $customer->phone);
 
         $response = $this->postJson(
-            route('customer.portal.redeem', [$restaurant->id, $customer->phone]) . '?token=' . $token,
+            route('customer.portal.redeem', [$restaurant->id, $customer->phone]).'?token='.$token,
             ['reward_id' => $reward->id]
         );
 

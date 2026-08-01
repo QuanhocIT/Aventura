@@ -22,9 +22,10 @@ class OrderPaid implements ShouldBroadcastNow
     public function broadcastOn(): array
     {
         $tableToken = $this->order->table?->qr_token ?? $this->tableId;
+
         return [
             new Channel("restaurant.{$this->restaurantId}"),
-            new Channel("table.{$tableToken}")
+            new Channel("table.{$tableToken}"),
         ];
     }
 

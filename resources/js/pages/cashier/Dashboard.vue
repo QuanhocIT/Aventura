@@ -1,11 +1,33 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, defineAsyncComponent } from 'vue';
 import { Head, usePage, router } from '@inertiajs/vue3';
 import axios from 'axios';
 import { Utensils, Sparkles, Clock, CheckIcon, XCircle } from 'lucide-vue-next';
+import {
+    ref,
+    computed,
+    onMounted,
+    onUnmounted,
+    defineAsyncComponent,
+} from 'vue';
 
 // TypeScript Types
-import {
+
+// Composables
+
+// Components
+import CartDrawer from './components/CartDrawer.vue';
+import CashierHeader from './components/CashierHeader.vue';
+import PaymentModal from './components/PaymentModal.vue';
+import ProductGrid from './components/ProductGrid.vue';
+import QrOrdersPanel from './components/QrOrdersPanel.vue';
+import SelfServiceModal from './components/SelfServiceModal.vue';
+import SplitOrderModal from './components/SplitOrderModal.vue';
+import TableGrid from './components/TableGrid.vue';
+import { useCashierCart } from './composables/useCashierCart';
+import { useCashierPayment } from './composables/useCashierPayment';
+import { useCashierRealtime } from './composables/useCashierRealtime';
+import { useCashierTables } from './composables/useCashierTables';
+import type {
     TableItem,
     ProductItem,
     CategoryItem,
@@ -13,28 +35,16 @@ import {
     ToastItem,
 } from './types';
 
-// Composables
-import { useCashierRealtime } from './composables/useCashierRealtime';
-import { useCashierCart } from './composables/useCashierCart';
-import { useCashierTables } from './composables/useCashierTables';
-import { useCashierPayment } from './composables/useCashierPayment';
-
-// Components
-import CashierHeader from './components/CashierHeader.vue';
-import TableGrid from './components/TableGrid.vue';
-import ProductGrid from './components/ProductGrid.vue';
-import CartDrawer from './components/CartDrawer.vue';
-import PaymentModal from './components/PaymentModal.vue';
-import SplitOrderModal from './components/SplitOrderModal.vue';
-import QrOrdersPanel from './components/QrOrdersPanel.vue';
-import SelfServiceModal from './components/SelfServiceModal.vue';
-
 const props = defineProps<{
     tablesData: TableItem[];
     products: ProductItem[];
     categories: CategoryItem[];
     shiftInfo: {
-        active_shift: { id: number; shift_name: string; check_in_at: string } | null;
+        active_shift: {
+            id: number;
+            shift_name: string;
+            check_in_at: string;
+        } | null;
         shift_revenue: number;
         total_orders?: number;
         channel_breakdown?: Record<string, { count: number; revenue: number }>;
@@ -45,7 +55,11 @@ const props = defineProps<{
     weeklySchedules: any[];
     activeShifts: any[];
     pendingLeaves: any[];
-    colleagues: Array<{ id: number; full_name: string; job_title: string | null }>;
+    colleagues: Array<{
+        id: number;
+        full_name: string;
+        job_title: string | null;
+    }>;
     employee: { id: number; full_name: string } | null;
 }>();
 
@@ -54,11 +68,12 @@ const page = usePage();
 const can = (permission: string) => {
     const authUser = page.props.auth?.user as any;
     const userPermissions = authUser?.permissions ?? [];
+
     return userPermissions.includes(permission);
 };
 
 const restaurantId = computed(
-    () => (page.props.auth?.user as any)?.restaurant_id as number | undefined
+    () => (page.props.auth?.user as any)?.restaurant_id as number | undefined,
 );
 
 // Toast System
@@ -96,7 +111,7 @@ const tablesComposable = useCashierTables(
     cartNote,
     isCartOpen,
     isNotified,
-    toast
+    toast,
 );
 
 const {
@@ -119,7 +134,7 @@ const cartComposable = useCashierCart(
     activeTable,
     () => props.products,
     () => props.tablesData,
-    toast
+    toast,
 );
 
 const {
@@ -175,14 +190,23 @@ const confirmQrOrder = (orderId: number) => {
             }
         })
         .catch((err) => {
-            toast(err.response?.data?.message || 'Có lỗi khi duyệt đơn QR.', 'error');
+            toast(
+                err.response?.data?.message || 'Có lỗi khi duyệt đơn QR.',
+                'error',
+            );
         })
         .finally(() => {
             confirmingOrderId.value = null;
         });
 };
 
-const updateExternalOrderStatus = ({ orderId, status }: { orderId: number; status: string }) => {
+const updateExternalOrderStatus = ({
+    orderId,
+    status,
+}: {
+    orderId: number;
+    status: string;
+}) => {
     updatingExternalId.value = orderId;
     router.patch(
         `/orders/${orderId}/status`,
@@ -191,13 +215,20 @@ const updateExternalOrderStatus = ({ orderId, status }: { orderId: number; statu
             preserveState: true,
             onSuccess: () => {
                 toast('Đã cập nhật trạng thái đơn thành công!');
-                router.reload({ only: ['externalOrders', 'tablesData', 'completedHistory', 'shiftInfo'] });
+                router.reload({
+                    only: [
+                        'externalOrders',
+                        'tablesData',
+                        'completedHistory',
+                        'shiftInfo',
+                    ],
+                });
             },
             onError: () => toast('Không thể cập nhật trạng thái.', 'error'),
             onFinish: () => {
                 updatingExternalId.value = null;
             },
-        }
+        },
     );
 };
 
@@ -220,7 +251,10 @@ const openSelfService = (tab: 'schedule' | 'leave' | 'complaint') => {
 };
 
 const handleRegisterSchedule = () => {
-    if (!props.employee) return;
+    if (!props.employee) {
+        return;
+    }
+
     router.post(
         '/employees/schedules',
         {
@@ -234,12 +268,15 @@ const handleRegisterSchedule = () => {
                 regShiftName.value = '';
                 router.reload({ only: ['weeklySchedules'] });
             },
-        }
+        },
     );
 };
 
 const handleLeaveRequest = () => {
-    if (!props.employee) return;
+    if (!props.employee) {
+        return;
+    }
+
     router.post(
         '/employees/leaves',
         {
@@ -254,12 +291,19 @@ const handleLeaveRequest = () => {
                 toast('Nộp đơn xin nghỉ thành công! Chờ phê duyệt.');
                 leaveReason.value = '';
             },
-        }
+        },
     );
 };
 
 const handleComplaint = () => {
-    if (!complaintTargetId.value || !complaintType.value || !complaintDescription.value) return;
+    if (
+        !complaintTargetId.value ||
+        !complaintType.value ||
+        !complaintDescription.value
+    ) {
+        return;
+    }
+
     router.post(
         '/violations',
         {
@@ -267,7 +311,10 @@ const handleComplaint = () => {
             violation_type: complaintType.value,
             description: complaintDescription.value,
             is_anonymous: true,
-            occurred_at: new Date().toISOString().slice(0, 19).replace('T', ' '),
+            occurred_at: new Date()
+                .toISOString()
+                .slice(0, 19)
+                .replace('T', ' '),
         },
         {
             onSuccess: () => {
@@ -276,7 +323,7 @@ const handleComplaint = () => {
                 complaintType.value = '';
                 complaintDescription.value = '';
             },
-        }
+        },
     );
 };
 
@@ -288,22 +335,35 @@ let timer: ReturnType<typeof setInterval> | null = null;
 onMounted(() => {
     const updateTime = () => {
         const now = new Date();
-        currentTime.value = now.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-        currentDate.value = now.toLocaleDateString('vi-VN', { weekday: 'long', year: 'numeric', month: '2-digit', day: '2-digit' });
+        currentTime.value = now.toLocaleTimeString('vi-VN', {
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit',
+        });
+        currentDate.value = now.toLocaleDateString('vi-VN', {
+            weekday: 'long',
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+        });
     };
     updateTime();
     timer = setInterval(updateTime, 1000);
 });
 
 onUnmounted(() => {
-    if (timer) clearInterval(timer);
+    if (timer) {
+        clearInterval(timer);
+    }
 });
 </script>
 
 <template>
     <Head title="BepsoViet Operational POS" />
 
-    <div class="mx-auto flex min-h-screen w-full max-w-7xl flex-col gap-6 bg-slate-50/50 p-6 dark:bg-slate-900/40">
+    <div
+        class="mx-auto flex min-h-screen w-full max-w-7xl flex-col gap-6 bg-slate-50/50 p-6 dark:bg-slate-900/40"
+    >
         <!-- ── HEADER ────────────────────────────────────────────────── -->
         <CashierHeader
             :employee="props.employee"
@@ -321,15 +381,17 @@ onUnmounted(() => {
                 :key="t.id"
                 @click="activeTab = t.id"
                 class="relative flex items-center gap-2 border-b-2 px-6 py-3.5 text-xs font-bold transition-all"
-                :class="activeTab === t.id
-                    ? 'border-indigo-600 bg-white/40 text-indigo-600 dark:bg-slate-900/40 dark:text-indigo-400'
-                    : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-300'"
+                :class="
+                    activeTab === t.id
+                        ? 'border-indigo-600 bg-white/40 text-indigo-600 dark:bg-slate-900/40 dark:text-indigo-400'
+                        : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-300'
+                "
             >
                 <component :is="t.icon" class="size-4" />
                 {{ t.label }}
                 <span
                     v-if="t.id === 'qr' && props.qrOrders?.length > 0"
-                    class="ml-1 rounded-full bg-rose-500 px-1.5 py-0.5 text-[9px] font-black text-white animate-pulse"
+                    class="ml-1 animate-pulse rounded-full bg-rose-500 px-1.5 py-0.5 text-[9px] font-black text-white"
                 >
                     {{ props.qrOrders.length }}
                 </span>
@@ -339,8 +401,11 @@ onUnmounted(() => {
         <!-- ── TAB CONTENT ────────────────────────────────────────────── -->
         <main class="flex-1">
             <!-- TAB 1: SƠ ĐỒ BÀN & THỰC ĐƠN MÓN -->
-            <div v-if="activeTab === 'tables'" class="grid grid-cols-1 gap-6 lg:grid-cols-12">
-                <div class="lg:col-span-7 flex flex-col gap-6">
+            <div
+                v-if="activeTab === 'tables'"
+                class="grid grid-cols-1 gap-6 lg:grid-cols-12"
+            >
+                <div class="flex flex-col gap-6 lg:col-span-7">
                     <TableGrid
                         :tables="filteredTables"
                         :area-list="areaList"
@@ -373,11 +438,19 @@ onUnmounted(() => {
             </div>
 
             <!-- TAB 3: LỊCH SỬ BẾP & HOÀN TẤT -->
-            <div v-else-if="activeTab === 'history'" class="rounded-3xl border bg-white p-6 shadow-sm dark:bg-slate-900">
-                <h3 class="text-base font-black text-slate-800 dark:text-slate-100 mb-4">
+            <div
+                v-else-if="activeTab === 'history'"
+                class="rounded-3xl border bg-white p-6 shadow-sm dark:bg-slate-900"
+            >
+                <h3
+                    class="mb-4 text-base font-black text-slate-800 dark:text-slate-100"
+                >
                     Lịch sử đơn hàng hoàn tất trong ca
                 </h3>
-                <div v-if="props.completedHistory?.length === 0" class="py-12 text-center text-slate-400 text-xs font-bold">
+                <div
+                    v-if="props.completedHistory?.length === 0"
+                    class="py-12 text-center text-xs font-bold text-slate-400"
+                >
                     Chưa có đơn hàng nào hoàn tất trong ca này.
                 </div>
                 <div v-else class="flex flex-col gap-2">
@@ -386,8 +459,15 @@ onUnmounted(() => {
                         :key="order.id"
                         class="flex items-center justify-between border-b pb-2 text-xs"
                     >
-                        <span class="font-bold">#{{ order.order_number }} - Bàn {{ order.table_name || 'Mang về' }}</span>
-                        <span class="font-mono font-bold text-emerald-600">{{ order.total_amount?.toLocaleString('vi-VN') }}đ</span>
+                        <span class="font-bold"
+                            >#{{ order.order_number }} - Bàn
+                            {{ order.table_name || 'Mang về' }}</span
+                        >
+                        <span class="font-mono font-bold text-emerald-600"
+                            >{{
+                                order.total_amount?.toLocaleString('vi-VN')
+                            }}đ</span
+                        >
                     </div>
                 </div>
             </div>
@@ -467,15 +547,24 @@ onUnmounted(() => {
         />
 
         <!-- ── TOAST NOTIFICATIONS ────────────────────────────────────── -->
-        <div class="pointer-events-none fixed right-6 bottom-6 z-[70] flex flex-col gap-2">
+        <div
+            class="pointer-events-none fixed right-6 bottom-6 z-[70] flex flex-col gap-2"
+        >
             <transition-group name="toast">
                 <div
                     v-for="t in toasts"
                     :key="t.id"
                     class="animate-fade-in pointer-events-auto flex max-w-xs min-w-56 items-center gap-2.5 rounded-2xl px-4 py-3 text-xs font-bold shadow-xl"
-                    :class="t.type === 'success' ? 'bg-emerald-600 text-white' : 'bg-rose-600 text-white'"
+                    :class="
+                        t.type === 'success'
+                            ? 'bg-emerald-600 text-white'
+                            : 'bg-rose-600 text-white'
+                    "
                 >
-                    <CheckIcon v-if="t.type === 'success'" class="size-4 shrink-0" />
+                    <CheckIcon
+                        v-if="t.type === 'success'"
+                        class="size-4 shrink-0"
+                    />
                     <XCircle v-else class="size-4 shrink-0" />
                     <span class="leading-tight">{{ t.message }}</span>
                 </div>
@@ -486,8 +575,14 @@ onUnmounted(() => {
 
 <style scoped>
 @keyframes fade-in {
-    from { opacity: 0; transform: scale(0.95); }
-    to { opacity: 1; transform: scale(1); }
+    from {
+        opacity: 0;
+        transform: scale(0.95);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
 }
 .animate-fade-in {
     animation: fade-in 0.2s ease-out forwards;

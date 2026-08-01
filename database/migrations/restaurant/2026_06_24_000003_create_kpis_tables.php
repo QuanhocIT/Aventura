@@ -9,7 +9,7 @@ return new class extends Migration
     public function up(): void
     {
         // 1. kpi_metrics table (KPI configuration rules per restaurant)
-        if (!Schema::hasTable('kpi_metrics')) {
+        if (! Schema::hasTable('kpi_metrics')) {
             Schema::create('kpi_metrics', function (Blueprint $table) {
                 $table->id();
                 $table->foreignId('restaurant_id')->constrained('restaurants')->cascadeOnDelete();
@@ -29,7 +29,7 @@ return new class extends Migration
         }
 
         // 2. employee_kpis table (Monthly overall KPI score of employee)
-        if (!Schema::hasTable('employee_kpis')) {
+        if (! Schema::hasTable('employee_kpis')) {
             Schema::create('employee_kpis', function (Blueprint $table) {
                 $table->id();
                 $table->foreignId('restaurant_id')->constrained('restaurants')->cascadeOnDelete();
@@ -50,7 +50,7 @@ return new class extends Migration
         }
 
         // 3. employee_kpi_metrics table (Detailed calculated metric values)
-        if (!Schema::hasTable('employee_kpi_metrics')) {
+        if (! Schema::hasTable('employee_kpi_metrics')) {
             Schema::create('employee_kpi_metrics', function (Blueprint $table) {
                 $table->id();
                 $table->foreignId('restaurant_id')->constrained('restaurants')->cascadeOnDelete();
@@ -71,7 +71,7 @@ return new class extends Migration
         }
 
         // 4. performance_reviews table (360-degree reviews)
-        if (!Schema::hasTable('performance_reviews')) {
+        if (! Schema::hasTable('performance_reviews')) {
             Schema::create('performance_reviews', function (Blueprint $table) {
                 $table->id();
                 $table->foreignId('restaurant_id')->constrained('restaurants')->cascadeOnDelete();

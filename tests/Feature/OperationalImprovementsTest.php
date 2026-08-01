@@ -2,34 +2,41 @@
 
 namespace Tests\Feature;
 
-use App\Models\User;
-use App\Models\Restaurant;
-use App\Models\RestaurantBranch;
+use App\Models\AuditLog;
+use App\Models\Employee;
 use App\Models\Ingredient;
 use App\Models\Inventory;
 use App\Models\InventoryTransaction;
-use App\Models\Unit;
-use App\Models\Employee;
-use App\Models\WorkShift;
-use App\Models\ScheduleAssignment;
 use App\Models\LeaveRequest;
-use App\Models\AuditLog;
 use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\Product;
+use App\Models\PurchaseOrder;
+use App\Models\Restaurant;
+use App\Models\RestaurantBranch;
+use App\Models\RestaurantTable;
+use App\Models\ScheduleAssignment;
+use App\Models\Supplier;
+use App\Models\Unit;
+use App\Models\User;
+use App\Models\WorkShift;
+use Carbon\Carbon;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
-use Illuminate\Foundation\Testing\RefreshDatabase;
-use Carbon\Carbon;
 
 class OperationalImprovementsTest extends TestCase
 {
     use RefreshDatabase;
 
     protected User $owner;
+
     protected Restaurant $restaurant;
+
     protected RestaurantBranch $branch;
+
     protected Unit $unit;
+
     protected Ingredient $ingredient;
 
     protected function setUp(): void
@@ -46,19 +53,19 @@ class OperationalImprovementsTest extends TestCase
         $this->restaurant = Restaurant::factory()->create(['owner_user_id' => $this->owner->id]);
         $this->branch = RestaurantBranch::factory()->create([
             'restaurant_id' => $this->restaurant->id,
-            'manager_user_id' => $this->owner->id
+            'manager_user_id' => $this->owner->id,
         ]);
 
         $this->owner->forceFill([
             'restaurant_id' => $this->restaurant->id,
-            'branch_id' => $this->branch->id
+            'branch_id' => $this->branch->id,
         ])->save();
 
         $this->unit = Unit::create([
             'restaurant_id' => $this->restaurant->id,
             'name' => 'Gram',
             'symbol' => 'g',
-            'type' => 'weight'
+            'type' => 'weight',
         ]);
 
         $this->ingredient = Ingredient::create([
@@ -68,7 +75,7 @@ class OperationalImprovementsTest extends TestCase
             'name' => 'Bột mì',
             'sku' => 'BOT-MI',
             'average_cost' => 20,
-            'status' => 'active'
+            'status' => 'active',
         ]);
 
         Inventory::create([
@@ -94,9 +101,9 @@ class OperationalImprovementsTest extends TestCase
                 [
                     'ingredient_id' => $this->ingredient->id,
                     'physical_qty' => 950.0,
-                ]
+                ],
             ],
-            'notes' => 'Kiểm kho cuối ca chiều'
+            'notes' => 'Kiểm kho cuối ca chiều',
         ]);
 
         $response->assertRedirect();
@@ -145,7 +152,7 @@ class OperationalImprovementsTest extends TestCase
             'status' => 'completed',
             'payment_status' => 'paid',
             'total_amount' => 50000,
-            'channel' => 'dine_in'
+            'channel' => 'dine_in',
         ]);
 
         // Món phở trong đơn đã bán này đã được làm (KDS chế biến)
@@ -168,7 +175,7 @@ class OperationalImprovementsTest extends TestCase
             'status' => 'cancelled',
             'payment_status' => 'unpaid',
             'total_amount' => 50000,
-            'channel' => 'dine_in'
+            'channel' => 'dine_in',
         ]);
 
         OrderItem::create([
@@ -224,7 +231,7 @@ class OperationalImprovementsTest extends TestCase
             'job_title' => 'Phục vụ',
             'employment_type' => 'full_time',
             'status' => 'active',
-            'role_id' => $managerRole->id
+            'role_id' => $managerRole->id,
         ]);
 
         $shiftMorning = WorkShift::create([
@@ -233,7 +240,7 @@ class OperationalImprovementsTest extends TestCase
             'code' => 'CA_SANG',
             'start_time' => '06:00:00',
             'end_time' => '14:00:00',
-            'status' => 'active'
+            'status' => 'active',
         ]);
 
         $shiftEvening = WorkShift::create([
@@ -243,7 +250,7 @@ class OperationalImprovementsTest extends TestCase
             'start_time' => '22:00:00',
             'end_time' => '05:00:00', // Overnight kết thúc lúc 05:00 sáng ngày hôm sau
             'is_overnight' => true,
-            'status' => 'active'
+            'status' => 'active',
         ]);
 
         Carbon::setTestNow(Carbon::parse('2026-06-10 12:00:00')); // Wednesday
@@ -254,7 +261,7 @@ class OperationalImprovementsTest extends TestCase
             'employee_id' => $employee->id,
             'shift_id' => $shiftEvening->id,
             'scheduled_date' => '2026-06-09',
-            'status' => 'scheduled'
+            'status' => 'scheduled',
         ]);
 
         // Cố gắng gán ca sáng cho ngày hôm nay (Wednesday - 2026-06-10)
@@ -266,14 +273,14 @@ class OperationalImprovementsTest extends TestCase
 
         // Phải báo lỗi vi phạm luật 11h
         $response->assertSessionHasErrors(['shift_name']);
-        
+
         // Thử lại với mã bypass đúng MANAGER123 và lý do
         $responseWithBypass = $this->post(route('employees.schedules.store'), [
             'day' => 'Wednesday',
             'employee_name' => $employee->full_name,
             'shift_name' => $shiftMorning->name,
             'bypass_code' => 'MANAGER123',
-            'bypass_reason' => 'Thiếu nhân viên ca sáng đột xuất'
+            'bypass_reason' => 'Thiếu nhân viên ca sáng đột xuất',
         ]);
 
         $responseWithBypass->assertRedirect();
@@ -302,7 +309,7 @@ class OperationalImprovementsTest extends TestCase
 
         // Tạo 3 nhân viên có cùng role_id
         $managerRole = Role::firstOrCreate(['name' => 'manager', 'guard_name' => 'web']);
-        
+
         $employeeA = Employee::create([
             'restaurant_id' => $this->restaurant->id,
             'employee_code' => 'EMP-A',
@@ -316,7 +323,7 @@ class OperationalImprovementsTest extends TestCase
             'job_title' => 'Pha chế',
             'employment_type' => 'full_time',
             'status' => 'active',
-            'role_id' => $managerRole->id
+            'role_id' => $managerRole->id,
         ]);
 
         $employeeB = Employee::create([
@@ -332,7 +339,7 @@ class OperationalImprovementsTest extends TestCase
             'job_title' => 'Pha chế',
             'employment_type' => 'full_time',
             'status' => 'active',
-            'role_id' => $managerRole->id
+            'role_id' => $managerRole->id,
         ]);
 
         $employeeC = Employee::create([
@@ -348,7 +355,7 @@ class OperationalImprovementsTest extends TestCase
             'job_title' => 'Pha chế',
             'employment_type' => 'full_time',
             'status' => 'active',
-            'role_id' => $managerRole->id
+            'role_id' => $managerRole->id,
         ]);
 
         // Gán 1 đơn nghỉ phép cho ngày mai của nhân viên A (33.3% của tổng 3 nhân sự, đã bắt đầu chạm ngưỡng)
@@ -359,7 +366,7 @@ class OperationalImprovementsTest extends TestCase
             'start_date' => today()->addDay()->toDateString(),
             'end_date' => today()->addDay()->toDateString(),
             'reason' => 'Việc gia đình',
-            'status' => 'approved'
+            'status' => 'approved',
         ]);
 
         // Cố gắng xin nghỉ thêm cho nhân viên B vào ngày mai (sẽ làm 2/3 = 66% bộ phận nghỉ -> vượt 30%)
@@ -382,7 +389,7 @@ class OperationalImprovementsTest extends TestCase
             'end_date' => today()->addDay()->toDateString(),
             'reason' => 'Đi khám bệnh',
             'bypass_code' => 'MANAGER123',
-            'bypass_reason' => 'Lý do sức khỏe khẩn cấp, đã có nhân viên ca khác tăng ca bù'
+            'bypass_reason' => 'Lý do sức khỏe khẩn cấp, đã có nhân viên ca khác tăng ca bù',
         ]);
 
         $responseWithBypass->assertRedirect();
@@ -409,31 +416,31 @@ class OperationalImprovementsTest extends TestCase
         $this->post(route('branch.switch'), ['branch_id' => $this->branch->id])->assertRedirect();
 
         // Tạo bàn
-        $table = \App\Models\RestaurantTable::factory()->create([
+        $table = RestaurantTable::factory()->create([
             'restaurant_id' => $this->restaurant->id,
             'branch_id' => $this->branch->id,
             'name' => 'Bàn VIP 99',
             'capacity' => 10,
-            'status' => 'available'
+            'status' => 'available',
         ]);
 
         // Tạo sản phẩm 1 & 2
-        $p1 = \App\Models\Product::factory()->create([
+        $p1 = Product::factory()->create([
             'restaurant_id' => $this->restaurant->id,
             'branch_id' => $this->branch->id,
             'name' => 'Cơm Chiên Dương Châu',
             'price' => 50000,
             'is_active' => true,
-            'is_available' => true
+            'is_available' => true,
         ]);
 
-        $p2 = \App\Models\Product::factory()->create([
+        $p2 = Product::factory()->create([
             'restaurant_id' => $this->restaurant->id,
             'branch_id' => $this->branch->id,
             'name' => 'Nước ép cam',
             'price' => 30000,
             'is_active' => true,
-            'is_available' => true
+            'is_available' => true,
         ]);
 
         // Gửi đơn 1 cho Bàn VIP 99 (POS A đồng bộ)
@@ -441,13 +448,13 @@ class OperationalImprovementsTest extends TestCase
             'channel' => 'dine_in',
             'table_id' => $table->id,
             'items' => [
-                ['product_id' => $p1->id, 'quantity' => 2, 'notes' => 'Ít dầu']
+                ['product_id' => $p1->id, 'quantity' => 2, 'notes' => 'Ít dầu'],
             ],
             'guests_count' => 2,
         ]);
 
         $response1->assertRedirect();
-        
+
         $order1 = Order::where('table_id', $table->id)->where('status', 'pending')->first();
         $this->assertNotNull($order1);
         $this->assertEquals(100000, $order1->total_amount);
@@ -461,7 +468,7 @@ class OperationalImprovementsTest extends TestCase
             'table_id' => $table->id,
             'items' => [
                 ['product_id' => $p1->id, 'quantity' => 1],
-                ['product_id' => $p2->id, 'quantity' => 3]
+                ['product_id' => $p2->id, 'quantity' => 3],
             ],
             'guests_count' => 2,
         ]);
@@ -470,15 +477,15 @@ class OperationalImprovementsTest extends TestCase
 
         // Kiểm tra đơn 1 đã được gộp các món từ đơn 2
         $order1->refresh();
-        
+
         // Tổng tiền mới: Cơm chiên (2 + 1) * 50k = 150k + Nước cam (3) * 30k = 90k => 240k
         $this->assertEquals(240000, $order1->total_amount);
 
         // Kiểm tra xem số lượng món trong order_items
-        $itemP1 = \App\Models\OrderItem::where('order_id', $order1->id)->where('product_id', $p1->id)->first();
+        $itemP1 = OrderItem::where('order_id', $order1->id)->where('product_id', $p1->id)->first();
         $this->assertEquals(3, $itemP1->quantity);
 
-        $itemP2 = \App\Models\OrderItem::where('order_id', $order1->id)->where('product_id', $p2->id)->first();
+        $itemP2 = OrderItem::where('order_id', $order1->id)->where('product_id', $p2->id)->first();
         $this->assertEquals(3, $itemP2->quantity);
 
         // Log gộp đơn phải được ghi nhận
@@ -496,10 +503,10 @@ class OperationalImprovementsTest extends TestCase
         $this->actingAs($this->owner);
         $this->post(route('branch.switch'), ['branch_id' => $this->branch->id])->assertRedirect();
 
-        $table = \App\Models\RestaurantTable::factory()->create([
+        $table = RestaurantTable::factory()->create([
             'restaurant_id' => $this->restaurant->id,
             'branch_id' => $this->branch->id,
-            'status' => 'available'
+            'status' => 'available',
         ]);
 
         $product = Product::factory()->create([
@@ -513,7 +520,7 @@ class OperationalImprovementsTest extends TestCase
             'channel' => 'dine_in',
             'table_id' => $table->id,
             'items' => [
-                ['product_id' => $product->id, 'quantity' => 1, 'client_item_id' => 'uuid-1234']
+                ['product_id' => $product->id, 'quantity' => 1, 'client_item_id' => 'uuid-1234'],
             ],
             'guests_count' => 1,
         ]);
@@ -531,14 +538,14 @@ class OperationalImprovementsTest extends TestCase
             'channel' => 'dine_in',
             'table_id' => $table->id,
             'items' => [
-                ['product_id' => $product->id, 'quantity' => 1, 'client_item_id' => 'uuid-1234']
+                ['product_id' => $product->id, 'quantity' => 1, 'client_item_id' => 'uuid-1234'],
             ],
             'guests_count' => 1,
         ]);
         $response2->assertRedirect();
 
         // Kiểm tra xem số lượng món trong order_items không bị tạo mới hoặc tăng lên
-        $items = \App\Models\OrderItem::where('order_id', $order->id)->get();
+        $items = OrderItem::where('order_id', $order->id)->get();
         $this->assertCount(1, $items);
         $this->assertEquals(1.0, $items->first()->quantity);
     }
@@ -551,10 +558,10 @@ class OperationalImprovementsTest extends TestCase
         $this->actingAs($this->owner);
 
         // Tạo PO
-        $po = \App\Models\PurchaseOrder::create([
+        $po = PurchaseOrder::create([
             'restaurant_id' => $this->restaurant->id,
             'branch_id' => $this->branch->id,
-            'supplier_id' => \App\Models\Supplier::factory()->create(['restaurant_id' => $this->restaurant->id])->id,
+            'supplier_id' => Supplier::factory()->create(['restaurant_id' => $this->restaurant->id])->id,
             'po_number' => 'PO-DISCREPANT-TEST',
             'status' => 'approved',
             'total_amount' => 5000,
@@ -576,7 +583,7 @@ class OperationalImprovementsTest extends TestCase
                     'ingredient_id' => $this->ingredient->id,
                     'quantity_received' => 90.0,
                     'invoice_price' => 25.0, // lệch giá & lệch số lượng
-                ]
+                ],
             ],
             'rating' => 5,
         ]);
@@ -599,10 +606,10 @@ class OperationalImprovementsTest extends TestCase
         $this->actingAs($this->owner);
         $this->post(route('branch.switch'), ['branch_id' => $this->branch->id])->assertRedirect();
 
-        $table = \App\Models\RestaurantTable::factory()->create([
+        $table = RestaurantTable::factory()->create([
             'restaurant_id' => $this->restaurant->id,
             'branch_id' => $this->branch->id,
-            'status' => 'available'
+            'status' => 'available',
         ]);
 
         $p1 = Product::factory()->create(['restaurant_id' => $this->restaurant->id, 'branch_id' => $this->branch->id, 'price' => 50000]);
@@ -614,21 +621,21 @@ class OperationalImprovementsTest extends TestCase
             'table_id' => $table->id,
             'items' => [
                 ['product_id' => $p1->id, 'quantity' => 2],
-                ['product_id' => $p2->id, 'quantity' => 1]
+                ['product_id' => $p2->id, 'quantity' => 1],
             ],
             'guests_count' => 2,
         ]);
 
         $order = Order::where('table_id', $table->id)->where('status', 'pending')->first();
-        
+
         $item1 = $order->items()->where('product_id', $p1->id)->first();
         $item2 = $order->items()->where('product_id', $p2->id)->first();
 
         // TH1: Cả 2 đều pending -> cho phép xóa $p2 và giảm $p1 từ 2 xuống 1 không cần bypass
         $response1 = $this->patch(route('orders.update', $order->id), [
             'items' => [
-                ['id' => $item1->id, 'product_id' => $p1->id, 'quantity' => 1]
-            ]
+                ['id' => $item1->id, 'product_id' => $p1->id, 'quantity' => 1],
+            ],
         ]);
         $response1->assertRedirect();
         $response1->assertSessionHasNoErrors();
@@ -644,8 +651,8 @@ class OperationalImprovementsTest extends TestCase
 
         $response2 = $this->patch(route('orders.update', $order->id), [
             'items' => [
-                ['id' => $item1->id, 'product_id' => $p1->id, 'quantity' => 0.5]
-            ]
+                ['id' => $item1->id, 'product_id' => $p1->id, 'quantity' => 0.5],
+            ],
         ]);
         $response2->assertSessionHasErrors(['items']);
     }
@@ -662,7 +669,7 @@ class OperationalImprovementsTest extends TestCase
         $manager = User::factory()->create([
             'restaurant_id' => $this->restaurant->id,
             'branch_id' => $this->branch->id,
-            'pin_code' => bcrypt('7777')
+            'pin_code' => bcrypt('7777'),
         ]);
         $manager->assignRole($managerRole);
 

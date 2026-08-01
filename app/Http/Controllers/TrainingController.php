@@ -8,6 +8,7 @@ use App\Models\TrainingLesson;
 use App\Models\TrainingQuiz;
 use App\Models\TrainingQuizAttempt;
 use App\Services\QuotaService;
+use App\Support\TenantRule;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -186,7 +187,7 @@ class TrainingController extends Controller
     public function submitQuiz(Request $request): JsonResponse
     {
         $data = $request->validate([
-            'enrollment_id' => ['required', \App\Support\TenantRule::exists('training_enrollments')],
+            'enrollment_id' => ['required', TenantRule::exists('training_enrollments')],
             'quiz_id' => ['required', 'exists:training_quizzes,id'],
             'answers' => ['required', 'array'],
         ]);

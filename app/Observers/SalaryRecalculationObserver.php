@@ -2,12 +2,13 @@
 
 namespace App\Observers;
 
-use App\Models\ViolationReport;
-use App\Models\ShiftClosing;
-use App\Models\InventoryTransaction;
 use App\Models\Employee;
+use App\Models\InventoryTransaction;
 use App\Models\Salary;
 use App\Models\SalaryAdjustment;
+use App\Models\ScheduleAssignment;
+use App\Models\ShiftClosing;
+use App\Models\ViolationReport;
 use App\Services\SalaryService;
 use Carbon\Carbon;
 
@@ -46,7 +47,7 @@ class SalaryRecalculationObserver
                 }
             }
         } elseif ($model instanceof InventoryTransaction && $model->type === 'waste') {
-            $activeAssignments = \App\Models\ScheduleAssignment::findEmployeesOnShiftAt($model->occurred_at, $model->restaurant_id);
+            $activeAssignments = ScheduleAssignment::findEmployeesOnShiftAt($model->occurred_at, $model->restaurant_id);
             foreach ($activeAssignments as $assignment) {
                 $employee = $assignment->employee;
                 if ($employee) {

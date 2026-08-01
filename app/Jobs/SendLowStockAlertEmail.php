@@ -2,8 +2,8 @@
 
 namespace App\Jobs;
 
-use App\Models\Restaurant;
 use App\Models\Inventory;
+use App\Models\Restaurant;
 use App\Services\EmailMicroserviceClient;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -17,7 +17,8 @@ class SendLowStockAlertEmail implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
-    public int $tries   = 2;
+    public int $tries = 2;
+
     public int $timeout = 60;
 
     public function __construct(
@@ -35,7 +36,7 @@ class SendLowStockAlertEmail implements ShouldQueue
 
         // 3. Find all inventories of this restaurant where stock is low
         $restaurant = Restaurant::with(['owner'])->find($this->restaurantId);
-        if (!$restaurant) {
+        if (! $restaurant) {
             return;
         }
 
@@ -50,16 +51,17 @@ class SendLowStockAlertEmail implements ShouldQueue
 
         if ($lowStockInventories->isEmpty()) {
             Log::info("SendLowStockAlertEmail: No low stock ingredients found for restaurant {$this->restaurantId}");
+
             return;
         }
 
         $items = [];
         foreach ($lowStockInventories as $inv) {
             $items[] = [
-                'name'    => $inv->ingredient_name ?? ($inv->ingredient ? $inv->ingredient->name : 'Unknown'),
+                'name' => $inv->ingredient_name ?? ($inv->ingredient ? $inv->ingredient->name : 'Unknown'),
                 'current' => (float) $inv->quantity_on_hand,
-                'unit'    => $inv->ingredient && $inv->ingredient->unit ? $inv->ingredient->unit->symbol : 'units',
-                'min'     => (float) $inv->min_stock_level,
+                'unit' => $inv->ingredient && $inv->ingredient->unit ? $inv->ingredient->unit->symbol : 'units',
+                'min' => (float) $inv->min_stock_level,
             ];
         }
 
@@ -67,27 +69,28 @@ class SendLowStockAlertEmail implements ShouldQueue
         $recipientEmail = $restaurant->owner ? $restaurant->owner->email : $restaurant->email;
         if (empty($recipientEmail)) {
             Log::warning("SendLowStockAlertEmail: No recipient email found for restaurant {$this->restaurantId}");
+
             return;
         }
 
         $sent = $client->sendLowStockAlert([
             'recipient_email' => $recipientEmail,
-            'recipient_name'  => $restaurant->owner ? $restaurant->owner->name : 'Owner',
+            'recipient_name' => $restaurant->owner ? $restaurant->owner->name : 'Owner',
             'restaurant_name' => $restaurant->name,
-            'items'           => $items,
-            'inventory_url'   => url('/inventory'),
+            'items' => $items,
+            'inventory_url' => url('/inventory'),
         ]);
 
-        Log::info('SendLowStockAlertEmail: ' . ($sent ? 'success' : 'failed'), [
+        Log::info('SendLowStockAlertEmail: '.($sent ? 'success' : 'failed'), [
             'restaurant_id' => $this->restaurantId,
-            'recipient'     => $recipientEmail,
-            'items_count'   => count($items),
+            'recipient' => $recipientEmail,
+            'items_count' => count($items),
         ]);
     }
 
     public function tags(): array
     {
-        return ["restaurant:{$this->restaurantId}", "branch:".($this->branchId ?? 'all'), "low-stock-alert"];
+        return ["restaurant:{$this->restaurantId}", 'branch:'.($this->branchId ?? 'all'), 'low-stock-alert'];
     }
 
     private function cacheKey(string $prefix): string

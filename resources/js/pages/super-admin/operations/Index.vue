@@ -15,6 +15,12 @@ import {
 } from 'lucide-vue-next';
 import { reactive, ref } from 'vue';
 import { toast } from 'vue-sonner';
+import {
+    PageHeader,
+    SectionCard,
+    StatCard,
+    StatusBadge,
+} from '@/components/super-admin';
 import { Button } from '@/components/ui/button';
 import {
     Card,
@@ -23,12 +29,6 @@ import {
     CardHeader,
     CardTitle,
 } from '@/components/ui/card';
-import {
-    PageHeader,
-    SectionCard,
-    StatCard,
-    StatusBadge,
-} from '@/components/super-admin';
 import AppLayout from '@/layouts/AppLayout.vue';
 
 defineOptions({ layout: AppLayout });

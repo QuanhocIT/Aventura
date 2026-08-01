@@ -405,11 +405,18 @@ const copySetupKey = (): void => {
                                     <div class="mt-3 flex justify-center">
                                         <div
                                             class="overflow-hidden rounded-xl border border-blue-200 bg-white p-2 dark:border-blue-800/60"
-                                            style="display: inline-block; line-height: 0; max-width: 100%"
+                                            style="
+                                                display: inline-block;
+                                                line-height: 0;
+                                                max-width: 100%;
+                                            "
                                         >
                                             <!-- eslint-disable-next-line vue/no-v-html -->
                                             <div
-                                                style="width: 192px; max-width: 100%"
+                                                style="
+                                                    width: 192px;
+                                                    max-width: 100%;
+                                                "
                                                 v-html="qrSvg"
                                             />
                                         </div>

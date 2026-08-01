@@ -70,18 +70,30 @@ const isOwner = computed(() => roles.value.includes('owner'));
 // Search & Filters
 const searchQuery = ref('');
 const statusFilter = ref('all'); // 'all' | 'active' | 'inactive'
-const quickFilterChip = ref<'all' | 'frozen' | 'pending' | 'unpaid' | 'top_rated'>('all');
+const quickFilterChip = ref<
+    'all' | 'frozen' | 'pending' | 'unpaid' | 'top_rated'
+>('all');
 
 const filteredSuppliers = computed(() => {
     return props.suppliers.filter((sup) => {
         const matchesSearch =
             !searchQuery.value ||
             sup.name?.toLowerCase().includes(searchQuery.value.toLowerCase()) ||
-            sup.contact_name?.toLowerCase().includes(searchQuery.value.toLowerCase()) ||
-            sup.phone?.toLowerCase().includes(searchQuery.value.toLowerCase()) ||
-            sup.email?.toLowerCase().includes(searchQuery.value.toLowerCase()) ||
-            sup.tax_code?.toLowerCase().includes(searchQuery.value.toLowerCase()) ||
-            sup.address?.toLowerCase().includes(searchQuery.value.toLowerCase());
+            sup.contact_name
+                ?.toLowerCase()
+                .includes(searchQuery.value.toLowerCase()) ||
+            sup.phone
+                ?.toLowerCase()
+                .includes(searchQuery.value.toLowerCase()) ||
+            sup.email
+                ?.toLowerCase()
+                .includes(searchQuery.value.toLowerCase()) ||
+            sup.tax_code
+                ?.toLowerCase()
+                .includes(searchQuery.value.toLowerCase()) ||
+            sup.address
+                ?.toLowerCase()
+                .includes(searchQuery.value.toLowerCase());
 
         const matchesStatus =
             statusFilter.value === 'all' || sup.status === statusFilter.value;
@@ -414,21 +426,25 @@ const selectedQuantities = ref<Record<number, number>>({});
 
 const currentUser = computed(() => (page.props as any).auth?.user);
 const currentRestaurant = computed(
-    () => (page.props as any).restaurant || (page.props as any).auth?.user?.restaurant,
+    () =>
+        (page.props as any).restaurant ||
+        (page.props as any).auth?.user?.restaurant,
 );
 
 const supplierIngredients = computed(() => {
     if (!selectedSupplier.value) {
-return [];
-}
+        return [];
+    }
 
-    return props.ingredients.filter((i) => i.supplier_id === selectedSupplier.value.id);
+    return props.ingredients.filter(
+        (i) => i.supplier_id === selectedSupplier.value.id,
+    );
 });
 
 const filteredSupplierIngredients = computed(() => {
     if (!menuSearchQuery.value.trim()) {
-return supplierIngredients.value;
-}
+        return supplierIngredients.value;
+    }
 
     const q = menuSearchQuery.value.toLowerCase().trim();
 
@@ -444,7 +460,9 @@ const openPoModal = (supplier: any) => {
     poForm.reset();
 
     const initialQtys: Record<number, number> = {};
-    const supsIngs = props.ingredients.filter((i) => i.supplier_id === supplier.id);
+    const supsIngs = props.ingredients.filter(
+        (i) => i.supplier_id === supplier.id,
+    );
     supsIngs.forEach((ing) => {
         initialQtys[ing.id] = 0;
     });
@@ -458,7 +476,9 @@ const updateItemQuantity = (ingredientId: number, qty: number) => {
 
 const incrementQuantity = (ingredientId: number, step = 1) => {
     const current = selectedQuantities.value[ingredientId] || 0;
-    selectedQuantities.value[ingredientId] = Number((current + step).toFixed(3));
+    selectedQuantities.value[ingredientId] = Number(
+        (current + step).toFixed(3),
+    );
 };
 
 const decrementQuantity = (ingredientId: number, step = 1) => {
@@ -864,8 +884,8 @@ const openManualTransferModal = () => {
 
 const submitManualTransfer = () => {
     if (transferForm.processing) {
-return;
-}
+        return;
+    }
 
     transferForm.post(route('inventory.internal-transfers'), {
         onSuccess: () => {
@@ -946,8 +966,8 @@ const updateScrollButtons = () => {
     const el = tabScrollContainerRef.value;
 
     if (!el) {
-return;
-}
+        return;
+    }
 
     canScrollLeft.value = el.scrollLeft > 5;
     canScrollRight.value = el.scrollLeft < el.scrollWidth - el.clientWidth - 5;
@@ -957,8 +977,8 @@ const scrollTabs = (direction: 'left' | 'right') => {
     const el = tabScrollContainerRef.value;
 
     if (!el) {
-return;
-}
+        return;
+    }
 
     const distance = 260;
     el.scrollBy({
@@ -971,8 +991,8 @@ const handleWheelScroll = (e: WheelEvent) => {
     const el = tabScrollContainerRef.value;
 
     if (!el) {
-return;
-}
+        return;
+    }
 
     if (e.deltaY !== 0) {
         el.scrollLeft += e.deltaY;
@@ -988,8 +1008,8 @@ const startDrag = (e: MouseEvent) => {
     const el = tabScrollContainerRef.value;
 
     if (!el) {
-return;
-}
+        return;
+    }
 
     isDragging = true;
     startX = e.pageX - el.offsetLeft;
@@ -1002,14 +1022,14 @@ const stopDrag = () => {
 
 const doDrag = (e: MouseEvent) => {
     if (!isDragging) {
-return;
-}
+        return;
+    }
 
     const el = tabScrollContainerRef.value;
 
     if (!el) {
-return;
-}
+        return;
+    }
 
     e.preventDefault();
     const x = e.pageX - el.offsetLeft;
@@ -1019,18 +1039,31 @@ return;
 };
 
 // CSV Export Logic
-const exportToCsv = (filename: string, headers: string[], rows: (string | number)[][]) => {
+const exportToCsv = (
+    filename: string,
+    headers: string[],
+    rows: (string | number)[][],
+) => {
     let csvContent = '\uFEFF';
-    csvContent += headers.map((h) => `"${String(h ?? '').replace(/"/g, '""')}"`).join(';') + '\r\n';
+    csvContent +=
+        headers
+            .map((h) => `"${String(h ?? '').replace(/"/g, '""')}"`)
+            .join(';') + '\r\n';
     rows.forEach((row) => {
-        csvContent += row.map((cell) => `"${String(cell ?? '').replace(/"/g, '""')}"`).join(';') + '\r\n';
+        csvContent +=
+            row
+                .map((cell) => `"${String(cell ?? '').replace(/"/g, '""')}"`)
+                .join(';') + '\r\n';
     });
 
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.setAttribute('href', url);
-    link.setAttribute('download', `${filename}_${new Date().toISOString().slice(0, 10)}.csv`);
+    link.setAttribute(
+        'download',
+        `${filename}_${new Date().toISOString().slice(0, 10)}.csv`,
+    );
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -1121,21 +1154,27 @@ const exportSlaReport = () => {
         'Đơn Đóng Băng',
         'Hạng Đánh Giá',
     ];
-    const rows = slaDashboardData.value.rankings.map((item: any, idx: number) => {
-        const grade = getSupplierGrade(item.on_time_rate, item.accuracy_rate, item.avg_rating);
+    const rows = slaDashboardData.value.rankings.map(
+        (item: any, idx: number) => {
+            const grade = getSupplierGrade(
+                item.on_time_rate,
+                item.accuracy_rate,
+                item.avg_rating,
+            );
 
-        return [
-            idx + 1,
-            item.supplier_name,
-            item.overall_score || 0,
-            item.on_time_rate || 0,
-            item.accuracy_rate || 0,
-            item.avg_rating || 5,
-            item.total_pos || 0,
-            item.frozen_pos || 0,
-            grade.label,
-        ];
-    });
+            return [
+                idx + 1,
+                item.supplier_name,
+                item.overall_score || 0,
+                item.on_time_rate || 0,
+                item.accuracy_rate || 0,
+                item.avg_rating || 5,
+                item.total_pos || 0,
+                item.frozen_pos || 0,
+                grade.label,
+            ];
+        },
+    );
     exportToCsv('Bao_Cao_Xep_Hang_SLA_NCC', headers, rows);
 };
 
@@ -1194,13 +1233,13 @@ onUnmounted(() => {
 
         <!-- Navigation Tabs (Interactive Horizontal Drag & Arrow Scroll Track) -->
         <div
-            class="group relative max-w-full overflow-hidden rounded-2xl border border-border/60 bg-muted/30 p-1.5 backdrop-blur-md shadow-xs"
+            class="group relative max-w-full overflow-hidden rounded-2xl border border-border/60 bg-muted/30 p-1.5 shadow-xs backdrop-blur-md"
         >
             <!-- Left Arrow Scroll Button -->
             <button
                 v-if="canScrollLeft"
                 @click="scrollTabs('left')"
-                class="absolute left-2 top-1/2 z-20 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full border border-border bg-background/90 text-foreground shadow-md backdrop-blur-md transition-all duration-200 hover:scale-110 active:scale-95 cursor-pointer"
+                class="absolute top-1/2 left-2 z-20 flex h-7 w-7 -translate-y-1/2 cursor-pointer items-center justify-center rounded-full border border-border bg-background/90 text-foreground shadow-md backdrop-blur-md transition-all duration-200 hover:scale-110 active:scale-95"
                 title="Cuộn sang trái"
             >
                 <ChevronLeft class="h-4 w-4" />
@@ -1215,14 +1254,14 @@ onUnmounted(() => {
                 @mouseleave="stopDrag"
                 @mouseup="stopDrag"
                 @mousemove="doDrag"
-                class="no-scrollbar flex cursor-grab active:cursor-grabbing items-center gap-1.5 overflow-x-auto scroll-smooth whitespace-nowrap py-0.5 select-none"
+                class="no-scrollbar flex cursor-grab items-center gap-1.5 overflow-x-auto scroll-smooth py-0.5 whitespace-nowrap select-none active:cursor-grabbing"
             >
                 <button
                     @click="activeTab = 'list'"
-                    class="group relative flex cursor-pointer items-center gap-2 rounded-xl px-4 py-2 text-xs transition-all duration-300 shrink-0"
+                    class="group relative flex shrink-0 cursor-pointer items-center gap-2 rounded-xl px-4 py-2 text-xs transition-all duration-300"
                     :class="[
                         activeTab === 'list'
-                            ? 'bg-gradient-to-r from-emerald-600 to-teal-600 font-extrabold text-white shadow-md shadow-emerald-600/20 scale-[1.02]'
+                            ? 'scale-[1.02] bg-gradient-to-r from-emerald-600 to-teal-600 font-extrabold text-white shadow-md shadow-emerald-600/20'
                             : 'font-semibold text-muted-foreground hover:bg-muted/60 hover:text-foreground',
                     ]"
                 >
@@ -1233,7 +1272,7 @@ onUnmounted(() => {
                     <span
                         v-if="kpis.total > 0"
                         :class="[
-                            'ml-1 rounded-full px-1.5 py-0.2 text-[10px] font-extrabold',
+                            'py-0.2 ml-1 rounded-full px-1.5 text-[10px] font-extrabold',
                             activeTab === 'list'
                                 ? 'bg-white/20 text-white'
                                 : 'bg-muted-foreground/15 text-muted-foreground',
@@ -1248,10 +1287,10 @@ onUnmounted(() => {
                         activeTab = 'cockpit';
                         fetchCockpitData();
                     "
-                    class="group relative flex cursor-pointer items-center gap-2 rounded-xl px-4 py-2 text-xs transition-all duration-300 shrink-0"
+                    class="group relative flex shrink-0 cursor-pointer items-center gap-2 rounded-xl px-4 py-2 text-xs transition-all duration-300"
                     :class="[
                         activeTab === 'cockpit'
-                            ? 'bg-gradient-to-r from-emerald-600 to-teal-600 font-extrabold text-white shadow-md shadow-emerald-600/20 scale-[1.02]'
+                            ? 'scale-[1.02] bg-gradient-to-r from-emerald-600 to-teal-600 font-extrabold text-white shadow-md shadow-emerald-600/20'
                             : 'font-semibold text-muted-foreground hover:bg-muted/60 hover:text-foreground',
                     ]"
                 >
@@ -1263,10 +1302,10 @@ onUnmounted(() => {
 
                 <button
                     @click="activeTab = 'pos'"
-                    class="group relative flex cursor-pointer items-center gap-2 rounded-xl px-4 py-2 text-xs transition-all duration-300 shrink-0"
+                    class="group relative flex shrink-0 cursor-pointer items-center gap-2 rounded-xl px-4 py-2 text-xs transition-all duration-300"
                     :class="[
                         activeTab === 'pos'
-                            ? 'bg-gradient-to-r from-emerald-600 to-teal-600 font-extrabold text-white shadow-md shadow-emerald-600/20 scale-[1.02]'
+                            ? 'scale-[1.02] bg-gradient-to-r from-emerald-600 to-teal-600 font-extrabold text-white shadow-md shadow-emerald-600/20'
                             : 'font-semibold text-muted-foreground hover:bg-muted/60 hover:text-foreground',
                     ]"
                 >
@@ -1278,23 +1317,23 @@ onUnmounted(() => {
 
                 <button
                     @click="activeTab = 'analytics'"
-                    class="group relative flex cursor-pointer items-center gap-2 rounded-xl px-4 py-2 text-xs transition-all duration-300 shrink-0"
+                    class="group relative flex shrink-0 cursor-pointer items-center gap-2 rounded-xl px-4 py-2 text-xs transition-all duration-300"
                     :class="[
                         activeTab === 'analytics'
-                            ? 'bg-gradient-to-r from-purple-600 to-indigo-600 font-extrabold text-white shadow-md shadow-purple-600/25 scale-[1.02]'
+                            ? 'scale-[1.02] bg-gradient-to-r from-purple-600 to-indigo-600 font-extrabold text-white shadow-md shadow-purple-600/25'
                             : 'font-semibold text-muted-foreground hover:bg-purple-500/10 hover:text-purple-500',
                     ]"
                 >
-                    <Sparkles class="h-4 w-4 text-purple-400 animate-pulse" />
+                    <Sparkles class="h-4 w-4 animate-pulse text-purple-400" />
                     <span>AI Phân tích biến động giá</span>
                 </button>
 
                 <button
                     @click="activeTab = 'sla'"
-                    class="group relative flex cursor-pointer items-center gap-2 rounded-xl px-4 py-2 text-xs transition-all duration-300 shrink-0"
+                    class="group relative flex shrink-0 cursor-pointer items-center gap-2 rounded-xl px-4 py-2 text-xs transition-all duration-300"
                     :class="[
                         activeTab === 'sla'
-                            ? 'bg-gradient-to-r from-emerald-600 to-teal-600 font-extrabold text-white shadow-md shadow-emerald-600/20 scale-[1.02]'
+                            ? 'scale-[1.02] bg-gradient-to-r from-emerald-600 to-teal-600 font-extrabold text-white shadow-md shadow-emerald-600/20'
                             : 'font-semibold text-muted-foreground hover:bg-muted/60 hover:text-foreground',
                     ]"
                 >
@@ -1309,10 +1348,10 @@ onUnmounted(() => {
                         activeTab = 'sla-dashboard';
                         fetchSlaDashboard();
                     "
-                    class="group relative flex cursor-pointer items-center gap-2 rounded-xl px-4 py-2 text-xs transition-all duration-300 shrink-0"
+                    class="group relative flex shrink-0 cursor-pointer items-center gap-2 rounded-xl px-4 py-2 text-xs transition-all duration-300"
                     :class="[
                         activeTab === 'sla-dashboard'
-                            ? 'bg-gradient-to-r from-emerald-600 to-teal-600 font-extrabold text-white shadow-md shadow-emerald-600/20 scale-[1.02]'
+                            ? 'scale-[1.02] bg-gradient-to-r from-emerald-600 to-teal-600 font-extrabold text-white shadow-md shadow-emerald-600/20'
                             : 'font-semibold text-muted-foreground hover:bg-muted/60 hover:text-foreground',
                     ]"
                 >
@@ -1327,10 +1366,10 @@ onUnmounted(() => {
                         activeTab = 'transfers';
                         fetchTransfers();
                     "
-                    class="group relative flex cursor-pointer items-center gap-2 rounded-xl px-4 py-2 text-xs transition-all duration-300 shrink-0"
+                    class="group relative flex shrink-0 cursor-pointer items-center gap-2 rounded-xl px-4 py-2 text-xs transition-all duration-300"
                     :class="[
                         activeTab === 'transfers'
-                            ? 'bg-gradient-to-r from-indigo-600 to-purple-600 font-extrabold text-white shadow-md shadow-indigo-600/25 scale-[1.02]'
+                            ? 'scale-[1.02] bg-gradient-to-r from-indigo-600 to-purple-600 font-extrabold text-white shadow-md shadow-indigo-600/25'
                             : 'font-semibold text-muted-foreground hover:bg-indigo-500/10 hover:text-indigo-500',
                     ]"
                 >
@@ -1345,7 +1384,7 @@ onUnmounted(() => {
             <button
                 v-if="canScrollRight"
                 @click="scrollTabs('right')"
-                class="absolute right-2 top-1/2 z-20 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full border border-border bg-background/90 text-foreground shadow-md backdrop-blur-md transition-all duration-200 hover:scale-110 active:scale-95 cursor-pointer"
+                class="absolute top-1/2 right-2 z-20 flex h-7 w-7 -translate-y-1/2 cursor-pointer items-center justify-center rounded-full border border-border bg-background/90 text-foreground shadow-md backdrop-blur-md transition-all duration-200 hover:scale-110 active:scale-95"
                 title="Cuộn sang phải"
             >
                 <ChevronRight class="h-4 w-4" />
@@ -1443,41 +1482,68 @@ onUnmounted(() => {
             </div>
 
             <!-- Smart Quick Filter Chips & Export Controls -->
-            <div class="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border/60 bg-muted/20 p-3 backdrop-blur-md">
-                <div class="flex flex-wrap items-center gap-1.5 text-xs font-semibold">
-                    <span class="text-[11px] font-bold text-muted-foreground mr-1">🔍 Lọc nhanh:</span>
+            <div
+                class="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border/60 bg-muted/20 p-3 backdrop-blur-md"
+            >
+                <div
+                    class="flex flex-wrap items-center gap-1.5 text-xs font-semibold"
+                >
+                    <span
+                        class="mr-1 text-[11px] font-bold text-muted-foreground"
+                        >🔍 Lọc nhanh:</span
+                    >
                     <button
                         @click="quickFilterChip = 'all'"
-                        class="rounded-xl px-3 py-1.5 transition-all cursor-pointer"
-                        :class="quickFilterChip === 'all' ? 'bg-emerald-600 text-white font-extrabold shadow-sm' : 'bg-background hover:bg-muted text-muted-foreground'"
+                        class="cursor-pointer rounded-xl px-3 py-1.5 transition-all"
+                        :class="
+                            quickFilterChip === 'all'
+                                ? 'bg-emerald-600 font-extrabold text-white shadow-sm'
+                                : 'bg-background text-muted-foreground hover:bg-muted'
+                        "
                     >
                         Tất cả đối tác
                     </button>
                     <button
                         @click="quickFilterChip = 'frozen'"
-                        class="rounded-xl px-3 py-1.5 transition-all cursor-pointer flex items-center gap-1"
-                        :class="quickFilterChip === 'frozen' ? 'bg-rose-600 text-white font-extrabold shadow-sm' : 'bg-background hover:bg-rose-500/10 text-rose-500'"
+                        class="flex cursor-pointer items-center gap-1 rounded-xl px-3 py-1.5 transition-all"
+                        :class="
+                            quickFilterChip === 'frozen'
+                                ? 'bg-rose-600 font-extrabold text-white shadow-sm'
+                                : 'bg-background text-rose-500 hover:bg-rose-500/10'
+                        "
                     >
                         <span>🔴 Đang đóng băng</span>
                     </button>
                     <button
                         @click="quickFilterChip = 'pending'"
-                        class="rounded-xl px-3 py-1.5 transition-all cursor-pointer flex items-center gap-1"
-                        :class="quickFilterChip === 'pending' ? 'bg-amber-500 text-white font-extrabold shadow-sm' : 'bg-background hover:bg-amber-500/10 text-amber-600'"
+                        class="flex cursor-pointer items-center gap-1 rounded-xl px-3 py-1.5 transition-all"
+                        :class="
+                            quickFilterChip === 'pending'
+                                ? 'bg-amber-500 font-extrabold text-white shadow-sm'
+                                : 'bg-background text-amber-600 hover:bg-amber-500/10'
+                        "
                     >
                         <span>⏳ PO Chờ duyệt</span>
                     </button>
                     <button
                         @click="quickFilterChip = 'unpaid'"
-                        class="rounded-xl px-3 py-1.5 transition-all cursor-pointer flex items-center gap-1"
-                        :class="quickFilterChip === 'unpaid' ? 'bg-indigo-600 text-white font-extrabold shadow-sm' : 'bg-background hover:bg-indigo-500/10 text-indigo-500'"
+                        class="flex cursor-pointer items-center gap-1 rounded-xl px-3 py-1.5 transition-all"
+                        :class="
+                            quickFilterChip === 'unpaid'
+                                ? 'bg-indigo-600 font-extrabold text-white shadow-sm'
+                                : 'bg-background text-indigo-500 hover:bg-indigo-500/10'
+                        "
                     >
                         <span>💵 Còn công nợ</span>
                     </button>
                     <button
                         @click="quickFilterChip = 'top_rated'"
-                        class="rounded-xl px-3 py-1.5 transition-all cursor-pointer flex items-center gap-1"
-                        :class="quickFilterChip === 'top_rated' ? 'bg-teal-600 text-white font-extrabold shadow-sm' : 'bg-background hover:bg-teal-500/10 text-teal-500'"
+                        class="flex cursor-pointer items-center gap-1 rounded-xl px-3 py-1.5 transition-all"
+                        :class="
+                            quickFilterChip === 'top_rated'
+                                ? 'bg-teal-600 font-extrabold text-white shadow-sm'
+                                : 'bg-background text-teal-500 hover:bg-teal-500/10'
+                        "
                     >
                         <span>⭐ NCC Xuất sắc (>4.5★)</span>
                     </button>
@@ -1488,7 +1554,7 @@ onUnmounted(() => {
                     @click="exportSuppliersReport"
                     variant="outline"
                     size="sm"
-                    class="h-8.5 gap-1.5 rounded-xl border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-bold hover:bg-emerald-500/20 cursor-pointer"
+                    class="h-8.5 cursor-pointer gap-1.5 rounded-xl border-emerald-500/30 bg-emerald-500/10 font-bold text-emerald-600 hover:bg-emerald-500/20 dark:text-emerald-400"
                 >
                     <FileText class="h-3.5 w-3.5" />
                     <span>Xuất Excel NCC (.csv)</span>
@@ -1649,15 +1715,28 @@ onUnmounted(() => {
                             </div>
 
                             <!-- Badges: Payment Terms & Tax Code -->
-                            <div class="mb-3 flex flex-wrap gap-1.5 text-[9px] font-bold">
-                                <span v-if="sup.tax_code" class="rounded-md bg-muted px-2 py-0.5 text-muted-foreground border border-border/50">
+                            <div
+                                class="mb-3 flex flex-wrap gap-1.5 text-[9px] font-bold"
+                            >
+                                <span
+                                    v-if="sup.tax_code"
+                                    class="rounded-md border border-border/50 bg-muted px-2 py-0.5 text-muted-foreground"
+                                >
                                     MST: {{ sup.tax_code }}
                                 </span>
-                                <span v-if="sup.payment_terms" class="rounded-md bg-emerald-500/10 px-2 py-0.5 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                                <span
+                                    v-if="sup.payment_terms"
+                                    class="rounded-md border border-emerald-500/20 bg-emerald-500/10 px-2 py-0.5 text-emerald-600 dark:text-emerald-400"
+                                >
                                     {{ sup.payment_terms.toUpperCase() }}
                                 </span>
-                                <span v-if="sup.bank_name" class="rounded-md bg-blue-500/10 px-2 py-0.5 text-blue-600 dark:text-blue-400 border border-blue-500/20">
-                                    💳 {{ sup.bank_name }} ({{ sup.bank_account_number || 'STK' }})
+                                <span
+                                    v-if="sup.bank_name"
+                                    class="rounded-md border border-blue-500/20 bg-blue-500/10 px-2 py-0.5 text-blue-600 dark:text-blue-400"
+                                >
+                                    💳 {{ sup.bank_name }} ({{
+                                        sup.bank_account_number || 'STK'
+                                    }})
                                 </span>
                             </div>
 
@@ -2157,20 +2236,30 @@ onUnmounted(() => {
         </div>
 
         <!-- Tab Content: PO logs -->
-        <Card v-if="activeTab === 'pos'" class="animate-fade-in overflow-hidden space-y-3 p-4">
-            <div class="flex flex-wrap items-center justify-between gap-3 border-b pb-3">
+        <Card
+            v-if="activeTab === 'pos'"
+            class="animate-fade-in space-y-3 overflow-hidden p-4"
+        >
+            <div
+                class="flex flex-wrap items-center justify-between gap-3 border-b pb-3"
+            >
                 <div>
-                    <h3 class="text-base font-bold text-foreground flex items-center gap-2">
+                    <h3
+                        class="flex items-center gap-2 text-base font-bold text-foreground"
+                    >
                         <ClipboardList class="h-4 w-4 text-emerald-500" />
                         Nhật Ký Đặt Hàng & Quản Lý Công Nợ PO
                     </h3>
-                    <p class="text-xs text-muted-foreground">Theo dõi lịch sử đơn hàng, chiết khấu và trạng thái ký quỹ thanh toán B2B.</p>
+                    <p class="text-xs text-muted-foreground">
+                        Theo dõi lịch sử đơn hàng, chiết khấu và trạng thái ký
+                        quỹ thanh toán B2B.
+                    </p>
                 </div>
                 <Button
                     @click="exportPurchaseOrdersReport"
                     variant="outline"
                     size="sm"
-                    class="h-8.5 gap-1.5 rounded-xl border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-bold hover:bg-emerald-500/20 cursor-pointer"
+                    class="h-8.5 cursor-pointer gap-1.5 rounded-xl border-emerald-500/30 bg-emerald-500/10 font-bold text-emerald-600 hover:bg-emerald-500/20 dark:text-emerald-400"
                 >
                     <FileText class="h-3.5 w-3.5" />
                     <span>Xuất Excel Nhật Ký PO (.csv)</span>
@@ -2843,8 +2932,12 @@ onUnmounted(() => {
                                     <span
                                         class="text-xs font-bold text-amber-500"
                                         >{{
-                                            '★'.repeat(Number(rate.rating || 5)) +
-                                            '☆'.repeat(5 - Number(rate.rating || 5))
+                                            '★'.repeat(
+                                                Number(rate.rating || 5),
+                                            ) +
+                                            '☆'.repeat(
+                                                5 - Number(rate.rating || 5),
+                                            )
                                         }}</span
                                     >
                                 </div>
@@ -2886,7 +2979,10 @@ onUnmounted(() => {
         </div>
 
         <!-- Tab Content: Aggregate SLA Dashboard -->
-        <div v-if="activeTab === 'sla-dashboard'" class="animate-fade-in space-y-6">
+        <div
+            v-if="activeTab === 'sla-dashboard'"
+            class="animate-fade-in space-y-6"
+        >
             <!-- Dashboard Header -->
             <div class="flex items-center justify-between border-b pb-4">
                 <div>
@@ -2903,7 +2999,7 @@ onUnmounted(() => {
                     <Button
                         @click="exportSlaReport"
                         variant="outline"
-                        class="flex h-9 items-center gap-1.5 border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400 text-xs font-semibold hover:bg-amber-500/20 cursor-pointer"
+                        class="flex h-9 cursor-pointer items-center gap-1.5 border-amber-500/30 bg-amber-500/10 text-xs font-semibold text-amber-600 hover:bg-amber-500/20 dark:text-amber-400"
                     >
                         <FileText class="h-4 w-4" />
                         Xuất Báo Cáo SLA (.csv)
@@ -2912,7 +3008,7 @@ onUnmounted(() => {
                         @click="fetchSlaDashboard"
                         variant="outline"
                         :disabled="loadingSlaDashboard"
-                        class="flex h-9 items-center gap-1.5 text-xs font-semibold cursor-pointer"
+                        class="flex h-9 cursor-pointer items-center gap-1.5 text-xs font-semibold"
                     >
                         <RefreshCw
                             class="h-4 w-4"
@@ -3578,188 +3674,191 @@ onUnmounted(() => {
                 <Card
                     class="w-full max-w-lg animate-in overflow-hidden shadow-2xl duration-150 zoom-in-95 fade-in"
                 >
-                <CardHeader
-                    class="flex flex-row items-center justify-between border-b pb-4"
-                >
-                    <CardTitle class="text-lg font-bold"
-                        >Tạo Lệnh Luân Chuyển Kho Thủ Công</CardTitle
+                    <CardHeader
+                        class="flex flex-row items-center justify-between border-b pb-4"
                     >
-                    <Button
-                        variant="ghost"
-                        size="icon"
-                        @click="showManualTransferModal = false"
-                        class="h-8 w-8 text-muted-foreground"
+                        <CardTitle class="text-lg font-bold"
+                            >Tạo Lệnh Luân Chuyển Kho Thủ Công</CardTitle
+                        >
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            @click="showManualTransferModal = false"
+                            class="h-8 w-8 text-muted-foreground"
+                        >
+                            <X class="h-5 w-5" />
+                        </Button>
+                    </CardHeader>
+
+                    <form
+                        @submit.prevent="submitManualTransfer"
+                        class="space-y-4 p-6"
                     >
-                        <X class="h-5 w-5" />
-                    </Button>
-                </CardHeader>
-
-                <form
-                    @submit.prevent="submitManualTransfer"
-                    class="space-y-4 p-6"
-                >
-                    <div class="grid grid-cols-2 gap-4">
-                        <!-- From Branch -->
-                        <div class="space-y-1.5">
-                            <Label
-                                class="text-xs font-semibold tracking-wider text-muted-foreground uppercase"
-                                >Từ chi nhánh (Xuất)</Label
-                            >
-                            <select
-                                v-model="transferForm.from_branch_id"
-                                required
-                                class="w-full rounded-xl border border-input bg-background px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-500/20 focus:outline-none"
-                            >
-                                <option
-                                    v-for="branch in branches"
-                                    :key="branch.id"
-                                    :value="branch.id"
-                                >
-                                    {{ branch.name }}
-                                </option>
-                            </select>
-                        </div>
-
-                        <!-- To Branch -->
-                        <div class="space-y-1.5">
-                            <Label
-                                class="text-xs font-semibold tracking-wider text-muted-foreground uppercase"
-                                >Sang chi nhánh (Nhập)</Label
-                            >
-                            <select
-                                v-model="transferForm.to_branch_id"
-                                required
-                                class="w-full rounded-xl border border-input bg-background px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-500/20 focus:outline-none"
-                            >
-                                <option
-                                    v-for="branch in branches.filter(
-                                        (b) =>
-                                            b.id !==
-                                            Number(transferForm.from_branch_id),
-                                    )"
-                                    :key="branch.id"
-                                    :value="branch.id"
-                                >
-                                    {{ branch.name }}
-                                </option>
-                            </select>
-                        </div>
-
-                        <!-- Ingredient -->
-                        <div class="col-span-2 space-y-1.5">
-                            <Label
-                                class="text-xs font-semibold tracking-wider text-muted-foreground uppercase"
-                                >Nguyên vật liệu luân chuyển</Label
-                            >
-                            <select
-                                v-model="transferForm.ingredient_id"
-                                required
-                                class="w-full rounded-xl border border-input bg-background px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-500/20 focus:outline-none"
-                            >
-                                <option
-                                    v-for="ing in ingredients"
-                                    :key="ing.id"
-                                    :value="ing.id"
-                                >
-                                    {{ ing.name }} (SKU: {{ ing.sku }})
-                                </option>
-                            </select>
-                        </div>
-
-                        <!-- Quantity -->
-                        <div class="col-span-2 space-y-1.5">
-                            <div class="flex items-center justify-between">
+                        <div class="grid grid-cols-2 gap-4">
+                            <!-- From Branch -->
+                            <div class="space-y-1.5">
                                 <Label
                                     class="text-xs font-semibold tracking-wider text-muted-foreground uppercase"
-                                    >Số lượng cần chuyển</Label
+                                    >Từ chi nhánh (Xuất)</Label
                                 >
-                                <span
-                                    class="text-xs font-semibold text-muted-foreground"
+                                <select
+                                    v-model="transferForm.from_branch_id"
+                                    required
+                                    class="w-full rounded-xl border border-input bg-background px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-500/20 focus:outline-none"
                                 >
-                                    Tồn hiện có:
-                                    <strong
-                                        class="text-indigo-650 font-extrabold text-indigo-600 dark:text-indigo-400"
-                                        >{{
-                                            sourceStockOnHand.toFixed(3)
-                                        }}</strong
+                                    <option
+                                        v-for="branch in branches"
+                                        :key="branch.id"
+                                        :value="branch.id"
                                     >
-                                </span>
+                                        {{ branch.name }}
+                                    </option>
+                                </select>
                             </div>
-                            <Input
-                                v-model.number="transferForm.quantity"
-                                required
-                                type="number"
-                                step="0.001"
-                                min="0.001"
-                            />
-                            <!-- Inline warnings/errors -->
-                            <div
-                                v-if="transferQuantityWarning"
-                                class="mt-1.5 rounded-xl border p-3 text-xs font-medium"
-                                :class="
-                                    transferQuantityWarning.type === 'error'
-                                        ? 'border-rose-250 bg-rose-50/50 text-rose-700 dark:border-rose-900/50 dark:bg-rose-950/20 dark:text-rose-400'
-                                        : 'border-amber-250 bg-amber-50/50 text-amber-700 dark:border-amber-900/50 dark:bg-amber-950/20 dark:text-amber-400'
-                                "
-                            >
-                                <div class="flex items-start gap-2">
-                                    <AlertTriangle
-                                        class="mt-0.5 size-4 shrink-0"
-                                        :class="
-                                            transferQuantityWarning.type ===
-                                            'error'
-                                                ? 'text-rose-500'
-                                                : 'text-amber-500'
-                                        "
-                                    />
-                                    <span>{{
-                                        transferQuantityWarning.message
-                                    }}</span>
+
+                            <!-- To Branch -->
+                            <div class="space-y-1.5">
+                                <Label
+                                    class="text-xs font-semibold tracking-wider text-muted-foreground uppercase"
+                                    >Sang chi nhánh (Nhập)</Label
+                                >
+                                <select
+                                    v-model="transferForm.to_branch_id"
+                                    required
+                                    class="w-full rounded-xl border border-input bg-background px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-500/20 focus:outline-none"
+                                >
+                                    <option
+                                        v-for="branch in branches.filter(
+                                            (b) =>
+                                                b.id !==
+                                                Number(
+                                                    transferForm.from_branch_id,
+                                                ),
+                                        )"
+                                        :key="branch.id"
+                                        :value="branch.id"
+                                    >
+                                        {{ branch.name }}
+                                    </option>
+                                </select>
+                            </div>
+
+                            <!-- Ingredient -->
+                            <div class="col-span-2 space-y-1.5">
+                                <Label
+                                    class="text-xs font-semibold tracking-wider text-muted-foreground uppercase"
+                                    >Nguyên vật liệu luân chuyển</Label
+                                >
+                                <select
+                                    v-model="transferForm.ingredient_id"
+                                    required
+                                    class="w-full rounded-xl border border-input bg-background px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-500/20 focus:outline-none"
+                                >
+                                    <option
+                                        v-for="ing in ingredients"
+                                        :key="ing.id"
+                                        :value="ing.id"
+                                    >
+                                        {{ ing.name }} (SKU: {{ ing.sku }})
+                                    </option>
+                                </select>
+                            </div>
+
+                            <!-- Quantity -->
+                            <div class="col-span-2 space-y-1.5">
+                                <div class="flex items-center justify-between">
+                                    <Label
+                                        class="text-xs font-semibold tracking-wider text-muted-foreground uppercase"
+                                        >Số lượng cần chuyển</Label
+                                    >
+                                    <span
+                                        class="text-xs font-semibold text-muted-foreground"
+                                    >
+                                        Tồn hiện có:
+                                        <strong
+                                            class="text-indigo-650 font-extrabold text-indigo-600 dark:text-indigo-400"
+                                            >{{
+                                                sourceStockOnHand.toFixed(3)
+                                            }}</strong
+                                        >
+                                    </span>
+                                </div>
+                                <Input
+                                    v-model.number="transferForm.quantity"
+                                    required
+                                    type="number"
+                                    step="0.001"
+                                    min="0.001"
+                                />
+                                <!-- Inline warnings/errors -->
+                                <div
+                                    v-if="transferQuantityWarning"
+                                    class="mt-1.5 rounded-xl border p-3 text-xs font-medium"
+                                    :class="
+                                        transferQuantityWarning.type === 'error'
+                                            ? 'border-rose-250 bg-rose-50/50 text-rose-700 dark:border-rose-900/50 dark:bg-rose-950/20 dark:text-rose-400'
+                                            : 'border-amber-250 bg-amber-50/50 text-amber-700 dark:border-amber-900/50 dark:bg-amber-950/20 dark:text-amber-400'
+                                    "
+                                >
+                                    <div class="flex items-start gap-2">
+                                        <AlertTriangle
+                                            class="mt-0.5 size-4 shrink-0"
+                                            :class="
+                                                transferQuantityWarning.type ===
+                                                'error'
+                                                    ? 'text-rose-500'
+                                                    : 'text-amber-500'
+                                            "
+                                        />
+                                        <span>{{
+                                            transferQuantityWarning.message
+                                        }}</span>
+                                    </div>
                                 </div>
                             </div>
+
+                            <!-- Notes -->
+                            <div class="col-span-2 space-y-1.5">
+                                <Label
+                                    class="text-xs font-semibold tracking-wider text-muted-foreground uppercase"
+                                    >Lý do / Ghi chú</Label
+                                >
+                                <textarea
+                                    v-model="transferForm.notes"
+                                    rows="3"
+                                    placeholder="Ghi chú lý do luân chuyển kho..."
+                                    class="w-full rounded-xl border border-input bg-background px-3 py-2 text-sm focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:outline-none"
+                                ></textarea>
+                            </div>
                         </div>
 
-                        <!-- Notes -->
-                        <div class="col-span-2 space-y-1.5">
-                            <Label
-                                class="text-xs font-semibold tracking-wider text-muted-foreground uppercase"
-                                >Lý do / Ghi chú</Label
+                        <div class="mt-6 flex justify-end gap-2 border-t pt-4">
+                            <Button
+                                type="button"
+                                variant="outline"
+                                @click="showManualTransferModal = false"
                             >
-                            <textarea
-                                v-model="transferForm.notes"
-                                rows="3"
-                                placeholder="Ghi chú lý do luân chuyển kho..."
-                                class="w-full rounded-xl border border-input bg-background px-3 py-2 text-sm focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:outline-none"
-                            ></textarea>
+                                Hủy bỏ
+                            </Button>
+                            <Button
+                                type="submit"
+                                :disabled="
+                                    transferForm.processing ||
+                                    (transferQuantityWarning &&
+                                        transferQuantityWarning.type ===
+                                            'error')
+                                "
+                                class="bg-emerald-600 font-bold text-white hover:bg-emerald-700"
+                            >
+                                {{
+                                    transferForm.processing
+                                        ? 'Đang thực hiện...'
+                                        : 'Thực hiện chuyển kho'
+                                }}
+                            </Button>
                         </div>
-                    </div>
-
-                    <div class="mt-6 flex justify-end gap-2 border-t pt-4">
-                        <Button
-                            type="button"
-                            variant="outline"
-                            @click="showManualTransferModal = false"
-                        >
-                            Hủy bỏ
-                        </Button>
-                        <Button
-                            type="submit"
-                            :disabled="
-                                transferForm.processing ||
-                                (transferQuantityWarning &&
-                                    transferQuantityWarning.type === 'error')
-                            "
-                            class="bg-emerald-600 font-bold text-white hover:bg-emerald-700"
-                        >
-                            {{
-                                transferForm.processing
-                                    ? 'Đang thực hiện...'
-                                    : 'Thực hiện chuyển kho'
-                            }}
-                        </Button>
-                    </div>
-                </form>
-            </Card>
+                    </form>
+                </Card>
             </div>
         </div>
 
@@ -3772,338 +3871,390 @@ onUnmounted(() => {
                 <Card
                     class="relative w-full max-w-lg animate-in overflow-hidden rounded-2xl border-border bg-card/95 shadow-2xl backdrop-blur-md duration-150 zoom-in-95 fade-in"
                 >
-                <!-- Top Accent Line -->
-                <div
-                    class="absolute top-0 left-0 h-1 w-full bg-gradient-to-r from-emerald-500 to-teal-400"
-                ></div>
+                    <!-- Top Accent Line -->
+                    <div
+                        class="absolute top-0 left-0 h-1 w-full bg-gradient-to-r from-emerald-500 to-teal-400"
+                    ></div>
 
-                <CardHeader
-                    class="flex flex-row items-center justify-between border-b border-border/60 pt-5 pb-4"
-                >
-                    <div>
-                        <CardTitle
-                            class="text-base font-extrabold tracking-tight text-foreground"
-                            >{{
-                                showAddModal
-                                    ? 'Thêm nhà cung cấp mới'
-                                    : 'Chỉnh sửa nhà cung cấp'
-                            }}</CardTitle
-                        >
-                        <p class="mt-0.5 text-[10px] text-muted-foreground">
-                            Vui lòng điền thông tin đối tác cung cấp nguyên vật
-                            liệu.
-                        </p>
-                    </div>
-                    <Button
-                        variant="ghost"
-                        size="icon"
-                        @click="
-                            showAddModal = false;
-                            showEditModal = false;
-                        "
-                        class="h-8 w-8 rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground"
+                    <CardHeader
+                        class="flex flex-row items-center justify-between border-b border-border/60 pt-5 pb-4"
                     >
-                        <X class="h-4 w-4" />
-                    </Button>
-                </CardHeader>
-
-                <form @submit.prevent="saveSupplier" class="space-y-5 p-6">
-                    <div class="grid grid-cols-2 gap-4">
-                        <!-- Supplier Name -->
-                        <div class="col-span-2 space-y-1.5">
-                            <Label
-                                class="flex items-center gap-1.5 text-[10px] font-bold tracking-wider text-muted-foreground uppercase"
+                        <div>
+                            <CardTitle
+                                class="text-base font-extrabold tracking-tight text-foreground"
+                                >{{
+                                    showAddModal
+                                        ? 'Thêm nhà cung cấp mới'
+                                        : 'Chỉnh sửa nhà cung cấp'
+                                }}</CardTitle
                             >
-                                <Building
-                                    class="h-3.5 w-3.5 text-emerald-500"
-                                />
-                                Tên nhà cung cấp
-                                <span class="text-rose-500">*</span>
-                            </Label>
-                            <div class="relative">
-                                <span
-                                    class="absolute top-1/2 left-3 -translate-y-1/2 text-muted-foreground/60"
-                                >
-                                    <Building class="h-4 w-4" />
-                                </span>
-                                <Input
-                                    v-model="supplierForm.name"
-                                    required
-                                    type="text"
-                                    placeholder="Nhập tên doanh nghiệp / hộ kinh doanh..."
-                                    class="h-9.5 rounded-xl border-border/60 bg-background pl-9 focus-visible:border-emerald-500 focus-visible:ring-emerald-500/20"
-                                />
-                            </div>
-                        </div>
-
-                        <!-- Contact Name -->
-                        <div class="space-y-1.5">
-                            <Label
-                                class="flex items-center gap-1.5 text-[10px] font-bold tracking-wider text-muted-foreground uppercase"
-                            >
-                                <User class="h-3.5 w-3.5 text-emerald-500" />
-                                Người đại diện
-                            </Label>
-                            <div class="relative">
-                                <span
-                                    class="absolute top-1/2 left-3 -translate-y-1/2 text-muted-foreground/60"
-                                >
-                                    <User class="h-4 w-4" />
-                                </span>
-                                <Input
-                                    v-model="supplierForm.contact_name"
-                                    type="text"
-                                    placeholder="Tên người liên hệ..."
-                                    class="h-9.5 rounded-xl border-border/60 bg-background pl-9 focus-visible:border-emerald-500 focus-visible:ring-emerald-500/20"
-                                />
-                            </div>
-                        </div>
-
-                        <!-- Phone -->
-                        <div class="space-y-1.5">
-                            <Label
-                                class="flex items-center gap-1.5 text-[10px] font-bold tracking-wider text-muted-foreground uppercase"
-                            >
-                                <Phone class="h-3.5 w-3.5 text-emerald-500" />
-                                Điện thoại
-                            </Label>
-                            <div class="relative">
-                                <span
-                                    class="absolute top-1/2 left-3 -translate-y-1/2 text-muted-foreground/60"
-                                >
-                                    <Phone class="h-4 w-4" />
-                                </span>
-                                <Input
-                                    v-model="supplierForm.phone"
-                                    type="text"
-                                    placeholder="Số điện thoại..."
-                                    class="h-9.5 rounded-xl border-border/60 bg-background pl-9 focus-visible:border-emerald-500 focus-visible:ring-emerald-500/20"
-                                />
-                            </div>
-                        </div>
-
-                        <!-- Email -->
-                        <div class="col-span-2 space-y-1.5">
-                            <Label
-                                class="flex items-center gap-1.5 text-[10px] font-bold tracking-wider text-muted-foreground uppercase"
-                            >
-                                <Mail class="h-3.5 w-3.5 text-emerald-500" />
-                                Email liên hệ
-                            </Label>
-                            <div class="relative">
-                                <span
-                                    class="absolute top-1/2 left-3 -translate-y-1/2 text-muted-foreground/60"
-                                >
-                                    <Mail class="h-4 w-4" />
-                                </span>
-                                <Input
-                                    v-model="supplierForm.email"
-                                    type="email"
-                                    placeholder="example@supplier.com"
-                                    class="h-9.5 rounded-xl border-border/60 bg-background pl-9 focus-visible:border-emerald-500 focus-visible:ring-emerald-500/20"
-                                />
-                            </div>
-                        </div>
-
-                        <!-- Tax Code (MST) -->
-                        <div class="space-y-1.5">
-                            <Label
-                                class="flex items-center gap-1.5 text-[10px] font-bold tracking-wider text-muted-foreground uppercase"
-                            >
-                                <FileText class="h-3.5 w-3.5 text-emerald-500" />
-                                Mã số thuế (MST)
-                            </Label>
-                            <Input
-                                v-model="supplierForm.tax_code"
-                                type="text"
-                                placeholder="VD: 0312345678"
-                                class="h-9.5 rounded-xl border-border/60 bg-background focus-visible:border-emerald-500 focus-visible:ring-emerald-500/20"
-                            />
-                        </div>
-
-                        <!-- Category -->
-                        <div class="space-y-1.5">
-                            <Label
-                                class="flex items-center gap-1.5 text-[10px] font-bold tracking-wider text-muted-foreground uppercase"
-                            >
-                                <Package class="h-3.5 w-3.5 text-emerald-500" />
-                                Ngành hàng cung ứng
-                            </Label>
-                            <select
-                                v-model="supplierForm.category"
-                                class="h-9.5 w-full rounded-xl border border-border/60 bg-background px-3 py-1 text-sm font-medium text-foreground focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 focus:outline-none"
-                            >
-                                <option value="fresh_food">🥬 Thực phẩm tươi sống</option>
-                                <option value="dry_goods">🧂 Gia vị & Thực phẩm khô</option>
-                                <option value="beverage">🥤 Đồ uống & Giải khát</option>
-                                <option value="packaging">📦 Bao bì & Vật tư F&B</option>
-                                <option value="other">📑 Khác</option>
-                            </select>
-                        </div>
-
-                        <!-- Banking Information Header -->
-                        <div class="col-span-2 border-t border-border/50 pt-2">
-                            <p class="text-[11px] font-extrabold tracking-wider text-emerald-600 dark:text-emerald-400 uppercase flex items-center gap-1.5">
-                                <CreditCard class="h-3.5 w-3.5" v-if="false" /> 💳 Thông tin Thanh toán VietQR & Công nợ
+                            <p class="mt-0.5 text-[10px] text-muted-foreground">
+                                Vui lòng điền thông tin đối tác cung cấp nguyên
+                                vật liệu.
                             </p>
                         </div>
-
-                        <!-- Bank Name -->
-                        <div class="space-y-1.5">
-                            <Label class="text-[10px] font-bold tracking-wider text-muted-foreground uppercase">
-                                Tên ngân hàng
-                            </Label>
-                            <Input
-                                v-model="supplierForm.bank_name"
-                                type="text"
-                                placeholder="VD: Vietcombank, MBBank..."
-                                class="h-9.5 rounded-xl border-border/60 bg-background focus-visible:border-emerald-500"
-                            />
-                        </div>
-
-                        <!-- Bank Account Number -->
-                        <div class="space-y-1.5">
-                            <Label class="text-[10px] font-bold tracking-wider text-muted-foreground uppercase">
-                                Số tài khoản
-                            </Label>
-                            <Input
-                                v-model="supplierForm.bank_account_number"
-                                type="text"
-                                placeholder="STK nhận tiền..."
-                                class="h-9.5 rounded-xl border-border/60 bg-background focus-visible:border-emerald-500"
-                            />
-                        </div>
-
-                        <!-- Bank Account Holder -->
-                        <div class="space-y-1.5">
-                            <Label class="text-[10px] font-bold tracking-wider text-muted-foreground uppercase">
-                                Tên chủ tài khoản
-                            </Label>
-                            <Input
-                                v-model="supplierForm.bank_account_holder"
-                                type="text"
-                                placeholder="CHỦ TÀI KHOẢN..."
-                                class="h-9.5 rounded-xl border-border/60 bg-background focus-visible:border-emerald-500"
-                            />
-                        </div>
-
-                        <!-- Payment Terms -->
-                        <div class="space-y-1.5">
-                            <Label class="text-[10px] font-bold tracking-wider text-muted-foreground uppercase">
-                                Điều khoản thanh toán
-                            </Label>
-                            <select
-                                v-model="supplierForm.payment_terms"
-                                class="h-9.5 w-full rounded-xl border border-border/60 bg-background px-3 py-1 text-sm font-medium text-foreground focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 focus:outline-none"
-                            >
-                                <option value="cod">💵 Thanh toán ngay khi nhận hàng (COD)</option>
-                                <option value="net7">📅 Công nợ 7 ngày (Net 7)</option>
-                                <option value="net15">📅 Công nợ 15 ngày (Net 15)</option>
-                                <option value="net30">📅 Công nợ 30 ngày (Net 30)</option>
-                                <option value="prepaid">💳 Trả trước 100% (Prepaid)</option>
-                            </select>
-                        </div>
-
-                        <!-- Address -->
-                        <div class="col-span-2 space-y-1.5 border-t border-border/50 pt-2">
-                            <Label
-                                class="flex items-center gap-1.5 text-[10px] font-bold tracking-wider text-muted-foreground uppercase"
-                            >
-                                <MapPin class="h-3.5 w-3.5 text-emerald-500" />
-                                Địa chỉ kho / Văn phòng
-                            </Label>
-                            <div class="relative">
-                                <span
-                                    class="absolute top-1/2 left-3 -translate-y-1/2 text-muted-foreground/60"
-                                >
-                                    <MapPin class="h-4 w-4" />
-                                </span>
-                                <Input
-                                    v-model="supplierForm.address"
-                                    type="text"
-                                    placeholder="Số nhà, tên đường, tỉnh/thành phố..."
-                                    class="h-9.5 rounded-xl border-border/60 bg-background pl-9 focus-visible:border-emerald-500 focus-visible:ring-emerald-500/20"
-                                />
-                            </div>
-                        </div>
-
-                        <!-- Notes -->
-                        <div class="col-span-2 space-y-1.5">
-                            <Label
-                                class="flex items-center gap-1.5 text-[10px] font-bold tracking-wider text-muted-foreground uppercase"
-                            >
-                                <ClipboardList
-                                    class="h-3.5 w-3.5 text-emerald-500"
-                                />
-                                Ghi chú đối tác
-                            </Label>
-                            <div class="relative">
-                                <textarea
-                                    v-model="supplierForm.notes"
-                                    rows="2"
-                                    placeholder="Ghi chú về năng lực cung ứng, lịch giao hàng..."
-                                    class="w-full rounded-xl border border-border/60 bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/50 focus-visible:border-emerald-500 focus-visible:ring-2 focus-visible:ring-emerald-500/20 focus-visible:outline-none"
-                                ></textarea>
-                            </div>
-                        </div>
-
-                        <!-- Status Select (for edit mode) -->
-                        <div
-                            v-if="showEditModal"
-                            class="col-span-2 space-y-1.5"
-                        >
-                            <Label
-                                class="flex items-center gap-1.5 text-[10px] font-bold tracking-wider text-muted-foreground uppercase"
-                            >
-                                <Info class="h-3.5 w-3.5 text-emerald-500" />
-                                Trạng thái hoạt động
-                            </Label>
-                            <select
-                                v-model="supplierForm.status"
-                                class="h-9.5 w-full rounded-xl border border-border/60 bg-background px-3 py-1 text-sm font-medium text-foreground focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 focus:outline-none"
-                            >
-                                <option value="active">Đang hoạt động</option>
-                                <option value="inactive">Tạm khóa</option>
-                            </select>
-                        </div>
-                    </div>
-
-                    <div
-                        class="mt-6 flex justify-end gap-2 border-t border-border/60 pt-4"
-                    >
                         <Button
-                            type="button"
-                            variant="outline"
+                            variant="ghost"
+                            size="icon"
                             @click="
                                 showAddModal = false;
                                 showEditModal = false;
                             "
-                            class="h-9.5 rounded-xl border-border/80 px-4 text-xs font-semibold hover:bg-muted"
+                            class="h-8 w-8 rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground"
                         >
-                            Hủy bỏ
+                            <X class="h-4 w-4" />
                         </Button>
-                        <Button
-                            type="submit"
-                            :disabled="supplierForm.processing"
-                            class="flex h-9.5 items-center gap-1.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-500 px-4 text-xs font-extrabold text-white shadow-lg shadow-emerald-500/10 transition-all duration-300 hover:from-emerald-500 hover:to-teal-400"
+                    </CardHeader>
+
+                    <form @submit.prevent="saveSupplier" class="space-y-5 p-6">
+                        <div class="grid grid-cols-2 gap-4">
+                            <!-- Supplier Name -->
+                            <div class="col-span-2 space-y-1.5">
+                                <Label
+                                    class="flex items-center gap-1.5 text-[10px] font-bold tracking-wider text-muted-foreground uppercase"
+                                >
+                                    <Building
+                                        class="h-3.5 w-3.5 text-emerald-500"
+                                    />
+                                    Tên nhà cung cấp
+                                    <span class="text-rose-500">*</span>
+                                </Label>
+                                <div class="relative">
+                                    <span
+                                        class="absolute top-1/2 left-3 -translate-y-1/2 text-muted-foreground/60"
+                                    >
+                                        <Building class="h-4 w-4" />
+                                    </span>
+                                    <Input
+                                        v-model="supplierForm.name"
+                                        required
+                                        type="text"
+                                        placeholder="Nhập tên doanh nghiệp / hộ kinh doanh..."
+                                        class="h-9.5 rounded-xl border-border/60 bg-background pl-9 focus-visible:border-emerald-500 focus-visible:ring-emerald-500/20"
+                                    />
+                                </div>
+                            </div>
+
+                            <!-- Contact Name -->
+                            <div class="space-y-1.5">
+                                <Label
+                                    class="flex items-center gap-1.5 text-[10px] font-bold tracking-wider text-muted-foreground uppercase"
+                                >
+                                    <User
+                                        class="h-3.5 w-3.5 text-emerald-500"
+                                    />
+                                    Người đại diện
+                                </Label>
+                                <div class="relative">
+                                    <span
+                                        class="absolute top-1/2 left-3 -translate-y-1/2 text-muted-foreground/60"
+                                    >
+                                        <User class="h-4 w-4" />
+                                    </span>
+                                    <Input
+                                        v-model="supplierForm.contact_name"
+                                        type="text"
+                                        placeholder="Tên người liên hệ..."
+                                        class="h-9.5 rounded-xl border-border/60 bg-background pl-9 focus-visible:border-emerald-500 focus-visible:ring-emerald-500/20"
+                                    />
+                                </div>
+                            </div>
+
+                            <!-- Phone -->
+                            <div class="space-y-1.5">
+                                <Label
+                                    class="flex items-center gap-1.5 text-[10px] font-bold tracking-wider text-muted-foreground uppercase"
+                                >
+                                    <Phone
+                                        class="h-3.5 w-3.5 text-emerald-500"
+                                    />
+                                    Điện thoại
+                                </Label>
+                                <div class="relative">
+                                    <span
+                                        class="absolute top-1/2 left-3 -translate-y-1/2 text-muted-foreground/60"
+                                    >
+                                        <Phone class="h-4 w-4" />
+                                    </span>
+                                    <Input
+                                        v-model="supplierForm.phone"
+                                        type="text"
+                                        placeholder="Số điện thoại..."
+                                        class="h-9.5 rounded-xl border-border/60 bg-background pl-9 focus-visible:border-emerald-500 focus-visible:ring-emerald-500/20"
+                                    />
+                                </div>
+                            </div>
+
+                            <!-- Email -->
+                            <div class="col-span-2 space-y-1.5">
+                                <Label
+                                    class="flex items-center gap-1.5 text-[10px] font-bold tracking-wider text-muted-foreground uppercase"
+                                >
+                                    <Mail
+                                        class="h-3.5 w-3.5 text-emerald-500"
+                                    />
+                                    Email liên hệ
+                                </Label>
+                                <div class="relative">
+                                    <span
+                                        class="absolute top-1/2 left-3 -translate-y-1/2 text-muted-foreground/60"
+                                    >
+                                        <Mail class="h-4 w-4" />
+                                    </span>
+                                    <Input
+                                        v-model="supplierForm.email"
+                                        type="email"
+                                        placeholder="example@supplier.com"
+                                        class="h-9.5 rounded-xl border-border/60 bg-background pl-9 focus-visible:border-emerald-500 focus-visible:ring-emerald-500/20"
+                                    />
+                                </div>
+                            </div>
+
+                            <!-- Tax Code (MST) -->
+                            <div class="space-y-1.5">
+                                <Label
+                                    class="flex items-center gap-1.5 text-[10px] font-bold tracking-wider text-muted-foreground uppercase"
+                                >
+                                    <FileText
+                                        class="h-3.5 w-3.5 text-emerald-500"
+                                    />
+                                    Mã số thuế (MST)
+                                </Label>
+                                <Input
+                                    v-model="supplierForm.tax_code"
+                                    type="text"
+                                    placeholder="VD: 0312345678"
+                                    class="h-9.5 rounded-xl border-border/60 bg-background focus-visible:border-emerald-500 focus-visible:ring-emerald-500/20"
+                                />
+                            </div>
+
+                            <!-- Category -->
+                            <div class="space-y-1.5">
+                                <Label
+                                    class="flex items-center gap-1.5 text-[10px] font-bold tracking-wider text-muted-foreground uppercase"
+                                >
+                                    <Package
+                                        class="h-3.5 w-3.5 text-emerald-500"
+                                    />
+                                    Ngành hàng cung ứng
+                                </Label>
+                                <select
+                                    v-model="supplierForm.category"
+                                    class="h-9.5 w-full rounded-xl border border-border/60 bg-background px-3 py-1 text-sm font-medium text-foreground focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 focus:outline-none"
+                                >
+                                    <option value="fresh_food">
+                                        🥬 Thực phẩm tươi sống
+                                    </option>
+                                    <option value="dry_goods">
+                                        🧂 Gia vị & Thực phẩm khô
+                                    </option>
+                                    <option value="beverage">
+                                        🥤 Đồ uống & Giải khát
+                                    </option>
+                                    <option value="packaging">
+                                        📦 Bao bì & Vật tư F&B
+                                    </option>
+                                    <option value="other">📑 Khác</option>
+                                </select>
+                            </div>
+
+                            <!-- Banking Information Header -->
+                            <div
+                                class="col-span-2 border-t border-border/50 pt-2"
+                            >
+                                <p
+                                    class="flex items-center gap-1.5 text-[11px] font-extrabold tracking-wider text-emerald-600 uppercase dark:text-emerald-400"
+                                >
+                                    <CreditCard
+                                        class="h-3.5 w-3.5"
+                                        v-if="false"
+                                    />
+                                    💳 Thông tin Thanh toán VietQR & Công nợ
+                                </p>
+                            </div>
+
+                            <!-- Bank Name -->
+                            <div class="space-y-1.5">
+                                <Label
+                                    class="text-[10px] font-bold tracking-wider text-muted-foreground uppercase"
+                                >
+                                    Tên ngân hàng
+                                </Label>
+                                <Input
+                                    v-model="supplierForm.bank_name"
+                                    type="text"
+                                    placeholder="VD: Vietcombank, MBBank..."
+                                    class="h-9.5 rounded-xl border-border/60 bg-background focus-visible:border-emerald-500"
+                                />
+                            </div>
+
+                            <!-- Bank Account Number -->
+                            <div class="space-y-1.5">
+                                <Label
+                                    class="text-[10px] font-bold tracking-wider text-muted-foreground uppercase"
+                                >
+                                    Số tài khoản
+                                </Label>
+                                <Input
+                                    v-model="supplierForm.bank_account_number"
+                                    type="text"
+                                    placeholder="STK nhận tiền..."
+                                    class="h-9.5 rounded-xl border-border/60 bg-background focus-visible:border-emerald-500"
+                                />
+                            </div>
+
+                            <!-- Bank Account Holder -->
+                            <div class="space-y-1.5">
+                                <Label
+                                    class="text-[10px] font-bold tracking-wider text-muted-foreground uppercase"
+                                >
+                                    Tên chủ tài khoản
+                                </Label>
+                                <Input
+                                    v-model="supplierForm.bank_account_holder"
+                                    type="text"
+                                    placeholder="CHỦ TÀI KHOẢN..."
+                                    class="h-9.5 rounded-xl border-border/60 bg-background focus-visible:border-emerald-500"
+                                />
+                            </div>
+
+                            <!-- Payment Terms -->
+                            <div class="space-y-1.5">
+                                <Label
+                                    class="text-[10px] font-bold tracking-wider text-muted-foreground uppercase"
+                                >
+                                    Điều khoản thanh toán
+                                </Label>
+                                <select
+                                    v-model="supplierForm.payment_terms"
+                                    class="h-9.5 w-full rounded-xl border border-border/60 bg-background px-3 py-1 text-sm font-medium text-foreground focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 focus:outline-none"
+                                >
+                                    <option value="cod">
+                                        💵 Thanh toán ngay khi nhận hàng (COD)
+                                    </option>
+                                    <option value="net7">
+                                        📅 Công nợ 7 ngày (Net 7)
+                                    </option>
+                                    <option value="net15">
+                                        📅 Công nợ 15 ngày (Net 15)
+                                    </option>
+                                    <option value="net30">
+                                        📅 Công nợ 30 ngày (Net 30)
+                                    </option>
+                                    <option value="prepaid">
+                                        💳 Trả trước 100% (Prepaid)
+                                    </option>
+                                </select>
+                            </div>
+
+                            <!-- Address -->
+                            <div
+                                class="col-span-2 space-y-1.5 border-t border-border/50 pt-2"
+                            >
+                                <Label
+                                    class="flex items-center gap-1.5 text-[10px] font-bold tracking-wider text-muted-foreground uppercase"
+                                >
+                                    <MapPin
+                                        class="h-3.5 w-3.5 text-emerald-500"
+                                    />
+                                    Địa chỉ kho / Văn phòng
+                                </Label>
+                                <div class="relative">
+                                    <span
+                                        class="absolute top-1/2 left-3 -translate-y-1/2 text-muted-foreground/60"
+                                    >
+                                        <MapPin class="h-4 w-4" />
+                                    </span>
+                                    <Input
+                                        v-model="supplierForm.address"
+                                        type="text"
+                                        placeholder="Số nhà, tên đường, tỉnh/thành phố..."
+                                        class="h-9.5 rounded-xl border-border/60 bg-background pl-9 focus-visible:border-emerald-500 focus-visible:ring-emerald-500/20"
+                                    />
+                                </div>
+                            </div>
+
+                            <!-- Notes -->
+                            <div class="col-span-2 space-y-1.5">
+                                <Label
+                                    class="flex items-center gap-1.5 text-[10px] font-bold tracking-wider text-muted-foreground uppercase"
+                                >
+                                    <ClipboardList
+                                        class="h-3.5 w-3.5 text-emerald-500"
+                                    />
+                                    Ghi chú đối tác
+                                </Label>
+                                <div class="relative">
+                                    <textarea
+                                        v-model="supplierForm.notes"
+                                        rows="2"
+                                        placeholder="Ghi chú về năng lực cung ứng, lịch giao hàng..."
+                                        class="w-full rounded-xl border border-border/60 bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/50 focus-visible:border-emerald-500 focus-visible:ring-2 focus-visible:ring-emerald-500/20 focus-visible:outline-none"
+                                    ></textarea>
+                                </div>
+                            </div>
+
+                            <!-- Status Select (for edit mode) -->
+                            <div
+                                v-if="showEditModal"
+                                class="col-span-2 space-y-1.5"
+                            >
+                                <Label
+                                    class="flex items-center gap-1.5 text-[10px] font-bold tracking-wider text-muted-foreground uppercase"
+                                >
+                                    <Info
+                                        class="h-3.5 w-3.5 text-emerald-500"
+                                    />
+                                    Trạng thái hoạt động
+                                </Label>
+                                <select
+                                    v-model="supplierForm.status"
+                                    class="h-9.5 w-full rounded-xl border border-border/60 bg-background px-3 py-1 text-sm font-medium text-foreground focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 focus:outline-none"
+                                >
+                                    <option value="active">
+                                        Đang hoạt động
+                                    </option>
+                                    <option value="inactive">Tạm khóa</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div
+                            class="mt-6 flex justify-end gap-2 border-t border-border/60 pt-4"
                         >
-                            <Sparkles
-                                class="h-3.5 w-3.5"
-                                v-if="!supplierForm.processing"
-                            />
-                            <RefreshCw
-                                class="h-3.5 w-3.5 animate-spin"
-                                v-else
-                            />
-                            {{
-                                supplierForm.processing
-                                    ? 'Đang lưu...'
-                                    : 'Lưu thông tin'
-                            }}
-                        </Button>
-                    </div>
-                </form>
-            </Card>
+                            <Button
+                                type="button"
+                                variant="outline"
+                                @click="
+                                    showAddModal = false;
+                                    showEditModal = false;
+                                "
+                                class="h-9.5 rounded-xl border-border/80 px-4 text-xs font-semibold hover:bg-muted"
+                            >
+                                Hủy bỏ
+                            </Button>
+                            <Button
+                                type="submit"
+                                :disabled="supplierForm.processing"
+                                class="flex h-9.5 items-center gap-1.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-500 px-4 text-xs font-extrabold text-white shadow-lg shadow-emerald-500/10 transition-all duration-300 hover:from-emerald-500 hover:to-teal-400"
+                            >
+                                <Sparkles
+                                    class="h-3.5 w-3.5"
+                                    v-if="!supplierForm.processing"
+                                />
+                                <RefreshCw
+                                    class="h-3.5 w-3.5 animate-spin"
+                                    v-else
+                                />
+                                {{
+                                    supplierForm.processing
+                                        ? 'Đang lưu...'
+                                        : 'Lưu thông tin'
+                                }}
+                            </Button>
+                        </div>
+                    </form>
+                </Card>
             </div>
         </div>
 
@@ -4114,340 +4265,497 @@ onUnmounted(() => {
         >
             <div class="flex min-h-full items-center justify-center">
                 <Card
-                    class="w-full max-w-2xl animate-in overflow-hidden shadow-2xl duration-150 zoom-in-95 fade-in border-border"
+                    class="w-full max-w-2xl animate-in overflow-hidden border-border shadow-2xl duration-150 zoom-in-95 fade-in"
                 >
-                <CardHeader
-                    class="flex flex-row items-center justify-between border-b pb-4 bg-muted/20"
-                >
-                    <div>
-                        <CardTitle class="text-lg font-bold">
-                            Đặt hàng nguyên liệu: {{ selectedSupplier?.name }}
-                        </CardTitle>
-                        <CardDescription class="mt-0.5 text-xs text-muted-foreground">
-                            {{
-                                poStep === 1
-                                    ? 'Bước 1/2: Chọn menu nguyên liệu & số lượng cần mua'
-                                    : 'Bước 2/2: Xác nhận danh sách đã chọn, người đặt & giao nhận'
-                            }}
-                        </CardDescription>
-                    </div>
-                    <Button
-                        variant="ghost"
-                        size="icon"
-                        @click="showPoModal = false"
-                        class="h-8 w-8 text-muted-foreground"
+                    <CardHeader
+                        class="flex flex-row items-center justify-between border-b bg-muted/20 pb-4"
                     >
-                        <X class="h-5 w-5" />
-                    </Button>
-                </CardHeader>
-
-                <!-- BƯỚC 1: Danh sách toàn bộ sản phẩm/nguyên liệu từ Nhà sản xuất -->
-                <div v-if="poStep === 1" class="space-y-4 p-6">
-                    <!-- Thanh tìm kiếm sản phẩm trong Menu -->
-                    <div class="relative">
-                        <Search class="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-                        <Input
-                            v-model="menuSearchQuery"
-                            placeholder="Tìm kiếm sản phẩm / nguyên liệu của nhà cung cấp..."
-                            class="pl-9 text-xs rounded-xl"
-                        />
-                    </div>
-
-                    <!-- Danh sách Catalog nguyên liệu của Nhà cung cấp -->
-                    <div class="max-h-96 space-y-2.5 overflow-y-auto pr-1">
-                        <div
-                            v-if="filteredSupplierIngredients.length === 0"
-                            class="py-12 text-center text-xs text-muted-foreground italic rounded-xl border border-dashed p-4"
+                        <div>
+                            <CardTitle class="text-lg font-bold">
+                                Đặt hàng nguyên liệu:
+                                {{ selectedSupplier?.name }}
+                            </CardTitle>
+                            <CardDescription
+                                class="mt-0.5 text-xs text-muted-foreground"
+                            >
+                                {{
+                                    poStep === 1
+                                        ? 'Bước 1/2: Chọn menu nguyên liệu & số lượng cần mua'
+                                        : 'Bước 2/2: Xác nhận danh sách đã chọn, người đặt & giao nhận'
+                                }}
+                            </CardDescription>
+                        </div>
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            @click="showPoModal = false"
+                            class="h-8 w-8 text-muted-foreground"
                         >
-                            {{
-                                menuSearchQuery
-                                    ? 'Không tìm thấy sản phẩm nào phù hợp với từ khóa.'
-                                    : 'Nhà cung cấp này chưa có sản phẩm nào niêm yết.'
-                            }}
+                            <X class="h-5 w-5" />
+                        </Button>
+                    </CardHeader>
+
+                    <!-- BƯỚC 1: Danh sách toàn bộ sản phẩm/nguyên liệu từ Nhà sản xuất -->
+                    <div v-if="poStep === 1" class="space-y-4 p-6">
+                        <!-- Thanh tìm kiếm sản phẩm trong Menu -->
+                        <div class="relative">
+                            <Search
+                                class="absolute top-2.5 left-3 h-4 w-4 text-muted-foreground"
+                            />
+                            <Input
+                                v-model="menuSearchQuery"
+                                placeholder="Tìm kiếm sản phẩm / nguyên liệu của nhà cung cấp..."
+                                class="rounded-xl pl-9 text-xs"
+                            />
                         </div>
 
-                        <div
-                            v-for="ing in filteredSupplierIngredients"
-                            :key="ing.id"
-                            class="flex flex-wrap items-center justify-between gap-3 rounded-xl border p-3 transition-all duration-200"
-                            :class="[
-                                (selectedQuantities[ing.id] || 0) > 0
-                                    ? 'border-emerald-500/40 bg-emerald-500/5 dark:bg-emerald-950/20'
-                                    : 'border-border/60 bg-muted/20 hover:bg-muted/40'
-                            ]"
-                        >
-                            <!-- Tên sản phẩm & Đơn giá -->
-                            <div class="min-w-[180px] flex-1 space-y-0.5">
+                        <!-- Danh sách Catalog nguyên liệu của Nhà cung cấp -->
+                        <div class="max-h-96 space-y-2.5 overflow-y-auto pr-1">
+                            <div
+                                v-if="filteredSupplierIngredients.length === 0"
+                                class="rounded-xl border border-dashed p-4 py-12 text-center text-xs text-muted-foreground italic"
+                            >
+                                {{
+                                    menuSearchQuery
+                                        ? 'Không tìm thấy sản phẩm nào phù hợp với từ khóa.'
+                                        : 'Nhà cung cấp này chưa có sản phẩm nào niêm yết.'
+                                }}
+                            </div>
+
+                            <div
+                                v-for="ing in filteredSupplierIngredients"
+                                :key="ing.id"
+                                class="flex flex-wrap items-center justify-between gap-3 rounded-xl border p-3 transition-all duration-200"
+                                :class="[
+                                    (selectedQuantities[ing.id] || 0) > 0
+                                        ? 'border-emerald-500/40 bg-emerald-500/5 dark:bg-emerald-950/20'
+                                        : 'border-border/60 bg-muted/20 hover:bg-muted/40',
+                                ]"
+                            >
+                                <!-- Tên sản phẩm & Đơn giá -->
+                                <div class="min-w-[180px] flex-1 space-y-0.5">
+                                    <div class="flex items-center gap-2">
+                                        <span
+                                            class="text-xs font-bold text-foreground"
+                                        >
+                                            {{ ing.name }}
+                                        </span>
+                                        <span
+                                            v-if="
+                                                (selectedQuantities[ing.id] ||
+                                                    0) > 0
+                                            "
+                                            class="rounded-full bg-emerald-500/20 px-2 py-0.5 text-[9px] font-bold text-emerald-600 dark:text-emerald-400"
+                                        >
+                                            Đã chọn
+                                        </span>
+                                    </div>
+                                    <div
+                                        class="font-mono text-[11px] text-muted-foreground"
+                                    >
+                                        Giá niêm yết:
+                                        <strong class="text-foreground">
+                                            {{
+                                                Number(
+                                                    ing.price,
+                                                ).toLocaleString('vi-VN')
+                                            }}đ
+                                        </strong>
+                                        / {{ ing.unit_symbol }}
+                                    </div>
+                                </div>
+
+                                <!-- Bộ tăng/giảm số lượng (Quantity Counter) -->
                                 <div class="flex items-center gap-2">
-                                    <span class="font-bold text-xs text-foreground">
-                                        {{ ing.name }}
+                                    <div
+                                        class="flex items-center rounded-lg border border-border bg-background shadow-xs"
+                                    >
+                                        <button
+                                            type="button"
+                                            @click="decrementQuantity(ing.id)"
+                                            class="flex h-8 w-8 items-center justify-center font-bold text-muted-foreground transition hover:bg-muted hover:text-foreground active:scale-90"
+                                        >
+                                            -
+                                        </button>
+                                        <input
+                                            type="number"
+                                            step="0.001"
+                                            min="0"
+                                            :value="
+                                                selectedQuantities[ing.id] || 0
+                                            "
+                                            @input="
+                                                updateItemQuantity(
+                                                    ing.id,
+                                                    Number(
+                                                        (
+                                                            $event.target as HTMLInputElement
+                                                        ).value,
+                                                    ),
+                                                )
+                                            "
+                                            class="h-8 w-16 text-center font-mono text-xs font-bold text-foreground focus:outline-none"
+                                        />
+                                        <button
+                                            type="button"
+                                            @click="incrementQuantity(ing.id)"
+                                            class="flex h-8 w-8 items-center justify-center font-bold text-muted-foreground transition hover:bg-muted hover:text-foreground active:scale-90"
+                                        >
+                                            +
+                                        </button>
+                                    </div>
+                                    <span
+                                        class="w-8 text-[11px] font-semibold text-muted-foreground"
+                                    >
+                                        {{ ing.unit_symbol }}
+                                    </span>
+                                </div>
+
+                                <!-- Thành tiền cho từng món -->
+                                <div
+                                    class="w-24 text-right font-mono text-xs font-bold"
+                                >
+                                    <span
+                                        :class="[
+                                            (selectedQuantities[ing.id] || 0) >
+                                            0
+                                                ? 'text-emerald-600 dark:text-emerald-400'
+                                                : 'text-muted-foreground/40',
+                                        ]"
+                                    >
+                                        {{
+                                            (
+                                                (selectedQuantities[ing.id] ||
+                                                    0) * Number(ing.price || 0)
+                                            ).toLocaleString('vi-VN')
+                                        }}đ
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Tạm tính tiền & Số lượng món đã chọn -->
+                        <div
+                            class="flex items-center justify-between rounded-xl border border-emerald-500/20 bg-emerald-500/10 p-3.5"
+                        >
+                            <div class="space-y-0.5">
+                                <span
+                                    class="text-xs font-bold text-emerald-900 dark:text-emerald-300"
+                                >
+                                    Đã chọn
+                                    {{ selectedPoItemsDetailed.length }} mặt
+                                    hàng
+                                </span>
+                                <span
+                                    class="block text-[10px] text-emerald-700/80 dark:text-emerald-400/80"
+                                >
+                                    Nhấp + / - hoặc nhập số lượng để chọn sản
+                                    phẩm
+                                </span>
+                            </div>
+                            <span
+                                class="font-mono text-lg font-black text-emerald-600 dark:text-emerald-400"
+                            >
+                                {{
+                                    totalPoEstimatedAmount.toLocaleString(
+                                        'vi-VN',
+                                    )
+                                }}đ
+                            </span>
+                        </div>
+
+                        <div class="mt-6 flex justify-end gap-2 border-t pt-4">
+                            <Button
+                                type="button"
+                                variant="outline"
+                                @click="showPoModal = false"
+                            >
+                                Hủy bỏ
+                            </Button>
+                            <Button
+                                type="button"
+                                @click="goToPoStep2"
+                                class="bg-emerald-600 font-bold text-white hover:bg-emerald-700"
+                            >
+                                Xác nhận & Tiếp tục ({{
+                                    selectedPoItemsDetailed.length
+                                }}
+                                món) ➔
+                            </Button>
+                        </div>
+                    </div>
+
+                    <!-- BƯỚC 2: Kiểm tra danh sách đã chọn & Thông tin người đặt, vị trí quán, SLA, Ghi chú -->
+                    <form
+                        v-else-if="poStep === 2"
+                        @submit.prevent="submitPo"
+                        class="space-y-5 p-6"
+                    >
+                        <!-- Tóm tắt danh sách món đã chọn -->
+                        <div class="space-y-2">
+                            <div
+                                class="flex items-center justify-between text-xs font-bold tracking-wider text-muted-foreground uppercase"
+                            >
+                                <span>📋 Danh sách nguyên liệu đã chọn</span>
+                                <button
+                                    type="button"
+                                    @click="poStep = 1"
+                                    class="cursor-pointer text-[11px] font-semibold text-emerald-600 hover:underline"
+                                >
+                                    ✏️ Đổi món / Sửa số lượng
+                                </button>
+                            </div>
+                            <div
+                                class="max-h-48 divide-y divide-border/60 overflow-y-auto rounded-xl border border-border/80"
+                            >
+                                <div
+                                    v-for="item in selectedPoItemsDetailed"
+                                    :key="item.id"
+                                    class="flex items-center justify-between p-2.5 text-xs hover:bg-muted/20"
+                                >
+                                    <div class="font-semibold text-foreground">
+                                        {{ item.name }}
+                                    </div>
+                                    <div class="text-right font-mono">
+                                        <span
+                                            class="mr-2 text-muted-foreground"
+                                        >
+                                            {{ item.quantity }}
+                                            {{ item.unit_symbol }} ×
+                                            {{
+                                                item.price.toLocaleString(
+                                                    'vi-VN',
+                                                )
+                                            }}đ
+                                        </span>
+                                        <strong
+                                            class="text-emerald-600 dark:text-emerald-400"
+                                        >
+                                            {{
+                                                item.subtotal.toLocaleString(
+                                                    'vi-VN',
+                                                )
+                                            }}đ
+                                        </strong>
+                                    </div>
+                                </div>
+                            </div>
+                            <div
+                                class="space-y-1.5 rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-3.5 py-2.5"
+                            >
+                                <div
+                                    class="flex items-center justify-between text-xs"
+                                >
+                                    <span
+                                        class="font-medium text-muted-foreground"
+                                        >Tạm tính đơn hàng:</span
+                                    >
+                                    <span
+                                        class="font-mono font-bold text-foreground"
+                                        >{{
+                                            poSubtotalAmount.toLocaleString(
+                                                'vi-VN',
+                                            )
+                                        }}đ</span
+                                    >
+                                </div>
+                                <div
+                                    v-if="poForm.discount_percent > 0"
+                                    class="flex items-center justify-between text-xs font-semibold text-rose-500"
+                                >
+                                    <span
+                                        >Chiết khấu nhà cung cấp ({{
+                                            poForm.discount_percent
+                                        }}%):</span
+                                    >
+                                    <span class="font-mono"
+                                        >-{{
+                                            (
+                                                (poSubtotalAmount *
+                                                    poForm.discount_percent) /
+                                                100
+                                            ).toLocaleString('vi-VN')
+                                        }}đ</span
+                                    >
+                                </div>
+                                <div
+                                    class="flex items-center justify-between border-t border-emerald-500/20 pt-1"
+                                >
+                                    <span
+                                        class="text-xs font-bold text-emerald-900 dark:text-emerald-300"
+                                    >
+                                        TỔNG CỘNG THANH TOÁN:
                                     </span>
                                     <span
-                                        v-if="(selectedQuantities[ing.id] || 0) > 0"
-                                        class="rounded-full bg-emerald-500/20 px-2 py-0.5 text-[9px] font-bold text-emerald-600 dark:text-emerald-400"
+                                        class="font-mono text-lg font-black text-emerald-600 dark:text-emerald-400"
                                     >
-                                        Đã chọn
+                                        {{
+                                            totalPoEstimatedAmount.toLocaleString(
+                                                'vi-VN',
+                                            )
+                                        }}đ
                                     </span>
                                 </div>
-                                <div class="text-[11px] text-muted-foreground font-mono">
-                                    Giá niêm yết:
-                                    <strong class="text-foreground">
-                                        {{ Number(ing.price).toLocaleString('vi-VN') }}đ
-                                    </strong>
-                                    / {{ ing.unit_symbol }}
-                                </div>
                             </div>
+                        </div>
 
-                            <!-- Bộ tăng/giảm số lượng (Quantity Counter) -->
-                            <div class="flex items-center gap-2">
-                                <div class="flex items-center rounded-lg border border-border bg-background shadow-xs">
-                                    <button
-                                        type="button"
-                                        @click="decrementQuantity(ing.id)"
-                                        class="flex h-8 w-8 items-center justify-center text-muted-foreground transition hover:bg-muted hover:text-foreground active:scale-90 font-bold"
-                                    >
-                                        -
-                                    </button>
-                                    <input
-                                        type="number"
-                                        step="0.001"
-                                        min="0"
-                                        :value="selectedQuantities[ing.id] || 0"
-                                        @input="updateItemQuantity(ing.id, Number(($event.target as HTMLInputElement).value))"
-                                        class="h-8 w-16 text-center font-mono text-xs font-bold text-foreground focus:outline-none"
-                                    />
-                                    <button
-                                        type="button"
-                                        @click="incrementQuantity(ing.id)"
-                                        class="flex h-8 w-8 items-center justify-center text-muted-foreground transition hover:bg-muted hover:text-foreground active:scale-90 font-bold"
-                                    >
-                                        +
-                                    </button>
-                                </div>
-                                <span class="text-[11px] font-semibold text-muted-foreground w-8">
-                                    {{ ing.unit_symbol }}
-                                </span>
-                            </div>
-
-                            <!-- Thành tiền cho từng món -->
-                            <div class="w-24 text-right font-mono text-xs font-bold">
+                        <!-- Thông tin người đặt & Vị trí quán -->
+                        <div
+                            class="grid grid-cols-1 gap-3 rounded-xl border border-border bg-muted/20 p-3.5 text-xs md:grid-cols-2"
+                        >
+                            <div class="space-y-1">
                                 <span
-                                    :class="[
-                                        (selectedQuantities[ing.id] || 0) > 0
-                                            ? 'text-emerald-600 dark:text-emerald-400'
-                                            : 'text-muted-foreground/40'
-                                    ]"
+                                    class="block text-[10px] font-bold tracking-wider text-muted-foreground uppercase"
+                                    >👤 Người đặt hàng</span
+                                >
+                                <div class="font-bold text-foreground">
+                                    {{ currentUser?.name || 'Test Enterprise' }}
+                                </div>
+                                <div class="text-[11px] text-muted-foreground">
+                                    {{
+                                        currentUser?.email ||
+                                        'enterprise@test.com'
+                                    }}
+                                </div>
+                            </div>
+                            <div class="space-y-1">
+                                <span
+                                    class="block text-[10px] font-bold tracking-wider text-muted-foreground uppercase"
+                                    >📍 Vị trí nhận hàng / Cơ sở quán</span
+                                >
+                                <div class="font-bold text-foreground">
+                                    {{
+                                        currentRestaurant?.name ||
+                                        'Sai Gon Diner'
+                                    }}
+                                </div>
+                                <div
+                                    class="truncate text-[11px] text-muted-foreground"
                                 >
                                     {{
-                                        (
-                                            (selectedQuantities[ing.id] || 0) *
-                                            Number(ing.price || 0)
-                                        ).toLocaleString('vi-VN')
-                                    }}đ
-                                </span>
+                                        currentRestaurant?.address ||
+                                        'Cơ sở chính nhà hàng'
+                                    }}
+                                </div>
                             </div>
                         </div>
-                    </div>
 
-                    <!-- Tạm tính tiền & Số lượng món đã chọn -->
-                    <div class="flex items-center justify-between rounded-xl bg-emerald-500/10 border border-emerald-500/20 p-3.5">
-                        <div class="space-y-0.5">
-                            <span class="text-xs font-bold text-emerald-900 dark:text-emerald-300">
-                                Đã chọn {{ selectedPoItemsDetailed.length }} mặt hàng
-                            </span>
-                            <span class="block text-[10px] text-emerald-700/80 dark:text-emerald-400/80">
-                                Nhấp + / - hoặc nhập số lượng để chọn sản phẩm
-                            </span>
+                        <!-- Hình thức thanh toán, Chiết khấu %, Phương thức vận chuyển -->
+                        <div
+                            class="grid grid-cols-1 gap-3 rounded-xl border border-border/70 bg-background p-3.5 md:grid-cols-3"
+                        >
+                            <div class="space-y-1">
+                                <Label
+                                    class="text-[10px] font-bold tracking-wider text-muted-foreground uppercase"
+                                >
+                                    💳 Hình thức thanh toán
+                                </Label>
+                                <select
+                                    v-model="poForm.payment_method"
+                                    class="h-9 w-full rounded-xl border border-border/60 bg-background px-2.5 text-xs font-medium text-foreground focus:border-emerald-500 focus:outline-none"
+                                >
+                                    <option value="banking">
+                                        🏦 Chuyển khoản Banking (VietQR)
+                                    </option>
+                                    <option value="cod">
+                                        💵 Tiền mặt khi giao hàng (COD)
+                                    </option>
+                                    <option value="credit">
+                                        📝 Ghi nhận Công nợ kỳ sau
+                                    </option>
+                                </select>
+                            </div>
+                            <div class="space-y-1">
+                                <Label
+                                    class="text-[10px] font-bold tracking-wider text-muted-foreground uppercase"
+                                >
+                                    🏷️ Chiết khấu nhà cung cấp (%)
+                                </Label>
+                                <Input
+                                    v-model.number="poForm.discount_percent"
+                                    type="number"
+                                    min="0"
+                                    max="100"
+                                    step="0.5"
+                                    placeholder="0%"
+                                    class="h-9 rounded-xl border-border/60 bg-background font-mono text-xs font-bold"
+                                />
+                            </div>
+                            <div class="space-y-1">
+                                <Label
+                                    class="text-[10px] font-bold tracking-wider text-muted-foreground uppercase"
+                                >
+                                    🚚 Phương thức giao hàng
+                                </Label>
+                                <select
+                                    v-model="poForm.shipping_method"
+                                    class="h-9 w-full rounded-xl border border-border/60 bg-background px-2.5 text-xs font-medium text-foreground focus:border-emerald-500 focus:outline-none"
+                                >
+                                    <option value="supplier_delivery">
+                                        🚚 Nhà cung cấp tự giao tận nơi
+                                    </option>
+                                    <option value="self_pickup">
+                                        🏬 Quán tự đến kho lấy hàng
+                                    </option>
+                                    <option value="express">
+                                        🚀 Giao siêu tốc (Ahamove/Grab)
+                                    </option>
+                                </select>
+                            </div>
                         </div>
-                        <span class="font-mono text-lg font-black text-emerald-600 dark:text-emerald-400">
-                            {{ totalPoEstimatedAmount.toLocaleString('vi-VN') }}đ
-                        </span>
-                    </div>
 
-                    <div class="mt-6 flex justify-end gap-2 border-t pt-4">
-                        <Button
-                            type="button"
-                            variant="outline"
-                            @click="showPoModal = false"
-                        >
-                            Hủy bỏ
-                        </Button>
-                        <Button
-                            type="button"
-                            @click="goToPoStep2"
-                            class="bg-emerald-600 text-white hover:bg-emerald-700 font-bold"
-                        >
-                            Xác nhận & Tiếp tục ({{ selectedPoItemsDetailed.length }} món) ➔
-                        </Button>
-                    </div>
-                </div>
+                        <!-- Chọn thời gian giao hàng & Ghi chú -->
+                        <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+                            <div class="space-y-1.5">
+                                <Label
+                                    class="text-xs font-semibold tracking-wider text-muted-foreground uppercase"
+                                >
+                                    🕒 Hạn giao hàng dự kiến (SLA)
+                                    <span class="text-rose-500">*</span>
+                                </Label>
+                                <Input
+                                    v-model="poForm.delivery_due_date"
+                                    type="datetime-local"
+                                    required
+                                />
+                            </div>
+                            <div class="space-y-1.5">
+                                <Label
+                                    class="text-xs font-semibold tracking-wider text-muted-foreground uppercase"
+                                >
+                                    📝 Ghi chú giao nhận
+                                </Label>
+                                <Input
+                                    v-model="poForm.notes"
+                                    type="text"
+                                    placeholder="Yêu cầu đóng gói, giờ hạ hàng..."
+                                />
+                            </div>
+                        </div>
 
-                <!-- BƯỚC 2: Kiểm tra danh sách đã chọn & Thông tin người đặt, vị trí quán, SLA, Ghi chú -->
-                <form v-else-if="poStep === 2" @submit.prevent="submitPo" class="space-y-5 p-6">
-                    <!-- Tóm tắt danh sách món đã chọn -->
-                    <div class="space-y-2">
-                        <div class="flex items-center justify-between text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                            <span>📋 Danh sách nguyên liệu đã chọn</span>
-                            <button
+                        <!-- Footer Bước 2 -->
+                        <div class="mt-6 flex justify-between border-t pt-4">
+                            <Button
                                 type="button"
+                                variant="outline"
                                 @click="poStep = 1"
-                                class="text-[11px] text-emerald-600 hover:underline font-semibold cursor-pointer"
                             >
-                                ✏️ Đổi món / Sửa số lượng
-                            </button>
-                        </div>
-                        <div class="max-h-48 overflow-y-auto rounded-xl border border-border/80 divide-y divide-border/60">
-                            <div
-                                v-for="item in selectedPoItemsDetailed"
-                                :key="item.id"
-                                class="flex items-center justify-between p-2.5 text-xs hover:bg-muted/20"
+                                ⬅ Quay lại chọn món
+                            </Button>
+                            <Button
+                                type="submit"
+                                :disabled="poForm.processing"
+                                class="bg-emerald-600 font-bold text-white hover:bg-emerald-700"
                             >
-                                <div class="font-semibold text-foreground">
-                                    {{ item.name }}
-                                </div>
-                                <div class="text-right font-mono">
-                                    <span class="text-muted-foreground mr-2">
-                                        {{ item.quantity }} {{ item.unit_symbol }} × {{ item.price.toLocaleString('vi-VN') }}đ
-                                    </span>
-                                    <strong class="text-emerald-600 dark:text-emerald-400">
-                                        {{ item.subtotal.toLocaleString('vi-VN') }}đ
-                                    </strong>
-                                </div>
-                            </div>
+                                {{
+                                    poForm.processing
+                                        ? 'Đang gửi đơn PO...'
+                                        : '🚀 Gửi đặt đơn PO'
+                                }}
+                            </Button>
                         </div>
-                        <div class="space-y-1.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 px-3.5 py-2.5">
-                            <div class="flex items-center justify-between text-xs">
-                                <span class="text-muted-foreground font-medium">Tạm tính đơn hàng:</span>
-                                <span class="font-mono font-bold text-foreground">{{ poSubtotalAmount.toLocaleString('vi-VN') }}đ</span>
-                            </div>
-                            <div v-if="poForm.discount_percent > 0" class="flex items-center justify-between text-xs text-rose-500 font-semibold">
-                                <span>Chiết khấu nhà cung cấp ({{ poForm.discount_percent }}%):</span>
-                                <span class="font-mono">-{{ (poSubtotalAmount * poForm.discount_percent / 100).toLocaleString('vi-VN') }}đ</span>
-                            </div>
-                            <div class="flex items-center justify-between pt-1 border-t border-emerald-500/20">
-                                <span class="text-xs font-bold text-emerald-900 dark:text-emerald-300">
-                                    TỔNG CỘNG THANH TOÁN:
-                                </span>
-                                <span class="font-mono text-lg font-black text-emerald-600 dark:text-emerald-400">
-                                    {{ totalPoEstimatedAmount.toLocaleString('vi-VN') }}đ
-                                </span>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Thông tin người đặt & Vị trí quán -->
-                    <div class="grid grid-cols-1 gap-3 md:grid-cols-2 rounded-xl border border-border bg-muted/20 p-3.5 text-xs">
-                        <div class="space-y-1">
-                            <span class="text-muted-foreground block text-[10px] font-bold uppercase tracking-wider">👤 Người đặt hàng</span>
-                            <div class="font-bold text-foreground">
-                                {{ currentUser?.name || 'Test Enterprise' }}
-                            </div>
-                            <div class="text-muted-foreground text-[11px]">
-                                {{ currentUser?.email || 'enterprise@test.com' }}
-                            </div>
-                        </div>
-                        <div class="space-y-1">
-                            <span class="text-muted-foreground block text-[10px] font-bold uppercase tracking-wider">📍 Vị trí nhận hàng / Cơ sở quán</span>
-                            <div class="font-bold text-foreground">
-                                {{ currentRestaurant?.name || 'Sai Gon Diner' }}
-                            </div>
-                            <div class="text-muted-foreground text-[11px] truncate">
-                                {{ currentRestaurant?.address || 'Cơ sở chính nhà hàng' }}
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Hình thức thanh toán, Chiết khấu %, Phương thức vận chuyển -->
-                    <div class="grid grid-cols-1 gap-3 md:grid-cols-3 rounded-xl border border-border/70 p-3.5 bg-background">
-                        <div class="space-y-1">
-                            <Label class="text-[10px] font-bold tracking-wider text-muted-foreground uppercase">
-                                💳 Hình thức thanh toán
-                            </Label>
-                            <select
-                                v-model="poForm.payment_method"
-                                class="h-9 w-full rounded-xl border border-border/60 bg-background px-2.5 text-xs font-medium text-foreground focus:border-emerald-500 focus:outline-none"
-                            >
-                                <option value="banking">🏦 Chuyển khoản Banking (VietQR)</option>
-                                <option value="cod">💵 Tiền mặt khi giao hàng (COD)</option>
-                                <option value="credit">📝 Ghi nhận Công nợ kỳ sau</option>
-                            </select>
-                        </div>
-                        <div class="space-y-1">
-                            <Label class="text-[10px] font-bold tracking-wider text-muted-foreground uppercase">
-                                🏷️ Chiết khấu nhà cung cấp (%)
-                            </Label>
-                            <Input
-                                v-model.number="poForm.discount_percent"
-                                type="number"
-                                min="0"
-                                max="100"
-                                step="0.5"
-                                placeholder="0%"
-                                class="h-9 rounded-xl border-border/60 bg-background font-mono text-xs font-bold"
-                            />
-                        </div>
-                        <div class="space-y-1">
-                            <Label class="text-[10px] font-bold tracking-wider text-muted-foreground uppercase">
-                                🚚 Phương thức giao hàng
-                            </Label>
-                            <select
-                                v-model="poForm.shipping_method"
-                                class="h-9 w-full rounded-xl border border-border/60 bg-background px-2.5 text-xs font-medium text-foreground focus:border-emerald-500 focus:outline-none"
-                            >
-                                <option value="supplier_delivery">🚚 Nhà cung cấp tự giao tận nơi</option>
-                                <option value="self_pickup">🏬 Quán tự đến kho lấy hàng</option>
-                                <option value="express">🚀 Giao siêu tốc (Ahamove/Grab)</option>
-                            </select>
-                        </div>
-                    </div>
-
-                    <!-- Chọn thời gian giao hàng & Ghi chú -->
-                    <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
-                        <div class="space-y-1.5">
-                            <Label class="text-xs font-semibold tracking-wider text-muted-foreground uppercase">
-                                🕒 Hạn giao hàng dự kiến (SLA) <span class="text-rose-500">*</span>
-                            </Label>
-                            <Input
-                                v-model="poForm.delivery_due_date"
-                                type="datetime-local"
-                                required
-                            />
-                        </div>
-                        <div class="space-y-1.5">
-                            <Label class="text-xs font-semibold tracking-wider text-muted-foreground uppercase">
-                                📝 Ghi chú giao nhận
-                            </Label>
-                            <Input
-                                v-model="poForm.notes"
-                                type="text"
-                                placeholder="Yêu cầu đóng gói, giờ hạ hàng..."
-                            />
-                        </div>
-                    </div>
-
-                    <!-- Footer Bước 2 -->
-                    <div class="mt-6 flex justify-between border-t pt-4">
-                        <Button
-                            type="button"
-                            variant="outline"
-                            @click="poStep = 1"
-                        >
-                            ⬅ Quay lại chọn món
-                        </Button>
-                        <Button
-                            type="submit"
-                            :disabled="poForm.processing"
-                            class="bg-emerald-600 text-white hover:bg-emerald-700 font-bold"
-                        >
-                            {{
-                                poForm.processing
-                                    ? 'Đang gửi đơn PO...'
-                                    : '🚀 Gửi đặt đơn PO'
-                            }}
-                        </Button>
-                    </div>
-                </form>
-            </Card>
+                    </form>
+                </Card>
             </div>
         </div>
 
@@ -4460,120 +4768,107 @@ onUnmounted(() => {
                 <Card
                     class="w-full max-w-3xl animate-in overflow-hidden shadow-2xl duration-150 zoom-in-95 fade-in"
                 >
-                <CardHeader
-                    class="flex flex-row items-center justify-between border-b pb-4"
-                >
-                    <div>
-                        <CardTitle class="text-lg font-bold"
-                            >Đối soát kiểm đếm & Nhận hàng</CardTitle
-                        >
-                        <CardDescription class="mt-0.5 text-[10px]"
-                            >Mã PO: {{ selectedPo?.po_number }} • Nhà cung cấp:
-                            {{ selectedPo?.supplier_name }}</CardDescription
-                        >
-                    </div>
-                    <Button
-                        variant="ghost"
-                        size="icon"
-                        @click="showVerifyModal = false"
-                        class="h-8 w-8 text-muted-foreground"
+                    <CardHeader
+                        class="flex flex-row items-center justify-between border-b pb-4"
                     >
-                        <X class="h-5 w-5" />
-                    </Button>
-                </CardHeader>
-
-                <form
-                    @submit.prevent="submitVerification"
-                    class="space-y-6 p-6"
-                >
-                    <!-- Check alert box if mismatch is detected -->
-                    <div
-                        v-if="hasMismatch"
-                        class="border-rose-250 flex animate-pulse gap-3 rounded-xl border bg-rose-50 p-4 text-rose-800 dark:border-rose-900 dark:bg-rose-950/40"
-                    >
-                        <AlertTriangle
-                            class="mt-0.5 h-5 w-5 shrink-0 text-rose-600 dark:text-rose-400"
-                        />
-                        <div class="space-y-1 text-xs">
-                            <h4 class="font-bold">
-                                CẢNH BÁO: Phát hiện sai lệch đối soát chéo!
-                            </h4>
-                            <p
-                                class="dark:text-rose-350 leading-relaxed text-rose-700"
+                        <div>
+                            <CardTitle class="text-lg font-bold"
+                                >Đối soát kiểm đếm & Nhận hàng</CardTitle
                             >
-                                Số lượng thực tế hoặc đơn giá hóa đơn không khớp
-                                với niêm yết ban đầu. Khi xác nhận, hệ thống sẽ
-                                **ĐÓNG BĂNG giao dịch**, khóa cập nhật kho tự
-                                động, ghi vết kiểm toán gian lận và gửi cảnh báo
-                                đỏ trực tiếp đến Owner.
-                            </p>
+                            <CardDescription class="mt-0.5 text-[10px]"
+                                >Mã PO: {{ selectedPo?.po_number }} • Nhà cung
+                                cấp:
+                                {{ selectedPo?.supplier_name }}</CardDescription
+                            >
                         </div>
-                    </div>
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            @click="showVerifyModal = false"
+                            class="h-8 w-8 text-muted-foreground"
+                        >
+                            <X class="h-5 w-5" />
+                        </Button>
+                    </CardHeader>
 
-                    <!-- Items Verification Table -->
-                    <div class="overflow-hidden rounded-xl border">
-                        <table class="w-full text-left text-xs text-foreground">
-                            <thead
-                                class="border-b bg-muted/40 text-[10px] font-semibold tracking-wider text-muted-foreground uppercase"
-                            >
-                                <tr>
-                                    <th class="px-4 py-3">Tên nguyên liệu</th>
-                                    <th class="px-4 py-3 text-center">
-                                        Đặt (PO)
-                                    </th>
-                                    <th class="w-28 px-4 py-3">Thực nhận</th>
-                                    <th class="px-4 py-3 text-center">
-                                        Giá niêm yết
-                                    </th>
-                                    <th class="w-32 px-4 py-3">Giá hóa đơn</th>
-                                    <th class="px-4 py-3 text-center">Khớp</th>
-                                </tr>
-                            </thead>
-                            <tbody class="divide-y divide-border">
-                                <tr
-                                    v-for="(item, idx) in verifyDiscrepancies"
-                                    :key="idx"
-                                    class="hover:bg-muted/10"
+                    <form
+                        @submit.prevent="submitVerification"
+                        class="space-y-6 p-6"
+                    >
+                        <!-- Check alert box if mismatch is detected -->
+                        <div
+                            v-if="hasMismatch"
+                            class="border-rose-250 flex animate-pulse gap-3 rounded-xl border bg-rose-50 p-4 text-rose-800 dark:border-rose-900 dark:bg-rose-950/40"
+                        >
+                            <AlertTriangle
+                                class="mt-0.5 h-5 w-5 shrink-0 text-rose-600 dark:text-rose-400"
+                            />
+                            <div class="space-y-1 text-xs">
+                                <h4 class="font-bold">
+                                    CẢNH BÁO: Phát hiện sai lệch đối soát chéo!
+                                </h4>
+                                <p
+                                    class="dark:text-rose-350 leading-relaxed text-rose-700"
                                 >
-                                    <td class="px-4 py-3 font-semibold">
-                                        {{ item.ingredient_name }}
-                                    </td>
-                                    <td
-                                        class="px-4 py-3 text-center font-semibold text-muted-foreground"
+                                    Số lượng thực tế hoặc đơn giá hóa đơn không
+                                    khớp với niêm yết ban đầu. Khi xác nhận, hệ
+                                    thống sẽ **ĐÓNG BĂNG giao dịch**, khóa cập
+                                    nhật kho tự động, ghi vết kiểm toán gian lận
+                                    và gửi cảnh báo đỏ trực tiếp đến Owner.
+                                </p>
+                            </div>
+                        </div>
+
+                        <!-- Items Verification Table -->
+                        <div class="overflow-hidden rounded-xl border">
+                            <table
+                                class="w-full text-left text-xs text-foreground"
+                            >
+                                <thead
+                                    class="border-b bg-muted/40 text-[10px] font-semibold tracking-wider text-muted-foreground uppercase"
+                                >
+                                    <tr>
+                                        <th class="px-4 py-3">
+                                            Tên nguyên liệu
+                                        </th>
+                                        <th class="px-4 py-3 text-center">
+                                            Đặt (PO)
+                                        </th>
+                                        <th class="w-28 px-4 py-3">
+                                            Thực nhận
+                                        </th>
+                                        <th class="px-4 py-3 text-center">
+                                            Giá niêm yết
+                                        </th>
+                                        <th class="w-32 px-4 py-3">
+                                            Giá hóa đơn
+                                        </th>
+                                        <th class="px-4 py-3 text-center">
+                                            Khớp
+                                        </th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-border">
+                                    <tr
+                                        v-for="(
+                                            item, idx
+                                        ) in verifyDiscrepancies"
+                                        :key="idx"
+                                        class="hover:bg-muted/10"
                                     >
-                                        {{ item.quantity_ordered }}
-                                    </td>
-                                    <td class="px-4 py-3">
-                                        <input
-                                            v-model="item.quantity_received"
-                                            @input="
-                                                updateQuantityReceived(
-                                                    idx,
-                                                    (
-                                                        $event.target as HTMLInputElement
-                                                    ).value,
-                                                )
-                                            "
-                                            type="number"
-                                            step="0.001"
-                                            class="w-full rounded border border-input bg-background px-2 py-1 text-xs focus:ring-1 focus:ring-emerald-500 focus:outline-none"
-                                        />
-                                    </td>
-                                    <td
-                                        class="px-4 py-3 text-center font-semibold text-muted-foreground"
-                                    >
-                                        {{
-                                            Number(
-                                                item.price_per_unit,
-                                            ).toLocaleString('vi-VN')
-                                        }}đ
-                                    </td>
-                                    <td class="px-4 py-3">
-                                        <div class="relative flex items-center">
+                                        <td class="px-4 py-3 font-semibold">
+                                            {{ item.ingredient_name }}
+                                        </td>
+                                        <td
+                                            class="px-4 py-3 text-center font-semibold text-muted-foreground"
+                                        >
+                                            {{ item.quantity_ordered }}
+                                        </td>
+                                        <td class="px-4 py-3">
                                             <input
-                                                v-model="item.invoice_price"
+                                                v-model="item.quantity_received"
                                                 @input="
-                                                    updateInvoicePrice(
+                                                    updateQuantityReceived(
                                                         idx,
                                                         (
                                                             $event.target as HTMLInputElement
@@ -4581,171 +4876,234 @@ onUnmounted(() => {
                                                     )
                                                 "
                                                 type="number"
+                                                step="0.001"
                                                 class="w-full rounded border border-input bg-background px-2 py-1 text-xs focus:ring-1 focus:ring-emerald-500 focus:outline-none"
                                             />
-                                        </div>
-                                    </td>
-                                    <td class="px-4 py-3 text-center">
-                                        <span
-                                            v-if="!item.mismatch"
-                                            class="dark:text-emerald-450 inline-block rounded-full border border-emerald-200 bg-emerald-50 p-1 text-emerald-600 dark:border-emerald-900 dark:bg-emerald-950/40"
+                                        </td>
+                                        <td
+                                            class="px-4 py-3 text-center font-semibold text-muted-foreground"
                                         >
-                                            <Check class="h-3.5 w-3.5" />
-                                        </span>
-                                        <span
-                                            v-else
-                                            class="dark:text-rose-450 inline-block animate-bounce rounded-full border border-rose-200 bg-rose-50 p-1 text-rose-600 dark:border-rose-900 dark:bg-rose-950/40"
-                                        >
-                                            <X class="h-3.5 w-3.5" />
-                                        </span>
-                                    </td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
+                                            {{
+                                                Number(
+                                                    item.price_per_unit,
+                                                ).toLocaleString('vi-VN')
+                                            }}đ
+                                        </td>
+                                        <td class="px-4 py-3">
+                                            <div
+                                                class="relative flex items-center"
+                                            >
+                                                <input
+                                                    v-model="item.invoice_price"
+                                                    @input="
+                                                        updateInvoicePrice(
+                                                            idx,
+                                                            (
+                                                                $event.target as HTMLInputElement
+                                                            ).value,
+                                                        )
+                                                    "
+                                                    type="number"
+                                                    class="w-full rounded border border-input bg-background px-2 py-1 text-xs focus:ring-1 focus:ring-emerald-500 focus:outline-none"
+                                                />
+                                            </div>
+                                        </td>
+                                        <td class="px-4 py-3 text-center">
+                                            <span
+                                                v-if="!item.mismatch"
+                                                class="dark:text-emerald-450 inline-block rounded-full border border-emerald-200 bg-emerald-50 p-1 text-emerald-600 dark:border-emerald-900 dark:bg-emerald-950/40"
+                                            >
+                                                <Check class="h-3.5 w-3.5" />
+                                            </span>
+                                            <span
+                                                v-else
+                                                class="dark:text-rose-450 inline-block animate-bounce rounded-full border border-rose-200 bg-rose-50 p-1 text-rose-600 dark:border-rose-900 dark:bg-rose-950/40"
+                                            >
+                                                <X class="h-3.5 w-3.5" />
+                                            </span>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
 
-                    <!-- Invoice Upload -->
-                    <div class="space-y-2">
-                        <Label
-                            class="block text-xs font-semibold tracking-wider text-muted-foreground uppercase"
-                            >Đính kèm hóa đơn đối chiếu (Hóa đơn giấy/điện tử)
-                            <span class="text-rose-500">*</span></Label
-                        >
-                        <div
-                            class="relative flex min-h-[120px] flex-col items-center justify-center rounded-xl border border-dashed border-border bg-muted/20 p-4 transition-colors hover:bg-muted/40"
-                        >
+                        <!-- Invoice Upload -->
+                        <div class="space-y-2">
+                            <Label
+                                class="block text-xs font-semibold tracking-wider text-muted-foreground uppercase"
+                                >Đính kèm hóa đơn đối chiếu (Hóa đơn giấy/điện
+                                tử) <span class="text-rose-500">*</span></Label
+                            >
                             <div
-                                v-if="loadingOcr"
-                                class="flex flex-col items-center justify-center space-y-2"
+                                class="relative flex min-h-[120px] flex-col items-center justify-center rounded-xl border border-dashed border-border bg-muted/20 p-4 transition-colors hover:bg-muted/40"
                             >
-                                <RefreshCw
-                                    class="h-8 w-8 animate-spin text-emerald-500"
-                                />
-                                <span
-                                    class="animate-pulse text-xs font-bold text-emerald-600"
-                                    >AI OCR: Đang phân tích và quét dữ liệu hóa
-                                    đơn...</span
+                                <div
+                                    v-if="loadingOcr"
+                                    class="flex flex-col items-center justify-center space-y-2"
                                 >
+                                    <RefreshCw
+                                        class="h-8 w-8 animate-spin text-emerald-500"
+                                    />
+                                    <span
+                                        class="animate-pulse text-xs font-bold text-emerald-600"
+                                        >AI OCR: Đang phân tích và quét dữ liệu
+                                        hóa đơn...</span
+                                    >
+                                </div>
+                                <template v-else>
+                                    <Upload
+                                        class="mb-2 h-8 w-8 text-muted-foreground opacity-60"
+                                    />
+                                    <span
+                                        class="text-xs font-semibold text-muted-foreground"
+                                        >{{
+                                            verifyForm.invoice_file
+                                                ? verifyForm.invoice_file.name
+                                                : 'Nhấp để chọn tệp chứng từ hoặc kéo thả vào đây'
+                                        }}</span
+                                    >
+                                    <span
+                                        class="mt-1 text-[10px] text-muted-foreground"
+                                        >Hỗ trợ JPG, PNG, PDF tối đa 4MB. Tự
+                                        động quét và điền dữ liệu bằng AI.</span
+                                    >
+                                    <input
+                                        type="file"
+                                        @change="handleFileUpload"
+                                        class="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+                                    />
+                                </template>
                             </div>
-                            <template v-else>
-                                <Upload
-                                    class="mb-2 h-8 w-8 text-muted-foreground opacity-60"
-                                />
-                                <span
-                                    class="text-xs font-semibold text-muted-foreground"
-                                    >{{
-                                        verifyForm.invoice_file
-                                            ? verifyForm.invoice_file.name
-                                            : 'Nhấp để chọn tệp chứng từ hoặc kéo thả vào đây'
-                                    }}</span
-                                >
-                                <span
-                                    class="mt-1 text-[10px] text-muted-foreground"
-                                    >Hỗ trợ JPG, PNG, PDF tối đa 4MB. Tự động
-                                    quét và điền dữ liệu bằng AI.</span
-                                >
-                                <input
-                                    type="file"
-                                    @change="handleFileUpload"
-                                    class="absolute inset-0 h-full w-full cursor-pointer opacity-0"
-                                />
-                            </template>
                         </div>
-                    </div>
 
-                    <!-- Mismatch Reason & Resolution Action (when discrepancies detected) -->
-                    <div
-                        v-if="hasMismatch"
-                        class="grid grid-cols-1 gap-4 rounded-xl border border-rose-500/30 bg-rose-500/5 p-4 md:grid-cols-2"
-                    >
-                        <div class="space-y-1.5">
-                            <Label class="block text-xs font-bold tracking-wider text-rose-600 dark:text-rose-400 uppercase">
-                                ⚠️ Nguyên nhân phát sinh sai lệch
-                            </Label>
-                            <select
-                                v-model="verifyForm.mismatch_reason"
-                                class="w-full rounded-xl border border-rose-300 dark:border-rose-800 bg-background px-3 py-2 text-xs font-semibold text-foreground focus:ring-2 focus:ring-rose-500/20 focus:outline-none"
-                            >
-                                <option value="Khối lượng giao không đủ">📉 Khối lượng thực giao thiếu so với PO</option>
-                                <option value="Hàng hư hỏng / Dập nát">🥀 Hàng hư hỏng / Không đạt chất lượng</option>
-                                <option value="Sai giá niêm yết">💲 Đơn giá hóa đơn cao hơn niêm yết</option>
-                                <option value="Giao sai mặt hàng">❌ Giao sai chủng loại nguyên liệu</option>
-                            </select>
-                        </div>
-                        <div class="space-y-1.5">
-                            <Label class="block text-xs font-bold tracking-wider text-rose-600 dark:text-rose-400 uppercase">
-                                🛠️ Phương án xử lý khắc phục
-                            </Label>
-                            <select
-                                v-model="verifyForm.resolution_action"
-                                class="w-full rounded-xl border border-rose-300 dark:border-rose-800 bg-background px-3 py-2 text-xs font-semibold text-foreground focus:ring-2 focus:ring-rose-500/20 focus:outline-none"
-                            >
-                                <option value="Trừ trực tiếp vào công nợ đơn sau">📝 Trừ tiền vào công nợ kỳ sau</option>
-                                <option value="Yêu cầu giao bù ngay trong ngày">🚚 Yêu cầu nhà cung cấp giao bù ngay</option>
-                                <option value="Đổi trả hàng lỗi cho nhà cung cấp">📦 Trả lại toàn bộ lô hàng lỗi</option>
-                                <option value="Duyệt ngoại lệ (Chấp nhận chênh lệch)">✅ Duyệt ngoại lệ (Owner chấp nhận)</option>
-                            </select>
-                        </div>
-                    </div>
-
-                    <!-- Rating and feedback -->
-                    <div
-                        class="grid grid-cols-1 gap-4 rounded-xl border border-border bg-muted/30 p-4 md:grid-cols-3"
-                    >
-                        <div class="col-span-1 space-y-1">
-                            <Label
-                                class="block text-xs font-semibold tracking-wider text-muted-foreground uppercase"
-                                >Đánh giá nhà cung cấp (1-5★)</Label
-                            >
-                            <select
-                                v-model="verifyForm.rating"
-                                class="w-full rounded-xl border border-input bg-background px-3 py-2 text-sm text-foreground focus:ring-2 focus:ring-emerald-500/20 focus:outline-none"
-                            >
-                                <option :value="5">5 ★★★★★ (Xuất sắc)</option>
-                                <option :value="4">4 ★★★★☆ (Tốt)</option>
-                                <option :value="3">3 ★★★☆☆ (Trung bình)</option>
-                                <option :value="2">2 ★★☆☆☆ (Kém)</option>
-                                <option :value="1">1 ★☆☆☆☆ (Rất kém)</option>
-                            </select>
-                        </div>
-                        <div class="col-span-2 space-y-1">
-                            <Label
-                                class="block text-xs font-semibold tracking-wider text-muted-foreground uppercase"
-                                >Ghi chú chất lượng hàng hóa / vận chuyển</Label
-                            >
-                            <Input
-                                v-model="verifyForm.rating_notes"
-                                type="text"
-                                placeholder="Rau tươi sạch, giao đúng giờ..."
-                            />
-                        </div>
-                    </div>
-
-                    <!-- Footer -->
-                    <div class="mt-6 flex justify-end gap-2 border-t pt-4">
-                        <Button
-                            type="button"
-                            variant="outline"
-                            @click="showVerifyModal = false"
+                        <!-- Mismatch Reason & Resolution Action (when discrepancies detected) -->
+                        <div
+                            v-if="hasMismatch"
+                            class="grid grid-cols-1 gap-4 rounded-xl border border-rose-500/30 bg-rose-500/5 p-4 md:grid-cols-2"
                         >
-                            Hủy bỏ
-                        </Button>
-                        <Button
-                            type="submit"
-                            :disabled="verifyForm.processing"
-                            class="bg-emerald-600 text-white hover:bg-emerald-700"
+                            <div class="space-y-1.5">
+                                <Label
+                                    class="block text-xs font-bold tracking-wider text-rose-600 uppercase dark:text-rose-400"
+                                >
+                                    ⚠️ Nguyên nhân phát sinh sai lệch
+                                </Label>
+                                <select
+                                    v-model="verifyForm.mismatch_reason"
+                                    class="w-full rounded-xl border border-rose-300 bg-background px-3 py-2 text-xs font-semibold text-foreground focus:ring-2 focus:ring-rose-500/20 focus:outline-none dark:border-rose-800"
+                                >
+                                    <option value="Khối lượng giao không đủ">
+                                        📉 Khối lượng thực giao thiếu so với PO
+                                    </option>
+                                    <option value="Hàng hư hỏng / Dập nát">
+                                        🥀 Hàng hư hỏng / Không đạt chất lượng
+                                    </option>
+                                    <option value="Sai giá niêm yết">
+                                        💲 Đơn giá hóa đơn cao hơn niêm yết
+                                    </option>
+                                    <option value="Giao sai mặt hàng">
+                                        ❌ Giao sai chủng loại nguyên liệu
+                                    </option>
+                                </select>
+                            </div>
+                            <div class="space-y-1.5">
+                                <Label
+                                    class="block text-xs font-bold tracking-wider text-rose-600 uppercase dark:text-rose-400"
+                                >
+                                    🛠️ Phương án xử lý khắc phục
+                                </Label>
+                                <select
+                                    v-model="verifyForm.resolution_action"
+                                    class="w-full rounded-xl border border-rose-300 bg-background px-3 py-2 text-xs font-semibold text-foreground focus:ring-2 focus:ring-rose-500/20 focus:outline-none dark:border-rose-800"
+                                >
+                                    <option
+                                        value="Trừ trực tiếp vào công nợ đơn sau"
+                                    >
+                                        📝 Trừ tiền vào công nợ kỳ sau
+                                    </option>
+                                    <option
+                                        value="Yêu cầu giao bù ngay trong ngày"
+                                    >
+                                        🚚 Yêu cầu nhà cung cấp giao bù ngay
+                                    </option>
+                                    <option
+                                        value="Đổi trả hàng lỗi cho nhà cung cấp"
+                                    >
+                                        📦 Trả lại toàn bộ lô hàng lỗi
+                                    </option>
+                                    <option
+                                        value="Duyệt ngoại lệ (Chấp nhận chênh lệch)"
+                                    >
+                                        ✅ Duyệt ngoại lệ (Owner chấp nhận)
+                                    </option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <!-- Rating and feedback -->
+                        <div
+                            class="grid grid-cols-1 gap-4 rounded-xl border border-border bg-muted/30 p-4 md:grid-cols-3"
                         >
-                            {{
-                                verifyForm.processing
-                                    ? 'Đang gửi...'
-                                    : hasMismatch
-                                      ? 'Xác nhận Đóng băng đơn hàng'
-                                      : 'Hoàn tất bàn giao nhập kho'
-                            }}
-                        </Button>
-                    </div>
-                </form>
-            </Card>
+                            <div class="col-span-1 space-y-1">
+                                <Label
+                                    class="block text-xs font-semibold tracking-wider text-muted-foreground uppercase"
+                                    >Đánh giá nhà cung cấp (1-5★)</Label
+                                >
+                                <select
+                                    v-model="verifyForm.rating"
+                                    class="w-full rounded-xl border border-input bg-background px-3 py-2 text-sm text-foreground focus:ring-2 focus:ring-emerald-500/20 focus:outline-none"
+                                >
+                                    <option :value="5">
+                                        5 ★★★★★ (Xuất sắc)
+                                    </option>
+                                    <option :value="4">4 ★★★★☆ (Tốt)</option>
+                                    <option :value="3">
+                                        3 ★★★☆☆ (Trung bình)
+                                    </option>
+                                    <option :value="2">2 ★★☆☆☆ (Kém)</option>
+                                    <option :value="1">
+                                        1 ★☆☆☆☆ (Rất kém)
+                                    </option>
+                                </select>
+                            </div>
+                            <div class="col-span-2 space-y-1">
+                                <Label
+                                    class="block text-xs font-semibold tracking-wider text-muted-foreground uppercase"
+                                    >Ghi chú chất lượng hàng hóa / vận
+                                    chuyển</Label
+                                >
+                                <Input
+                                    v-model="verifyForm.rating_notes"
+                                    type="text"
+                                    placeholder="Rau tươi sạch, giao đúng giờ..."
+                                />
+                            </div>
+                        </div>
+
+                        <!-- Footer -->
+                        <div class="mt-6 flex justify-end gap-2 border-t pt-4">
+                            <Button
+                                type="button"
+                                variant="outline"
+                                @click="showVerifyModal = false"
+                            >
+                                Hủy bỏ
+                            </Button>
+                            <Button
+                                type="submit"
+                                :disabled="verifyForm.processing"
+                                class="bg-emerald-600 text-white hover:bg-emerald-700"
+                            >
+                                {{
+                                    verifyForm.processing
+                                        ? 'Đang gửi...'
+                                        : hasMismatch
+                                          ? 'Xác nhận Đóng băng đơn hàng'
+                                          : 'Hoàn tất bàn giao nhập kho'
+                                }}
+                            </Button>
+                        </div>
+                    </form>
+                </Card>
             </div>
         </div>
     </div>

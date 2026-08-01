@@ -58,37 +58,37 @@ return [
         //   DB::table('orders')->useWritePdo()->where(...)
         'mysql' => [
             'driver' => 'mysql',
-            'url'    => env('DB_URL'),
+            'url' => env('DB_URL'),
 
             // ── Read replica (đặt DB_READ_HOST để kích hoạt) ──────────────────
             'read' => [
-                'host'     => [env('DB_READ_HOST') ?: env('DB_HOST', '127.0.0.1')],
+                'host' => [env('DB_READ_HOST') ?: env('DB_HOST', '127.0.0.1')],
                 'username' => env('DB_READ_USERNAME') ?: env('DB_USERNAME', 'root'),
                 'password' => env('DB_READ_PASSWORD') ?? env('DB_PASSWORD', ''),
             ],
 
             // ── Write master ───────────────────────────────────────────────────
             'write' => [
-                'host'     => [env('DB_WRITE_HOST') ?: env('DB_HOST', '127.0.0.1')],
+                'host' => [env('DB_WRITE_HOST') ?: env('DB_HOST', '127.0.0.1')],
                 'username' => env('DB_USERNAME', 'root'),
                 'password' => env('DB_PASSWORD', ''),
             ],
 
             // Sau khi write trong request, các read kế tiếp dùng connection write
             // để tránh replication lag gây ra inconsistency (read-your-own-writes).
-            'sticky'    => true,
+            'sticky' => true,
 
-            'port'        => env('DB_PORT', '3306'),
-            'database'    => env('DB_DATABASE', 'laravel'),
+            'port' => env('DB_PORT', '3306'),
+            'database' => env('DB_DATABASE', 'laravel'),
             'unix_socket' => env('DB_SOCKET', ''),
-            'charset'     => env('DB_CHARSET', 'utf8mb4'),
-            'collation'   => env('DB_COLLATION', 'utf8mb4_unicode_ci'),
-            'prefix'      => '',
+            'charset' => env('DB_CHARSET', 'utf8mb4'),
+            'collation' => env('DB_COLLATION', 'utf8mb4_unicode_ci'),
+            'prefix' => '',
             'prefix_indexes' => true,
-            'strict'      => true,
-            'timezone'    => env('DB_TIMEZONE', '+07:00'),
-            'engine'      => null,
-            'options'     => extension_loaded('pdo_mysql') ? array_filter([
+            'strict' => true,
+            'timezone' => env('DB_TIMEZONE', '+07:00'),
+            'engine' => null,
+            'options' => extension_loaded('pdo_mysql') ? array_filter([
                 (PHP_VERSION_ID >= 80500 ? Mysql::ATTR_SSL_CA : PDO::MYSQL_ATTR_SSL_CA) => env('MYSQL_ATTR_SSL_CA'),
             ]) : [],
         ],

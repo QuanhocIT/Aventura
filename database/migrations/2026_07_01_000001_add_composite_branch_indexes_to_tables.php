@@ -9,19 +9,19 @@ return new class extends Migration
 {
     public function up(): void
     {
-        if (!$this->indexExists('orders', 'orders_restaurant_branch_created_index')) {
+        if (! $this->indexExists('orders', 'orders_restaurant_branch_created_index')) {
             Schema::table('orders', function (Blueprint $table) {
                 $table->index(['restaurant_id', 'branch_id', 'created_at'], 'orders_restaurant_branch_created_index');
             });
         }
 
-        if (!$this->indexExists('inventories', 'inventories_restaurant_branch_created_index')) {
+        if (! $this->indexExists('inventories', 'inventories_restaurant_branch_created_index')) {
             Schema::table('inventories', function (Blueprint $table) {
                 $table->index(['restaurant_id', 'branch_id', 'created_at'], 'inventories_restaurant_branch_created_index');
             });
         }
 
-        if (!$this->indexExists('cash_transactions', 'cash_tx_restaurant_branch_created_index')) {
+        if (! $this->indexExists('cash_transactions', 'cash_tx_restaurant_branch_created_index')) {
             Schema::table('cash_transactions', function (Blueprint $table) {
                 $table->index(['restaurant_id', 'branch_id', 'created_at'], 'cash_tx_restaurant_branch_created_index');
             });
@@ -46,7 +46,7 @@ return new class extends Migration
     private function indexExists(string $table, string $indexName): bool
     {
         $driver = DB::connection()->getDriverName();
-        
+
         if ($driver === 'sqlite') {
             try {
                 $results = DB::select("PRAGMA index_list(`{$table}`)");
@@ -55,16 +55,18 @@ return new class extends Migration
                         return true;
                     }
                 }
-            } catch (\Throwable $e) {
+            } catch (Throwable $e) {
                 return false;
             }
+
             return false;
         }
 
         try {
             $indexes = DB::select("SHOW INDEX FROM `{$table}` WHERE Key_name = ?", [$indexName]);
+
             return count($indexes) > 0;
-        } catch (\Throwable $e) {
+        } catch (Throwable $e) {
             return false;
         }
     }

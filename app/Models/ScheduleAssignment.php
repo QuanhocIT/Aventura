@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Models\Concerns\BelongsToRestaurant;
+use App\Support\Tenant\TenantContext;
 use Carbon\Carbon;
 use Database\Factories\Hr\ScheduleAssignmentFactory;
 use Illuminate\Database\Eloquent\Factories\Factory;
@@ -11,7 +12,6 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
-use App\Support\Tenant\TenantContext;
 
 class ScheduleAssignment extends Model
 {

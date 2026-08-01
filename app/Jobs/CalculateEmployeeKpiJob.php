@@ -12,7 +12,7 @@ use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Log;
 
-class CalculateEmployeeKpiJob implements ShouldQueue, ShouldBeUnique
+class CalculateEmployeeKpiJob implements ShouldBeUnique, ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
@@ -26,12 +26,13 @@ class CalculateEmployeeKpiJob implements ShouldQueue, ShouldBeUnique
     public int $backoff = 30;
 
     protected Employee $employee;
+
     protected string $period;
 
     public function __construct(Employee $employee, string $period)
     {
         $this->employee = $employee;
-        $this->period   = $period;
+        $this->period = $period;
         $this->onQueue('kpi');
     }
 
@@ -55,9 +56,9 @@ class CalculateEmployeeKpiJob implements ShouldQueue, ShouldBeUnique
     {
         Log::error('CalculateEmployeeKpiJob failed permanently', [
             'employee_id' => $this->employee->id,
-            'period'      => $this->period,
-            'error'       => $e->getMessage(),
-            'trace'       => $e->getTraceAsString(),
+            'period' => $this->period,
+            'error' => $e->getMessage(),
+            'trace' => $e->getTraceAsString(),
         ]);
     }
 }

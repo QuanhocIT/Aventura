@@ -379,7 +379,10 @@ const statusColor: Record<string, string> = {
         </div>
 
         <!-- Enrollments tab -->
-        <div v-if="activeTab === 'enrollments'" class="animate-fade-in space-y-4">
+        <div
+            v-if="activeTab === 'enrollments'"
+            class="animate-fade-in space-y-4"
+        >
             <Card class="overflow-hidden border border-border/50 shadow-sm">
                 <CardContent class="overflow-x-auto p-0">
                     <table

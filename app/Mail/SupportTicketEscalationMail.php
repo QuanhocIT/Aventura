@@ -22,7 +22,7 @@ class SupportTicketEscalationMail extends Mailable
     public function envelope(): Envelope
     {
         return new Envelope(
-            subject: '🚨 CẢNH BÁO LEO THANG SLA: Ticket ' . $this->ticket->code . ' chưa được phản hồi! - Aventura',
+            subject: '🚨 CẢNH BÁO LEO THANG SLA: Ticket '.$this->ticket->code.' chưa được phản hồi! - Aventura',
         );
     }
 

@@ -8,7 +8,7 @@ use App\Models\Restaurant;
 use App\Models\RestaurantSubscription;
 use App\Models\SubscriptionPlan;
 use App\Models\User;
-use App\Notifications\SubscriptionExpiryReminder;
+use App\Notifications\DunningNotification;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Notification;
@@ -103,7 +103,7 @@ class BillingConsoleCommandsTest extends TestCase
 
         $subscription->refresh();
 
-        Notification::assertSentTo($owner, \App\Notifications\DunningNotification::class, 1);
+        Notification::assertSentTo($owner, DunningNotification::class, 1);
         Queue::assertPushed(GenerateInvoiceDocuments::class, 1);
         Queue::assertPushed(SendBillingInvoiceEmail::class, 1);
         $this->assertNotNull($subscription->last_notified_at);
@@ -116,7 +116,7 @@ class BillingConsoleCommandsTest extends TestCase
 
         Artisan::call('billing:send-reminders');
 
-        Notification::assertSentToTimes($owner, \App\Notifications\DunningNotification::class, 1);
+        Notification::assertSentToTimes($owner, DunningNotification::class, 1);
         Queue::assertPushed(GenerateInvoiceDocuments::class, 1);
         Queue::assertPushed(SendBillingInvoiceEmail::class, 1);
         $this->assertDatabaseCount('billing_invoices', 1);

@@ -154,8 +154,8 @@ const daysLeft = computed(() => {
         props.restaurant.subscription_ends_at || props.restaurant.trial_ends_at;
 
     if (!dateStr) {
-return null;
-}
+        return null;
+    }
 
     let targetDate: Date;
 
@@ -178,8 +178,8 @@ return null;
 
 const progressPercent = computed(() => {
     if (daysLeft.value === null) {
-return 100;
-}
+        return 100;
+    }
 
     const cycle = props.restaurant.status === 'trial' ? 14 : 30; // default standard cycle mapping
     const ratio = (daysLeft.value / cycle) * 100;

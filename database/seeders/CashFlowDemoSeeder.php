@@ -2,20 +2,21 @@
 
 namespace Database\Seeders;
 
-use Illuminate\Database\Seeder;
-use App\Models\User;
 use App\Models\CashRegister;
 use App\Models\CashTransaction;
+use App\Models\User;
 use App\Models\WorkShift;
 use Carbon\Carbon;
+use Illuminate\Database\Seeder;
 
 class CashFlowDemoSeeder extends Seeder
 {
     public function run()
     {
         $user = User::where('email', 'enterprise@test.com')->first();
-        if (!$user) {
-            $this->command->error("User enterprise@test.com not found!");
+        if (! $user) {
+            $this->command->error('User enterprise@test.com not found!');
+
             return;
         }
 
@@ -45,7 +46,7 @@ class CashFlowDemoSeeder extends Seeder
                     'start_time' => '14:00:00',
                     'end_time' => '22:00:00',
                     'status' => 'active',
-                ])
+                ]),
             ]);
         }
 
@@ -57,7 +58,7 @@ class CashFlowDemoSeeder extends Seeder
         $now = Carbon::now();
         for ($i = 29; $i >= 0; $i--) {
             $date = $now->copy()->subDays($i);
-            
+
             // Alternating shifts
             $shift = $shifts[$i % $shifts->count()];
 
@@ -69,7 +70,7 @@ class CashFlowDemoSeeder extends Seeder
             $openingBalance = 2000000.00; // 2M VND starting
             $cashSales = rand(1500000, 5000000); // 1.5M to 5M sales
             $expenses = rand(200000, 1000000); // 200k to 1M expense
-            
+
             $expectedClosing = $openingBalance + $cashSales - $expenses;
             $closingBalance = $expectedClosing + (rand(-1, 1) * rand(0, 50000)); // slight mismatch sometimes
             $difference = $closingBalance - $expectedClosing;
@@ -91,7 +92,7 @@ class CashFlowDemoSeeder extends Seeder
                 'opened_at' => $openedAt,
                 'closed_at' => $closedAt,
                 'closing_date' => $date->toDateString(),
-                'notes' => 'Chốt ca định kỳ cuối ngày, đối soát bàn giao ' . ($difference == 0 ? 'khớp' : 'lệch ' . number_format($difference) . 'đ'),
+                'notes' => 'Chốt ca định kỳ cuối ngày, đối soát bàn giao '.($difference == 0 ? 'khớp' : 'lệch '.number_format($difference).'đ'),
             ]);
 
             // Create Cash Transactions
@@ -103,7 +104,7 @@ class CashFlowDemoSeeder extends Seeder
                 'type' => 'in',
                 'amount' => $cashSales,
                 'source' => 'order',
-                'notes' => 'Doanh thu bán hàng tiền mặt ca ' . $shift->name,
+                'notes' => 'Doanh thu bán hàng tiền mặt ca '.$shift->name,
                 'created_by' => $user->id,
                 'occurred_at' => $date->copy()->setTime(12, 0, 0),
             ]);
@@ -120,7 +121,7 @@ class CashFlowDemoSeeder extends Seeder
                 'created_by' => $user->id,
                 'occurred_at' => $date->copy()->setTime(14, 30, 0),
             ]);
-            
+
             // Add a capital injection or withdrawal once in a while
             if ($i % 7 === 0) {
                 CashTransaction::create([

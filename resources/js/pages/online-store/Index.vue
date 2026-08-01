@@ -66,8 +66,8 @@ const form = useForm({
 const isCopied = ref(false);
 function copyStoreUrl() {
     if (!props.storeUrl) {
-return;
-}
+        return;
+    }
 
     navigator.clipboard.writeText(props.storeUrl);
     isCopied.value = true;

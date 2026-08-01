@@ -73,8 +73,8 @@ function format(n: number): string {
     const val = Number(n);
 
     if (isNaN(val) || val === undefined || val === null) {
-return '0';
-}
+        return '0';
+    }
 
     if (props.compact) {
         return new Intl.NumberFormat('vi-VN', {

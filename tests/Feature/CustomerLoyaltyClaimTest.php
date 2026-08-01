@@ -22,88 +22,88 @@ class CustomerLoyaltyClaimTest extends TestCase
 
         $category = ProductCategory::create([
             'restaurant_id' => $restaurant->id,
-            'name'          => 'Phở',
-            'slug'          => 'pho',
+            'name' => 'Phở',
+            'slug' => 'pho',
             'display_order' => 1,
-            'status'        => 'active',
+            'status' => 'active',
         ]);
 
         $product1 = Product::create([
             'restaurant_id' => $restaurant->id,
-            'category_id'   => $category->id,
-            'code'          => 'PHO-BO',
-            'name'          => 'Phở Bò Đặc Biệt',
-            'slug'          => 'pho-bo-dac-biet',
-            'price'         => 60000,
-            'earn_points'   => 40,
+            'category_id' => $category->id,
+            'code' => 'PHO-BO',
+            'name' => 'Phở Bò Đặc Biệt',
+            'slug' => 'pho-bo-dac-biet',
+            'price' => 60000,
+            'earn_points' => 40,
             'redeem_points' => 400,
-            'is_active'     => true,
-            'is_available'  => true,
+            'is_active' => true,
+            'is_available' => true,
         ]);
 
         $product2 = Product::create([
             'restaurant_id' => $restaurant->id,
-            'category_id'   => $category->id,
-            'code'          => 'TRA-DA',
-            'name'          => 'Trà Đá',
-            'slug'          => 'tra-da',
-            'price'         => 5000,
-            'earn_points'   => 5,
+            'category_id' => $category->id,
+            'code' => 'TRA-DA',
+            'name' => 'Trà Đá',
+            'slug' => 'tra-da',
+            'price' => 5000,
+            'earn_points' => 5,
             'redeem_points' => 50,
-            'is_active'     => true,
-            'is_available'  => true,
+            'is_active' => true,
+            'is_available' => true,
         ]);
 
         $order = Order::create([
             'restaurant_id' => $restaurant->id,
-            'order_number'  => 'ORD-CLAIM-001',
-            'total_amount'  => 125000,
-            'status'        => 'completed',
+            'order_number' => 'ORD-CLAIM-001',
+            'total_amount' => 125000,
+            'status' => 'completed',
             // Màn hình tích điểm chỉ mở cho đơn ĐÃ thanh toán (siết 2026-07-30)
             'payment_status' => 'paid',
         ]);
 
         OrderItem::create([
             'restaurant_id' => $restaurant->id,
-            'order_id'      => $order->id,
-            'product_id'    => $product1->id,
-            'quantity'      => 2, // 2 x 40 = 80 pts
-            'unit_price'    => 60000,
-            'line_total'    => 120000,
+            'order_id' => $order->id,
+            'product_id' => $product1->id,
+            'quantity' => 2, // 2 x 40 = 80 pts
+            'unit_price' => 60000,
+            'line_total' => 120000,
         ]);
 
         OrderItem::create([
             'restaurant_id' => $restaurant->id,
-            'order_id'      => $order->id,
-            'product_id'    => $product2->id,
-            'quantity'      => 1, // 1 x 5 = 5 pts
-            'unit_price'    => 5000,
-            'line_total'    => 5000,
+            'order_id' => $order->id,
+            'product_id' => $product2->id,
+            'quantity' => 1, // 1 x 5 = 5 pts
+            'unit_price' => 5000,
+            'line_total' => 5000,
         ]);
 
         // 1. Fetch order summary point notification
         $summaryResponse = $this->getJson(route('customer.loyalty.order-summary', $order->id));
         $summaryResponse->assertStatus(200)
             ->assertJson([
-                'success'             => true,
+                'success' => true,
                 'total_earned_points' => 85, // 80 + 5
             ]);
 
         // 2. Claim points via quick phone login/registration
         // claim_token lấy từ chính màn hình order-summary ở bước 1 — chống quét order_id.
         $claimResponse = $this->postJson(route('customer.loyalty.claim-points'), [
-            'order_id'    => $order->id,
+            'order_id' => $order->id,
             'claim_token' => $summaryResponse->json('claim_token'),
-            'phone'       => '0912345678',
-            'full_name'   => 'Nguyễn Văn Khách',
-            'password'    => 'secret123',
+            'phone' => '0912345678',
+            'full_name' => 'Nguyễn Văn Khách',
+            'password' => 'secret123',
         ]);
 
         $claimResponse->assertStatus(200)
             ->assertJson([
-                'success'         => true,
+                'success' => true,
                 'is_new_customer' => true,
-                'points_added'    => 85,
+                'points_added' => 85,
             ]);
 
         // Assert Customer created & tagged with restaurant_id

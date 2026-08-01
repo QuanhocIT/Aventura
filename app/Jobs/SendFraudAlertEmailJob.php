@@ -2,15 +2,15 @@
 
 namespace App\Jobs;
 
-use App\Models\Restaurant;
 use App\Mail\FraudAlertMail;
+use App\Models\Restaurant;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
-use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 
 class SendFraudAlertEmailJob implements ShouldQueue
 {
@@ -27,10 +27,11 @@ class SendFraudAlertEmailJob implements ShouldQueue
     {
         $restaurant = Restaurant::with('owner')->find($this->restaurantId);
 
-        if (!$restaurant || !$restaurant->owner) {
+        if (! $restaurant || ! $restaurant->owner) {
             Log::warning('SendFraudAlertEmailJob: Không tìm thấy nhà hàng hoặc chủ nhà hàng', [
                 'restaurant_id' => $this->restaurantId,
             ]);
+
             return;
         }
 

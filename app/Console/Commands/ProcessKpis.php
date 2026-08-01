@@ -3,14 +3,13 @@
 namespace App\Console\Commands;
 
 use App\Models\Employee;
-use App\Models\Restaurant;
 use App\Services\KpiService;
-use Carbon\Carbon;
 use Illuminate\Console\Command;
 
 class ProcessKpis extends Command
 {
     protected $signature = 'kpis:calculate {--period= : The period to calculate KPIs for (format: YYYY-MM)} {--restaurant= : Specific restaurant ID}';
+
     protected $description = 'Automatically compute role-based draft KPI scores and metrics for active employees';
 
     public function handle(KpiService $kpiService)
@@ -30,7 +29,8 @@ class ProcessKpis extends Command
         $employees = $query->with('role')->get();
 
         if ($employees->isEmpty()) {
-            $this->info("No active employees found to calculate KPIs.");
+            $this->info('No active employees found to calculate KPIs.');
+
             return Command::SUCCESS;
         }
 
@@ -46,11 +46,12 @@ class ProcessKpis extends Command
                     $skippedCount++;
                 }
             } catch (\Throwable $e) {
-                $this->error("Failed to calculate KPI for Employee ID {$employee->id}: " . $e->getMessage());
+                $this->error("Failed to calculate KPI for Employee ID {$employee->id}: ".$e->getMessage());
             }
         }
 
         $this->info("Completed KPI processing. Calculated: {$processedCount}, Skipped/No-rule: {$skippedCount}.");
+
         return Command::SUCCESS;
     }
 }

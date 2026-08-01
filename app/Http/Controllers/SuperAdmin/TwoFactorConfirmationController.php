@@ -2,8 +2,8 @@
 
 namespace App\Http\Controllers\SuperAdmin;
 
-use App\Http\Middleware\RequireSuperAdminStepUp;
 use App\Http\Controllers\Controller;
+use App\Http\Middleware\RequireSuperAdminStepUp;
 use App\Models\User;
 use App\Services\SuperAdminAuditStream;
 use Illuminate\Http\RedirectResponse;

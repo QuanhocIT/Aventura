@@ -2,15 +2,17 @@
 
 namespace Tests\Feature\Billing;
 
+use App\Models\Area;
 use App\Models\Restaurant;
+use App\Models\RestaurantBranch;
+use App\Models\RestaurantTable;
 use App\Models\SubscriptionPlan;
 use App\Models\User;
-use App\Models\RestaurantTable;
-use App\Models\Employee;
-use App\Models\RestaurantBranch;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Cache;
 use Inertia\Testing\AssertableInertia as Assert;
+use Spatie\Permission\Models\Permission;
+use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
 class UpgradeProposalsValidationTest extends TestCase
@@ -18,12 +20,17 @@ class UpgradeProposalsValidationTest extends TestCase
     use RefreshDatabase;
 
     protected SubscriptionPlan $freePlan;
+
     protected SubscriptionPlan $basicPlan;
+
     protected SubscriptionPlan $proPlan;
+
     protected SubscriptionPlan $enterprisePlan;
 
     protected User $owner;
+
     protected Restaurant $restaurant;
+
     protected RestaurantBranch $branch;
 
     protected function setUp(): void
@@ -129,7 +136,7 @@ class UpgradeProposalsValidationTest extends TestCase
         ]);
 
         // Set roles & permissions using Spatie
-        $ownerRole = \Spatie\Permission\Models\Role::firstOrCreate(['name' => 'owner', 'guard_name' => 'web']);
+        $ownerRole = Role::firstOrCreate(['name' => 'owner', 'guard_name' => 'web']);
         $permissions = [
             'manage_kitchen',
             'manage_salary',
@@ -142,7 +149,7 @@ class UpgradeProposalsValidationTest extends TestCase
             'view_fraud_detection',
         ];
         foreach ($permissions as $perm) {
-            \Spatie\Permission\Models\Permission::firstOrCreate(['name' => $perm, 'guard_name' => 'web']);
+            Permission::firstOrCreate(['name' => $perm, 'guard_name' => 'web']);
         }
         $ownerRole->syncPermissions($permissions);
         $this->owner->assignRole($ownerRole);
@@ -172,7 +179,7 @@ class UpgradeProposalsValidationTest extends TestCase
      */
     public function test_quota_alerting_banner_shares_warnings_above_85_percent(): void
     {
-        $area = \App\Models\Area::create([
+        $area = Area::create([
             'restaurant_id' => $this->restaurant->id,
             'branch_id' => $this->branch->id,
             'name' => 'Khu A',

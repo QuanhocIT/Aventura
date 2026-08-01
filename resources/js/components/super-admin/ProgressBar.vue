@@ -25,24 +25,24 @@ const props = withDefaults(
 
 const percentage = computed(() => {
     if (props.max <= 0) {
-return 0;
-}
+        return 0;
+    }
 
     return Math.min(Math.round((props.value / props.max) * 100), 100);
 });
 
 const resolvedColor = computed(() => {
     if (props.color !== 'auto') {
-return props.color;
-}
+        return props.color;
+    }
 
     if (percentage.value >= 95) {
-return 'rose';
-}
+        return 'rose';
+    }
 
     if (percentage.value >= 80) {
-return 'amber';
-}
+        return 'amber';
+    }
 
     return 'emerald';
 });

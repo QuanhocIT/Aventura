@@ -2,7 +2,9 @@
 
 namespace Tests;
 
+use Database\Seeders\PermissionsSeeder;
 use Illuminate\Foundation\Testing\TestCase as BaseTestCase;
+use Illuminate\Support\Facades\Cache;
 use Laravel\Fortify\Features;
 
 abstract class TestCase extends BaseTestCase
@@ -11,9 +13,9 @@ abstract class TestCase extends BaseTestCase
     {
         parent::setUp();
 
-        \Illuminate\Support\Facades\Cache::flush();
+        Cache::flush();
 
-        $this->seed(\Database\Seeders\PermissionsSeeder::class);
+        $this->seed(PermissionsSeeder::class);
     }
 
     protected function skipUnlessFortifyHas(string $feature, ?string $message = null): void

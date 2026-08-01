@@ -114,8 +114,14 @@ function applyFilter() {
     router.get(
         '/super-admin/audit-logs',
         {
-            restaurant_id: restaurantFilter.value && restaurantFilter.value !== 'all' ? restaurantFilter.value : undefined,
-            event: eventFilter.value && eventFilter.value !== 'all' ? eventFilter.value : undefined,
+            restaurant_id:
+                restaurantFilter.value && restaurantFilter.value !== 'all'
+                    ? restaurantFilter.value
+                    : undefined,
+            event:
+                eventFilter.value && eventFilter.value !== 'all'
+                    ? eventFilter.value
+                    : undefined,
             action: actionFilter.value || undefined,
             from: fromFilter.value || undefined,
             to: toFilter.value || undefined,
@@ -134,12 +140,27 @@ function resetFilters() {
 }
 
 function updateRetention() {
-    router.post('/super-admin/audit-logs/retention', { retention_months: retentionMonths.value }, { preserveScroll: true });
+    router.post(
+        '/super-admin/audit-logs/retention',
+        { retention_months: retentionMonths.value },
+        { preserveScroll: true },
+    );
 }
 
 function pruneRetention() {
-    if (!window.confirm(`Xóa vĩnh viễn Audit Log cũ hơn ${retentionMonths.value} tháng? Hành động này không thể hoàn tác.`)) return;
-    router.post('/super-admin/audit-logs/retention/prune', {}, { preserveScroll: true });
+    if (
+        !window.confirm(
+            `Xóa vĩnh viễn Audit Log cũ hơn ${retentionMonths.value} tháng? Hành động này không thể hoàn tác.`,
+        )
+    ) {
+        return;
+    }
+
+    router.post(
+        '/super-admin/audit-logs/retention/prune',
+        {},
+        { preserveScroll: true },
+    );
 }
 
 const expandedRow = ref<number | null>(null);
@@ -179,8 +200,8 @@ const donutSlices = computed(() => {
         props.stats.deleted_count;
 
     if (totalEvents === 0) {
-return [];
-}
+        return [];
+    }
 
     const createdPct = (props.stats.created_count / totalEvents) * 100;
     const updatedPct = (props.stats.updated_count / totalEvents) * 100;
@@ -611,16 +632,37 @@ const securityInsights = computed(() => {
         </div>
 
         <Card class="border-amber-500/30 bg-amber-500/[0.03]">
-            <CardContent class="flex flex-wrap items-center justify-between gap-3 p-4">
+            <CardContent
+                class="flex flex-wrap items-center justify-between gap-3 p-4"
+            >
                 <div>
-                    <p class="flex items-center gap-2 text-sm font-bold"><ArchiveRestore class="size-4 text-amber-600" /> Retention & thao tác nguy hiểm</p>
-                    <p class="text-xs text-muted-foreground">{{ stats.dangerous_count ?? 0 }} thao tác nhạy cảm · dữ liệu đến {{ stats.retention_cutoff || '—' }}</p>
+                    <p class="flex items-center gap-2 text-sm font-bold">
+                        <ArchiveRestore class="size-4 text-amber-600" />
+                        Retention & thao tác nguy hiểm
+                    </p>
+                    <p class="text-xs text-muted-foreground">
+                        {{ stats.dangerous_count ?? 0 }} thao tác nhạy cảm · dữ
+                        liệu đến {{ stats.retention_cutoff || '—' }}
+                    </p>
                 </div>
                 <div class="flex flex-wrap items-center gap-2">
-                    <Input v-model.number="retentionMonths" type="number" min="1" max="120" class="h-8 w-24" />
+                    <Input
+                        v-model.number="retentionMonths"
+                        type="number"
+                        min="1"
+                        max="120"
+                        class="h-8 w-24"
+                    />
                     <span class="text-xs text-muted-foreground">tháng</span>
-                    <Button size="sm" variant="outline" @click="updateRetention">Lưu retention</Button>
-                    <Button size="sm" variant="destructive" @click="pruneRetention">Prune log cũ</Button>
+                    <Button size="sm" variant="outline" @click="updateRetention"
+                        >Lưu retention</Button
+                    >
+                    <Button
+                        size="sm"
+                        variant="destructive"
+                        @click="pruneRetention"
+                        >Prune log cũ</Button
+                    >
                 </div>
             </CardContent>
         </Card>

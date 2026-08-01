@@ -159,6 +159,7 @@ function repairManager(issue: Issue) {
 
     if (!managerId || !branchId) {
         toast.error('Vui lòng chọn quản lý và chi nhánh.');
+
         return;
     }
 
@@ -179,6 +180,7 @@ function repairOwner(issue: Issue) {
 
     if (!userId) {
         toast.error('Vui lòng chọn chủ tài khoản.');
+
         return;
     }
 
@@ -198,6 +200,7 @@ function repairBranch(issue: Issue) {
 
     if (!branchId || !issue.user_id) {
         toast.error('Vui lòng chọn chi nhánh hợp lệ.');
+
         return;
     }
 

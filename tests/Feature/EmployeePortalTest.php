@@ -3,18 +3,13 @@
 namespace Tests\Feature;
 
 use App\Models\Employee;
-use App\Models\KpiMetric;
-use App\Models\LeaveRequest;
-use App\Models\Order;
 use App\Models\Restaurant;
 use App\Models\RestaurantBranch;
 use App\Models\Salary;
 use App\Models\ScheduleAssignment;
-use App\Models\ShiftClosing;
 use App\Models\ShiftSwap;
 use App\Models\User;
 use App\Models\WorkShift;
-use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Artisan;
 use Spatie\Permission\Models\Role;
@@ -25,11 +20,17 @@ class EmployeePortalTest extends TestCase
     use RefreshDatabase;
 
     protected User $owner;
+
     protected User $employeeUser;
+
     protected User $colleagueUser;
+
     protected Employee $employee;
+
     protected Employee $colleague;
+
     protected Restaurant $restaurant;
+
     protected RestaurantBranch $branch;
 
     protected function setUp(): void
@@ -107,8 +108,8 @@ class EmployeePortalTest extends TestCase
                 'branch_id' => $this->branch->id,
                 'user_id' => $user->id,
                 'role_id' => $waiterRole->id,
-                'employee_code' => 'EMP10' . ($i + 3),
-                'full_name' => 'Waiter ' . ($i + 3),
+                'employee_code' => 'EMP10'.($i + 3),
+                'full_name' => 'Waiter '.($i + 3),
                 'job_title' => 'Waiter',
                 'status' => 'active',
                 'compensation_type' => 'fixed',
@@ -172,7 +173,7 @@ class EmployeePortalTest extends TestCase
                 'estimated_earnings',
                 'base_salary',
                 'kpi_bonus',
-                'kpi_commission'
+                'kpi_commission',
             ],
             'kpis',
             'schedules',
@@ -181,7 +182,7 @@ class EmployeePortalTest extends TestCase
 
         $data = $response->json();
         $this->assertEquals(1, $data['summary']['shifts_completed']);
-        $this->assertEquals(4.0, (float)$data['summary']['hours_worked']);
+        $this->assertEquals(4.0, (float) $data['summary']['hours_worked']);
     }
 
     /**
@@ -239,8 +240,8 @@ class EmployeePortalTest extends TestCase
                     'net_salary',
                     'status',
                     'adjustments',
-                ]
-            ]
+                ],
+            ],
         ]);
     }
 
@@ -284,7 +285,7 @@ class EmployeePortalTest extends TestCase
             'success',
             'swaps',
             'my_assignments',
-            'colleague_assignments'
+            'colleague_assignments',
         ]);
 
         // 2. Request shift swap

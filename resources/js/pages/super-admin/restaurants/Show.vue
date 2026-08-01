@@ -307,12 +307,16 @@ async function createSandbox() {
             variant: 'default',
         })
     ) {
-        router.post(`/super-admin/restaurants/${props.restaurant.id}/sandbox`, {}, {
-            preserveScroll: true,
-            onSuccess: () => {
-                toast.success('Đang thực hiện nhân bản sandbox...');
-            }
-        });
+        router.post(
+            `/super-admin/restaurants/${props.restaurant.id}/sandbox`,
+            {},
+            {
+                preserveScroll: true,
+                onSuccess: () => {
+                    toast.success('Đang thực hiện nhân bản sandbox...');
+                },
+            },
+        );
     }
 }
 
@@ -2241,19 +2245,27 @@ const tagBgColors: Record<string, string> = {
                     </CardHeader>
                     <CardContent class="space-y-3">
                         <p class="text-xs text-muted-foreground">
-                            Sao lưu cấu hình hoặc tạo môi trường Sandbox thử nghiệm biệt lập cho Restaurant này.
+                            Sao lưu cấu hình hoặc tạo môi trường Sandbox thử
+                            nghiệm biệt lập cho Restaurant này.
                         </p>
                         <div class="grid gap-2">
-                            <a :href="`/super-admin/restaurants/${restaurant.id}/export`" class="w-full">
-                                <Button variant="outline" size="sm" class="w-full gap-1.5 justify-center">
+                            <a
+                                :href="`/super-admin/restaurants/${restaurant.id}/export`"
+                                class="w-full"
+                            >
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    class="w-full justify-center gap-1.5"
+                                >
                                     <ExternalLink class="size-3.5" />
                                     Xuất dữ liệu cấu hình (JSON)
                                 </Button>
                             </a>
-                            <Button 
-                                variant="secondary" 
-                                size="sm" 
-                                class="w-full gap-1.5 justify-center"
+                            <Button
+                                variant="secondary"
+                                size="sm"
+                                class="w-full justify-center gap-1.5"
                                 @click="createSandbox"
                             >
                                 <RefreshCcw class="size-3.5" />

@@ -2,10 +2,14 @@
 
 namespace Tests\Feature;
 
+use App\Http\Middleware\SetTenantContext;
+use App\Jobs\ProcessPostPaymentActions;
+use App\Models\CashRegister;
 use App\Models\Employee;
 use App\Models\Ingredient;
 use App\Models\Inventory;
 use App\Models\InventoryTransaction;
+use App\Models\Order;
 use App\Models\OvertimeRequest;
 use App\Models\Restaurant;
 use App\Models\RestaurantBranch;
@@ -14,13 +18,11 @@ use App\Models\ScheduleAssignment;
 use App\Models\Unit;
 use App\Models\User;
 use App\Models\WorkShift;
-use App\Models\CashRegister;
 use App\Services\SalaryService;
-use Carbon\Carbon;
+use App\Support\Tenant\TenantContext;
+use Illuminate\Auth\Events\Login;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Queue;
-use App\Jobs\ProcessPostPaymentActions;
-use App\Support\Tenant\TenantContext;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
@@ -29,7 +31,9 @@ class EmployeeUpgradesTest extends TestCase
     use RefreshDatabase;
 
     protected User $owner;
+
     protected Restaurant $restaurant;
+
     protected RestaurantBranch $branch;
 
     protected function setUp(): void
@@ -79,12 +83,12 @@ class EmployeeUpgradesTest extends TestCase
 
         $shift = WorkShift::create([
             'restaurant_id' => $this->restaurant->id,
-            'branch_id'     => $this->branch->id,
-            'name'          => 'Ca Test',
-            'code'          => 'CA-TEST',
-            'start_time'    => '00:00:00',
-            'end_time'      => '23:59:00',
-            'status'        => 'active',
+            'branch_id' => $this->branch->id,
+            'name' => 'Ca Test',
+            'code' => 'CA-TEST',
+            'start_time' => '00:00:00',
+            'end_time' => '23:59:00',
+            'status' => 'active',
         ]);
 
         // Scheduled assignment for today
@@ -141,12 +145,12 @@ class EmployeeUpgradesTest extends TestCase
             'employee_id' => $employee->id,
             'shift_id' => $shift->id,
             'scheduled_date' => $dateStr,
-            'check_in_at' => $dateStr . ' 11:00:00',
-            'check_out_at' => $dateStr . ' 19:00:00',
+            'check_in_at' => $dateStr.' 11:00:00',
+            'check_out_at' => $dateStr.' 19:00:00',
             'status' => 'completed',
         ]);
 
-        $service = new SalaryService();
+        $service = new SalaryService;
 
         // SCENARIO 1: No approved overtime request.
         // Scheduled: 4h. OT: 4h (unapproved, paid at 1.0x).
@@ -224,8 +228,8 @@ class EmployeeUpgradesTest extends TestCase
             'employee_id' => $chef->id,
             'shift_id' => $shift->id,
             'scheduled_date' => $dateStr,
-            'check_in_at' => $dateStr . ' 08:00:00',
-            'check_out_at' => $dateStr . ' 16:00:00',
+            'check_in_at' => $dateStr.' 08:00:00',
+            'check_out_at' => $dateStr.' 16:00:00',
             'status' => 'completed',
         ]);
 
@@ -235,13 +239,13 @@ class EmployeeUpgradesTest extends TestCase
             'employee_id' => $waiter->id,
             'shift_id' => $shift->id,
             'scheduled_date' => $dateStr,
-            'check_in_at' => $dateStr . ' 08:00:00',
-            'check_out_at' => $dateStr . ' 16:00:00',
+            'check_in_at' => $dateStr.' 08:00:00',
+            'check_out_at' => $dateStr.' 16:00:00',
             'status' => 'completed',
         ]);
 
         $unit = Unit::create(['restaurant_id' => $this->restaurant->id, 'name' => 'kg', 'symbol' => 'kg']);
-        
+
         // Food ingredient
         $meat = Ingredient::create([
             'restaurant_id' => $this->restaurant->id,
@@ -272,7 +276,7 @@ class EmployeeUpgradesTest extends TestCase
             'quantity' => 1.0,
             'unit_cost' => 100000,
             'total_cost' => 100000,
-            'occurred_at' => $dateStr . ' 12:00:00',
+            'occurred_at' => $dateStr.' 12:00:00',
         ]);
 
         // Retrieve the auto-created draft salaries
@@ -359,12 +363,12 @@ class EmployeeUpgradesTest extends TestCase
 
         $shift = WorkShift::create([
             'restaurant_id' => $this->restaurant->id,
-            'branch_id'     => $this->branch->id,
-            'name'          => 'Ca Test 2',
-            'code'          => 'CA-TEST2',
-            'start_time'    => '00:00:00',
-            'end_time'      => '23:59:00',
-            'status'        => 'active',
+            'branch_id' => $this->branch->id,
+            'name' => 'Ca Test 2',
+            'code' => 'CA-TEST2',
+            'start_time' => '00:00:00',
+            'end_time' => '23:59:00',
+            'status' => 'active',
         ]);
 
         // Scheduled assignment for today
@@ -378,14 +382,14 @@ class EmployeeUpgradesTest extends TestCase
         ]);
 
         // Simulate login
-        event(new \Illuminate\Auth\Events\Login('web', $cashierUser, false));
+        event(new Login('web', $cashierUser, false));
 
         // Check session has employee_id and shift_allowed_until
         $this->assertEquals($employee->id, session('employee_id'));
         $this->assertNotNull(session('shift_allowed_until'));
 
         // Middleware bypasses when shift is active
-        \App\Http\Middleware\SetTenantContext::$enforceShiftLockInTests = true;
+        SetTenantContext::$enforceShiftLockInTests = true;
         $response = $this->actingAs($cashierUser)->get('/dashboard');
         $response->assertStatus(200);
 
@@ -402,7 +406,7 @@ class EmployeeUpgradesTest extends TestCase
         $responsePage = $this->actingAs($cashierUser)->get('/dashboard');
         $responsePage->assertRedirect('/login');
 
-        \App\Http\Middleware\SetTenantContext::$enforceShiftLockInTests = false;
+        SetTenantContext::$enforceShiftLockInTests = false;
     }
 
     /**
@@ -442,8 +446,8 @@ class EmployeeUpgradesTest extends TestCase
         Queue::fake();
 
         $waiterUser = User::factory()->create(['restaurant_id' => $this->restaurant->id]);
-        
-        $order = \App\Models\Order::create([
+
+        $order = Order::create([
             'restaurant_id' => $this->restaurant->id,
             'branch_id' => $this->branch->id,
             'order_number' => 'TESTORDER123',

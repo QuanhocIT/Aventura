@@ -2,8 +2,8 @@
 
 namespace Tests\Feature;
 
-use App\Models\Employee;
 use App\Models\Delivery\Shipper;
+use App\Models\Employee;
 use App\Models\Restaurant;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -20,7 +20,9 @@ class ShipperManagementTest extends TestCase
     use RefreshDatabase;
 
     private User $owner;
+
     private Restaurant $restaurant;
+
     private Employee $employee;
 
     protected function setUp(): void

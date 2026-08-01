@@ -2,24 +2,27 @@
 
 namespace Tests\Feature;
 
+use App\Mail\SupportTicketEscalationMail;
 use App\Models\Restaurant;
 use App\Models\SubscriptionPlan;
 use App\Models\SupportTicket;
 use App\Models\User;
-use App\Mail\SupportTicketEscalationMail;
 use App\Services\SlaService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Mail;
-use Tests\TestCase;
 use Spatie\Permission\Models\Role;
+use Tests\TestCase;
 
 class SlaTest extends TestCase
 {
     use RefreshDatabase;
 
     protected User $superAdmin;
+
     protected User $owner;
+
     protected Restaurant $restaurant;
+
     protected SubscriptionPlan $plan;
 
     protected function setUp(): void
@@ -42,7 +45,7 @@ class SlaTest extends TestCase
         $this->owner->assignRole('owner');
 
         $this->plan = SubscriptionPlan::where('code', 'enterprise')->first();
-        if (!$this->plan) {
+        if (! $this->plan) {
             $this->plan = SubscriptionPlan::create([
                 'name' => 'Enterprise Plan',
                 'code' => 'enterprise',
@@ -95,7 +98,7 @@ class SlaTest extends TestCase
 
         // Case 2: Pro Plan (12 hours SLA)
         $proPlan = SubscriptionPlan::where('code', 'pro')->first();
-        if (!$proPlan) {
+        if (! $proPlan) {
             $proPlan = SubscriptionPlan::create([
                 'name' => 'Pro Plan',
                 'code' => 'pro',

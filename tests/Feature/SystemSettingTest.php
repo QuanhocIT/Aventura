@@ -2,8 +2,9 @@
 
 namespace Tests\Feature;
 
-use App\Models\User;
 use App\Models\SystemSetting;
+use App\Models\User;
+use App\Providers\AppServiceProvider;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Crypt;
@@ -16,6 +17,7 @@ class SystemSettingTest extends TestCase
     use RefreshDatabase;
 
     private User $superAdmin;
+
     private User $normalUser;
 
     protected function setUp(): void
@@ -62,18 +64,18 @@ class SystemSettingTest extends TestCase
 
         $response = $this->post('/super-admin/settings', [
             'chatbot_similarity_threshold' => 0.35,
-            'chatbot_max_suggestions'      => 8,
-            'chatbot_cache_ttl'            => 600,
-            'mail_driver'                  => 'smtp',
-            'mail_smtp_host'               => 'smtp.mailtrap.io',
-            'mail_smtp_port'               => 2525,
-            'mail_smtp_username'           => 'user_test',
-            'mail_smtp_password'           => 'pass_test',
-            'mail_smtp_encryption'         => 'tls',
-            'mail_from_address'            => 'sender@test.com',
-            'mail_from_name'               => 'SaaS Test',
-            'upload_menu_image_max'        => 1024,
-            'upload_invoice_image_max'     => 2048,
+            'chatbot_max_suggestions' => 8,
+            'chatbot_cache_ttl' => 600,
+            'mail_driver' => 'smtp',
+            'mail_smtp_host' => 'smtp.mailtrap.io',
+            'mail_smtp_port' => 2525,
+            'mail_smtp_username' => 'user_test',
+            'mail_smtp_password' => 'pass_test',
+            'mail_smtp_encryption' => 'tls',
+            'mail_from_address' => 'sender@test.com',
+            'mail_from_name' => 'SaaS Test',
+            'upload_menu_image_max' => 1024,
+            'upload_invoice_image_max' => 2048,
         ]);
 
         $response->assertRedirect();
@@ -119,8 +121,8 @@ class SystemSettingTest extends TestCase
 
         config(['mail.default' => 'old_driver']);
 
-        $provider = new \App\Providers\AppServiceProvider(app());
-        $reflector = new \ReflectionClass(\App\Providers\AppServiceProvider::class);
+        $provider = new AppServiceProvider(app());
+        $reflector = new \ReflectionClass(AppServiceProvider::class);
         $method = $reflector->getMethod('loadDynamicSettings');
         $method->setAccessible(true);
         $method->invoke($provider);
@@ -186,18 +188,18 @@ class SystemSettingTest extends TestCase
 
         $this->post('/super-admin/settings', [
             'chatbot_similarity_threshold' => 0.28,
-            'chatbot_max_suggestions'      => 5,
-            'chatbot_cache_ttl'            => 300,
-            'mail_driver'                  => 'smtp',
-            'mail_smtp_host'               => 'smtp.test.com',
-            'mail_smtp_port'               => 587,
-            'mail_smtp_username'           => 'user',
-            'mail_smtp_password'           => '',
-            'mail_smtp_encryption'         => 'tls',
-            'mail_from_address'            => 'test@test.com',
-            'mail_from_name'               => 'Test',
-            'upload_menu_image_max'        => 2048,
-            'upload_invoice_image_max'     => 4096,
+            'chatbot_max_suggestions' => 5,
+            'chatbot_cache_ttl' => 300,
+            'mail_driver' => 'smtp',
+            'mail_smtp_host' => 'smtp.test.com',
+            'mail_smtp_port' => 587,
+            'mail_smtp_username' => 'user',
+            'mail_smtp_password' => '',
+            'mail_smtp_encryption' => 'tls',
+            'mail_from_address' => 'test@test.com',
+            'mail_from_name' => 'Test',
+            'upload_menu_image_max' => 2048,
+            'upload_invoice_image_max' => 4096,
         ]);
 
         $this->assertEquals('original_pass', SystemSetting::get('mail_smtp_password'));

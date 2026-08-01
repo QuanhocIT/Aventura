@@ -19,15 +19,16 @@ class SetTenantContext
             auth()->logout();
             $request->session()->invalidate();
             $request->session()->regenerateToken();
+
             return redirect('/login')->withErrors(['email' => 'Tài khoản của bạn đã bị khóa hoặc tạm ngưng hoạt động. Vui lòng liên hệ quản lý.']);
         }
 
         if ($user && $user->status === 'active') {
-            if (!$request->is('logout') && !$request->routeIs('logout')) {
-                if ($user->restaurant_id && !$user->isExemptFromShiftLock()) {
-                    if (!app()->runningUnitTests() || self::$enforceShiftLockInTests) {
+            if (! $request->is('logout') && ! $request->routeIs('logout')) {
+                if ($user->restaurant_id && ! $user->isExemptFromShiftLock()) {
+                    if (! app()->runningUnitTests() || self::$enforceShiftLockInTests) {
                         // Fallback check to populate session data for pre-existing sessions or test settings
-                        if (!session()->has('employee_id') || !session()->has('shift_allowed_until')) {
+                        if (! session()->has('employee_id') || ! session()->has('shift_allowed_until')) {
                             $employee = $user->employee;
                             if ($employee) {
                                 session([
@@ -40,17 +41,18 @@ class SetTenantContext
                         $employeeId = session('employee_id');
                         $allowedUntil = session('shift_allowed_until');
 
-                        if (!$employeeId || is_null($allowedUntil) || now()->timestamp > $allowedUntil) {
+                        if (! $employeeId || is_null($allowedUntil) || now()->timestamp > $allowedUntil) {
                             if ($request->expectsJson() || $request->header('X-Inertia')) {
                                 return response()->json([
                                     'error' => 'SHIFT_EXPIRED',
-                                    'message' => 'Ca làm việc của bạn đã kết thúc. Vui lòng hoàn thành các hóa đơn dở dang.'
+                                    'message' => 'Ca làm việc của bạn đã kết thúc. Vui lòng hoàn thành các hóa đơn dở dang.',
                                 ], 403);
                             }
 
                             auth()->logout();
                             $request->session()->invalidate();
                             $request->session()->regenerateToken();
+
                             return redirect('/login')->withErrors(['email' => 'Tài khoản của bạn chỉ được phép truy cập trong khung giờ ca làm việc được xếp.']);
                         }
                     }

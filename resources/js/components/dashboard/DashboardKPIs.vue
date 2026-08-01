@@ -359,116 +359,122 @@ watch(
             </div>
         </div>
 
-            <!-- Business Health Score với Popover Chẩn đoán chi tiết -->
-            <div
-                v-if="
-                    healthScore !== null &&
-                    healthScore !== undefined &&
-                    (can('advanced_analytics') || can('hr_timekeeping'))
-                "
-                :class="[
-                    'group relative flex flex-col gap-5 rounded-2xl border px-5 py-4 transition-all duration-500 hover:shadow-lg md:flex-row md:items-center',
-                    healthScoreColor.bg,
-                ]"
-            >
-                <div class="flex shrink-0 items-center gap-4">
-                    <div class="relative">
-                        <div
-                            :class="[
-                                'text-4xl leading-none font-black tracking-tight tabular-nums',
-                                healthScoreColor.text,
-                            ]"
-                        >
-                            <AnimatedNumber :value="health" />
-                        </div>
-                        <!-- Pulse ring khi health score vừa load -->
-                        <span
-                            v-if="healthLoaded"
-                            class="absolute -inset-2 animate-ping rounded-full opacity-25"
-                            :class="healthScoreColor.bar"
-                        />
+        <!-- Business Health Score với Popover Chẩn đoán chi tiết -->
+        <div
+            v-if="
+                healthScore !== null &&
+                healthScore !== undefined &&
+                (can('advanced_analytics') || can('hr_timekeeping'))
+            "
+            :class="[
+                'group relative flex flex-col gap-5 rounded-2xl border px-5 py-4 transition-all duration-500 hover:shadow-lg md:flex-row md:items-center',
+                healthScoreColor.bg,
+            ]"
+        >
+            <div class="flex shrink-0 items-center gap-4">
+                <div class="relative">
+                    <div
+                        :class="[
+                            'text-4xl leading-none font-black tracking-tight tabular-nums',
+                            healthScoreColor.text,
+                        ]"
+                    >
+                        <AnimatedNumber :value="health" />
                     </div>
-                    <div>
-                        <div class="flex items-center gap-1.5">
-                            <span class="text-xs font-bold text-muted-foreground">Điểm sức khỏe</span>
-                            <span class="inline-flex items-center rounded-full bg-slate-200/60 px-1.5 py-0.2 text-[9px] font-extrabold text-slate-600 dark:bg-slate-800 dark:text-slate-300">
-                                AI Diagnostic
-                            </span>
-                        </div>
-                        <div class="mt-0.5 text-[10px] text-muted-foreground">
-                            / 100 tối đa • Dựa trên 3 chỉ số chính
-                        </div>
-                    </div>
+                    <!-- Pulse ring khi health score vừa load -->
+                    <span
+                        v-if="healthLoaded"
+                        class="absolute -inset-2 animate-ping rounded-full opacity-25"
+                        :class="healthScoreColor.bar"
+                    />
                 </div>
-
-                <div class="w-full flex-1">
-                    <div class="mb-1.5 flex items-center justify-between">
-                        <span
-                            class="text-xs font-extrabold tracking-wide text-slate-700 uppercase dark:text-slate-300"
-                            >Sức khoẻ kinh doanh hôm nay</span
+                <div>
+                    <div class="flex items-center gap-1.5">
+                        <span class="text-xs font-bold text-muted-foreground"
+                            >Điểm sức khỏe</span
                         >
                         <span
-                            :class="[
-                                'rounded-full border px-2.5 py-0.5 text-[10px] font-extrabold shadow-sm transition-transform hover:scale-105 cursor-help',
-                                healthScoreColor.text,
-                                healthScoreColor.bg,
-                            ]"
-                            title="Điểm sức khỏe vận hành tính theo hiệu suất hoàn thành đơn, lợi nhuận và doanh thu"
+                            class="py-0.2 inline-flex items-center rounded-full bg-slate-200/60 px-1.5 text-[9px] font-extrabold text-slate-600 dark:bg-slate-800 dark:text-slate-300"
                         >
-                            Vận hành: {{ healthScoreColor.label }}
+                            AI Diagnostic
                         </span>
                     </div>
-                    <div
-                        class="h-2.5 overflow-hidden rounded-full bg-slate-200/50 dark:bg-black/30"
-                    >
-                        <div
-                            :class="[
-                                'h-full rounded-full transition-all duration-700',
-                                healthScoreColor.bar,
-                            ]"
-                            :style="`width: ${healthScore}%`"
-                        />
-                    </div>
-                    <div
-                        class="mt-2.5 flex flex-wrap items-center justify-between text-[11px] font-semibold text-slate-500 dark:text-slate-400"
-                    >
-                        <div class="flex flex-wrap gap-x-4 gap-y-1">
-                            <span class="flex items-center gap-1"
-                                >🟢 Tỉ lệ hoàn thành:
-                                <strong class="text-slate-700 dark:text-slate-200"
-                                    >{{ stats?.completion_rate ?? 0 }}%</strong
-                                ></span
-                            >
-                            <span class="flex items-center gap-1"
-                                >🟣 Biên LN:
-                                <strong class="text-slate-700 dark:text-slate-200"
-                                    >{{ stats?.profit_margin_today ?? 0 }}%</strong
-                                ></span
-                            >
-                            <span
-                                v-if="stats?.revenue_trend !== null"
-                                class="flex items-center gap-1"
-                            >
-                                {{ (stats?.revenue_trend ?? 0) >= 0 ? '📈' : '📉' }}
-                                Doanh thu:
-                                <strong
-                                    :class="
-                                        (stats?.revenue_trend ?? 0) >= 0
-                                            ? 'text-emerald-600 dark:text-emerald-400'
-                                            : 'text-rose-500 dark:text-rose-400'
-                                    "
-                                >
-                                    {{ (stats?.revenue_trend ?? 0) >= 0 ? '+' : ''
-                                    }}{{ stats?.revenue_trend }}%
-                                </strong>
-                                so với hôm qua
-                            </span>
-                        </div>
-                        <span class="text-[10px] text-slate-400 dark:text-slate-500 font-normal">
-                            💡 Cập nhật theo thời gian thực
-                        </span>
+                    <div class="mt-0.5 text-[10px] text-muted-foreground">
+                        / 100 tối đa • Dựa trên 3 chỉ số chính
                     </div>
                 </div>
             </div>
+
+            <div class="w-full flex-1">
+                <div class="mb-1.5 flex items-center justify-between">
+                    <span
+                        class="text-xs font-extrabold tracking-wide text-slate-700 uppercase dark:text-slate-300"
+                        >Sức khoẻ kinh doanh hôm nay</span
+                    >
+                    <span
+                        :class="[
+                            'cursor-help rounded-full border px-2.5 py-0.5 text-[10px] font-extrabold shadow-sm transition-transform hover:scale-105',
+                            healthScoreColor.text,
+                            healthScoreColor.bg,
+                        ]"
+                        title="Điểm sức khỏe vận hành tính theo hiệu suất hoàn thành đơn, lợi nhuận và doanh thu"
+                    >
+                        Vận hành: {{ healthScoreColor.label }}
+                    </span>
+                </div>
+                <div
+                    class="h-2.5 overflow-hidden rounded-full bg-slate-200/50 dark:bg-black/30"
+                >
+                    <div
+                        :class="[
+                            'h-full rounded-full transition-all duration-700',
+                            healthScoreColor.bar,
+                        ]"
+                        :style="`width: ${healthScore}%`"
+                    />
+                </div>
+                <div
+                    class="mt-2.5 flex flex-wrap items-center justify-between text-[11px] font-semibold text-slate-500 dark:text-slate-400"
+                >
+                    <div class="flex flex-wrap gap-x-4 gap-y-1">
+                        <span class="flex items-center gap-1"
+                            >🟢 Tỉ lệ hoàn thành:
+                            <strong class="text-slate-700 dark:text-slate-200"
+                                >{{ stats?.completion_rate ?? 0 }}%</strong
+                            ></span
+                        >
+                        <span class="flex items-center gap-1"
+                            >🟣 Biên LN:
+                            <strong class="text-slate-700 dark:text-slate-200"
+                                >{{ stats?.profit_margin_today ?? 0 }}%</strong
+                            ></span
+                        >
+                        <span
+                            v-if="stats?.revenue_trend !== null"
+                            class="flex items-center gap-1"
+                        >
+                            {{ (stats?.revenue_trend ?? 0) >= 0 ? '📈' : '📉' }}
+                            Doanh thu:
+                            <strong
+                                :class="
+                                    (stats?.revenue_trend ?? 0) >= 0
+                                        ? 'text-emerald-600 dark:text-emerald-400'
+                                        : 'text-rose-500 dark:text-rose-400'
+                                "
+                            >
+                                {{ (stats?.revenue_trend ?? 0) >= 0 ? '+' : ''
+                                }}{{ stats?.revenue_trend }}%
+                            </strong>
+                            so với hôm qua
+                        </span>
+                    </div>
+                    <span
+                        class="text-[10px] font-normal text-slate-400 dark:text-slate-500"
+                    >
+                        💡 Cập nhật theo thời gian thực
+                    </span>
+                </div>
+            </div>
         </div>
+    </div>
 </template>

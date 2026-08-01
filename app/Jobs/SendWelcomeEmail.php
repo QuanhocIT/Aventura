@@ -22,6 +22,7 @@ class SendWelcomeEmail implements ShouldQueue
 
         if (! $user) {
             Log::warning('SendWelcomeEmail: user không tồn tại', ['user_id' => $this->userId]);
+
             return;
         }
 
@@ -31,11 +32,11 @@ class SendWelcomeEmail implements ShouldQueue
             : 14;
 
         $client->sendWelcome([
-            'name'            => $user->name,
-            'email'           => $user->email,
+            'name' => $user->name,
+            'email' => $user->email,
             'restaurant_name' => $restaurant?->name ?? $user->name,
-            'trial_days'      => max(0, $trialDays),
-            'login_url'       => config('app.url').'/login',
+            'trial_days' => max(0, $trialDays),
+            'login_url' => config('app.url').'/login',
         ]);
     }
 }

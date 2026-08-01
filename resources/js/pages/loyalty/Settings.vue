@@ -142,14 +142,22 @@ async function deleteTier(tier: any) {
 
     <div class="mx-auto flex max-w-7xl flex-col gap-6 p-6">
         <!-- Header -->
-        <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div
+            class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between"
+        >
             <div class="flex items-center gap-3">
                 <Link href="/loyalty">
-                    <Button variant="outline" size="icon" class="h-10 w-10 rounded-xl border-slate-200 dark:border-slate-800">
+                    <Button
+                        variant="outline"
+                        size="icon"
+                        class="h-10 w-10 rounded-xl border-slate-200 dark:border-slate-800"
+                    >
                         <ArrowLeft class="size-4" />
                     </Button>
                 </Link>
-                <div class="flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-50 text-amber-600 dark:bg-amber-950/60 shadow-xs">
+                <div
+                    class="flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-50 text-amber-600 shadow-xs dark:bg-amber-950/60"
+                >
                     <Award class="size-6 text-amber-500" />
                 </div>
                 <div>
@@ -158,20 +166,29 @@ async function deleteTier(tier: any) {
                             Cấu hình Chương trình Thân thiết
                         </h1>
                         <Badge
-                            :variant="programForm.is_active ? 'default' : 'secondary'"
-                            :class="programForm.is_active 
-                                ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20' 
-                                : 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400'"
+                            :variant="
+                                programForm.is_active ? 'default' : 'secondary'
+                            "
+                            :class="
+                                programForm.is_active
+                                    ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
+                                    : 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400'
+                            "
                         >
-                            {{ programForm.is_active ? 'Đang hoạt động' : 'Tạm ngừng' }}
+                            {{
+                                programForm.is_active
+                                    ? 'Đang hoạt động'
+                                    : 'Tạm ngừng'
+                            }}
                         </Badge>
                     </div>
                     <p class="text-sm text-muted-foreground">
-                        Cấu hình quy tắc tích điểm, giá trị điểm thưởng, thời hạn và các hạng thành viên.
+                        Cấu hình quy tắc tích điểm, giá trị điểm thưởng, thời
+                        hạn và các hạng thành viên.
                     </p>
                 </div>
             </div>
-            
+
             <div class="flex items-center gap-3">
                 <Button
                     type="button"
@@ -179,9 +196,14 @@ async function deleteTier(tier: any) {
                     :disabled="programForm.processing"
                     class="gap-2 rounded-xl bg-amber-600 font-semibold text-white shadow-md hover:bg-amber-700 dark:bg-amber-600 dark:hover:bg-amber-500"
                 >
-                    <Loader2 v-if="programForm.processing" class="size-4 animate-spin" />
+                    <Loader2
+                        v-if="programForm.processing"
+                        class="size-4 animate-spin"
+                    />
                     <Save v-else class="size-4" />
-                    {{ programForm.processing ? 'Đang lưu...' : 'Lưu thay đổi' }}
+                    {{
+                        programForm.processing ? 'Đang lưu...' : 'Lưu thay đổi'
+                    }}
                 </Button>
             </div>
         </div>
@@ -190,16 +212,24 @@ async function deleteTier(tier: any) {
             <!-- Left 2 Cols: General Settings Form & Tiers List -->
             <div class="space-y-6 lg:col-span-2">
                 <!-- Program Settings -->
-                <Card class="rounded-2xl border border-slate-200/80 bg-white shadow-xs dark:border-slate-800 dark:bg-slate-900/40 overflow-hidden">
-                    <CardHeader class="border-b border-slate-100 dark:border-slate-800/80 pb-4">
+                <Card
+                    class="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-xs dark:border-slate-800 dark:bg-slate-900/40"
+                >
+                    <CardHeader
+                        class="border-b border-slate-100 pb-4 dark:border-slate-800/80"
+                    >
                         <div class="flex items-center justify-between">
                             <div class="space-y-1">
-                                <CardTitle class="text-base font-bold flex items-center gap-2">
+                                <CardTitle
+                                    class="flex items-center gap-2 text-base font-bold"
+                                >
                                     <Sparkles class="size-4 text-amber-500" />
                                     Quy tắc Tích & Đổi điểm
                                 </CardTitle>
                                 <CardDescription class="text-xs">
-                                    Thiết lập tỷ lệ tích điểm từ doanh thu đơn hàng và giá trị quy đổi điểm sang tiền giảm giá.
+                                    Thiết lập tỷ lệ tích điểm từ doanh thu đơn
+                                    hàng và giá trị quy đổi điểm sang tiền giảm
+                                    giá.
                                 </CardDescription>
                             </div>
                         </div>
@@ -207,20 +237,39 @@ async function deleteTier(tier: any) {
                     <CardContent class="p-6">
                         <form @submit.prevent="saveProgram" class="space-y-6">
                             <!-- Status Toggle -->
-                            <div class="flex items-center justify-between rounded-xl border border-slate-100 bg-slate-50/50 p-4 dark:border-slate-800/80 dark:bg-slate-900/60">
+                            <div
+                                class="flex items-center justify-between rounded-xl border border-slate-100 bg-slate-50/50 p-4 dark:border-slate-800/80 dark:bg-slate-900/60"
+                            >
                                 <div class="space-y-0.5">
-                                    <Label class="text-sm font-bold text-slate-800 dark:text-slate-200">Kích hoạt chương trình tích điểm</Label>
-                                    <p class="text-xs text-muted-foreground">Tự động cộng điểm cho khách hàng sau khi thanh toán hóa đơn</p>
+                                    <Label
+                                        class="text-sm font-bold text-slate-800 dark:text-slate-200"
+                                        >Kích hoạt chương trình tích điểm</Label
+                                    >
+                                    <p class="text-xs text-muted-foreground">
+                                        Tự động cộng điểm cho khách hàng sau khi
+                                        thanh toán hóa đơn
+                                    </p>
                                 </div>
                                 <button
-                                    @click="programForm.is_active = !programForm.is_active"
+                                    @click="
+                                        programForm.is_active =
+                                            !programForm.is_active
+                                    "
                                     type="button"
                                     class="relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none"
-                                    :class="programForm.is_active ? 'bg-emerald-500' : 'bg-slate-300 dark:bg-slate-700'"
+                                    :class="
+                                        programForm.is_active
+                                            ? 'bg-emerald-500'
+                                            : 'bg-slate-300 dark:bg-slate-700'
+                                    "
                                 >
                                     <span
                                         class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-md transition duration-200 ease-in-out"
-                                        :class="programForm.is_active ? 'translate-x-5' : 'translate-x-0'"
+                                        :class="
+                                            programForm.is_active
+                                                ? 'translate-x-5'
+                                                : 'translate-x-0'
+                                        "
                                     ></span>
                                 </button>
                             </div>
@@ -228,89 +277,140 @@ async function deleteTier(tier: any) {
                             <div class="grid grid-cols-1 gap-5 md:grid-cols-2">
                                 <!-- Tỷ lệ tích điểm -->
                                 <div class="space-y-2">
-                                    <Label class="text-xs font-semibold text-slate-700 dark:text-slate-300">Tỷ lệ tích điểm (điểm / 1 VNĐ)</Label>
+                                    <Label
+                                        class="text-xs font-semibold text-slate-700 dark:text-slate-300"
+                                        >Tỷ lệ tích điểm (điểm / 1 VNĐ)</Label
+                                    >
                                     <Input
                                         type="number"
                                         step="0.00001"
                                         v-model="programForm.points_per_vnd"
                                         class="rounded-xl font-mono text-sm"
                                     />
-                                    <p class="text-[11px] text-muted-foreground flex items-center gap-1">
+                                    <p
+                                        class="flex items-center gap-1 text-[11px] text-muted-foreground"
+                                    >
                                         <Coins class="size-3 text-amber-500" />
-                                        Ví dụ: <strong>0.0001</strong> = 1 điểm cho mỗi 10,000 VNĐ
+                                        Ví dụ: <strong>0.0001</strong> = 1 điểm
+                                        cho mỗi 10,000 VNĐ
                                     </p>
                                 </div>
 
                                 <!-- Giá trị 1 điểm -->
                                 <div class="space-y-2">
-                                    <Label class="text-xs font-semibold text-slate-700 dark:text-slate-300">Giá trị quy đổi 1 điểm (VNĐ)</Label>
+                                    <Label
+                                        class="text-xs font-semibold text-slate-700 dark:text-slate-300"
+                                        >Giá trị quy đổi 1 điểm (VNĐ)</Label
+                                    >
                                     <Input
                                         type="number"
                                         v-model="programForm.point_value_vnd"
                                         class="rounded-xl font-mono text-sm"
                                     />
-                                    <p class="text-[11px] text-muted-foreground">
-                                        Khi quy đổi điểm thành tiền giảm giá trên đơn hàng
+                                    <p
+                                        class="text-[11px] text-muted-foreground"
+                                    >
+                                        Khi quy đổi điểm thành tiền giảm giá
+                                        trên đơn hàng
                                     </p>
                                 </div>
 
                                 <!-- Thời hạn điểm -->
                                 <div class="space-y-2">
-                                    <Label class="text-xs font-semibold text-slate-700 dark:text-slate-300">Thời hạn sử dụng điểm (ngày)</Label>
+                                    <Label
+                                        class="text-xs font-semibold text-slate-700 dark:text-slate-300"
+                                        >Thời hạn sử dụng điểm (ngày)</Label
+                                    >
                                     <Input
                                         type="number"
                                         v-model="programForm.points_expiry_days"
                                         placeholder="Để trống = Không bao giờ hết hạn"
                                         class="rounded-xl text-sm"
                                     />
-                                    <p class="text-[11px] text-muted-foreground flex items-center gap-1">
-                                        <Calendar class="size-3 text-blue-500" />
+                                    <p
+                                        class="flex items-center gap-1 text-[11px] text-muted-foreground"
+                                    >
+                                        <Calendar
+                                            class="size-3 text-blue-500"
+                                        />
                                         Tự động xoá điểm quá hạn
                                     </p>
                                 </div>
 
                                 <!-- Tối thiểu để đổi -->
                                 <div class="space-y-2">
-                                    <Label class="text-xs font-semibold text-slate-700 dark:text-slate-300">Số điểm tối thiểu để quy đổi</Label>
+                                    <Label
+                                        class="text-xs font-semibold text-slate-700 dark:text-slate-300"
+                                        >Số điểm tối thiểu để quy đổi</Label
+                                    >
                                     <Input
                                         type="number"
                                         v-model="programForm.min_redeem_points"
                                         class="rounded-xl font-mono text-sm"
                                     />
-                                    <p class="text-[11px] text-muted-foreground">
-                                        Mốc điểm tối thiểu cần đạt để áp dụng giảm giá
+                                    <p
+                                        class="text-[11px] text-muted-foreground"
+                                    >
+                                        Mốc điểm tối thiểu cần đạt để áp dụng
+                                        giảm giá
                                     </p>
                                 </div>
 
                                 <!-- Điểm thưởng sinh nhật -->
                                 <div class="space-y-2">
-                                    <Label class="text-xs font-semibold text-slate-700 dark:text-slate-300">Điểm thưởng sinh nhật</Label>
+                                    <Label
+                                        class="text-xs font-semibold text-slate-700 dark:text-slate-300"
+                                        >Điểm thưởng sinh nhật</Label
+                                    >
                                     <Input
                                         type="number"
-                                        v-model="programForm.birthday_bonus_points"
+                                        v-model="
+                                            programForm.birthday_bonus_points
+                                        "
                                         class="rounded-xl font-mono text-sm"
                                     />
-                                    <p class="text-[11px] text-muted-foreground">
-                                        Tự động cộng điểm cho hội viên vào dịp sinh nhật
+                                    <p
+                                        class="text-[11px] text-muted-foreground"
+                                    >
+                                        Tự động cộng điểm cho hội viên vào dịp
+                                        sinh nhật
                                     </p>
                                 </div>
 
                                 <!-- Bật thẻ QR -->
                                 <div class="flex flex-col justify-end">
-                                    <div class="flex items-center justify-between rounded-xl border border-slate-100 bg-slate-50/50 p-3.5 dark:border-slate-800/80 dark:bg-slate-900/60">
+                                    <div
+                                        class="flex items-center justify-between rounded-xl border border-slate-100 bg-slate-50/50 p-3.5 dark:border-slate-800/80 dark:bg-slate-900/60"
+                                    >
                                         <div class="flex items-center gap-2.5">
-                                            <QrCode class="size-4 text-indigo-500" />
-                                            <Label class="text-xs font-semibold cursor-pointer">Thẻ thành viên QR</Label>
+                                            <QrCode
+                                                class="size-4 text-indigo-500"
+                                            />
+                                            <Label
+                                                class="cursor-pointer text-xs font-semibold"
+                                                >Thẻ thành viên QR</Label
+                                            >
                                         </div>
                                         <button
-                                            @click="programForm.enable_qr_card = !programForm.enable_qr_card"
+                                            @click="
+                                                programForm.enable_qr_card =
+                                                    !programForm.enable_qr_card
+                                            "
                                             type="button"
                                             class="relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none"
-                                            :class="programForm.enable_qr_card ? 'bg-indigo-600' : 'bg-slate-300 dark:bg-slate-700'"
+                                            :class="
+                                                programForm.enable_qr_card
+                                                    ? 'bg-indigo-600'
+                                                    : 'bg-slate-300 dark:bg-slate-700'
+                                            "
                                         >
                                             <span
                                                 class="pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-md transition duration-200 ease-in-out"
-                                                :class="programForm.enable_qr_card ? 'translate-x-4' : 'translate-x-0'"
+                                                :class="
+                                                    programForm.enable_qr_card
+                                                        ? 'translate-x-4'
+                                                        : 'translate-x-0'
+                                                "
                                             ></span>
                                         </button>
                                     </div>
@@ -321,19 +421,31 @@ async function deleteTier(tier: any) {
                 </Card>
 
                 <!-- Tiers Card -->
-                <Card class="rounded-2xl border border-slate-200/80 bg-white shadow-xs dark:border-slate-800 dark:bg-slate-900/40 overflow-hidden">
-                    <CardHeader class="border-b border-slate-100 dark:border-slate-800/80 pb-4">
+                <Card
+                    class="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-xs dark:border-slate-800 dark:bg-slate-900/40"
+                >
+                    <CardHeader
+                        class="border-b border-slate-100 pb-4 dark:border-slate-800/80"
+                    >
                         <div class="flex items-center justify-between">
                             <div class="space-y-1">
-                                <CardTitle class="text-base font-bold flex items-center gap-2">
+                                <CardTitle
+                                    class="flex items-center gap-2 text-base font-bold"
+                                >
                                     <Award class="size-4 text-indigo-500" />
                                     Cấu hình Bậc Hạng Thành viên
                                 </CardTitle>
                                 <CardDescription class="text-xs">
-                                    Phân hạng hội viên (Bạc, Vàng, Kim Cương) theo tổng chi tiêu kèm ưu đãi % giảm giá & hệ số tích điểm.
+                                    Phân hạng hội viên (Bạc, Vàng, Kim Cương)
+                                    theo tổng chi tiêu kèm ưu đãi % giảm giá &
+                                    hệ số tích điểm.
                                 </CardDescription>
                             </div>
-                            <Button @click="openCreateTier" class="gap-1.5 rounded-xl" size="sm">
+                            <Button
+                                @click="openCreateTier"
+                                class="gap-1.5 rounded-xl"
+                                size="sm"
+                            >
                                 <Plus class="size-4" /> Thêm hạng
                             </Button>
                         </div>
@@ -341,45 +453,84 @@ async function deleteTier(tier: any) {
                     <CardContent class="p-0">
                         <div v-if="tiers.length" class="overflow-x-auto">
                             <table class="w-full text-left text-sm">
-                                <thead class="border-b border-slate-100 bg-slate-50/50 text-xs text-muted-foreground uppercase tracking-wider dark:border-slate-800 dark:bg-slate-900/60">
+                                <thead
+                                    class="border-b border-slate-100 bg-slate-50/50 text-xs tracking-wider text-muted-foreground uppercase dark:border-slate-800 dark:bg-slate-900/60"
+                                >
                                     <tr>
-                                        <th class="px-6 py-3.5 font-bold">Hạng thành viên</th>
-                                        <th class="px-4 py-3.5 font-bold">Chi tiêu tối thiểu</th>
-                                        <th class="px-4 py-3.5 font-bold">Giảm giá đơn</th>
-                                        <th class="px-4 py-3.5 font-bold">Hệ số tích điểm</th>
-                                        <th class="px-6 py-3.5 text-right font-bold">Thao tác</th>
+                                        <th class="px-6 py-3.5 font-bold">
+                                            Hạng thành viên
+                                        </th>
+                                        <th class="px-4 py-3.5 font-bold">
+                                            Chi tiêu tối thiểu
+                                        </th>
+                                        <th class="px-4 py-3.5 font-bold">
+                                            Giảm giá đơn
+                                        </th>
+                                        <th class="px-4 py-3.5 font-bold">
+                                            Hệ số tích điểm
+                                        </th>
+                                        <th
+                                            class="px-6 py-3.5 text-right font-bold"
+                                        >
+                                            Thao tác
+                                        </th>
                                     </tr>
                                 </thead>
-                                <tbody class="divide-y divide-slate-100 dark:divide-slate-800/80">
+                                <tbody
+                                    class="divide-y divide-slate-100 dark:divide-slate-800/80"
+                                >
                                     <tr
                                         v-for="t in tiers"
                                         :key="t.id"
                                         class="transition-colors hover:bg-slate-50/60 dark:hover:bg-slate-800/40"
                                     >
                                         <td class="px-6 py-4">
-                                            <div class="flex items-center gap-3">
+                                            <div
+                                                class="flex items-center gap-3"
+                                            >
                                                 <span
-                                                    class="h-3.5 w-3.5 rounded-full shadow-xs shrink-0"
-                                                    :style="{ backgroundColor: t.color || '#94a3b8' }"
+                                                    class="h-3.5 w-3.5 shrink-0 rounded-full shadow-xs"
+                                                    :style="{
+                                                        backgroundColor:
+                                                            t.color ||
+                                                            '#94a3b8',
+                                                    }"
                                                 ></span>
-                                                <span class="font-bold text-slate-800 dark:text-slate-200">{{ t.name }}</span>
+                                                <span
+                                                    class="font-bold text-slate-800 dark:text-slate-200"
+                                                    >{{ t.name }}</span
+                                                >
                                             </div>
                                         </td>
-                                        <td class="px-4 py-4 font-mono font-semibold text-slate-700 dark:text-slate-300">
-                                            {{ Number(t.min_spent).toLocaleString() }}đ
+                                        <td
+                                            class="px-4 py-4 font-mono font-semibold text-slate-700 dark:text-slate-300"
+                                        >
+                                            {{
+                                                Number(
+                                                    t.min_spent,
+                                                ).toLocaleString()
+                                            }}đ
                                         </td>
                                         <td class="px-4 py-4">
-                                            <Badge variant="outline" class="border-emerald-500/20 bg-emerald-50 text-emerald-600 dark:bg-emerald-950/30 dark:text-emerald-400 font-bold">
+                                            <Badge
+                                                variant="outline"
+                                                class="border-emerald-500/20 bg-emerald-50 font-bold text-emerald-600 dark:bg-emerald-950/30 dark:text-emerald-400"
+                                            >
                                                 -{{ t.discount_percent }}%
                                             </Badge>
                                         </td>
                                         <td class="px-4 py-4">
-                                            <Badge variant="secondary" class="bg-indigo-50 text-indigo-600 dark:bg-indigo-950/30 dark:text-indigo-400 border-none font-bold">
+                                            <Badge
+                                                variant="secondary"
+                                                class="border-none bg-indigo-50 font-bold text-indigo-600 dark:bg-indigo-950/30 dark:text-indigo-400"
+                                            >
                                                 x{{ t.points_multiplier }}
                                             </Badge>
                                         </td>
                                         <td class="px-6 py-4 text-right">
-                                            <div class="flex items-center justify-end gap-1">
+                                            <div
+                                                class="flex items-center justify-end gap-1"
+                                            >
                                                 <Button
                                                     variant="ghost"
                                                     size="icon"
@@ -402,13 +553,19 @@ async function deleteTier(tier: any) {
                                 </tbody>
                             </table>
                         </div>
-                        <div
-                            v-else
-                            class="p-8 text-center"
-                        >
-                            <Award class="mx-auto size-8 text-slate-300 dark:text-slate-700 mb-2" />
-                            <p class="text-sm font-medium text-muted-foreground">Chưa có hạng thành viên nào.</p>
-                            <p class="text-xs text-slate-400 mt-0.5">Nhấn "Thêm hạng" để tạo các cấp bậc Bạc, Vàng, Kim Cương.</p>
+                        <div v-else class="p-8 text-center">
+                            <Award
+                                class="mx-auto mb-2 size-8 text-slate-300 dark:text-slate-700"
+                            />
+                            <p
+                                class="text-sm font-medium text-muted-foreground"
+                            >
+                                Chưa có hạng thành viên nào.
+                            </p>
+                            <p class="mt-0.5 text-xs text-slate-400">
+                                Nhấn "Thêm hạng" để tạo các cấp bậc Bạc, Vàng,
+                                Kim Cương.
+                            </p>
                         </div>
                     </CardContent>
                 </Card>
@@ -416,37 +573,81 @@ async function deleteTier(tier: any) {
 
             <!-- Right Sidebar: Quick Simulation & Info -->
             <div class="space-y-6">
-                <Card class="rounded-2xl border border-slate-200/80 bg-white shadow-xs dark:border-slate-800 dark:bg-slate-900/40">
-                    <CardHeader class="border-b border-slate-100 dark:border-slate-800/80 pb-3">
-                        <CardTitle class="text-sm font-bold flex items-center gap-2">
-                            <Gift class="size-4 text-amber-500" /> Mô phỏng tính điểm
+                <Card
+                    class="rounded-2xl border border-slate-200/80 bg-white shadow-xs dark:border-slate-800 dark:bg-slate-900/40"
+                >
+                    <CardHeader
+                        class="border-b border-slate-100 pb-3 dark:border-slate-800/80"
+                    >
+                        <CardTitle
+                            class="flex items-center gap-2 text-sm font-bold"
+                        >
+                            <Gift class="size-4 text-amber-500" /> Mô phỏng tính
+                            điểm
                         </CardTitle>
                     </CardHeader>
-                    <CardContent class="p-5 space-y-4">
-                        <div class="rounded-xl bg-amber-50/60 p-4 dark:bg-amber-950/30 border border-amber-200/40 dark:border-amber-900/30">
-                            <span class="text-xs text-amber-700 dark:text-amber-300 font-semibold block mb-1">Ví dụ đơn hàng 500,000đ:</span>
-                            <div class="flex items-center justify-between text-sm font-bold text-amber-900 dark:text-amber-200">
+                    <CardContent class="space-y-4 p-5">
+                        <div
+                            class="rounded-xl border border-amber-200/40 bg-amber-50/60 p-4 dark:border-amber-900/30 dark:bg-amber-950/30"
+                        >
+                            <span
+                                class="mb-1 block text-xs font-semibold text-amber-700 dark:text-amber-300"
+                                >Ví dụ đơn hàng 500,000đ:</span
+                            >
+                            <div
+                                class="flex items-center justify-between text-sm font-bold text-amber-900 dark:text-amber-200"
+                            >
                                 <span>Điểm tích lũy:</span>
-                                <span class="font-mono text-base text-amber-600 dark:text-amber-400">
-                                    +{{ Math.floor(500000 * (programForm.points_per_vnd || 0)) }} pt
+                                <span
+                                    class="font-mono text-base text-amber-600 dark:text-amber-400"
+                                >
+                                    +{{
+                                        Math.floor(
+                                            500000 *
+                                                (programForm.points_per_vnd ||
+                                                    0),
+                                        )
+                                    }}
+                                    pt
                                 </span>
                             </div>
-                            <div class="mt-2 pt-2 border-t border-amber-200/40 dark:border-amber-900/30 flex items-center justify-between text-xs text-amber-800 dark:text-amber-300">
+                            <div
+                                class="mt-2 flex items-center justify-between border-t border-amber-200/40 pt-2 text-xs text-amber-800 dark:border-amber-900/30 dark:text-amber-300"
+                            >
                                 <span>Giá trị giảm giá:</span>
                                 <span class="font-mono font-bold">
-                                    {{ (Math.floor(500000 * (programForm.points_per_vnd || 0)) * (programForm.point_value_vnd || 0)).toLocaleString() }}đ
+                                    {{
+                                        (
+                                            Math.floor(
+                                                500000 *
+                                                    (programForm.points_per_vnd ||
+                                                        0),
+                                            ) *
+                                            (programForm.point_value_vnd || 0)
+                                        ).toLocaleString()
+                                    }}đ
                                 </span>
                             </div>
                         </div>
 
                         <div class="space-y-2.5 text-xs text-muted-foreground">
                             <div class="flex items-start gap-2">
-                                <CheckCircle2 class="size-3.5 text-emerald-500 shrink-0 mt-0.5" />
-                                <span>Tự động tính chiết khấu cho khách khi thu ngân thanh toán hóa đơn.</span>
+                                <CheckCircle2
+                                    class="mt-0.5 size-3.5 shrink-0 text-emerald-500"
+                                />
+                                <span
+                                    >Tự động tính chiết khấu cho khách khi thu
+                                    ngân thanh toán hóa đơn.</span
+                                >
                             </div>
                             <div class="flex items-start gap-2">
-                                <CheckCircle2 class="size-3.5 text-emerald-500 shrink-0 mt-0.5" />
-                                <span>Tự động nâng hạng thẻ khi tổng chi tiêu khách hàng đạt mốc tích lũy.</span>
+                                <CheckCircle2
+                                    class="mt-0.5 size-3.5 shrink-0 text-emerald-500"
+                                />
+                                <span
+                                    >Tự động nâng hạng thẻ khi tổng chi tiêu
+                                    khách hàng đạt mốc tích lũy.</span
+                                >
                             </div>
                         </div>
                     </CardContent>
@@ -475,7 +676,9 @@ async function deleteTier(tier: any) {
                 </div>
                 <div class="grid grid-cols-2 gap-4">
                     <div class="grid gap-1.5">
-                        <Label class="text-xs font-semibold">Chi tiêu tối thiểu (VNĐ)</Label>
+                        <Label class="text-xs font-semibold"
+                            >Chi tiêu tối thiểu (VNĐ)</Label
+                        >
                         <Input
                             type="number"
                             v-model="tierForm.min_spent"
@@ -484,7 +687,9 @@ async function deleteTier(tier: any) {
                         />
                     </div>
                     <div class="grid gap-1.5">
-                        <Label class="text-xs font-semibold">Giảm giá (%)</Label>
+                        <Label class="text-xs font-semibold"
+                            >Giảm giá (%)</Label
+                        >
                         <Input
                             type="number"
                             step="0.1"
@@ -494,7 +699,9 @@ async function deleteTier(tier: any) {
                         />
                     </div>
                     <div class="grid gap-1.5">
-                        <Label class="text-xs font-semibold">Nhân điểm (x)</Label>
+                        <Label class="text-xs font-semibold"
+                            >Nhân điểm (x)</Label
+                        >
                         <Input
                             type="number"
                             step="0.1"
@@ -504,7 +711,9 @@ async function deleteTier(tier: any) {
                         />
                     </div>
                     <div class="grid gap-1.5">
-                        <Label class="text-xs font-semibold">Thứ tự hiển thị</Label>
+                        <Label class="text-xs font-semibold"
+                            >Thứ tự hiển thị</Label
+                        >
                         <Input
                             type="number"
                             v-model="tierForm.display_order"
@@ -514,14 +723,18 @@ async function deleteTier(tier: any) {
                     </div>
                 </div>
                 <div class="grid gap-1.5">
-                    <Label class="text-xs font-semibold">Màu nhận diện hạng</Label>
+                    <Label class="text-xs font-semibold"
+                        >Màu nhận diện hạng</Label
+                    >
                     <div class="flex items-center gap-3">
                         <input
                             type="color"
                             v-model="tierForm.color"
                             class="h-9 w-14 cursor-pointer rounded-lg border border-slate-200 p-0.5 dark:border-slate-800"
                         />
-                        <span class="font-mono text-xs text-muted-foreground">{{ tierForm.color }}</span>
+                        <span class="font-mono text-xs text-muted-foreground">{{
+                            tierForm.color
+                        }}</span>
                     </div>
                 </div>
                 <DialogFooter class="gap-2">
@@ -532,7 +745,11 @@ async function deleteTier(tier: any) {
                         @click="showTierDialog = false"
                         >Hủy</Button
                     >
-                    <Button type="submit" :disabled="tierForm.processing" class="rounded-xl bg-amber-600 text-white hover:bg-amber-700">
+                    <Button
+                        type="submit"
+                        :disabled="tierForm.processing"
+                        class="rounded-xl bg-amber-600 text-white hover:bg-amber-700"
+                    >
                         {{
                             tierForm.processing
                                 ? 'Đang lưu...'

@@ -2,11 +2,12 @@
 
 namespace App\Jobs;
 
+use App\Models\Customer;
 use App\Models\Order;
 use App\Models\User;
+use App\Services\CdpService;
 use App\Services\InventoryService;
 use App\Services\LoyaltyService;
-use App\Services\CdpService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -28,8 +29,9 @@ class ProcessPostPaymentActions implements ShouldQueue
         $order = Order::find($this->orderId);
         $user = User::find($this->userId);
 
-        if (!$order || !$user) {
+        if (! $order || ! $user) {
             Log::warning("ProcessPostPaymentActions: Order {$this->orderId} or User {$this->userId} not found.");
+
             return;
         }
 
@@ -40,7 +42,7 @@ class ProcessPostPaymentActions implements ShouldQueue
 
         // 2. Tính điểm thành viên & Cập nhật RFM
         if ($order->customer_id) {
-            $customer = \App\Models\Customer::find($order->customer_id);
+            $customer = Customer::find($order->customer_id);
             if ($customer) {
                 $customer->update(['last_order_at' => now()]);
 

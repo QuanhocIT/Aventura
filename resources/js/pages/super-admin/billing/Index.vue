@@ -221,8 +221,8 @@ function openWriteOff(id: number, num: string) {
 
 function submitWriteOff() {
     if (!writeOffInvoiceId.value || !writeOffReason.value.trim()) {
-return;
-}
+        return;
+    }
 
     writeOffLoading.value = true;
     router.patch(
@@ -257,8 +257,8 @@ return;
 const isCopied = ref(false);
 function copyToClipboard(text: string) {
     if (!text) {
-return;
-}
+        return;
+    }
 
     navigator.clipboard
         .writeText(text)
@@ -279,8 +279,8 @@ return;
 // đây là dữ liệu audit thật. Các trường chưa được hệ thống lưu trữ ghi rõ "Không lưu trữ".
 const webhookPayloadPreview = computed(() => {
     if (!selectedWebhook.value) {
-return {};
-}
+        return {};
+    }
 
     return {
         webhook_id: selectedWebhook.value.id,
@@ -416,8 +416,8 @@ const metrics = computed(() => {
 // Tính toán chiều cao cột SVG linh hoạt
 function getBarHeight(val: number) {
     if (val === 0) {
-return 0;
-}
+        return 0;
+    }
 
     const maxVal = Math.max(
         ...metrics.value.chartData.map((d) => Math.max(d.paid, d.pending)),

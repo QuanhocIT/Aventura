@@ -1,11 +1,17 @@
 <script setup lang="ts">
 import { Head, Link, useForm } from '@inertiajs/vue3';
 import { ShieldCheck } from 'lucide-vue-next';
-import AppLayout from '@/layouts/AppLayout.vue';
 import InputError from '@/components/InputError.vue';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+    Card,
+    CardContent,
+    CardDescription,
+    CardHeader,
+    CardTitle,
+} from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import AppLayout from '@/layouts/AppLayout.vue';
 
 defineOptions({ layout: AppLayout });
 
@@ -27,22 +33,31 @@ const submit = (): void => {
 <template>
     <Head title="Xác nhận 2FA · Superadmin" />
 
-    <div class="mx-auto flex min-h-[70vh] max-w-xl items-center justify-center px-4 py-10">
+    <div
+        class="mx-auto flex min-h-[70vh] max-w-xl items-center justify-center px-4 py-10"
+    >
         <Card class="w-full">
             <CardHeader class="space-y-3">
-                <div class="flex size-12 items-center justify-center rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
+                <div
+                    class="flex size-12 items-center justify-center rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300"
+                >
                     <ShieldCheck class="size-6" />
                 </div>
                 <CardTitle>Xác nhận thao tác nhạy cảm</CardTitle>
                 <CardDescription>
-                    Nhập mã 6 chữ số từ ứng dụng Authenticator. Phiên xác nhận có hiệu lực {{ validityMinutes }} phút.
+                    Nhập mã 6 chữ số từ ứng dụng Authenticator. Phiên xác nhận
+                    có hiệu lực {{ validityMinutes }} phút.
                 </CardDescription>
             </CardHeader>
 
             <CardContent>
                 <form class="space-y-5" @submit.prevent="submit">
                     <div class="space-y-2">
-                        <label for="superadmin-2fa-code" class="text-sm font-medium">Mã xác thực 2FA</label>
+                        <label
+                            for="superadmin-2fa-code"
+                            class="text-sm font-medium"
+                            >Mã xác thực 2FA</label
+                        >
                         <Input
                             id="superadmin-2fa-code"
                             v-model="form.code"
@@ -60,10 +75,22 @@ const submit = (): void => {
                     </div>
 
                     <div class="flex items-center gap-3">
-                        <Button type="submit" :disabled="form.processing || form.code.length !== 6">
-                            {{ form.processing ? 'Đang xác nhận...' : 'Xác nhận 2FA' }}
+                        <Button
+                            type="submit"
+                            :disabled="
+                                form.processing || form.code.length !== 6
+                            "
+                        >
+                            {{
+                                form.processing
+                                    ? 'Đang xác nhận...'
+                                    : 'Xác nhận 2FA'
+                            }}
                         </Button>
-                        <Link href="/super-admin/dashboard" class="text-sm text-muted-foreground hover:underline">
+                        <Link
+                            href="/super-admin/dashboard"
+                            class="text-sm text-muted-foreground hover:underline"
+                        >
                             Hủy
                         </Link>
                     </div>

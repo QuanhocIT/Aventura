@@ -12,12 +12,14 @@ import {
     Link as LinkIcon,
     Percent,
     Clock,
+    CheckCircle2,
     FileText,
     DollarSign,
 } from 'lucide-vue-next';
 import { ref, computed } from 'vue';
 import {
     PageHeader,
+    SectionCard,
     StatCard,
     StatusBadge,
     EmptyState,
@@ -64,7 +66,7 @@ const props = defineProps<{
         total_usages?: number;
     }>;
     seasons: Record<string, string>;
-} >();
+}>();
 
 const seasonColors: Record<string, string> = {
     tet: 'from-red-500/20 to-amber-500/10 border-red-500/30',
@@ -114,43 +116,56 @@ const currentYear = new Date().getFullYear();
 const aiRecommendation = computed(() => {
     if (currentMonth === 11 || currentMonth === 12) {
         return {
-            title: "Lên kế hoạch Tết Nguyên Đán",
+            title: 'Lên kế hoạch Tết Nguyên Đán',
             text: `Hôm nay là cuối năm ${currentYear}. Tết Nguyên Đán sắp diễn ra trong khoảng 1-2 tháng tới. AI khuyên bạn khởi tạo chiến dịch khuyến mãi Tết với mức giảm 20% (Tiền tố TET) để kích cầu doanh thu tối đa trong dịp lễ lớn này.`,
-            season: "tet"
+            season: 'tet',
         };
     } else if (currentMonth === 1 || currentMonth === 2) {
         return {
-            title: "Chiến dịch Valentine ngọt ngào",
-            text: "Dịp lễ Valentine (14/2) đang cận kề. Đây là cơ hội vàng để tung gói khuyến mãi cố định (ví dụ: Giảm 100k - Tiền tố VAL) nhắm tới các thương hiệu F&B muốn mở rộng kênh bán hàng trực tuyến.",
-            season: "valentine"
+            title: 'Chiến dịch Valentine ngọt ngào',
+            text: 'Dịp lễ Valentine (14/2) đang cận kề. Đây là cơ hội vàng để tung gói khuyến mãi cố định (ví dụ: Giảm 100k - Tiền tố VAL) nhắm tới các thương hiệu F&B muốn mở rộng kênh bán hàng trực tuyến.',
+            season: 'valentine',
         };
     } else if (currentMonth >= 8 && currentMonth <= 9) {
         return {
-            title: "Chiến dịch Thu - Giáng Sinh sớm",
-            text: "Tháng 8-9 là giai đoạn chuẩn bị cho mùa lễ hội cuối năm. AI gợi ý chuẩn bị trước chiến dịch Halloween hoặc thiết lập sớm mã giảm giá Trung Thu để thúc đẩy đăng ký mới.",
-            season: "mid_autumn"
+            title: 'Chiến dịch Thu - Giáng Sinh sớm',
+            text: 'Tháng 8-9 là giai đoạn chuẩn bị cho mùa lễ hội cuối năm. AI gợi ý chuẩn bị trước chiến dịch Halloween hoặc thiết lập sớm mã giảm giá Trung Thu để thúc đẩy đăng ký mới.',
+            season: 'mid_autumn',
         };
     } else if (currentMonth === 10) {
         return {
-            title: "Black Friday & Noel đang đến gần",
+            title: 'Black Friday & Noel đang đến gần',
             text: `Sắp tới tháng 11 với ngày hội mua sắm Black Friday lớn nhất năm. AI khuyến nghị bạn chuẩn bị cấu hình sẵn chiến dịch Black Friday với mức chiết khấu sâu (25% - 30%) để thu hút các đối tác F&B lớn nâng cấp gói dịch vụ dài hạn.`,
-            season: "black-friday"
+            season: 'black-friday',
         };
     } else {
         // Mặc định hoặc mùa hè
         return {
-            title: "Tối ưu hóa các chiến dịch giữa năm",
-            text: "Giai đoạn giữa năm là thời điểm thích hợp để chạy các chương trình khuyến mãi nhỏ kích cầu. AI gợi ý tạo một template chiến dịch tùy chỉnh (Custom) với mức giảm giá 10% - 15% để duy trì tăng trưởng thuê bao ổn định.",
-            season: "custom"
+            title: 'Tối ưu hóa các chiến dịch giữa năm',
+            text: 'Giai đoạn giữa năm là thời điểm thích hợp để chạy các chương trình khuyến mãi nhỏ kích cầu. AI gợi ý tạo một template chiến dịch tùy chỉnh (Custom) với mức giảm giá 10% - 15% để duy trì tăng trưởng thuê bao ổn định.',
+            season: 'custom',
         };
     }
 });
+
+const templateSummary = computed(() => ({
+    total: props.templates.length,
+    active: props.templates.filter((template) => template.is_active).length,
+    batches: props.templates.reduce(
+        (total, template) => total + template.batches_count,
+        0,
+    ),
+    codes: props.templates.reduce(
+        (total, template) => total + (template.total_codes ?? 0),
+        0,
+    ),
+}));
 
 function applyAiRecommendation() {
     const rec = aiRecommendation.value;
     form.reset();
     form.season = rec.season;
-    
+
     if (rec.season === 'tet') {
         form.name = `Khuyến mãi Tết Nguyên Đán ${currentYear + 1}`;
         form.slug = `tet-nguyen-dan-${currentYear + 1}`;
@@ -184,7 +199,7 @@ function applyAiRecommendation() {
         form.code_prefix = 'SUMMER';
         form.description = `Chương trình khuyến mãi mùa hè kích cầu tăng trưởng thuê bao giữa năm ${currentYear}.`;
     }
-    
+
     showCreate.value = true;
 }
 
@@ -243,53 +258,94 @@ async function deleteTemplate(id: number) {
 </script>
 
 <template>
-    <Head title="Chiến dịch theo mùa" />
+    <Head title="Chiến dịch khuyến mãi theo mùa" />
 
     <div class="flex flex-col gap-5 px-6 py-5">
         <PageHeader
-            title="Chiến dịch Khuyến mãi theo Mùa"
-            subtitle="Tạo template sẵn cho các dịp lễ, tự động generate mã coupon hàng loạt."
+            title="Chiến dịch khuyến mãi theo mùa"
+            subtitle="Tạo mẫu chiến dịch cho các dịp lễ và sinh mã coupon hàng loạt."
             :icon="Calendar"
         >
             <template #actions>
-                <Button @click="seedDefaults" variant="outline" class="gap-1.5 border-amber-500/30 text-amber-500 hover:bg-amber-500/10">
-                    <Sparkles class="size-4 text-amber-500 animate-pulse" /> Khởi tạo bản mẫu
+                <Button
+                    @click="seedDefaults"
+                    variant="outline"
+                    class="gap-1.5 border-amber-500/30 text-amber-500 hover:bg-amber-500/10"
+                >
+                    <Sparkles class="size-4 animate-pulse text-amber-500" />
+                    Khởi tạo bản mẫu
                 </Button>
                 <Button @click="showCreate = true" class="gap-1.5">
-                    <Plus class="size-4" /> Tạo template mới
+                    <Plus class="size-4" /> Tạo mẫu mới
                 </Button>
             </template>
         </PageHeader>
 
-        <!-- AI Advisor Banner -->
-        <div
-            class="flex flex-col gap-3 rounded-2xl border border-indigo-500/20 bg-indigo-500/[0.04] p-5 shadow-2xs backdrop-blur-md animate-in fade-in duration-500 md:flex-row md:items-center md:justify-between"
-        >
-            <div class="flex items-start gap-3.5">
-                <div
-                    class="flex size-10 shrink-0 items-center justify-center rounded-xl border border-indigo-500/20 bg-indigo-500/10 text-indigo-500"
-                >
-                    <Sparkles class="size-5 animate-pulse" />
-                </div>
-                <div class="space-y-1">
-                    <h4 class="text-sm font-bold text-indigo-950 dark:text-indigo-200">
-                        AI Advisor & Gợi ý chiến dịch: {{ aiRecommendation.title }}
-                    </h4>
-                    <p class="text-xs leading-relaxed text-indigo-700/80 dark:text-indigo-300/80">
-                        {{ aiRecommendation.text }}
-                    </p>
-                </div>
-            </div>
-            <div class="flex shrink-0 items-center gap-2 self-end md:self-center">
-                <Button
-                    size="sm"
-                    class="bg-indigo-600 text-xs font-bold text-white hover:bg-indigo-700"
-                    @click="applyAiRecommendation"
-                >
-                    <Zap class="mr-1.5 size-3.5" /> Áp dụng ngay
-                </Button>
-            </div>
+        <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <StatCard
+                label="Tổng số mẫu"
+                :value="templateSummary.total"
+                :icon="Calendar"
+                color="indigo"
+            />
+            <StatCard
+                label="Mẫu đang bật"
+                :value="templateSummary.active"
+                :icon="CheckCircle2"
+                color="emerald"
+            />
+            <StatCard
+                label="Đợt mã đã tạo"
+                :value="templateSummary.batches"
+                :icon="Zap"
+                color="amber"
+            />
+            <StatCard
+                label="Mã coupon đã tạo"
+                :value="templateSummary.codes"
+                :icon="Tag"
+                color="violet"
+            />
         </div>
+
+        <!-- AI Advisor Banner -->
+        <SectionCard accent-color="violet" class="!space-y-0">
+            <div
+                class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between"
+            >
+                <div class="flex items-start gap-3.5">
+                    <div
+                        class="flex size-10 shrink-0 items-center justify-center rounded-xl border border-indigo-500/20 bg-indigo-500/10 text-indigo-500"
+                    >
+                        <Sparkles class="size-5 animate-pulse" />
+                    </div>
+                    <div class="space-y-1">
+                        <h4
+                            class="text-sm font-bold text-indigo-950 dark:text-indigo-200"
+                        >
+                            Trợ lý AI & gợi ý chiến dịch:
+                            {{ aiRecommendation.title }}
+                        </h4>
+                        <p
+                            class="text-xs leading-relaxed text-indigo-700/80 dark:text-indigo-300/80"
+                        >
+                            {{ aiRecommendation.text }}
+                        </p>
+                    </div>
+                </div>
+                <div
+                    class="flex shrink-0 items-center gap-2 self-end md:self-center"
+                >
+                    <Button
+                        size="sm"
+                        class="bg-indigo-600 text-xs font-bold text-white hover:bg-indigo-700"
+                        @click="applyAiRecommendation"
+                    >
+                        <Zap class="mr-1.5 size-3.5" /> Áp dụng ngay
+                    </Button>
+                </div>
+            </div>
+        </SectionCard>
 
         <!-- Template Gallery -->
         <div
@@ -312,7 +368,7 @@ async function deleteTemplate(id: number) {
                         :status="t.is_active ? 'active' : 'inactive'"
                         size="sm"
                     >
-                        {{ t.is_active ? 'Active' : 'Tắt' }}
+                        {{ t.is_active ? 'Đang bật' : 'Đã tắt' }}
                     </StatusBadge>
                 </div>
                 <h3 class="mt-3 text-base font-bold text-foreground">
@@ -332,23 +388,39 @@ async function deleteTemplate(id: number) {
                                 : `${Math.round(t.discount_value).toLocaleString('vi')}₫`
                         }}
                     </span>
-                    <span class="rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground font-semibold"
+                    <span
+                        class="rounded bg-muted px-1.5 py-0.5 text-[10px] font-semibold text-muted-foreground"
                         >{{ t.default_duration_days }} ngày</span
                     >
-                    <span class="font-mono text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded font-semibold"
+                    <span
+                        class="rounded bg-muted px-1.5 py-0.5 font-mono text-[10px] font-semibold text-muted-foreground"
                         >{{ t.code_prefix }}-XXX</span
                     >
                 </div>
 
                 <!-- Budget & Usage Stats -->
-                <div class="mt-4 grid grid-cols-2 gap-2 border-t border-border/20 pt-3 text-[11px] font-semibold text-muted-foreground">
+                <div
+                    class="mt-4 grid grid-cols-2 gap-2 border-t border-border/20 pt-3 text-[11px] font-semibold text-muted-foreground"
+                >
                     <div>
-                        <p class="text-[9px] uppercase tracking-wider text-muted-foreground/80">Batch đã tạo</p>
-                        <p class="font-mono text-xs font-bold text-foreground">{{ t.batches_count }} đợt</p>
+                        <p
+                            class="text-[9px] tracking-wider text-muted-foreground/80 uppercase"
+                        >
+                            Batch đã tạo
+                        </p>
+                        <p class="font-mono text-xs font-bold text-foreground">
+                            {{ t.batches_count }} đợt
+                        </p>
                     </div>
                     <div>
-                        <p class="text-[9px] uppercase tracking-wider text-muted-foreground/80">Mã / Lượt dùng</p>
-                        <p class="font-mono text-xs font-bold text-foreground">{{ t.total_codes }} mã / {{ t.total_usages }} lượt</p>
+                        <p
+                            class="text-[9px] tracking-wider text-muted-foreground/80 uppercase"
+                        >
+                            Mã / Lượt dùng
+                        </p>
+                        <p class="font-mono text-xs font-bold text-foreground">
+                            {{ t.total_codes }} mã / {{ t.total_usages }} lượt
+                        </p>
                     </div>
                 </div>
 
@@ -388,15 +460,20 @@ async function deleteTemplate(id: number) {
             v-else
             :icon="Gift"
             title="Chưa có template chiến dịch nào"
-            description="Tạo template cho các dịp lễ như Tết, Valentine, Black Friday để generate mã coupon hàng loạt."
+            description="Tạo mẫu cho các dịp lễ như Tết, Valentine, Black Friday để sinh mã ưu đãi hàng loạt."
         >
             <template #action>
                 <div class="flex items-center gap-3">
-                    <Button @click="seedDefaults" variant="outline" class="gap-1.5 border-amber-500/30 text-amber-500 hover:bg-amber-500/10">
-                        <Sparkles class="size-4 animate-pulse text-amber-500" /> Khởi tạo bản mẫu gợi ý
+                    <Button
+                        @click="seedDefaults"
+                        variant="outline"
+                        class="gap-1.5 border-amber-500/30 text-amber-500 hover:bg-amber-500/10"
+                    >
+                        <Sparkles class="size-4 animate-pulse text-amber-500" />
+                        Khởi tạo bản mẫu gợi ý
                     </Button>
                     <Button @click="showCreate = true" class="gap-1.5">
-                        <Plus class="size-4" /> Tạo template
+                        <Plus class="size-4" /> Tạo mẫu
                     </Button>
                 </div>
             </template>
@@ -405,31 +482,38 @@ async function deleteTemplate(id: number) {
 
     <!-- Create Dialog -->
     <Dialog v-model:open="showCreate">
-        <DialogContent class="sm:max-w-4xl rounded-2xl p-8">
+        <DialogContent class="rounded-2xl p-8 sm:max-w-4xl">
             <DialogHeader class="border-b border-border/40 pb-4">
-                <DialogTitle class="flex items-center gap-2 text-base font-bold">
+                <DialogTitle
+                    class="flex items-center gap-2 text-base font-bold"
+                >
                     <div
                         class="flex size-7 items-center justify-center rounded-lg border border-indigo-500/20 bg-indigo-500/10 text-indigo-500"
                     >
                         <Calendar class="size-4" />
                     </div>
-                    <span>Tạo template chiến dịch mới</span>
+                    <span>Tạo mẫu chiến dịch mới</span>
                 </DialogTitle>
             </DialogHeader>
             <form @submit.prevent="submitCreate" class="py-2">
                 <div class="grid grid-cols-1 gap-8 md:grid-cols-5">
                     <!-- Left: Form inputs -->
-                    <div class="md:col-span-3 space-y-5">
+                    <div class="space-y-5 md:col-span-3">
                         <!-- Name -->
                         <div class="grid gap-1.5">
-                            <Label class="text-[10px] font-black uppercase tracking-wider text-muted-foreground/80">Tên chiến dịch *</Label>
+                            <Label
+                                class="text-[10px] font-black tracking-wider text-muted-foreground/80 uppercase"
+                                >Tên chiến dịch *</Label
+                            >
                             <div class="relative flex items-center">
-                                <Gift class="absolute left-3 size-4 text-muted-foreground" />
+                                <Gift
+                                    class="absolute left-3 size-4 text-muted-foreground"
+                                />
                                 <Input
                                     v-model="form.name"
                                     placeholder="Khuyến mãi Tết 2027"
                                     required
-                                    class="pl-9 focus-visible:border-primary focus-visible:ring-primary/20 rounded-xl"
+                                    class="rounded-xl pl-9 focus-visible:border-primary focus-visible:ring-primary/20"
                                 />
                             </div>
                         </div>
@@ -437,21 +521,31 @@ async function deleteTemplate(id: number) {
                         <!-- Slug & Season -->
                         <div class="grid grid-cols-2 gap-3">
                             <div class="grid gap-1.5">
-                                <Label class="text-[10px] font-black uppercase tracking-wider text-muted-foreground/80">Slug *</Label>
+                                <Label
+                                    class="text-[10px] font-black tracking-wider text-muted-foreground/80 uppercase"
+                                    >Slug *</Label
+                                >
                                 <div class="relative flex items-center">
-                                    <LinkIcon class="absolute left-3 size-4 text-muted-foreground" />
+                                    <LinkIcon
+                                        class="absolute left-3 size-4 text-muted-foreground"
+                                    />
                                     <Input
                                         v-model="form.slug"
                                         placeholder="tet-2027"
                                         required
-                                        class="pl-9 font-mono text-xs focus-visible:border-primary focus-visible:ring-primary/20 rounded-xl"
+                                        class="rounded-xl pl-9 font-mono text-xs focus-visible:border-primary focus-visible:ring-primary/20"
                                     />
                                 </div>
                             </div>
                             <div class="grid gap-1.5">
-                                <Label class="text-[10px] font-black uppercase tracking-wider text-muted-foreground/80">Mùa/Dịp *</Label>
+                                <Label
+                                    class="text-[10px] font-black tracking-wider text-muted-foreground/80 uppercase"
+                                    >Mùa/Dịp *</Label
+                                >
                                 <Select v-model="form.season">
-                                    <SelectTrigger class="h-9 rounded-xl focus:border-primary focus:ring-primary/20">
+                                    <SelectTrigger
+                                        class="h-9 rounded-xl focus:border-primary focus:ring-primary/20"
+                                    >
                                         <SelectValue placeholder="Chọn..." />
                                     </SelectTrigger>
                                     <SelectContent class="rounded-xl">
@@ -469,27 +563,46 @@ async function deleteTemplate(id: number) {
                         <!-- Discount Type & Value -->
                         <div class="grid grid-cols-2 gap-3">
                             <div class="grid gap-1.5">
-                                <Label class="text-[10px] font-black uppercase tracking-wider text-muted-foreground/80">Loại giảm giá</Label>
+                                <Label
+                                    class="text-[10px] font-black tracking-wider text-muted-foreground/80 uppercase"
+                                    >Loại giảm giá</Label
+                                >
                                 <Select v-model="form.discount_type">
-                                    <SelectTrigger class="h-9 rounded-xl focus:border-primary focus:ring-primary/20">
+                                    <SelectTrigger
+                                        class="h-9 rounded-xl focus:border-primary focus:ring-primary/20"
+                                    >
                                         <SelectValue />
                                     </SelectTrigger>
                                     <SelectContent class="rounded-xl">
-                                        <SelectItem value="percent">Phần trăm (%)</SelectItem>
-                                        <SelectItem value="fixed">Số tiền cố định (₫)</SelectItem>
+                                        <SelectItem value="percent"
+                                            >Phần trăm (%)</SelectItem
+                                        >
+                                        <SelectItem value="fixed"
+                                            >Số tiền cố định (₫)</SelectItem
+                                        >
                                     </SelectContent>
                                 </Select>
                             </div>
                             <div class="grid gap-1.5">
-                                <Label class="text-[10px] font-black uppercase tracking-wider text-muted-foreground/80">Giá trị giảm</Label>
+                                <Label
+                                    class="text-[10px] font-black tracking-wider text-muted-foreground/80 uppercase"
+                                    >Giá trị giảm</Label
+                                >
                                 <div class="relative flex items-center">
-                                    <component :is="form.discount_type === 'percent' ? Percent : DollarSign" class="absolute left-3 size-4 text-muted-foreground" />
+                                    <component
+                                        :is="
+                                            form.discount_type === 'percent'
+                                                ? Percent
+                                                : DollarSign
+                                        "
+                                        class="absolute left-3 size-4 text-muted-foreground"
+                                    />
                                     <Input
                                         v-model.number="form.discount_value"
                                         type="number"
                                         min="0"
                                         required
-                                        class="pl-9 focus-visible:border-primary focus-visible:ring-primary/20 rounded-xl"
+                                        class="rounded-xl pl-9 focus-visible:border-primary focus-visible:ring-primary/20"
                                     />
                                 </div>
                             </div>
@@ -498,28 +611,40 @@ async function deleteTemplate(id: number) {
                         <!-- Prefix & Duration -->
                         <div class="grid grid-cols-2 gap-3">
                             <div class="grid gap-1.5">
-                                <Label class="text-[10px] font-black uppercase tracking-wider text-muted-foreground/80">Tiền tố mã *</Label>
+                                <Label
+                                    class="text-[10px] font-black tracking-wider text-muted-foreground/80 uppercase"
+                                    >Tiền tố mã *</Label
+                                >
                                 <div class="relative flex items-center">
-                                    <Tag class="absolute left-3 size-4 text-muted-foreground" />
+                                    <Tag
+                                        class="absolute left-3 size-4 text-muted-foreground"
+                                    />
                                     <Input
                                         v-model="form.code_prefix"
                                         placeholder="TET"
                                         maxlength="10"
                                         required
-                                        class="pl-9 font-mono font-bold tracking-wider uppercase focus-visible:border-primary focus-visible:ring-primary/20 rounded-xl"
+                                        class="rounded-xl pl-9 font-mono font-bold tracking-wider uppercase focus-visible:border-primary focus-visible:ring-primary/20"
                                     />
                                 </div>
                             </div>
                             <div class="grid gap-1.5">
-                                <Label class="text-[10px] font-black uppercase tracking-wider text-muted-foreground/80">Thời hạn (ngày)</Label>
+                                <Label
+                                    class="text-[10px] font-black tracking-wider text-muted-foreground/80 uppercase"
+                                    >Thời hạn (ngày)</Label
+                                >
                                 <div class="relative flex items-center">
-                                    <Clock class="absolute left-3 size-4 text-muted-foreground" />
+                                    <Clock
+                                        class="absolute left-3 size-4 text-muted-foreground"
+                                    />
                                     <Input
-                                        v-model.number="form.default_duration_days"
+                                        v-model.number="
+                                            form.default_duration_days
+                                        "
                                         type="number"
                                         min="1"
                                         required
-                                        class="pl-9 focus-visible:border-primary focus-visible:ring-primary/20 rounded-xl"
+                                        class="rounded-xl pl-9 focus-visible:border-primary focus-visible:ring-primary/20"
                                     />
                                 </div>
                             </div>
@@ -527,40 +652,51 @@ async function deleteTemplate(id: number) {
 
                         <!-- Description -->
                         <div class="grid gap-1.5">
-                            <Label class="text-[10px] font-black uppercase tracking-wider text-muted-foreground/80">Mô tả</Label>
+                            <Label
+                                class="text-[10px] font-black tracking-wider text-muted-foreground/80 uppercase"
+                                >Mô tả</Label
+                            >
                             <div class="relative flex items-center">
-                                <FileText class="absolute left-3 size-4 text-muted-foreground" />
+                                <FileText
+                                    class="absolute left-3 size-4 text-muted-foreground"
+                                />
                                 <Input
                                     v-model="form.description"
                                     placeholder="Mô tả chiến dịch..."
-                                    class="pl-9 focus-visible:border-primary focus-visible:ring-primary/20 rounded-xl"
+                                    class="rounded-xl pl-9 focus-visible:border-primary focus-visible:ring-primary/20"
                                 />
                             </div>
                         </div>
                     </div>
 
                     <!-- Right: Live Preview -->
-                    <div class="md:col-span-2 flex flex-col border-t md:border-t-0 md:border-l border-border/40 pt-4 md:pt-0 md:pl-8 justify-start">
-                        <p class="mb-3 text-[10px] font-black uppercase tracking-wider text-muted-foreground">Xem trước hiển thị</p>
-                        
+                    <div
+                        class="flex flex-col justify-start border-t border-border/40 pt-4 md:col-span-2 md:border-t-0 md:border-l md:pt-0 md:pl-8"
+                    >
+                        <p
+                            class="mb-3 text-[10px] font-black tracking-wider text-muted-foreground uppercase"
+                        >
+                            Xem trước hiển thị
+                        </p>
+
                         <div
                             :class="[
-                                'group relative overflow-hidden rounded-2xl border bg-gradient-to-br p-5 shadow-md border-border/40 transition-all duration-300 w-full',
-                                seasonColors[form.season] ?? seasonColors.custom,
+                                'group relative w-full overflow-hidden rounded-2xl border border-border/40 bg-gradient-to-br p-5 shadow-md transition-all duration-300',
+                                seasonColors[form.season] ??
+                                    seasonColors.custom,
                             ]"
                         >
                             <div class="flex items-start justify-between">
                                 <div class="text-3xl">
                                     {{ seasonEmojis[form.season] ?? '⚡' }}
                                 </div>
-                                <StatusBadge
-                                    status="active"
-                                    size="sm"
-                                >
-                                    Active
+                                <StatusBadge status="active" size="sm">
+                                    Đang bật
                                 </StatusBadge>
                             </div>
-                            <h3 class="mt-3 text-base font-bold text-foreground truncate">
+                            <h3
+                                class="mt-3 truncate text-base font-bold text-foreground"
+                            >
                                 {{ form.name || 'Tên chiến dịch' }}
                             </h3>
                             <p class="mt-1 text-xs text-muted-foreground">
@@ -577,23 +713,50 @@ async function deleteTemplate(id: number) {
                                             : `${(form.discount_value || 0).toLocaleString('vi')}₫`
                                     }}
                                 </span>
-                                <span class="rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground font-semibold"
-                                    >{{ form.default_duration_days || 0 }} ngày</span
+                                <span
+                                    class="rounded bg-muted px-1.5 py-0.5 text-[10px] font-semibold text-muted-foreground"
+                                    >{{
+                                        form.default_duration_days || 0
+                                    }}
+                                    ngày</span
                                 >
-                                <span class="font-mono text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded font-semibold"
-                                    >{{ (form.code_prefix || 'PREFIX').toUpperCase() }}-XXX</span
+                                <span
+                                    class="rounded bg-muted px-1.5 py-0.5 font-mono text-[10px] font-semibold text-muted-foreground"
+                                    >{{
+                                        (
+                                            form.code_prefix || 'PREFIX'
+                                        ).toUpperCase()
+                                    }}-XXX</span
                                 >
                             </div>
 
                             <!-- Dummy performance stats for preview -->
-                            <div class="mt-4 grid grid-cols-2 gap-2 border-t border-border/20 pt-3 text-[11px] font-semibold text-muted-foreground">
+                            <div
+                                class="mt-4 grid grid-cols-2 gap-2 border-t border-border/20 pt-3 text-[11px] font-semibold text-muted-foreground"
+                            >
                                 <div>
-                                    <p class="text-[9px] uppercase tracking-wider text-muted-foreground/80">Batch đã tạo</p>
-                                    <p class="font-mono text-xs font-bold text-foreground">0 đợt</p>
+                                    <p
+                                        class="text-[9px] tracking-wider text-muted-foreground/80 uppercase"
+                                    >
+                                        Batch đã tạo
+                                    </p>
+                                    <p
+                                        class="font-mono text-xs font-bold text-foreground"
+                                    >
+                                        0 đợt
+                                    </p>
                                 </div>
                                 <div>
-                                    <p class="text-[9px] uppercase tracking-wider text-muted-foreground/80">Mã / Lượt dùng</p>
-                                    <p class="font-mono text-xs font-bold text-foreground">0 mã / 0 lượt</p>
+                                    <p
+                                        class="text-[9px] tracking-wider text-muted-foreground/80 uppercase"
+                                    >
+                                        Mã / Lượt dùng
+                                    </p>
+                                    <p
+                                        class="font-mono text-xs font-bold text-foreground"
+                                    >
+                                        0 mã / 0 lượt
+                                    </p>
                                 </div>
                             </div>
 
@@ -615,8 +778,11 @@ async function deleteTemplate(id: number) {
                         class="rounded-xl font-bold"
                         >Hủy</Button
                     >
-                    <Button type="submit" :disabled="form.processing" class="rounded-xl font-bold"
-                        >Tạo template</Button
+                    <Button
+                        type="submit"
+                        :disabled="form.processing"
+                        class="rounded-xl font-bold"
+                        >Tạo mẫu</Button
                     >
                 </DialogFooter>
             </form>

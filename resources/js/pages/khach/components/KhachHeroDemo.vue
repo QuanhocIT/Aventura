@@ -111,13 +111,13 @@ function cycleKdsStatus(index: number) {
 // Auto play tabs cycling
 function startAutoPlay() {
     if (autoPlayInterval) {
-clearInterval(autoPlayInterval);
-}
+        clearInterval(autoPlayInterval);
+    }
 
     autoPlayInterval = setInterval(() => {
         if (!autoPlay.value) {
-return;
-}
+            return;
+        }
 
         const keys: TabKey[] = ['pos', 'kds', 'report'];
         const currentIdx = keys.indexOf(activeDemo.value);
@@ -136,8 +136,8 @@ onMounted(() => {
 
 onUnmounted(() => {
     if (autoPlayInterval) {
-clearInterval(autoPlayInterval);
-}
+        clearInterval(autoPlayInterval);
+    }
 });
 </script>
 
@@ -235,7 +235,7 @@ clearInterval(autoPlayInterval);
             </div>
 
             <span
-                class="hidden rounded-full border border-amber-500/30 bg-amber-500/10 px-3 py-1 text-[10px] font-extrabold tracking-wider text-amber-400 sm:inline-block uppercase shadow-[0_0_12px_rgba(245,158,11,0.15)]"
+                class="hidden rounded-full border border-amber-500/30 bg-amber-500/10 px-3 py-1 text-[10px] font-extrabold tracking-wider text-amber-400 uppercase shadow-[0_0_12px_rgba(245,158,11,0.15)] sm:inline-block"
             >
                 Interactive
             </span>
@@ -252,7 +252,7 @@ clearInterval(autoPlayInterval);
                 class="relative flex cursor-pointer items-center justify-center gap-1.5 rounded-lg py-2 text-xs font-bold transition-all duration-300"
                 :class="
                     activeDemo === tab.key
-                        ? 'bg-gradient-to-r from-amber-500 to-yellow-500 text-zinc-950 shadow-md shadow-amber-500/20 font-black scale-[1.02]'
+                        ? 'scale-[1.02] bg-gradient-to-r from-amber-500 to-yellow-500 font-black text-zinc-950 shadow-md shadow-amber-500/20'
                         : 'text-zinc-400 hover:bg-white/5 hover:text-white'
                 "
             >
@@ -278,9 +278,14 @@ clearInterval(autoPlayInterval);
                             >
                                 Bàn 12 • Tầng 1
                             </span>
-                            <span class="text-zinc-400 font-medium hidden sm:inline">Khách VIP (4 người)</span>
+                            <span
+                                class="hidden font-medium text-zinc-400 sm:inline"
+                                >Khách VIP (4 người)</span
+                            >
                         </div>
-                        <div class="flex items-center gap-1.5 text-emerald-400 text-[11px] font-bold">
+                        <div
+                            class="flex items-center gap-1.5 text-[11px] font-bold text-emerald-400"
+                        >
                             <QrCode class="h-3.5 w-3.5" />
                             <span>QR Order tại bàn</span>
                         </div>
@@ -294,13 +299,22 @@ clearInterval(autoPlayInterval);
                             <div class="flex items-center gap-2">
                                 <span class="text-base">🍜</span>
                                 <div>
-                                    <div class="font-bold text-white">Phở bò tái nạm</div>
-                                    <div class="text-[10px] text-zinc-400">Note: Ít hành, thêm giấm</div>
+                                    <div class="font-bold text-white">
+                                        Phở bò tái nạm
+                                    </div>
+                                    <div class="text-[10px] text-zinc-400">
+                                        Note: Ít hành, thêm giấm
+                                    </div>
                                 </div>
                             </div>
                             <div class="text-right">
-                                <div class="font-extrabold text-amber-400">138.000đ</div>
-                                <span class="rounded bg-indigo-500/20 px-1.5 py-0.2 text-[9px] font-bold text-indigo-300">x2 món</span>
+                                <div class="font-extrabold text-amber-400">
+                                    138.000đ
+                                </div>
+                                <span
+                                    class="py-0.2 rounded bg-indigo-500/20 px-1.5 text-[9px] font-bold text-indigo-300"
+                                    >x2 món</span
+                                >
                             </div>
                         </div>
 
@@ -310,13 +324,22 @@ clearInterval(autoPlayInterval);
                             <div class="flex items-center gap-2">
                                 <span class="text-base">🥤</span>
                                 <div>
-                                    <div class="font-bold text-white">Trà chanh giã tay</div>
-                                    <div class="text-[10px] text-zinc-400">Note: 50% đường, 100% đá</div>
+                                    <div class="font-bold text-white">
+                                        Trà chanh giã tay
+                                    </div>
+                                    <div class="text-[10px] text-zinc-400">
+                                        Note: 50% đường, 100% đá
+                                    </div>
                                 </div>
                             </div>
                             <div class="text-right">
-                                <div class="font-extrabold text-amber-400">40.000đ</div>
-                                <span class="rounded bg-indigo-500/20 px-1.5 py-0.2 text-[9px] font-bold text-indigo-300">x2 ly</span>
+                                <div class="font-extrabold text-amber-400">
+                                    40.000đ
+                                </div>
+                                <span
+                                    class="py-0.2 rounded bg-indigo-500/20 px-1.5 text-[9px] font-bold text-indigo-300"
+                                    >x2 ly</span
+                                >
                             </div>
                         </div>
                     </div>
@@ -325,52 +348,101 @@ clearInterval(autoPlayInterval);
                     <div
                         class="rounded-xl border border-white/10 bg-black/60 p-3"
                     >
-                        <div class="flex items-center justify-between text-xs text-zinc-400">
+                        <div
+                            class="flex items-center justify-between text-xs text-zinc-400"
+                        >
                             <span>Tạm tính (3 món):</span>
                             <span>178.000đ</span>
                         </div>
-                        <div class="mt-1 flex items-center justify-between border-b border-dashed border-white/15 pb-2 text-xs text-zinc-400">
+                        <div
+                            class="mt-1 flex items-center justify-between border-b border-dashed border-white/15 pb-2 text-xs text-zinc-400"
+                        >
                             <span>Thuế VAT (8%):</span>
                             <span>14.240đ</span>
                         </div>
 
                         <div class="mt-2.5 flex items-center justify-between">
                             <div>
-                                <div class="text-[10px] font-bold tracking-wider text-zinc-400 uppercase">Tổng thanh toán</div>
-                                <div class="text-lg font-black tracking-tight text-amber-400">192.240đ</div>
+                                <div
+                                    class="text-[10px] font-bold tracking-wider text-zinc-400 uppercase"
+                                >
+                                    Tổng thanh toán
+                                </div>
+                                <div
+                                    class="text-lg font-black tracking-tight text-amber-400"
+                                >
+                                    192.240đ
+                                </div>
                             </div>
 
                             <button
                                 @click="togglePaymentStatus"
-                                class="cursor-pointer flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-extrabold transition-all duration-300 active:scale-95 shadow-md"
+                                class="flex cursor-pointer items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-extrabold shadow-md transition-all duration-300 active:scale-95"
                                 :class="
                                     posPaid
                                         ? 'border-emerald-500/40 bg-emerald-500/20 text-emerald-400 shadow-emerald-500/10'
-                                        : 'border-amber-500/40 bg-amber-500/20 text-amber-400 shadow-amber-500/10 animate-pulse'
+                                        : 'animate-pulse border-amber-500/40 bg-amber-500/20 text-amber-400 shadow-amber-500/10'
                                 "
                             >
-                                <component :is="posPaid ? CheckCircle2 : CreditCard" class="h-3.5 w-3.5" />
-                                <span>{{ posPaid ? 'ĐÃ THANH TOÁN (VietQR)' : 'THỬ THANH TOÁN' }}</span>
+                                <component
+                                    :is="posPaid ? CheckCircle2 : CreditCard"
+                                    class="h-3.5 w-3.5"
+                                />
+                                <span>{{
+                                    posPaid
+                                        ? 'ĐÃ THANH TOÁN (VietQR)'
+                                        : 'THỬ THANH TOÁN'
+                                }}</span>
                             </button>
                         </div>
                     </div>
                 </div>
 
                 <!-- 🍳 TAB 2: KDS KITCHEN BOARD REALTIME -->
-                <div v-else-if="activeDemo === 'kds'" key="kds" class="space-y-3">
+                <div
+                    v-else-if="activeDemo === 'kds'"
+                    key="kds"
+                    class="space-y-3"
+                >
                     <!-- KDS Header Metrics bar -->
                     <div class="grid grid-cols-3 gap-2 text-center text-xs">
-                        <div class="rounded-lg border border-white/10 bg-black/40 p-2">
-                            <div class="text-[10px] font-semibold text-zinc-400">Chờ làm</div>
-                            <div class="text-sm font-extrabold text-sky-400">1 order</div>
+                        <div
+                            class="rounded-lg border border-white/10 bg-black/40 p-2"
+                        >
+                            <div
+                                class="text-[10px] font-semibold text-zinc-400"
+                            >
+                                Chờ làm
+                            </div>
+                            <div class="text-sm font-extrabold text-sky-400">
+                                1 order
+                            </div>
                         </div>
-                        <div class="rounded-lg border border-amber-500/20 bg-amber-500/10 p-2">
-                            <div class="text-[10px] font-semibold text-zinc-400">Đang chế biến</div>
-                            <div class="text-sm font-extrabold text-amber-400">1 order</div>
+                        <div
+                            class="rounded-lg border border-amber-500/20 bg-amber-500/10 p-2"
+                        >
+                            <div
+                                class="text-[10px] font-semibold text-zinc-400"
+                            >
+                                Đang chế biến
+                            </div>
+                            <div class="text-sm font-extrabold text-amber-400">
+                                1 order
+                            </div>
                         </div>
-                        <div class="rounded-lg border border-emerald-500/20 bg-emerald-500/10 p-2">
-                            <div class="text-[10px] font-semibold text-zinc-400">SLA Trung bình</div>
-                            <div class="text-sm font-extrabold text-emerald-400">4.2 phút</div>
+                        <div
+                            class="rounded-lg border border-emerald-500/20 bg-emerald-500/10 p-2"
+                        >
+                            <div
+                                class="text-[10px] font-semibold text-zinc-400"
+                            >
+                                SLA Trung bình
+                            </div>
+                            <div
+                                class="text-sm font-extrabold text-emerald-400"
+                            >
+                                4.2 phút
+                            </div>
                         </div>
                     </div>
 
@@ -380,22 +452,31 @@ clearInterval(autoPlayInterval);
                             v-for="(ticket, idx) in kdsTickets"
                             :key="ticket.id"
                             @click="cycleKdsStatus(idx)"
-                            class="group/ticket cursor-pointer flex items-center justify-between rounded-xl border border-white/10 bg-white/5 p-2.5 transition hover:border-white/20 hover:bg-white/10"
+                            class="group/ticket flex cursor-pointer items-center justify-between rounded-xl border border-white/10 bg-white/5 p-2.5 transition hover:border-white/20 hover:bg-white/10"
                         >
                             <div class="flex items-center gap-2.5">
-                                <div class="flex h-8 w-8 items-center justify-center rounded-lg border border-white/10 bg-black/40 font-bold text-white text-xs">
+                                <div
+                                    class="flex h-8 w-8 items-center justify-center rounded-lg border border-white/10 bg-black/40 text-xs font-bold text-white"
+                                >
                                     {{ ticket.table.replace('Bàn ', 'B') }}
                                 </div>
                                 <div>
                                     <div class="flex items-center gap-1.5">
-                                        <span class="text-xs font-bold text-white">{{ ticket.item }}</span>
+                                        <span
+                                            class="text-xs font-bold text-white"
+                                            >{{ ticket.item }}</span
+                                        >
                                     </div>
-                                    <div class="text-[10px] text-zinc-400">{{ ticket.note }}</div>
+                                    <div class="text-[10px] text-zinc-400">
+                                        {{ ticket.note }}
+                                    </div>
                                 </div>
                             </div>
 
                             <div class="flex items-center gap-2">
-                                <span class="flex items-center gap-1 text-[10px] font-bold text-zinc-400">
+                                <span
+                                    class="flex items-center gap-1 text-[10px] font-bold text-zinc-400"
+                                >
                                     <Clock class="h-3 w-3 text-amber-400" />
                                     {{ ticket.time }}
                                 </span>
@@ -410,52 +491,94 @@ clearInterval(autoPlayInterval);
                     </div>
 
                     <div class="text-center text-[10px] text-zinc-400">
-                        💡 <em>Mẹo: Click vào bất kỳ thẻ đơn nào ở trên để đổi trạng thái chế biến thực tế!</em>
+                        💡
+                        <em
+                            >Mẹo: Click vào bất kỳ thẻ đơn nào ở trên để đổi
+                            trạng thái chế biến thực tế!</em
+                        >
                     </div>
                 </div>
 
                 <!-- 📊 TAB 3: EXECUTIVE REALTIME AI ANALYTICS -->
-                <div v-else-if="activeDemo === 'report'" key="report" class="space-y-3">
+                <div
+                    v-else-if="activeDemo === 'report'"
+                    key="report"
+                    class="space-y-3"
+                >
                     <!-- Revenue & KPI Grid -->
                     <div class="grid grid-cols-2 gap-2.5">
-                        <div class="rounded-xl border border-white/10 bg-black/40 p-3">
-                            <div class="flex items-center justify-between text-[10px] font-bold text-zinc-400 uppercase">
+                        <div
+                            class="rounded-xl border border-white/10 bg-black/40 p-3"
+                        >
+                            <div
+                                class="flex items-center justify-between text-[10px] font-bold text-zinc-400 uppercase"
+                            >
                                 <span>Doanh thu hôm nay</span>
-                                <TrendingUp class="h-3.5 w-3.5 text-emerald-400" />
+                                <TrendingUp
+                                    class="h-3.5 w-3.5 text-emerald-400"
+                                />
                             </div>
-                            <div class="mt-1 text-lg font-black text-white">28.650.000đ</div>
-                            <div class="mt-0.5 flex items-center gap-1 text-[10px] font-bold text-emerald-400">
+                            <div class="mt-1 text-lg font-black text-white">
+                                28.650.000đ
+                            </div>
+                            <div
+                                class="mt-0.5 flex items-center gap-1 text-[10px] font-bold text-emerald-400"
+                            >
                                 <span>+24.5%</span>
                                 <span class="text-zinc-500">vs tuần trước</span>
                             </div>
                         </div>
 
-                        <div class="rounded-xl border border-white/10 bg-black/40 p-3">
-                            <div class="flex items-center justify-between text-[10px] font-bold text-zinc-400 uppercase">
+                        <div
+                            class="rounded-xl border border-white/10 bg-black/40 p-3"
+                        >
+                            <div
+                                class="flex items-center justify-between text-[10px] font-bold text-zinc-400 uppercase"
+                            >
                                 <span>Hóa đơn / SLA</span>
                                 <Zap class="h-3.5 w-3.5 text-amber-400" />
                             </div>
-                            <div class="mt-1 text-lg font-black text-amber-400">142 đơn</div>
-                            <div class="mt-0.5 text-[10px] font-bold text-emerald-400">
+                            <div class="mt-1 text-lg font-black text-amber-400">
+                                142 đơn
+                            </div>
+                            <div
+                                class="mt-0.5 text-[10px] font-bold text-emerald-400"
+                            >
                                 99.2% Đúng hạn (&lt;10p)
                             </div>
                         </div>
                     </div>
 
                     <!-- AI Insights Recommendation Card -->
-                    <div class="rounded-xl border border-indigo-500/30 bg-gradient-to-r from-indigo-950/40 via-purple-950/30 to-black/50 p-3 shadow-lg">
-                        <div class="flex items-center justify-between border-b border-indigo-500/20 pb-2">
+                    <div
+                        class="rounded-xl border border-indigo-500/30 bg-gradient-to-r from-indigo-950/40 via-purple-950/30 to-black/50 p-3 shadow-lg"
+                    >
+                        <div
+                            class="flex items-center justify-between border-b border-indigo-500/20 pb-2"
+                        >
                             <div class="flex items-center gap-1.5">
                                 <Bot class="h-4 w-4 text-indigo-400" />
-                                <span class="text-xs font-bold text-indigo-300">AI Demand Forecast & Cảnh báo Kho</span>
+                                <span class="text-xs font-bold text-indigo-300"
+                                    >AI Demand Forecast & Cảnh báo Kho</span
+                                >
                             </div>
-                            <span class="rounded bg-indigo-500/20 px-2 py-0.5 text-[9px] font-extrabold text-indigo-400">AI Live</span>
+                            <span
+                                class="rounded bg-indigo-500/20 px-2 py-0.5 text-[9px] font-extrabold text-indigo-400"
+                                >AI Live</span
+                            >
                         </div>
 
-                        <div class="mt-2 text-xs text-zinc-200 leading-relaxed">
-                            🌦️ <strong>Dự báo thời tiết:</strong> Chiều nay mưa lạnh 22°C. Dự báo món <em>Phở Bò & Lẩu</em> tăng <strong>+35%</strong>.
-                            <div class="mt-1 flex items-center justify-between text-[11px] font-bold text-amber-400">
-                                <span>⚠️ Cảnh báo: Thịt bò tái còn 3.2kg (Thiếu ~1.8kg)</span>
+                        <div class="mt-2 text-xs leading-relaxed text-zinc-200">
+                            🌦️ <strong>Dự báo thời tiết:</strong> Chiều nay mưa
+                            lạnh 22°C. Dự báo món <em>Phở Bò & Lẩu</em> tăng
+                            <strong>+35%</strong>.
+                            <div
+                                class="mt-1 flex items-center justify-between text-[11px] font-bold text-amber-400"
+                            >
+                                <span
+                                    >⚠️ Cảnh báo: Thịt bò tái còn 3.2kg (Thiếu
+                                    ~1.8kg)</span
+                                >
                             </div>
                         </div>
                     </div>
@@ -470,17 +593,26 @@ clearInterval(autoPlayInterval);
                 size="lg"
                 class="group/btn relative w-full overflow-hidden rounded-xl bg-gradient-to-r from-amber-500 via-yellow-500 to-amber-500 py-3.5 text-xs font-black tracking-wider text-zinc-950 uppercase shadow-[0_0_25px_rgba(245,158,11,0.3)] transition-all duration-300 hover:scale-[1.02] hover:from-amber-400 hover:via-yellow-400 hover:to-amber-400 hover:shadow-[0_0_35px_rgba(245,158,11,0.5)] active:scale-95"
             >
-                <Link :href="register()" class="flex items-center justify-center gap-2">
+                <Link
+                    :href="register()"
+                    class="flex items-center justify-center gap-2"
+                >
                     <span>Đăng ký dùng thử miễn phí</span>
-                    <ArrowRight class="h-4 w-4 transition-transform duration-300 group-hover/btn:translate-x-1" />
+                    <ArrowRight
+                        class="h-4 w-4 transition-transform duration-300 group-hover/btn:translate-x-1"
+                    />
                 </Link>
             </Button>
-            <div class="mt-2 flex items-center justify-center gap-4 text-[10px] font-medium text-zinc-400">
+            <div
+                class="mt-2 flex items-center justify-center gap-4 text-[10px] font-medium text-zinc-400"
+            >
                 <span class="flex items-center gap-1">
-                    <ShieldCheck class="h-3 w-3 text-emerald-400" /> Dùng thử 14 ngày
+                    <ShieldCheck class="h-3 w-3 text-emerald-400" /> Dùng thử 14
+                    ngày
                 </span>
                 <span class="flex items-center gap-1">
-                    <Check class="h-3 w-3 text-amber-400" /> Không cần thẻ tín dụng
+                    <Check class="h-3 w-3 text-amber-400" /> Không cần thẻ tín
+                    dụng
                 </span>
             </div>
         </div>

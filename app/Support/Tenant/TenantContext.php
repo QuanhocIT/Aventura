@@ -14,7 +14,9 @@ class TenantContext
     public const SCOPE_NONE = 'none';
 
     protected ?int $restaurantId = null;
+
     protected ?int $activeBranchId = null;
+
     protected string $scope = self::SCOPE_ALL;
 
     /**

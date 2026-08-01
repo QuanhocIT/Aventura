@@ -16,10 +16,15 @@ class TablesFloorPlanTest extends TestCase
     use RefreshDatabase;
 
     private User $owner;
+
     private Restaurant $restaurant;
+
     private RestaurantBranch $branch;
+
     private Area $area;
+
     private RestaurantTable $table;
+
     private Role $ownerRole;
 
     protected function setUp(): void
@@ -31,7 +36,7 @@ class TablesFloorPlanTest extends TestCase
             'owner_user_id' => $this->owner->id,
         ]);
         $this->owner->update(['restaurant_id' => $this->restaurant->id]);
-        
+
         $this->branch = RestaurantBranch::factory()->create([
             'restaurant_id' => $this->restaurant->id,
             'manager_user_id' => $this->owner->id,
@@ -65,7 +70,7 @@ class TablesFloorPlanTest extends TestCase
         ]);
 
         $response->assertRedirect();
-        
+
         $freshTable = $this->table->fresh();
         $this->assertEquals(25, $freshTable->x_pos);
         $this->assertEquals(45, $freshTable->y_pos);
@@ -96,14 +101,14 @@ class TablesFloorPlanTest extends TestCase
     public function test_non_owner_cannot_update_table_coordinates(): void
     {
         $regularUser = User::factory()->create(['status' => 'active']);
-        
+
         $response = $this->actingAs($regularUser)->patch(route('tables.update', $this->table->id), [
             'x_pos' => 10,
             'y_pos' => 10,
         ]);
 
         $response->assertStatus(403);
-        
+
         $freshTable = $this->table->fresh();
         $this->assertEquals(50, $freshTable->x_pos);
         $this->assertEquals(50, $freshTable->y_pos);

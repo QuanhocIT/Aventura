@@ -48,14 +48,14 @@ const qrCodeUrl = ref(props.payment_url);
 
 function handleQrError() {
     const bankMap: Record<string, string> = {
-        'MBBank': 'MB',
+        MBBank: 'MB',
         'MB BANK': 'MB',
-        'VietinBank': 'ICB',
-        'Vietcombank': 'VCB',
-        'Techcombank': 'TCB',
-        'Agribank': 'VBA',
-        'TPBank': 'TPB',
-        'VPBank': 'VPB',
+        VietinBank: 'ICB',
+        Vietcombank: 'VCB',
+        Techcombank: 'TCB',
+        Agribank: 'VBA',
+        TPBank: 'TPB',
+        VPBank: 'VPB',
     };
     const rawBank = props.bank_details.bank || 'MB';
     const bank = bankMap[rawBank] || rawBank;

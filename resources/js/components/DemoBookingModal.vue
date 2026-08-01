@@ -50,7 +50,11 @@ const branchOptions = [
 ];
 
 async function submitForm() {
-    if (!form.value.name.trim() || !form.value.phone.trim() || !form.value.restaurant_name.trim()) {
+    if (
+        !form.value.name.trim() ||
+        !form.value.phone.trim() ||
+        !form.value.restaurant_name.trim()
+    ) {
         errorMessage.value = 'Vui lòng điền đầy đủ các thông tin bắt buộc (*).';
 
         return;
@@ -65,7 +69,11 @@ async function submitForm() {
             headers: {
                 'Content-Type': 'application/json',
                 'X-CSRF-TOKEN':
-                    (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement)?.content || '',
+                    (
+                        document.querySelector(
+                            'meta[name="csrf-token"]',
+                        ) as HTMLMetaElement
+                    )?.content || '',
             },
             body: JSON.stringify(form.value),
         });
@@ -75,7 +83,9 @@ async function submitForm() {
         if (response.ok && data.success) {
             isSuccess.value = true;
         } else {
-            errorMessage.value = data.message || 'Không thể gửi yêu cầu đặt lịch. Vui lòng thử lại sau.';
+            errorMessage.value =
+                data.message ||
+                'Không thể gửi yêu cầu đặt lịch. Vui lòng thử lại sau.';
         }
     } catch (e) {
         console.error('Error submitting demo booking:', e);
@@ -107,26 +117,33 @@ function handleClose() {
                 class="fixed inset-0 z-[99999] flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-md"
             >
                 <div
-                    class="relative w-full max-w-xl overflow-hidden rounded-2xl border border-white/10 bg-slate-900 shadow-2xl text-slate-100"
+                    class="relative w-full max-w-xl overflow-hidden rounded-2xl border border-white/10 bg-slate-900 text-slate-100 shadow-2xl"
                 >
                     <!-- Header Bar -->
-                    <div class="relative flex items-center justify-between border-b border-white/10 bg-gradient-to-r from-amber-500/10 via-orange-500/10 to-transparent p-5">
+                    <div
+                        class="relative flex items-center justify-between border-b border-white/10 bg-gradient-to-r from-amber-500/10 via-orange-500/10 to-transparent p-5"
+                    >
                         <div class="flex items-center gap-3">
-                            <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 text-slate-950 shadow-lg shadow-amber-500/20">
+                            <div
+                                class="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 text-slate-950 shadow-lg shadow-amber-500/20"
+                            >
                                 <Sparkles class="size-5" />
                             </div>
                             <div>
-                                <h3 class="font-serif text-lg font-bold text-white">
+                                <h3
+                                    class="font-serif text-lg font-bold text-white"
+                                >
                                     Đặt lịch Demo với Chuyên gia Aventura
                                 </h3>
                                 <p class="text-xs text-slate-400">
-                                    Tư vấn 1:1 chuyên sâu giải pháp quản lý cho nhà hàng của bạn
+                                    Tư vấn 1:1 chuyên sâu giải pháp quản lý cho
+                                    nhà hàng của bạn
                                 </p>
                             </div>
                         </div>
                         <button
                             @click="handleClose"
-                            class="rounded-full p-1.5 text-slate-400 hover:bg-white/10 hover:text-white transition"
+                            class="rounded-full p-1.5 text-slate-400 transition hover:bg-white/10 hover:text-white"
                         >
                             <X class="size-5" />
                         </button>
@@ -135,18 +152,32 @@ function handleClose() {
                     <!-- Body Content -->
                     <div class="p-6">
                         <!-- Màn hình thành công -->
-                        <div v-if="isSuccess" class="py-8 text-center space-y-4">
-                            <div class="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                        <div
+                            v-if="isSuccess"
+                            class="space-y-4 py-8 text-center"
+                        >
+                            <div
+                                class="mx-auto flex h-16 w-16 items-center justify-center rounded-full border border-emerald-500/30 bg-emerald-500/20 text-emerald-400"
+                            >
                                 <CheckCircle2 class="size-10" />
                             </div>
-                            <h4 class="text-xl font-bold text-white">Đặt Lịch Demo Thành Công!</h4>
-                            <p class="mx-auto max-w-md text-sm text-slate-300 leading-relaxed">
-                                Cảm ơn bạn đã quan tâm đến Aventura. Đội ngũ chuyên gia của chúng tôi đã nhận được thông tin và sẽ gọi điện tư vấn trực tiếp trong vòng <strong class="text-amber-400">15 - 30 phút</strong>.
+                            <h4 class="text-xl font-bold text-white">
+                                Đặt Lịch Demo Thành Công!
+                            </h4>
+                            <p
+                                class="mx-auto max-w-md text-sm leading-relaxed text-slate-300"
+                            >
+                                Cảm ơn bạn đã quan tâm đến Aventura. Đội ngũ
+                                chuyên gia của chúng tôi đã nhận được thông tin
+                                và sẽ gọi điện tư vấn trực tiếp trong vòng
+                                <strong class="text-amber-400"
+                                    >15 - 30 phút</strong
+                                >.
                             </p>
                             <div class="pt-4">
                                 <button
                                     @click="handleClose"
-                                    class="rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 px-6 py-2.5 text-sm font-semibold text-slate-950 shadow-lg shadow-amber-500/20 hover:from-amber-400 hover:to-orange-400 transition"
+                                    class="rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 px-6 py-2.5 text-sm font-semibold text-slate-950 shadow-lg shadow-amber-500/20 transition hover:from-amber-400 hover:to-orange-400"
                                 >
                                     Hoàn tất & Đóng
                                 </button>
@@ -154,42 +185,59 @@ function handleClose() {
                         </div>
 
                         <!-- Biểu mẫu đăng ký -->
-                        <form v-else @submit.prevent="submitForm" class="space-y-4">
-                            <div v-if="errorMessage" class="rounded-xl border border-rose-500/30 bg-rose-500/10 p-3 text-xs text-rose-300">
+                        <form
+                            v-else
+                            @submit.prevent="submitForm"
+                            class="space-y-4"
+                        >
+                            <div
+                                v-if="errorMessage"
+                                class="rounded-xl border border-rose-500/30 bg-rose-500/10 p-3 text-xs text-rose-300"
+                            >
                                 {{ errorMessage }}
                             </div>
 
                             <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
                                 <!-- Họ tên -->
                                 <div>
-                                    <label class="mb-1 block text-xs font-medium text-slate-300">
-                                        Họ và tên <span class="text-amber-400">*</span>
+                                    <label
+                                        class="mb-1 block text-xs font-medium text-slate-300"
+                                    >
+                                        Họ và tên
+                                        <span class="text-amber-400">*</span>
                                     </label>
                                     <div class="relative">
-                                        <User class="absolute left-3 top-2.5 size-4 text-slate-500" />
+                                        <User
+                                            class="absolute top-2.5 left-3 size-4 text-slate-500"
+                                        />
                                         <input
                                             v-model="form.name"
                                             type="text"
                                             placeholder="Nguyễn Văn A"
                                             required
-                                            class="w-full rounded-xl border border-white/10 bg-slate-800/80 pl-9 pr-3 py-2 text-sm text-white placeholder-slate-500 focus:border-amber-400 focus:outline-none"
+                                            class="w-full rounded-xl border border-white/10 bg-slate-800/80 py-2 pr-3 pl-9 text-sm text-white placeholder-slate-500 focus:border-amber-400 focus:outline-none"
                                         />
                                     </div>
                                 </div>
 
                                 <!-- Số điện thoại -->
                                 <div>
-                                    <label class="mb-1 block text-xs font-medium text-slate-300">
-                                        Số điện thoại <span class="text-amber-400">*</span>
+                                    <label
+                                        class="mb-1 block text-xs font-medium text-slate-300"
+                                    >
+                                        Số điện thoại
+                                        <span class="text-amber-400">*</span>
                                     </label>
                                     <div class="relative">
-                                        <Phone class="absolute left-3 top-2.5 size-4 text-slate-500" />
+                                        <Phone
+                                            class="absolute top-2.5 left-3 size-4 text-slate-500"
+                                        />
                                         <input
                                             v-model="form.phone"
                                             type="tel"
                                             placeholder="0987 654 321"
                                             required
-                                            class="w-full rounded-xl border border-white/10 bg-slate-800/80 pl-9 pr-3 py-2 text-sm text-white placeholder-slate-500 focus:border-amber-400 focus:outline-none"
+                                            class="w-full rounded-xl border border-white/10 bg-slate-800/80 py-2 pr-3 pl-9 text-sm text-white placeholder-slate-500 focus:border-amber-400 focus:outline-none"
                                         />
                                     </div>
                                 </div>
@@ -198,33 +246,46 @@ function handleClose() {
                             <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
                                 <!-- Tên nhà hàng -->
                                 <div>
-                                    <label class="mb-1 block text-xs font-medium text-slate-300">
-                                        Tên nhà hàng / thương hiệu <span class="text-amber-400">*</span>
+                                    <label
+                                        class="mb-1 block text-xs font-medium text-slate-300"
+                                    >
+                                        Tên nhà hàng / thương hiệu
+                                        <span class="text-amber-400">*</span>
                                     </label>
                                     <div class="relative">
-                                        <Store class="absolute left-3 top-2.5 size-4 text-slate-500" />
+                                        <Store
+                                            class="absolute top-2.5 left-3 size-4 text-slate-500"
+                                        />
                                         <input
                                             v-model="form.restaurant_name"
                                             type="text"
                                             placeholder="Nhà hàng Aventura BBQ"
                                             required
-                                            class="w-full rounded-xl border border-white/10 bg-slate-800/80 pl-9 pr-3 py-2 text-sm text-white placeholder-slate-500 focus:border-amber-400 focus:outline-none"
+                                            class="w-full rounded-xl border border-white/10 bg-slate-800/80 py-2 pr-3 pl-9 text-sm text-white placeholder-slate-500 focus:border-amber-400 focus:outline-none"
                                         />
                                     </div>
                                 </div>
 
                                 <!-- Số lượng chi nhánh -->
                                 <div>
-                                    <label class="mb-1 block text-xs font-medium text-slate-300">
+                                    <label
+                                        class="mb-1 block text-xs font-medium text-slate-300"
+                                    >
                                         Số lượng chi nhánh
                                     </label>
                                     <div class="relative">
-                                        <Building2 class="absolute left-3 top-2.5 size-4 text-slate-500" />
+                                        <Building2
+                                            class="absolute top-2.5 left-3 size-4 text-slate-500"
+                                        />
                                         <select
                                             v-model="form.branch_count"
-                                            class="w-full rounded-xl border border-white/10 bg-slate-800/80 pl-9 pr-3 py-2 text-sm text-white focus:border-amber-400 focus:outline-none"
+                                            class="w-full rounded-xl border border-white/10 bg-slate-800/80 py-2 pr-3 pl-9 text-sm text-white focus:border-amber-400 focus:outline-none"
                                         >
-                                            <option v-for="opt in branchOptions" :key="opt.value" :value="opt.value">
+                                            <option
+                                                v-for="opt in branchOptions"
+                                                :key="opt.value"
+                                                :value="opt.value"
+                                            >
                                                 {{ opt.label }}
                                             </option>
                                         </select>
@@ -235,31 +296,39 @@ function handleClose() {
                             <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
                                 <!-- Email (tùy chọn) -->
                                 <div>
-                                    <label class="mb-1 block text-xs font-medium text-slate-300">
+                                    <label
+                                        class="mb-1 block text-xs font-medium text-slate-300"
+                                    >
                                         Email nhận thông tin (Tùy chọn)
                                     </label>
                                     <div class="relative">
-                                        <Mail class="absolute left-3 top-2.5 size-4 text-slate-500" />
+                                        <Mail
+                                            class="absolute top-2.5 left-3 size-4 text-slate-500"
+                                        />
                                         <input
                                             v-model="form.email"
                                             type="email"
                                             placeholder="quanly@nhahang.com"
-                                            class="w-full rounded-xl border border-white/10 bg-slate-800/80 pl-9 pr-3 py-2 text-sm text-white placeholder-slate-500 focus:border-amber-400 focus:outline-none"
+                                            class="w-full rounded-xl border border-white/10 bg-slate-800/80 py-2 pr-3 pl-9 text-sm text-white placeholder-slate-500 focus:border-amber-400 focus:outline-none"
                                         />
                                     </div>
                                 </div>
 
                                 <!-- Ngày mong muốn tư vấn -->
                                 <div>
-                                    <label class="mb-1 block text-xs font-medium text-slate-300">
+                                    <label
+                                        class="mb-1 block text-xs font-medium text-slate-300"
+                                    >
                                         Ngày mong muốn tư vấn
                                     </label>
                                     <div class="relative">
-                                        <Calendar class="absolute left-3 top-2.5 size-4 text-slate-500" />
+                                        <Calendar
+                                            class="absolute top-2.5 left-3 size-4 text-slate-500"
+                                        />
                                         <input
                                             v-model="form.preferred_date"
                                             type="date"
-                                            class="w-full rounded-xl border border-white/10 bg-slate-800/80 pl-9 pr-3 py-2 text-sm text-white focus:border-amber-400 focus:outline-none"
+                                            class="w-full rounded-xl border border-white/10 bg-slate-800/80 py-2 pr-3 pl-9 text-sm text-white focus:border-amber-400 focus:outline-none"
                                         />
                                     </div>
                                 </div>
@@ -267,7 +336,9 @@ function handleClose() {
 
                             <!-- Khung giờ mong muốn -->
                             <div>
-                                <label class="mb-1 block text-xs font-medium text-slate-300">
+                                <label
+                                    class="mb-1 block text-xs font-medium text-slate-300"
+                                >
                                     Khung giờ tư vấn mong muốn
                                 </label>
                                 <div class="grid grid-cols-3 gap-2">
@@ -277,7 +348,11 @@ function handleClose() {
                                         type="button"
                                         @click="form.preferred_time = t"
                                         class="rounded-xl border py-2 text-xs font-medium transition"
-                                        :class="form.preferred_time === t ? 'border-amber-400 bg-amber-500/20 text-amber-300' : 'border-white/10 bg-slate-800/50 text-slate-400 hover:bg-slate-800'"
+                                        :class="
+                                            form.preferred_time === t
+                                                ? 'border-amber-400 bg-amber-500/20 text-amber-300'
+                                                : 'border-white/10 bg-slate-800/50 text-slate-400 hover:bg-slate-800'
+                                        "
                                     >
                                         {{ t }}
                                     </button>
@@ -286,7 +361,9 @@ function handleClose() {
 
                             <!-- Ghi chú thêm -->
                             <div>
-                                <label class="mb-1 block text-xs font-medium text-slate-300">
+                                <label
+                                    class="mb-1 block text-xs font-medium text-slate-300"
+                                >
                                     Nhu cầu tư vấn chi tiết (Tùy chọn)
                                 </label>
                                 <div class="relative">
@@ -302,22 +379,26 @@ function handleClose() {
                             <!-- Footer CTA -->
                             <div class="flex items-center justify-between pt-3">
                                 <p class="text-[11px] text-slate-400">
-                                    * Cam kết bảo mật 100% thông tin doanh nghiệp.
+                                    * Cam kết bảo mật 100% thông tin doanh
+                                    nghiệp.
                                 </p>
                                 <div class="flex items-center gap-2">
                                     <button
                                         type="button"
                                         @click="handleClose"
-                                        class="rounded-xl border border-white/10 px-4 py-2 text-xs font-medium text-slate-300 hover:bg-white/10 transition"
+                                        class="rounded-xl border border-white/10 px-4 py-2 text-xs font-medium text-slate-300 transition hover:bg-white/10"
                                     >
                                         Hủy
                                     </button>
                                     <button
                                         type="submit"
                                         :disabled="isSubmitting"
-                                        class="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 px-5 py-2 text-xs font-bold text-slate-950 shadow-lg shadow-amber-500/20 hover:from-amber-400 hover:to-orange-400 transition disabled:opacity-50"
+                                        class="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 px-5 py-2 text-xs font-bold text-slate-950 shadow-lg shadow-amber-500/20 transition hover:from-amber-400 hover:to-orange-400 disabled:opacity-50"
                                     >
-                                        <Loader2 v-if="isSubmitting" class="size-4 animate-spin" />
+                                        <Loader2
+                                            v-if="isSubmitting"
+                                            class="size-4 animate-spin"
+                                        />
                                         <span>Gửi Yêu Cầu Đặt Lịch</span>
                                     </button>
                                 </div>

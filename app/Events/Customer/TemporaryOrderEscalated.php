@@ -31,9 +31,9 @@ class TemporaryOrderEscalated implements ShouldBroadcastNow
     public function broadcastWith(): array
     {
         return [
-            'id'           => $this->temporaryOrder->id,
-            'table_name'   => $this->temporaryOrder->table?->name ?? 'Bàn trống',
-            'area_name'    => $this->temporaryOrder->table?->area?->name ?? 'Khu vực',
+            'id' => $this->temporaryOrder->id,
+            'table_name' => $this->temporaryOrder->table?->name ?? 'Bàn trống',
+            'area_name' => $this->temporaryOrder->table?->area?->name ?? 'Khu vực',
             'total_amount' => (float) $this->temporaryOrder->total_amount,
             'escalated_at' => now()->toIso8601String(),
         ];

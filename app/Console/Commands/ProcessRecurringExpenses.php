@@ -2,20 +2,21 @@
 
 namespace App\Console\Commands;
 
-use App\Models\RecurringExpense;
 use App\Models\OperatingExpense;
+use App\Models\RecurringExpense;
 use Carbon\Carbon;
 use Illuminate\Console\Command;
 
 class ProcessRecurringExpenses extends Command
 {
     protected $signature = 'expenses:process-recurring';
+
     protected $description = 'Process active recurring expenses and generate operating expenses';
 
     public function handle()
     {
         $today = today();
-        $this->info("Processing recurring expenses for: " . $today->toDateString());
+        $this->info('Processing recurring expenses for: '.$today->toDateString());
 
         $recurringExpenses = RecurringExpense::where('is_active', true)
             ->where('start_date', '<=', $today->toDateString())
@@ -28,7 +29,7 @@ class ProcessRecurringExpenses extends Command
         $count = 0;
         foreach ($recurringExpenses as $recurring) {
             // Determine first trigger date
-            $nextTrigger = $recurring->last_triggered_at 
+            $nextTrigger = $recurring->last_triggered_at
                 ? $this->getNextTriggerDate(Carbon::parse($recurring->last_triggered_at), $recurring->frequency)
                 : Carbon::parse($recurring->start_date);
 
@@ -46,7 +47,7 @@ class ProcessRecurringExpenses extends Command
                     ->where('expense_date', $nextTrigger->toDateString())
                     ->exists();
 
-                if (!$exists) {
+                if (! $exists) {
                     OperatingExpense::create([
                         'restaurant_id' => $recurring->restaurant_id,
                         'branch_id' => $recurring->branch_id,
@@ -78,6 +79,7 @@ class ProcessRecurringExpenses extends Command
     private function getNextTriggerDate(Carbon $date, string $frequency): Carbon
     {
         $newDate = $date->copy();
+
         return match ($frequency) {
             'weekly' => $newDate->addWeek(),
             'monthly' => $newDate->addMonth(),

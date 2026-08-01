@@ -1,7 +1,14 @@
 <script setup lang="ts">
 import { Link } from '@inertiajs/vue3';
 import { usePage } from '@inertiajs/vue3';
-import { User, Building2, Shield, Gift, Blocks, Landmark } from 'lucide-vue-next';
+import {
+    User,
+    Building2,
+    Shield,
+    Gift,
+    Blocks,
+    Landmark,
+} from 'lucide-vue-next';
 import { computed } from 'vue';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';

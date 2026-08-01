@@ -12,6 +12,7 @@ use App\Services\FraudDetectionService;
 use App\Services\PromotionApplicationService;
 use App\Services\QrCodeService;
 use App\Services\QuotaService;
+use App\Support\TenantRule;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -116,8 +117,8 @@ class PromotionController extends Controller
 
         $data = $request->validate([
             'name' => ['required', 'string', 'max:255'],
-            'item_a_id' => ['required', 'integer', \App\Support\TenantRule::exists('products')],
-            'item_b_id' => ['required', 'integer', 'different:item_a_id', \App\Support\TenantRule::exists('products')],
+            'item_a_id' => ['required', 'integer', TenantRule::exists('products')],
+            'item_b_id' => ['required', 'integer', 'different:item_a_id', TenantRule::exists('products')],
             'combo_price' => ['required', 'numeric', 'min:0'],
             'notes' => ['nullable', 'string', 'max:1000'],
         ]);
@@ -355,7 +356,7 @@ class PromotionController extends Controller
         $user = $request->user();
 
         $data = $request->validate([
-            'order_id' => ['required', \App\Support\TenantRule::exists('orders')],
+            'order_id' => ['required', TenantRule::exists('orders')],
             'code' => ['required', 'string'],
             'bypass_code' => ['nullable', 'string'],
         ]);
@@ -385,7 +386,7 @@ class PromotionController extends Controller
         $user = $request->user();
         $data = $request->validate([
             'code' => ['required', 'string'],
-            'order_id' => ['nullable', \App\Support\TenantRule::exists('orders')],
+            'order_id' => ['nullable', TenantRule::exists('orders')],
         ]);
 
         return response()->json($this->promotionApplication->validateForOrder($user->restaurant_id, $data['code']));

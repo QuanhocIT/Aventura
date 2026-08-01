@@ -386,6 +386,7 @@ class RfpController extends Controller
 
         return back()->with('success', 'Đã nộp hồ sơ báo giá thầu thành công. Chủ nhà hàng sẽ đánh giá và phản hồi bạn.');
     }
+
     private function requireActiveBranch(Request $request): int
     {
         $branchId = $this->tenantContext->activeBranchId()

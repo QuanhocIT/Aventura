@@ -15,7 +15,8 @@ class SendReviewRequestEmail implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
-    public int $tries   = 2;
+    public int $tries = 2;
+
     public int $timeout = 60;
 
     public function __construct(
@@ -25,20 +26,23 @@ class SendReviewRequestEmail implements ShouldQueue
     public function handle(EmailMicroserviceClient $client): void
     {
         $order = Order::withoutGlobalScopes()->with(['restaurant', 'customer'])->find($this->orderId);
-        
-        if (!$order) {
+
+        if (! $order) {
             Log::warning("SendReviewRequestEmail: Order ID {$this->orderId} not found.");
+
             return;
         }
 
         if ($order->status !== 'completed') {
             Log::warning("SendReviewRequestEmail: Order ID {$this->orderId} status is not completed. Current: {$order->status}");
+
             return;
         }
 
         $customer = $order->customer;
-        if (!$customer || empty($customer->email)) {
+        if (! $customer || empty($customer->email)) {
             Log::warning("SendReviewRequestEmail: Order ID {$this->orderId} has no customer or customer has no email.");
+
             return;
         }
 
@@ -48,9 +52,9 @@ class SendReviewRequestEmail implements ShouldQueue
         // Prepare review request data
         $sent = $client->sendReviewRequest([
             'recipient_email' => $customer->email,
-            'recipient_name'  => $customer->full_name ?? 'Quý khách',
+            'recipient_name' => $customer->full_name ?? 'Quý khách',
             'restaurant_name' => $restaurantName,
-            'review_url'      => url("/reviews/order/{$order->id}"),
+            'review_url' => url("/reviews/order/{$order->id}"),
         ]);
 
         if ($sent) {
@@ -62,6 +66,6 @@ class SendReviewRequestEmail implements ShouldQueue
 
     public function tags(): array
     {
-        return ["order:{$this->orderId}", "review-request"];
+        return ["order:{$this->orderId}", 'review-request'];
     }
 }

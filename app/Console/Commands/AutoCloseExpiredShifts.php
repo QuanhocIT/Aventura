@@ -2,14 +2,14 @@
 
 namespace App\Console\Commands;
 
-use App\Models\WorkShift;
-use App\Models\ShiftClosing;
-use App\Models\ScheduleAssignment;
+use App\Models\AuditLog;
 use App\Models\Employee;
-use App\Models\Restaurant;
 use App\Models\Order;
 use App\Models\Payment;
-use App\Models\AuditLog;
+use App\Models\Restaurant;
+use App\Models\ScheduleAssignment;
+use App\Models\ShiftClosing;
+use App\Models\WorkShift;
 use Carbon\Carbon;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Log;
@@ -17,6 +17,7 @@ use Illuminate\Support\Facades\Log;
 class AutoCloseExpiredShifts extends Command
 {
     protected $signature = 'shifts:auto-close-expired';
+
     protected $description = 'Automatically close open/active shifts for today if not already closed by cashiers';
 
     public function handle()
@@ -43,16 +44,17 @@ class AutoCloseExpiredShifts extends Command
 
                 if ($exists) {
                     $this->info("Shift {$shift->name} (ID: {$shift->id}) already closed for today. Skipping.");
+
                     continue;
                 }
 
                 $this->info("Closing shift {$shift->name} (ID: {$shift->id}) for restaurant ID {$shift->restaurant_id}");
 
                 // 1. Calculate time range
-                $startDt = Carbon::parse($todayStr . ' ' . $shift->start_time);
+                $startDt = Carbon::parse($todayStr.' '.$shift->start_time);
                 $endDt = $shift->is_overnight
-                    ? Carbon::parse(Carbon::today()->addDay()->toDateString() . ' ' . $shift->end_time)
-                    : Carbon::parse($todayStr . ' ' . $shift->end_time);
+                    ? Carbon::parse(Carbon::today()->addDay()->toDateString().' '.$shift->end_time)
+                    : Carbon::parse($todayStr.' '.$shift->end_time);
 
                 // 2. Calculate revenue (same logic as ShiftClosingController::calculateShiftRevenue)
                 $orderIds = Order::withoutGlobalScopes()
@@ -76,8 +78,8 @@ class AutoCloseExpiredShifts extends Command
                     ->where('is_split', true)
                     ->where('is_override_split_penalty', false)
                     ->where(function ($q) use ($startDt, $endDt) {
-                        $q->where(fn($q2) => $q2->where('status', 'completed')->whereBetween('completed_at', [$startDt, $endDt]))
-                          ->orWhere(fn($q2) => $q2->where('payment_status', 'unpaid')->whereBetween('created_at', [$startDt, $endDt]));
+                        $q->where(fn ($q2) => $q2->where('status', 'completed')->whereBetween('completed_at', [$startDt, $endDt]))
+                            ->orWhere(fn ($q2) => $q2->where('payment_status', 'unpaid')->whereBetween('created_at', [$startDt, $endDt]));
                     })
                     ->sum('total_amount');
 
@@ -105,7 +107,7 @@ class AutoCloseExpiredShifts extends Command
                     }
                 }
 
-                if (!$cashierUserId) {
+                if (! $cashierUserId) {
                     $restaurant = Restaurant::find($shift->restaurant_id);
                     if ($restaurant) {
                         $cashierUserId = $restaurant->owner_user_id;
@@ -114,42 +116,43 @@ class AutoCloseExpiredShifts extends Command
 
                 // 4. Create ShiftClosing record
                 $closing = ShiftClosing::create([
-                    'restaurant_id'        => $shift->restaurant_id,
-                    'branch_id'            => $shift->branch_id,
-                    'shift_id'             => $shift->id,
-                    'closing_date'         => $todayStr,
-                    'cashier_user_id'      => $cashierUserId,
-                    'expected_cash'        => $expectedCash,
-                    'actual_cash'          => $expectedCash, // Prevents cash shortage adjustment
-                    'cash_difference'      => 0.0,
-                    'transfer_amount'      => $transferAmount,
+                    'restaurant_id' => $shift->restaurant_id,
+                    'branch_id' => $shift->branch_id,
+                    'shift_id' => $shift->id,
+                    'closing_date' => $todayStr,
+                    'cashier_user_id' => $cashierUserId,
+                    'expected_cash' => $expectedCash,
+                    'actual_cash' => $expectedCash, // Prevents cash shortage adjustment
+                    'cash_difference' => 0.0,
+                    'transfer_amount' => $transferAmount,
                     'other_expense_amount' => 0.0,
-                    'notes'                => 'Hệ thống tự động chốt ca cuối ngày.',
-                    'status'               => 'confirmed',
-                    'closed_at'            => Carbon::now(),
+                    'notes' => 'Hệ thống tự động chốt ca cuối ngày.',
+                    'status' => 'confirmed',
+                    'closed_at' => Carbon::now(),
                 ]);
 
                 // 5. Create Audit Log
                 AuditLog::create([
                     'restaurant_id' => $shift->restaurant_id,
-                    'event'         => 'created',
-                    'action'        => 'auto_shift_close',
-                    'subject_type'  => ShiftClosing::class,
-                    'subject_id'    => $closing->id,
-                    'new_values'    => [
-                        'status'        => 'confirmed',
+                    'event' => 'created',
+                    'action' => 'auto_shift_close',
+                    'subject_type' => ShiftClosing::class,
+                    'subject_id' => $closing->id,
+                    'new_values' => [
+                        'status' => 'confirmed',
                         'expected_cash' => $expectedCash,
                     ],
                 ]);
 
                 $closedCount++;
             } catch (\Throwable $e) {
-                Log::error("Error auto-closing shift ID {$shift->id}: " . $e->getMessage());
-                $this->error("Error auto-closing shift ID {$shift->id}: " . $e->getMessage());
+                Log::error("Error auto-closing shift ID {$shift->id}: ".$e->getMessage());
+                $this->error("Error auto-closing shift ID {$shift->id}: ".$e->getMessage());
             }
         }
 
         $this->info("Completed auto-closing {$closedCount} shifts.");
+
         return Command::SUCCESS;
     }
 }

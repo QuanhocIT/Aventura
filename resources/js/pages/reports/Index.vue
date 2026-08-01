@@ -221,8 +221,8 @@ const vnd = (v: number) => {
     const num = Number(v);
 
     if (isNaN(num) || num === undefined || num === null) {
-return '0 ₫';
-}
+        return '0 ₫';
+    }
 
     return new Intl.NumberFormat('vi-VN', {
         style: 'currency',
@@ -234,13 +234,15 @@ const formatCompact = (v: number) => {
     const num = Number(v);
 
     if (isNaN(num) || num === undefined || num === null) {
-return '0đ';
-}
+        return '0đ';
+    }
 
-    return new Intl.NumberFormat('vi-VN', {
-        notation: 'compact',
-        maximumFractionDigits: 1,
-    }).format(num) + 'đ';
+    return (
+        new Intl.NumberFormat('vi-VN', {
+            notation: 'compact',
+            maximumFractionDigits: 1,
+        }).format(num) + 'đ'
+    );
 };
 
 // ── KPI computed ──────────────────────────────────────────────────────────────
@@ -260,9 +262,7 @@ const profitMargin = computed(() =>
         : '0',
 );
 
-const hasData = computed(
-    () => props.summaries.length > 0,
-);
+const hasData = computed(() => props.summaries.length > 0);
 
 // ── Bar chart ─────────────────────────────────────────────────────────────────
 
@@ -276,12 +276,13 @@ const hoveredBar = ref<string | null>(null);
 const tablePage = ref(1);
 const tableItemsPerPage = 10;
 
-const totalTablePages = computed(() =>
-    Math.ceil(props.summaries.length / tableItemsPerPage) || 1,
+const totalTablePages = computed(
+    () => Math.ceil(props.summaries.length / tableItemsPerPage) || 1,
 );
 
 const paginatedSummaries = computed(() => {
     const start = (tablePage.value - 1) * tableItemsPerPage;
+
     return props.summaries.slice(start, start + tableItemsPerPage);
 });
 
@@ -369,13 +370,16 @@ const donutPaths = computed(() => {
 
 const pieSlices = computed(() => {
     if (!props.topProducts || props.topProducts.length === 0) {
-return [];
-}
+        return [];
+    }
 
     const top5 = props.topProducts.slice(0, 5);
-    const top5Rev = top5.reduce((s, p) => s + (Number(p.total_revenue) || 0), 0);
+    const top5Rev = top5.reduce(
+        (s, p) => s + (Number(p.total_revenue) || 0),
+        0,
+    );
     const netRev = Number(props.totals?.net_revenue) || 0;
-    const total = netRev > 0 ? netRev : (top5Rev > 0 ? top5Rev : 0);
+    const total = netRev > 0 ? netRev : top5Rev > 0 ? top5Rev : 0;
 
     if (total === 0) {
         return [];
@@ -443,8 +447,8 @@ const piePaths = computed(() => {
 
 const topPeakHours = computed(() => {
     if (!props.peakHours) {
-return [];
-}
+        return [];
+    }
 
     return [...props.peakHours]
         .sort((a, b) => b.revenue - a.revenue)
@@ -473,17 +477,26 @@ function exportCSV() {
     ];
 
     const formatCell = (val: any) => {
-        if (val === null || val === undefined) return '""';
+        if (val === null || val === undefined) {
+            return '""';
+        }
+
         const str = String(val).replace(/"/g, '""');
+
         return `"${str}"`;
     };
 
     const formatDate = (dateStr: string) => {
-        if (!dateStr) return '';
+        if (!dateStr) {
+            return '';
+        }
+
         const parts = dateStr.split('-');
+
         if (parts.length === 3) {
             return `${parts[2]}/${parts[1]}/${parts[0]}`;
         }
+
         return dateStr;
     };
 
@@ -513,7 +526,11 @@ function exportCSV() {
         Math.round(props.totals.discount_total || 0),
         Math.round(props.totals.net_revenue || 0),
         Math.round(props.profitBreakdown?.total_cogs || 0),
-        Math.round(props.profitBreakdown?.gross_profit || props.totals.gross_profit || 0),
+        Math.round(
+            props.profitBreakdown?.gross_profit ||
+                props.totals.gross_profit ||
+                0,
+        ),
         Math.round(props.paymentBreakdown?.cash || 0),
         Math.round(props.paymentBreakdown?.bank_transfer || 0),
         Math.round(props.paymentBreakdown?.card || 0),
@@ -529,7 +546,9 @@ function exportCSV() {
     ];
 
     const csvContent = lines.join('\r\n');
-    const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
+    const blob = new Blob(['\uFEFF' + csvContent], {
+        type: 'text/csv;charset=utf-8;',
+    });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
@@ -610,236 +629,311 @@ function deltaBadge(pct: number | null) {
             v-if="props.branchContext?.scope === 'all'"
             class="rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-xs text-sky-800 dark:border-sky-900 dark:bg-sky-950/30 dark:text-sky-200"
         >
-            Đang xem <strong>Toàn chuỗi</strong>. Tổng doanh thu được đối soát với tổng các chi nhánh.
+            Đang xem <strong>Toàn chuỗi</strong>. Tổng doanh thu được đối soát
+            với tổng các chi nhánh.
             <span v-if="branchReconciliation" class="ml-1 font-semibold">
-                {{ branchReconciliation.is_consistent ? '✓ Khớp số liệu' : '⚠ Có dữ liệu chưa xác định chi nhánh' }}
+                {{
+                    branchReconciliation.is_consistent
+                        ? '✓ Khớp số liệu'
+                        : '⚠ Có dữ liệu chưa xác định chi nhánh'
+                }}
             </span>
         </div>
 
         <!-- ── Daily Report Status Bar ─────────────────────────────────────── -->
         <div
-            class="overflow-hidden rounded-2xl border border-border bg-card shadow-sm min-h-[120px]"
+            class="min-h-[120px] overflow-hidden rounded-2xl border border-border bg-card shadow-sm"
         >
             <Deferred data="todayRealtimeStats">
                 <template #fallback>
-                    <div class="flex h-[120px] items-center justify-center text-xs text-muted-foreground animate-pulse gap-2">
-                        <RefreshCw class="size-3.5 animate-spin text-violet-500" />
+                    <div
+                        class="flex h-[120px] animate-pulse items-center justify-center gap-2 text-xs text-muted-foreground"
+                    >
+                        <RefreshCw
+                            class="size-3.5 animate-spin text-violet-500"
+                        />
                         Đang tải báo cáo realtime hôm nay...
                     </div>
                 </template>
                 <div
                     class="flex flex-col gap-4 border-b border-border px-5 py-4 sm:flex-row sm:items-center sm:justify-between"
                 >
-                <div class="flex items-center gap-3">
-                    <div
-                        class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-violet-500/10"
-                    >
-                        <BarChart3 class="size-5 text-violet-600 dark:text-violet-400" />
-                    </div>
-                    <div>
-                        <div class="flex items-center gap-2">
-                            <span class="relative flex h-2 w-2">
-                                <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                                <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-                            </span>
-                            <p class="text-xs font-bold tracking-wider text-emerald-600 dark:text-emerald-400 uppercase">
-                                Báo cáo hoạt động hôm nay (Thời gian thực)
+                    <div class="flex items-center gap-3">
+                        <div
+                            class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-violet-500/10"
+                        >
+                            <BarChart3
+                                class="size-5 text-violet-600 dark:text-violet-400"
+                            />
+                        </div>
+                        <div>
+                            <div class="flex items-center gap-2">
+                                <span class="relative flex h-2 w-2">
+                                    <span
+                                        class="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75"
+                                    ></span>
+                                    <span
+                                        class="relative inline-flex h-2 w-2 rounded-full bg-emerald-500"
+                                    ></span>
+                                </span>
+                                <p
+                                    class="text-xs font-bold tracking-wider text-emerald-600 uppercase dark:text-emerald-400"
+                                >
+                                    Báo cáo hoạt động hôm nay (Thời gian thực)
+                                </p>
+                            </div>
+                            <p class="mt-0.5 text-[11px] text-muted-foreground">
+                                Hệ thống cập nhật thông tin mới nhất lúc
+                                {{ todayRealtimeStats.calculated_at }}
                             </p>
                         </div>
-                        <p class="mt-0.5 text-[11px] text-muted-foreground">
-                            Hệ thống cập nhật thông tin mới nhất lúc {{ todayRealtimeStats.calculated_at }}
+                    </div>
+
+                    <div
+                        v-if="canGenerate"
+                        class="flex shrink-0 items-center gap-2"
+                    >
+                        <button
+                            @click="generateReport"
+                            :disabled="generating"
+                            class="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-border bg-background px-3.5 py-2 text-xs font-semibold transition hover:bg-muted active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                            <RefreshCw
+                                class="size-3.5"
+                                :class="generating ? 'animate-spin' : ''"
+                            />
+                            {{ generating ? 'Đang tạo...' : 'Tổng hợp lại' }}
+                        </button>
+                        <button
+                            v-if="canSendEmail"
+                            @click="sendEmailReport"
+                            :disabled="sendingMail"
+                            class="inline-flex cursor-pointer items-center gap-2 rounded-xl bg-violet-600 px-3.5 py-2 text-xs font-semibold text-white transition hover:bg-violet-700 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                            <Send
+                                class="size-3.5"
+                                :class="sendingMail ? 'animate-pulse' : ''"
+                            />
+                            {{ sendingMail ? 'Đang gửi...' : 'Gửi email' }}
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Realtime Daily Stats Grid -->
+                <div class="grid grid-cols-2 gap-px bg-border md:grid-cols-5">
+                    <!-- 1. Doanh thu hôm nay (Tạm tính) -->
+                    <div
+                        class="bg-card p-4 transition duration-300 hover:bg-muted/30"
+                    >
+                        <div class="mb-1 flex items-center justify-between">
+                            <span
+                                class="text-[10px] font-semibold tracking-wider text-muted-foreground uppercase"
+                                >Doanh thu tạm tính</span
+                            >
+                            <Banknote class="size-4 text-emerald-500" />
+                        </div>
+                        <p
+                            class="text-base font-black text-emerald-600 dark:text-emerald-400"
+                        >
+                            {{ vnd(todayRealtimeStats.total_revenue) }}
+                        </p>
+                        <p class="mt-1 text-[10px] text-muted-foreground">
+                            Đã thu + đơn hoạt động
+                        </p>
+                    </div>
+
+                    <!-- 2. Tổng số đơn hàng -->
+                    <div
+                        class="bg-card p-4 transition duration-300 hover:bg-muted/30"
+                    >
+                        <div class="mb-1 flex items-center justify-between">
+                            <span
+                                class="text-[10px] font-semibold tracking-wider text-muted-foreground uppercase"
+                                >Tổng số đơn hàng</span
+                            >
+                            <ShoppingCart class="size-4 text-sky-500" />
+                        </div>
+                        <p class="text-base font-black text-foreground">
+                            {{ todayRealtimeStats.total_orders }} đơn
+                        </p>
+                        <p class="mt-1 text-[10px] text-muted-foreground">
+                            Phát sinh trong ngày
+                        </p>
+                    </div>
+
+                    <!-- 3. Đơn đã thanh toán -->
+                    <div
+                        class="bg-card p-4 transition duration-300 hover:bg-muted/30"
+                    >
+                        <div class="mb-1 flex items-center justify-between">
+                            <span
+                                class="text-[10px] font-semibold tracking-wider text-muted-foreground uppercase"
+                                >Đơn đã thanh toán</span
+                            >
+                            <CheckCircle2 class="size-4 text-emerald-500" />
+                        </div>
+                        <p class="text-base font-black text-foreground">
+                            {{ todayRealtimeStats.paid_orders }} đơn
+                        </p>
+                        <p class="mt-1 text-[10px] text-muted-foreground">
+                            Đã thu:
+                            {{ formatCompact(todayRealtimeStats.paid_revenue) }}
+                        </p>
+                    </div>
+
+                    <!-- 4. Đơn đang hoạt động -->
+                    <div
+                        class="bg-card p-4 transition duration-300 hover:bg-muted/30"
+                    >
+                        <div class="mb-1 flex items-center justify-between">
+                            <span
+                                class="text-[10px] font-semibold tracking-wider text-muted-foreground uppercase"
+                                >Đơn đang hoạt động</span
+                            >
+                            <Clock
+                                class="size-4 animate-pulse text-amber-500"
+                            />
+                        </div>
+                        <p
+                            class="text-base font-black text-amber-600 dark:text-amber-400"
+                        >
+                            {{ todayRealtimeStats.active_orders }} đơn
+                        </p>
+                        <p class="mt-1 text-[10px] text-muted-foreground">
+                            Tạm tính:
+                            {{
+                                formatCompact(todayRealtimeStats.active_revenue)
+                            }}
+                        </p>
+                    </div>
+
+                    <!-- 5. Đơn đã hủy -->
+                    <div
+                        class="bg-card p-4 transition duration-300 hover:bg-muted/30"
+                    >
+                        <div class="mb-1 flex items-center justify-between">
+                            <span
+                                class="text-[10px] font-semibold tracking-wider text-muted-foreground uppercase"
+                                >Đơn đã hủy</span
+                            >
+                            <XCircle class="size-4 text-rose-500" />
+                        </div>
+                        <p class="text-base font-black text-rose-500">
+                            {{ todayRealtimeStats.cancelled_orders }} đơn
+                        </p>
+                        <p class="mt-1 text-[10px] text-muted-foreground">
+                            Đơn TB:
+                            {{
+                                formatCompact(
+                                    todayRealtimeStats.avg_order_value,
+                                )
+                            }}
                         </p>
                     </div>
                 </div>
 
+                <!-- Today vs yesterday comparison -->
                 <div
-                    v-if="canGenerate"
-                    class="flex shrink-0 items-center gap-2"
+                    v-if="comparisonCards"
+                    class="grid grid-cols-3 gap-px border-t border-border bg-border"
                 >
-                    <button
-                        @click="generateReport"
-                        :disabled="generating"
-                        class="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-border bg-background px-3.5 py-2 text-xs font-semibold transition hover:bg-muted active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                        <RefreshCw
-                            class="size-3.5"
-                            :class="generating ? 'animate-spin' : ''"
-                        />
-                        {{ generating ? 'Đang tạo...' : 'Tổng hợp lại' }}
-                    </button>
-                    <button
-                        v-if="canSendEmail"
-                        @click="sendEmailReport"
-                        :disabled="sendingMail"
-                        class="inline-flex cursor-pointer items-center gap-2 rounded-xl bg-violet-600 px-3.5 py-2 text-xs font-semibold text-white transition hover:bg-violet-700 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                        <Send
-                            class="size-3.5"
-                            :class="sendingMail ? 'animate-pulse' : ''"
-                        />
-                        {{ sendingMail ? 'Đang gửi...' : 'Gửi email' }}
-                    </button>
-                </div>
-            </div>
-
-            <!-- Realtime Daily Stats Grid -->
-            <div class="grid grid-cols-2 gap-px bg-border md:grid-cols-5">
-                <!-- 1. Doanh thu hôm nay (Tạm tính) -->
-                <div class="bg-card p-4 transition duration-300 hover:bg-muted/30">
-                    <div class="mb-1 flex items-center justify-between">
-                        <span class="text-[10px] font-semibold tracking-wider text-muted-foreground uppercase">Doanh thu tạm tính</span>
-                        <Banknote class="size-4 text-emerald-500" />
-                    </div>
-                    <p class="text-base font-black text-emerald-600 dark:text-emerald-400">
-                        {{ vnd(todayRealtimeStats.total_revenue) }}
-                    </p>
-                    <p class="mt-1 text-[10px] text-muted-foreground">Đã thu + đơn hoạt động</p>
-                </div>
-
-                <!-- 2. Tổng số đơn hàng -->
-                <div class="bg-card p-4 transition duration-300 hover:bg-muted/30">
-                    <div class="mb-1 flex items-center justify-between">
-                        <span class="text-[10px] font-semibold tracking-wider text-muted-foreground uppercase">Tổng số đơn hàng</span>
-                        <ShoppingCart class="size-4 text-sky-500" />
-                    </div>
-                    <p class="text-base font-black text-foreground">
-                        {{ todayRealtimeStats.total_orders }} đơn
-                    </p>
-                    <p class="mt-1 text-[10px] text-muted-foreground">Phát sinh trong ngày</p>
-                </div>
-
-                <!-- 3. Đơn đã thanh toán -->
-                <div class="bg-card p-4 transition duration-300 hover:bg-muted/30">
-                    <div class="mb-1 flex items-center justify-between">
-                        <span class="text-[10px] font-semibold tracking-wider text-muted-foreground uppercase">Đơn đã thanh toán</span>
-                        <CheckCircle2 class="size-4 text-emerald-500" />
-                    </div>
-                    <p class="text-base font-black text-foreground">
-                        {{ todayRealtimeStats.paid_orders }} đơn
-                    </p>
-                    <p class="mt-1 text-[10px] text-muted-foreground">Đã thu: {{ formatCompact(todayRealtimeStats.paid_revenue) }}</p>
-                </div>
-
-                <!-- 4. Đơn đang hoạt động -->
-                <div class="bg-card p-4 transition duration-300 hover:bg-muted/30">
-                    <div class="mb-1 flex items-center justify-between">
-                        <span class="text-[10px] font-semibold tracking-wider text-muted-foreground uppercase">Đơn đang hoạt động</span>
-                        <Clock class="size-4 text-amber-500 animate-pulse" />
-                    </div>
-                    <p class="text-base font-black text-amber-600 dark:text-amber-400">
-                        {{ todayRealtimeStats.active_orders }} đơn
-                    </p>
-                    <p class="mt-1 text-[10px] text-muted-foreground">Tạm tính: {{ formatCompact(todayRealtimeStats.active_revenue) }}</p>
-                </div>
-
-                <!-- 5. Đơn đã hủy -->
-                <div class="bg-card p-4 transition duration-300 hover:bg-muted/30">
-                    <div class="mb-1 flex items-center justify-between">
-                        <span class="text-[10px] font-semibold tracking-wider text-muted-foreground uppercase">Đơn đã hủy</span>
-                        <XCircle class="size-4 text-rose-500" />
-                    </div>
-                    <p class="text-base font-black text-rose-500">
-                        {{ todayRealtimeStats.cancelled_orders }} đơn
-                    </p>
-                    <p class="mt-1 text-[10px] text-muted-foreground">Đơn TB: {{ formatCompact(todayRealtimeStats.avg_order_value) }}</p>
-                </div>
-            </div>
-
-            <!-- Today vs yesterday comparison -->
-            <div
-                v-if="comparisonCards"
-                class="grid grid-cols-3 gap-px border-t border-border bg-border"
-            >
-                <div class="bg-card px-5 py-3">
-                    <p
-                        class="text-[10px] font-semibold tracking-wider text-muted-foreground uppercase"
-                    >
-                        Hôm nay vs hôm qua
-                    </p>
-                    <div class="mt-1 flex items-center gap-1.5">
-                        <component
-                            :is="
-                                comparisonCards.revenue_delta >= 0
-                                    ? ArrowUpRight
-                                    : ArrowDownRight
-                            "
-                            :class="
-                                comparisonCards.revenue_delta >= 0
-                                    ? 'text-emerald-500'
-                                    : 'text-rose-500'
-                            "
-                            class="size-4 shrink-0"
-                        />
-                        <span
-                            class="text-sm font-bold"
-                            :class="
-                                comparisonCards.revenue_delta >= 0
-                                    ? 'text-emerald-600 dark:text-emerald-400'
-                                    : 'text-rose-600 dark:text-rose-400'
-                            "
+                    <div class="bg-card px-5 py-3">
+                        <p
+                            class="text-[10px] font-semibold tracking-wider text-muted-foreground uppercase"
                         >
-                            {{ comparisonCards.revenue_delta >= 0 ? '+' : ''
-                            }}{{ comparisonCards.revenue_delta_pct }}%
-                        </span>
+                            Hôm nay vs hôm qua
+                        </p>
+                        <div class="mt-1 flex items-center gap-1.5">
+                            <component
+                                :is="
+                                    comparisonCards.revenue_delta >= 0
+                                        ? ArrowUpRight
+                                        : ArrowDownRight
+                                "
+                                :class="
+                                    comparisonCards.revenue_delta >= 0
+                                        ? 'text-emerald-500'
+                                        : 'text-rose-500'
+                                "
+                                class="size-4 shrink-0"
+                            />
+                            <span
+                                class="text-sm font-bold"
+                                :class="
+                                    comparisonCards.revenue_delta >= 0
+                                        ? 'text-emerald-600 dark:text-emerald-400'
+                                        : 'text-rose-600 dark:text-rose-400'
+                                "
+                            >
+                                {{
+                                    comparisonCards.revenue_delta >= 0
+                                        ? '+'
+                                        : ''
+                                }}{{ comparisonCards.revenue_delta_pct }}%
+                            </span>
+                        </div>
+                        <p class="mt-0.5 text-xs text-muted-foreground">
+                            HQ:
+                            {{
+                                formatCompact(comparisonCards.yesterday_revenue)
+                            }}
+                        </p>
                     </div>
-                    <p class="mt-0.5 text-xs text-muted-foreground">
-                        HQ:
-                        {{ formatCompact(comparisonCards.yesterday_revenue) }}
-                    </p>
-                </div>
-                <div class="bg-card px-5 py-3">
-                    <p
-                        class="text-[10px] font-semibold tracking-wider text-muted-foreground uppercase"
-                    >
-                        Đơn hoàn thành
-                    </p>
-                    <div class="mt-1 flex items-center gap-1.5">
-                        <component
-                            :is="
-                                comparisonCards.order_delta >= 0
-                                    ? ArrowUpRight
-                                    : ArrowDownRight
-                            "
-                            :class="
-                                comparisonCards.order_delta >= 0
-                                    ? 'text-emerald-500'
-                                    : 'text-rose-500'
-                            "
-                            class="size-4 shrink-0"
-                        />
-                        <span
-                            class="text-sm font-bold"
-                            :class="
-                                comparisonCards.order_delta >= 0
-                                    ? 'text-emerald-600 dark:text-emerald-400'
-                                    : 'text-rose-600 dark:text-rose-400'
-                            "
+                    <div class="bg-card px-5 py-3">
+                        <p
+                            class="text-[10px] font-semibold tracking-wider text-muted-foreground uppercase"
                         >
-                            {{ comparisonCards.order_delta >= 0 ? '+' : ''
-                            }}{{ comparisonCards.order_delta }} đơn
-                        </span>
+                            Đơn hoàn thành
+                        </p>
+                        <div class="mt-1 flex items-center gap-1.5">
+                            <component
+                                :is="
+                                    comparisonCards.order_delta >= 0
+                                        ? ArrowUpRight
+                                        : ArrowDownRight
+                                "
+                                :class="
+                                    comparisonCards.order_delta >= 0
+                                        ? 'text-emerald-500'
+                                        : 'text-rose-500'
+                                "
+                                class="size-4 shrink-0"
+                            />
+                            <span
+                                class="text-sm font-bold"
+                                :class="
+                                    comparisonCards.order_delta >= 0
+                                        ? 'text-emerald-600 dark:text-emerald-400'
+                                        : 'text-rose-600 dark:text-rose-400'
+                                "
+                            >
+                                {{ comparisonCards.order_delta >= 0 ? '+' : ''
+                                }}{{ comparisonCards.order_delta }} đơn
+                            </span>
+                        </div>
+                        <p class="mt-0.5 text-xs text-muted-foreground">
+                            HQ: {{ comparisonCards.yesterday_orders }} đơn
+                        </p>
                     </div>
-                    <p class="mt-0.5 text-xs text-muted-foreground">
-                        HQ: {{ comparisonCards.yesterday_orders }} đơn
-                    </p>
+                    <div v-if="todaySummary" class="bg-card px-5 py-3">
+                        <p
+                            class="text-[10px] font-semibold tracking-wider text-muted-foreground uppercase"
+                        >
+                            Giá trị TB/đơn
+                        </p>
+                        <p class="mt-1 text-sm font-bold">
+                            {{
+                                formatCompact(todaySummary.average_order_value)
+                            }}
+                        </p>
+                        <p class="mt-0.5 text-xs text-muted-foreground">
+                            {{ todaySummary.completed_count }}/{{
+                                todaySummary.order_count
+                            }}
+                            đơn
+                        </p>
+                    </div>
                 </div>
-                <div v-if="todaySummary" class="bg-card px-5 py-3">
-                    <p
-                        class="text-[10px] font-semibold tracking-wider text-muted-foreground uppercase"
-                    >
-                        Giá trị TB/đơn
-                    </p>
-                    <p class="mt-1 text-sm font-bold">
-                        {{ formatCompact(todaySummary.average_order_value) }}
-                    </p>
-                    <p class="mt-0.5 text-xs text-muted-foreground">
-                        {{ todaySummary.completed_count }}/{{
-                            todaySummary.order_count
-                        }}
-                        đơn
-                    </p>
-                </div>
-            </div>
             </Deferred>
         </div>
 
@@ -1505,7 +1599,18 @@ function deltaBadge(pct: number | null) {
                                 class="flex items-center justify-between border-t border-border bg-muted/20 px-4 py-2.5 text-xs text-muted-foreground"
                             >
                                 <span>
-                                    Hiển thị {{ (tablePage - 1) * tableItemsPerPage + 1 }} - {{ Math.min(tablePage * tableItemsPerPage, summaries.length) }} / {{ summaries.length }} ngày
+                                    Hiển thị
+                                    {{
+                                        (tablePage - 1) * tableItemsPerPage + 1
+                                    }}
+                                    -
+                                    {{
+                                        Math.min(
+                                            tablePage * tableItemsPerPage,
+                                            summaries.length,
+                                        )
+                                    }}
+                                    / {{ summaries.length }} ngày
                                 </span>
                                 <div class="flex items-center gap-1.5">
                                     <button
@@ -1515,7 +1620,9 @@ function deltaBadge(pct: number | null) {
                                     >
                                         Trước
                                     </button>
-                                    <span class="px-2 font-medium text-foreground">
+                                    <span
+                                        class="px-2 font-medium text-foreground"
+                                    >
                                         {{ tablePage }} / {{ totalTablePages }}
                                     </span>
                                     <button
@@ -1534,8 +1641,12 @@ function deltaBadge(pct: number | null) {
                 <Card>
                     <Deferred data="topProducts">
                         <template #fallback>
-                            <CardContent class="pt-5 flex h-[350px] items-center justify-center text-xs text-muted-foreground animate-pulse gap-2">
-                                <RefreshCw class="size-3.5 animate-spin text-violet-500" />
+                            <CardContent
+                                class="flex h-[350px] animate-pulse items-center justify-center gap-2 pt-5 text-xs text-muted-foreground"
+                            >
+                                <RefreshCw
+                                    class="size-3.5 animate-spin text-violet-500"
+                                />
                                 Đang tải top món bán chạy...
                             </CardContent>
                         </template>
@@ -1547,50 +1658,52 @@ function deltaBadge(pct: number | null) {
                                 Dựa trên đơn hoàn thành trong kỳ
                             </p>
 
-                        <div
-                            v-if="topProducts.length === 0"
-                            class="flex flex-col items-center gap-2 py-8 text-center text-muted-foreground"
-                        >
-                            <Package class="size-10 opacity-30" />
-                            <p class="text-sm">Chưa có dữ liệu bán hàng.</p>
-                        </div>
-
-                        <div v-else class="space-y-2.5">
                             <div
-                                v-for="(p, i) in topProducts"
-                                :key="p.name"
-                                class="flex items-center gap-3"
+                                v-if="topProducts.length === 0"
+                                class="flex flex-col items-center gap-2 py-8 text-center text-muted-foreground"
                             >
-                                <span
-                                    class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[11px] font-bold"
-                                    :class="
-                                        i === 0
-                                            ? 'bg-amber-500 text-zinc-950'
-                                            : i === 1
-                                              ? 'bg-slate-300 text-slate-800 dark:bg-slate-600 dark:text-slate-100'
-                                              : i === 2
-                                                ? 'bg-orange-400 text-zinc-950'
-                                                : 'bg-muted text-muted-foreground'
-                                    "
-                                >
-                                    {{ i + 1 }}
-                                </span>
-                                <div class="min-w-0 flex-1">
-                                    <p class="truncate text-sm font-medium">
-                                        {{ p.name }}
-                                    </p>
-                                    <p class="text-xs text-muted-foreground">
-                                        {{ p.total_qty }} phần
-                                    </p>
-                                </div>
-                                <span
-                                    class="shrink-0 text-sm font-semibold text-emerald-600 dark:text-emerald-400"
-                                >
-                                    {{ formatCompact(p.total_revenue) }}
-                                </span>
+                                <Package class="size-10 opacity-30" />
+                                <p class="text-sm">Chưa có dữ liệu bán hàng.</p>
                             </div>
-                        </div>
-                    </CardContent>
+
+                            <div v-else class="space-y-2.5">
+                                <div
+                                    v-for="(p, i) in topProducts"
+                                    :key="p.name"
+                                    class="flex items-center gap-3"
+                                >
+                                    <span
+                                        class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[11px] font-bold"
+                                        :class="
+                                            i === 0
+                                                ? 'bg-amber-500 text-zinc-950'
+                                                : i === 1
+                                                  ? 'bg-slate-300 text-slate-800 dark:bg-slate-600 dark:text-slate-100'
+                                                  : i === 2
+                                                    ? 'bg-orange-400 text-zinc-950'
+                                                    : 'bg-muted text-muted-foreground'
+                                        "
+                                    >
+                                        {{ i + 1 }}
+                                    </span>
+                                    <div class="min-w-0 flex-1">
+                                        <p class="truncate text-sm font-medium">
+                                            {{ p.name }}
+                                        </p>
+                                        <p
+                                            class="text-xs text-muted-foreground"
+                                        >
+                                            {{ p.total_qty }} phần
+                                        </p>
+                                    </div>
+                                    <span
+                                        class="shrink-0 text-sm font-semibold text-emerald-600 dark:text-emerald-400"
+                                    >
+                                        {{ formatCompact(p.total_revenue) }}
+                                    </span>
+                                </div>
+                            </div>
+                        </CardContent>
                     </Deferred>
                 </Card>
             </div>
@@ -1698,63 +1811,79 @@ function deltaBadge(pct: number | null) {
                 <Card>
                     <Deferred data="peakHours">
                         <template #fallback>
-                            <CardContent class="pt-5 flex h-[350px] items-center justify-center text-xs text-muted-foreground animate-pulse gap-2">
-                                <RefreshCw class="size-3.5 animate-spin text-violet-500" />
+                            <CardContent
+                                class="flex h-[350px] animate-pulse items-center justify-center gap-2 pt-5 text-xs text-muted-foreground"
+                            >
+                                <RefreshCw
+                                    class="size-3.5 animate-spin text-violet-500"
+                                />
                                 Đang tải giờ cao điểm...
                             </CardContent>
                         </template>
                         <CardContent class="pt-5">
                             <div class="mb-4 flex items-center gap-2">
-                            <Clock class="size-4 text-muted-foreground" />
-                            <p class="text-sm font-semibold">
-                                Giờ cao điểm trong kỳ
-                            </p>
-                        </div>
-
-                        <div
-                            v-if="!peakHours || peakHours.length === 0 || !peakHours.some(h => Number(h.revenue) > 0 || Number(h.order_count) > 0)"
-                            class="flex flex-col items-center gap-2 py-8 text-center text-muted-foreground"
-                        >
-                            <Clock class="size-10 opacity-30" />
-                            <p class="text-sm">Chưa có dữ liệu giờ cao điểm trong kỳ này.</p>
-                        </div>
-
-                        <div v-else class="space-y-2">
-                            <div
-                                v-for="h in peakHours"
-                                :key="h.hour"
-                                class="flex items-center gap-2.5"
-                            >
-                                <span
-                                    class="w-12 shrink-0 text-right font-mono text-xs text-muted-foreground"
-                                    >{{ h.label }}</span
-                                >
-                                <div
-                                    class="relative h-6 flex-1 overflow-hidden rounded-md bg-muted/50"
-                                >
-                                    <div
-                                        class="h-full rounded-md transition-all duration-500"
-                                        :class="
-                                            topPeakHours.includes(h.hour)
-                                                ? 'bg-amber-400'
-                                                : 'bg-violet-400/60'
-                                        "
-                                        :style="{ width: (h.width_pct || 0) + '%' }"
-                                    />
-                                </div>
-                                <div class="w-16 shrink-0 text-right">
-                                    <span class="text-xs font-semibold">{{
-                                        formatCompact(h.revenue || 0)
-                                    }}</span>
-                                </div>
-                                <Flame
-                                    v-if="topPeakHours.includes(h.hour)"
-                                    class="size-3.5 shrink-0 text-amber-500"
-                                />
-                                <span v-else class="w-3.5 shrink-0" />
+                                <Clock class="size-4 text-muted-foreground" />
+                                <p class="text-sm font-semibold">
+                                    Giờ cao điểm trong kỳ
+                                </p>
                             </div>
-                        </div>
-                    </CardContent>
+
+                            <div
+                                v-if="
+                                    !peakHours ||
+                                    peakHours.length === 0 ||
+                                    !peakHours.some(
+                                        (h) =>
+                                            Number(h.revenue) > 0 ||
+                                            Number(h.order_count) > 0,
+                                    )
+                                "
+                                class="flex flex-col items-center gap-2 py-8 text-center text-muted-foreground"
+                            >
+                                <Clock class="size-10 opacity-30" />
+                                <p class="text-sm">
+                                    Chưa có dữ liệu giờ cao điểm trong kỳ này.
+                                </p>
+                            </div>
+
+                            <div v-else class="space-y-2">
+                                <div
+                                    v-for="h in peakHours"
+                                    :key="h.hour"
+                                    class="flex items-center gap-2.5"
+                                >
+                                    <span
+                                        class="w-12 shrink-0 text-right font-mono text-xs text-muted-foreground"
+                                        >{{ h.label }}</span
+                                    >
+                                    <div
+                                        class="relative h-6 flex-1 overflow-hidden rounded-md bg-muted/50"
+                                    >
+                                        <div
+                                            class="h-full rounded-md transition-all duration-500"
+                                            :class="
+                                                topPeakHours.includes(h.hour)
+                                                    ? 'bg-amber-400'
+                                                    : 'bg-violet-400/60'
+                                            "
+                                            :style="{
+                                                width: (h.width_pct || 0) + '%',
+                                            }"
+                                        />
+                                    </div>
+                                    <div class="w-16 shrink-0 text-right">
+                                        <span class="text-xs font-semibold">{{
+                                            formatCompact(h.revenue || 0)
+                                        }}</span>
+                                    </div>
+                                    <Flame
+                                        v-if="topPeakHours.includes(h.hour)"
+                                        class="size-3.5 shrink-0 text-amber-500"
+                                    />
+                                    <span v-else class="w-3.5 shrink-0" />
+                                </div>
+                            </div>
+                        </CardContent>
                     </Deferred>
                 </Card>
             </div>
@@ -1774,7 +1903,9 @@ function deltaBadge(pct: number | null) {
                         class="flex flex-col items-center gap-2 py-8 text-center text-muted-foreground"
                     >
                         <Package class="size-10 opacity-30" />
-                        <p class="text-sm">Chưa có dữ liệu doanh thu món trong kỳ này.</p>
+                        <p class="text-sm">
+                            Chưa có dữ liệu doanh thu món trong kỳ này.
+                        </p>
                     </div>
 
                     <div
@@ -1827,16 +1958,24 @@ function deltaBadge(pct: number | null) {
             <!-- ── BCG Matrix ─────────────────────────────────────────────────────── -->
             <Deferred :data="['bcgData', 'productMargins']">
                 <template #fallback>
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
                         <Card>
-                            <CardContent class="pt-5 flex h-[350px] items-center justify-center text-xs text-muted-foreground animate-pulse gap-2">
-                                <RefreshCw class="size-3.5 animate-spin text-violet-500" />
+                            <CardContent
+                                class="flex h-[350px] animate-pulse items-center justify-center gap-2 pt-5 text-xs text-muted-foreground"
+                            >
+                                <RefreshCw
+                                    class="size-3.5 animate-spin text-violet-500"
+                                />
                                 Đang tải phân tích ma trận BCG...
                             </CardContent>
                         </Card>
                         <Card>
-                            <CardContent class="pt-5 flex h-[350px] items-center justify-center text-xs text-muted-foreground animate-pulse gap-2">
-                                <RefreshCw class="size-3.5 animate-spin text-violet-500" />
+                            <CardContent
+                                class="flex h-[350px] animate-pulse items-center justify-center gap-2 pt-5 text-xs text-muted-foreground"
+                            >
+                                <RefreshCw
+                                    class="size-3.5 animate-spin text-violet-500"
+                                />
                                 Đang tải phân tích biên lợi nhuận món...
                             </CardContent>
                         </Card>
@@ -1844,181 +1983,184 @@ function deltaBadge(pct: number | null) {
                 </template>
                 <Card v-if="bcgData && bcgData.length > 0">
                     <CardContent class="pt-5">
-                    <p
-                        class="mb-1 flex items-center gap-2 text-sm font-semibold"
-                    >
-                        <span>🔲</span> Ma trận BCG Sản phẩm
-                    </p>
-                    <p class="mb-4 text-xs text-muted-foreground">
-                        Phân loại sản phẩm theo doanh thu và tần suất bán
-                    </p>
-
-                    <div class="grid grid-cols-2 gap-3">
-                        <div
-                            v-for="quad in [
-                                {
-                                    key: 'star',
-                                    icon: '⭐',
-                                    label: 'Ngôi sao',
-                                    desc: 'Bán nhiều, doanh thu cao',
-                                    cls: 'border-amber-200 bg-amber-50 dark:bg-amber-950/10',
-                                },
-                                {
-                                    key: 'cash_cow',
-                                    icon: '🐄',
-                                    label: 'Bò sữa',
-                                    desc: 'Ít bán nhưng giá trị cao',
-                                    cls: 'border-emerald-200 bg-emerald-50 dark:bg-emerald-950/10',
-                                },
-                                {
-                                    key: 'question',
-                                    icon: '❓',
-                                    label: 'Dấu hỏi',
-                                    desc: 'Bán nhiều nhưng doanh thu thấp',
-                                    cls: 'border-blue-200 bg-blue-50 dark:bg-blue-950/10',
-                                },
-                                {
-                                    key: 'dog',
-                                    icon: '🐶',
-                                    label: 'Chú chó',
-                                    desc: 'Bán ít, doanh thu thấp',
-                                    cls: 'border-slate-200 bg-slate-50 dark:bg-slate-800/30',
-                                },
-                            ]"
-                            :key="quad.key"
-                            :class="['rounded-xl border p-3', quad.cls]"
+                        <p
+                            class="mb-1 flex items-center gap-2 text-sm font-semibold"
                         >
-                            <div class="mb-2 flex items-center gap-1.5">
-                                <span class="text-base">{{ quad.icon }}</span>
-                                <div>
-                                    <p class="text-xs font-bold">
-                                        {{ quad.label }}
-                                    </p>
-                                    <p
-                                        class="text-[10px] text-muted-foreground"
-                                    >
-                                        {{ quad.desc }}
-                                    </p>
+                            <span>🔲</span> Ma trận BCG Sản phẩm
+                        </p>
+                        <p class="mb-4 text-xs text-muted-foreground">
+                            Phân loại sản phẩm theo doanh thu và tần suất bán
+                        </p>
+
+                        <div class="grid grid-cols-2 gap-3">
+                            <div
+                                v-for="quad in [
+                                    {
+                                        key: 'star',
+                                        icon: '⭐',
+                                        label: 'Ngôi sao',
+                                        desc: 'Bán nhiều, doanh thu cao',
+                                        cls: 'border-amber-200 bg-amber-50 dark:bg-amber-950/10',
+                                    },
+                                    {
+                                        key: 'cash_cow',
+                                        icon: '🐄',
+                                        label: 'Bò sữa',
+                                        desc: 'Ít bán nhưng giá trị cao',
+                                        cls: 'border-emerald-200 bg-emerald-50 dark:bg-emerald-950/10',
+                                    },
+                                    {
+                                        key: 'question',
+                                        icon: '❓',
+                                        label: 'Dấu hỏi',
+                                        desc: 'Bán nhiều nhưng doanh thu thấp',
+                                        cls: 'border-blue-200 bg-blue-50 dark:bg-blue-950/10',
+                                    },
+                                    {
+                                        key: 'dog',
+                                        icon: '🐶',
+                                        label: 'Chú chó',
+                                        desc: 'Bán ít, doanh thu thấp',
+                                        cls: 'border-slate-200 bg-slate-50 dark:bg-slate-800/30',
+                                    },
+                                ]"
+                                :key="quad.key"
+                                :class="['rounded-xl border p-3', quad.cls]"
+                            >
+                                <div class="mb-2 flex items-center gap-1.5">
+                                    <span class="text-base">{{
+                                        quad.icon
+                                    }}</span>
+                                    <div>
+                                        <p class="text-xs font-bold">
+                                            {{ quad.label }}
+                                        </p>
+                                        <p
+                                            class="text-[10px] text-muted-foreground"
+                                        >
+                                            {{ quad.desc }}
+                                        </p>
+                                    </div>
                                 </div>
-                            </div>
-                            <div class="space-y-1">
-                                <div
-                                    v-for="p in bcgData.filter(
-                                        (d) => d.quadrant === quad.key,
-                                    )"
-                                    :key="p.name"
-                                    class="flex items-center justify-between text-[10px]"
-                                >
-                                    <span
-                                        class="mr-2 flex-1 truncate font-medium"
-                                        >{{ p.name }}</span
-                                    >
-                                    <span class="shrink-0 text-muted-foreground"
-                                        >{{ p.total_qty }} đơn</span
-                                    >
-                                </div>
-                                <p
-                                    v-if="
-                                        !bcgData.filter(
+                                <div class="space-y-1">
+                                    <div
+                                        v-for="p in bcgData.filter(
                                             (d) => d.quadrant === quad.key,
-                                        ).length
-                                    "
-                                    class="text-[10px] text-muted-foreground italic"
-                                >
-                                    Không có sản phẩm
-                                </p>
+                                        )"
+                                        :key="p.name"
+                                        class="flex items-center justify-between text-[10px]"
+                                    >
+                                        <span
+                                            class="mr-2 flex-1 truncate font-medium"
+                                            >{{ p.name }}</span
+                                        >
+                                        <span
+                                            class="shrink-0 text-muted-foreground"
+                                            >{{ p.total_qty }} đơn</span
+                                        >
+                                    </div>
+                                    <p
+                                        v-if="
+                                            !bcgData.filter(
+                                                (d) => d.quadrant === quad.key,
+                                            ).length
+                                        "
+                                        class="text-[10px] text-muted-foreground italic"
+                                    >
+                                        Không có sản phẩm
+                                    </p>
+                                </div>
                             </div>
                         </div>
-                    </div>
-                </CardContent>
-            </Card>
+                    </CardContent>
+                </Card>
 
-            <!-- ── Product Margin Chart ───────────────────────────────────────────── -->
-            <Card v-if="productMargins && productMargins.length > 0">
-                <CardContent class="pt-5">
-                    <p
-                        class="mb-1 flex items-center gap-2 text-sm font-semibold"
-                    >
-                        <Percent class="size-4 text-violet-500" /> Biên lợi
-                        nhuận theo sản phẩm
-                    </p>
-                    <p class="mb-4 text-xs text-muted-foreground">
-                        Tỉ lệ (Giá bán - Giá vốn) / Giá bán · Ngưỡng an toàn:
-                        25%
-                    </p>
-                    <div class="space-y-2.5">
-                        <div
-                            v-for="p in productMargins"
-                            :key="p.name"
-                            class="flex items-center gap-3"
+                <!-- ── Product Margin Chart ───────────────────────────────────────────── -->
+                <Card v-if="productMargins && productMargins.length > 0">
+                    <CardContent class="pt-5">
+                        <p
+                            class="mb-1 flex items-center gap-2 text-sm font-semibold"
                         >
-                            <span
-                                class="w-36 shrink-0 truncate text-xs font-medium"
-                                >{{ p.name }}</span
-                            >
+                            <Percent class="size-4 text-violet-500" /> Biên lợi
+                            nhuận theo sản phẩm
+                        </p>
+                        <p class="mb-4 text-xs text-muted-foreground">
+                            Tỉ lệ (Giá bán - Giá vốn) / Giá bán · Ngưỡng an
+                            toàn: 25%
+                        </p>
+                        <div class="space-y-2.5">
                             <div
-                                class="relative h-5 flex-1 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800"
+                                v-for="p in productMargins"
+                                :key="p.name"
+                                class="flex items-center gap-3"
                             >
-                                <div
-                                    :class="[
-                                        'h-full rounded-full transition-all duration-500',
-                                        (p.margin ?? 0) < 10
-                                            ? 'bg-rose-500'
-                                            : (p.margin ?? 0) < 25
-                                              ? 'bg-amber-500'
-                                              : (p.margin ?? 0) < 50
-                                                ? 'bg-teal-500'
-                                                : 'bg-emerald-500',
-                                    ]"
-                                    :style="`width: ${Math.min(p.margin ?? 0, 100)}%`"
-                                />
                                 <span
-                                    class="absolute inset-0 flex items-center justify-center text-[10px] font-bold text-white mix-blend-difference"
+                                    class="w-36 shrink-0 truncate text-xs font-medium"
+                                    >{{ p.name }}</span
                                 >
-                                    {{
-                                        p.margin !== null
-                                            ? p.margin + '%'
-                                            : 'N/A'
-                                    }}
+                                <div
+                                    class="relative h-5 flex-1 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800"
+                                >
+                                    <div
+                                        :class="[
+                                            'h-full rounded-full transition-all duration-500',
+                                            (p.margin ?? 0) < 10
+                                                ? 'bg-rose-500'
+                                                : (p.margin ?? 0) < 25
+                                                  ? 'bg-amber-500'
+                                                  : (p.margin ?? 0) < 50
+                                                    ? 'bg-teal-500'
+                                                    : 'bg-emerald-500',
+                                        ]"
+                                        :style="`width: ${Math.min(p.margin ?? 0, 100)}%`"
+                                    />
+                                    <span
+                                        class="absolute inset-0 flex items-center justify-center text-[10px] font-bold text-white mix-blend-difference"
+                                    >
+                                        {{
+                                            p.margin !== null
+                                                ? p.margin + '%'
+                                                : 'N/A'
+                                        }}
+                                    </span>
+                                </div>
+                                <span
+                                    class="w-16 shrink-0 text-right text-[10px] text-muted-foreground"
+                                >
+                                    {{ p.qty }} đơn
                                 </span>
                             </div>
-                            <span
-                                class="w-16 shrink-0 text-right text-[10px] text-muted-foreground"
-                            >
-                                {{ p.qty }} đơn
-                            </span>
                         </div>
-                    </div>
-                    <div
-                        class="mt-3 flex items-center gap-4 text-[10px] text-muted-foreground"
-                    >
-                        <span class="flex items-center gap-1"
-                            ><span
-                                class="inline-block h-2 w-4 rounded-full bg-rose-500"
-                            ></span>
-                            &lt;10% — Lỗ</span
+                        <div
+                            class="mt-3 flex items-center gap-4 text-[10px] text-muted-foreground"
                         >
-                        <span class="flex items-center gap-1"
-                            ><span
-                                class="inline-block h-2 w-4 rounded-full bg-amber-500"
-                            ></span>
-                            10-25% — Thấp</span
-                        >
-                        <span class="flex items-center gap-1"
-                            ><span
-                                class="inline-block h-2 w-4 rounded-full bg-teal-500"
-                            ></span>
-                            25-50% — Tốt</span
-                        >
-                        <span class="flex items-center gap-1"
-                            ><span
-                                class="inline-block h-2 w-4 rounded-full bg-emerald-500"
-                            ></span>
-                            &gt;50% — Xuất sắc</span
-                        >
-                    </div>
-                </CardContent>
-            </Card>
+                            <span class="flex items-center gap-1"
+                                ><span
+                                    class="inline-block h-2 w-4 rounded-full bg-rose-500"
+                                ></span>
+                                &lt;10% — Lỗ</span
+                            >
+                            <span class="flex items-center gap-1"
+                                ><span
+                                    class="inline-block h-2 w-4 rounded-full bg-amber-500"
+                                ></span>
+                                10-25% — Thấp</span
+                            >
+                            <span class="flex items-center gap-1"
+                                ><span
+                                    class="inline-block h-2 w-4 rounded-full bg-teal-500"
+                                ></span>
+                                25-50% — Tốt</span
+                            >
+                            <span class="flex items-center gap-1"
+                                ><span
+                                    class="inline-block h-2 w-4 rounded-full bg-emerald-500"
+                                ></span>
+                                &gt;50% — Xuất sắc</span
+                            >
+                        </div>
+                    </CardContent>
+                </Card>
             </Deferred>
         </template>
     </div>

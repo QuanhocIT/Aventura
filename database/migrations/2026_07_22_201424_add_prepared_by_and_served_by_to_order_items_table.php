@@ -2,8 +2,8 @@
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
@@ -28,8 +28,8 @@ return new class extends Migration
         });
 
         // Recreate the view including the new columns
-        DB::statement("
-            CREATE " . ($isSqlite ? "" : "OR REPLACE ") . "VIEW order_items_unified AS
+        DB::statement('
+            CREATE '.($isSqlite ? '' : 'OR REPLACE ').'VIEW order_items_unified AS
             SELECT
                 id, restaurant_id, order_id, product_id, quantity,
                 unit_price, discount_amount, line_total, status,
@@ -47,7 +47,7 @@ return new class extends Migration
                 prepared_by, served_by,
                 created_at, updated_at
             FROM order_items_archive
-        ");
+        ');
     }
 
     /**
@@ -71,8 +71,8 @@ return new class extends Migration
         });
 
         // Recreate old view without the new columns
-        DB::statement("
-            CREATE " . ($isSqlite ? "" : "OR REPLACE ") . "VIEW order_items_unified AS
+        DB::statement('
+            CREATE '.($isSqlite ? '' : 'OR REPLACE ').'VIEW order_items_unified AS
             SELECT
                 id, restaurant_id, order_id, product_id, quantity,
                 unit_price, discount_amount, line_total, status,
@@ -88,6 +88,6 @@ return new class extends Migration
                 notes, sent_to_kitchen_at, prepared_at, served_at,
                 created_at, updated_at
             FROM order_items_archive
-        ");
+        ');
     }
 };

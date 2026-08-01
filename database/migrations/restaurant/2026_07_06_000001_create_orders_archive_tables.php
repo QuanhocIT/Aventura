@@ -12,6 +12,7 @@ return new class extends Migration
      * `db:manage-partitions` sẽ tự bổ sung thêm partition tương lai định kỳ.
      */
     private const MONTHS_BACK = 24;
+
     private const MONTHS_FORWARD = 6;
 
     public function up(): void
@@ -115,7 +116,7 @@ return new class extends Migration
 
         while ($cursor->lessThanOrEqualTo($end)) {
             $boundary = $cursor->copy()->addMonth()->format('Y-m-d');
-            $name = 'p' . $cursor->format('Y_m');
+            $name = 'p'.$cursor->format('Y_m');
             $parts[] = "PARTITION {$name} VALUES LESS THAN (UNIX_TIMESTAMP('{$boundary}'))";
             $cursor = $cursor->addMonth();
         }

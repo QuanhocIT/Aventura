@@ -50,7 +50,7 @@ class CheckMaintenanceSchedule extends Command
                 $monitor->setMaintenance($service, true, $msg);
             }
 
-            Log::info("Activated maintenance schedule ID: {$schedule->id}. Services put in maintenance: " . implode(', ', $services));
+            Log::info("Activated maintenance schedule ID: {$schedule->id}. Services put in maintenance: ".implode(', ', $services));
             $this->info("Activated maintenance schedule ID: {$schedule->id}");
         }
 
@@ -96,24 +96,24 @@ class CheckMaintenanceSchedule extends Command
 
     private function sendNotificationToOwners(EmailMicroserviceClient $emailClient, SystemMaintenanceSchedule $schedule, string $timeLeft): void
     {
-        $owners = User::whereHas('roles', function($q) {
+        $owners = User::whereHas('roles', function ($q) {
             $q->where('name', 'owner');
         })->get();
 
         $startStr = $schedule->downtime_start->format('H:i d/m/Y');
         $endStr = $schedule->downtime_end->format('H:i d/m/Y');
-        $servicesStr = implode(', ', array_map(fn($s) => $s === 'mysql' ? 'Hệ thống chính' : $s, $schedule->services));
+        $servicesStr = implode(', ', array_map(fn ($s) => $s === 'mysql' ? 'Hệ thống chính' : $s, $schedule->services));
 
-        $title = "🚨 Thông báo bảo trì hệ thống Aventura sắp diễn ra";
-        $content = "Kính gửi quý đối tác,<br><br>" .
-            "Hệ thống Aventura xin thông báo sẽ tiến hành bảo trì nâng cấp định kỳ:<br>" .
-            "<ul>" .
-            "<li><strong>Thời gian bắt đầu:</strong> {$startStr}</li>" .
-            "<li><strong>Thời gian hoàn tất dự kiến:</strong> {$endStr}</li>" .
-            "<li><strong>Dịch vụ bị ảnh hưởng:</strong> {$servicesStr}</li>" .
-            "</ul>" .
-            "Hệ thống sẽ tạm thời không khả dụng trong thời gian bảo trì. Xin quý khách vui lòng lưu lại dữ liệu trước thời gian trên.<br>" .
-            "Trân trọng,<br>Đội ngũ Aventura.";
+        $title = '🚨 Thông báo bảo trì hệ thống Aventura sắp diễn ra';
+        $content = 'Kính gửi quý đối tác,<br><br>'.
+            'Hệ thống Aventura xin thông báo sẽ tiến hành bảo trì nâng cấp định kỳ:<br>'.
+            '<ul>'.
+            "<li><strong>Thời gian bắt đầu:</strong> {$startStr}</li>".
+            "<li><strong>Thời gian hoàn tất dự kiến:</strong> {$endStr}</li>".
+            "<li><strong>Dịch vụ bị ảnh hưởng:</strong> {$servicesStr}</li>".
+            '</ul>'.
+            'Hệ thống sẽ tạm thời không khả dụng trong thời gian bảo trì. Xin quý khách vui lòng lưu lại dữ liệu trước thời gian trên.<br>'.
+            'Trân trọng,<br>Đội ngũ Aventura.';
 
         foreach ($owners as $owner) {
             $emailClient->sendCampaignEmail([
@@ -124,6 +124,6 @@ class CheckMaintenanceSchedule extends Command
             ]);
         }
 
-        Log::info("Sent {$timeLeft} maintenance warning email for schedule ID: {$schedule->id} to " . count($owners) . " owners");
+        Log::info("Sent {$timeLeft} maintenance warning email for schedule ID: {$schedule->id} to ".count($owners).' owners');
     }
 }

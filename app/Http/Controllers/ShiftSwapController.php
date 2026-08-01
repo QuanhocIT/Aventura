@@ -9,6 +9,7 @@ use App\Models\ScheduleRegistration;
 use App\Models\ShiftSwap;
 use App\Models\User;
 use App\Notifications\ShiftSwapNotification;
+use App\Support\TenantRule;
 use Carbon\Carbon;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -27,8 +28,8 @@ class ShiftSwapController extends Controller
         }
 
         $data = $request->validate([
-            'requester_assignment_id' => ['required', \App\Support\TenantRule::exists('schedule_assignments')],
-            'receiver_assignment_id' => ['required', \App\Support\TenantRule::exists('schedule_assignments')],
+            'requester_assignment_id' => ['required', TenantRule::exists('schedule_assignments')],
+            'receiver_assignment_id' => ['required', TenantRule::exists('schedule_assignments')],
             'notes' => ['nullable', 'string', 'max:250'],
         ]);
 

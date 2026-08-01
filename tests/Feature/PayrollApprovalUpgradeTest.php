@@ -4,7 +4,6 @@ namespace Tests\Feature;
 
 use App\Models\Employee;
 use App\Models\Restaurant;
-use App\Models\Salary;
 use App\Models\User;
 use App\Services\SalaryService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -18,9 +17,9 @@ class PayrollApprovalUpgradeTest extends TestCase
     {
         $restaurant = Restaurant::factory()->create();
         $employee = Employee::factory()->create([
-            'restaurant_id'     => $restaurant->id,
+            'restaurant_id' => $restaurant->id,
             'compensation_type' => 'fixed',
-            'base_salary'        => 8000000,
+            'base_salary' => 8000000,
         ]);
 
         $salaryService = app(SalaryService::class);
@@ -66,23 +65,23 @@ class PayrollApprovalUpgradeTest extends TestCase
         $owner->assignRole('owner');
 
         $employee = Employee::factory()->create([
-            'restaurant_id'     => $restaurant->id,
+            'restaurant_id' => $restaurant->id,
             'compensation_type' => 'fixed',
-            'base_salary'       => 6000000,
+            'base_salary' => 6000000,
         ]);
 
         $this->actingAs($owner);
 
         $response = $this->patch(route('employees.update', $employee->id), [
             'compensation_type' => 'hourly',
-            'pay_rate'          => 35000,
+            'pay_rate' => 35000,
         ]);
 
         $response->assertRedirect();
         $this->assertDatabaseHas('employees', [
-            'id'                => $employee->id,
+            'id' => $employee->id,
             'compensation_type' => 'hourly',
-            'pay_rate'          => 35000,
+            'pay_rate' => 35000,
         ]);
     }
 }

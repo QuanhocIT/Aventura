@@ -4,9 +4,10 @@ namespace Tests\Feature;
 
 use App\Models\SystemSetting;
 use App\Models\User;
+use Illuminate\Auth\Events\Failed;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\RateLimiter;
-use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 class SecurityFirewallTest extends TestCase
@@ -24,7 +25,7 @@ class SecurityFirewallTest extends TestCase
         RateLimiter::clear('rate_limit:ip:127.0.0.2');
         RateLimiter::clear('rate_limit:register:ip:127.0.0.1');
         RateLimiter::clear('rate_limit:forgot_password:ip:127.0.0.1');
-        
+
         // Remove whitelists and custom settings
         SystemSetting::whereIn('key', [
             'firewall_whitelist',
@@ -32,7 +33,7 @@ class SecurityFirewallTest extends TestCase
             'waf_login_decay_seconds',
             'waf_login_block_minutes',
             'rate_limit_global_max',
-            'rate_limit_global_decay'
+            'rate_limit_global_decay',
         ])->delete();
     }
 
@@ -59,7 +60,7 @@ class SecurityFirewallTest extends TestCase
         $this->get('/api/docs')->assertStatus(200);
         // Request 2
         $this->get('/api/docs')->assertStatus(200);
-        
+
         // Request 3 should be blocked
         $response = $this->get('/api/docs');
         $response->assertStatus(429);
@@ -84,7 +85,7 @@ class SecurityFirewallTest extends TestCase
 
         // Trigger failed login events directly
         for ($i = 0; $i < 3; $i++) {
-            event(new \Illuminate\Auth\Events\Failed('web', null, ['email' => 'invalid@example.com', 'password' => 'wrong']));
+            event(new Failed('web', null, ['email' => 'invalid@example.com', 'password' => 'wrong']));
         }
 
         // Verify the IP is blocked
@@ -111,7 +112,7 @@ class SecurityFirewallTest extends TestCase
         // 3. Trigger failed logins that would normally block the IP
         config(['firewall.waf.login.max_attempts' => 2]);
         for ($i = 0; $i < 3; $i++) {
-            event(new \Illuminate\Auth\Events\Failed('web', null, ['email' => 'invalid@example.com', 'password' => 'wrong']));
+            event(new Failed('web', null, ['email' => 'invalid@example.com', 'password' => 'wrong']));
         }
 
         // Should NOT block the IP and requests should still pass
@@ -153,8 +154,8 @@ class SecurityFirewallTest extends TestCase
         $this->withSession(['superadmin.2fa_verified_user_id' => $superAdmin->id]);
 
         // 2. Mock a blocked IP
-        Cache::put("waf:blocked:1.2.3.4", true, 600);
-        Cache::put("waf:blocked_list", ["1.2.3.4" => time() + 600], 600);
+        Cache::put('waf:blocked:1.2.3.4', true, 600);
+        Cache::put('waf:blocked_list', ['1.2.3.4' => time() + 600], 600);
 
         // 3. Request index page as Super Admin
         $response = $this->actingAs($superAdmin)
@@ -191,7 +192,7 @@ class SecurityFirewallTest extends TestCase
                 'rate_limit_global_decay' => 60,
             ]);
         $response->assertRedirect();
-        
+
         $this->assertEquals(15, SystemSetting::get('waf_login_max_attempts'));
         $this->assertEquals(120, SystemSetting::get('rate_limit_global_max'));
     }

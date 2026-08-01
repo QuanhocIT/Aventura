@@ -10,6 +10,7 @@ use App\Models\Product;
 use App\Models\Restaurant;
 use App\Models\RestaurantIntegration;
 use App\Services\Integrations\WebhookDispatchService;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
@@ -64,7 +65,7 @@ class DeliveryPlatformService
 
         try {
             return $this->createFromParsedPayload($restaurantId, $provider, $payload, $parsed, $driver);
-        } catch (\Illuminate\Database\UniqueConstraintViolationException) {
+        } catch (UniqueConstraintViolationException) {
             // 2 webhook trùng đến đồng thời: cả 2 vượt qua check $existing ở trên,
             // request thua cuộc vấp unique(provider, platform_order_id) — transaction
             // của nó rollback sạch (không rác Order/OrderItem), trả về đơn đã tạo

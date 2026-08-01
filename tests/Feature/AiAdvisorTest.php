@@ -2,18 +2,17 @@
 
 namespace Tests\Feature;
 
+use App\Events\FraudAlertTriggered;
+use App\Jobs\SendFraudAlertEmailJob;
+use App\Models\AuditLog;
+use App\Models\Employee;
+use App\Models\Order;
 use App\Models\Restaurant;
 use App\Models\RestaurantBranch;
 use App\Models\User;
-use App\Models\Employee;
-use App\Models\Order;
-use App\Models\AuditLog;
-use App\Models\ViolationReport;
-use App\Events\FraudAlertTriggered;
-use App\Jobs\SendFraudAlertEmailJob;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
@@ -23,10 +22,15 @@ class AiAdvisorTest extends TestCase
     use RefreshDatabase;
 
     protected User $owner;
+
     protected User $manager;
+
     protected User $cashier;
+
     protected Restaurant $restaurant;
+
     protected RestaurantBranch $branch;
+
     protected Employee $cashierEmployee;
 
     protected function setUp(): void
@@ -34,7 +38,7 @@ class AiAdvisorTest extends TestCase
         parent::setUp();
 
         // Create Spatie roles
-        $ownerRole   = Role::firstOrCreate(['name' => 'owner', 'guard_name' => 'web']);
+        $ownerRole = Role::firstOrCreate(['name' => 'owner', 'guard_name' => 'web']);
         $managerRole = Role::firstOrCreate(['name' => 'manager', 'guard_name' => 'web']);
         $cashierRole = Role::firstOrCreate(['name' => 'cashier', 'guard_name' => 'web']);
 
@@ -43,21 +47,21 @@ class AiAdvisorTest extends TestCase
         $this->owner->assignRole($ownerRole);
 
         $this->restaurant = Restaurant::factory()->create(['owner_user_id' => $this->owner->id, 'status' => 'active']);
-        $this->branch     = RestaurantBranch::factory()->create([
+        $this->branch = RestaurantBranch::factory()->create([
             'restaurant_id' => $this->restaurant->id,
-            'manager_user_id' => $this->owner->id
+            'manager_user_id' => $this->owner->id,
         ]);
 
         $this->owner->forceFill([
             'restaurant_id' => $this->restaurant->id,
-            'branch_id'     => $this->branch->id
+            'branch_id' => $this->branch->id,
         ])->save();
 
         // Manager setup
         $this->manager = User::factory()->create([
             'restaurant_id' => $this->restaurant->id,
-            'branch_id'     => $this->branch->id,
-            'status'        => 'active',
+            'branch_id' => $this->branch->id,
+            'status' => 'active',
             'email_verified_at' => now(),
         ]);
         $this->manager->assignRole($managerRole);
@@ -65,9 +69,9 @@ class AiAdvisorTest extends TestCase
         // Cashier setup
         $this->cashier = User::factory()->create([
             'restaurant_id' => $this->restaurant->id,
-            'branch_id'     => $this->branch->id,
-            'name'          => 'Nguyễn Văn A',
-            'status'        => 'active',
+            'branch_id' => $this->branch->id,
+            'name' => 'Nguyễn Văn A',
+            'status' => 'active',
             'email_verified_at' => now(),
         ]);
         $this->cashier->assignRole($cashierRole);
@@ -126,7 +130,7 @@ class AiAdvisorTest extends TestCase
                 'suggestions' => ['Doanh thu hôm nay đạt bao nhiêu?'],
                 'category' => 'finance',
                 'confidence' => 1.0,
-            ], 200)
+            ], 200),
         ]);
 
         $payload = [

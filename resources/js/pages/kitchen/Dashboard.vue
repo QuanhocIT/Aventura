@@ -196,35 +196,52 @@ const optimisticPreparedItemIds = ref<number[]>([]);
 const optimisticServedItemIds = ref<number[]>([]);
 
 const activePendingItems = computed(() => {
-    return props.pendingItems.filter(item => !optimisticPreparedItemIds.value.includes(item.id));
+    return props.pendingItems.filter(
+        (item) => !optimisticPreparedItemIds.value.includes(item.id),
+    );
 });
 
 const activeCompletedItems = computed(() => {
-    return props.completedItems.filter(item => !optimisticServedItemIds.value.includes(item.id));
+    return props.completedItems.filter(
+        (item) => !optimisticServedItemIds.value.includes(item.id),
+    );
 });
 
 watch(
     () => props.pendingItems,
     (newVal) => {
-        const pendingIds = newVal.map(i => i.id);
-        optimisticPreparedItemIds.value = optimisticPreparedItemIds.value.filter(id => pendingIds.includes(id));
+        const pendingIds = newVal.map((i) => i.id);
+        optimisticPreparedItemIds.value =
+            optimisticPreparedItemIds.value.filter((id) =>
+                pendingIds.includes(id),
+            );
     },
-    { deep: true }
+    { deep: true },
 );
 
 watch(
     () => props.completedItems,
     (newVal) => {
-        const completedIds = newVal.map(i => i.id);
-        optimisticServedItemIds.value = optimisticServedItemIds.value.filter(id => completedIds.includes(id));
+        const completedIds = newVal.map((i) => i.id);
+        optimisticServedItemIds.value = optimisticServedItemIds.value.filter(
+            (id) => completedIds.includes(id),
+        );
     },
-    { deep: true }
+    { deep: true },
 );
 
 const viewMode = ref<'table' | 'dish'>('table');
 
 const aggregatedPending = computed(() => {
-    const groups: Record<string, { product_name: string; prep_minutes: number; total_quantity: number; items: PendingItem[] }> = {};
+    const groups: Record<
+        string,
+        {
+            product_name: string;
+            prep_minutes: number;
+            total_quantity: number;
+            items: PendingItem[];
+        }
+    > = {};
     activePendingItems.value.forEach((item) => {
         const name = item.product_name;
 
@@ -233,7 +250,7 @@ const aggregatedPending = computed(() => {
                 product_name: name,
                 prep_minutes: item.prep_minutes,
                 total_quantity: 0,
-                items: []
+                items: [],
             };
         }
 
@@ -241,7 +258,9 @@ const aggregatedPending = computed(() => {
         groups[name].items.push(item);
     });
 
-    return Object.values(groups).sort((a, b) => b.total_quantity - a.total_quantity);
+    return Object.values(groups).sort(
+        (a, b) => b.total_quantity - a.total_quantity,
+    );
 });
 
 // Phân nhóm các món đang chờ theo Bàn
@@ -338,7 +357,9 @@ const nowTime = ref(new Date());
 let timerInterval: ReturnType<typeof setInterval> | null = null;
 let secCountdownInterval: ReturnType<typeof setInterval> | null = null;
 
-const connectionStatus = ref<'connected' | 'polling' | 'connecting'>('connecting');
+const connectionStatus = ref<'connected' | 'polling' | 'connecting'>(
+    'connecting',
+);
 let statusCheckInterval: ReturnType<typeof setInterval> | null = null;
 let pollingInterval: ReturnType<typeof setInterval> | null = null;
 
@@ -346,7 +367,11 @@ const isMuted = ref(localStorage.getItem('kitchen_muted') === 'true');
 const toggleMute = () => {
     isMuted.value = !isMuted.value;
     localStorage.setItem('kitchen_muted', String(isMuted.value));
-    toast.info(isMuted.value ? 'Đã tắt âm báo màn hình bếp.' : 'Đã bật âm báo màn hình bếp.');
+    toast.info(
+        isMuted.value
+            ? 'Đã tắt âm báo màn hình bếp.'
+            : 'Đã bật âm báo màn hình bếp.',
+    );
 };
 
 const getSlaProgress = (item: PendingItem) => {
@@ -419,16 +444,19 @@ const tableEta = computed(() => {
             const remaining = Math.max(0, item.prep_minutes - elapsed);
 
             if (remaining > maxRemainingMinutes) {
-maxRemainingMinutes = remaining;
-}
+                maxRemainingMinutes = remaining;
+            }
         }
 
-        const etaTime = new Date(nowTime.value.getTime() + maxRemainingMinutes * 60000);
+        const etaTime = new Date(
+            nowTime.value.getTime() + maxRemainingMinutes * 60000,
+        );
         result[tableName] = {
             etaMinutes: maxRemainingMinutes,
-            label: maxRemainingMinutes > 0
-                ? `~${etaTime.getHours().toString().padStart(2, '0')}:${etaTime.getMinutes().toString().padStart(2, '0')}`
-                : 'Sắp xong',
+            label:
+                maxRemainingMinutes > 0
+                    ? `~${etaTime.getHours().toString().padStart(2, '0')}:${etaTime.getMinutes().toString().padStart(2, '0')}`
+                    : 'Sắp xong',
         };
     }
 
@@ -444,12 +472,12 @@ const tableUrgency = computed(() => {
         const levels = items.map((i) => slaLevel(i));
 
         if (levels.includes('late')) {
-result[tableName] = 'critical';
-} else if (levels.includes('warn')) {
-result[tableName] = 'warn';
-} else {
-result[tableName] = 'ok';
-}
+            result[tableName] = 'critical';
+        } else if (levels.includes('warn')) {
+            result[tableName] = 'warn';
+        } else {
+            result[tableName] = 'ok';
+        }
     }
 
     return result;
@@ -473,21 +501,28 @@ const handlePrepare = (itemId: number) => {
                 isUpdating.value[itemId] = false;
             },
             onError: () => {
-                optimisticPreparedItemIds.value = optimisticPreparedItemIds.value.filter(id => id !== itemId);
+                optimisticPreparedItemIds.value =
+                    optimisticPreparedItemIds.value.filter(
+                        (id) => id !== itemId,
+                    );
                 toast.error('Có lỗi xảy ra, không thể hoàn thành món ăn!');
-            }
+            },
         },
     );
 };
 
 const handlePrepareBulk = (itemIds: number[]) => {
-    const filteredIds = itemIds.filter(id => !isUpdating.value[id] && !optimisticPreparedItemIds.value.includes(id));
+    const filteredIds = itemIds.filter(
+        (id) =>
+            !isUpdating.value[id] &&
+            !optimisticPreparedItemIds.value.includes(id),
+    );
 
     if (filteredIds.length === 0) {
-return;
-}
+        return;
+    }
 
-    filteredIds.forEach(id => {
+    filteredIds.forEach((id) => {
         optimisticPreparedItemIds.value.push(id);
         isUpdating.value[id] = true;
     });
@@ -498,15 +533,18 @@ return;
         {
             preserveScroll: true,
             onFinish: () => {
-                filteredIds.forEach(id => {
+                filteredIds.forEach((id) => {
                     isUpdating.value[id] = false;
                 });
             },
             onError: () => {
-                optimisticPreparedItemIds.value = optimisticPreparedItemIds.value.filter(id => !filteredIds.includes(id));
+                optimisticPreparedItemIds.value =
+                    optimisticPreparedItemIds.value.filter(
+                        (id) => !filteredIds.includes(id),
+                    );
                 toast.error('Có lỗi xảy ra, không thể hoàn thành các món!');
-            }
-        }
+            },
+        },
     );
 };
 
@@ -528,9 +566,10 @@ const handleServe = (itemId: number) => {
                 isUpdating.value[itemId] = false;
             },
             onError: () => {
-                optimisticServedItemIds.value = optimisticServedItemIds.value.filter(id => id !== itemId);
+                optimisticServedItemIds.value =
+                    optimisticServedItemIds.value.filter((id) => id !== itemId);
                 toast.error('Có lỗi xảy ra, không thể hoàn thành phục vụ!');
-            }
+            },
         },
     );
 };
@@ -636,8 +675,8 @@ onMounted(() => {
             });
         } else {
             if (reloadTimeout) {
-clearTimeout(reloadTimeout);
-}
+                clearTimeout(reloadTimeout);
+            }
 
             reloadTimeout = setTimeout(() => {
                 lastReloadTime = Date.now();
@@ -651,7 +690,9 @@ clearTimeout(reloadTimeout);
     };
 
     const kitchenEventBatcher = createEventBatcher((events) => {
-        console.log(`[Reverb] Processing ${events.length} batched kitchen updates from WebSockets`);
+        console.log(
+            `[Reverb] Processing ${events.length} batched kitchen updates from WebSockets`,
+        );
         router.reload({
             only: ['pendingItems', 'completedItems', 'kitchenStats'],
             preserveState: true,
@@ -660,7 +701,9 @@ clearTimeout(reloadTimeout);
     }, 300);
 
     const productEventBatcher = createEventBatcher((events) => {
-        console.log(`[Reverb] Processing ${events.length} batched product updates from WebSockets`);
+        console.log(
+            `[Reverb] Processing ${events.length} batched product updates from WebSockets`,
+        );
         router.reload({
             only: ['products'],
             preserveState: true,
@@ -707,20 +750,25 @@ clearTimeout(reloadTimeout);
                 return;
             }
         }
-        
+
         connectionStatus.value = 'polling';
 
         if (!pollingInterval) {
             pollingInterval = setInterval(() => {
                 router.reload({
-                    only: ['pendingItems', 'completedItems', 'kitchenStats', 'products'],
+                    only: [
+                        'pendingItems',
+                        'completedItems',
+                        'kitchenStats',
+                        'products',
+                    ],
                     preserveState: true,
                     preserveScroll: true,
                 });
             }, 20000);
         }
     };
-    
+
     statusCheckInterval = setInterval(checkWebSocketConnection, 10000);
     setTimeout(checkWebSocketConnection, 2000);
 });
@@ -781,22 +829,31 @@ onUnmounted(() => {
                         <span class="relative flex h-2 w-2">
                             <span
                                 v-if="connectionStatus === 'connected'"
-                                class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"
+                                class="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75"
                             ></span>
                             <span
-                                class="relative inline-flex rounded-full h-2 w-2"
+                                class="relative inline-flex h-2 w-2 rounded-full"
                                 :class="{
-                                    'bg-emerald-500': connectionStatus === 'connected',
-                                    'bg-amber-500': connectionStatus === 'polling',
-                                    'bg-sky-400 animate-pulse': connectionStatus === 'connecting'
+                                    'bg-emerald-500':
+                                        connectionStatus === 'connected',
+                                    'bg-amber-500':
+                                        connectionStatus === 'polling',
+                                    'animate-pulse bg-sky-400':
+                                        connectionStatus === 'connecting',
                                 }"
                             ></span>
                         </span>
-                        <span class="font-semibold" :class="{
-                            'text-emerald-600 dark:text-emerald-400': connectionStatus === 'connected',
-                            'text-amber-600 dark:text-amber-400': connectionStatus === 'polling',
-                            'text-sky-500': connectionStatus === 'connecting'
-                        }">
+                        <span
+                            class="font-semibold"
+                            :class="{
+                                'text-emerald-600 dark:text-emerald-400':
+                                    connectionStatus === 'connected',
+                                'text-amber-600 dark:text-amber-400':
+                                    connectionStatus === 'polling',
+                                'text-sky-500':
+                                    connectionStatus === 'connecting',
+                            }"
+                        >
                             {{
                                 connectionStatus === 'connected'
                                     ? 'Đồng bộ WebSockets Realtime'
@@ -817,7 +874,10 @@ onUnmounted(() => {
                     @click="toggleMute"
                     :title="isMuted ? 'Bật âm báo' : 'Tắt âm báo'"
                 >
-                    <component :is="isMuted ? VolumeX : Volume2" class="size-3.5" />
+                    <component
+                        :is="isMuted ? VolumeX : Volume2"
+                        class="size-3.5"
+                    />
                     {{ isMuted ? 'Đang Tắt Âm' : 'Đang Bật Âm' }}
                 </Button>
                 <Button
@@ -962,9 +1022,11 @@ onUnmounted(() => {
             <!-- ── CỘT TRÁI: NHẬN ĐƠN (PENDING) ── -->
             <div class="space-y-4">
                 <div
-                    class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800/60 dark:bg-slate-900"
+                    class="flex flex-col justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:flex-row sm:items-center dark:border-slate-800/60 dark:bg-slate-900"
                 >
-                    <div class="flex items-center justify-between w-full sm:w-auto">
+                    <div
+                        class="flex w-full items-center justify-between sm:w-auto"
+                    >
                         <div class="flex items-center gap-2">
                             <UtensilsCrossed class="size-5 text-indigo-500" />
                             <h2
@@ -975,26 +1037,34 @@ onUnmounted(() => {
                         </div>
                         <Badge
                             variant="secondary"
-                            class="sm:hidden rounded-full bg-indigo-100 px-2.5 py-0.5 text-xs font-extrabold text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-400"
+                            class="rounded-full bg-indigo-100 px-2.5 py-0.5 text-xs font-extrabold text-indigo-700 sm:hidden dark:bg-indigo-950/40 dark:text-indigo-400"
                         >
                             {{ activePendingItems.length }} món
                         </Badge>
                     </div>
-                    
-                    <div class="flex items-center gap-3 justify-between sm:justify-end">
+
+                    <div
+                        class="flex items-center justify-between gap-3 sm:justify-end"
+                    >
                         <Badge
                             variant="secondary"
-                            class="hidden sm:inline-flex rounded-full bg-indigo-100 px-3 py-1 text-xs font-extrabold text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-400"
+                            class="hidden rounded-full bg-indigo-100 px-3 py-1 text-xs font-extrabold text-indigo-700 sm:inline-flex dark:bg-indigo-950/40 dark:text-indigo-400"
                         >
                             {{ activePendingItems.length }} món chờ làm
                         </Badge>
-                        
+
                         <!-- Toggle chế độ xem: Theo Bàn / Theo Món -->
-                        <div class="flex items-center gap-1 rounded-xl bg-slate-100 p-1 dark:bg-slate-800">
+                        <div
+                            class="flex items-center gap-1 rounded-xl bg-slate-100 p-1 dark:bg-slate-800"
+                        >
                             <button
                                 type="button"
                                 class="rounded-lg px-2.5 py-1 text-xs font-black transition-all"
-                                :class="viewMode === 'table' ? 'bg-white text-indigo-600 shadow-sm dark:bg-slate-700 dark:text-indigo-400' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'"
+                                :class="
+                                    viewMode === 'table'
+                                        ? 'bg-white text-indigo-600 shadow-sm dark:bg-slate-700 dark:text-indigo-400'
+                                        : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+                                "
                                 @click="viewMode = 'table'"
                             >
                                 Theo Bàn
@@ -1002,7 +1072,11 @@ onUnmounted(() => {
                             <button
                                 type="button"
                                 class="rounded-lg px-2.5 py-1 text-xs font-black transition-all"
-                                :class="viewMode === 'dish' ? 'bg-white text-indigo-600 shadow-sm dark:bg-slate-700 dark:text-indigo-400' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'"
+                                :class="
+                                    viewMode === 'dish'
+                                        ? 'bg-white text-indigo-600 shadow-sm dark:bg-slate-700 dark:text-indigo-400'
+                                        : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+                                "
                                 @click="viewMode = 'dish'"
                             >
                                 Theo Món
@@ -1039,69 +1113,91 @@ onUnmounted(() => {
                             }"
                         >
                             <CardHeader
-                                 class="border-b px-4 py-3.5 transition-colors"
-                                 :class="{
-                                     'border-red-300/80 bg-red-50/60 dark:border-red-900/40 dark:bg-red-950/20':
-                                         tableUrgency[tableName] === 'critical',
-                                     'border-amber-300/80 bg-amber-50/60 dark:border-amber-900/40 dark:bg-amber-950/20':
-                                         tableUrgency[tableName] === 'warn',
-                                     'border-slate-200/80 bg-slate-100/50 dark:border-slate-800/60 dark:bg-slate-800/20':
-                                         tableUrgency[tableName] === 'ok',
-                                 }"
+                                class="border-b px-4 py-3.5 transition-colors"
+                                :class="{
+                                    'border-red-300/80 bg-red-50/60 dark:border-red-900/40 dark:bg-red-950/20':
+                                        tableUrgency[tableName] === 'critical',
+                                    'border-amber-300/80 bg-amber-50/60 dark:border-amber-900/40 dark:bg-amber-950/20':
+                                        tableUrgency[tableName] === 'warn',
+                                    'border-slate-200/80 bg-slate-100/50 dark:border-slate-800/60 dark:bg-slate-800/20':
+                                        tableUrgency[tableName] === 'ok',
+                                }"
                             >
-                                 <div class="flex items-center justify-between">
-                                     <CardTitle
-                                         class="flex items-center gap-2 text-sm font-extrabold text-slate-900 dark:text-white"
-                                     >
-                                         <span
-                                             class="inline-block h-2.5 w-2.5 rounded-full"
-                                             :class="{
-                                                 'animate-ping bg-red-500': tableUrgency[tableName] === 'critical',
-                                                 'bg-amber-500': tableUrgency[tableName] === 'warn',
-                                                 'bg-emerald-500': tableUrgency[tableName] === 'ok',
-                                             }"
-                                         >
-                                         </span>
-                                         Bàn: {{ tableName }}
-                                     </CardTitle>
+                                <div class="flex items-center justify-between">
+                                    <CardTitle
+                                        class="flex items-center gap-2 text-sm font-extrabold text-slate-900 dark:text-white"
+                                    >
+                                        <span
+                                            class="inline-block h-2.5 w-2.5 rounded-full"
+                                            :class="{
+                                                'animate-ping bg-red-500':
+                                                    tableUrgency[tableName] ===
+                                                    'critical',
+                                                'bg-amber-500':
+                                                    tableUrgency[tableName] ===
+                                                    'warn',
+                                                'bg-emerald-500':
+                                                    tableUrgency[tableName] ===
+                                                    'ok',
+                                            }"
+                                        >
+                                        </span>
+                                        Bàn: {{ tableName }}
+                                    </CardTitle>
 
-                                     <div class="flex items-center gap-2">
-                                         <!-- ETA Badge -->
-                                         <span
-                                             class="rounded-full px-2.5 py-1 text-[10px] font-black"
-                                             :class="{
-                                                 'bg-red-100 text-red-700 dark:bg-red-950/40 dark:text-red-300':
-                                                     tableUrgency[tableName] === 'critical',
-                                                 'bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300':
-                                                     tableUrgency[tableName] === 'warn',
-                                                 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300':
-                                                     tableUrgency[tableName] === 'ok',
-                                             }"
-                                         >
-                                             ⏱ ETA {{ tableEta[tableName]?.label }}
-                                         </span>
-                                         <Badge
-                                             v-if="tableUrgency[tableName] === 'critical'"
-                                             variant="destructive"
-                                             class="animate-bounce rounded px-2 py-0.5 text-[9px] font-black uppercase"
-                                         >
-                                             🚨 Có món trễ!
-                                         </Badge>
-                                         <Badge
-                                             class="bg-slate-200/80 text-[10px] font-bold text-slate-700 dark:bg-slate-800 dark:text-slate-300"
-                                         >
-                                             {{ groupedPending[tableName].length }} món
-                                         </Badge>
-                                         <Button
-                                             size="sm"
-                                             variant="outline"
-                                             class="h-7 rounded-lg border-emerald-200 bg-emerald-50 px-2 py-1 text-[10px] font-black text-emerald-600 hover:bg-emerald-100 dark:border-emerald-950/30 dark:bg-emerald-950/10 dark:text-emerald-400"
-                                             @click="handlePrepareBulk(groupedPending[tableName].map(i => i.id))"
-                                         >
-                                             Hoàn thành tất cả
-                                         </Button>
-                                     </div>
-                                 </div>
+                                    <div class="flex items-center gap-2">
+                                        <!-- ETA Badge -->
+                                        <span
+                                            class="rounded-full px-2.5 py-1 text-[10px] font-black"
+                                            :class="{
+                                                'bg-red-100 text-red-700 dark:bg-red-950/40 dark:text-red-300':
+                                                    tableUrgency[tableName] ===
+                                                    'critical',
+                                                'bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300':
+                                                    tableUrgency[tableName] ===
+                                                    'warn',
+                                                'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300':
+                                                    tableUrgency[tableName] ===
+                                                    'ok',
+                                            }"
+                                        >
+                                            ⏱ ETA
+                                            {{ tableEta[tableName]?.label }}
+                                        </span>
+                                        <Badge
+                                            v-if="
+                                                tableUrgency[tableName] ===
+                                                'critical'
+                                            "
+                                            variant="destructive"
+                                            class="animate-bounce rounded px-2 py-0.5 text-[9px] font-black uppercase"
+                                        >
+                                            🚨 Có món trễ!
+                                        </Badge>
+                                        <Badge
+                                            class="bg-slate-200/80 text-[10px] font-bold text-slate-700 dark:bg-slate-800 dark:text-slate-300"
+                                        >
+                                            {{
+                                                groupedPending[tableName].length
+                                            }}
+                                            món
+                                        </Badge>
+                                        <Button
+                                            size="sm"
+                                            variant="outline"
+                                            class="h-7 rounded-lg border-emerald-200 bg-emerald-50 px-2 py-1 text-[10px] font-black text-emerald-600 hover:bg-emerald-100 dark:border-emerald-950/30 dark:bg-emerald-950/10 dark:text-emerald-400"
+                                            @click="
+                                                handlePrepareBulk(
+                                                    groupedPending[
+                                                        tableName
+                                                    ].map((i) => i.id),
+                                                )
+                                            "
+                                        >
+                                            Hoàn thành tất cả
+                                        </Button>
+                                    </div>
+                                </div>
                             </CardHeader>
 
                             <CardContent
@@ -1125,7 +1221,8 @@ onUnmounted(() => {
                                                 :class="
                                                     slaLevel(item) === 'late'
                                                         ? 'bg-red-500'
-                                                        : slaLevel(item) === 'warn'
+                                                        : slaLevel(item) ===
+                                                            'warn'
                                                           ? 'bg-amber-500'
                                                           : 'bg-indigo-500'
                                                 "
@@ -1140,24 +1237,51 @@ onUnmounted(() => {
                                         </div>
 
                                         <!-- Meta thông tin thêm qua KitchenTimer -->
-                                        <div class="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1">
+                                        <div
+                                            class="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1"
+                                        >
                                             <KitchenTimer
-                                                :sent-at-raw="item.sent_to_kitchen_at_raw"
-                                                :sent-at-formatted="item.sent_to_kitchen_at"
-                                                :prep-minutes="item.prep_minutes"
+                                                :sent-at-raw="
+                                                    item.sent_to_kitchen_at_raw
+                                                "
+                                                :sent-at-formatted="
+                                                    item.sent_to_kitchen_at
+                                                "
+                                                :prep-minutes="
+                                                    item.prep_minutes
+                                                "
                                             />
-                                            <span class="text-[10px] text-slate-300 dark:text-slate-700">•</span>
-                                            <span class="text-[10px] font-medium text-slate-500">
-                                                NV: <span class="font-bold text-slate-700 dark:text-slate-300">{{ item.creator_name }}</span>
+                                            <span
+                                                class="text-[10px] text-slate-300 dark:text-slate-700"
+                                                >•</span
+                                            >
+                                            <span
+                                                class="text-[10px] font-medium text-slate-500"
+                                            >
+                                                NV:
+                                                <span
+                                                    class="font-bold text-slate-700 dark:text-slate-300"
+                                                    >{{
+                                                        item.creator_name
+                                                    }}</span
+                                                >
                                             </span>
                                         </div>
-                                        
+
                                         <!-- SLA Progress Bar -->
-                                        <div class="mt-2 w-full max-w-[200px] bg-slate-100 dark:bg-slate-800 rounded-full h-1 overflow-hidden">
-                                            <div 
-                                                class="h-1 rounded-full transition-all duration-500" 
-                                                :class="getSlaProgress(item).color" 
-                                                :style="{ width: getSlaProgress(item).percent + '%' }"
+                                        <div
+                                            class="mt-2 h-1 w-full max-w-[200px] overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800"
+                                        >
+                                            <div
+                                                class="h-1 rounded-full transition-all duration-500"
+                                                :class="
+                                                    getSlaProgress(item).color
+                                                "
+                                                :style="{
+                                                    width:
+                                                        getSlaProgress(item)
+                                                            .percent + '%',
+                                                }"
                                             ></div>
                                         </div>
 
@@ -1169,7 +1293,9 @@ onUnmounted(() => {
                                             <MessageSquare
                                                 class="mt-0.5 size-3 shrink-0 text-amber-500"
                                             />
-                                            <span>Ghi chú: {{ item.notes }}</span>
+                                            <span
+                                                >Ghi chú: {{ item.notes }}</span
+                                            >
                                         </div>
                                     </div>
 
@@ -1194,14 +1320,22 @@ onUnmounted(() => {
                         </Card>
 
                         <!-- Hiển thị thêm bàn chờ nếu có -->
-                        <div v-if="hasMoreTables" class="flex justify-center pt-2">
+                        <div
+                            v-if="hasMoreTables"
+                            class="flex justify-center pt-2"
+                        >
                             <Button
                                 type="button"
                                 variant="outline"
-                                class="w-full h-11 rounded-2xl text-xs font-bold gap-1.5 bg-white shadow-sm transition-all hover:bg-slate-50"
+                                class="h-11 w-full gap-1.5 rounded-2xl bg-white text-xs font-bold shadow-sm transition-all hover:bg-slate-50"
                                 @click="visibleTablesCount += 12"
                             >
-                                Hiển thị thêm bàn chờ... (Còn {{ Object.keys(groupedPending).length - visibleTablesCount }} bàn)
+                                Hiển thị thêm bàn chờ... (Còn
+                                {{
+                                    Object.keys(groupedPending).length -
+                                    visibleTablesCount
+                                }}
+                                bàn)
                             </Button>
                         </div>
                     </template>
@@ -1213,32 +1347,51 @@ onUnmounted(() => {
                             :key="group.product_name"
                             class="overflow-hidden rounded-2xl border border-slate-200 bg-card shadow-sm hover:shadow-md dark:border-slate-800/60"
                         >
-                            <CardHeader class="border-b border-slate-100 bg-slate-50/50 px-4 py-3.5 dark:border-slate-800/50 dark:bg-slate-900/40">
+                            <CardHeader
+                                class="border-b border-slate-100 bg-slate-50/50 px-4 py-3.5 dark:border-slate-800/50 dark:bg-slate-900/40"
+                            >
                                 <div class="flex items-center justify-between">
                                     <div class="flex items-center gap-2">
-                                        <Badge class="bg-indigo-600 px-2.5 py-0.5 text-xs font-black text-white">
-                                            x{{ Math.round(group.total_quantity) }}
+                                        <Badge
+                                            class="bg-indigo-600 px-2.5 py-0.5 text-xs font-black text-white"
+                                        >
+                                            x{{
+                                                Math.round(group.total_quantity)
+                                            }}
                                         </Badge>
-                                        <CardTitle class="text-sm font-extrabold text-slate-900 dark:text-white">
+                                        <CardTitle
+                                            class="text-sm font-extrabold text-slate-900 dark:text-white"
+                                        >
                                             {{ group.product_name }}
                                         </CardTitle>
                                     </div>
                                     <div class="flex items-center gap-2">
-                                        <Badge variant="secondary" class="rounded text-[10px] font-bold">
+                                        <Badge
+                                            variant="secondary"
+                                            class="rounded text-[10px] font-bold"
+                                        >
                                             Chuẩn: {{ group.prep_minutes }}p
                                         </Badge>
                                         <Button
                                             size="sm"
                                             variant="outline"
                                             class="h-7 rounded-lg border-emerald-200 bg-emerald-50 px-2 py-1 text-[10px] font-black text-emerald-600 hover:bg-emerald-100 dark:border-emerald-950/30 dark:bg-emerald-950/10 dark:text-emerald-400"
-                                            @click="handlePrepareBulk(group.items.map(i => i.id))"
+                                            @click="
+                                                handlePrepareBulk(
+                                                    group.items.map(
+                                                        (i) => i.id,
+                                                    ),
+                                                )
+                                            "
                                         >
                                             Hoàn thành tất cả
                                         </Button>
                                     </div>
                                 </div>
                             </CardHeader>
-                            <CardContent class="divide-y divide-slate-100 p-0 dark:divide-slate-800/60">
+                            <CardContent
+                                class="divide-y divide-slate-100 p-0 dark:divide-slate-800/60"
+                            >
                                 <div
                                     v-for="item in group.items"
                                     :key="item.id"
@@ -1252,32 +1405,64 @@ onUnmounted(() => {
                                 >
                                     <div class="min-w-0 flex-1">
                                         <div class="flex items-center gap-2">
-                                            <span class="text-xs font-extrabold text-indigo-600 dark:text-indigo-400">
+                                            <span
+                                                class="text-xs font-extrabold text-indigo-600 dark:text-indigo-400"
+                                            >
                                                 Bàn: {{ item.table_name }}
                                             </span>
-                                            <Badge variant="secondary" class="rounded px-1.5 py-0.2 text-[9px] font-black">
+                                            <Badge
+                                                variant="secondary"
+                                                class="py-0.2 rounded px-1.5 text-[9px] font-black"
+                                            >
                                                 x{{ Math.round(item.quantity) }}
                                             </Badge>
                                         </div>
-                                        
-                                        <div class="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1">
+
+                                        <div
+                                            class="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1"
+                                        >
                                             <KitchenTimer
-                                                :sent-at-raw="item.sent_to_kitchen_at_raw"
-                                                :sent-at-formatted="item.sent_to_kitchen_at"
-                                                :prep-minutes="item.prep_minutes"
+                                                :sent-at-raw="
+                                                    item.sent_to_kitchen_at_raw
+                                                "
+                                                :sent-at-formatted="
+                                                    item.sent_to_kitchen_at
+                                                "
+                                                :prep-minutes="
+                                                    item.prep_minutes
+                                                "
                                             />
-                                            <span class="text-[10px] text-slate-300 dark:text-slate-700">•</span>
-                                            <span class="text-[10px] font-medium text-slate-500">
-                                                NV: <span class="font-bold text-slate-700 dark:text-slate-300">{{ item.creator_name }}</span>
+                                            <span
+                                                class="text-[10px] text-slate-300 dark:text-slate-700"
+                                                >•</span
+                                            >
+                                            <span
+                                                class="text-[10px] font-medium text-slate-500"
+                                            >
+                                                NV:
+                                                <span
+                                                    class="font-bold text-slate-700 dark:text-slate-300"
+                                                    >{{
+                                                        item.creator_name
+                                                    }}</span
+                                                >
                                             </span>
                                         </div>
-                                        
+
                                         <!-- SLA Progress Bar -->
-                                        <div class="mt-2 w-full max-w-[200px] bg-slate-100 dark:bg-slate-800 rounded-full h-1 overflow-hidden">
-                                            <div 
-                                                class="h-1 rounded-full transition-all duration-500" 
-                                                :class="getSlaProgress(item).color" 
-                                                :style="{ width: getSlaProgress(item).percent + '%' }"
+                                        <div
+                                            class="mt-2 h-1 w-full max-w-[200px] overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800"
+                                        >
+                                            <div
+                                                class="h-1 rounded-full transition-all duration-500"
+                                                :class="
+                                                    getSlaProgress(item).color
+                                                "
+                                                :style="{
+                                                    width:
+                                                        getSlaProgress(item)
+                                                            .percent + '%',
+                                                }"
                                             ></div>
                                         </div>
 
@@ -1286,11 +1471,15 @@ onUnmounted(() => {
                                             v-if="item.notes"
                                             class="mt-2 inline-flex items-start gap-1.5 rounded-lg border border-amber-200 bg-amber-50/40 px-2 py-1 text-[10px] font-medium text-amber-700 dark:border-amber-950/30 dark:bg-amber-950/10 dark:text-amber-400"
                                         >
-                                            <MessageSquare class="mt-0.5 size-3 shrink-0 text-amber-500" />
-                                            <span>Ghi chú: {{ item.notes }}</span>
+                                            <MessageSquare
+                                                class="mt-0.5 size-3 shrink-0 text-amber-500"
+                                            />
+                                            <span
+                                                >Ghi chú: {{ item.notes }}</span
+                                            >
                                         </div>
                                     </div>
-                                    
+
                                     <!-- Nút hoàn thành chuẩn bị -->
                                     <Button
                                         class="h-9 w-9 shrink-0 rounded-xl text-white shadow-sm transition-all"
@@ -1327,34 +1516,34 @@ onUnmounted(() => {
                             2. Chờ Phục Vụ / Lấy Đi
                         </h2>
                     </div>
-                <Badge
-                    variant="secondary"
-                    class="rounded-full bg-emerald-100 px-3 py-1 text-xs font-extrabold text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400"
-                >
-                    {{ activeCompletedItems.length }} món sẵn sàng
-                </Badge>
-            </div>
+                    <Badge
+                        variant="secondary"
+                        class="rounded-full bg-emerald-100 px-3 py-1 text-xs font-extrabold text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400"
+                    >
+                        {{ activeCompletedItems.length }} món sẵn sàng
+                    </Badge>
+                </div>
 
-            <div
-                v-if="activeCompletedItems.length === 0"
-                class="flex flex-col items-center justify-center rounded-3xl border border-dashed border-slate-200 bg-white/40 py-24 text-center dark:border-slate-800/80 dark:bg-slate-900/10"
-            >
-                <Bell class="mb-3 size-10 text-muted-foreground/30" />
-                <p
-                    class="text-sm font-bold text-slate-700 dark:text-slate-300"
-                >
-                    Không có món chờ bưng
-                </p>
-                <p class="mt-1 text-xs text-muted-foreground">
-                    Các món ăn chế biến xong sẽ chuyển sang bên này để phục
-                    vụ đi giao
-                </p>
-            </div>
-
-            <div v-else class="space-y-3">
                 <div
-                    v-for="item in activeCompletedItems"
-                    :key="item.id"
+                    v-if="activeCompletedItems.length === 0"
+                    class="flex flex-col items-center justify-center rounded-3xl border border-dashed border-slate-200 bg-white/40 py-24 text-center dark:border-slate-800/80 dark:bg-slate-900/10"
+                >
+                    <Bell class="mb-3 size-10 text-muted-foreground/30" />
+                    <p
+                        class="text-sm font-bold text-slate-700 dark:text-slate-300"
+                    >
+                        Không có món chờ bưng
+                    </p>
+                    <p class="mt-1 text-xs text-muted-foreground">
+                        Các món ăn chế biến xong sẽ chuyển sang bên này để phục
+                        vụ đi giao
+                    </p>
+                </div>
+
+                <div v-else class="space-y-3">
+                    <div
+                        v-for="item in activeCompletedItems"
+                        :key="item.id"
                         class="group flex animate-in items-center justify-between gap-4 rounded-2xl border border-emerald-100 bg-white/80 p-4 shadow-sm transition-all duration-200 slide-in-from-right-3 hover:border-emerald-200 hover:shadow-md dark:border-emerald-950/20 dark:bg-slate-950/20 dark:hover:border-emerald-900/30"
                     >
                         <div class="min-w-0 flex-1">
@@ -1388,7 +1577,11 @@ onUnmounted(() => {
                                 </span>
                                 <span>•</span>
                                 <span class="text-slate-500">
-                                    Bếp: <span class="font-bold text-slate-700 dark:text-slate-300">{{ item.prepared_by_name }}</span>
+                                    Bếp:
+                                    <span
+                                        class="font-bold text-slate-700 dark:text-slate-300"
+                                        >{{ item.prepared_by_name }}</span
+                                    >
                                 </span>
                             </div>
 

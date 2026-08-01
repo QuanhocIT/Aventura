@@ -41,7 +41,10 @@ const handleChange = (event: Event) => {
         :class="compact ? 'text-xs' : 'text-[11px]'"
     >
         <MapPin class="size-3.5 shrink-0 text-indigo-500" />
-        <span v-if="!compact" class="hidden font-medium tracking-wider text-muted-foreground uppercase sm:inline">
+        <span
+            v-if="!compact"
+            class="hidden font-medium tracking-wider text-muted-foreground uppercase sm:inline"
+        >
             Chi nhánh hiện tại:
         </span>
 
@@ -49,11 +52,15 @@ const handleChange = (event: Event) => {
             v-if="canSelect"
             :value="isAllBranches ? 'all' : String(activeBranchId)"
             @change="handleChange"
-            class="h-8 min-w-0 max-w-[220px] cursor-pointer rounded-lg border border-border bg-background px-2.5 py-1 font-semibold text-slate-800 shadow-sm transition-colors hover:bg-accent focus:ring-1 focus:ring-ring focus:outline-none dark:text-slate-200"
+            class="h-8 max-w-[220px] min-w-0 cursor-pointer rounded-lg border border-border bg-background px-2.5 py-1 font-semibold text-slate-800 shadow-sm transition-colors hover:bg-accent focus:ring-1 focus:ring-ring focus:outline-none dark:text-slate-200"
             :aria-label="compact ? 'Chi nhánh hiện tại' : undefined"
         >
             <option value="all">Toàn chuỗi</option>
-            <option v-for="branch in branches" :key="branch.id" :value="branch.id">
+            <option
+                v-for="branch in branches"
+                :key="branch.id"
+                :value="branch.id"
+            >
                 {{ branch.name }}
             </option>
         </select>

@@ -10,6 +10,7 @@ use App\Models\LoyaltyTier;
 use App\Models\LoyaltyTransaction;
 use App\Services\LoyaltyService;
 use App\Services\QuotaService;
+use App\Support\TenantRule;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -162,7 +163,7 @@ class LoyaltyController extends Controller implements HasMiddleware
             'description' => ['nullable', 'string'],
             'type' => ['required', 'in:voucher,free_product,discount_percent,discount_fixed'],
             'value' => ['required', 'numeric', 'min:0'],
-            'product_id' => ['nullable', \App\Support\TenantRule::exists('products')],
+            'product_id' => ['nullable', TenantRule::exists('products')],
             'points_cost' => ['required', 'integer', 'min:1'],
             'max_redemptions' => ['nullable', 'integer', 'min:1'],
             'is_active' => ['required', 'boolean'],
@@ -184,7 +185,7 @@ class LoyaltyController extends Controller implements HasMiddleware
             'description' => ['nullable', 'string'],
             'type' => ['required', 'in:voucher,free_product,discount_percent,discount_fixed'],
             'value' => ['required', 'numeric', 'min:0'],
-            'product_id' => ['nullable', \App\Support\TenantRule::exists('products')],
+            'product_id' => ['nullable', TenantRule::exists('products')],
             'points_cost' => ['required', 'integer', 'min:1'],
             'max_redemptions' => ['nullable', 'integer', 'min:1'],
             'is_active' => ['required', 'boolean'],
@@ -215,7 +216,7 @@ class LoyaltyController extends Controller implements HasMiddleware
     public function adjustPoints(Request $request): RedirectResponse
     {
         $data = $request->validate([
-            'customer_id' => ['required', \App\Support\TenantRule::exists('customers')],
+            'customer_id' => ['required', TenantRule::exists('customers')],
             'points' => ['required', 'integer', 'not_in:0'],
             'reason' => ['required', 'string', 'max:500'],
         ]);

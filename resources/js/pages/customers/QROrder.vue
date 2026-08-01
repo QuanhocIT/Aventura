@@ -96,7 +96,9 @@ const isOrdering = ref(false);
 const customerName = ref(localStorage.getItem('customer_name') || '');
 const customerPhone = ref(localStorage.getItem('customer_phone') || '');
 
-const allergenFilter = ref<'all' | 'vegetarian' | 'no-seafood' | 'no-nuts'>('all');
+const allergenFilter = ref<'all' | 'vegetarian' | 'no-seafood' | 'no-nuts'>(
+    'all',
+);
 
 const crossSellProducts = computed(() => {
     const cartProductIds = cart.value.map((item) => item.product.id);
@@ -106,7 +108,15 @@ const crossSellProducts = computed(() => {
         .filter((p) => {
             const name = p.name.toLowerCase();
 
-            return name.includes('coca') || name.includes('trà') || name.includes('nước') || name.includes('bia') || name.includes('kem') || name.includes('bánh') || name.includes('ép');
+            return (
+                name.includes('coca') ||
+                name.includes('trà') ||
+                name.includes('nước') ||
+                name.includes('bia') ||
+                name.includes('kem') ||
+                name.includes('bánh') ||
+                name.includes('ép')
+            );
         })
         .slice(0, 3);
 });
@@ -127,12 +137,24 @@ const isCallStaffHubOpen = ref(false);
 const isCallingStaffCustom = ref(false);
 
 const staffCallPresets = [
-    { label: '🛎️ Gọi hỗ trợ chung', message: 'Yêu cầu nhân viên hỗ trợ tại bàn' },
+    {
+        label: '🛎️ Gọi hỗ trợ chung',
+        message: 'Yêu cầu nhân viên hỗ trợ tại bàn',
+    },
     { label: '🧊 Xin thêm đá lạnh', message: 'Yêu cầu thêm đá lạnh' },
-    { label: '🥢 Xin thêm bát đũa / thìa', message: 'Yêu cầu thêm bát đũa, thìa ăn' },
+    {
+        label: '🥢 Xin thêm bát đũa / thìa',
+        message: 'Yêu cầu thêm bát đũa, thìa ăn',
+    },
     { label: '🧻 Xin khăn giấy', message: 'Yêu cầu thêm khăn giấy' },
-    { label: '💵 Gọi thanh toán Tiền mặt', message: 'Yêu cầu thanh toán bằng Tiền mặt' },
-    { label: '💳 Gọi thanh toán Chuyển khoản', message: 'Yêu cầu thanh toán qua Chuyển khoản/VietQR' },
+    {
+        label: '💵 Gọi thanh toán Tiền mặt',
+        message: 'Yêu cầu thanh toán bằng Tiền mặt',
+    },
+    {
+        label: '💳 Gọi thanh toán Chuyển khoản',
+        message: 'Yêu cầu thanh toán qua Chuyển khoản/VietQR',
+    },
 ];
 
 const callStaffWithMessage = async (message: string) => {
@@ -432,21 +454,40 @@ const filteredProducts = computed(() => {
             const name = p.name.toLowerCase();
             const desc = (p.description || '').toLowerCase();
 
-            return name.includes('chay') || desc.includes('chay') || name.includes('rau') || name.includes('salad');
+            return (
+                name.includes('chay') ||
+                desc.includes('chay') ||
+                name.includes('rau') ||
+                name.includes('salad')
+            );
         });
     } else if (allergenFilter.value === 'no-seafood') {
         list = list.filter((p) => {
             const name = p.name.toLowerCase();
             const desc = (p.description || '').toLowerCase();
 
-            return !name.includes('tôm') && !name.includes('cua') && !name.includes('cá') && !name.includes('mực') && !name.includes('nghêu') && !name.includes('hải sản') && !desc.includes('tôm') && !desc.includes('hải sản');
+            return (
+                !name.includes('tôm') &&
+                !name.includes('cua') &&
+                !name.includes('cá') &&
+                !name.includes('mực') &&
+                !name.includes('nghêu') &&
+                !name.includes('hải sản') &&
+                !desc.includes('tôm') &&
+                !desc.includes('hải sản')
+            );
         });
     } else if (allergenFilter.value === 'no-nuts') {
         list = list.filter((p) => {
             const name = p.name.toLowerCase();
             const desc = (p.description || '').toLowerCase();
 
-            return !name.includes('đậu phộng') && !name.includes('lạc') && !desc.includes('đậu phộng') && !desc.includes('hạt');
+            return (
+                !name.includes('đậu phộng') &&
+                !name.includes('lạc') &&
+                !desc.includes('đậu phộng') &&
+                !desc.includes('hạt')
+            );
         });
     }
 
@@ -711,7 +752,9 @@ async function submitFeedback() {
             .reduce((sum, [_, amt]) => sum + amt, 0);
 
         if (tipsSent > 0) {
-            toast.success(`Cảm ơn bạn! Đã ghi nhận phản hồi và chuyển tiếp khoản tip ${tipsSent.toLocaleString()}đ tới nhân viên phục vụ.`);
+            toast.success(
+                `Cảm ơn bạn! Đã ghi nhận phản hồi và chuyển tiếp khoản tip ${tipsSent.toLocaleString()}đ tới nhân viên phục vụ.`,
+            );
         } else {
             toast.success('Gửi đánh giá thành công! Cảm ơn ý kiến của bạn.');
         }
@@ -1325,14 +1368,16 @@ onUnmounted(() => {
         </nav>
 
         <!-- ── Allergen & Dietary Filter Pills ── -->
-        <div class="sticky top-[120px] z-20 flex gap-2 overflow-x-auto scrollbar-none px-5 py-2.5 bg-slate-50 border-b border-slate-100/80">
+        <div
+            class="sticky top-[120px] z-20 flex scrollbar-none gap-2 overflow-x-auto border-b border-slate-100/80 bg-slate-50 px-5 py-2.5"
+        >
             <button
                 @click="allergenFilter = 'all'"
                 :class="[
-                    'px-3.5 py-1 rounded-full text-[10px] font-extrabold border whitespace-nowrap transition-all active:scale-95 cursor-pointer',
+                    'cursor-pointer rounded-full border px-3.5 py-1 text-[10px] font-extrabold whitespace-nowrap transition-all active:scale-95',
                     allergenFilter === 'all'
-                        ? 'border-indigo-650 bg-indigo-50 text-indigo-650'
-                        : 'border-slate-200 bg-white text-slate-500 hover:text-slate-800'
+                        ? 'border-indigo-650 text-indigo-650 bg-indigo-50'
+                        : 'border-slate-200 bg-white text-slate-500 hover:text-slate-800',
                 ]"
             >
                 🍽️ Tất cả món
@@ -1340,10 +1385,10 @@ onUnmounted(() => {
             <button
                 @click="allergenFilter = 'vegetarian'"
                 :class="[
-                    'px-3.5 py-1 rounded-full text-[10px] font-extrabold border whitespace-nowrap transition-all active:scale-95 cursor-pointer',
+                    'cursor-pointer rounded-full border px-3.5 py-1 text-[10px] font-extrabold whitespace-nowrap transition-all active:scale-95',
                     allergenFilter === 'vegetarian'
-                        ? 'border-emerald-650 bg-emerald-50 text-emerald-650'
-                        : 'border-slate-200 bg-white text-slate-500 hover:text-slate-800'
+                        ? 'border-emerald-650 text-emerald-650 bg-emerald-50'
+                        : 'border-slate-200 bg-white text-slate-500 hover:text-slate-800',
                 ]"
             >
                 🥬 Món Chay
@@ -1351,10 +1396,10 @@ onUnmounted(() => {
             <button
                 @click="allergenFilter = 'no-seafood'"
                 :class="[
-                    'px-3.5 py-1 rounded-full text-[10px] font-extrabold border whitespace-nowrap transition-all active:scale-95 cursor-pointer',
+                    'cursor-pointer rounded-full border px-3.5 py-1 text-[10px] font-extrabold whitespace-nowrap transition-all active:scale-95',
                     allergenFilter === 'no-seafood'
                         ? 'border-rose-600 bg-rose-50 text-rose-600'
-                        : 'border-slate-200 bg-white text-slate-500 hover:text-slate-800'
+                        : 'border-slate-200 bg-white text-slate-500 hover:text-slate-800',
                 ]"
             >
                 🦞 Không hải sản
@@ -1362,10 +1407,10 @@ onUnmounted(() => {
             <button
                 @click="allergenFilter = 'no-nuts'"
                 :class="[
-                    'px-3.5 py-1 rounded-full text-[10px] font-extrabold border whitespace-nowrap transition-all active:scale-95 cursor-pointer',
+                    'cursor-pointer rounded-full border px-3.5 py-1 text-[10px] font-extrabold whitespace-nowrap transition-all active:scale-95',
                     allergenFilter === 'no-nuts'
                         ? 'border-amber-600 bg-amber-50 text-amber-600'
-                        : 'border-slate-200 bg-white text-slate-500 hover:text-slate-800'
+                        : 'border-slate-200 bg-white text-slate-500 hover:text-slate-800',
                 ]"
             >
                 🥜 Không có hạt
@@ -1645,25 +1690,50 @@ onUnmounted(() => {
                     </div>
 
                     <!-- Smart Cross-selling Recommendations -->
-                    <div v-if="crossSellProducts.length > 0" class="border-t border-slate-100 pt-4 text-left">
-                        <h3 class="text-[10px] font-black tracking-wider text-slate-400 uppercase mb-2">
+                    <div
+                        v-if="crossSellProducts.length > 0"
+                        class="border-t border-slate-100 pt-4 text-left"
+                    >
+                        <h3
+                            class="mb-2 text-[10px] font-black tracking-wider text-slate-400 uppercase"
+                        >
                             💡 Gợi ý mua kèm (Ngon hơn khi dùng chung)
                         </h3>
-                        <div class="flex gap-3 overflow-x-auto scrollbar-none pb-2">
+                        <div
+                            class="flex scrollbar-none gap-3 overflow-x-auto pb-2"
+                        >
                             <div
                                 v-for="p in crossSellProducts"
                                 :key="p.id"
-                                class="flex items-center gap-2 rounded-xl border border-slate-150 p-2 bg-slate-50/50 shrink-0 w-44 cursor-pointer hover:bg-slate-50 active:scale-95 transition-all text-left"
+                                class="border-slate-150 flex w-44 shrink-0 cursor-pointer items-center gap-2 rounded-xl border bg-slate-50/50 p-2 text-left transition-all hover:bg-slate-50 active:scale-95"
                                 @click="addCrossSellItem(p)"
                             >
-                                <div class="size-9 rounded-lg overflow-hidden border bg-slate-100 shrink-0">
-                                    <img v-if="p.image_url" :src="p.image_url" :alt="p.name" class="size-full object-cover" />
+                                <div
+                                    class="size-9 shrink-0 overflow-hidden rounded-lg border bg-slate-100"
+                                >
+                                    <img
+                                        v-if="p.image_url"
+                                        :src="p.image_url"
+                                        :alt="p.name"
+                                        class="size-full object-cover"
+                                    />
                                 </div>
                                 <div class="min-w-0 flex-1">
-                                    <p class="text-[10px] font-bold text-slate-800 truncate">{{ p.name }}</p>
-                                    <p class="text-[10px] font-black text-amber-600 font-mono">{{ formatCurrency(p.price) }}</p>
+                                    <p
+                                        class="truncate text-[10px] font-bold text-slate-800"
+                                    >
+                                        {{ p.name }}
+                                    </p>
+                                    <p
+                                        class="font-mono text-[10px] font-black text-amber-600"
+                                    >
+                                        {{ formatCurrency(p.price) }}
+                                    </p>
                                 </div>
-                                <span class="text-slate-400 hover:text-indigo-600 font-extrabold text-xs shrink-0">+</span>
+                                <span
+                                    class="shrink-0 text-xs font-extrabold text-slate-400 hover:text-indigo-600"
+                                    >+</span
+                                >
                             </div>
                         </div>
                     </div>
@@ -1749,29 +1819,61 @@ onUnmounted(() => {
 
                             <!-- Progress milestone gauge -->
                             <div class="mt-2.5 space-y-1">
-                                <div class="flex items-center justify-between text-[9px] font-bold text-slate-400">
+                                <div
+                                    class="flex items-center justify-between text-[9px] font-bold text-slate-400"
+                                >
                                     <span>Tiến trình thăng hạng:</span>
-                                    <span>{{ customerLoyalty.loyalty_points }} / {{ customerLoyalty.membership_level === 'silver' ? '100 pt' : customerLoyalty.membership_level === 'gold' ? '500 pt' : 'Cực Đại' }}</span>
+                                    <span
+                                        >{{ customerLoyalty.loyalty_points }} /
+                                        {{
+                                            customerLoyalty.membership_level ===
+                                            'silver'
+                                                ? '100 pt'
+                                                : customerLoyalty.membership_level ===
+                                                    'gold'
+                                                  ? '500 pt'
+                                                  : 'Cực Đại'
+                                        }}</span
+                                    >
                                 </div>
-                                <div class="h-1.5 w-full rounded-full bg-slate-200 overflow-hidden">
-                                    <div 
+                                <div
+                                    class="h-1.5 w-full overflow-hidden rounded-full bg-slate-200"
+                                >
+                                    <div
                                         class="h-full rounded-full bg-gradient-to-r from-amber-400 to-amber-500 transition-all"
                                         :style="{
-                                            width: customerLoyalty.membership_level === 'silver' 
-                                                ? Math.min(100, (customerLoyalty.loyalty_points / 100) * 100) + '%'
-                                                : customerLoyalty.membership_level === 'gold'
-                                                    ? Math.min(100, (customerLoyalty.loyalty_points / 500) * 100) + '%'
-                                                    : '100%'
+                                            width:
+                                                customerLoyalty.membership_level ===
+                                                'silver'
+                                                    ? Math.min(
+                                                          100,
+                                                          (customerLoyalty.loyalty_points /
+                                                              100) *
+                                                              100,
+                                                      ) + '%'
+                                                    : customerLoyalty.membership_level ===
+                                                        'gold'
+                                                      ? Math.min(
+                                                            100,
+                                                            (customerLoyalty.loyalty_points /
+                                                                500) *
+                                                                100,
+                                                        ) + '%'
+                                                      : '100%',
                                         }"
                                     ></div>
                                 </div>
-                                <p class="text-[9px] text-muted-foreground leading-normal mt-0.5">
-                                    {{ 
-                                        customerLoyalty.membership_level === 'silver'
+                                <p
+                                    class="mt-0.5 text-[9px] leading-normal text-muted-foreground"
+                                >
+                                    {{
+                                        customerLoyalty.membership_level ===
+                                        'silver'
                                             ? `Tích lũy thêm ${Math.max(0, 100 - customerLoyalty.loyalty_points)} điểm để thăng hạng Vàng (Hưởng giảm giá 5% hóa đơn).`
-                                            : customerLoyalty.membership_level === 'gold'
-                                                ? `Tích lũy thêm ${Math.max(0, 500 - customerLoyalty.loyalty_points)} điểm để thăng hạng Kim Cương (Hưởng giảm giá 10% hóa đơn).`
-                                                : 'Bạn đã đạt cấp độ thành viên cao nhất! Xin cảm ơn quý khách.'
+                                            : customerLoyalty.membership_level ===
+                                                'gold'
+                                              ? `Tích lũy thêm ${Math.max(0, 500 - customerLoyalty.loyalty_points)} điểm để thăng hạng Kim Cương (Hưởng giảm giá 10% hóa đơn).`
+                                              : 'Bạn đã đạt cấp độ thành viên cao nhất! Xin cảm ơn quý khách.'
                                     }}
                                 </p>
                             </div>
@@ -2296,20 +2398,34 @@ onUnmounted(() => {
                                     />
 
                                     <!-- Tip option -->
-                                    <div class="mt-2.5 flex items-center justify-between">
-                                        <span class="text-[10px] font-bold text-slate-500">Tặng tiền tip cho bạn này:</span>
+                                    <div
+                                        class="mt-2.5 flex items-center justify-between"
+                                    >
+                                        <span
+                                            class="text-[10px] font-bold text-slate-500"
+                                            >Tặng tiền tip cho bạn này:</span
+                                        >
                                         <div class="flex gap-1.5">
                                             <button
-                                                v-for="tipVal in [10000, 20000, 50000]"
+                                                v-for="tipVal in [
+                                                    10000, 20000, 50000,
+                                                ]"
                                                 :key="tipVal"
                                                 type="button"
-                                                class="px-2 py-0.5 rounded-lg border text-[9px] font-extrabold transition-all active:scale-95 cursor-pointer"
+                                                class="cursor-pointer rounded-lg border px-2 py-0.5 text-[9px] font-extrabold transition-all active:scale-95"
                                                 :class="[
-                                                    staffTip[staff.employee_id] === tipVal
+                                                    staffTip[
+                                                        staff.employee_id
+                                                    ] === tipVal
                                                         ? 'border-emerald-600 bg-emerald-50 text-emerald-600'
-                                                        : 'border-slate-200 bg-white text-slate-500 hover:bg-slate-50'
+                                                        : 'border-slate-200 bg-white text-slate-500 hover:bg-slate-50',
                                                 ]"
-                                                @click="toggleStaffTip(staff.employee_id, tipVal)"
+                                                @click="
+                                                    toggleStaffTip(
+                                                        staff.employee_id,
+                                                        tipVal,
+                                                    )
+                                                "
                                             >
                                                 +{{ tipVal / 1000 }}k
                                             </button>
@@ -2345,16 +2461,20 @@ onUnmounted(() => {
         <!-- ── Call Staff Hub Modal ────────────────────────────────────────── -->
         <div
             v-if="isCallStaffHubOpen"
-            class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm animate-in fade-in duration-200"
+            class="fixed inset-0 z-50 flex animate-in items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm duration-200 fade-in"
             @click.self="isCallStaffHubOpen = false"
         >
             <div
-                class="w-full max-w-sm overflow-hidden rounded-[24px] border border-slate-200 bg-white shadow-2xl animate-in zoom-in-95 duration-200"
+                class="w-full max-w-sm animate-in overflow-hidden rounded-[24px] border border-slate-200 bg-white shadow-2xl duration-200 zoom-in-95"
             >
-                <div class="flex items-center justify-between border-b border-slate-100 px-5 py-4">
+                <div
+                    class="flex items-center justify-between border-b border-slate-100 px-5 py-4"
+                >
                     <div class="flex items-center gap-2">
-                        <Bell class="size-4.5 text-indigo-650 animate-bounce" />
-                        <h3 class="text-xs font-black tracking-wide text-slate-800 uppercase">
+                        <Bell class="text-indigo-650 size-4.5 animate-bounce" />
+                        <h3
+                            class="text-xs font-black tracking-wide text-slate-800 uppercase"
+                        >
                             Gọi nhân viên phục vụ
                         </h3>
                     </div>
@@ -2366,9 +2486,13 @@ onUnmounted(() => {
                     </button>
                 </div>
 
-                <div class="p-5 space-y-3">
-                    <p class="text-xxs font-bold text-slate-400 text-left uppercase">Chọn yêu cầu cụ thể tại bàn {{ table.name }}:</p>
-                    
+                <div class="space-y-3 p-5">
+                    <p
+                        class="text-xxs text-left font-bold text-slate-400 uppercase"
+                    >
+                        Chọn yêu cầu cụ thể tại bàn {{ table.name }}:
+                    </p>
+
                     <div class="grid grid-cols-1 gap-2.5">
                         <button
                             v-for="preset in staffCallPresets"
@@ -2376,7 +2500,7 @@ onUnmounted(() => {
                             type="button"
                             @click="callStaffWithMessage(preset.message)"
                             :disabled="isCallingStaffCustom"
-                            class="flex w-full items-center justify-between rounded-2xl border border-slate-200 p-3.5 text-left text-xs font-black text-slate-700 transition-all hover:bg-slate-50 active:scale-98 disabled:opacity-50 cursor-pointer"
+                            class="flex w-full cursor-pointer items-center justify-between rounded-2xl border border-slate-200 p-3.5 text-left text-xs font-black text-slate-700 transition-all hover:bg-slate-50 active:scale-98 disabled:opacity-50"
                         >
                             <span>{{ preset.label }}</span>
                             <span class="text-slate-350">➔</span>

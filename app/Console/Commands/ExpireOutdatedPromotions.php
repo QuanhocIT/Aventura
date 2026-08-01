@@ -9,6 +9,7 @@ use Illuminate\Console\Command;
 class ExpireOutdatedPromotions extends Command
 {
     protected $signature = 'promotions:expire-outdated';
+
     protected $description = 'Deactivate promotions that have passed their end date';
 
     public function handle()
@@ -20,6 +21,7 @@ class ExpireOutdatedPromotions extends Command
             ->update(['is_active' => false]);
 
         $this->info("Completed. Deactivated {$expiredCount} outdated promotions.");
+
         return Command::SUCCESS;
     }
 }

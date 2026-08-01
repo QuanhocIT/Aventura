@@ -2,28 +2,28 @@
 
 namespace Tests\Feature;
 
+use App\Models\AuditLog;
+use App\Models\Customer;
 use App\Models\Employee;
-use App\Models\InventoryTransaction;
 use App\Models\Ingredient;
+use App\Models\InventoryTransaction;
+use App\Models\Order;
+use App\Models\OrderItem;
+use App\Models\OvertimeRequest;
+use App\Models\Product;
+use App\Models\Promotion;
 use App\Models\Restaurant;
 use App\Models\RestaurantBranch;
 use App\Models\Salary;
 use App\Models\SalaryAdjustment;
 use App\Models\ScheduleAssignment;
-use App\Models\ShiftClosing;
+use App\Models\User;
 use App\Models\ViolationReport;
 use App\Models\WorkShift;
-use App\Models\User;
-use App\Models\Customer;
-use App\Models\Order;
-use App\Models\Product;
-use App\Models\OrderItem;
-use App\Models\Payment;
-use App\Models\Promotion;
-use App\Services\SalaryService;
 use App\Services\OrderService;
-use Carbon\Carbon;
+use App\Services\SalaryService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Cache;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
@@ -32,10 +32,15 @@ class FiveProposalsDevelopmentTest extends TestCase
     use RefreshDatabase;
 
     private User $owner;
+
     private Restaurant $restaurant;
+
     private RestaurantBranch $branch;
+
     private Role $ownerRole;
+
     private Role $cashierRole;
+
     private Role $kitchenRole;
 
     protected function setUp(): void
@@ -204,9 +209,9 @@ class FiveProposalsDevelopmentTest extends TestCase
         // Case B: check-out late by 1 hour (overtime) -> paid 4 hours regular + 1 hour OT at 2.0x = 6 hours total (300,000 VND)
         Salary::truncate();
         ScheduleAssignment::truncate();
-        \App\Models\OvertimeRequest::truncate();
+        OvertimeRequest::truncate();
 
-        \App\Models\OvertimeRequest::create([
+        OvertimeRequest::create([
             'restaurant_id' => $this->restaurant->id,
             'employee_id' => $employee->id,
             'scheduled_date' => '2026-05-10',
@@ -238,8 +243,8 @@ class FiveProposalsDevelopmentTest extends TestCase
         $cashierUser->assignRole($this->cashierRole);
 
         $product = Product::factory()->create(['restaurant_id' => $this->restaurant->id, 'branch_id' => $this->branch->id, 'price' => 500000]);
-        
-        $promotion = \App\Models\Promotion::create([
+
+        $promotion = Promotion::create([
             'restaurant_id' => $this->restaurant->id,
             'name' => 'Test Promo',
             'code' => 'TESTVOUCHER',
@@ -272,7 +277,7 @@ class FiveProposalsDevelopmentTest extends TestCase
 
         // Add 3 discount_applied audit logs in the last 5 minutes to trigger cashier fraud alert
         for ($i = 0; $i < 3; $i++) {
-            \App\Models\AuditLog::log('discount_applied', 'updated', $order, null, ['discount_amount' => 50000]);
+            AuditLog::log('discount_applied', 'updated', $order, null, ['discount_amount' => 50000]);
         }
 
         // Attempting to apply without bypass code should fail
@@ -283,7 +288,7 @@ class FiveProposalsDevelopmentTest extends TestCase
 
         $response->assertStatus(422);
         $response->assertJson([
-            'status' => 'requires_bypass'
+            'status' => 'requires_bypass',
         ]);
 
         // Attempting to apply with bypass code should succeed
@@ -307,7 +312,7 @@ class FiveProposalsDevelopmentTest extends TestCase
         ]);
         $cashierUser->assignRole(Role::firstOrCreate(['name' => 'waiter', 'guard_name' => 'web']));
 
-        $product = \App\Models\Product::factory()->create([
+        $product = Product::factory()->create([
             'restaurant_id' => $this->restaurant->id,
             'branch_id' => $this->branch->id,
             'price' => 500000,
@@ -346,7 +351,7 @@ class FiveProposalsDevelopmentTest extends TestCase
 
         // Put 3 hits in the cache to simulate fast successive attempts (race condition)
         $cashierFastKey = "voucher_applied_fast_check:{$this->restaurant->id}:{$cashierUser->id}";
-        \Illuminate\Support\Facades\Cache::put($cashierFastKey, 3, now()->addMinutes(5));
+        Cache::put($cashierFastKey, 3, now()->addMinutes(5));
 
         // Attempting to apply without bypass code should fail because cache count is 3 (rate limit hit)
         $response = $this->postJson(route('promotions.apply'), [
@@ -356,14 +361,14 @@ class FiveProposalsDevelopmentTest extends TestCase
 
         $response->assertStatus(422);
         $response->assertJson([
-            'status' => 'requires_bypass'
+            'status' => 'requires_bypass',
         ]);
 
         // Attempting with PIN code bypass should succeed
-        $managerUser = \App\Models\User::role('manager')->where('restaurant_id', $this->restaurant->id)->first();
-        if (!$managerUser) {
+        $managerUser = User::role('manager')->where('restaurant_id', $this->restaurant->id)->first();
+        if (! $managerUser) {
             $managerRole = Role::firstOrCreate(['name' => 'manager', 'guard_name' => 'web']);
-            $managerUser = \App\Models\User::factory()->create(['restaurant_id' => $this->restaurant->id, 'branch_id' => $this->branch->id, 'status' => 'active']);
+            $managerUser = User::factory()->create(['restaurant_id' => $this->restaurant->id, 'branch_id' => $this->branch->id, 'status' => 'active']);
             $managerUser->assignRole($managerRole);
         }
         $managerUser->update(['pin_code' => '8888']);
@@ -400,7 +405,7 @@ class FiveProposalsDevelopmentTest extends TestCase
         ]);
 
         $orderService = app(OrderService::class);
-        
+
         // Pay order, redeem 10 points
         $orderService->payOrder($order, [
             'payment_method' => 'cash',
@@ -449,7 +454,7 @@ class FiveProposalsDevelopmentTest extends TestCase
             'severity' => 'low',
             'description' => 'Di tre',
             'penalty_amount' => 50000,
-            'occurred_at' => now()->toDateString() . ' 08:00:00',
+            'occurred_at' => now()->toDateString().' 08:00:00',
             'status' => 'open',
         ]);
 

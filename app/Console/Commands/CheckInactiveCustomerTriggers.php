@@ -3,7 +3,6 @@
 namespace App\Console\Commands;
 
 use App\Models\Customer;
-use App\Models\Order;
 use App\Models\PromotionTrigger;
 use App\Services\PromotionTriggerService;
 use Illuminate\Console\Command;
@@ -11,6 +10,7 @@ use Illuminate\Console\Command;
 class CheckInactiveCustomerTriggers extends Command
 {
     protected $signature = 'promotions:check-inactive';
+
     protected $description = 'Fire triggers for customers inactive 30+ days';
 
     public function handle(PromotionTriggerService $service): int
@@ -28,7 +28,7 @@ class CheckInactiveCustomerTriggers extends Command
                 ->where('restaurant_id', $restaurantId)
                 ->where(function ($q) {
                     $q->where('last_order_at', '<=', now()->subDays(30))
-                      ->orWhereNull('last_order_at');
+                        ->orWhereNull('last_order_at');
                 })
                 ->get();
 

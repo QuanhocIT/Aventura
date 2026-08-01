@@ -53,16 +53,16 @@ function formatRelative(date: Date): string {
     const diff = Math.floor((Date.now() - date.getTime()) / 1000);
 
     if (diff < 60) {
-return 'Vừa xong';
-}
+        return 'Vừa xong';
+    }
 
     if (diff < 3600) {
-return `${Math.floor(diff / 60)} phút trước`;
-}
+        return `${Math.floor(diff / 60)} phút trước`;
+    }
 
     if (diff < 86400) {
-return `${Math.floor(diff / 3600)} giờ trước`;
-}
+        return `${Math.floor(diff / 3600)} giờ trước`;
+    }
 
     return `${Math.floor(diff / 86400)} ngày trước`;
 }
@@ -94,8 +94,8 @@ function markRead(id: number) {
     const notif = items.value.find((n) => n.id === id);
 
     if (notif) {
-notif.read = true;
-}
+        notif.read = true;
+    }
 }
 
 function markAllRead() {
@@ -119,20 +119,20 @@ watch(
     () => (page.props as any).flash,
     (flash) => {
         if (flash?.success) {
-addNotification('success', 'Thành công', flash.success);
-}
+            addNotification('success', 'Thành công', flash.success);
+        }
 
         if (flash?.error) {
-addNotification('error', 'Lỗi', flash.error);
-}
+            addNotification('error', 'Lỗi', flash.error);
+        }
 
         if (flash?.info) {
-addNotification('info', 'Thông tin', flash.info);
-}
+            addNotification('info', 'Thông tin', flash.info);
+        }
 
         if (flash?.warning) {
-addNotification('warning', 'Cảnh báo', flash.warning);
-}
+            addNotification('warning', 'Cảnh báo', flash.warning);
+        }
     },
     { deep: true },
 );
@@ -221,9 +221,16 @@ defineExpose({ addNotification });
                 leave-active-class="transition-all duration-150"
                 leave-to-class="scale-0 opacity-0"
             >
-                <span v-if="hasUnread" class="absolute top-1 right-1 flex h-4 w-4">
-                    <span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-rose-400 opacity-75"></span>
-                    <span class="relative inline-flex h-4 w-4 items-center justify-center rounded-full bg-rose-500 text-[9px] font-bold text-white shadow-xs">
+                <span
+                    v-if="hasUnread"
+                    class="absolute top-1 right-1 flex h-4 w-4"
+                >
+                    <span
+                        class="absolute inline-flex h-full w-full animate-ping rounded-full bg-rose-400 opacity-75"
+                    ></span>
+                    <span
+                        class="relative inline-flex h-4 w-4 items-center justify-center rounded-full bg-rose-500 text-[9px] font-bold text-white shadow-xs"
+                    >
                         {{ unread > 9 ? '9+' : unread }}
                     </span>
                 </span>

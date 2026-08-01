@@ -1040,7 +1040,7 @@ const submitSwapReject = () => {
         <!-- Add Employee Form Modal Overlay -->
         <div
             v-if="showAddEmployee"
-            class="fixed inset-0 z-50 flex items-start justify-center bg-black/50 p-4 pt-16 backdrop-blur-xs overflow-y-auto"
+            class="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 p-4 pt-16 backdrop-blur-xs"
         >
             <Card
                 class="w-full max-w-2xl animate-in shadow-2xl duration-150 zoom-in-95 fade-in"
@@ -1181,41 +1181,99 @@ const submitSwapReject = () => {
                         </div>
 
                         <!-- Cấu hình Hình thức trả lương & Mức lương -->
-                        <div class="grid grid-cols-2 gap-4 rounded-xl border border-indigo-100 bg-indigo-50/40 p-3.5 dark:border-indigo-950/40 dark:bg-indigo-950/20">
+                        <div
+                            class="grid grid-cols-2 gap-4 rounded-xl border border-indigo-100 bg-indigo-50/40 p-3.5 dark:border-indigo-950/40 dark:bg-indigo-950/20"
+                        >
                             <div class="grid gap-1.5">
-                                <Label class="text-xs font-bold text-indigo-700 dark:text-indigo-300">Hình thức trả lương</Label>
+                                <Label
+                                    class="text-xs font-bold text-indigo-700 dark:text-indigo-300"
+                                    >Hình thức trả lương</Label
+                                >
                                 <select
                                     v-model="employeeForm.compensation_type"
-                                    class="w-full rounded-md border border-slate-200 bg-background px-3 py-2 text-sm focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:outline-none font-semibold text-slate-700"
+                                    class="w-full rounded-md border border-slate-200 bg-background px-3 py-2 text-sm font-semibold text-slate-700 focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:outline-none"
                                 >
-                                    <option value="fixed">💼 Lương tháng cố định</option>
-                                    <option value="hourly">⏱ Lương theo giờ</option>
-                                    <option value="shift">📋 Lương theo ca</option>
+                                    <option value="fixed">
+                                        💼 Lương tháng cố định
+                                    </option>
+                                    <option value="hourly">
+                                        ⏱ Lương theo giờ
+                                    </option>
+                                    <option value="shift">
+                                        📋 Lương theo ca
+                                    </option>
                                 </select>
                             </div>
 
-                            <div v-if="employeeForm.compensation_type === 'fixed'" class="grid gap-1.5">
-                                <Label class="text-xs font-bold text-indigo-700 dark:text-indigo-300">Mức lương tháng cố định (VNĐ)</Label>
-                                <Input type="number" step="50000" v-model="employeeForm.base_salary" placeholder="Ví dụ: 8000000" required class="h-9 text-xs font-bold font-mono text-indigo-600" />
+                            <div
+                                v-if="
+                                    employeeForm.compensation_type === 'fixed'
+                                "
+                                class="grid gap-1.5"
+                            >
+                                <Label
+                                    class="text-xs font-bold text-indigo-700 dark:text-indigo-300"
+                                    >Mức lương tháng cố định (VNĐ)</Label
+                                >
+                                <Input
+                                    type="number"
+                                    step="50000"
+                                    v-model="employeeForm.base_salary"
+                                    placeholder="Ví dụ: 8000000"
+                                    required
+                                    class="h-9 font-mono text-xs font-bold text-indigo-600"
+                                />
                             </div>
-                            <div v-else-if="employeeForm.compensation_type === 'hourly'" class="grid gap-1.5">
-                                <Label class="text-xs font-bold text-indigo-700 dark:text-indigo-300">Đơn giá lương giờ (VNĐ/h)</Label>
-                                <Input type="number" step="1000" v-model="employeeForm.pay_rate" placeholder="Ví dụ: 25000" required class="h-9 text-xs font-bold font-mono text-purple-600" />
+                            <div
+                                v-else-if="
+                                    employeeForm.compensation_type === 'hourly'
+                                "
+                                class="grid gap-1.5"
+                            >
+                                <Label
+                                    class="text-xs font-bold text-indigo-700 dark:text-indigo-300"
+                                    >Đơn giá lương giờ (VNĐ/h)</Label
+                                >
+                                <Input
+                                    type="number"
+                                    step="1000"
+                                    v-model="employeeForm.pay_rate"
+                                    placeholder="Ví dụ: 25000"
+                                    required
+                                    class="h-9 font-mono text-xs font-bold text-purple-600"
+                                />
                             </div>
                             <div v-else class="grid gap-1.5">
-                                <Label class="text-xs font-bold text-indigo-700 dark:text-indigo-300">Đơn giá lương ca (VNĐ/ca)</Label>
-                                <Input type="number" step="5000" v-model="employeeForm.pay_rate" placeholder="Ví dụ: 200000" required class="h-9 text-xs font-bold font-mono text-amber-600" />
+                                <Label
+                                    class="text-xs font-bold text-indigo-700 dark:text-indigo-300"
+                                    >Đơn giá lương ca (VNĐ/ca)</Label
+                                >
+                                <Input
+                                    type="number"
+                                    step="5000"
+                                    v-model="employeeForm.pay_rate"
+                                    placeholder="Ví dụ: 200000"
+                                    required
+                                    class="h-9 font-mono text-xs font-bold text-amber-600"
+                                />
                             </div>
                         </div>
 
                         <div class="grid gap-1.5">
-                            <Label>Chi nhánh làm việc <span class="text-rose-500">*</span></Label>
+                            <Label
+                                >Chi nhánh làm việc
+                                <span class="text-rose-500">*</span></Label
+                            >
                             <select
                                 v-model="employeeForm.branch_id"
                                 required
                                 class="w-full rounded-md border border-slate-200 bg-background px-3 py-2 text-sm font-semibold text-slate-700 focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:outline-none"
                             >
-                                <option v-for="branch in branches" :key="branch.id" :value="branch.id">
+                                <option
+                                    v-for="branch in branches"
+                                    :key="branch.id"
+                                    :value="branch.id"
+                                >
                                     {{ branch.name }}
                                 </option>
                             </select>
@@ -1359,7 +1417,7 @@ const submitSwapReject = () => {
         <!-- Edit Employee Modal -->
         <div
             v-if="editingEmployee"
-            class="fixed inset-0 z-50 flex items-start justify-center bg-black/50 p-4 pt-16 backdrop-blur-xs overflow-y-auto"
+            class="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 p-4 pt-16 backdrop-blur-xs"
         >
             <Card
                 class="w-full max-w-2xl animate-in shadow-2xl duration-150 zoom-in-95 fade-in"
@@ -1479,41 +1537,97 @@ const submitSwapReject = () => {
                         </div>
 
                         <!-- Cấu hình Hình thức trả lương & Mức lương -->
-                        <div class="grid grid-cols-2 gap-4 rounded-xl border border-indigo-100 bg-indigo-50/40 p-3.5 dark:border-indigo-950/40 dark:bg-indigo-950/20">
+                        <div
+                            class="grid grid-cols-2 gap-4 rounded-xl border border-indigo-100 bg-indigo-50/40 p-3.5 dark:border-indigo-950/40 dark:bg-indigo-950/20"
+                        >
                             <div class="grid gap-1.5">
-                                <Label class="text-xs font-bold text-indigo-700 dark:text-indigo-300">Hình thức trả lương</Label>
+                                <Label
+                                    class="text-xs font-bold text-indigo-700 dark:text-indigo-300"
+                                    >Hình thức trả lương</Label
+                                >
                                 <select
                                     v-model="editForm.compensation_type"
                                     class="w-full rounded-md border border-slate-200 bg-background px-3 py-2 text-sm font-semibold text-slate-700 focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:outline-none"
                                 >
-                                    <option value="fixed">💼 Lương tháng cố định</option>
-                                    <option value="hourly">⏱ Lương theo giờ</option>
-                                    <option value="shift">📋 Lương theo ca</option>
+                                    <option value="fixed">
+                                        💼 Lương tháng cố định
+                                    </option>
+                                    <option value="hourly">
+                                        ⏱ Lương theo giờ
+                                    </option>
+                                    <option value="shift">
+                                        📋 Lương theo ca
+                                    </option>
                                 </select>
                             </div>
 
-                            <div v-if="editForm.compensation_type === 'fixed'" class="grid gap-1.5">
-                                <Label class="text-xs font-bold text-indigo-700 dark:text-indigo-300">Mức lương tháng hợp đồng (VNĐ)</Label>
-                                <Input type="number" step="50000" v-model="editForm.base_salary" placeholder="Ví dụ: 8000000" required class="h-9 text-xs font-bold font-mono text-indigo-600" />
+                            <div
+                                v-if="editForm.compensation_type === 'fixed'"
+                                class="grid gap-1.5"
+                            >
+                                <Label
+                                    class="text-xs font-bold text-indigo-700 dark:text-indigo-300"
+                                    >Mức lương tháng hợp đồng (VNĐ)</Label
+                                >
+                                <Input
+                                    type="number"
+                                    step="50000"
+                                    v-model="editForm.base_salary"
+                                    placeholder="Ví dụ: 8000000"
+                                    required
+                                    class="h-9 font-mono text-xs font-bold text-indigo-600"
+                                />
                             </div>
-                            <div v-else-if="editForm.compensation_type === 'hourly'" class="grid gap-1.5">
-                                <Label class="text-xs font-bold text-indigo-700 dark:text-indigo-300">Đơn giá lương giờ (VNĐ/h)</Label>
-                                <Input type="number" step="1000" v-model="editForm.pay_rate" placeholder="Ví dụ: 25000" required class="h-9 text-xs font-bold font-mono text-purple-600" />
+                            <div
+                                v-else-if="
+                                    editForm.compensation_type === 'hourly'
+                                "
+                                class="grid gap-1.5"
+                            >
+                                <Label
+                                    class="text-xs font-bold text-indigo-700 dark:text-indigo-300"
+                                    >Đơn giá lương giờ (VNĐ/h)</Label
+                                >
+                                <Input
+                                    type="number"
+                                    step="1000"
+                                    v-model="editForm.pay_rate"
+                                    placeholder="Ví dụ: 25000"
+                                    required
+                                    class="h-9 font-mono text-xs font-bold text-purple-600"
+                                />
                             </div>
                             <div v-else class="grid gap-1.5">
-                                <Label class="text-xs font-bold text-indigo-700 dark:text-indigo-300">Đơn giá lương ca (VNĐ/ca)</Label>
-                                <Input type="number" step="5000" v-model="editForm.pay_rate" placeholder="Ví dụ: 200000" required class="h-9 text-xs font-bold font-mono text-amber-600" />
+                                <Label
+                                    class="text-xs font-bold text-indigo-700 dark:text-indigo-300"
+                                    >Đơn giá lương ca (VNĐ/ca)</Label
+                                >
+                                <Input
+                                    type="number"
+                                    step="5000"
+                                    v-model="editForm.pay_rate"
+                                    placeholder="Ví dụ: 200000"
+                                    required
+                                    class="h-9 font-mono text-xs font-bold text-amber-600"
+                                />
                             </div>
                         </div>
 
                         <div class="grid gap-1.5">
-                            <Label>Chi nhánh làm việc <span class="text-rose-500">*</span></Label>
+                            <Label
+                                >Chi nhánh làm việc
+                                <span class="text-rose-500">*</span></Label
+                            >
                             <select
                                 v-model="editForm.branch_id"
                                 required
                                 class="w-full rounded-md border border-slate-200 bg-background px-3 py-2 text-sm font-semibold text-slate-700 focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:outline-none"
                             >
-                                <option v-for="branch in branches" :key="branch.id" :value="branch.id">
+                                <option
+                                    v-for="branch in branches"
+                                    :key="branch.id"
+                                    :value="branch.id"
+                                >
                                     {{ branch.name }}
                                 </option>
                             </select>
@@ -1727,12 +1841,25 @@ const submitSwapReject = () => {
                                             {{ emp.employee_code }} ·
                                             {{ emp.job_title }}
                                         </p>
-                                        <div class="mt-1 flex items-center gap-1.5 text-xs">
-                                            <span class="inline-flex items-center gap-0.5 rounded-full bg-amber-50 px-2 py-0.5 font-bold text-amber-700 border border-amber-200/50 dark:bg-amber-950/40 dark:text-amber-300 text-[10px]">
-                                                ⭐ {{ Number(emp.rating_star || 5.0).toFixed(1) }} / 5.0
+                                        <div
+                                            class="mt-1 flex items-center gap-1.5 text-xs"
+                                        >
+                                            <span
+                                                class="inline-flex items-center gap-0.5 rounded-full border border-amber-200/50 bg-amber-50 px-2 py-0.5 text-[10px] font-bold text-amber-700 dark:bg-amber-950/40 dark:text-amber-300"
+                                            >
+                                                ⭐
+                                                {{
+                                                    Number(
+                                                        emp.rating_star || 5.0,
+                                                    ).toFixed(1)
+                                                }}
+                                                / 5.0
                                             </span>
-                                            <span class="text-[10px] text-slate-400 font-medium">
-                                                ({{ emp.rating_count || 0 }} lượt đánh giá)
+                                            <span
+                                                class="text-[10px] font-medium text-slate-400"
+                                            >
+                                                ({{ emp.rating_count || 0 }}
+                                                lượt đánh giá)
                                             </span>
                                         </div>
                                         <span
@@ -2724,7 +2851,7 @@ const submitSwapReject = () => {
         <Teleport to="body">
             <div
                 v-if="showAssignModal"
-                class="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 p-4 pt-16 md:pt-28 backdrop-blur-xs"
+                class="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 p-4 pt-16 backdrop-blur-xs md:pt-28"
             >
                 <Card
                     class="w-full max-w-sm animate-in shadow-2xl duration-150 zoom-in-95 fade-in"
@@ -2752,7 +2879,10 @@ const submitSwapReject = () => {
                         </button>
                     </CardHeader>
                     <CardContent class="space-y-4 pt-4">
-                        <form @submit.prevent="submitAssignment" class="space-y-4">
+                        <form
+                            @submit.prevent="submitAssignment"
+                            class="space-y-4"
+                        >
                             <div class="grid gap-1.5">
                                 <Label for="assign-emp"
                                     >Chọn nhân sự
@@ -2790,7 +2920,8 @@ const submitSwapReject = () => {
                                         :key="s.id"
                                         :value="s.name.split(' (')[0]"
                                     >
-                                        {{ s.name }} ({{ s.start }} - {{ s.end }})
+                                        {{ s.name }} ({{ s.start }} -
+                                        {{ s.end }})
                                     </option>
                                 </select>
                             </div>
@@ -2798,20 +2929,23 @@ const submitSwapReject = () => {
                             <!-- Suggestions helper -->
                             <div
                                 v-if="
-                                    getRegistrationsForDay(currentAssignDay).length
+                                    getRegistrationsForDay(currentAssignDay)
+                                        .length
                                 "
                                 class="dark:text-emerald-350 rounded-xl border border-emerald-100 bg-emerald-50 p-3 text-[11px] text-emerald-800 dark:border-emerald-900/30 dark:bg-emerald-950/20"
                             >
                                 <span class="flex items-center gap-1 font-bold"
-                                    ><Sparkles class="size-3.5" /> Gợi ý: Nhân viên
-                                    đăng ký rảnh hôm nay</span
+                                    ><Sparkles class="size-3.5" /> Gợi ý: Nhân
+                                    viên đăng ký rảnh hôm nay</span
                                 >
                                 <div class="mt-1.5 flex flex-wrap gap-1">
                                     <button
                                         v-for="r in getRegistrationsForDay(
                                             currentAssignDay,
                                         )"
-                                        :key="r.employee_name + '-' + r.shift_name"
+                                        :key="
+                                            r.employee_name + '-' + r.shift_name
+                                        "
                                         type="button"
                                         @click="
                                             assignForm.employee_name =

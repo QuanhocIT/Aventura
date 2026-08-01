@@ -16,7 +16,7 @@ return new class extends Migration
                 $table->index(['restaurant_id', 'created_at'], 'order_items_perf_idx_1');
                 $table->index(['restaurant_id', 'product_id', 'created_at'], 'order_items_perf_idx_2');
             });
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             // Index might already exist or driver limitations
         }
 
@@ -24,7 +24,7 @@ return new class extends Migration
             Schema::table('operating_expenses', function (Blueprint $table) {
                 $table->index(['restaurant_id', 'expense_date'], 'op_expenses_perf_idx_1');
             });
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             // Index might already exist or driver limitations
         }
 
@@ -32,7 +32,7 @@ return new class extends Migration
             Schema::table('customer_feedback', function (Blueprint $table) {
                 $table->index(['restaurant_id', 'rating', 'created_at'], 'cust_feedback_perf_idx_1');
             });
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             // Index might already exist or driver limitations
         }
     }
@@ -47,18 +47,21 @@ return new class extends Migration
                 $table->dropIndex('order_items_perf_idx_1');
                 $table->dropIndex('order_items_perf_idx_2');
             });
-        } catch (\Exception $e) {}
+        } catch (Exception $e) {
+        }
 
         try {
             Schema::table('operating_expenses', function (Blueprint $table) {
                 $table->dropIndex('op_expenses_perf_idx_1');
             });
-        } catch (\Exception $e) {}
+        } catch (Exception $e) {
+        }
 
         try {
             Schema::table('customer_feedback', function (Blueprint $table) {
                 $table->dropIndex('cust_feedback_perf_idx_1');
             });
-        } catch (\Exception $e) {}
+        } catch (Exception $e) {
+        }
     }
 };

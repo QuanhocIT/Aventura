@@ -20,13 +20,21 @@ class SupplyChainAutomationTest extends TestCase
     use RefreshDatabase;
 
     protected User $owner;
+
     protected User $manager;
+
     protected Restaurant $restaurant;
+
     protected RestaurantBranch $branch;
+
     protected Supplier $supplierA;
+
     protected Supplier $supplierB;
+
     protected Unit $unit;
+
     protected Ingredient $ingredientLow;
+
     protected Ingredient $ingredientSafe;
 
     protected function setUp(): void

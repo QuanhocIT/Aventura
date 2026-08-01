@@ -31,8 +31,8 @@ return new class extends Migration
         }
 
         // ── orders_unified ───────────────────────────────────────────────────
-        DB::statement("
-            CREATE " . ($isSqlite ? "" : "OR REPLACE ") . "VIEW orders_unified AS
+        DB::statement('
+            CREATE '.($isSqlite ? '' : 'OR REPLACE ').'VIEW orders_unified AS
             SELECT
                 id, restaurant_id, branch_id, table_id, customer_id,
                 created_by, cashier_user_id, order_number, channel, status,
@@ -59,15 +59,15 @@ return new class extends Migration
                 cancelled_by, refunded_at, refunded_by,
                 created_at, updated_at, NULL as deleted_at
             FROM orders_archive
-        ");
+        ');
 
         if ($isSqlite) {
             DB::statement('DROP VIEW IF EXISTS order_items_unified');
         }
 
         // ── order_items_unified ──────────────────────────────────────────────
-        DB::statement("
-            CREATE " . ($isSqlite ? "" : "OR REPLACE ") . "VIEW order_items_unified AS
+        DB::statement('
+            CREATE '.($isSqlite ? '' : 'OR REPLACE ').'VIEW order_items_unified AS
             SELECT
                 id, restaurant_id, order_id, product_id, quantity,
                 unit_price, discount_amount, line_total, status,
@@ -83,7 +83,7 @@ return new class extends Migration
                 notes, sent_to_kitchen_at, prepared_at, served_at,
                 created_at, updated_at
             FROM order_items_archive
-        ");
+        ');
     }
 
     public function down(): void

@@ -136,6 +136,7 @@ async function submitPhotoItem() {
 async function completeItem(itemId: number, photo: string | null = null) {
     if (props.canComplete === false) {
         toast.error('Hãy chọn một chi nhánh cụ thể để cập nhật checklist.');
+
         return;
     }
 
@@ -163,6 +164,7 @@ async function completeItem(itemId: number, photo: string | null = null) {
 async function uncompleteItem(itemId: number) {
     if (props.canComplete === false) {
         toast.error('Hãy chọn một chi nhánh cụ thể để cập nhật checklist.');
+
         return;
     }
 
@@ -472,7 +474,10 @@ const overallPercent = computed(() => {
                                     ? openCamera(item.id)
                                     : completeItem(item.id)
                             "
-                            :disabled="completing === item.id || props.canComplete === false"
+                            :disabled="
+                                completing === item.id ||
+                                props.canComplete === false
+                            "
                             class="shrink-0 focus:outline-none"
                         >
                             <Loader2

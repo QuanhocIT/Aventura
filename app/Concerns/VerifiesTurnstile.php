@@ -2,8 +2,8 @@
 
 namespace App\Concerns;
 
-use Illuminate\Support\Facades\Http;
 use App\Models\SystemSetting;
+use Illuminate\Support\Facades\Http;
 
 trait VerifiesTurnstile
 {
@@ -17,13 +17,13 @@ trait VerifiesTurnstile
         }
 
         $secret = env('TURNSTILE_SECRET_KEY') ?: SystemSetting::get('turnstile_secret_key');
-        if (!$secret) {
+        if (! $secret) {
             return false;
         }
 
         try {
             $response = Http::asForm()->post('https://challenges.cloudflare.com/turnstile/v0/siteverify', [
-                'secret'   => $secret,
+                'secret' => $secret,
                 'response' => $token,
                 'remoteip' => request()->ip(),
             ]);

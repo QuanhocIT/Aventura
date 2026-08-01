@@ -7,6 +7,7 @@ use App\Models\GoalAction;
 use App\Models\GoalMilestone;
 use App\Services\GoalTrackingService;
 use App\Services\QuotaService;
+use App\Support\TenantRule;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
@@ -102,7 +103,7 @@ class BusinessGoalController extends Controller
         $data = $request->validate([
             'title' => ['required', 'string', 'max:255'],
             'description' => ['nullable', 'string'],
-            'assigned_to' => ['nullable', \App\Support\TenantRule::exists('users')],
+            'assigned_to' => ['nullable', TenantRule::exists('users')],
             'due_date' => ['nullable', 'date'],
         ]);
 

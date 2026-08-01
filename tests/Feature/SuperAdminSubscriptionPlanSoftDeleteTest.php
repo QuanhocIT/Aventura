@@ -6,6 +6,7 @@ use App\Models\Restaurant;
 use App\Models\SubscriptionPlan;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
 class SuperAdminSubscriptionPlanSoftDeleteTest extends TestCase
@@ -19,7 +20,7 @@ class SuperAdminSubscriptionPlanSoftDeleteTest extends TestCase
         parent::setUp();
         $this->withSession(['superadmin.2fa_verified_until' => now()->addMinutes(15)->timestamp]);
 
-        \Spatie\Permission\Models\Role::firstOrCreate(['name' => 'super_admin', 'guard_name' => 'web']);
+        Role::firstOrCreate(['name' => 'super_admin', 'guard_name' => 'web']);
 
         $this->superAdmin = User::factory()->create([
             'email' => 'superadmin_test@aventura.vn',
@@ -33,23 +34,23 @@ class SuperAdminSubscriptionPlanSoftDeleteTest extends TestCase
     public function test_superadmin_can_soft_delete_and_restore_subscription_plan(): void
     {
         $plan = SubscriptionPlan::create([
-            'code'          => 'test_plan',
-            'name'          => 'Gói Test Thử Nghệ',
-            'price'         => 299000,
+            'code' => 'test_plan',
+            'name' => 'Gói Test Thử Nghệ',
+            'price' => 299000,
             'billing_cycle' => 'monthly',
-            'max_branches'  => 3,
-            'max_tables'    => 30,
-            'max_users'     => 10,
-            'status'        => 'active',
-            'features'      => ['kitchen_display' => true],
+            'max_branches' => 3,
+            'max_tables' => 30,
+            'max_users' => 10,
+            'status' => 'active',
+            'features' => ['kitchen_display' => true],
         ]);
 
         $restaurant = Restaurant::create([
             'plan_id' => $plan->id,
-            'name'    => 'Nhà Hàng Cũ Đang Dùng Gói',
-            'code'    => 'REST01',
-            'slug'    => 'nha-hang-cu',
-            'status'  => 'active',
+            'name' => 'Nhà Hàng Cũ Đang Dùng Gói',
+            'code' => 'REST01',
+            'slug' => 'nha-hang-cu',
+            'status' => 'active',
         ]);
 
         // 1. Soft Delete plan

@@ -11,7 +11,7 @@ return new class extends Migration
      */
     public function up(): void
     {
-        if (!Schema::hasTable('search_query_logs')) {
+        if (! Schema::hasTable('search_query_logs')) {
             Schema::create('search_query_logs', function (Blueprint $blueprint) {
                 $blueprint->id();
                 $blueprint->string('keyword');

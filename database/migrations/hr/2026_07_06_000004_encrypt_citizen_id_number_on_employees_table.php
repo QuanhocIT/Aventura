@@ -53,7 +53,7 @@ return new class extends Migration
         foreach ($existing as $employee) {
             try {
                 $plain = Crypt::decryptString($employee->citizen_id_number);
-            } catch (\Throwable) {
+            } catch (Throwable) {
                 $plain = null;
             }
 

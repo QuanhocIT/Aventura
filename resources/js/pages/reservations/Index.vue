@@ -106,8 +106,8 @@ function submitConfirm() {
 
 async function seat(r: any) {
     if (isProcessing.value) {
-return;
-}
+        return;
+    }
 
     if (
         !(await confirmDialog({
@@ -147,8 +147,8 @@ function submitCancel() {
 
 async function noShow(r: any) {
     if (isProcessing.value) {
-return;
-}
+        return;
+    }
 
     if (
         !(await confirmDialog({

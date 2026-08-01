@@ -410,7 +410,10 @@ onMounted(() => {
         </div>
 
         <!-- TAB 1: PROMOTIONS LIST -->
-        <div v-if="activeTab === 'promotions'" class="animate-fade-in space-y-6">
+        <div
+            v-if="activeTab === 'promotions'"
+            class="animate-fade-in space-y-6"
+        >
             <Card class="shadow-sm">
                 <CardHeader class="border-b pb-3">
                     <CardTitle class="text-sm font-bold"

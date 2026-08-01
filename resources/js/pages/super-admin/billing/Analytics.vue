@@ -221,12 +221,12 @@ function getPlanIcon(planName: string) {
     const name = planName.toLowerCase();
 
     if (name.includes('enterprise') || name.includes('doanh nghiệp')) {
-return Crown;
-}
+        return Crown;
+    }
 
     if (name.includes('growth') || name.includes('chuyên nghiệp')) {
-return Award;
-}
+        return Award;
+    }
 
     return Star;
 }
@@ -255,8 +255,8 @@ function getAvatarGradient(name: string) {
 
 function getInitials(name: string) {
     if (!name) {
-return 'RA';
-}
+        return 'RA';
+    }
 
     const words = name.trim().split(' ');
 

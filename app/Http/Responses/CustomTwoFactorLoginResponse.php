@@ -3,8 +3,8 @@
 namespace App\Http\Responses;
 
 use App\Models\User;
-use Symfony\Component\HttpFoundation\Response;
 use Laravel\Fortify\Contracts\TwoFactorLoginResponse as TwoFactorLoginResponseContract;
+use Symfony\Component\HttpFoundation\Response;
 
 class CustomTwoFactorLoginResponse implements TwoFactorLoginResponseContract
 {

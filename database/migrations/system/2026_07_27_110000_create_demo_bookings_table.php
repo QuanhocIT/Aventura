@@ -21,13 +21,13 @@ return new class extends Migration
             $table->date('preferred_date')->nullable();
             $table->string('preferred_time')->nullable(); // Morning, Afternoon, Evening
             $table->text('notes')->nullable();
-            
+
             // Status: pending, contacted, completed, cancelled
             $table->enum('status', ['pending', 'contacted', 'completed', 'cancelled'])->default('pending');
             $table->timestamp('contacted_at')->nullable();
             $table->foreignId('contacted_by')->nullable()->constrained('users')->nullOnDelete();
             $table->text('admin_notes')->nullable();
-            
+
             $table->timestamps();
             $table->softDeletes();
 

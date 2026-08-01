@@ -2,8 +2,8 @@
 
 namespace App\Console\Commands;
 
-use App\Models\Order;
 use App\Events\Kitchen\KitchenUpdated;
+use App\Models\Order;
 use Carbon\Carbon;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Log;
@@ -11,6 +11,7 @@ use Illuminate\Support\Facades\Log;
 class AlertOverdueKitchenOrders extends Command
 {
     protected $signature = 'kitchen:alert-overdue-orders';
+
     protected $description = 'Alert kitchen staff when an order has been preparing for more than 30 minutes';
 
     public function handle()
@@ -30,18 +31,19 @@ class AlertOverdueKitchenOrders extends Command
             try {
                 $this->info("Order ID {$order->id} (Number: {$order->order_number}) is overdue in preparing.");
 
-                if (!in_array($order->restaurant_id, $alertedRestaurants)) {
+                if (! in_array($order->restaurant_id, $alertedRestaurants)) {
                     event(new KitchenUpdated($order->restaurant_id));
                     $alertedRestaurants[] = $order->restaurant_id;
                     $this->info("Broadcasted KitchenUpdated event for restaurant ID {$order->restaurant_id}");
                 }
             } catch (\Throwable $e) {
-                Log::error("Error alerting overdue order ID {$order->id}: " . $e->getMessage());
-                $this->error("Error alerting overdue order ID {$order->id}: " . $e->getMessage());
+                Log::error("Error alerting overdue order ID {$order->id}: ".$e->getMessage());
+                $this->error("Error alerting overdue order ID {$order->id}: ".$e->getMessage());
             }
         }
 
-        $this->info("Completed checking overdue orders. Alerted " . count($alertedRestaurants) . " restaurants.");
+        $this->info('Completed checking overdue orders. Alerted '.count($alertedRestaurants).' restaurants.');
+
         return Command::SUCCESS;
     }
 }

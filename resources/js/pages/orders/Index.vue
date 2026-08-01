@@ -258,9 +258,7 @@ async function openMove(o: Order) {
 
 // Các đơn khác có thể nhận gộp (chưa thanh toán, đang hoạt động, khác đơn nguồn).
 const mergeCandidates = computed(() =>
-    props.orders.filter(
-        (o) => canModify(o) && o.id !== actionOrder.value?.id,
-    ),
+    props.orders.filter((o) => canModify(o) && o.id !== actionOrder.value?.id),
 );
 
 function openMerge(o: Order) {
@@ -470,8 +468,8 @@ const selectTab = (tab: string) => {
 
 const confirmTempOrder = async (orderId: number) => {
     if (confirmingOrders.value[orderId]) {
-return;
-}
+        return;
+    }
 
     confirmingOrders.value[orderId] = true;
 
@@ -568,7 +566,7 @@ const showAnalytics = ref(true);
 const channelStats = computed(() => {
     const stats = { qr: 0, pos: 0, delivery: 0, other: 0 };
     const amounts = { qr: 0, pos: 0, delivery: 0, other: 0 };
-    props.orders.forEach(o => {
+    props.orders.forEach((o) => {
         const chan = o.channel?.toLowerCase() || 'other';
 
         if (chan in stats) {
@@ -592,18 +590,25 @@ const aiEvaluation = computed(() => {
             tips: [
                 'Bật kênh QR Order để cho phép khách quét mã gọi món tự động.',
                 'Đảm bảo thiết bị thu ngân (POS) đang trực tuyến để nhận đơn.',
-                'Kiểm tra trạng thái ca làm việc của nhân sự trước giờ cao điểm.'
-            ]
+                'Kiểm tra trạng thái ca làm việc của nhân sự trước giờ cao điểm.',
+            ],
         };
     }
 
-    const completionRate = props.summary.total > 0 ? (props.summary.completed / props.summary.total) * 100 : 0;
-    const cancelRate = props.summary.total > 0 ? (props.summary.cancelled / props.summary.total) * 100 : 0;
+    const completionRate =
+        props.summary.total > 0
+            ? (props.summary.completed / props.summary.total) * 100
+            : 0;
+    const cancelRate =
+        props.summary.total > 0
+            ? (props.summary.cancelled / props.summary.total) * 100
+            : 0;
     const pendingCount = props.summary.pending;
 
     let status = 'good';
     let title = 'Hiệu suất vận hành Xuất sắc';
-    let text = 'Hệ thống đang hoạt động với hiệu suất tối ưu. Tỷ lệ hoàn thành đơn hàng ở mức cao và tỷ lệ hủy thấp.';
+    let text =
+        'Hệ thống đang hoạt động với hiệu suất tối ưu. Tỷ lệ hoàn thành đơn hàng ở mức cao và tỷ lệ hủy thấp.';
     const tips = [];
 
     if (cancelRate > 15) {
@@ -616,11 +621,17 @@ const aiEvaluation = computed(() => {
         status = 'attention';
         title = 'Nhiều đơn chờ xác nhận';
         text = `Có ${pendingCount} đơn hàng chờ xác nhận. Thu ngân cần xử lý duyệt đơn để chuyển nhanh vào bếp.`;
-        tips.push('Đẩy nhanh tiến độ duyệt đơn để giảm thời gian chờ của khách.');
-        tips.push('Bật tính năng tự động thanh toán ca cuối để tối ưu quy trình.');
+        tips.push(
+            'Đẩy nhanh tiến độ duyệt đơn để giảm thời gian chờ của khách.',
+        );
+        tips.push(
+            'Bật tính năng tự động thanh toán ca cuối để tối ưu quy trình.',
+        );
     } else {
         tips.push('Mọi chỉ số đều nằm trong ngưỡng an toàn.');
-        tips.push('Khuyến khích khách sử dụng QR Order để giảm tải trong giờ cao điểm.');
+        tips.push(
+            'Khuyến khích khách sử dụng QR Order để giảm tải trong giờ cao điểm.',
+        );
     }
 
     // Kênh bán hàng
@@ -628,7 +639,9 @@ const aiEvaluation = computed(() => {
     const posCount = channelStats.value.stats.pos;
 
     if (qrCount > posCount) {
-        tips.push('Kênh QR Order hoạt động vượt trội, tối ưu hóa năng suất phục vụ bàn.');
+        tips.push(
+            'Kênh QR Order hoạt động vượt trội, tối ưu hóa năng suất phục vụ bàn.',
+        );
     }
 
     return { status, title, text, tips };
@@ -801,131 +814,311 @@ onMounted(() => {
         </div>
 
         <!-- AI Analytics & Data Evaluation Panel -->
-        <Card class="rounded-2xl border border-slate-100 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900/40 overflow-hidden">
-            <CardHeader class="flex flex-row items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+        <Card
+            class="overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900/40"
+        >
+            <CardHeader
+                class="flex flex-row items-center justify-between border-b border-slate-100 pb-3 dark:border-slate-800"
+            >
                 <div class="flex items-center gap-2">
-                    <Bot class="size-5 text-indigo-500 animate-bounce" />
+                    <Bot class="size-5 animate-bounce text-indigo-500" />
                     <div>
-                        <CardTitle class="text-sm font-bold">Phân tích Hiệu suất & Đánh giá Vận hành AI</CardTitle>
-                        <p class="text-[10px] text-muted-foreground">Tự động phân tích biểu đồ cơ cấu và chẩn đoán hoạt động dựa trên dữ liệu thực tế</p>
+                        <CardTitle class="text-sm font-bold"
+                            >Phân tích Hiệu suất & Đánh giá Vận hành
+                            AI</CardTitle
+                        >
+                        <p class="text-[10px] text-muted-foreground">
+                            Tự động phân tích biểu đồ cơ cấu và chẩn đoán hoạt
+                            động dựa trên dữ liệu thực tế
+                        </p>
                     </div>
                 </div>
-                <Button 
-                    type="button" 
-                    variant="ghost" 
-                    size="sm" 
-                    class="h-8 text-xs text-indigo-650 dark:text-indigo-400"
+                <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    class="text-indigo-650 h-8 text-xs dark:text-indigo-400"
                     @click="showAnalytics = !showAnalytics"
                 >
                     {{ showAnalytics ? 'Thu gọn' : 'Mở rộng' }}
                 </Button>
             </CardHeader>
 
-            <CardContent v-if="showAnalytics" class="p-5 space-y-4">
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <CardContent v-if="showAnalytics" class="space-y-4 p-5">
+                <div class="grid grid-cols-1 gap-6 md:grid-cols-3">
                     <!-- Column 1: Sales Channel Breakdown (Chart) -->
                     <div class="space-y-3">
-                        <h4 class="text-xs font-bold text-slate-700 dark:text-slate-350 flex items-center gap-1">
-                            <Sparkles class="size-3.5 text-indigo-500" /> Cơ cấu Kênh bán hàng (Đơn)
+                        <h4
+                            class="dark:text-slate-350 flex items-center gap-1 text-xs font-bold text-slate-700"
+                        >
+                            <Sparkles class="size-3.5 text-indigo-500" /> Cơ cấu
+                            Kênh bán hàng (Đơn)
                         </h4>
-                        
+
                         <!-- Mini SVG Donut Chart -->
                         <div class="flex items-center gap-4">
-                            <div class="relative w-24 h-24 flex items-center justify-center">
-                                <svg viewBox="0 0 36 36" class="w-full h-full transform -rotate-90">
-                                    <circle cx="18" cy="18" r="15.915" fill="none" stroke="#f1f5f9" stroke-width="4" class="dark:stroke-slate-800" />
+                            <div
+                                class="relative flex h-24 w-24 items-center justify-center"
+                            >
+                                <svg
+                                    viewBox="0 0 36 36"
+                                    class="h-full w-full -rotate-90 transform"
+                                >
+                                    <circle
+                                        cx="18"
+                                        cy="18"
+                                        r="15.915"
+                                        fill="none"
+                                        stroke="#f1f5f9"
+                                        stroke-width="4"
+                                        class="dark:stroke-slate-800"
+                                    />
                                     <!-- QR Segment -->
-                                    <circle cx="18" cy="18" r="15.915" fill="none" stroke="#6366f1" stroke-width="4" 
+                                    <circle
+                                        cx="18"
+                                        cy="18"
+                                        r="15.915"
+                                        fill="none"
+                                        stroke="#6366f1"
+                                        stroke-width="4"
                                         :stroke-dasharray="`${(channelStats.stats.qr / (summary.total || 1)) * 100} ${100 - (channelStats.stats.qr / (summary.total || 1)) * 100}`"
-                                        stroke-dashoffset="0" />
+                                        stroke-dashoffset="0"
+                                    />
                                     <!-- POS Segment -->
-                                    <circle cx="18" cy="18" r="15.915" fill="none" stroke="#10b981" stroke-width="4" 
+                                    <circle
+                                        cx="18"
+                                        cy="18"
+                                        r="15.915"
+                                        fill="none"
+                                        stroke="#10b981"
+                                        stroke-width="4"
                                         :stroke-dasharray="`${(channelStats.stats.pos / (summary.total || 1)) * 100} ${100 - (channelStats.stats.pos / (summary.total || 1)) * 100}`"
-                                        :stroke-dashoffset="`-${(channelStats.stats.qr / (summary.total || 1)) * 100}`" />
+                                        :stroke-dashoffset="`-${(channelStats.stats.qr / (summary.total || 1)) * 100}`"
+                                    />
                                     <!-- Delivery Segment -->
-                                    <circle cx="18" cy="18" r="15.915" fill="none" stroke="#f59e0b" stroke-width="4" 
+                                    <circle
+                                        cx="18"
+                                        cy="18"
+                                        r="15.915"
+                                        fill="none"
+                                        stroke="#f59e0b"
+                                        stroke-width="4"
                                         :stroke-dasharray="`${(channelStats.stats.delivery / (summary.total || 1)) * 100} ${100 - (channelStats.stats.delivery / (summary.total || 1)) * 100}`"
-                                        :stroke-dashoffset="`-${((channelStats.stats.qr + channelStats.stats.pos) / (summary.total || 1)) * 100}`" />
+                                        :stroke-dashoffset="`-${((channelStats.stats.qr + channelStats.stats.pos) / (summary.total || 1)) * 100}`"
+                                    />
                                     <!-- Other Segment -->
-                                    <circle cx="18" cy="18" r="15.915" fill="none" stroke="#64748b" stroke-width="4" 
+                                    <circle
+                                        cx="18"
+                                        cy="18"
+                                        r="15.915"
+                                        fill="none"
+                                        stroke="#64748b"
+                                        stroke-width="4"
                                         :stroke-dasharray="`${(channelStats.stats.other / (summary.total || 1)) * 100} ${100 - (channelStats.stats.other / (summary.total || 1)) * 100}`"
-                                        :stroke-dashoffset="`-${((channelStats.stats.qr + channelStats.stats.pos + channelStats.stats.delivery) / (summary.total || 1)) * 100}`" />
+                                        :stroke-dashoffset="`-${((channelStats.stats.qr + channelStats.stats.pos + channelStats.stats.delivery) / (summary.total || 1)) * 100}`"
+                                    />
                                 </svg>
-                                <div class="absolute flex flex-col items-center justify-center">
-                                    <span class="text-sm font-black text-slate-800 dark:text-slate-100">{{ summary.total }}</span>
-                                    <span class="text-[8px] text-muted-foreground uppercase">Tổng đơn</span>
+                                <div
+                                    class="absolute flex flex-col items-center justify-center"
+                                >
+                                    <span
+                                        class="text-sm font-black text-slate-800 dark:text-slate-100"
+                                        >{{ summary.total }}</span
+                                    >
+                                    <span
+                                        class="text-[8px] text-muted-foreground uppercase"
+                                        >Tổng đơn</span
+                                    >
                                 </div>
                             </div>
 
                             <div class="flex-1 space-y-1.5 text-[11px]">
                                 <div class="flex items-center justify-between">
-                                    <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-indigo-500"></span> QR Code</span>
-                                    <span class="font-bold">{{ channelStats.stats.qr }} đơn</span>
+                                    <span class="flex items-center gap-1"
+                                        ><span
+                                            class="h-2 w-2 rounded-full bg-indigo-500"
+                                        ></span>
+                                        QR Code</span
+                                    >
+                                    <span class="font-bold"
+                                        >{{ channelStats.stats.qr }} đơn</span
+                                    >
                                 </div>
                                 <div class="flex items-center justify-between">
-                                    <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-emerald-500"></span> Tại quầy (POS)</span>
-                                    <span class="font-bold">{{ channelStats.stats.pos }} đơn</span>
+                                    <span class="flex items-center gap-1"
+                                        ><span
+                                            class="h-2 w-2 rounded-full bg-emerald-500"
+                                        ></span>
+                                        Tại quầy (POS)</span
+                                    >
+                                    <span class="font-bold"
+                                        >{{ channelStats.stats.pos }} đơn</span
+                                    >
                                 </div>
                                 <div class="flex items-center justify-between">
-                                    <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-amber-500"></span> Giao hàng</span>
-                                    <span class="font-bold">{{ channelStats.stats.delivery }} đơn</span>
+                                    <span class="flex items-center gap-1"
+                                        ><span
+                                            class="h-2 w-2 rounded-full bg-amber-500"
+                                        ></span>
+                                        Giao hàng</span
+                                    >
+                                    <span class="font-bold"
+                                        >{{
+                                            channelStats.stats.delivery
+                                        }}
+                                        đơn</span
+                                    >
                                 </div>
                                 <div class="flex items-center justify-between">
-                                    <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-slate-500"></span> Khác</span>
-                                    <span class="font-bold">{{ channelStats.stats.other }} đơn</span>
+                                    <span class="flex items-center gap-1"
+                                        ><span
+                                            class="h-2 w-2 rounded-full bg-slate-500"
+                                        ></span>
+                                        Khác</span
+                                    >
+                                    <span class="font-bold"
+                                        >{{
+                                            channelStats.stats.other
+                                        }}
+                                        đơn</span
+                                    >
                                 </div>
                             </div>
                         </div>
                     </div>
 
                     <!-- Column 2: Order Conversion & Completion (KPI Progress) -->
-                    <div class="space-y-3 border-l border-slate-100 dark:border-slate-800 pl-0 md:pl-6">
-                        <h4 class="text-xs font-bold text-slate-700 dark:text-slate-350 flex items-center gap-1">
-                            <Activity class="size-3.5 text-emerald-500" /> Tỷ lệ Hoàn thành & Chuyển đổi
+                    <div
+                        class="space-y-3 border-l border-slate-100 pl-0 md:pl-6 dark:border-slate-800"
+                    >
+                        <h4
+                            class="dark:text-slate-350 flex items-center gap-1 text-xs font-bold text-slate-700"
+                        >
+                            <Activity class="size-3.5 text-emerald-500" /> Tỷ lệ
+                            Hoàn thành & Chuyển đổi
                         </h4>
                         <div class="space-y-3 pt-1">
                             <div>
-                                <div class="flex items-center justify-between text-[11px] mb-1">
-                                    <span class="text-muted-foreground">Tỷ lệ hoàn thành (Completion Rate)</span>
-                                    <span class="font-bold text-emerald-600">{{ summary.total > 0 ? ((summary.completed / summary.total) * 100).toFixed(1) : 0 }}%</span>
+                                <div
+                                    class="mb-1 flex items-center justify-between text-[11px]"
+                                >
+                                    <span class="text-muted-foreground"
+                                        >Tỷ lệ hoàn thành (Completion
+                                        Rate)</span
+                                    >
+                                    <span class="font-bold text-emerald-600"
+                                        >{{
+                                            summary.total > 0
+                                                ? (
+                                                      (summary.completed /
+                                                          summary.total) *
+                                                      100
+                                                  ).toFixed(1)
+                                                : 0
+                                        }}%</span
+                                    >
                                 </div>
-                                <div class="h-2 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden">
-                                    <div class="h-full bg-emerald-500 rounded-full" :style="{ width: `${summary.total > 0 ? (summary.completed / summary.total) * 100 : 0}%` }"></div>
+                                <div
+                                    class="h-2 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800"
+                                >
+                                    <div
+                                        class="h-full rounded-full bg-emerald-500"
+                                        :style="{
+                                            width: `${summary.total > 0 ? (summary.completed / summary.total) * 100 : 0}%`,
+                                        }"
+                                    ></div>
                                 </div>
                             </div>
 
                             <div>
-                                <div class="flex items-center justify-between text-[11px] mb-1">
-                                    <span class="text-muted-foreground">Tỷ lệ hủy đơn (Cancellation Rate)</span>
-                                    <span class="font-bold text-rose-500">{{ summary.total > 0 ? ((summary.cancelled / summary.total) * 100).toFixed(1) : 0 }}%</span>
+                                <div
+                                    class="mb-1 flex items-center justify-between text-[11px]"
+                                >
+                                    <span class="text-muted-foreground"
+                                        >Tỷ lệ hủy đơn (Cancellation Rate)</span
+                                    >
+                                    <span class="font-bold text-rose-500"
+                                        >{{
+                                            summary.total > 0
+                                                ? (
+                                                      (summary.cancelled /
+                                                          summary.total) *
+                                                      100
+                                                  ).toFixed(1)
+                                                : 0
+                                        }}%</span
+                                    >
                                 </div>
-                                <div class="h-2 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden">
-                                    <div class="h-full bg-rose-500 rounded-full" :style="{ width: `${summary.total > 0 ? (summary.cancelled / summary.total) * 100 : 0}%` }"></div>
+                                <div
+                                    class="h-2 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800"
+                                >
+                                    <div
+                                        class="h-full rounded-full bg-rose-500"
+                                        :style="{
+                                            width: `${summary.total > 0 ? (summary.cancelled / summary.total) * 100 : 0}%`,
+                                        }"
+                                    ></div>
                                 </div>
                             </div>
 
-                            <div class="text-[10px] text-muted-foreground bg-slate-50 dark:bg-slate-900/50 p-2 rounded-lg">
-                                Doanh thu trung bình mỗi đơn hoàn thành: <strong class="font-mono text-slate-800 dark:text-slate-200">{{ formatCurrency(summary.completed > 0 ? summary.revenue / summary.completed : 0) }}</strong>
+                            <div
+                                class="rounded-lg bg-slate-50 p-2 text-[10px] text-muted-foreground dark:bg-slate-900/50"
+                            >
+                                Doanh thu trung bình mỗi đơn hoàn thành:
+                                <strong
+                                    class="font-mono text-slate-800 dark:text-slate-200"
+                                    >{{
+                                        formatCurrency(
+                                            summary.completed > 0
+                                                ? summary.revenue /
+                                                      summary.completed
+                                                : 0,
+                                        )
+                                    }}</strong
+                                >
                             </div>
                         </div>
                     </div>
 
                     <!-- Column 3: AI Diagnosis and Recommendations -->
-                    <div class="space-y-3 border-l border-slate-100 dark:border-slate-800 pl-0 md:pl-6">
+                    <div
+                        class="space-y-3 border-l border-slate-100 pl-0 md:pl-6 dark:border-slate-800"
+                    >
                         <div class="flex items-center gap-1.5">
-                            <span class="flex h-2 w-2 rounded-full" :class="{
-                                'bg-emerald-500': aiEvaluation.status === 'good',
-                                'bg-amber-500': aiEvaluation.status === 'attention',
-                                'bg-rose-500': aiEvaluation.status === 'warning',
-                                'bg-slate-400': aiEvaluation.status === 'neutral',
-                            }"></span>
-                            <h4 class="text-xs font-bold text-slate-700 dark:text-slate-350">{{ aiEvaluation.title }}</h4>
+                            <span
+                                class="flex h-2 w-2 rounded-full"
+                                :class="{
+                                    'bg-emerald-500':
+                                        aiEvaluation.status === 'good',
+                                    'bg-amber-500':
+                                        aiEvaluation.status === 'attention',
+                                    'bg-rose-500':
+                                        aiEvaluation.status === 'warning',
+                                    'bg-slate-400':
+                                        aiEvaluation.status === 'neutral',
+                                }"
+                            ></span>
+                            <h4
+                                class="dark:text-slate-350 text-xs font-bold text-slate-700"
+                            >
+                                {{ aiEvaluation.title }}
+                            </h4>
                         </div>
-                        <p class="text-[11px] text-muted-foreground leading-relaxed">{{ aiEvaluation.text }}</p>
-                        
+                        <p
+                            class="text-[11px] leading-relaxed text-muted-foreground"
+                        >
+                            {{ aiEvaluation.text }}
+                        </p>
+
                         <div class="space-y-1.5 pt-1">
-                            <div v-for="(tip, idx) in aiEvaluation.tips" :key="idx" class="flex items-start gap-1.5 text-[10px] text-slate-700 dark:text-slate-400">
-                                <span class="text-indigo-500 select-none">•</span>
+                            <div
+                                v-for="(tip, idx) in aiEvaluation.tips"
+                                :key="idx"
+                                class="flex items-start gap-1.5 text-[10px] text-slate-700 dark:text-slate-400"
+                            >
+                                <span class="text-indigo-500 select-none"
+                                    >•</span
+                                >
                                 <span>{{ tip }}</span>
                             </div>
                         </div>
@@ -981,7 +1174,10 @@ onMounted(() => {
         </div>
 
         <!-- TAB 1: Official Orders -->
-        <div v-if="activeTab === 'official'" class="animate-fade-in flex flex-col space-y-4">
+        <div
+            v-if="activeTab === 'official'"
+            class="animate-fade-in flex flex-col space-y-4"
+        >
             <!-- Status filter chips -->
             <div class="flex flex-wrap gap-2">
                 <button
@@ -1083,7 +1279,10 @@ onMounted(() => {
                             </div>
 
                             <!-- Status + next action -->
-                            <div class="flex shrink-0 items-center gap-2" @click.stop>
+                            <div
+                                class="flex shrink-0 items-center gap-2"
+                                @click.stop
+                            >
                                 <span
                                     class="rounded-full px-2 py-1 text-[10px] font-semibold"
                                     :class="statusConfig[o.status]?.bg"
@@ -1158,7 +1357,10 @@ onMounted(() => {
                                     title="Tải XML hóa đơn điện tử (TT78) — BẢN NHÁP, CHƯA KÝ SỐ. Cần nộp lên cổng nhà cung cấp (MISA/VNPT) để ký & phát hành hợp lệ."
                                 >
                                     HĐĐT
-                                    <span class="rounded bg-amber-100 px-1 text-[8px] font-bold tracking-wide text-amber-700 uppercase dark:bg-amber-950/60 dark:text-amber-400">nháp</span>
+                                    <span
+                                        class="rounded bg-amber-100 px-1 text-[8px] font-bold tracking-wide text-amber-700 uppercase dark:bg-amber-950/60 dark:text-amber-400"
+                                        >nháp</span
+                                    >
                                 </a>
                             </div>
                         </div>
@@ -1187,7 +1389,7 @@ onMounted(() => {
                     <!-- Pagination -->
                     <div
                         v-if="totalPages > 1"
-                        class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-t border-border/80 bg-muted/20 p-4"
+                        class="flex flex-col gap-3 border-t border-border/80 bg-muted/20 p-4 sm:flex-row sm:items-center sm:justify-between"
                     >
                         <div
                             class="text-xs font-semibold text-muted-foreground"
@@ -1221,7 +1423,7 @@ onMounted(() => {
                                 :class="[
                                     'h-8 w-8 cursor-pointer rounded-xl p-0 text-xs font-bold',
                                     currentPage === page
-                                        ? 'bg-violet-600 border-0 text-white shadow-xs hover:bg-violet-700 dark:bg-violet-600 dark:hover:bg-violet-700'
+                                        ? 'border-0 bg-violet-600 text-white shadow-xs hover:bg-violet-700 dark:bg-violet-600 dark:hover:bg-violet-700'
                                         : '',
                                 ]"
                             >
@@ -1876,16 +2078,29 @@ onMounted(() => {
 
     <!-- Modal Chi Tiết Đơn Hàng -->
     <Dialog :open="showDetailModal" @update:open="showDetailModal = $event">
-        <DialogContent class="max-w-2xl max-h-[90vh] flex flex-col p-0 overflow-hidden rounded-2xl border-slate-200 dark:border-slate-800">
+        <DialogContent
+            class="flex max-h-[90vh] max-w-2xl flex-col overflow-hidden rounded-2xl border-slate-200 p-0 dark:border-slate-800"
+        >
             <!-- Header -->
-            <DialogHeader class="border-b border-border/80 px-6 py-4 bg-slate-50/50 dark:bg-slate-900/50">
+            <DialogHeader
+                class="border-b border-border/80 bg-slate-50/50 px-6 py-4 dark:bg-slate-900/50"
+            >
                 <div class="flex items-center justify-between">
                     <div class="flex items-center gap-2.5">
-                        <DialogTitle class="font-mono text-lg font-black text-slate-900 dark:text-slate-100">
+                        <DialogTitle
+                            class="font-mono text-lg font-black text-slate-900 dark:text-slate-100"
+                        >
                             {{ selectedOrder?.order_number }}
                         </DialogTitle>
-                        <span class="rounded-md border border-slate-200 bg-white px-2 py-0.5 text-xs font-bold text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
-                            {{ selectedOrder ? (channelLabel[selectedOrder.channel] ?? selectedOrder.channel) : '' }}
+                        <span
+                            class="rounded-md border border-slate-200 bg-white px-2 py-0.5 text-xs font-bold text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"
+                        >
+                            {{
+                                selectedOrder
+                                    ? (channelLabel[selectedOrder.channel] ??
+                                      selectedOrder.channel)
+                                    : ''
+                            }}
                         </span>
                         <span
                             v-if="selectedOrder"
@@ -1896,112 +2111,202 @@ onMounted(() => {
                         </span>
                     </div>
                 </div>
-                <DialogDescription class="text-xs text-muted-foreground mt-1">
+                <DialogDescription class="mt-1 text-xs text-muted-foreground">
                     Chi tiết đơn hàng và danh sách món ăn đã gọi
                 </DialogDescription>
             </DialogHeader>
 
-            <div v-if="selectedOrder" class="flex-1 overflow-y-auto p-6 space-y-6">
+            <div
+                v-if="selectedOrder"
+                class="flex-1 space-y-6 overflow-y-auto p-6"
+            >
                 <!-- Thông tin chung & Thời gian -->
-                <div class="grid grid-cols-2 gap-4 rounded-xl border border-border/60 bg-muted/20 p-4 text-xs">
+                <div
+                    class="grid grid-cols-2 gap-4 rounded-xl border border-border/60 bg-muted/20 p-4 text-xs"
+                >
                     <div>
-                        <span class="text-muted-foreground block text-[11px]">Vị trí / Bàn:</span>
-                        <span class="font-bold text-foreground text-sm">
-                            {{ selectedOrder.table_name ? `${selectedOrder.table_name}${selectedOrder.area_name ? ' · ' + selectedOrder.area_name : ''}` : 'Không chọn bàn' }}
-                        </span>
-                    </div>
-                    <div>
-                        <span class="text-muted-foreground block text-[11px]">Trạng thái thanh toán:</span>
-                        <span
-                            class="font-bold text-xs"
-                            :class="paymentConfig[selectedOrder.payment_status]?.color"
+                        <span class="block text-[11px] text-muted-foreground"
+                            >Vị trí / Bàn:</span
                         >
-                            {{ paymentConfig[selectedOrder.payment_status]?.label }}
+                        <span class="text-sm font-bold text-foreground">
+                            {{
+                                selectedOrder.table_name
+                                    ? `${selectedOrder.table_name}${selectedOrder.area_name ? ' · ' + selectedOrder.area_name : ''}`
+                                    : 'Không chọn bàn'
+                            }}
                         </span>
                     </div>
                     <div>
-                        <span class="text-muted-foreground block text-[11px]">Thời gian tạo:</span>
+                        <span class="block text-[11px] text-muted-foreground"
+                            >Trạng thái thanh toán:</span
+                        >
+                        <span
+                            class="text-xs font-bold"
+                            :class="
+                                paymentConfig[selectedOrder.payment_status]
+                                    ?.color
+                            "
+                        >
+                            {{
+                                paymentConfig[selectedOrder.payment_status]
+                                    ?.label
+                            }}
+                        </span>
+                    </div>
+                    <div>
+                        <span class="block text-[11px] text-muted-foreground"
+                            >Thời gian tạo:</span
+                        >
                         <span class="font-semibold text-foreground">
-                            {{ selectedOrder.created_at_full || selectedOrder.created_at }}
+                            {{
+                                selectedOrder.created_at_full ||
+                                selectedOrder.created_at
+                            }}
                         </span>
                     </div>
                     <div>
-                        <span class="text-muted-foreground block text-[11px]">Thời gian hoàn thành:</span>
+                        <span class="block text-[11px] text-muted-foreground"
+                            >Thời gian hoàn thành:</span
+                        >
                         <span class="font-semibold text-foreground">
                             {{ selectedOrder.completed_at || '—' }}
                         </span>
                     </div>
-                    <div v-if="selectedOrder.note" class="col-span-2 border-t border-border/40 pt-2 mt-1">
-                        <span class="text-muted-foreground block text-[11px]">Ghi chú đơn hàng:</span>
-                        <span class="font-medium text-amber-600 dark:text-amber-400 italic">
+                    <div
+                        v-if="selectedOrder.note"
+                        class="col-span-2 mt-1 border-t border-border/40 pt-2"
+                    >
+                        <span class="block text-[11px] text-muted-foreground"
+                            >Ghi chú đơn hàng:</span
+                        >
+                        <span
+                            class="font-medium text-amber-600 italic dark:text-amber-400"
+                        >
                             "{{ selectedOrder.note }}"
                         </span>
                     </div>
                 </div>
 
                 <!-- Thông tin giao hàng (nếu channel === delivery) -->
-                <div v-if="selectedOrder.delivery" class="rounded-xl border border-amber-500/20 bg-amber-500/5 p-4 text-xs space-y-2">
-                    <div class="flex items-center justify-between font-bold text-amber-700 dark:text-amber-400">
+                <div
+                    v-if="selectedOrder.delivery"
+                    class="space-y-2 rounded-xl border border-amber-500/20 bg-amber-500/5 p-4 text-xs"
+                >
+                    <div
+                        class="flex items-center justify-between font-bold text-amber-700 dark:text-amber-400"
+                    >
                         <span>📦 Thông tin giao hàng (Delivery)</span>
-                        <span class="uppercase text-[10px] bg-amber-500/20 px-2 py-0.5 rounded-full">
+                        <span
+                            class="rounded-full bg-amber-500/20 px-2 py-0.5 text-[10px] uppercase"
+                        >
                             {{ selectedOrder.delivery.status }}
                         </span>
                     </div>
                     <div class="grid grid-cols-2 gap-2 text-foreground">
-                        <div><span class="text-muted-foreground">Khách hàng:</span> <strong>{{ selectedOrder.delivery.customer_name }}</strong></div>
-                        <div><span class="text-muted-foreground">SĐT:</span> <strong>{{ selectedOrder.delivery.phone }}</strong></div>
-                        <div class="col-span-2"><span class="text-muted-foreground">Địa chỉ:</span> {{ selectedOrder.delivery.address }}</div>
-                        <div><span class="text-muted-foreground">Phí ship:</span> {{ formatCurrency(selectedOrder.delivery.fee) }}</div>
-                        <div><span class="text-muted-foreground">Thu hộ COD:</span> {{ formatCurrency(selectedOrder.delivery.cod) }}</div>
+                        <div>
+                            <span class="text-muted-foreground"
+                                >Khách hàng:</span
+                            >
+                            <strong>{{
+                                selectedOrder.delivery.customer_name
+                            }}</strong>
+                        </div>
+                        <div>
+                            <span class="text-muted-foreground">SĐT:</span>
+                            <strong>{{ selectedOrder.delivery.phone }}</strong>
+                        </div>
+                        <div class="col-span-2">
+                            <span class="text-muted-foreground">Địa chỉ:</span>
+                            {{ selectedOrder.delivery.address }}
+                        </div>
+                        <div>
+                            <span class="text-muted-foreground">Phí ship:</span>
+                            {{ formatCurrency(selectedOrder.delivery.fee) }}
+                        </div>
+                        <div>
+                            <span class="text-muted-foreground"
+                                >Thu hộ COD:</span
+                            >
+                            {{ formatCurrency(selectedOrder.delivery.cod) }}
+                        </div>
                     </div>
                 </div>
 
                 <!-- Danh sách món ăn -->
                 <div>
-                    <h4 class="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-3 flex items-center gap-1.5">
+                    <h4
+                        class="mb-3 flex items-center gap-1.5 text-xs font-bold tracking-wider text-muted-foreground uppercase"
+                    >
                         <Utensils class="size-3.5 text-violet-500" />
-                        Danh sách món ăn ({{ selectedOrder.items?.length || selectedOrder.items_count }} món)
+                        Danh sách món ăn ({{
+                            selectedOrder.items?.length ||
+                            selectedOrder.items_count
+                        }}
+                        món)
                     </h4>
-                    <div class="rounded-xl border border-border/80 overflow-hidden divide-y divide-border/60">
+                    <div
+                        class="divide-y divide-border/60 overflow-hidden rounded-xl border border-border/80"
+                    >
                         <div
-                            v-for="item in (selectedOrder.items || [])"
+                            v-for="item in selectedOrder.items || []"
                             :key="item.id"
-                            class="flex items-center justify-between p-3 text-xs hover:bg-muted/30 transition-colors"
+                            class="flex items-center justify-between p-3 text-xs transition-colors hover:bg-muted/30"
                         >
                             <div class="min-w-0 flex-1 pr-3">
-                                <div class="font-bold text-foreground">{{ item.name }}</div>
-                                <div v-if="item.notes" class="text-[11px] text-amber-600 dark:text-amber-400 italic">
+                                <div class="font-bold text-foreground">
+                                    {{ item.name }}
+                                </div>
+                                <div
+                                    v-if="item.notes"
+                                    class="text-[11px] text-amber-600 italic dark:text-amber-400"
+                                >
                                     Ghi chú: {{ item.notes }}
                                 </div>
                             </div>
-                            <div class="text-right shrink-0">
-                                <div class="font-mono font-bold text-foreground">
-                                    {{ item.quantity }} x {{ formatCurrency(item.unit_price) }}
+                            <div class="shrink-0 text-right">
+                                <div
+                                    class="font-mono font-bold text-foreground"
+                                >
+                                    {{ item.quantity }} x
+                                    {{ formatCurrency(item.unit_price) }}
                                 </div>
-                                <div class="font-mono text-xs font-black text-violet-600 dark:text-violet-400">
+                                <div
+                                    class="font-mono text-xs font-black text-violet-600 dark:text-violet-400"
+                                >
                                     {{ formatCurrency(item.line_total) }}
                                 </div>
                             </div>
                         </div>
-                        <div v-if="!selectedOrder.items?.length" class="p-4 text-center text-xs text-muted-foreground">
+                        <div
+                            v-if="!selectedOrder.items?.length"
+                            class="p-4 text-center text-xs text-muted-foreground"
+                        >
                             Không tìm thấy danh sách món chi tiết.
                         </div>
                     </div>
                 </div>
 
                 <!-- Tổng tiền -->
-                <div class="flex items-center justify-between rounded-xl bg-violet-600/10 border border-violet-500/20 p-4">
-                    <span class="text-xs font-bold text-violet-900 dark:text-violet-200 uppercase tracking-wide">
+                <div
+                    class="flex items-center justify-between rounded-xl border border-violet-500/20 bg-violet-600/10 p-4"
+                >
+                    <span
+                        class="text-xs font-bold tracking-wide text-violet-900 uppercase dark:text-violet-200"
+                    >
                         Tổng thanh toán
                     </span>
-                    <span class="font-mono text-xl font-black text-violet-700 dark:text-violet-300">
+                    <span
+                        class="font-mono text-xl font-black text-violet-700 dark:text-violet-300"
+                    >
                         {{ formatCurrency(selectedOrder.total_amount) }}
                     </span>
                 </div>
             </div>
 
             <!-- Footer -->
-            <DialogFooter class="border-t border-border/80 p-4 bg-slate-50/50 dark:bg-slate-900/50 flex items-center justify-between sm:justify-between">
+            <DialogFooter
+                class="flex items-center justify-between border-t border-border/80 bg-slate-50/50 p-4 sm:justify-between dark:bg-slate-900/50"
+            >
                 <Button
                     variant="outline"
                     size="sm"
@@ -2013,17 +2318,27 @@ onMounted(() => {
 
                 <div v-if="selectedOrder" class="flex items-center gap-2">
                     <button
-                        v-if="nextStatus[selectedOrder.status] && canUpdateStatus"
+                        v-if="
+                            nextStatus[selectedOrder.status] && canUpdateStatus
+                        "
                         :disabled="statusUpdating[selectedOrder.id]"
-                        @click="updateOrderStatus(selectedOrder, nextStatus[selectedOrder.status]!); showDetailModal = false"
+                        @click="
+                            updateOrderStatus(
+                                selectedOrder,
+                                nextStatus[selectedOrder.status]!,
+                            );
+                            showDetailModal = false;
+                        "
                         class="flex h-8 cursor-pointer items-center gap-1 rounded-xl bg-violet-600 px-3 text-xs font-semibold text-white transition-colors hover:bg-violet-700 disabled:opacity-50"
                     >
                         {{
                             nextStatus[selectedOrder.status] === 'confirmed'
                                 ? 'Xác nhận đơn'
-                                : nextStatus[selectedOrder.status] === 'preparing'
+                                : nextStatus[selectedOrder.status] ===
+                                    'preparing'
                                   ? 'Chuyển bếp'
-                                  : nextStatus[selectedOrder.status] === 'completed'
+                                  : nextStatus[selectedOrder.status] ===
+                                      'completed'
                                     ? 'Hoàn thành'
                                     : ''
                         }}

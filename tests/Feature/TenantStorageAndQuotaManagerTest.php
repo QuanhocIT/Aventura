@@ -20,10 +20,15 @@ class TenantStorageAndQuotaManagerTest extends TestCase
     use RefreshDatabase;
 
     protected User $superAdmin;
+
     protected User $owner;
+
     protected Restaurant $restaurant;
+
     protected SubscriptionPlan $plan;
+
     protected RestaurantSubscription $subscription;
+
     protected QuotaService $quotaService;
 
     protected function setUp(): void
@@ -59,9 +64,9 @@ class TenantStorageAndQuotaManagerTest extends TestCase
         ]);
 
         $this->plan->update([
-            'features' => array_merge((array)$this->plan->features, [
+            'features' => array_merge((array) $this->plan->features, [
                 'max_storage_mb' => 500,
-            ])
+            ]),
         ]);
 
         // 4. Setup Restaurant

@@ -25,11 +25,12 @@ class SeedRestaurantDefaultDataJob implements ShouldQueue
         $restaurant = Restaurant::find($this->restaurantId);
         $user = User::find($this->userId);
 
-        if (!$restaurant || !$user) {
+        if (! $restaurant || ! $user) {
             Log::warning('SeedRestaurantDefaultDataJob: restaurant or user not found', [
                 'restaurant_id' => $this->restaurantId,
-                'user_id' => $this->userId
+                'user_id' => $this->userId,
             ]);
+
             return;
         }
 
@@ -38,7 +39,7 @@ class SeedRestaurantDefaultDataJob implements ShouldQueue
         } catch (\Throwable $e) {
             Log::error('SeedRestaurantDefaultDataJob failed', [
                 'restaurant_id' => $this->restaurantId,
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
             ]);
             throw $e;
         }

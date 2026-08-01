@@ -8,6 +8,7 @@ use App\Models\Delivery\DeliveryBatchItem;
 use App\Models\Delivery\DeliveryDetail;
 use App\Services\LoyaltyService;
 use App\Services\OrderStatsCacheService;
+use App\Support\Tenant\TenantContext;
 use Database\Factories\Restaurant\OrderFactory;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -139,7 +140,7 @@ class Order extends Model
                 return;
             }
 
-            $contextBranchId = app(\App\Support\Tenant\TenantContext::class)->activeBranchId();
+            $contextBranchId = app(TenantContext::class)->activeBranchId();
             $order->branch_id = $contextBranchId
                 ?: RestaurantBranch::where('restaurant_id', $order->restaurant_id)
                     ->where('status', 'active')

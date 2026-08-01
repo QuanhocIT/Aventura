@@ -1,12 +1,13 @@
-import { ref, computed, Ref } from 'vue';
 import { router } from '@inertiajs/vue3';
-import { OrderItem, ProductItem, TableItem } from '../types';
+import type { Ref } from 'vue';
+import { ref, computed } from 'vue';
+import type { OrderItem, ProductItem, TableItem } from '../types';
 
 export function useCashierCart(
     activeTable: Ref<TableItem | null>,
     products: () => ProductItem[],
     tablesData: () => TableItem[],
-    toast: (msg: string, type?: 'success' | 'error') => void
+    toast: (msg: string, type?: 'success' | 'error') => void,
 ) {
     const isCartOpen = ref(false);
     const cartItems = ref<OrderItem[]>([]);
@@ -26,7 +27,7 @@ export function useCashierCart(
         isNotified.value = false;
         triggerCartBounce();
         const existing = cartItems.value.find(
-            (item) => item.product_id === product.id && !item.id
+            (item) => item.product_id === product.id && !item.id,
         );
 
         if (existing) {
@@ -44,13 +45,15 @@ export function useCashierCart(
 
     const getCartItemQty = (productId: number) => {
         const items = cartItems.value.filter(
-            (item) => item.product_id === productId && !item.id
+            (item) => item.product_id === productId && !item.id,
         );
+
         return items.reduce((sum, item) => sum + item.quantity, 0);
     };
 
     const handleProductCardClick = (product: ProductItem) => {
         const qty = getCartItemQty(product.id);
+
         if (qty === 0) {
             addToCart(product);
         } else {
@@ -61,13 +64,14 @@ export function useCashierCart(
     const increaseProductQty = (productId: number) => {
         isNotified.value = false;
         const item = cartItems.value.find(
-            (item) => item.product_id === productId && !item.id
+            (item) => item.product_id === productId && !item.id,
         );
 
         if (item) {
             item.quantity += 1;
         } else {
             const product = products().find((p) => p.id === productId);
+
             if (product) {
                 addToCart(product);
             }
@@ -77,11 +81,12 @@ export function useCashierCart(
     const decreaseProductQty = (productId: number) => {
         isNotified.value = false;
         const itemIndex = cartItems.value.findIndex(
-            (i) => i.product_id === productId && !i.id
+            (i) => i.product_id === productId && !i.id,
         );
 
         if (itemIndex !== -1) {
             const item = cartItems.value[itemIndex];
+
             if (item.quantity > 1) {
                 item.quantity -= 1;
             } else {
@@ -99,9 +104,12 @@ export function useCashierCart(
     const decreaseQty = (item: OrderItem) => {
         if (item.id) {
             toast('Không thể giảm số lượng món đã gửi bếp.', 'error');
+
             return;
         }
+
         isNotified.value = false;
+
         if (item.quantity > 1) {
             item.quantity -= 1;
         } else {
@@ -112,8 +120,10 @@ export function useCashierCart(
     const removeItem = (item: OrderItem) => {
         if (item.id) {
             toast('Không thể xóa món đã gửi bếp.', 'error');
+
             return;
         }
+
         isNotified.value = false;
         cartItems.value = cartItems.value.filter((i) => i !== item);
     };
@@ -121,27 +131,32 @@ export function useCashierCart(
     const totalCartAmount = computed(() => {
         return cartItems.value.reduce(
             (sum, item) => sum + item.price * item.quantity,
-            0
+            0,
         );
     });
 
     const totalCartQty = computed(() =>
-        cartItems.value.reduce((s, i) => s + i.quantity, 0)
+        cartItems.value.reduce((s, i) => s + i.quantity, 0),
     );
 
     const submitOrder = () => {
-        if (isSubmitting.value) return;
+        if (isSubmitting.value) {
+            return;
+        }
+
         isSubmitting.value = true;
 
         if (!activeTable.value) {
             toast('Vui lòng chọn một bàn!', 'error');
             isSubmitting.value = false;
+
             return;
         }
 
         if (cartItems.value.length === 0) {
             toast('Vui lòng thêm ít nhất một món ăn!', 'error');
             isSubmitting.value = false;
+
             return;
         }
 
@@ -166,8 +181,9 @@ export function useCashierCart(
                         isNotified.value = true;
                         setTimeout(() => {
                             const updated = tablesData().find(
-                                (t) => t.id === activeTable.value!.id
+                                (t) => t.id === activeTable.value!.id,
                             );
+
                             if (updated) {
                                 activeTable.value = updated;
                                 cartItems.value =
@@ -180,14 +196,15 @@ export function useCashierCart(
                     },
                     onError: (errors: any) => {
                         const errorMessage =
-                            (Object.values(errors).flat() as string[]).join(', ') ||
-                            'Có lỗi xảy ra khi cập nhật đơn hàng!';
+                            (Object.values(errors).flat() as string[]).join(
+                                ', ',
+                            ) || 'Có lỗi xảy ra khi cập nhật đơn hàng!';
                         toast('Lỗi cập nhật đơn: ' + errorMessage, 'error');
                     },
                     onFinish: () => {
                         isSubmitting.value = false;
                     },
-                }
+                },
             );
         } else {
             router.post(
@@ -199,8 +216,9 @@ export function useCashierCart(
                         isNotified.value = true;
                         setTimeout(() => {
                             const updated = tablesData().find(
-                                (t) => t.id === activeTable.value!.id
+                                (t) => t.id === activeTable.value!.id,
                             );
+
                             if (updated) {
                                 activeTable.value = updated;
                                 cartItems.value =
@@ -213,20 +231,24 @@ export function useCashierCart(
                     },
                     onError: (errors: any) => {
                         const errorMessage =
-                            (Object.values(errors).flat() as string[]).join(', ') ||
-                            'Có lỗi xảy ra khi tạo đơn hàng!';
+                            (Object.values(errors).flat() as string[]).join(
+                                ', ',
+                            ) || 'Có lỗi xảy ra khi tạo đơn hàng!';
                         toast('Lỗi tạo đơn: ' + errorMessage, 'error');
                     },
                     onFinish: () => {
                         isSubmitting.value = false;
                     },
-                }
+                },
             );
         }
     };
 
     const sendToKitchen = () => {
-        if (!activeTable.value?.active_order) return;
+        if (!activeTable.value?.active_order) {
+            return;
+        }
+
         router.patch(
             `/orders/${activeTable.value.active_order.id}/status`,
             { status: 'confirmed' },
@@ -235,7 +257,7 @@ export function useCashierCart(
                     isCartOpen.value = false;
                     toast('Đơn hàng đã đẩy xuống bếp và khóa thành công!');
                 },
-            }
+            },
         );
     };
 

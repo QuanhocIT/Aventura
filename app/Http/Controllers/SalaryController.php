@@ -13,6 +13,7 @@ use App\Services\ApprovalService;
 use App\Services\QuotaService;
 use App\Services\SalaryService;
 use App\Support\Tenant\TenantContext;
+use App\Support\TenantRule;
 use Carbon\Carbon;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -129,7 +130,7 @@ class SalaryController extends Controller
 
         $data = $request->validate([
             'salary_ids' => ['required', 'array', 'min:1'],
-            'salary_ids.*' => ['integer', \App\Support\TenantRule::exists('salaries')],
+            'salary_ids.*' => ['integer', TenantRule::exists('salaries')],
         ]);
 
         $approvedCount = $this->salaryService->bulkApprove(
@@ -276,7 +277,7 @@ class SalaryController extends Controller
 
         $data = $request->validate([
             'salary_ids' => ['required', 'array'],
-            'salary_ids.*' => ['required', \App\Support\TenantRule::exists('salaries')],
+            'salary_ids.*' => ['required', TenantRule::exists('salaries')],
             'type' => ['required', 'in:bonus,penalty,violation,advance'],
             'amount' => ['required', 'numeric', 'min:0.01'],
             'reason' => ['required', 'string', 'max:500'],
@@ -399,6 +400,7 @@ class SalaryController extends Controller
 
         return back()->with('success', 'Đã gửi khiếu nại cấn trừ lương thành công. Khoản phạt này đã tạm thời được đóng băng chờ Owner giải quyết.');
     }
+
     private function authorizeSalaryBranch(User $user, Salary $salary): void
     {
         abort_unless($salary->restaurant_id === $user->restaurant_id, 403);

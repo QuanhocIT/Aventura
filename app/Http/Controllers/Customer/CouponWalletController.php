@@ -7,6 +7,7 @@ use App\Models\Customer;
 use App\Models\CustomerCoupon;
 use App\Models\Promotion;
 use App\Models\Restaurant;
+use App\Support\TenantRule;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use Inertia\Inertia;
@@ -104,7 +105,7 @@ class CouponWalletController extends Controller
             ->where('phone', $phone)
             ->firstOrFail();
 
-        $data = $request->validate(['promotion_id' => ['required', \App\Support\TenantRule::exists('promotions', restaurantId: $restaurantId)]]);
+        $data = $request->validate(['promotion_id' => ['required', TenantRule::exists('promotions', restaurantId: $restaurantId)]]);
 
         $promotion = Promotion::withoutGlobalScopes()
             ->where('restaurant_id', $restaurantId)

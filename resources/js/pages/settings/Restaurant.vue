@@ -72,11 +72,14 @@ async function searchAddressLocation() {
 
     try {
         const query = encodeURIComponent(addressText.value);
-        const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${query}&limit=1`, {
-            headers: {
-                'Accept-Language': 'vi,en',
-            }
-        });
+        const response = await fetch(
+            `https://nominatim.openstreetmap.org/search?format=json&q=${query}&limit=1`,
+            {
+                headers: {
+                    'Accept-Language': 'vi,en',
+                },
+            },
+        );
         const results = await response.json();
 
         if (results && results.length > 0) {
@@ -99,11 +102,13 @@ async function searchAddressLocation() {
                 }
             }
         } else {
-            searchLocationError.value = 'Không tìm thấy tọa độ cho địa chỉ này. Bạn có thể kéo thả ghim trên bản đồ để tự chọn.';
+            searchLocationError.value =
+                'Không tìm thấy tọa độ cho địa chỉ này. Bạn có thể kéo thả ghim trên bản đồ để tự chọn.';
         }
     } catch (err) {
         console.error('Lỗi tìm kiếm địa chỉ:', err);
-        searchLocationError.value = 'Đã xảy ra lỗi khi kết nối với máy chủ tìm kiếm địa điểm.';
+        searchLocationError.value =
+            'Đã xảy ra lỗi khi kết nối với máy chủ tìm kiếm địa điểm.';
     } finally {
         isSearchingLocation.value = false;
     }
@@ -111,8 +116,8 @@ async function searchAddressLocation() {
 
 function setupMarkerEvents() {
     if (!marker) {
-return;
-}
+        return;
+    }
 
     marker.on('dragend', () => {
         const position = marker.getLatLng();
@@ -132,8 +137,10 @@ onMounted(async () => {
 
         // Fix default Leaflet icon paths
         const DefaultIcon = L.icon({
-            iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
-            shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
+            iconUrl:
+                'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
+            shadowUrl:
+                'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
             iconSize: [25, 41],
             iconAnchor: [12, 41],
             popupAnchor: [1, -34],
@@ -159,7 +166,7 @@ onMounted(async () => {
 
         // Add Marker
         marker = L.marker([initialLat, initialLng], {
-            draggable: true
+            draggable: true,
         }).addTo(map);
 
         setupMarkerEvents();
@@ -171,7 +178,6 @@ onMounted(async () => {
             latitude.value = Number(latLng.lat.toFixed(6));
             longitude.value = Number(latLng.lng.toFixed(6));
         });
-
     } catch (err) {
         console.error('Lỗi khởi tạo bản đồ Leaflet:', err);
     }
@@ -391,7 +397,11 @@ defineOptions({
                                 id="address"
                                 name="address"
                                 :value="addressText"
-                                @input="addressText = ($event.target as HTMLInputElement).value"
+                                @input="
+                                    addressText = (
+                                        $event.target as HTMLInputElement
+                                    ).value
+                                "
                                 placeholder="Số nhà, đường, phường, quận, thành phố..."
                                 class="block w-full rounded-xl border-neutral-200 focus:border-neutral-950 focus:ring-2 focus:ring-neutral-950 dark:border-neutral-800"
                             />
@@ -399,14 +409,19 @@ defineOptions({
                                 type="button"
                                 variant="outline"
                                 :disabled="isSearchingLocation"
-                                class="shrink-0 h-9 cursor-pointer gap-1.5 rounded-xl text-xs font-bold border-neutral-200 hover:bg-neutral-100 dark:border-neutral-800"
+                                class="h-9 shrink-0 cursor-pointer gap-1.5 rounded-xl border-neutral-200 text-xs font-bold hover:bg-neutral-100 dark:border-neutral-800"
                                 @click="searchAddressLocation"
                             >
-                                <span v-if="isSearchingLocation">Đang tìm...</span>
+                                <span v-if="isSearchingLocation"
+                                    >Đang tìm...</span
+                                >
                                 <span v-else>Tìm trên bản đồ</span>
                             </Button>
                         </div>
-                        <p v-if="searchLocationError" class="text-xs text-rose-500 mt-0.5">
+                        <p
+                            v-if="searchLocationError"
+                            class="mt-0.5 text-xs text-rose-500"
+                        >
                             {{ searchLocationError }}
                         </p>
                         <InputError :message="errors.address" />
@@ -425,8 +440,20 @@ defineOptions({
                                 name="latitude"
                                 type="number"
                                 step="any"
-                                :value="latitude !== null ? String(latitude) : ''"
-                                @input="latitude = ($event.target as HTMLInputElement).value ? Number(($event.target as HTMLInputElement).value) : null"
+                                :value="
+                                    latitude !== null ? String(latitude) : ''
+                                "
+                                @input="
+                                    latitude = (
+                                        $event.target as HTMLInputElement
+                                    ).value
+                                        ? Number(
+                                              (
+                                                  $event.target as HTMLInputElement
+                                              ).value,
+                                          )
+                                        : null
+                                "
                                 placeholder="Ví dụ: 10.776889"
                                 class="block w-full rounded-xl border-neutral-200 focus:border-neutral-950 focus:ring-2 focus:ring-neutral-950 dark:border-neutral-800"
                             />
@@ -443,8 +470,20 @@ defineOptions({
                                 name="longitude"
                                 type="number"
                                 step="any"
-                                :value="longitude !== null ? String(longitude) : ''"
-                                @input="longitude = ($event.target as HTMLInputElement).value ? Number(($event.target as HTMLInputElement).value) : null"
+                                :value="
+                                    longitude !== null ? String(longitude) : ''
+                                "
+                                @input="
+                                    longitude = (
+                                        $event.target as HTMLInputElement
+                                    ).value
+                                        ? Number(
+                                              (
+                                                  $event.target as HTMLInputElement
+                                              ).value,
+                                          )
+                                        : null
+                                "
                                 placeholder="Ví dụ: 106.700806"
                                 class="block w-full rounded-xl border-neutral-200 focus:border-neutral-950 focus:ring-2 focus:ring-neutral-950 dark:border-neutral-800"
                             />
@@ -454,15 +493,22 @@ defineOptions({
 
                     <!-- Map Container -->
                     <div class="grid gap-2">
-                        <Label class="text-xs font-bold tracking-wider text-neutral-500 uppercase">
-                            Bản đồ định vị (Kéo thả ghim để chọn vị trí chính xác)
+                        <Label
+                            class="text-xs font-bold tracking-wider text-neutral-500 uppercase"
+                        >
+                            Bản đồ định vị (Kéo thả ghim để chọn vị trí chính
+                            xác)
                         </Label>
                         <div
                             ref="mapContainer"
-                            class="h-[240px] w-full rounded-2xl border border-neutral-200/80 bg-neutral-50 shadow-inner dark:border-neutral-800 dark:bg-neutral-950 z-0 overflow-hidden"
+                            class="z-0 h-[240px] w-full overflow-hidden rounded-2xl border border-neutral-200/80 bg-neutral-50 shadow-inner dark:border-neutral-800 dark:bg-neutral-950"
                         ></div>
-                        <p class="text-[10px] text-neutral-500 dark:text-neutral-400">
-                            * Hướng dẫn: Bạn có thể nhập địa chỉ và bấm "Tìm trên bản đồ", hoặc trực tiếp kéo ghim / click vào một điểm trên bản đồ để xác định tọa độ chính xác.
+                        <p
+                            class="text-[10px] text-neutral-500 dark:text-neutral-400"
+                        >
+                            * Hướng dẫn: Bạn có thể nhập địa chỉ và bấm "Tìm
+                            trên bản đồ", hoặc trực tiếp kéo ghim / click vào
+                            một điểm trên bản đồ để xác định tọa độ chính xác.
                         </p>
                     </div>
 

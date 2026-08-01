@@ -17,6 +17,7 @@ use App\Services\Integrations\MisaExportService;
 use App\Services\Integrations\WebhookDispatchService;
 use App\Services\Printing\EscPosBuilder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
 
@@ -332,7 +333,7 @@ class IntegrationHubTest extends TestCase
         $this->assertArrayNotHasKey('credentials', $integration->toArray());
 
         // Lưu DB dạng mã hóa, không phải plaintext
-        $raw = \Illuminate\Support\Facades\DB::table('restaurant_integrations')
+        $raw = DB::table('restaurant_integrations')
             ->where('id', $integration->id)
             ->value('credentials');
         $this->assertStringNotContainsString('super-secret', (string) $raw);

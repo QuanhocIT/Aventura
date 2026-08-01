@@ -3,10 +3,10 @@
 namespace Tests\Feature\Auth;
 
 use App\Models\User;
-use Illuminate\Auth\Notifications\VerifyEmail;
+use App\Services\EmailVerificationService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Facades\Notification;
 use Laravel\Fortify\Features;
+use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
 class VerificationNotificationTest extends TestCase
@@ -22,14 +22,14 @@ class VerificationNotificationTest extends TestCase
 
     public function test_sends_verification_notification(): void
     {
-        \Spatie\Permission\Models\Role::firstOrCreate(['name' => 'super_admin', 'guard_name' => 'web']);
+        Role::firstOrCreate(['name' => 'super_admin', 'guard_name' => 'web']);
         $user = User::factory()->unverified()->create();
         $user->assignRole('super_admin');
 
-        $mock = $this->mock(\App\Services\EmailVerificationService::class);
+        $mock = $this->mock(EmailVerificationService::class);
         $mock->shouldReceive('send')
             ->once()
-            ->with(\Mockery::on(fn($u) => $u->id === $user->id))
+            ->with(\Mockery::on(fn ($u) => $u->id === $user->id))
             ->andReturn(true);
 
         $this->actingAs($user)
@@ -41,7 +41,7 @@ class VerificationNotificationTest extends TestCase
     {
         $user = User::factory()->create();
 
-        $mock = $this->mock(\App\Services\EmailVerificationService::class);
+        $mock = $this->mock(EmailVerificationService::class);
         $mock->shouldNotReceive('send');
 
         $this->actingAs($user)

@@ -8,10 +8,11 @@ use App\Models\Restaurant;
 use App\Models\SystemSetting;
 use App\Services\SuperAdminAuditStream;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Symfony\Component\HttpFoundation\StreamedResponse;
 use Inertia\Inertia;
 use Inertia\Response;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class AuditLogController extends Controller
 {
@@ -151,7 +152,7 @@ class AuditLogController extends Controller
         ]);
     }
 
-    public function updateRetention(Request $request): \Illuminate\Http\RedirectResponse
+    public function updateRetention(Request $request): RedirectResponse
     {
         $data = $request->validate([
             'retention_months' => ['required', 'integer', 'min:1', 'max:120'],
@@ -167,7 +168,7 @@ class AuditLogController extends Controller
         return back()->with('success', 'Đã cập nhật thời gian lưu Audit Log.');
     }
 
-    public function pruneRetention(Request $request): \Illuminate\Http\RedirectResponse
+    public function pruneRetention(Request $request): RedirectResponse
     {
         $retentionMonths = max(1, (int) SystemSetting::get('audit_retention_months', 6));
         $cutoff = now()->subMonths($retentionMonths);

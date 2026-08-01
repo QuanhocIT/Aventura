@@ -19,6 +19,7 @@ class EquipmentTest extends TestCase
     use RefreshDatabase;
 
     private User $owner;
+
     private Restaurant $restaurant;
 
     protected function setUp(): void

@@ -2,24 +2,25 @@
 
 namespace Tests\Feature;
 
+use App\Events\Kitchen\KitchenUpdated;
+use App\Jobs\SendReviewRequestEmail;
 use App\Models\AuditLog;
-use App\Models\Restaurant;
-use App\Models\User;
-use App\Models\WorkShift;
-use App\Models\ShiftClosing;
-use App\Models\ScheduleAssignment;
+use App\Models\Customer;
 use App\Models\Employee;
 use App\Models\Order;
 use App\Models\Payment;
-use App\Models\Customer;
+use App\Models\Restaurant;
+use App\Models\ScheduleAssignment;
+use App\Models\ShiftClosing;
+use App\Models\User;
+use App\Models\WorkShift;
 use App\Services\EmailMicroserviceClient;
-use App\Events\Kitchen\KitchenUpdated;
 use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Artisan;
-use Illuminate\Support\Facades\Queue;
-use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Queue;
 use Mockery;
 use Mockery\MockInterface;
 use Tests\TestCase;
@@ -46,28 +47,28 @@ class AutomationSprintBTest extends TestCase
         // Create an active shift
         $shift = WorkShift::create([
             'restaurant_id' => $restaurant->id,
-            'name'          => 'Ca Sang',
-            'code'          => 'CA_SANG',
-            'start_time'    => '08:00:00',
-            'end_time'      => '16:00:00',
-            'is_overnight'  => false,
-            'status'        => 'active',
+            'name' => 'Ca Sang',
+            'code' => 'CA_SANG',
+            'start_time' => '08:00:00',
+            'end_time' => '16:00:00',
+            'is_overnight' => false,
+            'status' => 'active',
         ]);
 
         // Create completed order and cash payment within shift hours
         $order = Order::factory()->create([
             'restaurant_id' => $restaurant->id,
-            'status'        => 'completed',
-            'completed_at'  => Carbon::today()->setTime(10, 0, 0),
+            'status' => 'completed',
+            'completed_at' => Carbon::today()->setTime(10, 0, 0),
         ]);
 
         Payment::create([
-            'restaurant_id'  => $restaurant->id,
-            'order_id'       => $order->id,
+            'restaurant_id' => $restaurant->id,
+            'order_id' => $order->id,
             'payment_method' => 'cash',
-            'status'         => 'paid',
-            'amount'         => 150000.00,
-            'paid_at'        => Carbon::today()->setTime(10, 5, 0),
+            'status' => 'paid',
+            'amount' => 150000.00,
+            'paid_at' => Carbon::today()->setTime(10, 5, 0),
         ]);
 
         $exitCode = Artisan::call('shifts:auto-close-expired');
@@ -110,29 +111,29 @@ class AutomationSprintBTest extends TestCase
 
         $employee = Employee::create([
             'restaurant_id' => $restaurant->id,
-            'user_id'       => $cashierUser->id,
+            'user_id' => $cashierUser->id,
             'employee_code' => 'EMP001',
-            'full_name'     => 'Cashier A',
-            'status'        => 'active',
+            'full_name' => 'Cashier A',
+            'status' => 'active',
         ]);
 
         $shift = WorkShift::create([
             'restaurant_id' => $restaurant->id,
-            'name'          => 'Ca Sang',
-            'code'          => 'CA_SANG',
-            'start_time'    => '08:00:00',
-            'end_time'      => '16:00:00',
-            'is_overnight'  => false,
-            'status'        => 'active',
+            'name' => 'Ca Sang',
+            'code' => 'CA_SANG',
+            'start_time' => '08:00:00',
+            'end_time' => '16:00:00',
+            'is_overnight' => false,
+            'status' => 'active',
         ]);
 
         // Create schedule assignment for cashier employee
         ScheduleAssignment::create([
-            'restaurant_id'  => $restaurant->id,
-            'employee_id'    => $employee->id,
-            'shift_id'       => $shift->id,
+            'restaurant_id' => $restaurant->id,
+            'employee_id' => $employee->id,
+            'shift_id' => $shift->id,
             'scheduled_date' => Carbon::today()->toDateString(),
-            'status'         => 'scheduled',
+            'status' => 'scheduled',
         ]);
 
         $exitCode = Artisan::call('shifts:auto-close-expired');
@@ -159,22 +160,22 @@ class AutomationSprintBTest extends TestCase
         $restaurant = Restaurant::factory()->create();
         $customer = Customer::create([
             'restaurant_id' => $restaurant->id,
-            'full_name'     => 'Test Customer',
-            'email'         => 'customer@example.com',
-            'phone'         => '0912345678',
+            'full_name' => 'Test Customer',
+            'email' => 'customer@example.com',
+            'phone' => '0912345678',
         ]);
 
         $order = Order::factory()->create([
             'restaurant_id' => $restaurant->id,
-            'customer_id'   => $customer->id,
-            'status'        => 'pending',
+            'customer_id' => $customer->id,
+            'status' => 'pending',
         ]);
 
         // Update status to completed
         $order->update(['status' => 'completed']);
 
         // Assert SendReviewRequestEmail is pushed with 2-hour delay
-        Queue::assertPushed(\App\Jobs\SendReviewRequestEmail::class, function ($job) use ($order) {
+        Queue::assertPushed(SendReviewRequestEmail::class, function ($job) use ($order) {
             return $job->orderId === $order->id;
         });
     }
@@ -187,29 +188,29 @@ class AutomationSprintBTest extends TestCase
         $restaurant = Restaurant::factory()->create(['name' => 'Aventura Eatery']);
         $customer = Customer::create([
             'restaurant_id' => $restaurant->id,
-            'full_name'     => 'John Doe',
-            'email'         => 'john.doe@example.com',
-            'phone'         => '0912345678',
+            'full_name' => 'John Doe',
+            'email' => 'john.doe@example.com',
+            'phone' => '0912345678',
         ]);
 
         $order = Order::factory()->create([
             'restaurant_id' => $restaurant->id,
-            'customer_id'   => $customer->id,
-            'status'        => 'completed',
+            'customer_id' => $customer->id,
+            'status' => 'completed',
         ]);
 
-        $this->mock(EmailMicroserviceClient::class, function (MockInterface $mock) use ($order, $customer) {
+        $this->mock(EmailMicroserviceClient::class, function (MockInterface $mock) use ($customer) {
             $mock->shouldReceive('sendReviewRequest')
                 ->once()
                 ->with(Mockery::on(function ($data) use ($customer) {
                     return $data['recipient_email'] === $customer->email
                         && $data['recipient_name'] === $customer->full_name
-                        && str_contains($data['review_url'], "/reviews/order/");
+                        && str_contains($data['review_url'], '/reviews/order/');
                 }))
                 ->andReturn(true);
         });
 
-        $job = new \App\Jobs\SendReviewRequestEmail($order->id);
+        $job = new SendReviewRequestEmail($order->id);
         $job->handle(app(EmailMicroserviceClient::class));
     }
 
@@ -225,7 +226,7 @@ class AutomationSprintBTest extends TestCase
         // Create order in preparing status
         $order = Order::factory()->create([
             'restaurant_id' => $restaurant->id,
-            'status'        => 'preparing',
+            'status' => 'preparing',
         ]);
 
         // Force update the updated_at column to be 40 minutes in the past

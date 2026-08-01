@@ -60,14 +60,14 @@ class GenerateBatchCouponsJob implements ShouldQueue
         $maxAttempts = 10;
 
         for ($attempt = 0; $attempt < $maxAttempts; $attempt++) {
-            $code = $prefix . '-' . strtoupper(Str::random(8));
+            $code = $prefix.'-'.strtoupper(Str::random(8));
 
-            if (!Coupon::where('code', $code)->exists()) {
+            if (! Coupon::where('code', $code)->exists()) {
                 return $code;
             }
         }
 
-        return $prefix . '-' . strtoupper(Str::random(12));
+        return $prefix.'-'.strtoupper(Str::random(12));
     }
 
     public function failed(\Throwable $e): void

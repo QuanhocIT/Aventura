@@ -32,8 +32,8 @@ class PaymentRequested implements ShouldBroadcastNow
     {
         return [
             'table_name' => $this->tableName,
-            'area_name'  => $this->areaName,
-            'timestamp'  => now()->toIso8601String(),
+            'area_name' => $this->areaName,
+            'timestamp' => now()->toIso8601String(),
         ];
     }
 }

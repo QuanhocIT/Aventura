@@ -82,8 +82,14 @@ function applyFilters() {
         '/super-admin/news',
         {
             search: search.value || undefined,
-            category: category.value && category.value !== 'all' ? category.value : undefined,
-            status: status.value && status.value !== 'all' ? status.value : undefined,
+            category:
+                category.value && category.value !== 'all'
+                    ? category.value
+                    : undefined,
+            status:
+                status.value && status.value !== 'all'
+                    ? status.value
+                    : undefined,
         },
         { preserveState: true, replace: true },
     );

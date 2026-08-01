@@ -18,6 +18,7 @@ use App\Services\InventoryService;
 use App\Services\LoyaltyService;
 use App\Services\OrderService;
 use App\Support\Tenant\TenantContext;
+use App\Support\TenantRule;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -312,9 +313,9 @@ class OrdersController extends Controller
         abort_unless($user->can('manage_orders') || $user->can('split_orders'), 403);
 
         $data = $request->validate([
-            'table_id' => ['required', \App\Support\TenantRule::exists('restaurant_tables')],
+            'table_id' => ['required', TenantRule::exists('restaurant_tables')],
             'items' => ['required', 'array'],
-            'items.*.order_item_id' => ['required', \App\Support\TenantRule::exists('order_items')],
+            'items.*.order_item_id' => ['required', TenantRule::exists('order_items')],
             'items.*.quantity' => ['required', 'numeric', 'min:0.01'],
         ]);
 
@@ -354,8 +355,8 @@ class OrdersController extends Controller
             'discount_amount' => ['nullable', 'numeric', 'min:0'],
             'note' => ['nullable', 'string', 'max:500'],
             'items' => ['nullable', 'array'],
-            'items.*.id' => ['nullable', \App\Support\TenantRule::exists('order_items')],
-            'items.*.product_id' => ['nullable', \App\Support\TenantRule::exists('products')],
+            'items.*.id' => ['nullable', TenantRule::exists('order_items')],
+            'items.*.product_id' => ['nullable', TenantRule::exists('products')],
             'items.*.unit_price' => ['nullable', 'numeric', 'min:0'],
             'items.*.quantity' => ['required', 'numeric', 'min:0.01'],
             'items.*.notes' => ['nullable', 'string', 'max:255'],
@@ -495,7 +496,7 @@ class OrdersController extends Controller
             'cash_received' => ['nullable', 'numeric', 'min:0'],
             'change_amount' => ['nullable', 'numeric', 'min:0'],
             'redeem_points' => ['nullable', 'integer', 'min:0'],
-            'customer_id' => ['nullable', \App\Support\TenantRule::exists('customers')],
+            'customer_id' => ['nullable', TenantRule::exists('customers')],
         ]);
 
         if ($data['payment_method'] === 'debt') {
@@ -708,7 +709,7 @@ class OrdersController extends Controller
             ]);
         }
 
-        DB::transaction(function () use ($order, $data, $user, $request) {
+        DB::transaction(function () use ($order, $data, $user) {
             $oldPaymentStatus = $order->payment_status;
 
             $order->update([

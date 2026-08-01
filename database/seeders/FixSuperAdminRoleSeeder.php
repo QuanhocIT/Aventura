@@ -15,7 +15,7 @@ class FixSuperAdminRoleSeeder extends Seeder
             ->where('model_type', 'App\\Models\\User')
             ->where('model_id', 8)
             ->exists();
-        if (!$exists) {
+        if (! $exists) {
             DB::table('model_has_roles')->insert([
                 'role_id' => 1,
                 'model_type' => 'App\\Models\\User',

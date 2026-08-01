@@ -11,6 +11,7 @@ use Illuminate\Support\Facades\Log;
 class SendReservationReminders extends Command
 {
     protected $signature = 'reservations:send-reminders';
+
     protected $description = 'Send email reminders to guests 2 hours before their confirmed reservations';
 
     public function handle(EmailMicroserviceClient $emailClient)
@@ -23,9 +24,9 @@ class SendReservationReminders extends Command
             ->where('status', 'confirmed')
             ->where('reminder_sent', false)
             ->whereNotNull('guest_email')
-            ->where(function($query) {
+            ->where(function ($query) {
                 $query->whereDate('reservation_date', today()->toDateString())
-                      ->orWhereDate('reservation_date', today()->addDay()->toDateString());
+                    ->orWhereDate('reservation_date', today()->addDay()->toDateString());
             })
             ->get();
 
@@ -33,7 +34,7 @@ class SendReservationReminders extends Command
 
         foreach ($upcomingReservations as $res) {
             try {
-                $resDateTimeStr = $res->reservation_date->format('Y-m-d') . ' ' . $res->reservation_time;
+                $resDateTimeStr = $res->reservation_date->format('Y-m-d').' '.$res->reservation_time;
                 $resDateTime = Carbon::parse($resDateTimeStr);
 
                 if ($resDateTime->isAfter($now) && $resDateTime->isBefore($twoHoursFromNow)) {
@@ -61,12 +62,13 @@ class SendReservationReminders extends Command
                     }
                 }
             } catch (\Throwable $e) {
-                Log::error("Error sending reservation reminder for reservation ID {$res->id}: " . $e->getMessage());
-                $this->error("Error sending reservation reminder for reservation ID {$res->id}: " . $e->getMessage());
+                Log::error("Error sending reservation reminder for reservation ID {$res->id}: ".$e->getMessage());
+                $this->error("Error sending reservation reminder for reservation ID {$res->id}: ".$e->getMessage());
             }
         }
 
         $this->info("Completed sending {$sentCount} reminders.");
+
         return Command::SUCCESS;
     }
 }

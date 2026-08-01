@@ -28,7 +28,7 @@ return new class extends Migration
             ->each(function ($setting) {
                 $plain = json_decode($setting->value ?? 'null', true);
 
-                if (!is_string($plain) || $plain === '') {
+                if (! is_string($plain) || $plain === '') {
                     return;
                 }
 

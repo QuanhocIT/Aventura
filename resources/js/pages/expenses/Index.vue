@@ -124,9 +124,9 @@ const props = defineProps<{
 }>();
 
 // --- Active Tab State ---
-const activeTab = ref<'analytics' | 'expenses' | 'recurring' | 'categories' | 'profit-loss'>(
-    props.filters.year || props.filters.month ? 'profit-loss' : 'analytics',
-);
+const activeTab = ref<
+    'analytics' | 'expenses' | 'recurring' | 'categories' | 'profit-loss'
+>(props.filters.year || props.filters.month ? 'profit-loss' : 'analytics');
 
 // --- VND Formatter Helper ---
 const vnd = (v: number) =>
@@ -448,7 +448,8 @@ const chartMaxVal = computed(() => {
             v-if="props.branchContext?.scope === 'all'"
             class="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-xs font-medium text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-200"
         >
-            Đang xem <strong>Toàn chuỗi</strong>. Chi phí và lãi/lỗ được tổng hợp từ các chi nhánh.
+            Đang xem <strong>Toàn chuỗi</strong>. Chi phí và lãi/lỗ được tổng
+            hợp từ các chi nhánh.
         </div>
         <!-- Page Header -->
         <div
@@ -1145,7 +1146,10 @@ const chartMaxVal = computed(() => {
         </div>
 
         <!-- ── TAB 4: CATEGORIES MANAGEMENT ── -->
-        <div v-if="activeTab === 'categories'" class="animate-fade-in space-y-6">
+        <div
+            v-if="activeTab === 'categories'"
+            class="animate-fade-in space-y-6"
+        >
             <div class="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
                 <!-- Loop over all categories -->
                 <Card
@@ -1200,35 +1204,61 @@ const chartMaxVal = computed(() => {
         </div>
 
         <!-- ── TAB 5: PROFIT & LOSS REPORT ── -->
-        <div v-if="activeTab === 'profit-loss'" class="animate-fade-in space-y-6">
+        <div
+            v-if="activeTab === 'profit-loss'"
+            class="animate-fade-in space-y-6"
+        >
             <Deferred data="profitLossReport">
                 <template #fallback>
                     <div class="space-y-6">
-                        <div class="flex flex-wrap items-center justify-between gap-4">
+                        <div
+                            class="flex flex-wrap items-center justify-between gap-4"
+                        >
                             <div class="flex items-center gap-4">
-                                <div class="h-10 w-10 animate-pulse rounded-xl bg-slate-100 dark:bg-slate-800"></div>
+                                <div
+                                    class="h-10 w-10 animate-pulse rounded-xl bg-slate-100 dark:bg-slate-800"
+                                ></div>
                                 <div class="space-y-2">
-                                    <div class="h-4 w-40 animate-pulse rounded-sm bg-slate-100 dark:bg-slate-800"></div>
-                                    <div class="h-3 w-64 animate-pulse rounded-sm bg-slate-100 dark:bg-slate-800"></div>
+                                    <div
+                                        class="h-4 w-40 animate-pulse rounded-sm bg-slate-100 dark:bg-slate-800"
+                                    ></div>
+                                    <div
+                                        class="h-3 w-64 animate-pulse rounded-sm bg-slate-100 dark:bg-slate-800"
+                                    ></div>
                                 </div>
                             </div>
                             <div class="flex gap-2">
-                                <div class="h-9 w-28 animate-pulse rounded-md bg-slate-100 dark:bg-slate-800"></div>
-                                <div class="h-9 w-24 animate-pulse rounded-md bg-slate-100 dark:bg-slate-800"></div>
+                                <div
+                                    class="h-9 w-28 animate-pulse rounded-md bg-slate-100 dark:bg-slate-800"
+                                ></div>
+                                <div
+                                    class="h-9 w-24 animate-pulse rounded-md bg-slate-100 dark:bg-slate-800"
+                                ></div>
                             </div>
                         </div>
                         <div class="grid gap-3 sm:grid-cols-3">
-                            <div class="h-28 w-full animate-pulse rounded-2xl bg-slate-100 dark:bg-slate-800"></div>
-                            <div class="h-28 w-full animate-pulse rounded-2xl bg-slate-100 dark:bg-slate-800"></div>
-                            <div class="h-28 w-full animate-pulse rounded-2xl bg-slate-100 dark:bg-slate-800"></div>
+                            <div
+                                class="h-28 w-full animate-pulse rounded-2xl bg-slate-100 dark:bg-slate-800"
+                            ></div>
+                            <div
+                                class="h-28 w-full animate-pulse rounded-2xl bg-slate-100 dark:bg-slate-800"
+                            ></div>
+                            <div
+                                class="h-28 w-full animate-pulse rounded-2xl bg-slate-100 dark:bg-slate-800"
+                            ></div>
                         </div>
-                        <div class="h-56 w-full animate-pulse rounded-2xl bg-slate-100 dark:bg-slate-800"></div>
+                        <div
+                            class="h-56 w-full animate-pulse rounded-2xl bg-slate-100 dark:bg-slate-800"
+                        ></div>
                     </div>
                 </template>
                 <ProfitLossTab
                     v-if="props.profitLossReport"
                     :report="props.profitLossReport"
-                    :filters="{ year: props.filters.year || new Date().getFullYear(), month: props.filters.month || (new Date().getMonth() + 1) }"
+                    :filters="{
+                        year: props.filters.year || new Date().getFullYear(),
+                        month: props.filters.month || new Date().getMonth() + 1,
+                    }"
                 />
             </Deferred>
         </div>

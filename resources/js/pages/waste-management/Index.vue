@@ -107,8 +107,8 @@ const doughnutPaths = computed(() => {
     const total = totalCategoryCost.value;
 
     if (total === 0) {
-return [];
-}
+        return [];
+    }
 
     let currentAngle = -Math.PI / 2; // start at top (12 o'clock)
 
@@ -185,8 +185,8 @@ const maxTrend = computed(() => {
     const list = props.trend;
 
     if (list.length === 0) {
-return 1;
-}
+        return 1;
+    }
 
     return Math.max(...list.map((t) => t.total_cost), 1);
 });
@@ -198,8 +198,8 @@ const trendPoints = computed(() => {
     const list = props.trend;
 
     if (list.length === 0) {
-return [];
-}
+        return [];
+    }
 
     return list.map((item, idx) => {
         const x =
@@ -229,8 +229,8 @@ const trendAreaPath = computed(() => {
     const pts = trendPoints.value;
 
     if (pts.length === 0) {
-return '';
-}
+        return '';
+    }
 
     const line = trendLinePath.value;
     const firstX = pts[0].x.toFixed(1);
@@ -255,8 +255,8 @@ const hoverRects = computed(() => {
     const pts = trendPoints.value;
 
     if (pts.length === 0) {
-return [];
-}
+        return [];
+    }
 
     const len = pts.length;
     const rectWidth = len > 1 ? chartWidth / (len - 1) : chartWidth;
@@ -275,8 +275,8 @@ const maxIngredientCost = computed(() => {
     const list = props.dashboard.top_ingredients;
 
     if (list.length === 0) {
-return 1;
-}
+        return 1;
+    }
 
     return Math.max(...list.map((item) => item.total_cost), 1);
 });
@@ -290,7 +290,8 @@ return 1;
             v-if="props.branchContext?.scope === 'all'"
             class="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-xs font-medium text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-200"
         >
-            Đang xem <strong>Toàn chuỗi</strong>. Hao hụt và hủy hàng được tổng hợp từ các chi nhánh.
+            Đang xem <strong>Toàn chuỗi</strong>. Hao hụt và hủy hàng được tổng
+            hợp từ các chi nhánh.
         </div>
         <!-- ── Header ──────────────────────────────────────────────────────── -->
         <div

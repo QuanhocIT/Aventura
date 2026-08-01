@@ -3,13 +3,14 @@
 namespace Tests\Feature;
 
 use App\Models\Employee;
-use App\Models\Salary;
-use App\Models\SalaryAdjustment;
-use App\Models\AuditLog;
 use App\Models\Restaurant;
 use App\Models\RestaurantBranch;
+use App\Models\Salary;
+use App\Models\SalaryAdjustment;
+use App\Models\ScheduleAssignment;
 use App\Models\User;
 use App\Models\ViolationReport;
+use App\Models\WorkShift;
 use App\Support\Tenant\TenantContext;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Spatie\Permission\Models\Role;
@@ -20,13 +21,21 @@ class InternalIntegrityTest extends TestCase
     use RefreshDatabase;
 
     private User $owner;
+
     private User $manager;
+
     private User $cashier;
+
     private Employee $cashierEmp;
+
     private Restaurant $restaurant;
+
     private RestaurantBranch $branch;
+
     private Role $ownerRole;
+
     private Role $managerRole;
+
     private Role $cashierRole;
 
     protected function setUp(): void
@@ -59,7 +68,7 @@ class InternalIntegrityTest extends TestCase
         $this->manager = User::factory()->create([
             'restaurant_id' => $this->restaurant->id,
             'branch_id' => $this->branch->id,
-            'status' => 'active'
+            'status' => 'active',
         ]);
         $this->manager->assignRole($this->managerRole);
 
@@ -84,7 +93,7 @@ class InternalIntegrityTest extends TestCase
         $this->cashier = User::factory()->create([
             'restaurant_id' => $this->restaurant->id,
             'branch_id' => $this->branch->id,
-            'status' => 'active'
+            'status' => 'active',
         ]);
         $this->cashier->assignRole($this->cashierRole);
 
@@ -105,7 +114,7 @@ class InternalIntegrityTest extends TestCase
             'employment_type' => 'full_time',
         ]);
 
-        $shift = \App\Models\WorkShift::create([
+        $shift = WorkShift::create([
             'restaurant_id' => $this->restaurant->id,
             'branch_id' => $this->branch->id,
             'name' => 'Ca Chieu',
@@ -116,7 +125,7 @@ class InternalIntegrityTest extends TestCase
             'status' => 'active',
         ]);
 
-        \App\Models\ScheduleAssignment::create([
+        ScheduleAssignment::create([
             'restaurant_id' => $this->restaurant->id,
             'branch_id' => $this->branch->id,
             'employee_id' => $this->cashierEmp->id,
@@ -227,7 +236,7 @@ class InternalIntegrityTest extends TestCase
         // 3. Kiểm tra vé tố cáo đã resolved trong DB
         $report->refresh();
         $this->assertEquals('resolved', $report->status);
-        $this->assertEquals(1000000.0, (float)$report->penalty_amount);
+        $this->assertEquals(1000000.0, (float) $report->penalty_amount);
 
         // 4. Kiểm tra xem hệ thống đã tự động tạo bảng lương (Salary) cho Cashier trong tháng hiện tại
         $startOfMonth = now()->startOfMonth()->toDateString();
@@ -240,7 +249,7 @@ class InternalIntegrityTest extends TestCase
 
         $this->assertNotNull($salary);
         // Lương cơ bản của cashierEmp được cấu hình là 5,000,000 VND
-        $this->assertEquals(5000000.0, (float)$salary->base_salary);
+        $this->assertEquals(5000000.0, (float) $salary->base_salary);
 
         // 5. Kiểm tra tự động tạo SalaryAdjustment loại 'violation' với số tiền phạt 1,000,000 VND
         $adjustment = SalaryAdjustment::where('salary_id', $salary->id)
@@ -250,13 +259,13 @@ class InternalIntegrityTest extends TestCase
             ->first();
 
         $this->assertNotNull($adjustment);
-        $this->assertEquals(1000000.0, (float)$adjustment->amount);
-        $this->assertStringContainsString('Tố cáo ID #' . $report->id, $adjustment->reason);
+        $this->assertEquals(1000000.0, (float) $adjustment->amount);
+        $this->assertStringContainsString('Tố cáo ID #'.$report->id, $adjustment->reason);
 
         // 6. Kiểm tra lương thực nhận (net_salary) đã bị cấn trừ chính xác: 5,000,000 - 1,000,000 = 4,000,000 VND
         $salary->refresh();
-        $this->assertEquals(1000000.0, (float)$salary->deduction_amount);
-        $this->assertEquals(4000000.0, (float)$salary->net_salary);
+        $this->assertEquals(1000000.0, (float) $salary->deduction_amount);
+        $this->assertEquals(4000000.0, (float) $salary->net_salary);
 
         // 7. Xác minh hệ thống ghi Audit Log bảo mật
         $this->assertDatabaseHas('audit_logs', [

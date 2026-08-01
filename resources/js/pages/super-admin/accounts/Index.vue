@@ -133,8 +133,14 @@ function applyFilter() {
         '/super-admin/accounts',
         {
             search: search.value || undefined,
-            role: roleFilter.value && roleFilter.value !== 'all' ? roleFilter.value : undefined,
-            status: statusFilter.value && statusFilter.value !== 'all' ? statusFilter.value : undefined,
+            role:
+                roleFilter.value && roleFilter.value !== 'all'
+                    ? roleFilter.value
+                    : undefined,
+            status:
+                statusFilter.value && statusFilter.value !== 'all'
+                    ? statusFilter.value
+                    : undefined,
         },
         { preserveState: true, replace: true },
     );

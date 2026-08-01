@@ -2,15 +2,15 @@
 
 namespace Tests\Feature;
 
+use App\Mail\SuperAdminValidatorReportMail;
 use App\Models\Order;
 use App\Models\Restaurant;
+use App\Models\RestaurantDailyCheck;
 use App\Models\RestaurantSubscription;
 use App\Models\SubscriptionPlan;
 use App\Models\User;
-use App\Models\RestaurantDailyCheck;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Mail;
-use App\Mail\SuperAdminValidatorReportMail;
 use Tests\TestCase;
 
 class AutomatedValidatorTest extends TestCase
@@ -18,8 +18,11 @@ class AutomatedValidatorTest extends TestCase
     use RefreshDatabase;
 
     protected User $superAdmin;
+
     protected Restaurant $restaurant;
+
     protected SubscriptionPlan $plan;
+
     protected RestaurantSubscription $subscription;
 
     protected function setUp(): void

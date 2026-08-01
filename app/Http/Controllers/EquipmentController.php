@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Equipment;
 use App\Models\EquipmentMaintenanceLog;
+use App\Support\TenantRule;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
@@ -89,7 +90,7 @@ class EquipmentController extends Controller
     public function reportIssue(Request $request): RedirectResponse
     {
         $data = $request->validate([
-            'equipment_id' => ['required', \App\Support\TenantRule::exists('equipment')],
+            'equipment_id' => ['required', TenantRule::exists('equipment')],
             'title' => ['required', 'string', 'max:255'],
             'description' => ['nullable', 'string'],
             'type' => ['required', 'in:scheduled,repair,inspection,replacement'],

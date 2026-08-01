@@ -11,7 +11,7 @@ return new class extends Migration
      */
     public function up(): void
     {
-        if (!Schema::hasColumn('order_items', 'client_item_id')) {
+        if (! Schema::hasColumn('order_items', 'client_item_id')) {
             Schema::table('order_items', function (Blueprint $table) {
                 $table->string('client_item_id', 100)->nullable()->index();
             });

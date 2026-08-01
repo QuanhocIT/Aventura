@@ -6,7 +6,6 @@ use App\Models\Employee;
 use App\Models\Restaurant;
 use App\Models\RestaurantBranch;
 use App\Models\ScheduleAssignment;
-use App\Models\ShiftSwap;
 use App\Models\User;
 use App\Models\WorkShift;
 use Carbon\Carbon;
@@ -20,13 +19,21 @@ class SchedulesAdvancedFeaturesTest extends TestCase
     use RefreshDatabase;
 
     private User $owner;
+
     private User $employeeUser1;
+
     private User $employeeUser2;
+
     private Employee $employee1;
+
     private Employee $employee2;
+
     private Restaurant $restaurant;
+
     private RestaurantBranch $branch;
+
     private WorkShift $shift1;
+
     private WorkShift $shift2;
 
     protected function setUp(): void
@@ -134,8 +141,8 @@ class SchedulesAdvancedFeaturesTest extends TestCase
         $response->assertJsonStructure([
             'success',
             'suggestions' => [
-                '*' => ['id', 'employee_name', 'shift_name', 'shift_time', 'day', 'date', 'score', 'reasons']
-            ]
+                '*' => ['id', 'employee_name', 'shift_name', 'shift_time', 'day', 'date', 'score', 'reasons'],
+            ],
         ]);
 
         $suggestions = $response->json('suggestions');
@@ -169,7 +176,7 @@ class SchedulesAdvancedFeaturesTest extends TestCase
         $response = $this->post(route('schedules.check-in'), [
             'latitude' => 10.7769,
             'longitude' => 106.7009,
-            'check_in_photo' => $base64Photo
+            'check_in_photo' => $base64Photo,
         ]);
 
         $response->assertSessionHasNoErrors();
@@ -177,7 +184,7 @@ class SchedulesAdvancedFeaturesTest extends TestCase
 
         $this->assertEquals('checked_in', $assignment->status);
         $this->assertNotNull($assignment->check_in_photo_path);
-        
+
         // Assert that the file is created in public disk
         Storage::disk('public')->assertExists($assignment->check_in_photo_path);
     }
@@ -218,7 +225,7 @@ class SchedulesAdvancedFeaturesTest extends TestCase
         // Employee 2 should have 1 unread notification now
         $this->assertEquals(1, $this->employeeUser2->unreadNotifications()->count());
         $notification = $this->employeeUser2->unreadNotifications()->first();
-        
+
         // Assert Notification API retrieval
         $this->actingAs($this->employeeUser2);
         $getNotifRes = $this->getJson(route('notifications.index'));

@@ -22,7 +22,7 @@ class EmployeeInvitationMail extends Mailable
     public function envelope(): Envelope
     {
         return new Envelope(
-            subject: 'Mời nhận việc tại ' . $this->restaurantName . ' - Aventura POS',
+            subject: 'Mời nhận việc tại '.$this->restaurantName.' - Aventura POS',
         );
     }
 

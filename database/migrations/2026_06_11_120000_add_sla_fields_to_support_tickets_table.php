@@ -11,7 +11,7 @@ return new class extends Migration
         Schema::table('support_tickets', function (Blueprint $table) {
             $table->timestamp('sla_due_at')->nullable()->after('resolved_at');
             $table->timestamp('escalated_at')->nullable()->after('sla_due_at');
-            
+
             $table->index(['status', 'sla_due_at']);
         });
     }

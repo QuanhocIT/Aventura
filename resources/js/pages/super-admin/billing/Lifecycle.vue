@@ -75,8 +75,8 @@ const maxPlanCount = computed(() =>
 
 const avgLtv = computed(() => {
     if (props.avg_lifetimes.length === 0) {
-return 0;
-}
+        return 0;
+    }
 
     const sum = props.avg_lifetimes.reduce(
         (acc, curr) => acc + curr.estimated_ltv,
@@ -92,8 +92,8 @@ const targetCacLimit = computed(() => {
 
 const trialToPaidRate = computed(() => {
     if (props.funnel.total_registered === 0) {
-return 0;
-}
+        return 0;
+    }
 
     return Math.round(
         (props.funnel.active_paid / props.funnel.total_registered) * 100,
@@ -130,12 +130,12 @@ function barY(val: number): number {
 
 function formatVnd(val: number): string {
     if (val >= 1_000_000) {
-return (val / 1_000_000).toFixed(1) + 'M';
-}
+        return (val / 1_000_000).toFixed(1) + 'M';
+    }
 
     if (val >= 1_000) {
-return (val / 1_000).toFixed(0) + 'K';
-}
+        return (val / 1_000).toFixed(0) + 'K';
+    }
 
     return String(Math.round(val));
 }

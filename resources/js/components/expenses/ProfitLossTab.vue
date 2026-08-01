@@ -68,8 +68,8 @@ function vnd(n: number): string {
     const val = Number(n);
 
     if (isNaN(val) || val === undefined || val === null) {
-return '0đ';
-}
+        return '0đ';
+    }
 
     return val.toLocaleString('vi-VN') + 'đ';
 }
@@ -199,7 +199,8 @@ const lines = computed(() => [
                 <div>
                     <h2 class="text-base font-black">Báo cáo Lãi/Lỗ (P&L)</h2>
                     <p class="text-xs text-muted-foreground">
-                        Tự động tổng hợp từ đơn hàng, định lượng BOM, bảng lương và chi phí vận hành
+                        Tự động tổng hợp từ đơn hàng, định lượng BOM, bảng lương
+                        và chi phí vận hành
                     </p>
                 </div>
             </div>
@@ -410,7 +411,8 @@ const lines = computed(() => [
                     >Kết quả kinh doanh — kỳ {{ cur.period }}</CardTitle
                 >
                 <CardDescription class="text-xs"
-                    >{{ cur.revenue.order_count.toLocaleString('vi-VN') }} đơn hoàn thành trong kỳ</CardDescription
+                    >{{ cur.revenue.order_count.toLocaleString('vi-VN') }} đơn
+                    hoàn thành trong kỳ</CardDescription
                 >
             </CardHeader>
             <CardContent>
@@ -438,7 +440,7 @@ const lines = computed(() => [
                                 v-if="
                                     line.kind === 'plus' ||
                                     line.kind === 'minus'
-                                  "
+                                "
                                 class="h-3 w-3"
                                 :class="
                                     line.kind === 'plus'
@@ -509,7 +511,10 @@ const lines = computed(() => [
         </Card>
 
         <p class="text-[11px] text-muted-foreground">
-            * COGS tính theo định lượng BOM × giá vốn trung bình nguyên liệu; chi phí nhân sự lấy từ bảng lương đã duyệt có kỳ lương kết thúc trong tháng. Số liệu mang tính quản trị, không thay thế báo cáo kế toán thuế.
+            * COGS tính theo định lượng BOM × giá vốn trung bình nguyên liệu;
+            chi phí nhân sự lấy từ bảng lương đã duyệt có kỳ lương kết thúc
+            trong tháng. Số liệu mang tính quản trị, không thay thế báo cáo kế
+            toán thuế.
         </p>
     </div>
 </template>

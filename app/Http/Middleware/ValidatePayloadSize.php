@@ -43,7 +43,7 @@ class ValidatePayloadSize
         }
 
         // 2. Kiểm tra định dạng JSON nếu request gửi JSON payload
-        if ($request->isJson() && !empty($request->getContent())) {
+        if ($request->isJson() && ! empty($request->getContent())) {
             json_decode($request->getContent());
             if (json_last_error() !== JSON_ERROR_NONE) {
                 return $this->buildErrorResponse($request, 'Dữ liệu JSON trong request không đúng định dạng.', 400);
@@ -75,7 +75,7 @@ class ValidatePayloadSize
         if ($request->expectsJson() || $request->is('api/*')) {
             return response()->json([
                 'message' => $message,
-                'error'   => $statusCode === 413 ? 'Payload Too Large' : 'Bad Request',
+                'error' => $statusCode === 413 ? 'Payload Too Large' : 'Bad Request',
             ], $statusCode);
         }
 

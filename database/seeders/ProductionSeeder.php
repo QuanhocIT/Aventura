@@ -32,7 +32,7 @@ class ProductionSeeder extends Seeder
         $this->command->info('✅ Production seed hoàn tất thành công!');
         $this->command->newLine();
         $this->command->alert('⚠️  BẢO MẬT: Đổi mật khẩu Super Admin NGAY sau khi đăng nhập lần đầu!');
-        $this->command->line('   URL đăng nhập : ' . config('app.url') . '/super-admin/login');
+        $this->command->line('   URL đăng nhập : '.config('app.url').'/super-admin/login');
         $this->command->line('   Email mặc định: superadmin@aventura.local');
         $this->command->line('   Mật khẩu tạm  : Aventura@2026!');
         $this->command->newLine();

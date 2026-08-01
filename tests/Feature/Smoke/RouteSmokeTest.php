@@ -2,6 +2,8 @@
 
 namespace Tests\Feature\Smoke;
 
+use App\Http\Middleware\SecurityFirewallMiddleware;
+use App\Http\Middleware\TenantRateLimit;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
@@ -47,8 +49,8 @@ class RouteSmokeTest extends TestCase
         // Firewall + rate limiter would 429 the crawl before controllers run,
         // masking real page errors. Auth / tenant-context / permission stay on.
         $this->withoutMiddleware([
-            \App\Http\Middleware\SecurityFirewallMiddleware::class,
-            \App\Http\Middleware\TenantRateLimit::class,
+            SecurityFirewallMiddleware::class,
+            TenantRateLimit::class,
         ]);
 
         $owner = User::whereHas('roles', fn ($q) => $q->where('name', 'owner'))
@@ -71,6 +73,7 @@ class RouteSmokeTest extends TestCase
 
             if ($this->shouldSkip($uri)) {
                 $counts['skipped']++;
+
                 continue;
             }
 
@@ -81,6 +84,7 @@ class RouteSmokeTest extends TestCase
             if (! $resolvable) {
                 $counts['skipped']++;
                 $lines[] = sprintf('SKIP  (unresolved param)  %s', $uri);
+
                 continue;
             }
 
@@ -125,7 +129,7 @@ class RouteSmokeTest extends TestCase
         $failLines = array_values(array_filter($lines, fn ($l) => str_starts_with($l, 'FAIL')));
         file_put_contents(
             storage_path('logs/smoke-report.txt'),
-            $header . implode("\n", $failLines) . "\n" . str_repeat('-', 80) . "\n" . implode("\n", $lines) . "\n"
+            $header.implode("\n", $failLines)."\n".str_repeat('-', 80)."\n".implode("\n", $lines)."\n"
         );
 
         $this->assertSame(
@@ -139,10 +143,11 @@ class RouteSmokeTest extends TestCase
     private function shouldSkip(string $uri): bool
     {
         foreach ($this->skipPrefixes as $p) {
-            if ($uri === $p || str_starts_with($uri, $p . '/')) {
+            if ($uri === $p || str_starts_with($uri, $p.'/')) {
                 return true;
             }
         }
+
         return false;
     }
 
@@ -151,7 +156,7 @@ class RouteSmokeTest extends TestCase
     {
         $uri = $route->uri();
         if (! str_contains($uri, '{')) {
-            return ['/' . ltrim($uri, '/'), true];
+            return ['/'.ltrim($uri, '/'), true];
         }
 
         $resolvable = true;
@@ -170,17 +175,20 @@ class RouteSmokeTest extends TestCase
             }
             if (! $table || ! $this->tableExists($table)) {
                 $resolvable = false;
+
                 return '0';
             }
             $id = $this->firstId($table, $actor->restaurant_id);
             if ($id === null) {
                 $resolvable = false;
+
                 return '0';
             }
+
             return (string) $id;
         }, $uri);
 
-        return ['/' . ltrim($url, '/'), $resolvable];
+        return ['/'.ltrim($url, '/'), $resolvable];
     }
 
     private array $tableCache = [];
@@ -200,6 +208,7 @@ class RouteSmokeTest extends TestCase
             }
         }
         $any = $q->orderBy('id')->value('id');
+
         return $any !== null ? (int) $any : null;
     }
 

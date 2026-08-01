@@ -104,8 +104,8 @@ watch([restaurantId, entryType], applyFilters);
 
 function goToPage(url: string | null) {
     if (!url) {
-return;
-}
+        return;
+    }
 
     router.get(url, {}, { preserveState: true, preserveScroll: true });
 }
@@ -114,16 +114,16 @@ function exportLedger() {
     const params = new URLSearchParams();
 
     if (dateFrom.value) {
-params.set('date_from', dateFrom.value);
-}
+        params.set('date_from', dateFrom.value);
+    }
 
     if (dateTo.value) {
-params.set('date_to', dateTo.value);
-}
+        params.set('date_to', dateTo.value);
+    }
 
     if (restaurantId.value !== 'all') {
-params.set('restaurant_id', restaurantId.value);
-}
+        params.set('restaurant_id', restaurantId.value);
+    }
 
     window.open(
         `/super-admin/billing/ledger/export?${params.toString()}`,
@@ -193,8 +193,8 @@ const chartPoints = computed(() => {
 
 const creditLinePath = computed(() => {
     if (chartPoints.value.length === 0) {
-return '';
-}
+        return '';
+    }
 
     return chartPoints.value
         .map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.creditY}`)
@@ -203,8 +203,8 @@ return '';
 
 const creditAreaPath = computed(() => {
     if (chartPoints.value.length === 0) {
-return '';
-}
+        return '';
+    }
 
     const points = chartPoints.value;
     const start = `M ${points[0].x} 100`;
@@ -216,8 +216,8 @@ return '';
 
 const debitLinePath = computed(() => {
     if (chartPoints.value.length === 0) {
-return '';
-}
+        return '';
+    }
 
     return chartPoints.value
         .map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.debitY}`)

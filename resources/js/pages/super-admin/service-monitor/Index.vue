@@ -81,8 +81,8 @@ async function checkLiveStatuses() {
         },
     }).then(async (res) => {
         if (!res.ok) {
-throw new Error('Yêu cầu thất bại');
-}
+            throw new Error('Yêu cầu thất bại');
+        }
 
         const data = await res.json();
 
@@ -134,8 +134,8 @@ async function toggleMaintenance(service: Service) {
         const data = await response.json();
 
         if (!data.success) {
-throw new Error('Lỗi cập nhật');
-}
+            throw new Error('Lỗi cập nhật');
+        }
 
         toast.success(
             `Đã ${service.is_maintenance ? 'BẬT' : 'TẮT'} chế độ bảo trì cho ${service.name}`,
@@ -154,8 +154,8 @@ function openEditMessageModal(service: Service) {
 
 async function saveMaintenanceMessage() {
     if (!editingService.value) {
-return;
-}
+        return;
+    }
 
     isSavingMessage.value = true;
     const service = editingService.value;
@@ -186,8 +186,8 @@ return;
             );
 
             if (target) {
-target.maintenance_message = maintenanceMessageText.value;
-}
+                target.maintenance_message = maintenanceMessageText.value;
+            }
 
             toast.success('Đã cập nhật thông báo bảo trì thành công');
             showEditMessageDialog.value = false;
@@ -234,16 +234,16 @@ async function resetCircuit(service: Service) {
 
 function getLatencyColor(ms: number): string {
     if (ms <= 10) {
-return 'text-cyan-600 dark:text-cyan-400 font-bold';
-}
+        return 'text-cyan-600 dark:text-cyan-400 font-bold';
+    }
 
     if (ms <= 50) {
-return 'text-emerald-600 dark:text-emerald-400';
-}
+        return 'text-emerald-600 dark:text-emerald-400';
+    }
 
     if (ms <= 150) {
-return 'text-amber-600 dark:text-amber-400';
-}
+        return 'text-amber-600 dark:text-amber-400';
+    }
 
     return 'text-rose-600 dark:text-rose-500 font-bold animate-pulse';
 }
@@ -252,20 +252,20 @@ function getServiceLedStatus(
     service: Service,
 ): 'online' | 'offline' | 'warning' | 'maintenance' {
     if (service.is_maintenance) {
-return 'maintenance';
-}
+        return 'maintenance';
+    }
 
     if (service.last_status === 'online') {
-return 'online';
-}
+        return 'online';
+    }
 
     return 'offline';
 }
 
 function formatTime(timeStr: string | null): string {
     if (!timeStr) {
-return 'Chưa kiểm tra';
-}
+        return 'Chưa kiểm tra';
+    }
 
     const date = new Date(timeStr);
 
@@ -471,12 +471,19 @@ return 'Chưa kiểm tra';
 
                         <!-- Circuit Breaker Status (For microservices) -->
                         <div
-                            v-if="service.circuit_breaker_state !== undefined && service.circuit_breaker_state !== null"
+                            v-if="
+                                service.circuit_breaker_state !== undefined &&
+                                service.circuit_breaker_state !== null
+                            "
                             class="flex items-center justify-between border-t pt-4"
                         >
                             <div class="space-y-0.5">
-                                <span class="text-xs font-bold text-foreground">Circuit Breaker</span>
-                                <p class="text-[11px] leading-relaxed text-muted-foreground">
+                                <span class="text-xs font-bold text-foreground"
+                                    >Circuit Breaker</span
+                                >
+                                <p
+                                    class="text-[11px] leading-relaxed text-muted-foreground"
+                                >
                                     Mạch ngắt kết nối microservice tự động.
                                 </p>
                             </div>
@@ -484,18 +491,25 @@ return 'Chưa kiểm tra';
                                 <span
                                     :class="[
                                         'inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase',
-                                        service.circuit_breaker_state === 'closed' ? 'bg-emerald-500/10 text-emerald-450 border border-emerald-500/20' :
-                                        service.circuit_breaker_state === 'open' ? 'bg-rose-500/10 text-rose-450 border border-rose-500/20 animate-pulse' :
-                                        'bg-amber-500/10 text-amber-450 border border-amber-500/20'
+                                        service.circuit_breaker_state ===
+                                        'closed'
+                                            ? 'text-emerald-450 border border-emerald-500/20 bg-emerald-500/10'
+                                            : service.circuit_breaker_state ===
+                                                'open'
+                                              ? 'text-rose-450 animate-pulse border border-rose-500/20 bg-rose-500/10'
+                                              : 'text-amber-450 border border-amber-500/20 bg-amber-500/10',
                                     ]"
                                 >
                                     {{ service.circuit_breaker_state }}
                                 </span>
                                 <Button
-                                    v-if="service.circuit_breaker_state !== 'closed'"
+                                    v-if="
+                                        service.circuit_breaker_state !==
+                                        'closed'
+                                    "
                                     variant="outline"
                                     size="sm"
-                                    class="h-7 text-[10px] px-2 border-slate-700 text-slate-350 hover:bg-slate-800"
+                                    class="text-slate-350 h-7 border-slate-700 px-2 text-[10px] hover:bg-slate-800"
                                     @click="resetCircuit(service)"
                                 >
                                     Reset mạch

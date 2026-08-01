@@ -191,7 +191,7 @@ onUnmounted(() => {
                         size="lg"
                         @click="isDemoModalOpen = true"
                     >
-                        <span class="flex items-center gap-2 cursor-pointer">
+                        <span class="flex cursor-pointer items-center gap-2">
                             <span>📅</span> Đặt lịch demo với chuyên gia
                         </span>
                     </Button>

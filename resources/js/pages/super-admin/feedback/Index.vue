@@ -163,11 +163,16 @@ const sentimentConfig: Record<string, { text: string; class: string }> = {
 };
 
 const categoryBadgeClass: Record<string, string> = {
-    service_plan: 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border-indigo-500/20',
-    pos_system: 'bg-sky-500/10 text-sky-600 dark:text-sky-400 border-sky-500/20',
-    customer_support: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20',
-    feature_request: 'bg-violet-500/10 text-violet-600 dark:text-violet-400 border-violet-500/20',
-    general: 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20',
+    service_plan:
+        'bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border-indigo-500/20',
+    pos_system:
+        'bg-sky-500/10 text-sky-600 dark:text-sky-400 border-sky-500/20',
+    customer_support:
+        'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20',
+    feature_request:
+        'bg-violet-500/10 text-violet-600 dark:text-violet-400 border-violet-500/20',
+    general:
+        'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20',
 };
 
 const platformColumns: Column[] = [
@@ -205,20 +210,26 @@ const activeColumns = computed(() =>
         >
             <template #actions>
                 <!-- Tab Selector Switcher -->
-                <div class="shadow-2xs flex items-center rounded-xl border border-border/80 bg-muted/40 p-1 text-xs font-bold">
+                <div
+                    class="flex items-center rounded-xl border border-border/80 bg-muted/40 p-1 text-xs font-bold shadow-2xs"
+                >
                     <button
                         type="button"
                         @click="switchTab('platform')"
                         :class="[
                             'flex cursor-pointer items-center gap-1.5 rounded-lg px-3.5 py-1.5 transition-all duration-200',
                             currentTab === 'platform'
-                                ? 'bg-background text-foreground shadow-2xs scale-[1.02]'
+                                ? 'scale-[1.02] bg-background text-foreground shadow-2xs'
                                 : 'text-muted-foreground hover:text-foreground',
                         ]"
                     >
                         <Crown class="size-4 text-amber-500" />
                         Chủ doanh nghiệp & Gói dịch vụ
-                        <Badge variant="secondary" class="h-4 rounded-sm border-none bg-amber-500/10 px-1 text-[9px] font-black text-amber-600">Mới</Badge>
+                        <Badge
+                            variant="secondary"
+                            class="h-4 rounded-sm border-none bg-amber-500/10 px-1 text-[9px] font-black text-amber-600"
+                            >Mới</Badge
+                        >
                     </button>
 
                     <button
@@ -227,7 +238,7 @@ const activeColumns = computed(() =>
                         :class="[
                             'flex cursor-pointer items-center gap-1.5 rounded-lg px-3.5 py-1.5 transition-all duration-200',
                             currentTab === 'customer'
-                                ? 'bg-background text-foreground shadow-2xs scale-[1.02]'
+                                ? 'scale-[1.02] bg-background text-foreground shadow-2xs'
                                 : 'text-muted-foreground hover:text-foreground',
                         ]"
                     >
@@ -242,14 +253,20 @@ const activeColumns = computed(() =>
             v-if="stats.negative > 5"
             severity="warning"
             :title="`${stats.negative} đánh giá tiêu cực cần chú ý`"
-            :message="currentTab === 'platform' 
-                ? 'Có một số phản hồi không hài lòng từ chủ doanh nghiệp về gói dịch vụ hoặc kỹ thuật. Cần kiểm tra và liên hệ chăm sóc.' 
-                : 'Có nhiều feedback 1-2 sao từ thực khách. Cần theo dõi và hỗ trợ các nhà hàng liên quan.'"
+            :message="
+                currentTab === 'platform'
+                    ? 'Có một số phản hồi không hài lòng từ chủ doanh nghiệp về gói dịch vụ hoặc kỹ thuật. Cần kiểm tra và liên hệ chăm sóc.'
+                    : 'Có nhiều feedback 1-2 sao từ thực khách. Cần theo dõi và hỗ trợ các nhà hàng liên quan.'
+            "
         />
 
         <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <StatCard
-                :label="currentTab === 'platform' ? 'Đánh giá từ Doanh nghiệp' : 'Feedback thực khách'"
+                :label="
+                    currentTab === 'platform'
+                        ? 'Đánh giá từ Doanh nghiệp'
+                        : 'Feedback thực khách'
+                "
                 :value="stats.total"
                 :icon="MessageSquare"
                 color="sky"
@@ -290,10 +307,15 @@ const activeColumns = computed(() =>
                                 class="flex items-center gap-1.5 text-sm font-bold text-foreground"
                             >
                                 <TrendingUp class="size-4 text-emerald-500" />
-                                {{ currentTab === 'platform' ? 'Phân tích Đánh giá Nền tảng & Gói cước' : 'Xu hướng Phản hồi Thực khách' }}
+                                {{
+                                    currentTab === 'platform'
+                                        ? 'Phân tích Đánh giá Nền tảng & Gói cước'
+                                        : 'Xu hướng Phản hồi Thực khách'
+                                }}
                             </h3>
                             <p class="text-xs text-muted-foreground">
-                                Điểm số trung bình theo ngày và tóm tắt AI Insights từ phản hồi thực tế
+                                Điểm số trung bình theo ngày và tóm tắt AI
+                                Insights từ phản hồi thực tế
                             </p>
                         </div>
                         <span
@@ -338,11 +360,15 @@ const activeColumns = computed(() =>
                     >
                         <div class="flex items-start gap-2.5">
                             <Sparkles
-                                class="mt-0.5 size-5 shrink-0 text-amber-500 animate-pulse"
+                                class="mt-0.5 size-5 shrink-0 animate-pulse text-amber-500"
                             />
                             <div class="space-y-1">
                                 <h4 class="text-xs font-bold text-foreground">
-                                    Tóm tắt AI ({{ currentTab === 'platform' ? 'Hài lòng Chủ Doanh Nghiệp' : 'Cảm xúc Thực khách' }})
+                                    Tóm tắt AI ({{
+                                        currentTab === 'platform'
+                                            ? 'Hài lòng Chủ Doanh Nghiệp'
+                                            : 'Cảm xúc Thực khách'
+                                    }})
                                 </h4>
                                 <p
                                     class="text-xs leading-relaxed text-muted-foreground"
@@ -360,13 +386,16 @@ const activeColumns = computed(() =>
                                 <h5
                                     class="flex items-center gap-1 text-[10px] font-bold tracking-wider text-emerald-600 uppercase dark:text-emerald-400"
                                 >
-                                    <CheckCircle class="size-3.5" /> Điểm đánh giá cao
+                                    <CheckCircle class="size-3.5" /> Điểm đánh
+                                    giá cao
                                 </h5>
                                 <ul
                                     class="list-inside list-disc space-y-1 text-[10px] text-muted-foreground"
                                 >
                                     <li
-                                        v-for="(str, idx) in aiInsights.strengths"
+                                        v-for="(
+                                            str, idx
+                                        ) in aiInsights.strengths"
                                         :key="idx"
                                     >
                                         {{ str }}
@@ -378,13 +407,16 @@ const activeColumns = computed(() =>
                                 <h5
                                     class="flex items-center gap-1 text-[10px] font-bold tracking-wider text-rose-500 uppercase"
                                 >
-                                    <XCircle class="size-3.5" /> Yêu cầu / Phàn nàn chính
+                                    <XCircle class="size-3.5" /> Yêu cầu / Phàn
+                                    nàn chính
                                 </h5>
                                 <ul
                                     class="list-inside list-disc space-y-1 text-[10px] text-muted-foreground"
                                 >
                                     <li
-                                        v-for="(weak, idx) in aiInsights.weaknesses"
+                                        v-for="(
+                                            weak, idx
+                                        ) in aiInsights.weaknesses"
                                         :key="idx"
                                     >
                                         {{ weak }}
@@ -398,17 +430,22 @@ const activeColumns = computed(() =>
                             <h5
                                 class="flex items-center gap-1 text-[10px] font-bold tracking-wider text-amber-500 uppercase"
                             >
-                                <AlertCircle class="size-3.5" /> Đề xuất tối ưu dịch vụ
+                                <AlertCircle class="size-3.5" /> Đề xuất tối ưu
+                                dịch vụ
                             </h5>
                             <ul
                                 class="list-inside space-y-1.5 pl-1 text-[10px] text-muted-foreground"
                             >
                                 <li
-                                    v-for="(rec, idx) in aiInsights.recommendations"
+                                    v-for="(
+                                        rec, idx
+                                    ) in aiInsights.recommendations"
                                     :key="idx"
                                     class="flex items-start gap-1.5"
                                 >
-                                    <span class="shrink-0 text-amber-500">•</span>
+                                    <span class="shrink-0 text-amber-500"
+                                        >•</span
+                                    >
                                     <span>{{ rec }}</span>
                                 </li>
                             </ul>
@@ -430,7 +467,8 @@ const activeColumns = computed(() =>
                             <h3
                                 class="flex items-center gap-1.5 text-sm font-bold text-foreground"
                             >
-                                <Star class="size-4 text-violet-500" /> Phân bổ Sao Đánh giá
+                                <Star class="size-4 text-violet-500" /> Phân bổ
+                                Sao Đánh giá
                             </h3>
                             <p class="text-xs text-muted-foreground">
                                 Tỷ lệ mức độ hài lòng từ 1 đến 5 sao
@@ -459,7 +497,10 @@ const activeColumns = computed(() =>
                                     ({{
                                         stats.total > 0
                                             ? Math.round(
-                                                  ((ratingDistribution[star] || 0) / stats.total) * 100
+                                                  ((ratingDistribution[star] ||
+                                                      0) /
+                                                      stats.total) *
+                                                      100,
                                               )
                                             : 0
                                     }}%)
@@ -501,22 +542,38 @@ const activeColumns = computed(() =>
             </div>
 
             <!-- Category filter for Platform Feedback -->
-            <Select v-if="currentTab === 'platform'" v-model="category" @update:model-value="applyFilter">
+            <Select
+                v-if="currentTab === 'platform'"
+                v-model="category"
+                @update:model-value="applyFilter"
+            >
                 <SelectTrigger class="w-[180px]">
                     <SelectValue placeholder="Tất cả danh mục" />
                 </SelectTrigger>
                 <SelectContent>
                     <SelectItem value="all">Tất cả danh mục</SelectItem>
-                    <SelectItem value="service_plan">Gói dịch vụ & Giá cước</SelectItem>
-                    <SelectItem value="pos_system">Vận hành POS & QR</SelectItem>
-                    <SelectItem value="customer_support">Hỗ trợ & Kỹ thuật</SelectItem>
-                    <SelectItem value="feature_request">Yêu cầu tính năng</SelectItem>
+                    <SelectItem value="service_plan"
+                        >Gói dịch vụ & Giá cước</SelectItem
+                    >
+                    <SelectItem value="pos_system"
+                        >Vận hành POS & QR</SelectItem
+                    >
+                    <SelectItem value="customer_support"
+                        >Hỗ trợ & Kỹ thuật</SelectItem
+                    >
+                    <SelectItem value="feature_request"
+                        >Yêu cầu tính năng</SelectItem
+                    >
                     <SelectItem value="general">Góp ý chung</SelectItem>
                 </SelectContent>
             </Select>
 
             <!-- Plan filter for Platform Feedback -->
-            <Select v-if="currentTab === 'platform' && plans" v-model="planCode" @update:model-value="applyFilter">
+            <Select
+                v-if="currentTab === 'platform' && plans"
+                v-model="planCode"
+                @update:model-value="applyFilter"
+            >
                 <SelectTrigger class="w-[150px]">
                     <SelectValue placeholder="Tất cả gói cước" />
                 </SelectTrigger>
@@ -568,11 +625,13 @@ const activeColumns = computed(() =>
             <!-- User / Owner Column (Platform Tab) -->
             <template #cell-user_name="{ row }">
                 <div class="flex flex-col">
-                    <span class="font-bold text-foreground text-sm flex items-center gap-1.5">
+                    <span
+                        class="flex items-center gap-1.5 text-sm font-bold text-foreground"
+                    >
                         <Users class="size-3.5 text-indigo-500" />
                         {{ row.user_name }}
                     </span>
-                    <span class="text-[11px] text-muted-foreground font-mono">
+                    <span class="font-mono text-[11px] text-muted-foreground">
                         {{ row.user_email }}
                     </span>
                 </div>
@@ -594,11 +653,14 @@ const activeColumns = computed(() =>
             <!-- Restaurant Column -->
             <template #cell-restaurant="{ row }">
                 <div>
-                    <p class="text-sm font-semibold flex items-center gap-1">
+                    <p class="flex items-center gap-1 text-sm font-semibold">
                         <Building2 class="size-3.5 text-muted-foreground" />
                         {{ row.restaurant }}
                     </p>
-                    <p v-if="row.restaurant_code" class="font-mono text-[10px] text-muted-foreground pl-4">
+                    <p
+                        v-if="row.restaurant_code"
+                        class="pl-4 font-mono text-[10px] text-muted-foreground"
+                    >
                         {{ row.restaurant_code }}
                     </p>
                 </div>
@@ -610,9 +672,13 @@ const activeColumns = computed(() =>
                     variant="outline"
                     class="rounded-full px-2.5 py-0.5 font-mono text-[10px] font-extrabold uppercase"
                     :class="{
-                        'border-indigo-500/30 bg-indigo-500/10 text-indigo-600 dark:text-indigo-400': row.plan_code === 'pro',
-                        'border-violet-500/30 bg-violet-500/10 text-violet-600 dark:text-violet-400': row.plan_code === 'enterprise' || row.plan_code === 'ultra',
-                        'border-slate-500/30 bg-slate-500/10 text-slate-600 dark:text-slate-400': row.plan_code === 'free',
+                        'border-indigo-500/30 bg-indigo-500/10 text-indigo-600 dark:text-indigo-400':
+                            row.plan_code === 'pro',
+                        'border-violet-500/30 bg-violet-500/10 text-violet-600 dark:text-violet-400':
+                            row.plan_code === 'enterprise' ||
+                            row.plan_code === 'ultra',
+                        'border-slate-500/30 bg-slate-500/10 text-slate-600 dark:text-slate-400':
+                            row.plan_code === 'free',
                     }"
                 >
                     Gói {{ row.plan_name }}
@@ -644,7 +710,9 @@ const activeColumns = computed(() =>
 
             <!-- Comment Column -->
             <template #cell-comment="{ row }">
-                <p class="max-w-md text-sm break-words text-foreground/90 leading-relaxed">
+                <p
+                    class="max-w-md text-sm leading-relaxed break-words text-foreground/90"
+                >
                     {{ row.comment || '—' }}
                     <span
                         v-if="row.sentiment"
@@ -657,14 +725,16 @@ const activeColumns = computed(() =>
             </template>
 
             <template #cell-order_number="{ row }">
-                <span v-if="row.order_number" class="font-mono text-xs font-bold"
+                <span
+                    v-if="row.order_number"
+                    class="font-mono text-xs font-bold"
                     >#{{ row.order_number }}</span
                 >
                 <span v-else class="text-xs text-muted-foreground">—</span>
             </template>
 
             <template #cell-created_at="{ row }">
-                <span class="text-xs text-muted-foreground font-mono">{{
+                <span class="font-mono text-xs text-muted-foreground">{{
                     row.created_at
                 }}</span>
             </template>

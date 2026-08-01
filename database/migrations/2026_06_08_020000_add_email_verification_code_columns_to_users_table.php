@@ -12,6 +12,7 @@ return new class extends Migration
      * Domain suffixes/names reserved for testing (RFC 2606) that can never receive real mail.
      */
     private const FAKE_EMAIL_DOMAINS_SUFFIXES = ['.test', '.example', '.invalid', '.localhost'];
+
     private const FAKE_EMAIL_DOMAINS_EXACT = ['example.com', 'example.org', 'example.net'];
 
     public function up(): void

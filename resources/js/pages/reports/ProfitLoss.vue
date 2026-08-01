@@ -83,8 +83,8 @@ function vnd(n: number): string {
     const val = Number(n);
 
     if (isNaN(val) || val === undefined || val === null) {
-return '0đ';
-}
+        return '0đ';
+    }
 
     return val.toLocaleString('vi-VN') + 'đ';
 }
@@ -205,10 +205,18 @@ const lines = computed(() => [
             v-if="props.branchContext?.scope === 'all'"
             class="rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-xs text-sky-800 dark:border-sky-900 dark:bg-sky-950/30 dark:text-sky-200"
         >
-            <span v-if="props.report.branch_reconciliation" class="ml-1 font-semibold">
-                {{ props.report.branch_reconciliation.is_consistent ? '✓ Khớp với tổng từng chi nhánh' : '⚠ Có dữ liệu chưa xác định chi nhánh' }}
+            <span
+                v-if="props.report.branch_reconciliation"
+                class="ml-1 font-semibold"
+            >
+                {{
+                    props.report.branch_reconciliation.is_consistent
+                        ? '✓ Khớp với tổng từng chi nhánh'
+                        : '⚠ Có dữ liệu chưa xác định chi nhánh'
+                }}
             </span>
-            Đang xem <strong>Toàn chuỗi</strong>. Lãi/lỗ được tổng hợp theo từng chi nhánh.
+            Đang xem <strong>Toàn chuỗi</strong>. Lãi/lỗ được tổng hợp theo từng
+            chi nhánh.
         </div>
         <!-- Header + bộ chọn kỳ -->
         <div class="flex flex-wrap items-center justify-between gap-4">

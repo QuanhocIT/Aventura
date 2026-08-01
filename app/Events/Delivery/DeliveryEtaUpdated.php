@@ -24,10 +24,10 @@ class DeliveryEtaUpdated implements ShouldBroadcastNow
     {
         return [
             'batch_id' => $this->batch->id,
-            'items'    => $this->batch->items->map(fn ($item) => [
-                'id'      => $item->id,
-                'eta'     => $item->eta?->toISOString(),
-                'status'  => $item->status,
+            'items' => $this->batch->items->map(fn ($item) => [
+                'id' => $item->id,
+                'eta' => $item->eta?->toISOString(),
+                'status' => $item->status,
             ])->values(),
         ];
     }

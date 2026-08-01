@@ -4,12 +4,9 @@ namespace Tests\Feature;
 
 use App\Models\Area;
 use App\Models\Customer;
-use App\Models\Order;
-use App\Models\OrderItem;
 use App\Models\Product;
 use App\Models\ProductCategory;
 use App\Models\Restaurant;
-use App\Models\RestaurantArea;
 use App\Models\RestaurantBranch;
 use App\Models\RestaurantTable;
 use App\Models\User;
@@ -22,7 +19,9 @@ class QROrderLoyaltyRulesTest extends TestCase
     use RefreshDatabase;
 
     private Restaurant $restaurant;
+
     private RestaurantTable $table;
+
     private Product $phoProduct;
 
     protected function setUp(): void
@@ -33,39 +32,39 @@ class QROrderLoyaltyRulesTest extends TestCase
         $branch = RestaurantBranch::factory()->create(['restaurant_id' => $this->restaurant->id]);
         $area = Area::create([
             'restaurant_id' => $this->restaurant->id,
-            'branch_id'     => $branch->id,
-            'code'          => 'AREA-01',
-            'name'          => 'Khu Vực Tầng 1',
+            'branch_id' => $branch->id,
+            'code' => 'AREA-01',
+            'name' => 'Khu Vực Tầng 1',
         ]);
         $this->table = RestaurantTable::create([
             'restaurant_id' => $this->restaurant->id,
-            'branch_id'     => $branch->id,
-            'area_id'       => $area->id,
-            'name'          => 'Bàn 05',
-            'capacity'      => 4,
-            'qr_token'      => 'token-table-05',
-            'status'        => 'available',
+            'branch_id' => $branch->id,
+            'area_id' => $area->id,
+            'name' => 'Bàn 05',
+            'capacity' => 4,
+            'qr_token' => 'token-table-05',
+            'status' => 'available',
         ]);
 
         $category = ProductCategory::create([
             'restaurant_id' => $this->restaurant->id,
-            'name'          => 'Thực Đơn Món Ăn',
-            'slug'          => 'thuc-don',
+            'name' => 'Thực Đơn Món Ăn',
+            'slug' => 'thuc-don',
             'display_order' => 1,
-            'status'        => 'active',
+            'status' => 'active',
         ]);
 
         $this->phoProduct = Product::create([
             'restaurant_id' => $this->restaurant->id,
-            'category_id'   => $category->id,
-            'code'          => 'PHO-01',
-            'name'          => 'Phở Bò Gia Truyền',
-            'slug'          => 'pho-bo',
-            'price'         => 50000,
-            'earn_points'   => 30,
+            'category_id' => $category->id,
+            'code' => 'PHO-01',
+            'name' => 'Phở Bò Gia Truyền',
+            'slug' => 'pho-bo',
+            'price' => 50000,
+            'earn_points' => 30,
             'redeem_points' => 300,
-            'is_active'     => true,
-            'is_available'  => true,
+            'is_active' => true,
+            'is_available' => true,
         ]);
     }
 
@@ -74,7 +73,7 @@ class QROrderLoyaltyRulesTest extends TestCase
         // 1. Guest accesses QR menu without authentication
         $response = $this->get(route('customer.qr-order.show', [
             'restaurant' => $this->restaurant->id,
-            'token'      => $this->table->qr_token,
+            'token' => $this->table->qr_token,
         ]));
 
         $response->assertStatus(200);
@@ -92,15 +91,15 @@ class QROrderLoyaltyRulesTest extends TestCase
         $customerRole = Role::firstOrCreate(['name' => 'customer', 'guard_name' => 'web']);
         $user = User::factory()->create([
             'restaurant_id' => $this->restaurant->id,
-            'phone'         => '0999888777',
-            'status'        => 'active',
+            'phone' => '0999888777',
+            'status' => 'active',
         ]);
         $user->assignRole($customerRole);
 
         $customer = Customer::create([
-            'restaurant_id'  => $this->restaurant->id,
-            'full_name'      => 'Trần Văn Nam',
-            'phone'          => '0999888777',
+            'restaurant_id' => $this->restaurant->id,
+            'full_name' => 'Trần Văn Nam',
+            'phone' => '0999888777',
             'loyalty_points' => 450,
         ]);
 
@@ -109,7 +108,7 @@ class QROrderLoyaltyRulesTest extends TestCase
 
         $response = $this->get(route('customer.qr-order.show', [
             'restaurant' => $this->restaurant->id,
-            'token'      => $this->table->qr_token,
+            'token' => $this->table->qr_token,
         ]));
 
         $response->assertStatus(200);

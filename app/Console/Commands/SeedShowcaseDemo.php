@@ -42,7 +42,7 @@ class SeedShowcaseDemo extends Command
         if (! $owner) {
             $this->info("→ Tạo nhà hàng showcase: {$name} ({$email})");
             $owner = $onboarding->onboard([
-                'name' => 'Chủ ' . $name,
+                'name' => 'Chủ '.$name,
                 'restaurant_name' => $name,
                 'email' => $email,
                 'password' => $password,
@@ -66,7 +66,7 @@ class SeedShowcaseDemo extends Command
             [
                 'is_active' => true,
                 'slug' => $restaurant->slug,
-                'description' => 'Đặt món trực tuyến tại ' . $restaurant->name,
+                'description' => 'Đặt món trực tuyến tại '.$restaurant->name,
                 'min_order_amount' => 0,
                 'delivery_base_fee' => 15000,
                 'delivery_fee_per_km' => 5000,
@@ -91,9 +91,9 @@ class SeedShowcaseDemo extends Command
         $this->newLine();
         $this->info('✅ Showcase sẵn sàng!');
         $this->table(['Mục', 'Giá trị'], [
-            ['Đăng nhập', $email . '  /  ' . $password],
+            ['Đăng nhập', $email.'  /  '.$password],
             ['Trang quản lý', url('/dashboard')],
-            ['Cửa hàng Online (khách)', url('/order/' . $restaurant->slug)],
+            ['Cửa hàng Online (khách)', url('/order/'.$restaurant->slug)],
         ]);
         $this->warn('  Lưu ý: dữ liệu MẪU + mật khẩu mặc định — đổi mật khẩu & tạo tenant thật khi kinh doanh.');
 
