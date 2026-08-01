@@ -196,6 +196,8 @@ class AutomationSprintATest extends TestCase
         });
 
         // Assert pending flag is in Cache
-        $this->assertTrue(Cache::has("low_stock_pending:{$restaurant->id}"));
+        // Inventory low-stock flags are branch-scoped; this fixture has no
+        // branch_id, so it uses the explicit chain-wide scope suffix.
+        $this->assertTrue(Cache::has("low_stock_pending:{$restaurant->id}:all"));
     }
 }

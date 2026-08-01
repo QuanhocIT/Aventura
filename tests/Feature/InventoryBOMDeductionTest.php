@@ -45,6 +45,8 @@ class InventoryBOMDeductionTest extends TestCase
             'category_id' => $category->id,
             'name' => 'Pho Dac Biet',
             'price' => 75000,
+            'scope' => 'branch',
+            'branch_id' => $branch->id,
             // description is missing
         ]);
 
@@ -55,7 +57,9 @@ class InventoryBOMDeductionTest extends TestCase
             'category_id' => $category->id,
             'name' => 'Pho Dac Biet',
             'price' => 75000,
-            'description' => 'Pho ngon thom lung vi sa 12345'
+            'description' => 'Pho ngon thom lung vi sa 12345',
+            'scope' => 'branch',
+            'branch_id' => $branch->id,
         ]);
 
         $response2->assertSessionHasNoErrors();
@@ -167,6 +171,7 @@ class InventoryBOMDeductionTest extends TestCase
         // Set up holding reservation in database
         $reservation = InventoryReservation::create([
             'restaurant_id' => $restaurant->id,
+            'branch_id' => $branch->id,
             'order_id' => $order->id,
             'ingredient_id' => $beef->id,
             'reserved_quantity' => 210.0,
@@ -251,6 +256,7 @@ class InventoryBOMDeductionTest extends TestCase
 
         $reservation = InventoryReservation::create([
             'restaurant_id' => $restaurant->id,
+            'branch_id' => $branch->id,
             'order_id' => $order->id,
             'ingredient_id' => $ingredient->id,
             'reserved_quantity' => 100.0,

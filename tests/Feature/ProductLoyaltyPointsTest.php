@@ -8,6 +8,7 @@ use App\Models\OrderItem;
 use App\Models\Product;
 use App\Models\ProductCategory;
 use App\Models\Restaurant;
+use App\Models\RestaurantBranch;
 use App\Models\User;
 use App\Services\LoyaltyService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -20,6 +21,7 @@ class ProductLoyaltyPointsTest extends TestCase
 
     private User $owner;
     private Restaurant $restaurant;
+    private RestaurantBranch $branch;
     private ProductCategory $category;
 
     protected function setUp(): void
@@ -32,6 +34,13 @@ class ProductLoyaltyPointsTest extends TestCase
 
         $this->restaurant = Restaurant::factory()->create(['owner_user_id' => $this->owner->id]);
         $this->owner->update(['restaurant_id' => $this->restaurant->id]);
+
+        $this->branch = RestaurantBranch::create([
+            'restaurant_id' => $this->restaurant->id,
+            'name' => 'Chi nhánh chính',
+            'code' => 'CN-01',
+            'status' => 'active',
+        ]);
 
         $this->category = ProductCategory::create([
             'restaurant_id' => $this->restaurant->id,
@@ -54,6 +63,8 @@ class ProductLoyaltyPointsTest extends TestCase
             'earn_points'   => 30,
             'redeem_points' => 300,
             'description'   => 'Phở truyền thống gia truyền thơm ngon đậm đà',
+            'scope'         => 'branch',
+            'branch_id'     => $this->branch->id,
         ]);
 
         $response->assertSessionHasNoErrors();

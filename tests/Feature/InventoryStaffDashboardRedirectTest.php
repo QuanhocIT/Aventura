@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\Restaurant;
+use App\Models\RestaurantBranch;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Spatie\Permission\Models\Role;
@@ -15,9 +16,14 @@ class InventoryStaffDashboardRedirectTest extends TestCase
     public function test_inventory_staff_is_redirected_from_dashboard_to_inventory_page(): void
     {
         $restaurant = Restaurant::factory()->create();
+        $branch = RestaurantBranch::factory()->create(['restaurant_id' => $restaurant->id]);
         $role = Role::firstOrCreate(['name' => 'inventory_staff', 'guard_name' => 'web']);
 
-        $user = User::factory()->create(['restaurant_id' => $restaurant->id, 'status' => 'active']);
+        $user = User::factory()->create([
+            'restaurant_id' => $restaurant->id,
+            'branch_id' => $branch->id,
+            'status' => 'active',
+        ]);
         $user->assignRole($role);
 
         $response = $this->actingAs($user)->get(route('dashboard'));

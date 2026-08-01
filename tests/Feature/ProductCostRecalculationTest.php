@@ -7,6 +7,7 @@ use App\Models\Ingredient;
 use App\Models\Product;
 use App\Models\ProductRecipe;
 use App\Models\Restaurant;
+use App\Models\RestaurantBranch;
 use App\Models\Unit;
 use App\Models\User;
 use App\Services\ProductCostService;
@@ -30,6 +31,8 @@ class ProductCostRecalculationTest extends TestCase
 
     private Restaurant $restaurant;
 
+    private RestaurantBranch $branch;
+
     private Unit $unit;
 
     protected function setUp(): void
@@ -38,8 +41,13 @@ class ProductCostRecalculationTest extends TestCase
 
         $ownerRole = Role::firstOrCreate(['name' => 'owner', 'guard_name' => 'web']);
         $this->restaurant = Restaurant::factory()->create();
+        $this->branch = RestaurantBranch::factory()->create([
+            'restaurant_id' => $this->restaurant->id,
+            'code' => 'COST-A',
+        ]);
         $this->owner = User::factory()->create([
             'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
             'status' => 'active',
         ]);
         $this->owner->assignRole($ownerRole);
@@ -57,6 +65,7 @@ class ProductCostRecalculationTest extends TestCase
     {
         return Ingredient::factory()->create([
             'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
             'name' => $name,
             'unit_id' => $this->unit->id,
             'average_cost' => $averageCost,
@@ -67,6 +76,7 @@ class ProductCostRecalculationTest extends TestCase
     {
         return Product::factory()->create([
             'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
             'price' => $price,
             'cost_price' => $costPrice,
             'is_active' => true,

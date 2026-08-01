@@ -7,6 +7,7 @@ use App\Models\PlatformOrder;
 use App\Models\PosDevice;
 use App\Models\Product;
 use App\Models\Restaurant;
+use App\Models\RestaurantBranch;
 use App\Models\RestaurantIntegration;
 use App\Models\User;
 use App\Models\WebhookDelivery;
@@ -25,10 +26,16 @@ class IntegrationHubTest extends TestCase
 
     private Restaurant $restaurant;
 
+    private RestaurantBranch $branch;
+
     protected function setUp(): void
     {
         parent::setUp();
         $this->restaurant = Restaurant::factory()->create();
+        $this->branch = RestaurantBranch::factory()->create([
+            'restaurant_id' => $this->restaurant->id,
+            'code' => 'INTEGRATION-A',
+        ]);
     }
 
     // ─────────── ESC/POS ───────────
@@ -303,6 +310,7 @@ class IntegrationHubTest extends TestCase
     {
         $user = User::factory()->create([
             'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
             'status' => 'active',
             'email_verified_at' => now(),
         ]);

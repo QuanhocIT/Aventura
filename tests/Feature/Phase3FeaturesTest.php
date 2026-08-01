@@ -7,6 +7,7 @@ use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\Product;
 use App\Models\Restaurant;
+use App\Models\RestaurantBranch;
 use App\Models\RestaurantTable;
 use App\Models\User;
 use App\Services\EInvoiceService;
@@ -21,6 +22,8 @@ class Phase3FeaturesTest extends TestCase
     private Restaurant $restaurant;
     private User $user;
 
+    private RestaurantBranch $branch;
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -29,9 +32,14 @@ class Phase3FeaturesTest extends TestCase
             'name' => 'Nhà hàng Test',
             'tax_code' => '0101234567',
         ]);
+        $this->branch = RestaurantBranch::factory()->create([
+            'restaurant_id' => $this->restaurant->id,
+            'code' => 'PHASE3-A',
+        ]);
 
         $this->user = User::factory()->create([
             'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
             'status' => 'active',
             'email_verified_at' => now(),
         ]);
@@ -43,6 +51,7 @@ class Phase3FeaturesTest extends TestCase
 
         $order = Order::create([
             'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
             'order_number' => 'P3-'.strtoupper(uniqid()),
             'channel' => 'dine_in',
             'status' => $paymentStatus === 'paid' ? 'completed' : 'pending',
@@ -56,6 +65,7 @@ class Phase3FeaturesTest extends TestCase
         foreach ($prices as $price) {
             $product = Product::factory()->create([
                 'restaurant_id' => $this->restaurant->id,
+                'branch_id' => $this->branch->id,
                 'price' => $price,
             ]);
 

@@ -74,18 +74,20 @@ class FiveProposalsDevelopmentTest extends TestCase
             'status' => 'active',
         ]);
 
-        $chef1User = User::factory()->create(['restaurant_id' => $this->restaurant->id, 'status' => 'active']);
+        $chef1User = User::factory()->create(['restaurant_id' => $this->restaurant->id, 'branch_id' => $this->branch->id, 'status' => 'active']);
         $chef1 = Employee::factory()->create([
             'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
             'user_id' => $chef1User->id,
             'role_id' => $this->kitchenRole->id,
             'status' => 'active',
             'base_salary' => 10000000,
         ]);
 
-        $chef2User = User::factory()->create(['restaurant_id' => $this->restaurant->id, 'status' => 'active']);
+        $chef2User = User::factory()->create(['restaurant_id' => $this->restaurant->id, 'branch_id' => $this->branch->id, 'status' => 'active']);
         $chef2 = Employee::factory()->create([
             'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
             'user_id' => $chef2User->id,
             'role_id' => $this->kitchenRole->id,
             'status' => 'active',
@@ -115,6 +117,7 @@ class FiveProposalsDevelopmentTest extends TestCase
 
         $ingredient = Ingredient::factory()->create([
             'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
             'name' => 'Salmon',
             'sku' => 'SALMON',
             'average_cost' => 100000,
@@ -124,6 +127,7 @@ class FiveProposalsDevelopmentTest extends TestCase
         // Waste event happens at 10:30:00 (during their shift)
         $waste = InventoryTransaction::create([
             'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
             'ingredient_id' => $ingredient->id,
             'type' => 'waste',
             'direction' => 'out',
@@ -163,6 +167,7 @@ class FiveProposalsDevelopmentTest extends TestCase
     {
         $employee = Employee::factory()->create([
             'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
             'status' => 'active',
             'compensation_type' => 'hourly',
             'pay_rate' => 50000, // 50,000/hr
@@ -229,10 +234,10 @@ class FiveProposalsDevelopmentTest extends TestCase
 
     public function test_proposal_3_real_time_fraud_prevention(): void
     {
-        $cashierUser = User::factory()->create(['restaurant_id' => $this->restaurant->id, 'status' => 'active']);
+        $cashierUser = User::factory()->create(['restaurant_id' => $this->restaurant->id, 'branch_id' => $this->branch->id, 'status' => 'active']);
         $cashierUser->assignRole($this->cashierRole);
 
-        $product = Product::factory()->create(['restaurant_id' => $this->restaurant->id, 'price' => 500000]);
+        $product = Product::factory()->create(['restaurant_id' => $this->restaurant->id, 'branch_id' => $this->branch->id, 'price' => 500000]);
         
         $promotion = \App\Models\Promotion::create([
             'restaurant_id' => $this->restaurant->id,
@@ -246,6 +251,7 @@ class FiveProposalsDevelopmentTest extends TestCase
 
         $order = Order::create([
             'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
             'order_number' => 'ORD-TEST-FRAUD',
             'subtotal' => 500000,
             'total_amount' => 500000,
@@ -296,12 +302,14 @@ class FiveProposalsDevelopmentTest extends TestCase
     {
         $cashierUser = User::factory()->create([
             'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
             'status' => 'active',
         ]);
         $cashierUser->assignRole(Role::firstOrCreate(['name' => 'waiter', 'guard_name' => 'web']));
 
         $product = \App\Models\Product::factory()->create([
             'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
             'price' => 500000,
         ]);
 
@@ -317,6 +325,7 @@ class FiveProposalsDevelopmentTest extends TestCase
 
         $order = Order::create([
             'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
             'order_number' => 'ORD-TEST-FRAUD-2',
             'subtotal' => 500000,
             'total_amount' => 500000,
@@ -354,7 +363,7 @@ class FiveProposalsDevelopmentTest extends TestCase
         $managerUser = \App\Models\User::role('manager')->where('restaurant_id', $this->restaurant->id)->first();
         if (!$managerUser) {
             $managerRole = Role::firstOrCreate(['name' => 'manager', 'guard_name' => 'web']);
-            $managerUser = \App\Models\User::factory()->create(['restaurant_id' => $this->restaurant->id, 'status' => 'active']);
+            $managerUser = \App\Models\User::factory()->create(['restaurant_id' => $this->restaurant->id, 'branch_id' => $this->branch->id, 'status' => 'active']);
             $managerUser->assignRole($managerRole);
         }
         $managerUser->update(['pin_code' => '8888']);
@@ -374,12 +383,14 @@ class FiveProposalsDevelopmentTest extends TestCase
     {
         $customer = Customer::create([
             'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
             'full_name' => 'Gia Long',
             'loyalty_points' => 50,
         ]);
 
         $order = Order::create([
             'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
             'customer_id' => $customer->id,
             'order_number' => 'ORD-LOYALTY-TEST',
             'subtotal' => 200000,
@@ -416,11 +427,12 @@ class FiveProposalsDevelopmentTest extends TestCase
 
     public function test_proposal_5_event_driven_salary_recalculation(): void
     {
-        $chefUser = User::factory()->create(['restaurant_id' => $this->restaurant->id, 'status' => 'active']);
+        $chefUser = User::factory()->create(['restaurant_id' => $this->restaurant->id, 'branch_id' => $this->branch->id, 'status' => 'active']);
         $chefUser->assignRole($this->kitchenRole);
 
         $chef = Employee::factory()->create([
             'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
             'user_id' => $chefUser->id,
             'role_id' => $this->kitchenRole->id,
             'status' => 'active',

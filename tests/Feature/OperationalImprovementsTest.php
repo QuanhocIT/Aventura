@@ -406,10 +406,12 @@ class OperationalImprovementsTest extends TestCase
     public function test_offline_order_table_sync_conflict_resolution()
     {
         $this->actingAs($this->owner);
+        $this->post(route('branch.switch'), ['branch_id' => $this->branch->id])->assertRedirect();
 
         // Tạo bàn
         $table = \App\Models\RestaurantTable::factory()->create([
             'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
             'name' => 'Bàn VIP 99',
             'capacity' => 10,
             'status' => 'available'
@@ -418,6 +420,7 @@ class OperationalImprovementsTest extends TestCase
         // Tạo sản phẩm 1 & 2
         $p1 = \App\Models\Product::factory()->create([
             'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
             'name' => 'Cơm Chiên Dương Châu',
             'price' => 50000,
             'is_active' => true,
@@ -426,6 +429,7 @@ class OperationalImprovementsTest extends TestCase
 
         $p2 = \App\Models\Product::factory()->create([
             'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
             'name' => 'Nước ép cam',
             'price' => 30000,
             'is_active' => true,
@@ -490,14 +494,17 @@ class OperationalImprovementsTest extends TestCase
     public function test_client_item_id_prevents_duplicate_cooking_on_sync()
     {
         $this->actingAs($this->owner);
+        $this->post(route('branch.switch'), ['branch_id' => $this->branch->id])->assertRedirect();
 
         $table = \App\Models\RestaurantTable::factory()->create([
             'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
             'status' => 'available'
         ]);
 
         $product = Product::factory()->create([
             'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
             'price' => 50000,
         ]);
 
@@ -590,14 +597,16 @@ class OperationalImprovementsTest extends TestCase
     public function test_order_locking_allows_pending_changes_but_blocks_preparing_without_bypass()
     {
         $this->actingAs($this->owner);
+        $this->post(route('branch.switch'), ['branch_id' => $this->branch->id])->assertRedirect();
 
         $table = \App\Models\RestaurantTable::factory()->create([
             'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
             'status' => 'available'
         ]);
 
-        $p1 = Product::factory()->create(['restaurant_id' => $this->restaurant->id, 'price' => 50000]);
-        $p2 = Product::factory()->create(['restaurant_id' => $this->restaurant->id, 'price' => 30000]);
+        $p1 = Product::factory()->create(['restaurant_id' => $this->restaurant->id, 'branch_id' => $this->branch->id, 'price' => 50000]);
+        $p2 = Product::factory()->create(['restaurant_id' => $this->restaurant->id, 'branch_id' => $this->branch->id, 'price' => 30000]);
 
         // Tạo đơn có 2 món
         $response = $this->post(route('orders.store'), [
@@ -652,6 +661,7 @@ class OperationalImprovementsTest extends TestCase
         $managerRole = Role::firstOrCreate(['name' => 'manager', 'guard_name' => 'web']);
         $manager = User::factory()->create([
             'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
             'pin_code' => bcrypt('7777')
         ]);
         $manager->assignRole($managerRole);

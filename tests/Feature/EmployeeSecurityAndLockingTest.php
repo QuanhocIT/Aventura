@@ -125,9 +125,14 @@ class EmployeeSecurityAndLockingTest extends TestCase
         $owner = User::factory()->create();
         $restaurant = Restaurant::factory()->create(['owner_user_id' => $owner->id]);
         $owner->update(['restaurant_id' => $restaurant->id]);
+        $branch = RestaurantBranch::factory()->create([
+            'restaurant_id' => $restaurant->id,
+            'code' => 'LOCKING-A',
+        ]);
 
         $cashierUser = User::factory()->create([
             'restaurant_id' => $restaurant->id,
+            'branch_id' => $branch->id,
             'status' => 'active',
             'password' => bcrypt('password'),
         ]);
@@ -136,6 +141,7 @@ class EmployeeSecurityAndLockingTest extends TestCase
 
         $employee = Employee::factory()->create([
             'restaurant_id' => $restaurant->id,
+            'branch_id' => $branch->id,
             'user_id' => $cashierUser->id,
             'role_id' => $cashierRole->id,
             'status' => 'active',
@@ -143,6 +149,7 @@ class EmployeeSecurityAndLockingTest extends TestCase
 
         $shift = WorkShift::create([
             'restaurant_id' => $restaurant->id,
+            'branch_id' => $branch->id,
             'name' => 'Ca Chieu',
             'code' => 'CA_CHIEU',
             'start_time' => '00:00:00',
@@ -152,6 +159,7 @@ class EmployeeSecurityAndLockingTest extends TestCase
 
         ScheduleAssignment::create([
             'restaurant_id' => $restaurant->id,
+            'branch_id' => $branch->id,
             'employee_id' => $employee->id,
             'shift_id' => $shift->id,
             'scheduled_date' => today()->toDateString(),

@@ -8,6 +8,7 @@ use App\Models\Delivery\Shipper;
 use App\Models\Employee;
 use App\Models\Order;
 use App\Models\Restaurant;
+use App\Models\RestaurantBranch;
 use App\Models\User;
 use App\Services\Delivery\LoadBalancingService;
 use App\Services\Delivery\RouteOptimizationService;
@@ -27,12 +28,18 @@ class DeliveryDispatchTest extends TestCase
 
     private Restaurant $restaurant;
 
+    private RestaurantBranch $branch;
+
     protected function setUp(): void
     {
         parent::setUp();
 
         $ownerRole = Role::firstOrCreate(['name' => 'owner', 'guard_name' => 'web']);
         $this->restaurant = Restaurant::factory()->create();
+        $this->branch = RestaurantBranch::factory()->create([
+            'restaurant_id' => $this->restaurant->id,
+            'code' => 'DELIVERY-A',
+        ]);
         $this->owner = User::factory()->create([
             'restaurant_id' => $this->restaurant->id,
             'status' => 'active',
@@ -47,10 +54,12 @@ class DeliveryDispatchTest extends TestCase
         // GPS ping) yêu cầu người gọi CHÍNH LÀ shipper đó.
         $shipperUser = User::factory()->create([
             'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
             'status' => 'active',
         ]);
         $employee = Employee::factory()->create([
             'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
             'user_id' => $shipperUser->id,
         ]);
 
@@ -73,6 +82,7 @@ class DeliveryDispatchTest extends TestCase
     {
         $order = Order::create(array_merge([
             'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
             'created_by' => $this->owner->id,
             'order_number' => 'ORD-DEL-'.uniqid(),
             'channel' => 'delivery',

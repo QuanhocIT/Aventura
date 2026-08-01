@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\Order;
 use App\Models\Restaurant;
+use App\Models\RestaurantBranch;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Spatie\Permission\Models\Role;
@@ -26,12 +27,18 @@ class OrderRefundTest extends TestCase
 
     private Restaurant $restaurant;
 
+    private RestaurantBranch $branch;
+
     protected function setUp(): void
     {
         parent::setUp();
 
         $ownerRole = Role::firstOrCreate(['name' => 'owner', 'guard_name' => 'web']);
         $this->restaurant = Restaurant::factory()->create();
+        $this->branch = RestaurantBranch::factory()->create([
+            'restaurant_id' => $this->restaurant->id,
+            'code' => 'REFUND-A',
+        ]);
         $this->owner = User::factory()->create([
             'restaurant_id' => $this->restaurant->id,
             'status' => 'active',
@@ -44,6 +51,7 @@ class OrderRefundTest extends TestCase
     {
         return Order::create([
             'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
             'created_by' => $this->owner->id,
             'order_number' => 'ORD-REFUND-'.uniqid(),
             'channel' => 'dine_in',
@@ -146,6 +154,7 @@ class OrderRefundTest extends TestCase
         Role::firstOrCreate(['name' => 'cashier', 'guard_name' => 'web']);
         $cashier = User::factory()->create([
             'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
             'status' => 'active',
         ]);
         $cashier->assignRole('cashier');

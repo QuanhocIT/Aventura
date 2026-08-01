@@ -292,7 +292,10 @@ class EmployeeUpgradesTest extends TestCase
      */
     public function test_single_open_cash_register_limit()
     {
-        $cashierUser = User::factory()->create(['restaurant_id' => $this->restaurant->id]);
+        $cashierUser = User::factory()->create([
+            'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
+        ]);
         $cashierUser->assignRole('cashier');
 
         $shift = WorkShift::create([
@@ -425,12 +428,10 @@ class EmployeeUpgradesTest extends TestCase
         $response->assertRedirect();
         $this->assertEquals($branch2->id, session('active_branch_id'));
 
-        // Accessor should dynamically return branch2 ID
-        $this->assertEquals($branch2->id, $this->owner->branch_id);
-
-        // TenantContext active branch should be populated on next request
+        // TenantContext and the dynamic accessor are populated on the next request.
         $this->get('/dashboard');
         $this->assertEquals($branch2->id, app(TenantContext::class)->activeBranchId());
+        $this->assertEquals($branch2->id, $this->owner->branch_id);
     }
 
     /**

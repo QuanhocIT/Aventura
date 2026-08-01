@@ -56,6 +56,7 @@ class EmployeeShiftAndLeaveTest extends TestCase
     {
         $cashierUser = User::factory()->create([
             'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
             'status' => 'active',
             'password' => bcrypt('password'),
         ]);
@@ -65,6 +66,8 @@ class EmployeeShiftAndLeaveTest extends TestCase
             'restaurant_id' => $this->restaurant->id,
             'user_id' => $cashierUser->id,
             'role_id' => $this->cashierRole->id,
+            'branch_id' => $this->branch->id,
+            'job_title' => 'Cashier',
             'status' => 'active',
         ]);
 

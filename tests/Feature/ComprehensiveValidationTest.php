@@ -11,6 +11,7 @@ use App\Models\OrderItem;
 use App\Models\Product;
 use App\Models\ProductRecipe;
 use App\Models\Restaurant;
+use App\Models\RestaurantBranch;
 use App\Models\RestaurantTable;
 use App\Models\ScheduleAssignment;
 use App\Models\User;
@@ -29,6 +30,7 @@ class ComprehensiveValidationTest extends TestCase
     protected Employee $employee1;
     protected Employee $employee2;
     protected Restaurant $restaurant;
+    protected RestaurantBranch $branch;
     protected Role $ownerRole;
     protected Role $cashierRole;
 
@@ -53,6 +55,11 @@ class ComprehensiveValidationTest extends TestCase
             'code' => 'TESTREST',
             'status' => 'active',
         ]);
+        $this->branch = RestaurantBranch::factory()->create([
+            'restaurant_id' => $this->restaurant->id,
+            'code' => 'VALIDATION-A',
+            'name' => 'Chi nhánh kiểm thử',
+        ]);
 
         $this->owner = User::factory()->create([
             'restaurant_id' => $this->restaurant->id,
@@ -63,6 +70,7 @@ class ComprehensiveValidationTest extends TestCase
 
         $this->cashier = User::factory()->create([
             'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
             'email' => 'cashier@test.com',
             'status' => 'active',
         ]);
@@ -70,6 +78,7 @@ class ComprehensiveValidationTest extends TestCase
 
         $this->employee1 = Employee::factory()->create([
             'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
             'role_id' => $this->cashierRole->id,
             'status' => 'active',
             'full_name' => 'Nguyen Van A',
@@ -77,6 +86,7 @@ class ComprehensiveValidationTest extends TestCase
 
         $this->employee2 = Employee::factory()->create([
             'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
             'role_id' => $this->cashierRole->id,
             'status' => 'active',
             'full_name' => 'Tran Van B',
@@ -86,6 +96,7 @@ class ComprehensiveValidationTest extends TestCase
         for ($i = 0; $i < 3; $i++) {
             Employee::factory()->create([
                 'restaurant_id' => $this->restaurant->id,
+                'branch_id' => $this->branch->id,
                 'role_id' => $this->cashierRole->id,
                 'status' => 'active',
             ]);
@@ -226,12 +237,14 @@ class ComprehensiveValidationTest extends TestCase
 
         $table = RestaurantTable::factory()->create([
             'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
             'capacity' => 2,
             'status' => 'available',
         ]);
 
         $product = Product::factory()->create([
             'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
             'price' => 50000,
             'is_active' => true,
             'is_available' => true,
@@ -255,11 +268,13 @@ class ComprehensiveValidationTest extends TestCase
 
         $product = Product::factory()->create([
             'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
             'price' => 50000,
         ]);
 
         $order = Order::factory()->create([
             'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
             'subtotal' => 50000,
             'total_amount' => 50000,
         ]);
@@ -398,10 +413,12 @@ class ComprehensiveValidationTest extends TestCase
     {
         Carbon::setTestNow('2026-06-08 00:00:00');
         $this->actingAs($this->owner);
+        $this->post(route('branch.switch'), ['branch_id' => $this->branch->id])->assertRedirect();
 
         // Monday is 2026-06-08, Tuesday is 2026-06-09
         $shiftA = WorkShift::factory()->create([
             'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
             'name' => 'Shift A',
             'start_time' => '08:00:00',
             'end_time' => '16:00:00',
@@ -409,6 +426,7 @@ class ComprehensiveValidationTest extends TestCase
 
         $shiftB = WorkShift::factory()->create([
             'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
             'name' => 'Shift B',
             'start_time' => '18:00:00',
             'end_time' => '02:00:00',
@@ -418,6 +436,7 @@ class ComprehensiveValidationTest extends TestCase
         // Create assignment for Shift B on Monday (ends Tuesday 02:00)
         ScheduleAssignment::create([
             'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
             'employee_id' => $this->employee1->id,
             'shift_id' => $shiftB->id,
             'scheduled_date' => '2026-06-08',
@@ -439,15 +458,18 @@ class ComprehensiveValidationTest extends TestCase
     public function test_inventory_profit_margin_and_expiry_validation(): void
     {
         $this->actingAs($this->owner);
+        $this->post(route('branch.switch'), ['branch_id' => $this->branch->id])->assertRedirect();
 
         $ingredient = Ingredient::factory()->create([
             'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
             'name' => 'Ingredient Test',
             'average_cost' => 10000,
         ]);
 
         $product = Product::factory()->create([
             'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
             'name' => 'Product Test',
             'price' => 50000,
         ]);
@@ -603,18 +625,21 @@ class ComprehensiveValidationTest extends TestCase
 
         $supplier = \App\Models\Supplier::create([
             'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
             'name' => 'Supplier Test',
             'status' => 'active',
         ]);
 
         $ingredient = Ingredient::factory()->create([
             'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
             'supplier_id' => $supplier->id,
             'average_cost' => 100000, // list price
         ]);
 
         $po = \App\Models\PurchaseOrder::create([
             'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
             'supplier_id' => $supplier->id,
             'po_number' => 'PO-TEST-123',
             'status' => 'approved',
@@ -649,7 +674,10 @@ class ComprehensiveValidationTest extends TestCase
         $this->assertTrue($po->is_discrepant);
 
         // Try to release escrow as cashier/manager (not owner)
-        $manager = User::factory()->create(['restaurant_id' => $this->restaurant->id]);
+        $manager = User::factory()->create([
+            'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
+        ]);
         $managerRole = Role::firstOrCreate(['name' => 'manager', 'guard_name' => 'web']);
         $manager->assignRole($managerRole);
         
@@ -858,6 +886,7 @@ class ComprehensiveValidationTest extends TestCase
         $managerRole = \Spatie\Permission\Models\Role::firstOrCreate(['name' => 'manager', 'guard_name' => 'web']);
         $manager = User::factory()->create([
             'restaurant_id' => $this->restaurant->id,
+            'branch_id'     => $this->branch->id,
             'status'        => 'active',
         ]);
         $manager->assignRole($managerRole);
@@ -868,6 +897,7 @@ class ComprehensiveValidationTest extends TestCase
         $unit       = \App\Models\Unit::factory()->create(['restaurant_id' => $this->restaurant->id]);
         $ingredient = Ingredient::factory()->create([
             'restaurant_id' => $this->restaurant->id,
+            'branch_id'     => $branch1->id,
             'unit_id'       => $unit->id,
             'status'        => 'active',
         ]);
@@ -880,7 +910,9 @@ class ComprehensiveValidationTest extends TestCase
             'quantity_on_hand' => 5.0,
         ]);
 
-        $this->actingAs($manager);
+        // Cross-branch transfers are an owner operation; keep this fixture focused on
+        // the insufficient-stock rollback rather than a role authorization failure.
+        $this->actingAs($this->owner);
 
         // Try to transfer 10kg (more than available 5kg)
         $response = $this->post(route('inventory.internal-transfers'), [

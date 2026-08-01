@@ -69,6 +69,7 @@ class KitchenMenuAvailabilityTest extends TestCase
 
         $this->table = RestaurantTable::create([
             'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
             'area_id' => \App\Models\Area::firstOrCreate(['restaurant_id' => $this->restaurant->id, 'code' => 'SANH-TEST'], ['name' => 'Sảnh Test', 'display_order' => 1, 'status' => 'active'])->id,
             'name' => 'T1',
             'capacity' => 4,
