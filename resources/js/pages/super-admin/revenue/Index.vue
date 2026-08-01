@@ -14,7 +14,7 @@ import {
     Landmark,
     HelpCircle,
 } from 'lucide-vue-next';
-import { ref } from 'vue';
+import { computed, ref, watch } from 'vue';
 import AreaChart from '@/components/charts/AreaChart.vue';
 import {
     PageHeader,
@@ -84,6 +84,25 @@ const props = defineProps<{
 const range = ref(props.filters.range);
 const planFilter = ref(props.filters.plan || 'all');
 const restaurantFilter = ref(props.filters.restaurant_id || 'all');
+const revenueByPlanPage = ref(1);
+const revenueByPlanPerPage = 5;
+
+const paginatedRevenueByPlan = computed(() => {
+    const start = (revenueByPlanPage.value - 1) * revenueByPlanPerPage;
+
+    return props.revenueByPlan.slice(start, start + revenueByPlanPerPage);
+});
+
+const revenueByPlanTotalPages = computed(() =>
+    Math.ceil(props.revenueByPlan.length / revenueByPlanPerPage),
+);
+
+watch(
+    () => props.revenueByPlan,
+    () => {
+        revenueByPlanPage.value = 1;
+    },
+);
 const chartMode = ref<'compare' | 'forecast'>('compare'); // 'compare' (so sánh kỳ trước) hoặc 'forecast' (dự báo AI)
 
 function applyFilter() {
@@ -432,7 +451,7 @@ const totalPaymentsSum =
 
                     <div class="mt-6 space-y-4">
                         <div
-                            v-for="plan in revenueByPlan"
+                            v-for="plan in paginatedRevenueByPlan"
                             :key="plan.code"
                             class="space-y-1.5"
                         >
@@ -474,6 +493,55 @@ const totalPaymentsSum =
                                 ></div>
                             </div>
                         </div>
+                    </div>
+
+                    <div
+                        v-if="revenueByPlanTotalPages > 1"
+                        class="mt-5 flex flex-wrap items-center justify-center gap-2 border-t border-border/40 pt-4"
+                    >
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            class="cursor-pointer"
+                            :disabled="revenueByPlanPage === 1"
+                            @click="revenueByPlanPage--"
+                        >
+                            Trang trước
+                        </Button>
+
+                        <div class="flex items-center gap-1">
+                            <Button
+                                v-for="page in revenueByPlanTotalPages"
+                                :key="page"
+                                size="sm"
+                                :variant="
+                                    revenueByPlanPage === page
+                                        ? 'default'
+                                        : 'outline'
+                                "
+                                class="size-8 cursor-pointer px-0"
+                                :class="
+                                    revenueByPlanPage === page
+                                        ? 'bg-violet-600 text-white hover:bg-violet-700'
+                                        : ''
+                                "
+                                @click="revenueByPlanPage = page"
+                            >
+                                {{ page }}
+                            </Button>
+                        </div>
+
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            class="cursor-pointer"
+                            :disabled="
+                                revenueByPlanPage === revenueByPlanTotalPages
+                            "
+                            @click="revenueByPlanPage++"
+                        >
+                            Trang sau
+                        </Button>
                     </div>
                 </div>
             </SectionCard>
