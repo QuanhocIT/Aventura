@@ -94,23 +94,36 @@ class GlobalFeedbackController extends Controller
             $statsQuery->where('restaurant_id', $filters['restaurant_id']);
         }
 
+        // Aggregate the dashboard counters in two queries instead of one
+        // COUNT query per metric/rating bucket.
+        $statsRow = (clone $statsQuery)
+            ->selectRaw('COUNT(*) as total, AVG(rating) as avg_rating')
+            ->selectRaw('SUM(CASE WHEN rating >= 4 THEN 1 ELSE 0 END) as positive')
+            ->selectRaw('SUM(CASE WHEN rating <= 2 THEN 1 ELSE 0 END) as negative')
+            ->selectRaw("SUM(CASE WHEN sentiment = 'positive' THEN 1 ELSE 0 END) as text_sentiment_positive")
+            ->selectRaw("SUM(CASE WHEN sentiment = 'neutral' THEN 1 ELSE 0 END) as text_sentiment_neutral")
+            ->selectRaw("SUM(CASE WHEN sentiment = 'negative' THEN 1 ELSE 0 END) as text_sentiment_negative")
+            ->first();
+
         $stats = [
-            'total' => (clone $statsQuery)->count(),
-            'avg_rating' => round((clone $statsQuery)->avg('rating') ?? 0, 1),
-            'positive' => (clone $statsQuery)->where('rating', '>=', 4)->count(),
-            'negative' => (clone $statsQuery)->where('rating', '<=', 2)->count(),
-            'text_sentiment_positive' => (clone $statsQuery)->where('sentiment', 'positive')->count(),
-            'text_sentiment_neutral' => (clone $statsQuery)->where('sentiment', 'neutral')->count(),
-            'text_sentiment_negative' => (clone $statsQuery)->where('sentiment', 'negative')->count(),
+            'total' => (int) ($statsRow->total ?? 0),
+            'avg_rating' => round((float) ($statsRow->avg_rating ?? 0), 1),
+            'positive' => (int) ($statsRow->positive ?? 0),
+            'negative' => (int) ($statsRow->negative ?? 0),
+            'text_sentiment_positive' => (int) ($statsRow->text_sentiment_positive ?? 0),
+            'text_sentiment_neutral' => (int) ($statsRow->text_sentiment_neutral ?? 0),
+            'text_sentiment_negative' => (int) ($statsRow->text_sentiment_negative ?? 0),
         ];
 
-        $ratingDistribution = [
-            '5' => (clone $statsQuery)->where('rating', 5)->count(),
-            '4' => (clone $statsQuery)->where('rating', 4)->count(),
-            '3' => (clone $statsQuery)->where('rating', 3)->count(),
-            '2' => (clone $statsQuery)->where('rating', 2)->count(),
-            '1' => (clone $statsQuery)->where('rating', 1)->count(),
-        ];
+        $ratingCounts = (clone $statsQuery)
+            ->select('rating')
+            ->selectRaw('COUNT(*) as aggregate')
+            ->groupBy('rating')
+            ->pluck('aggregate', 'rating');
+
+        $ratingDistribution = collect([5, 4, 3, 2, 1])
+            ->mapWithKeys(fn (int $rating) => [(string) $rating => (int) $ratingCounts->get($rating, 0)])
+            ->all();
 
         $dailySentiment = (clone $statsQuery)
             ->select(DB::raw('DATE(created_at) as date'), DB::raw('AVG(rating) as avg_rating'))

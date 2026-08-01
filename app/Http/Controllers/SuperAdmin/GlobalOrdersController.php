@@ -82,23 +82,26 @@ class GlobalOrdersController extends Controller
             ];
         });
 
-        $today = now()->toDateString();
+        $todayStats = BillingInvoice::whereBetween('created_at', [now()->startOfDay(), now()->endOfDay()])
+            ->selectRaw('COUNT(*) as total_today')
+            ->selectRaw("SUM(CASE WHEN status = 'paid' THEN total ELSE 0 END) as revenue_today")
+            ->selectRaw("SUM(CASE WHEN status = 'paid' THEN 1 ELSE 0 END) as paid_today")
+            ->selectRaw("SUM(CASE WHEN status = 'unpaid' THEN 1 ELSE 0 END) as unpaid_today")
+            ->first();
 
-        $totalToday = BillingInvoice::whereDate('created_at', $today)->count();
-        $revenueToday = (float) BillingInvoice::whereDate('created_at', $today)->where('status', 'paid')->sum('total');
-        $paidToday = BillingInvoice::whereDate('created_at', $today)->where('status', 'paid')->count();
-        $unpaidToday = BillingInvoice::whereDate('created_at', $today)->where('status', 'unpaid')->count();
+        $revenueByDate = BillingInvoice::where('status', 'paid')
+            ->whereBetween('created_at', [now()->subDays(6)->startOfDay(), now()->endOfDay()])
+            ->selectRaw('DATE(created_at) as date, SUM(total) as revenue')
+            ->groupByRaw('DATE(created_at)')
+            ->pluck('revenue', 'date');
 
-        $revenueTrend = collect(range(6, 0))->map(function ($daysAgo) {
+        $revenueTrend = collect(range(6, 0))->map(function ($daysAgo) use ($revenueByDate) {
             $date = now()->subDays($daysAgo)->toDateString();
             $label = now()->subDays($daysAgo)->format('d/m');
-            $revenue = BillingInvoice::whereDate('created_at', $date)
-                ->where('status', 'paid')
-                ->sum('total') ?? 0;
 
             return [
                 'date' => $label,
-                'revenue' => (float) $revenue,
+                'revenue' => (float) ($revenueByDate->get($date) ?? 0),
             ];
         })->toArray();
 
@@ -120,10 +123,10 @@ class GlobalOrdersController extends Controller
         })->where('status', 'paid')->count();
 
         $stats = [
-            'total_today' => $totalToday,
-            'revenue_today' => $revenueToday,
-            'completed_today' => $paidToday,
-            'cancelled_today' => $unpaidToday,
+            'total_today' => (int) ($todayStats->total_today ?? 0),
+            'revenue_today' => (float) ($todayStats->revenue_today ?? 0),
+            'completed_today' => (int) ($todayStats->paid_today ?? 0),
+            'cancelled_today' => (int) ($todayStats->unpaid_today ?? 0),
 
             'pos_today' => $starterCount,
             'qr_today' => $proCount,

@@ -14,13 +14,22 @@ class CampaignTemplateController extends Controller
 {
     public function index()
     {
-        $templates = CampaignTemplate::orderBy('season')
+        // Load template counters in the base query instead of issuing several
+        // relationship queries for every template (N+1).
+        $usageByTemplate = Coupon::query()
+            ->join('coupon_batches', 'coupon_batches.id', '=', 'coupons.batch_id')
+            ->whereNotNull('coupon_batches.template_id')
+            ->selectRaw('coupon_batches.template_id, SUM(coupons.uses_count) as total_usages')
+            ->groupBy('coupon_batches.template_id')
+            ->pluck('total_usages', 'coupon_batches.template_id');
+
+        $templates = CampaignTemplate::withCount('batches')
+            ->withSum('batches', 'code_count')
+            ->orderBy('season')
             ->orderBy('name')
             ->get()
-            ->map(function (CampaignTemplate $t) {
-                $batchIds = $t->batches()->pluck('id');
-                $totalCodes = $t->batches()->sum('code_count');
-                $totalUsages = Coupon::whereIn('batch_id', $batchIds)->sum('uses_count');
+            ->map(function (CampaignTemplate $t) use ($usageByTemplate) {
+                $totalUsages = $usageByTemplate->get($t->id, 0);
 
                 return [
                     'id' => $t->id,
@@ -36,8 +45,8 @@ class CampaignTemplateController extends Controller
                     'code_prefix' => $t->code_prefix,
                     'theme_color' => $t->theme_color,
                     'is_active' => $t->is_active,
-                    'batches_count' => $t->batches()->count(),
-                    'total_codes' => (int) $totalCodes,
+                    'batches_count' => (int) $t->batches_count,
+                    'total_codes' => (int) ($t->batches_sum_code_count ?? 0),
                     'total_usages' => (int) $totalUsages,
                 ];
             });

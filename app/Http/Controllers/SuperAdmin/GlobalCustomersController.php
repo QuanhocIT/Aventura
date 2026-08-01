@@ -32,8 +32,11 @@ class GlobalCustomersController extends Controller
             $query->where('is_vip', true);
         }
 
-        $restaurantCache = Restaurant::pluck('name', 'id')->toArray();
-        $restaurantCodeCache = Restaurant::pluck('code', 'id')->toArray();
+        // Reuse the restaurant options for row labels instead of issuing two
+        // separate pluck queries and loading the same list again below.
+        $restaurants = Restaurant::select('id', 'name', 'code')->orderBy('name')->get();
+        $restaurantCache = $restaurants->pluck('name', 'id')->all();
+        $restaurantCodeCache = $restaurants->pluck('code', 'id')->all();
 
         $customers = $query->latest()->paginate(20)->through(fn (Customer $c) => [
             'id' => $c->id,
@@ -55,8 +58,6 @@ class GlobalCustomersController extends Controller
             'new_this_month' => Customer::withoutGlobalScopes()->where('created_at', '>=', now()->startOfMonth())->count(),
             'has_spent' => Customer::withoutGlobalScopes()->where('total_spent', '>', 0)->count(),
         ];
-
-        $restaurants = Restaurant::select('id', 'name', 'code')->orderBy('name')->get();
 
         return Inertia::render('super-admin/customers/Index', [
             'customers' => $customers,

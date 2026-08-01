@@ -41,6 +41,7 @@ class HandleInertiaRequests extends Middleware
     {
         $user = $request->user();
         $tenantContext = app(TenantContext::class);
+        $isSuperAdmin = $user?->isSuperAdmin() ?? false;
 
         // Spatie tự động invalidate cache khi roles/permissions thay đổi
         // Không cần forgetCachedPermissions() trên mỗi request
@@ -48,7 +49,7 @@ class HandleInertiaRequests extends Middleware
         $roles = $user?->getRoleNames() ?? [];
 
         $tenant = null;
-        if ($user && $user->restaurant_id) {
+        if ($user && $user->restaurant_id && ! $isSuperAdmin) {
             $restaurant = $user->restaurant;
             if ($restaurant) {
                 // Cache branches per restaurant (5 phút) — không query DB mỗi request
@@ -94,7 +95,9 @@ class HandleInertiaRequests extends Middleware
             }
         }
 
-        $availablePlans = Cache::remember('subscription_plans_active', 3600, function () {
+        // Super Admin không hiển thị subscription widget nên không cần đọc và
+        // serialize toàn bộ danh sách plan vào mọi response Inertia.
+        $availablePlans = $isSuperAdmin ? [] : Cache::remember('subscription_plans_active', 3600, function () {
             return SubscriptionPlan::where('status', 'active')
                 ->orderBy('price')
                 ->get()
@@ -168,7 +171,6 @@ class HandleInertiaRequests extends Middleware
                 'webhook_secret' => $request->session()->get('webhook_secret'),
             ],
             'locale' => app()->getLocale(),
-            'service_maintenance' => json_decode(@file_get_contents(storage_path('framework/service-maintenance.json')), true) ?: [],
             'upcoming_maintenance' => Cache::remember('upcoming_maintenance', 60, fn () =>
                 \App\Models\SystemMaintenanceSchedule::whereIn('status', ['scheduled', 'active'])
                     ->where('downtime_start', '<=', now()->addHours(24))

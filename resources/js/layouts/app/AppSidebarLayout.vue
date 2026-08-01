@@ -1,13 +1,11 @@
 <script setup lang="ts">
 import { Link, usePage, router } from '@inertiajs/vue3';
 import { AlertTriangle } from 'lucide-vue-next';
-import { computed, ref, onMounted, onUnmounted } from 'vue';
+import { computed, defineAsyncComponent, ref, onMounted, onUnmounted } from 'vue';
 import AppContent from '@/components/AppContent.vue';
 import AppShell from '@/components/AppShell.vue';
 import AppSidebar from '@/components/AppSidebar.vue';
 import AppSidebarHeader from '@/components/AppSidebarHeader.vue';
-import ChatbotWidget from '@/components/ChatbotWidget.vue';
-import CommandPalette from '@/components/CommandPalette.vue';
 import ConfirmDialog from '@/components/ConfirmDialog.vue';
 import FlashToast from '@/components/FlashToast.vue';
 import GlobalCampaignListener from '@/components/GlobalCampaignListener.vue';
@@ -15,6 +13,13 @@ import OnboardingTour from '@/components/OnboardingTour.vue';
 import QROrderAlertCenter from '@/components/QROrderAlertCenter.vue';
 import { Toaster } from '@/components/ui/sonner';
 import type { BreadcrumbItem } from '@/types';
+
+const LazyChatbotWidget = defineAsyncComponent(
+    () => import('@/components/ChatbotWidget.vue'),
+);
+const LazyCommandPalette = defineAsyncComponent(
+    () => import('@/components/CommandPalette.vue'),
+);
 
 type Props = {
     breadcrumbs?: BreadcrumbItem[];
@@ -100,6 +105,8 @@ const shiftWarningMinutes = computed(() => {
 
 let checkShiftTimer: any = null;
 let autoLogoutTimer: any = null;
+let deferredWidgetsTimer: ReturnType<typeof setTimeout> | null = null;
+const deferredWidgetsReady = ref(false);
 
 const confirmLogout = () => {
     router.flushAll();
@@ -136,6 +143,15 @@ const triggerShiftExpired = () => {
 onMounted(() => {
     window.addEventListener('shift-expired', triggerShiftExpired);
 
+    // Defer non-critical global widgets until the first screen is interactive.
+    // They remain available shortly after navigation without blocking the page
+    // component and its primary data request.
+    if (showChatbot.value || isSuperAdmin.value) {
+        deferredWidgetsTimer = setTimeout(() => {
+            deferredWidgetsReady.value = true;
+        }, 800);
+    }
+
     checkShiftTimer = setInterval(() => {
         currentTimeSec.value = Math.floor(Date.now() / 1000);
 
@@ -165,6 +181,10 @@ onUnmounted(() => {
 
     if (autoLogoutTimer) {
         clearTimeout(autoLogoutTimer);
+    }
+
+    if (deferredWidgetsTimer) {
+        clearTimeout(deferredWidgetsTimer);
     }
 });
 </script>
@@ -307,8 +327,13 @@ onUnmounted(() => {
         <QROrderAlertCenter />
         <GlobalCampaignListener />
         <OnboardingTour />
-        <ChatbotWidget v-if="showChatbot" source="support" />
-        <CommandPalette v-if="isSuperAdmin" />
+        <LazyChatbotWidget
+            v-if="showChatbot && deferredWidgetsReady"
+            source="support"
+        />
+        <LazyCommandPalette
+            v-if="isSuperAdmin && deferredWidgetsReady"
+        />
 
         <!-- Shift Expired Modal Overlay -->
         <div

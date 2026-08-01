@@ -1,101 +1,648 @@
 <script setup lang="ts">
-import { Head } from '@inertiajs/vue3';
-import { Activity, AlertTriangle, Database, Mail, RefreshCw, RotateCcw, Server, Wrench } from 'lucide-vue-next';
+import { Head, router } from '@inertiajs/vue3';
+import {
+    Activity,
+    AlertTriangle,
+    CalendarClock,
+    Database,
+    ListTodo,
+    Mail,
+    RefreshCw,
+    RotateCcw,
+    Server,
+    Webhook,
+    Wrench,
+} from 'lucide-vue-next';
 import { reactive, ref } from 'vue';
 import { toast } from 'vue-sonner';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+    Card,
+    CardContent,
+    CardDescription,
+    CardHeader,
+    CardTitle,
+} from '@/components/ui/card';
+import {
+    PageHeader,
+    SectionCard,
+    StatCard,
+    StatusBadge,
+} from '@/components/super-admin';
 import AppLayout from '@/layouts/AppLayout.vue';
 
 defineOptions({ layout: AppLayout });
 
-type Service = { service_key: string; name: string; status: string; latency?: number; last_checked_at?: string; error_message?: string; is_maintenance: boolean; host?: string; port?: number };
-type FailedJob = { id: number; uuid: string; queue: string; job: string; exception: string; failed_at: string };
-type Webhook = { id: number; event: string; status: string; attempts: number; response_code?: number; response_body?: string; restaurant_name?: string; created_at: string };
+type Service = {
+    service_key: string;
+    name: string;
+    status: string;
+    latency?: number;
+    last_checked_at?: string;
+    error_message?: string;
+    is_maintenance: boolean;
+    host?: string;
+    port?: number;
+};
+
+type FailedJob = {
+    id: number;
+    uuid: string;
+    queue: string;
+    job: string;
+    exception: string;
+    failed_at: string;
+};
+
+type Webhook = {
+    id: number;
+    event: string;
+    status: string;
+    attempts: number;
+    response_code?: number;
+    response_body?: string;
+    restaurant_name?: string;
+    created_at: string;
+};
 
 const props = defineProps<{
     services: Service[];
-    queue: { queued: number; by_queue: Record<string, number>; failed_count: number; failed_jobs: FailedJob[] };
+    queue: {
+        queued: number;
+        by_queue: Record<string, number>;
+        failed_count: number;
+        failed_jobs: FailedJob[];
+    };
     failedJobs: FailedJob[];
-    webhooks: { pending: number; failed: number; success_24h: number; deliveries: Webhook[] };
-    scheduler: { status: string; last_run_at?: string; task_count: number };
-    probes: { database: { status: string; latency_ms?: number; error?: string }; cache: { status: string; latency_ms?: number; error?: string }; email: { status: string; driver?: string } };
-    maintenanceModes: Array<{ id: number; scope: string; restaurant_id?: number; restaurant_name?: string; enabled: boolean; message?: string; starts_at?: string; ends_at?: string }>;
+    webhooks: {
+        pending: number;
+        failed: number;
+        success_24h: number;
+        deliveries: Webhook[];
+    };
+    scheduler: {
+        status: string;
+        last_run_at?: string;
+        task_count: number;
+    };
+    probes: {
+        database: { status: string; latency_ms?: number; error?: string };
+        cache: { status: string; latency_ms?: number; error?: string };
+        email: { status: string; driver?: string };
+    };
+    maintenanceModes: Array<{
+        id: number;
+        scope: string;
+        restaurant_id?: number;
+        restaurant_name?: string;
+        enabled: boolean;
+        message?: string;
+        starts_at?: string;
+        ends_at?: string;
+    }>;
     tenants: Array<{ id: number; name: string; lifecycle_status?: string }>;
     queueDriver: string;
     mailDriver: string;
 }>();
 
-const localFailedJobs = ref([...props.failedJobs]);
-const localWebhooks = ref([...props.webhooks.deliveries]);
-const maintenance = reactive({ scope: 'global', restaurant_id: null as number | null, enabled: true, message: '', starts_at: '', ends_at: '' });
-const csrf = () => (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement)?.content || '';
+const localFailedJobs = ref<FailedJob[]>([...props.failedJobs]);
+const localWebhooks = ref<Webhook[]>([...props.webhooks.deliveries]);
+const maintenance = reactive({
+    scope: 'global',
+    restaurant_id: null as number | null,
+    enabled: true,
+    message: '',
+    starts_at: '',
+    ends_at: '',
+});
+
+const serviceLabels: Record<string, string> = {
+    mysql: 'Cơ sở dữ liệu MySQL',
+    redis: 'Bộ nhớ đệm & hàng đợi Redis',
+    reverb: 'WebSocket Laravel Reverb',
+    meilisearch: 'Công cụ tìm kiếm Meilisearch',
+    email_service: 'Dịch vụ email',
+};
+
+const csrf = () =>
+    (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement)
+        ?.content || '';
 
 async function postJson(url: string, body?: Record<string, unknown>) {
-    const response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrf(), 'X-Requested-With': 'XMLHttpRequest' }, body: body ? JSON.stringify(body) : undefined });
+    const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRF-TOKEN': csrf(),
+            'X-Requested-With': 'XMLHttpRequest',
+        },
+        body: body ? JSON.stringify(body) : undefined,
+    });
     const data = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(data.message || 'Request failed');
+
+    if (!response.ok) {
+        throw new Error(data.message || 'Yêu cầu không thành công.');
+    }
+
     return data;
 }
 
-async function refresh() {
-    window.location.reload();
+function refresh() {
+    router.reload({ preserveScroll: true });
 }
 
 async function retryJob(job: FailedJob) {
     try {
         await postJson(`/super-admin/operations/failed-jobs/${job.uuid}/retry`);
-        localFailedJobs.value = localFailedJobs.value.filter((item: FailedJob) => item.uuid !== job.uuid);
-        toast.success('Đã đưa job trở lại queue.');
-    } catch (error) { toast.error(error instanceof Error ? error.message : 'Không thể retry failed job.'); }
+        localFailedJobs.value = localFailedJobs.value.filter(
+            (item) => item.uuid !== job.uuid,
+        );
+        toast.success('Đã đưa công việc trở lại hàng đợi.');
+    } catch (error) {
+        toast.error(
+            error instanceof Error
+                ? error.message
+                : 'Không thể thử lại công việc lỗi.',
+        );
+    }
 }
 
 async function retryWebhook(webhook: Webhook) {
     try {
         await postJson(`/super-admin/operations/webhooks/${webhook.id}/retry`);
-        localWebhooks.value = localWebhooks.value.filter((item: Webhook) => item.id !== webhook.id);
-        toast.success('Đã đưa webhook trở lại queue.');
-    } catch (error) { toast.error(error instanceof Error ? error.message : 'Không thể retry webhook.'); }
+        localWebhooks.value = localWebhooks.value.filter(
+            (item) => item.id !== webhook.id,
+        );
+        toast.success('Đã đưa webhook trở lại hàng đợi.');
+    } catch (error) {
+        toast.error(
+            error instanceof Error
+                ? error.message
+                : 'Không thể thử lại webhook.',
+        );
+    }
 }
 
 async function saveMaintenance() {
     try {
         await postJson('/super-admin/operations/maintenance', {
             ...maintenance,
-            restaurant_id: maintenance.scope === 'tenant' ? maintenance.restaurant_id : null,
+            restaurant_id:
+                maintenance.scope === 'tenant'
+                    ? maintenance.restaurant_id
+                    : null,
         });
-        toast.success(maintenance.enabled ? 'Đã bật maintenance mode.' : 'Đã tắt maintenance mode.');
-        window.location.reload();
-    } catch (error) { toast.error(error instanceof Error ? error.message : 'Không thể cập nhật maintenance mode.'); }
+        toast.success(
+            maintenance.enabled
+                ? 'Đã bật chế độ bảo trì.'
+                : 'Đã tắt chế độ bảo trì.',
+        );
+        router.reload({ preserveScroll: true });
+    } catch (error) {
+        toast.error(
+            error instanceof Error
+                ? error.message
+                : 'Không thể cập nhật chế độ bảo trì.',
+        );
+    }
 }
 
-const statusClass = (status: string) => status === 'online' || status === 'healthy' || status === 'configured' ? 'text-emerald-600' : status === 'offline' || status === 'stale' ? 'text-rose-600' : 'text-amber-600';
+function normalizedStatus(status: string) {
+    const value = status.toLowerCase();
+
+    if (['online', 'healthy', 'configured', 'up'].includes(value)) {
+        return 'healthy';
+    }
+
+    if (['offline', 'failed', 'down'].includes(value)) {
+        return 'failed';
+    }
+
+    if (value === 'stale') {
+        return 'warning';
+    }
+
+    if (value === 'maintenance') {
+        return 'maintenance';
+    }
+
+    return 'warning';
+}
+
+function statusLabel(status: string) {
+    const labels: Record<string, string> = {
+        online: 'Hoạt động',
+        healthy: 'Ổn định',
+        configured: 'Đã cấu hình',
+        up: 'Hoạt động',
+        offline: 'Ngoại tuyến',
+        failed: 'Đang lỗi',
+        down: 'Không hoạt động',
+        stale: 'Lỗi thời',
+        maintenance: 'Bảo trì',
+    };
+
+    return labels[status.toLowerCase()] || status;
+}
+
+function serviceName(service: Service) {
+    return serviceLabels[service.service_key] || service.name;
+}
+
+function serviceEndpoint(service: Service) {
+    if (!service.host && !service.port) {
+        return 'Không có thông tin kết nối';
+    }
+
+    return `${service.host || 'localhost'}:${service.port || '—'}`;
+}
 </script>
 
 <template>
-    <Head title="Operations Center" />
-    <div class="space-y-6 p-6">
-        <div class="flex flex-wrap items-start justify-between gap-3"><div><h1 class="text-2xl font-bold tracking-tight">Operations Center</h1><p class="text-muted-foreground">Theo dõi queue, scheduler, webhook, service health và maintenance mode.</p></div><Button variant="outline" @click="refresh"><RefreshCw class="mr-2 h-4 w-4" /> Làm mới</Button></div>
+    <Head title="Trung tâm vận hành" />
 
-        <div class="grid gap-4 md:grid-cols-4">
-            <Card><CardHeader class="pb-2"><CardDescription>Jobs đang chờ</CardDescription><CardTitle class="text-2xl">{{ queue.queued }}</CardTitle></CardHeader><CardContent class="text-xs text-muted-foreground">Driver: {{ queueDriver }}</CardContent></Card>
-            <Card><CardHeader class="pb-2"><CardDescription>Failed jobs</CardDescription><CardTitle class="text-2xl text-rose-600">{{ queue.failed_count }}</CardTitle></CardHeader><CardContent class="text-xs text-muted-foreground">Retry trực tiếp từ danh sách</CardContent></Card>
-            <Card><CardHeader class="pb-2"><CardDescription>Webhook lỗi / chờ</CardDescription><CardTitle class="text-2xl">{{ webhooks.failed }} / {{ webhooks.pending }}</CardTitle></CardHeader><CardContent class="text-xs text-muted-foreground">{{ webhooks.success_24h }} thành công trong 24h</CardContent></Card>
-            <Card><CardHeader class="pb-2"><CardDescription>Scheduler</CardDescription><CardTitle :class="statusClass(scheduler.status)" class="text-2xl">{{ scheduler.status }}</CardTitle></CardHeader><CardContent class="text-xs text-muted-foreground">{{ scheduler.task_count }} tasks · {{ scheduler.last_run_at || 'Chưa có heartbeat' }}</CardContent></Card>
+    <div class="space-y-6 px-6 py-5">
+        <PageHeader
+            title="Trung tâm vận hành"
+            subtitle="Theo dõi hàng đợi, bộ lập lịch, webhook, sức khỏe dịch vụ và chế độ bảo trì."
+            :icon="Server"
+        >
+            <template #actions>
+                <Button variant="outline" @click="refresh">
+                    <RefreshCw class="mr-2 size-4" />
+                    Làm mới
+                </Button>
+            </template>
+        </PageHeader>
+
+        <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <StatCard
+                label="Công việc đang chờ"
+                :value="queue.queued"
+                :icon="ListTodo"
+                color="sky"
+                :change="`Bộ xử lý: ${queueDriver}`"
+            />
+            <StatCard
+                label="Công việc lỗi"
+                :value="queue.failed_count"
+                :icon="AlertTriangle"
+                color="rose"
+                change="Có thể thử lại từ danh sách"
+            />
+            <StatCard
+                label="Webhook lỗi / chờ"
+                :value="`${webhooks.failed} / ${webhooks.pending}`"
+                :icon="Webhook"
+                color="amber"
+                :change="`${webhooks.success_24h} thành công trong 24 giờ`"
+            />
+            <StatCard
+                label="Bộ lập lịch"
+                :value="statusLabel(scheduler.status)"
+                :icon="CalendarClock"
+                color="violet"
+                :change="`${scheduler.task_count} tác vụ · ${scheduler.last_run_at || 'Chưa có lần chạy gần nhất'}`"
+            />
         </div>
 
-        <Card><CardHeader><CardTitle class="flex items-center gap-2"><Server class="h-4 w-4" /> Service health</CardTitle><CardDescription>MySQL, Redis/Queue, Reverb, Meilisearch và email service.</CardDescription></CardHeader><CardContent class="grid gap-3 md:grid-cols-2 xl:grid-cols-5"><div v-for="service in services" :key="service.service_key" class="rounded-lg border p-3"><div class="flex items-center justify-between gap-2"><p class="font-medium">{{ service.name }}</p><span :class="statusClass(service.status)" class="text-xs font-semibold">{{ service.status }}</span></div><p class="mt-1 text-xs text-muted-foreground">{{ service.host }}:{{ service.port }} · {{ service.latency || 0 }}ms</p><p class="text-xs text-muted-foreground">{{ service.last_checked_at || 'Chưa kiểm tra' }}</p><p v-if="service.error_message" class="mt-1 line-clamp-2 text-xs text-rose-600">{{ service.error_message }}</p><p v-if="service.is_maintenance" class="mt-1 text-xs text-amber-600">Đang maintenance</p></div></CardContent></Card>
+        <SectionCard accent-color="sky">
+            <div class="flex items-start gap-3">
+                <div
+                    class="flex size-10 shrink-0 items-center justify-center rounded-xl border border-sky-500/20 bg-sky-500/10 text-sky-600 dark:text-sky-400"
+                >
+                    <Server class="size-5" />
+                </div>
+                <div>
+                    <h2 class="text-lg font-semibold">Sức khỏe dịch vụ</h2>
+                    <p class="text-sm text-muted-foreground">
+                        MySQL, Redis/hàng đợi, Reverb, Meilisearch và email.
+                    </p>
+                </div>
+            </div>
 
-        <div class="grid gap-6 md:grid-cols-3"><Card><CardHeader><CardTitle class="flex items-center gap-2"><Database class="h-4 w-4" /> Database</CardTitle></CardHeader><CardContent><p :class="statusClass(probes.database.status)" class="font-semibold">{{ probes.database.status }}</p><p class="text-xs text-muted-foreground">{{ probes.database.latency_ms || 0 }}ms</p></CardContent></Card><Card><CardHeader><CardTitle class="flex items-center gap-2"><Activity class="h-4 w-4" /> Cache</CardTitle></CardHeader><CardContent><p :class="statusClass(probes.cache.status)" class="font-semibold">{{ probes.cache.status }}</p><p class="text-xs text-muted-foreground">{{ probes.cache.latency_ms || 0 }}ms</p></CardContent></Card><Card><CardHeader><CardTitle class="flex items-center gap-2"><Mail class="h-4 w-4" /> Email</CardTitle></CardHeader><CardContent><p :class="statusClass(probes.email.status)" class="font-semibold">{{ probes.email.status }}</p><p class="text-xs text-muted-foreground">Driver: {{ mailDriver }}</p></CardContent></Card></div>
+            <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+                <Card
+                    v-for="service in services"
+                    :key="service.service_key"
+                    class="border-border/60 bg-background/60"
+                >
+                    <CardContent class="space-y-3 p-4">
+                        <div class="flex items-start justify-between gap-2">
+                            <p class="leading-snug font-semibold">
+                                {{ serviceName(service) }}
+                            </p>
+                            <StatusBadge
+                                :status="normalizedStatus(service.status)"
+                                size="sm"
+                            >
+                                {{ statusLabel(service.status) }}
+                            </StatusBadge>
+                        </div>
+                        <div class="space-y-1 text-xs text-muted-foreground">
+                            <p>
+                                {{ serviceEndpoint(service) }} ·
+                                {{ service.latency || 0 }}ms
+                            </p>
+                            <p>
+                                {{ service.last_checked_at || 'Chưa kiểm tra' }}
+                            </p>
+                        </div>
+                        <p
+                            v-if="service.error_message"
+                            class="line-clamp-2 text-xs text-rose-600 dark:text-rose-400"
+                        >
+                            {{ service.error_message }}
+                        </p>
+                        <p
+                            v-if="service.is_maintenance"
+                            class="text-xs text-amber-600 dark:text-amber-400"
+                        >
+                            Đang trong chế độ bảo trì
+                        </p>
+                    </CardContent>
+                </Card>
+            </div>
+        </SectionCard>
 
-        <div class="grid gap-6 xl:grid-cols-2">
-            <Card><CardHeader><CardTitle class="flex items-center gap-2"><AlertTriangle class="h-4 w-4 text-rose-500" /> Failed jobs</CardTitle><CardDescription>{{ localFailedJobs.length }} job gần nhất trong failed_jobs.</CardDescription></CardHeader><CardContent class="space-y-3"><div v-for="job in localFailedJobs" :key="job.uuid" class="rounded-lg border p-3"><div class="flex items-start justify-between gap-3"><div class="min-w-0"><p class="truncate font-medium">{{ job.job }}</p><p class="text-xs text-muted-foreground">{{ job.queue }} · {{ job.failed_at }}</p><p class="mt-1 line-clamp-2 text-xs text-rose-600">{{ job.exception }}</p></div><Button variant="outline" size="sm" class="shrink-0" @click="retryJob(job)"><RotateCcw class="mr-1 h-3.5 w-3.5" /> Retry</Button></div></div><p v-if="!localFailedJobs.length" class="py-5 text-center text-sm text-muted-foreground">Không có failed job.</p></CardContent></Card>
-            <Card><CardHeader><CardTitle class="flex items-center gap-2"><RefreshCw class="h-4 w-4 text-amber-500" /> Webhook deliveries</CardTitle><CardDescription>Retry các delivery pending/failed từ giao diện.</CardDescription></CardHeader><CardContent class="space-y-3"><div v-for="webhook in localWebhooks" :key="webhook.id" class="rounded-lg border p-3"><div class="flex items-start justify-between gap-3"><div><p class="font-medium">{{ webhook.event }}</p><p class="text-xs text-muted-foreground">{{ webhook.restaurant_name || 'Tenant' }} · HTTP {{ webhook.response_code || '—' }} · {{ webhook.attempts }} attempts</p><p class="text-xs text-muted-foreground">{{ webhook.created_at }}</p></div><Button variant="outline" size="sm" @click="retryWebhook(webhook)"><RotateCcw class="mr-1 h-3.5 w-3.5" /> Retry</Button></div></div><p v-if="!localWebhooks.length" class="py-5 text-center text-sm text-muted-foreground">Không có webhook cần xử lý.</p></CardContent></Card>
+        <div class="grid gap-4 md:grid-cols-3">
+            <Card>
+                <CardHeader>
+                    <CardTitle class="flex items-center gap-2">
+                        <Database class="size-4 text-primary" />
+                        Cơ sở dữ liệu
+                    </CardTitle>
+                </CardHeader>
+                <CardContent>
+                    <StatusBadge
+                        :status="normalizedStatus(probes.database.status)"
+                    >
+                        {{ statusLabel(probes.database.status) }}
+                    </StatusBadge>
+                    <p class="mt-2 text-xs text-muted-foreground">
+                        Độ trễ: {{ probes.database.latency_ms || 0 }}ms
+                    </p>
+                    <p
+                        v-if="probes.database.error"
+                        class="mt-1 text-xs text-rose-600"
+                    >
+                        {{ probes.database.error }}
+                    </p>
+                </CardContent>
+            </Card>
+
+            <Card>
+                <CardHeader>
+                    <CardTitle class="flex items-center gap-2">
+                        <Activity class="size-4 text-primary" />
+                        Bộ nhớ đệm
+                    </CardTitle>
+                </CardHeader>
+                <CardContent>
+                    <StatusBadge
+                        :status="normalizedStatus(probes.cache.status)"
+                    >
+                        {{ statusLabel(probes.cache.status) }}
+                    </StatusBadge>
+                    <p class="mt-2 text-xs text-muted-foreground">
+                        Độ trễ: {{ probes.cache.latency_ms || 0 }}ms
+                    </p>
+                    <p
+                        v-if="probes.cache.error"
+                        class="mt-1 text-xs text-rose-600"
+                    >
+                        {{ probes.cache.error }}
+                    </p>
+                </CardContent>
+            </Card>
+
+            <Card>
+                <CardHeader>
+                    <CardTitle class="flex items-center gap-2">
+                        <Mail class="size-4 text-primary" />
+                        Email
+                    </CardTitle>
+                </CardHeader>
+                <CardContent>
+                    <StatusBadge
+                        :status="normalizedStatus(probes.email.status)"
+                    >
+                        {{ statusLabel(probes.email.status) }}
+                    </StatusBadge>
+                    <p class="mt-2 text-xs text-muted-foreground">
+                        Bộ gửi:
+                        {{
+                            mailDriver || probes.email.driver || 'Chưa cấu hình'
+                        }}
+                    </p>
+                </CardContent>
+            </Card>
         </div>
 
-        <div class="grid gap-6 xl:grid-cols-2">
-            <Card><CardHeader><CardTitle class="flex items-center gap-2"><Wrench class="h-4 w-4" /> Maintenance mode</CardTitle><CardDescription>Bật toàn hệ thống hoặc chỉ một tenant. Thao tác được audit trước/sau.</CardDescription></CardHeader><CardContent class="space-y-3"><div class="grid gap-3 sm:grid-cols-2"><label class="text-sm">Phạm vi<select v-model="maintenance.scope" class="mt-1 h-9 w-full rounded-md border bg-background px-2"><option value="global">Toàn hệ thống</option><option value="tenant">Một tenant</option></select></label><label v-if="maintenance.scope === 'tenant'" class="text-sm">Tenant<select v-model.number="maintenance.restaurant_id" class="mt-1 h-9 w-full rounded-md border bg-background px-2"><option :value="null">Chọn tenant</option><option v-for="tenant in tenants" :key="tenant.id" :value="tenant.id">{{ tenant.name }}</option></select></label></div><label class="flex items-center gap-2 text-sm"><input v-model="maintenance.enabled" type="checkbox" /> Bật maintenance mode</label><label class="text-sm">Thông báo<textarea v-model="maintenance.message" rows="2" class="mt-1 w-full rounded-md border bg-background p-2" placeholder="Hệ thống đang bảo trì..."></textarea></label><Button variant="destructive" @click="saveMaintenance">Lưu maintenance mode</Button></CardContent></Card>
-            <Card><CardHeader><CardTitle>Maintenance đang cấu hình</CardTitle><CardDescription>Trạng thái global và theo tenant.</CardDescription></CardHeader><CardContent class="space-y-2"><div v-for="mode in maintenanceModes" :key="mode.id" class="flex items-center justify-between rounded border p-3"><div><p class="font-medium">{{ mode.scope === 'global' ? 'Toàn hệ thống' : mode.restaurant_name }}</p><p class="text-xs text-muted-foreground">{{ mode.message || 'Không có thông báo' }}</p></div><span :class="mode.enabled ? 'text-amber-600' : 'text-muted-foreground'" class="text-xs font-semibold">{{ mode.enabled ? 'ENABLED' : 'OFF' }}</span></div><p v-if="!maintenanceModes.length" class="py-5 text-center text-sm text-muted-foreground">Chưa cấu hình maintenance mode.</p></CardContent></Card>
+        <div class="grid gap-4 xl:grid-cols-2">
+            <Card>
+                <CardHeader>
+                    <CardTitle class="flex items-center gap-2">
+                        <AlertTriangle class="size-4 text-rose-500" />
+                        Công việc bị lỗi
+                    </CardTitle>
+                    <CardDescription>
+                        {{ localFailedJobs.length }} công việc gần nhất trong
+                        danh sách lỗi.
+                    </CardDescription>
+                </CardHeader>
+                <CardContent class="space-y-3">
+                    <div
+                        v-for="job in localFailedJobs"
+                        :key="job.uuid"
+                        class="rounded-xl border border-border/60 bg-muted/10 p-3"
+                    >
+                        <div class="flex items-start justify-between gap-3">
+                            <div class="min-w-0">
+                                <p class="truncate font-medium">
+                                    {{ job.job }}
+                                </p>
+                                <p class="text-xs text-muted-foreground">
+                                    {{ job.queue }} · {{ job.failed_at }}
+                                </p>
+                                <p
+                                    class="mt-1 line-clamp-2 text-xs text-rose-600 dark:text-rose-400"
+                                >
+                                    {{ job.exception }}
+                                </p>
+                            </div>
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                class="shrink-0"
+                                @click="retryJob(job)"
+                            >
+                                <RotateCcw class="mr-1 size-3.5" />
+                                Thử lại
+                            </Button>
+                        </div>
+                    </div>
+                    <p
+                        v-if="!localFailedJobs.length"
+                        class="py-5 text-center text-sm text-muted-foreground"
+                    >
+                        Không có công việc bị lỗi.
+                    </p>
+                </CardContent>
+            </Card>
+
+            <Card>
+                <CardHeader>
+                    <CardTitle class="flex items-center gap-2">
+                        <Webhook class="size-4 text-amber-500" />
+                        Webhook cần xử lý
+                    </CardTitle>
+                    <CardDescription>
+                        Thử lại các lần gửi đang chờ hoặc bị lỗi.
+                    </CardDescription>
+                </CardHeader>
+                <CardContent class="space-y-3">
+                    <div
+                        v-for="webhook in localWebhooks"
+                        :key="webhook.id"
+                        class="rounded-xl border border-border/60 bg-muted/10 p-3"
+                    >
+                        <div class="flex items-start justify-between gap-3">
+                            <div class="min-w-0">
+                                <p class="truncate font-medium">
+                                    {{ webhook.event }}
+                                </p>
+                                <p class="text-xs text-muted-foreground">
+                                    {{ webhook.restaurant_name || 'Nhà hàng' }}
+                                    · HTTP {{ webhook.response_code || '—' }} ·
+                                    {{ webhook.attempts }} lần thử
+                                </p>
+                                <p class="text-xs text-muted-foreground">
+                                    {{ webhook.created_at }}
+                                </p>
+                            </div>
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                class="shrink-0"
+                                @click="retryWebhook(webhook)"
+                            >
+                                <RotateCcw class="mr-1 size-3.5" />
+                                Thử lại
+                            </Button>
+                        </div>
+                    </div>
+                    <p
+                        v-if="!localWebhooks.length"
+                        class="py-5 text-center text-sm text-muted-foreground"
+                    >
+                        Không có webhook cần xử lý.
+                    </p>
+                </CardContent>
+            </Card>
+        </div>
+
+        <div class="grid gap-4 xl:grid-cols-2">
+            <Card>
+                <CardHeader>
+                    <CardTitle class="flex items-center gap-2">
+                        <Wrench class="size-4 text-primary" />
+                        Chế độ bảo trì
+                    </CardTitle>
+                    <CardDescription>
+                        Bật cho toàn hệ thống hoặc một nhà hàng. Thao tác được
+                        ghi nhật ký.
+                    </CardDescription>
+                </CardHeader>
+                <CardContent class="space-y-4">
+                    <div class="grid gap-3 sm:grid-cols-2">
+                        <label class="space-y-1.5 text-sm">
+                            <span>Phạm vi áp dụng</span>
+                            <select
+                                v-model="maintenance.scope"
+                                class="h-9 w-full rounded-lg border border-border bg-background px-3 text-sm"
+                            >
+                                <option value="global">Toàn hệ thống</option>
+                                <option value="tenant">Một nhà hàng</option>
+                            </select>
+                        </label>
+                        <label
+                            v-if="maintenance.scope === 'tenant'"
+                            class="space-y-1.5 text-sm"
+                        >
+                            <span>Nhà hàng</span>
+                            <select
+                                v-model.number="maintenance.restaurant_id"
+                                class="h-9 w-full rounded-lg border border-border bg-background px-3 text-sm"
+                            >
+                                <option :value="null">Chọn nhà hàng</option>
+                                <option
+                                    v-for="tenant in tenants"
+                                    :key="tenant.id"
+                                    :value="tenant.id"
+                                >
+                                    {{ tenant.name }}
+                                </option>
+                            </select>
+                        </label>
+                    </div>
+                    <label class="flex items-center gap-2 text-sm">
+                        <input v-model="maintenance.enabled" type="checkbox" />
+                        Bật chế độ bảo trì
+                    </label>
+                    <label class="space-y-1.5 text-sm">
+                        <span>Thông báo bảo trì</span>
+                        <textarea
+                            v-model="maintenance.message"
+                            rows="2"
+                            class="w-full rounded-lg border border-border bg-background p-3 text-sm"
+                            placeholder="Hệ thống đang được bảo trì..."
+                        />
+                    </label>
+                    <Button @click="saveMaintenance">Lưu cấu hình</Button>
+                </CardContent>
+            </Card>
+
+            <Card>
+                <CardHeader>
+                    <CardTitle>Chế độ bảo trì đang cấu hình</CardTitle>
+                    <CardDescription
+                        >Trạng thái toàn hệ thống và từng nhà
+                        hàng.</CardDescription
+                    >
+                </CardHeader>
+                <CardContent class="space-y-2">
+                    <div
+                        v-for="mode in maintenanceModes"
+                        :key="mode.id"
+                        class="flex items-center justify-between gap-3 rounded-xl border border-border/60 bg-muted/10 p-3"
+                    >
+                        <div class="min-w-0">
+                            <p class="font-medium">
+                                {{
+                                    mode.scope === 'global'
+                                        ? 'Toàn hệ thống'
+                                        : mode.restaurant_name
+                                }}
+                            </p>
+                            <p class="truncate text-xs text-muted-foreground">
+                                {{ mode.message || 'Không có thông báo' }}
+                            </p>
+                        </div>
+                        <StatusBadge
+                            :status="mode.enabled ? 'maintenance' : 'inactive'"
+                        >
+                            {{ mode.enabled ? 'Đang bật' : 'Đã tắt' }}
+                        </StatusBadge>
+                    </div>
+                    <p
+                        v-if="!maintenanceModes.length"
+                        class="py-5 text-center text-sm text-muted-foreground"
+                    >
+                        Chưa cấu hình chế độ bảo trì.
+                    </p>
+                </CardContent>
+            </Card>
         </div>
     </div>
 </template>
