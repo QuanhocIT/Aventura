@@ -48,7 +48,11 @@ const roles = computed(() => {
     return Array.isArray(raw) ? raw : Object.values(raw as Record<string, string>);
 });
 
-const isSuperAdmin = computed(() => roles.value.includes('super_admin'));
+const isSuperAdmin = computed(() =>
+    roles.value.some((role) =>
+        ['super_admin', 'system_admin', 'billing_admin', 'support_specialist'].includes(role),
+    ),
+);
 const { isAllBranches } = useBranchContext();
 
 const showFeedbackModal = ref(false);

@@ -17,6 +17,7 @@ class CustomPlanBuilderTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+        $this->withSession(['superadmin.2fa_verified_until' => now()->addMinutes(15)->timestamp]);
         // Disable search indexing during tests to avoid Meilisearch connection errors
         config(['scout.driver' => null]);
     }
@@ -31,6 +32,7 @@ class CustomPlanBuilderTest extends TestCase
             'two_factor_confirmed_at' => now(),
         ]);
         $superAdmin->assignRole('super_admin');
+        $this->withSession(['superadmin.2fa_verified_user_id' => $superAdmin->id]);
 
         $restaurant = Restaurant::create([
             'name' => 'Kichi Test Restaurant',

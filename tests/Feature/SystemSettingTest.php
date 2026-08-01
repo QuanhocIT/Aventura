@@ -21,6 +21,7 @@ class SystemSettingTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+        $this->withSession(['superadmin.2fa_verified_until' => now()->addMinutes(15)->timestamp]);
 
         Role::firstOrCreate(['name' => 'super_admin', 'guard_name' => 'web']);
 
@@ -29,6 +30,7 @@ class SystemSettingTest extends TestCase
             'two_factor_confirmed_at' => now(),
         ]);
         $this->superAdmin->assignRole('super_admin');
+        $this->withSession(['superadmin.2fa_verified_user_id' => $this->superAdmin->id]);
 
         $this->normalUser = User::factory()->create([
             'email_verified_at' => now(),

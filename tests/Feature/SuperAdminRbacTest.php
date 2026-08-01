@@ -22,16 +22,46 @@ class SuperAdminRbacTest extends TestCase
         parent::setUp();
 
         // Create permissions
-        foreach (['superadmin.dashboard.view', 'superadmin.billing.manage', 'superadmin.support.manage', 'superadmin.system.manage'] as $perm) {
+        foreach ([
+            'superadmin.dashboard.view',
+            'superadmin.tenant.view',
+            'superadmin.tenant.manage',
+            'superadmin.content.manage',
+            'superadmin.crm.manage',
+            'superadmin.churn.manage',
+            'superadmin.billing.view',
+            'superadmin.billing.manage',
+            'superadmin.support.manage',
+            'superadmin.system.manage',
+            'superadmin.security.manage',
+            'superadmin.backup.manage',
+            'superadmin.audit.view',
+            'superadmin.audit.export',
+        ] as $perm) {
             Permission::firstOrCreate(['name' => $perm, 'guard_name' => 'web']);
         }
 
         // Create roles
         $systemAdmin = Role::firstOrCreate(['name' => 'system_admin', 'guard_name' => 'web']);
-        $systemAdmin->syncPermissions(['superadmin.dashboard.view', 'superadmin.billing.manage', 'superadmin.support.manage', 'superadmin.system.manage']);
+        $systemAdmin->syncPermissions([
+            'superadmin.dashboard.view',
+            'superadmin.tenant.view',
+            'superadmin.tenant.manage',
+            'superadmin.content.manage',
+            'superadmin.crm.manage',
+            'superadmin.churn.manage',
+            'superadmin.billing.view',
+            'superadmin.billing.manage',
+            'superadmin.support.manage',
+            'superadmin.system.manage',
+            'superadmin.security.manage',
+            'superadmin.backup.manage',
+            'superadmin.audit.view',
+            'superadmin.audit.export',
+        ]);
 
         $billingAdmin = Role::firstOrCreate(['name' => 'billing_admin', 'guard_name' => 'web']);
-        $billingAdmin->syncPermissions(['superadmin.dashboard.view', 'superadmin.billing.manage']);
+        $billingAdmin->syncPermissions(['superadmin.dashboard.view', 'superadmin.billing.view', 'superadmin.billing.manage']);
 
         $supportSpec = Role::firstOrCreate(['name' => 'support_specialist', 'guard_name' => 'web']);
         $supportSpec->syncPermissions(['superadmin.dashboard.view', 'superadmin.support.manage']);
@@ -42,6 +72,7 @@ class SuperAdminRbacTest extends TestCase
 
         $this->systemAdmin = User::factory()->create($base);
         $this->systemAdmin->assignRole('system_admin');
+        $this->withSession(['superadmin.2fa_verified_user_id' => $this->systemAdmin->id]);
 
         $this->billingAdmin = User::factory()->create($base);
         $this->billingAdmin->assignRole('billing_admin');
@@ -80,6 +111,14 @@ class SuperAdminRbacTest extends TestCase
         $this->get('/super-admin/campaigns')->assertStatus(403);
     }
 
+    public function test_billing_admin_cannot_manage_tenants(): void
+    {
+        $this->actingAs($this->billingAdmin);
+
+        $this->get('/super-admin/restaurants')->assertStatus(403);
+        $this->post('/super-admin/restaurants', [])->assertStatus(403);
+    }
+
     public function test_support_specialist_can_access_support_routes(): void
     {
         $this->actingAs($this->supportSpecialist);
@@ -104,6 +143,14 @@ class SuperAdminRbacTest extends TestCase
         $this->get('/super-admin/accounts')->assertStatus(403);
     }
 
+    public function test_support_specialist_cannot_manage_tenants(): void
+    {
+        $this->actingAs($this->supportSpecialist);
+
+        $this->get('/super-admin/restaurants')->assertStatus(403);
+        $this->post('/super-admin/restaurants', [])->assertStatus(403);
+    }
+
     public function test_system_admin_has_full_access(): void
     {
         $this->actingAs($this->systemAdmin);
@@ -114,6 +161,8 @@ class SuperAdminRbacTest extends TestCase
         $this->get('/super-admin/settings')->assertOk();
         $this->get('/super-admin/accounts')->assertOk();
         $this->get('/super-admin/audit-logs')->assertOk();
+        $this->get('/super-admin/firewall')->assertOk();
+        $this->get('/super-admin/backup-maintenance')->assertOk();
     }
 
     public function test_legacy_super_admin_retains_full_access(): void
@@ -127,13 +176,16 @@ class SuperAdminRbacTest extends TestCase
         $this->get('/super-admin/accounts')->assertOk();
     }
 
-    public function test_all_subroles_can_access_shared_dashboard(): void
+    public function test_all_subroles_can_access_dashboard_but_tenant_views_are_restricted(): void
     {
-        foreach ([$this->billingAdmin, $this->supportSpecialist, $this->systemAdmin] as $user) {
+        foreach ([$this->billingAdmin, $this->supportSpecialist] as $user) {
             $this->actingAs($user);
             $this->get('/super-admin/dashboard')->assertOk();
-            $this->get('/super-admin/restaurants')->assertOk();
+            $this->get('/super-admin/restaurants')->assertStatus(403);
         }
+
+        $this->actingAs($this->systemAdmin);
+        $this->get('/super-admin/restaurants')->assertOk();
     }
 
     public function test_unauthenticated_cannot_access_superadmin(): void
@@ -151,6 +203,7 @@ class SuperAdminRbacTest extends TestCase
 
     public function test_system_admin_can_create_admin_account(): void
     {
+        $this->withSession(['superadmin.2fa_verified_until' => now()->addMinutes(10)->timestamp]);
         $this->actingAs($this->systemAdmin);
 
         $response = $this->post('/super-admin/accounts', [
@@ -170,6 +223,7 @@ class SuperAdminRbacTest extends TestCase
 
     public function test_system_admin_can_update_role(): void
     {
+        $this->withSession(['superadmin.2fa_verified_until' => now()->addMinutes(10)->timestamp]);
         $this->actingAs($this->systemAdmin);
 
         $response = $this->patch("/super-admin/accounts/{$this->billingAdmin->id}/role", [
@@ -180,5 +234,27 @@ class SuperAdminRbacTest extends TestCase
         $this->billingAdmin->refresh();
         $this->assertTrue($this->billingAdmin->hasRole('support_specialist'));
         $this->assertFalse($this->billingAdmin->hasRole('billing_admin'));
+        $this->assertTrue(\App\Models\AuditLog::where('action', 'update_admin_role.before')->exists());
+        $this->assertTrue(\App\Models\AuditLog::where('action', 'update_admin_role.after')->exists());
+    }
+
+    public function test_system_admin_cannot_promote_tenant_user_to_platform_admin(): void
+    {
+        $tenantUser = User::factory()->create([
+            'email_verified_at' => now(),
+            'two_factor_confirmed_at' => now(),
+        ]);
+        $tenantUser->assignRole('owner');
+
+        $this->withSession(['superadmin.2fa_verified_until' => now()->addMinutes(10)->timestamp]);
+        $this->actingAs($this->systemAdmin);
+
+        $this->patch("/super-admin/accounts/{$tenantUser->id}/role", [
+            'role' => 'billing_admin',
+        ])->assertRedirect();
+
+        $tenantUser->refresh();
+        $this->assertTrue($tenantUser->hasRole('owner'));
+        $this->assertFalse($tenantUser->hasRole('billing_admin'));
     }
 }

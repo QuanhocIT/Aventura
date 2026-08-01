@@ -29,6 +29,7 @@ class SuperAdminAdvancedSecurityTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+        $this->withSession(['superadmin.2fa_verified_until' => now()->addMinutes(15)->timestamp]);
 
         $this->superAdminRole = Role::firstOrCreate(['name' => 'super_admin', 'guard_name' => 'web']);
         $this->ownerRole = Role::firstOrCreate(['name' => 'owner', 'guard_name' => 'web']);
@@ -42,6 +43,7 @@ class SuperAdminAdvancedSecurityTest extends TestCase
             'status' => 'active',
         ]);
         $this->superAdmin->assignRole($this->superAdminRole);
+        $this->withSession(['superadmin.2fa_verified_user_id' => $this->superAdmin->id]);
 
         $this->restaurant = Restaurant::factory()->create();
 

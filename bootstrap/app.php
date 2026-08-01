@@ -8,11 +8,13 @@ use App\Http\Middleware\CheckTenantSubscription;
 use App\Http\Middleware\ClearPermissionCache;
 use App\Http\Middleware\CompressResponse;
 use App\Http\Middleware\EnforceImpersonateReadOnly;
+use App\Http\Middleware\EnsureSecuritySessionFresh;
 use App\Http\Middleware\EnsureBranchContext;
 use App\Http\Middleware\EnsureSuperAdminAccess;
 use App\Http\Middleware\HandleAppearance;
 use App\Http\Middleware\HandleInertiaRequests;
 use App\Http\Middleware\RequireSuperAdminTwoFactor;
+use App\Http\Middleware\RequireSuperAdminStepUp;
 use App\Http\Middleware\SecurityFirewallMiddleware;
 use App\Http\Middleware\SecurityHeaders;
 use App\Http\Middleware\SetTenantContext;
@@ -68,6 +70,7 @@ return Application::configure(basePath: dirname(__DIR__))
 
         $middleware->web(append: [
             SecurityHeaders::class,
+            EnsureSecuritySessionFresh::class,
             CheckServiceMaintenance::class,
             CompressResponse::class,
             EnforceImpersonateReadOnly::class,
@@ -90,6 +93,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'permission.cache.clear' => ClearPermissionCache::class,
             'superadmin.access' => EnsureSuperAdminAccess::class,
             'superadmin.permission' => CheckSuperAdminPermission::class,
+            'superadmin.stepup' => RequireSuperAdminStepUp::class,
             'superadmin.ip_whitelist' => SuperAdminIpWhitelistMiddleware::class,
             'shift.schedule' => CheckShiftSchedule::class,
         ]);

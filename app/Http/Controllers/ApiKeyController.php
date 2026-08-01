@@ -29,6 +29,17 @@ class ApiKeyController extends Controller
         return back()->with('success', $apiKey->is_active ? 'Đã kích hoạt lại API key.' : 'Đã thu hồi API key.');
     }
 
+    public function rotate(Request $request, ApiKey $apiKey): RedirectResponse
+    {
+        abort_unless($apiKey->restaurant_id === $request->user()->restaurant_id, 403);
+
+        $plainKey = ApiKey::rotate($apiKey);
+
+        return back()
+            ->with('success', 'Đã rotation API key. Key cũ không còn sử dụng được.')
+            ->with('webhook_secret', $plainKey);
+    }
+
     public function destroy(Request $request, ApiKey $apiKey): RedirectResponse
     {
         abort_unless($apiKey->restaurant_id === $request->user()->restaurant_id, 403);

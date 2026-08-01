@@ -18,6 +18,7 @@ class BackupMaintenanceTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+        $this->withSession(['superadmin.2fa_verified_until' => now()->addMinutes(15)->timestamp]);
         Storage::fake('local');
         Storage::fake('s3');
     }
@@ -43,6 +44,7 @@ class BackupMaintenanceTest extends TestCase
         $admin->forceFill([
             'two_factor_confirmed_at' => now(),
         ])->save();
+        $this->withSession(['superadmin.2fa_verified_user_id' => $admin->id]);
         
         $this->actingAs($admin)
             ->get('/super-admin/backup-maintenance')
@@ -59,6 +61,7 @@ class BackupMaintenanceTest extends TestCase
         $admin->forceFill([
             'two_factor_confirmed_at' => now(),
         ])->save();
+        $this->withSession(['superadmin.2fa_verified_user_id' => $admin->id]);
 
         $response = $this->actingAs($admin)
             ->post('/super-admin/backup-maintenance/backup');
@@ -82,6 +85,7 @@ class BackupMaintenanceTest extends TestCase
         $admin->forceFill([
             'two_factor_confirmed_at' => now(),
         ])->save();
+        $this->withSession(['superadmin.2fa_verified_user_id' => $admin->id]);
 
         // Tạo dữ liệu giả lập cho failed_jobs
         if (Schema::hasTable('failed_jobs')) {
@@ -128,6 +132,7 @@ class BackupMaintenanceTest extends TestCase
         $admin->forceFill([
             'two_factor_confirmed_at' => now(),
         ])->save();
+        $this->withSession(['superadmin.2fa_verified_user_id' => $admin->id]);
 
         $lifetimeSeconds = config('session.lifetime', 120) * 60;
 
@@ -175,6 +180,7 @@ class BackupMaintenanceTest extends TestCase
         $admin->forceFill([
             'two_factor_confirmed_at' => now(),
         ])->save();
+        $this->withSession(['superadmin.2fa_verified_user_id' => $admin->id]);
 
         // Tạo các bản ghi Audit Log giả lập
         if (Schema::hasTable('audit_logs')) {

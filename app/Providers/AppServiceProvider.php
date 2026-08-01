@@ -73,6 +73,23 @@ class AppServiceProvider extends ServiceProvider
         // Lưu trữ ID nhân viên và thời gian kết thúc ca trực vào Session khi login thành công
         Event::listen(\Illuminate\Auth\Events\Login::class, function (\Illuminate\Auth\Events\Login $event) {
             $user = $event->user;
+            session(['security_session_version' => (int) ($user->security_session_version ?? 0)]);
+
+            try {
+                if (\Illuminate\Support\Facades\Schema::hasTable('login_events')) {
+                    \App\Models\LoginEvent::create([
+                        'user_id' => $user->id,
+                        'email' => $user->email,
+                        'status' => 'success',
+                        'ip_address' => request()->ip(),
+                        'user_agent' => request()->userAgent(),
+                        'occurred_at' => now(),
+                    ]);
+                }
+            } catch (\Throwable) {
+                // Login must not fail because an observability table is unavailable.
+            }
+
             $employee = $user->employee;
             if ($employee) {
                 session([
@@ -92,6 +109,24 @@ class AppServiceProvider extends ServiceProvider
         // WAF Rule: Listen to failed login attempts to block IP
         Event::listen(\Illuminate\Auth\Events\Failed::class, function (\Illuminate\Auth\Events\Failed $event) {
             $ip = request()->ip();
+
+            try {
+                if (\Illuminate\Support\Facades\Schema::hasTable('login_events')) {
+                    $credentials = $event->credentials ?? [];
+                    \App\Models\LoginEvent::create([
+                        'user_id' => $event->user?->id,
+                        'email' => $event->user?->email ?: ($credentials['email'] ?? $credentials['username'] ?? null),
+                        'status' => 'failed',
+                        'ip_address' => $ip,
+                        'user_agent' => request()->userAgent(),
+                        'failure_reason' => 'invalid_credentials',
+                        'occurred_at' => now(),
+                    ]);
+                }
+            } catch (\Throwable) {
+                // WAF and authentication must remain available if logging is unavailable.
+            }
+
             $key = "waf:failed_attempts:{$ip}";
 
             $maxAttempts = (int) (\App\Models\SystemSetting::get('waf_login_max_attempts') ?? config('firewall.waf.login.max_attempts', 5));

@@ -34,16 +34,19 @@ class SuperAdminBillingAnalyticsTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+        $this->withSession(['superadmin.2fa_verified_until' => now()->addMinutes(15)->timestamp]);
 
         Permission::firstOrCreate(['name' => 'superadmin.billing.manage', 'guard_name' => 'web']);
         $role = Role::firstOrCreate(['name' => 'billing_admin', 'guard_name' => 'web']);
-        $role->syncPermissions(['superadmin.billing.manage']);
+        Permission::firstOrCreate(['name' => 'superadmin.billing.view', 'guard_name' => 'web']);
+        $role->syncPermissions(['superadmin.billing.view', 'superadmin.billing.manage']);
 
         $this->billingAdmin = User::factory()->create([
             'email_verified_at' => now(),
             'two_factor_confirmed_at' => now(),
         ]);
         $this->billingAdmin->assignRole($role);
+        $this->withSession(['superadmin.2fa_verified_user_id' => $this->billingAdmin->id]);
 
         $this->plan = SubscriptionPlan::factory()->create(['price' => 500000, 'is_custom' => false]);
         $this->restaurant = Restaurant::factory()->create(['status' => 'active', 'plan_id' => $this->plan->id]);

@@ -29,6 +29,16 @@ use Illuminate\Console\Scheduling\Schedule;
  * Xem SCHEDULER_RESTORE.md để biết trình tự bật khuyến nghị.
  */
 return function (Schedule $schedule): void {
+    // Operations Center heartbeat: proves that the Laravel scheduler itself is ticking,
+    // independently from the health checks it runs.
+    $schedule->call(function (): void {
+        $path = storage_path('framework/scheduler-heartbeat.json');
+        @file_put_contents($path, json_encode([
+            'last_run_at' => now()->toIso8601String(),
+            'pid' => getmypid(),
+        ], JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
+    })->everyMinute()->name('operations-center-heartbeat')->withoutOverlapping();
+
     // ── Nhóm việc đã và đang chạy ổn định (giữ nguyên từ routes/console.php cũ) ──
     $schedule->command('billing:send-reminders')->dailyAt('08:00');
     $schedule->command('billing:sync-statuses')->hourly();

@@ -85,6 +85,7 @@ class RestaurantController extends Controller
                 'name' => $r->name,
                 'plan_code' => $r->plan?->code ?? 'free',
                 'status' => $r->status,
+                'lifecycle_status' => $r->lifecycleStatus(),
                 'is_trial' => $r->activeSubscription?->status === 'trial',
                 'days_since_created' => (int) $r->created_at->diffInDays($now),
                 'days_until_subscription_ends' => $r->subscription_ends_at
@@ -325,6 +326,7 @@ class RestaurantController extends Controller
                 'email' => $restaurant->email,
                 'address' => $restaurant->address,
                 'status' => $restaurant->status,
+                'lifecycle_status' => $restaurant->lifecycleStatus(),
                 'timezone' => $restaurant->timezone,
                 'currency' => $restaurant->currency,
                 'trial_ends_at' => $restaurant->trial_ends_at?->format('d/m/Y'),
@@ -433,7 +435,12 @@ class RestaurantController extends Controller
         ]);
 
         $oldStatus = $restaurant->status;
-        $restaurant->update(['status' => $request->status]);
+        $restaurant->update([
+            'status' => $request->status,
+            ...in_array($request->status, ['active', 'suspended'], true)
+                ? ['lifecycle_status' => $request->status]
+                : [],
+        ]);
 
         $labels = [
             'active' => 'kích hoạt',

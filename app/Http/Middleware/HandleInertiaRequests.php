@@ -70,6 +70,7 @@ class HandleInertiaRequests extends Middleware
                     'id'                   => $restaurant->id,
                     'name'                 => $restaurant->name,
                     'status'               => $restaurant->status,
+                    'lifecycle_status'    => $restaurant->lifecycleStatus(),
                     'trial_ends_at'        => $restaurant->trial_ends_at?->toDateString(),
                     'subscription_ends_at' => $restaurant->subscription_ends_at?->toDateString(),
                     'plan' => $restaurant->plan ? [

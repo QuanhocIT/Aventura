@@ -16,6 +16,7 @@ class SecurityFirewallTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+        $this->withSession(['superadmin.2fa_verified_until' => now()->addMinutes(15)->timestamp]);
 
         // Clear caches and rate limits before each test
         Cache::flush();
@@ -149,6 +150,7 @@ class SecurityFirewallTest extends TestCase
             'two_factor_confirmed_at' => now(),
         ]);
         $superAdmin->assignRole('super_admin');
+        $this->withSession(['superadmin.2fa_verified_user_id' => $superAdmin->id]);
 
         // 2. Mock a blocked IP
         Cache::put("waf:blocked:1.2.3.4", true, 600);

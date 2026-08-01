@@ -25,12 +25,14 @@ class AutomatedValidatorTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+        $this->withSession(['superadmin.2fa_verified_until' => now()->addMinutes(15)->timestamp]);
 
         // 1. Setup SuperAdmin with 2FA confirmed to bypassRequireSuperAdminTwoFactor middleware
         $this->superAdmin = User::factory()->create([
             'two_factor_confirmed_at' => now(),
         ]);
         $this->superAdmin->assignRole('super_admin');
+        $this->withSession(['superadmin.2fa_verified_user_id' => $this->superAdmin->id]);
 
         // 2. Setup Plan
         $this->plan = SubscriptionPlan::create([

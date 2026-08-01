@@ -63,6 +63,8 @@ class User extends Authenticatable implements MustVerifyEmail
             'pin_code' => 'hashed',
             'two_factor_confirmed_at' => 'datetime',
             'last_login_at' => 'datetime',
+            'force_logout_at' => 'datetime',
+            'security_session_version' => 'integer',
             'onboarding_status' => 'array',
         ];
     }
@@ -85,6 +87,11 @@ class User extends Authenticatable implements MustVerifyEmail
     public function employee(): HasOne
     {
         return $this->hasOne(Employee::class);
+    }
+
+    public function loginEvents(): HasMany
+    {
+        return $this->hasMany(LoginEvent::class);
     }
 
     public function createdOrders(): HasMany

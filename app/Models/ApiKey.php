@@ -20,6 +20,7 @@ class ApiKey extends Model
         return [
             'is_active' => 'boolean',
             'last_used_at' => 'datetime',
+            'rotated_at' => 'datetime',
         ];
     }
 
@@ -31,7 +32,7 @@ class ApiKey extends Model
     /** Sinh key mới — trả về [plainKey, model]. Plain key chỉ hiển thị một lần. */
     public static function generate(int $restaurantId, string $name): array
     {
-        $plainKey = 'avk_'.Str::random(40);
+        $plainKey = static::newPlainKey();
 
         $key = static::create([
             'restaurant_id' => $restaurantId,
@@ -41,6 +42,27 @@ class ApiKey extends Model
         ]);
 
         return [$plainKey, $key];
+    }
+
+    /** Rotate a key and return the new plain value. It is never recoverable afterwards. */
+    public static function rotate(self $key): string
+    {
+        $plainKey = static::newPlainKey();
+
+        $key->update([
+            'key_prefix' => substr($plainKey, 0, 12),
+            'key_hash' => hash('sha256', $plainKey),
+            'last_used_at' => null,
+            'rotated_at' => now(),
+            'is_active' => true,
+        ]);
+
+        return $plainKey;
+    }
+
+    private static function newPlainKey(): string
+    {
+        return 'avk_'.Str::random(40);
     }
 
     public static function findByPlainKey(string $plainKey): ?self

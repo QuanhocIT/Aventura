@@ -21,6 +21,7 @@ class ReportedActionsTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+        $this->withSession(['superadmin.2fa_verified_until' => now()->addMinutes(15)->timestamp]);
         $this->withoutMiddleware([
             \App\Http\Middleware\SecurityFirewallMiddleware::class,
             \App\Http\Middleware\TenantRateLimit::class,
@@ -29,7 +30,10 @@ class ReportedActionsTest extends TestCase
 
     private function superAdmin(): User
     {
-        return User::whereHas('roles', fn ($q) => $q->where('name', 'super_admin'))->orderBy('id')->firstOrFail();
+        $user = User::whereHas('roles', fn ($q) => $q->where('name', 'super_admin'))->orderBy('id')->firstOrFail();
+        $this->withSession(['superadmin.2fa_verified_user_id' => $user->id]);
+
+        return $user;
     }
 
     public function test_super_admin_impersonate_owner_does_not_500(): void

@@ -41,7 +41,8 @@ Route::get('sitemap.xml', function () {
 })->name('sitemap');
 
 Route::get('api/admin/tenant-health', function (\Illuminate\Http\Request $request) {
-    if (!$request->user()?->hasRole('super_admin')) {
+    if (! $request->user()?->isSuperAdmin()
+        || (! $request->user()->hasRole('super_admin') && ! $request->user()->hasPermissionTo('superadmin.tenant.view'))) {
         abort(403);
     }
     $restaurants = \App\Models\Restaurant::with('plan:id,code,name')
@@ -225,5 +226,3 @@ Route::get('dev-login', function() {
 });
 
 require __DIR__.'/settings.php';
-
-

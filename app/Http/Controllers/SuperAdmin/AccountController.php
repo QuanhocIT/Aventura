@@ -5,8 +5,10 @@ namespace App\Http\Controllers\SuperAdmin;
 use App\Http\Controllers\Controller;
 use App\Models\AuditLog;
 use App\Models\User;
+use App\Services\SuperAdminAuditStream;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -115,11 +117,11 @@ class AccountController extends Controller
             'role' => ['required', 'string', 'in:'.implode(',', self::ADMIN_SUB_ROLES)],
         ]);
 
-        $oldRoles = $user->roles->pluck('name')->toArray();
+        if (! $user->isSuperAdmin()) {
+            return back()->with('error', 'Chi duoc thay doi role cho tai khoan platform-admin. Khong the nang owner/manager tenant thanh Superadmin.');
+        }
 
-        // Remove old admin sub-roles, assign new one
-        $user->removeRole(array_intersect($oldRoles, self::ADMIN_SUB_ROLES));
-        $user->assignRole($data['role']);
+        $oldRoles = $user->getRoleNames()->values()->all();
 
         AuditLog::create([
             'restaurant_id' => null,
@@ -127,14 +129,52 @@ class AccountController extends Controller
             'user_id' => $request->user()->id,
             'user_role' => 'admin',
             'event' => 'updated',
-            'action' => 'update_admin_role',
+            'action' => 'update_admin_role.before',
             'subject_type' => User::class,
             'subject_id' => $user->id,
             'old_values' => ['roles' => $oldRoles],
-            'new_values' => ['role' => $data['role'], 'email' => $user->email],
+            'new_values' => [
+                'requested_role' => $data['role'],
+                'target_email' => $user->email,
+                'status' => 'pending',
+            ],
             'ip_address' => $request->ip(),
             'user_agent' => $request->userAgent(),
         ]);
+
+        // Remove old admin sub-roles, assign new one
+        DB::transaction(function () use ($data, $oldRoles, $user): void {
+            $user->removeRole(array_intersect($oldRoles, self::ADMIN_SUB_ROLES));
+            $user->assignRole($data['role']);
+        });
+
+        $user->refresh();
+
+        AuditLog::create([
+            'restaurant_id' => null,
+            'branch_id' => null,
+            'user_id' => $request->user()->id,
+            'user_role' => 'admin',
+            'event' => 'updated',
+            'action' => 'update_admin_role.after',
+            'subject_type' => User::class,
+            'subject_id' => $user->id,
+            'old_values' => ['roles' => $oldRoles],
+            'new_values' => [
+                'roles' => $user->getRoleNames()->values()->all(),
+                'requested_role' => $data['role'],
+                'email' => $user->email,
+                'status' => 'success',
+            ],
+            'ip_address' => $request->ip(),
+            'user_agent' => $request->userAgent(),
+        ]);
+
+        SuperAdminAuditStream::record('update_admin_role', [
+            'target_email' => $user->email,
+            'old_roles' => $oldRoles,
+            'new_roles' => $user->getRoleNames()->values()->all(),
+        ], User::class, $user->id, 'warning');
 
         return back()->with('success', "Đã cập nhật vai trò của {$user->name} thành {$data['role']}.");
     }

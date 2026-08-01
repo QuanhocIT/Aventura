@@ -25,16 +25,19 @@ class SuperAdminDashboardExportTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+        $this->withSession(['superadmin.2fa_verified_until' => now()->addMinutes(15)->timestamp]);
 
         Permission::firstOrCreate(['name' => 'superadmin.dashboard.view', 'guard_name' => 'web']);
         $role = Role::firstOrCreate(['name' => 'system_admin', 'guard_name' => 'web']);
-        $role->syncPermissions(['superadmin.dashboard.view']);
+        Permission::firstOrCreate(['name' => 'superadmin.system.manage', 'guard_name' => 'web']);
+        $role->syncPermissions(['superadmin.dashboard.view', 'superadmin.system.manage']);
 
         $this->systemAdmin = User::factory()->create([
             'email_verified_at' => now(),
             'two_factor_confirmed_at' => now(),
         ]);
         $this->systemAdmin->assignRole($role);
+        $this->withSession(['superadmin.2fa_verified_user_id' => $this->systemAdmin->id]);
 
         Restaurant::factory()->count(2)->create(['status' => 'active']);
     }

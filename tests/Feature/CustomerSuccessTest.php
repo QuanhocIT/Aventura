@@ -28,6 +28,7 @@ class CustomerSuccessTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+        $this->withSession(['superadmin.2fa_verified_until' => now()->addMinutes(15)->timestamp]);
 
         // Disable Scout search indexing to prevent Meilisearch connections during testing
         config(['scout.driver' => null]);
@@ -41,6 +42,7 @@ class CustomerSuccessTest extends TestCase
             'two_factor_confirmed_at' => now(),
         ]);
         $this->superAdmin->assignRole('super_admin');
+        $this->withSession(['superadmin.2fa_verified_user_id' => $this->superAdmin->id]);
 
         // Setup Restaurant Owner
         $this->owner = User::factory()->create([

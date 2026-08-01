@@ -20,6 +20,7 @@ import {
     X,
     Flame,
     Eye,
+    ArchiveRestore,
 } from 'lucide-vue-next';
 import { ref, watch, computed } from 'vue';
 import {
@@ -71,6 +72,9 @@ interface Stats {
     updated_count: number;
     unique_ips_count: number;
     after_hours_count: number;
+    dangerous_count?: number;
+    retention_months?: number;
+    retention_cutoff?: string;
     top_actions: TopAction[];
 }
 
@@ -98,6 +102,7 @@ const eventFilter = ref(props.filters.event || 'all');
 const actionFilter = ref(props.filters.action ?? '');
 const fromFilter = ref(props.filters.from ?? '');
 const toFilter = ref(props.filters.to ?? '');
+const retentionMonths = ref(props.stats.retention_months ?? 6);
 
 let timer: ReturnType<typeof setTimeout>;
 watch(actionFilter, () => {
@@ -126,6 +131,15 @@ function resetFilters() {
     fromFilter.value = '';
     toFilter.value = '';
     applyFilter();
+}
+
+function updateRetention() {
+    router.post('/super-admin/audit-logs/retention', { retention_months: retentionMonths.value }, { preserveScroll: true });
+}
+
+function pruneRetention() {
+    if (!window.confirm(`Xóa vĩnh viễn Audit Log cũ hơn ${retentionMonths.value} tháng? Hành động này không thể hoàn tác.`)) return;
+    router.post('/super-admin/audit-logs/retention/prune', {}, { preserveScroll: true });
 }
 
 const expandedRow = ref<number | null>(null);
@@ -595,6 +609,21 @@ const securityInsights = computed(() => {
                 </CardContent>
             </Card>
         </div>
+
+        <Card class="border-amber-500/30 bg-amber-500/[0.03]">
+            <CardContent class="flex flex-wrap items-center justify-between gap-3 p-4">
+                <div>
+                    <p class="flex items-center gap-2 text-sm font-bold"><ArchiveRestore class="size-4 text-amber-600" /> Retention & thao tác nguy hiểm</p>
+                    <p class="text-xs text-muted-foreground">{{ stats.dangerous_count ?? 0 }} thao tác nhạy cảm · dữ liệu đến {{ stats.retention_cutoff || '—' }}</p>
+                </div>
+                <div class="flex flex-wrap items-center gap-2">
+                    <Input v-model.number="retentionMonths" type="number" min="1" max="120" class="h-8 w-24" />
+                    <span class="text-xs text-muted-foreground">tháng</span>
+                    <Button size="sm" variant="outline" @click="updateRetention">Lưu retention</Button>
+                    <Button size="sm" variant="destructive" @click="pruneRetention">Prune log cũ</Button>
+                </div>
+            </CardContent>
+        </Card>
 
         <!-- Filters Block -->
         <FilterBar>

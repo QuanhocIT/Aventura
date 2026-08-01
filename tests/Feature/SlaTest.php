@@ -25,6 +25,7 @@ class SlaTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+        $this->withSession(['superadmin.2fa_verified_until' => now()->addMinutes(15)->timestamp]);
 
         config(['scout.driver' => null]);
 
@@ -35,6 +36,7 @@ class SlaTest extends TestCase
             'two_factor_confirmed_at' => now(),
         ]);
         $this->superAdmin->assignRole('super_admin');
+        $this->withSession(['superadmin.2fa_verified_user_id' => $this->superAdmin->id]);
 
         $this->owner = User::factory()->create();
         $this->owner->assignRole('owner');
