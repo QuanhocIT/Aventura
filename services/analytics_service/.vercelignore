@@ -1,0 +1,10 @@
+# Vercel sẽ bỏ qua các thư mục/file này khi deploy
+venv/
+__pycache__/
+*.pyc
+*.pyo
+.env
+service.log
+service.err.log
+test_main.py
+.pytest_cache/
