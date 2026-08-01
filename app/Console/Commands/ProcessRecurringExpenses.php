@@ -49,6 +49,7 @@ class ProcessRecurringExpenses extends Command
                 if (!$exists) {
                     OperatingExpense::create([
                         'restaurant_id' => $recurring->restaurant_id,
+                        'branch_id' => $recurring->branch_id,
                         'category_id' => $recurring->category_id,
                         'recurring_expense_id' => $recurring->id,
                         'amount' => $recurring->amount,
