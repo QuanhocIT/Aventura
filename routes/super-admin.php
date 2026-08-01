@@ -39,7 +39,7 @@ use App\Http\Controllers\SuperAdmin\TwoFactorConfirmationController;
 
 Route::prefix('super-admin')
     ->name('superadmin.')
-    ->middleware(['auth', 'verified', 'permission.cache.clear', 'superadmin.access', 'role.superadmin.2fa', 'superadmin.ip_whitelist'])
+    ->middleware(['auth', 'verified', 'superadmin.access', 'role.superadmin.2fa', 'superadmin.ip_whitelist'])
     ->group(function () {
         // Step-up verification is available to every Superadmin sub-role.
         Route::get('security/confirm-2fa', [TwoFactorConfirmationController::class, 'show'])
