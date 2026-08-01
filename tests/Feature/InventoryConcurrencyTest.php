@@ -30,7 +30,7 @@ class InventoryConcurrencyTest extends TestCase
             'restaurant_id' => $restaurant->id,
             'name' => 'Gram',
             'symbol' => 'g',
-            'type' => 'mass'
+            'type' => 'mass',
         ]);
 
         $ingredient = Ingredient::create([
@@ -40,7 +40,7 @@ class InventoryConcurrencyTest extends TestCase
             'name' => 'Thit ga',
             'sku' => 'CHICKEN-001',
             'average_cost' => 100,
-            'status' => 'active'
+            'status' => 'active',
         ]);
 
         $inventory = Inventory::create([
@@ -57,7 +57,7 @@ class InventoryConcurrencyTest extends TestCase
             $this->assertNotNull($inv1);
 
             $querySql = Inventory::where('id', $inventory->id)->lockForUpdate()->toSql();
-            
+
             // Assert compiled select SQL. SQLite does not support FOR UPDATE but standard select compile is correct.
             $this->assertStringContainsString('select', strtolower($querySql));
         });
@@ -76,7 +76,7 @@ class InventoryConcurrencyTest extends TestCase
             'restaurant_id' => $restaurant->id,
             'name' => 'Gram',
             'symbol' => 'g',
-            'type' => 'mass'
+            'type' => 'mass',
         ]);
 
         $ingredient = Ingredient::create([
@@ -86,7 +86,7 @@ class InventoryConcurrencyTest extends TestCase
             'name' => 'Thit ga',
             'sku' => 'CHICKEN-001',
             'average_cost' => 100,
-            'status' => 'active'
+            'status' => 'active',
         ]);
 
         $inventoryService = app(InventoryService::class);
@@ -95,7 +95,7 @@ class InventoryConcurrencyTest extends TestCase
             'ingredient_id' => $ingredient->id,
             'quantity' => 50,
             'unit_cost' => 120,
-            'notes' => 'Nhap thit ga'
+            'notes' => 'Nhap thit ga',
         ];
 
         DB::transaction(function () use ($inventoryService, $data, $restaurant, $owner) {
@@ -106,7 +106,7 @@ class InventoryConcurrencyTest extends TestCase
             ->where('ingredient_id', $ingredient->id)
             ->first();
 
-        $this->assertEquals(50.0, (float)$inventory->quantity_on_hand);
-        $this->assertEquals(120.0, (float)$inventory->last_cost);
+        $this->assertEquals(50.0, (float) $inventory->quantity_on_hand);
+        $this->assertEquals(120.0, (float) $inventory->last_cost);
     }
 }

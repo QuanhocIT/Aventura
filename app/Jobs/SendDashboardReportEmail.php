@@ -18,6 +18,7 @@ class SendDashboardReportEmail implements ShouldQueue
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
     public int $tries = 2;
+
     public int $timeout = 120;
 
     public function __construct(public readonly int $subscriptionId) {}

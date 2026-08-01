@@ -27,19 +27,19 @@ class CheckServiceHealth extends Command
     public function handle(ServiceMonitorService $monitorService)
     {
         $this->info('Starting service health checks...');
-        
+
         $results = $monitorService->checkAll();
-        
+
         foreach ($results as $service => $ping) {
             $this->line(sprintf(
                 '[%s] Status: %s, Latency: %sms %s',
                 strtoupper($service),
                 $ping['status'] === 'online' ? 'ONLINE' : 'OFFLINE',
                 $ping['latency'],
-                $ping['error'] ? ' - Error: ' . $ping['error'] : ''
+                $ping['error'] ? ' - Error: '.$ping['error'] : ''
             ));
         }
-        
+
         $this->info('Service health checks completed.');
     }
 }

@@ -4,29 +4,38 @@ namespace App\Http\Controllers\Billing;
 
 use App\Http\Controllers\Controller;
 use App\Models\Coupon;
-use App\Models\RestaurantSubscription;
 use App\Models\SubscriptionPlan;
 use App\Services\BillingService;
 use App\Services\SepayCheckoutService;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Str;
+use Inertia\Inertia;
 
 class CheckoutController extends Controller
 {
-    public function __construct(private readonly SepayCheckoutService $checkout) {}
+    public function __construct(
+        private readonly SepayCheckoutService $checkout,
+        private readonly BillingService $billing,
+    ) {}
 
     public function __invoke(Request $request): RedirectResponse
     {
         $user = $request->user();
         $restaurant = $user?->restaurant;
 
+        if ($user && $user->isSuperAdmin()) {
+            return redirect('/super-admin/billing')->with('info', 'Tài khoản SuperAdmin là Quản trị viên hệ thống. Vui lòng truy cập Phân hệ Billing Center tại /super-admin/billing để quản lý cước phí.');
+        }
+
         if (! $restaurant) {
             return redirect('/dashboard')->with('error', 'Tài khoản này chưa liên kết với nhà hàng nào. Vui lòng đăng nhập bằng tài khoản chủ nhà hàng.');
         }
 
         // Only owner can initiate billing
-        if (! $user->hasAnyRole(['owner', 'admin', 'super_admin'])) {
+        if (! $user->hasAnyRole(['owner', 'admin'])) {
             return redirect('/dashboard')->with('error', 'Bạn không có quyền thực hiện thanh toán. Vui lòng liên hệ chủ nhà hàng.');
         }
 
@@ -47,7 +56,9 @@ class CheckoutController extends Controller
         }
 
         if ((float) $plan->price <= 0) {
-            $restaurant->update(['plan_id' => $plan->id]);
+            $restaurant->update(['plan_id' => $plan->id, 'status' => 'active']);
+            Cache::forget("quota_summary:{$restaurant->id}");
+            Cache::forget("user_permissions:{$restaurant->owner_user_id}");
 
             return redirect('/dashboard')->with('success', 'Đã chuyển sang gói miễn phí.');
         }
@@ -57,28 +68,53 @@ class CheckoutController extends Controller
             $cycle = 'monthly';
         }
 
-        // Check for existing pending subscription for this plan & cycle to avoid duplicates
-        $existing = $restaurant->subscriptions()
-            ->where('plan_id', $plan->id)
-            ->where('billing_cycle', $cycle)
-            ->where('status', 'expired')
-            ->whereJsonContains('meta->pending_payment', true)
-            ->latest()
-            ->first();
+        $lockKey = "checkout_lock:{$restaurant->id}";
+        $lock = Cache::lock($lockKey, 10);
 
-        if ($existing) {
-            return redirect()->route('billing.pay', ['code' => $existing->transaction_code]);
+        if (! $lock->get()) {
+            return redirect('/dashboard')->with('error', 'Yêu cầu thanh toán của bạn đang được xử lý. Vui lòng chờ trong giây lát.');
         }
 
         try {
+            // Check for existing pending subscription for this plan & cycle to avoid duplicates
+            $existing = $restaurant->subscriptions()
+                ->where('plan_id', $plan->id)
+                ->where('billing_cycle', $cycle)
+                ->where('status', 'expired')
+                ->whereJsonContains('meta->pending_payment', true)
+                ->latest()
+                ->first();
+
+            if ($existing) {
+                return redirect()->route('billing.pay', ['code' => $existing->transaction_code]);
+            }
+
+            // Nếu khách đang có gói trả phí còn hạn → tính credit phần còn lại (proration)
+            // để ghi nhận khi tạo gói mới. Phải tính TRƯỚC, ghi SAU khi có subscription mới.
+            $activeSubscription = $restaurant->activeSubscription;
+            $proration = null;
+            if ($activeSubscription && $activeSubscription->status === 'active' && $activeSubscription->ended_at?->isFuture()) {
+                $proration = $this->billing->calculateProration($activeSubscription);
+            }
+
             $checkout = $this->checkout->createCheckout($restaurant, $plan, 'self_serve_checkout', $cycle);
+
+            if ($proration && ($proration['credit_amount'] ?? 0) > 0) {
+                $this->billing->recordProrationCredit(
+                    $activeSubscription,
+                    $checkout['subscription'],
+                    (float) $proration['credit_amount'],
+                    $request->user()
+                );
+            }
+
+            return redirect()->route('billing.pay', ['code' => $checkout['transaction_code']]);
         } catch (\Throwable $e) {
             return redirect('/dashboard')->with('error', $e->getMessage());
+        } finally {
+            $lock->release();
         }
-
-        return redirect()->route('billing.pay', ['code' => $checkout['transaction_code']]);
     }
-
 
     public function payPage(Request $request, string $code)
     {
@@ -86,7 +122,7 @@ class CheckoutController extends Controller
         $restaurant = $user?->restaurant;
 
         if (! $restaurant) {
-            return redirect('/dashboard')->with('error', 'Khong tim thay doanh nghiep de thanh toan.');
+            return redirect('/dashboard')->with('error', 'Không tìm thấy doanh nghiệp để thanh toán.');
         }
 
         $subscription = $restaurant->subscriptions()
@@ -95,20 +131,20 @@ class CheckoutController extends Controller
             ->first();
 
         if (! $subscription) {
-            return redirect('/dashboard')->with('error', 'Khong tim thay thong tin thanh toan.');
+            return redirect('/dashboard')->with('error', 'Không tìm thấy thông tin thanh toán.');
         }
 
         if ($subscription->status === 'active') {
-            return redirect('/dashboard')->with('success', 'Goi dich vu da duoc kich hoat thanh cong.');
+            return redirect('/dashboard')->with('success', 'Gói dịch vụ đã được kích hoạt thành công.');
         }
 
         $bank = (string) config('services.sepay.bank');
         $accountNumber = (string) config('services.sepay.account_number');
         $accountName = (string) config('services.sepay.account_name');
-        
+
         $paymentUrl = $this->checkout->paymentUrl($restaurant, $subscription);
 
-        return \Inertia\Inertia::render('billing/Pay', [
+        return Inertia::render('billing/Pay', [
             'subscription' => [
                 'transaction_code' => $subscription->transaction_code,
                 'price' => (float) $subscription->price,
@@ -183,7 +219,7 @@ class CheckoutController extends Controller
                 'created_at' => $a->created_at?->format('d/m/Y H:i'),
             ]);
 
-        return \Inertia\Inertia::render('billing/History', [
+        return Inertia::render('billing/History', [
             'restaurant' => [
                 'name' => $restaurant->name,
                 'plan_name' => $restaurant->plan?->name,
@@ -198,7 +234,7 @@ class CheckoutController extends Controller
         ]);
     }
 
-    public function checkStatus(Request $request, string $code): \Illuminate\Http\JsonResponse
+    public function checkStatus(Request $request, string $code): JsonResponse
     {
         $user = $request->user();
         $restaurant = $user?->restaurant;
@@ -220,7 +256,7 @@ class CheckoutController extends Controller
         ]);
     }
 
-    public function applyCoupon(Request $request): \Illuminate\Http\JsonResponse
+    public function applyCoupon(Request $request): JsonResponse
     {
         $validated = $request->validate([
             'transaction_code' => 'required|string',
@@ -230,7 +266,7 @@ class CheckoutController extends Controller
         $user = $request->user();
         $restaurant = $user?->restaurant;
 
-        if (!$restaurant) {
+        if (! $restaurant) {
             return response()->json(['success' => false, 'message' => 'Unauthorized'], 403);
         }
 
@@ -239,13 +275,13 @@ class CheckoutController extends Controller
             ->where('status', 'expired')
             ->first();
 
-        if (!$subscription) {
+        if (! $subscription) {
             return response()->json(['success' => false, 'message' => 'Không tìm thấy thông tin thanh toán.'], 404);
         }
 
-        $coupon = \App\Models\Coupon::where('code', $validated['coupon_code'])->first();
+        $coupon = Coupon::where('code', $validated['coupon_code'])->first();
 
-        if (!$coupon || !$coupon->isValid()) {
+        if (! $coupon || ! $coupon->isValid()) {
             return response()->json(['success' => false, 'message' => 'Mã giảm giá không hợp lệ hoặc đã hết hạn.'], 422);
         }
 
@@ -258,7 +294,7 @@ class CheckoutController extends Controller
             'meta' => array_merge($subscription->meta ?? [], [
                 'discount_amount' => $discountAmount,
                 'coupon_applied' => true,
-            ])
+            ]),
         ]);
 
         $paymentUrl = $this->checkout->paymentUrl($restaurant, $subscription);

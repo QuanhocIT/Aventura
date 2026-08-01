@@ -2,22 +2,23 @@
 
 namespace Tests\Feature;
 
+use App\Jobs\RecalculateAverageCostJob;
+use App\Models\Employee;
 use App\Models\Ingredient;
 use App\Models\Inventory;
 use App\Models\Order;
 use App\Models\Product;
 use App\Models\ProductRecipe;
-use App\Models\PurchaseOrder;
 use App\Models\RequestForProposal;
-use App\Models\RfpBid;
 use App\Models\Restaurant;
 use App\Models\RestaurantBranch;
+use App\Models\RfpBid;
 use App\Models\Supplier;
 use App\Models\Unit;
 use App\Models\User;
-use App\Jobs\RecalculateAverageCostJob;
+use App\Services\InventoryService;
+use Database\Seeders\PermissionsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Facades\DB;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
@@ -26,11 +27,17 @@ class AdvancedOperationsTest extends TestCase
     use RefreshDatabase;
 
     protected User $owner;
+
     protected Restaurant $restaurant;
+
     protected RestaurantBranch $branchA;
+
     protected RestaurantBranch $branchB;
+
     protected Supplier $supplier;
+
     protected Unit $unit;
+
     protected Ingredient $ingredient;
 
     protected function setUp(): void
@@ -49,22 +56,22 @@ class AdvancedOperationsTest extends TestCase
             'features' => array_merge($this->restaurant->plan->features ?? [], [
                 'supplier_portal' => true,
                 'hr_full' => true,
-            ])
+            ]),
         ]);
-        
+
         $this->branchA = RestaurantBranch::factory()->create([
             'restaurant_id' => $this->restaurant->id,
-            'manager_user_id' => $this->owner->id
+            'manager_user_id' => $this->owner->id,
         ]);
-        
+
         $this->branchB = RestaurantBranch::factory()->create([
             'restaurant_id' => $this->restaurant->id,
-            'manager_user_id' => $this->owner->id
+            'manager_user_id' => $this->owner->id,
         ]);
 
         $this->owner->forceFill([
             'restaurant_id' => $this->restaurant->id,
-            'branch_id' => $this->branchA->id
+            'branch_id' => $this->branchA->id,
         ])->save();
 
         $this->supplier = Supplier::create([
@@ -77,7 +84,7 @@ class AdvancedOperationsTest extends TestCase
             'restaurant_id' => $this->restaurant->id,
             'name' => 'Kilogram',
             'symbol' => 'kg',
-            'type' => 'mass'
+            'type' => 'mass',
         ]);
 
         $this->ingredient = Ingredient::create([
@@ -89,7 +96,7 @@ class AdvancedOperationsTest extends TestCase
             'average_cost' => 100, // 100đ per g
             'min_stock_level' => 100,
             'reorder_level' => 200,
-            'status' => 'active'
+            'status' => 'active',
         ]);
     }
 
@@ -140,15 +147,15 @@ class AdvancedOperationsTest extends TestCase
                 'to_branch_id' => $this->branchA->id,
                 'ingredient_id' => $this->ingredient->id,
                 'quantity' => 50,
-                'notes' => 'AI recommended transfer'
+                'notes' => 'AI recommended transfer',
             ]);
 
         $postResponse->assertStatus(302); // Redirect back
-        
+
         // Verify inventory levels
         $invA = Inventory::where('branch_id', $this->branchA->id)->where('ingredient_id', $this->ingredient->id)->first();
         $invB = Inventory::where('branch_id', $this->branchB->id)->where('ingredient_id', $this->ingredient->id)->first();
-        
+
         $this->assertEquals(100.0, (float) $invA->quantity_on_hand); // 50 + 50
         $this->assertEquals(450.0, (float) $invB->quantity_on_hand); // 500 - 50
     }
@@ -251,7 +258,7 @@ class AdvancedOperationsTest extends TestCase
         ]);
 
         // Execute inventory deduction
-        $inventoryService = app(\App\Services\InventoryService::class);
+        $inventoryService = app(InventoryService::class);
         $inventoryService->deductInventoryForOrder($order, $this->owner);
 
         // Inventory is now 205 - 10 = 195 (which is below reorder level of 200)
@@ -268,7 +275,7 @@ class AdvancedOperationsTest extends TestCase
 
         $rfpItem = $rfp->items()->first();
         $this->assertEquals($this->ingredient->name, $rfpItem->ingredient_name);
-        
+
         // Expected quantity: min_stock_level * 2 - currentStock = 100 * 2 - 195 = 5
         $this->assertEquals(5.0, (float) $rfpItem->quantity_required);
 
@@ -287,7 +294,7 @@ class AdvancedOperationsTest extends TestCase
         $response->assertStatus(200);
         $props = $response->original->getData()['page']['props'];
         $returnedRfps = $props['rfps'];
-        
+
         $this->assertNotEmpty($returnedRfps);
         $returnedBid = $returnedRfps[0]['bids'][0];
         $this->assertTrue($returnedBid['is_ai_recommended']);
@@ -301,7 +308,7 @@ class AdvancedOperationsTest extends TestCase
     public function test_manager_salary_access_and_fraud_violation_proposal(): void
     {
         // Seed permissions & roles
-        $seeder = new \Database\Seeders\PermissionsSeeder();
+        $seeder = new PermissionsSeeder;
         $seeder->run();
 
         // Create a manager user
@@ -320,7 +327,7 @@ class AdvancedOperationsTest extends TestCase
         $response->assertStatus(200);
 
         // Create an employee profile in the same restaurant to record violation against
-        $employee = \App\Models\Employee::create([
+        $employee = Employee::create([
             'restaurant_id' => $this->restaurant->id,
             'branch_id' => $this->branchA->id,
             'full_name' => 'Nguyen Van A',
@@ -344,7 +351,7 @@ class AdvancedOperationsTest extends TestCase
             ->post(route('fraud.violation.store'), $violationData);
 
         $violationResponse->assertStatus(302); // Redirect back
-        
+
         // Verify ViolationReport was created
         $this->assertDatabaseHas('violation_reports', [
             'restaurant_id' => $this->restaurant->id,

@@ -11,6 +11,7 @@ class RfpBidItem extends Model
     use HasFactory;
 
     protected $table = 'rfp_bid_items';
+
     protected $guarded = [];
 
     protected function casts(): array

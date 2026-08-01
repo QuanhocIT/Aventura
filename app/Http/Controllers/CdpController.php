@@ -3,21 +3,27 @@
 namespace App\Http\Controllers;
 
 use App\Models\Customer;
-use App\Models\CustomerBehaviorLog;
-use App\Models\CustomerRfmAnalysis;
-use App\Models\MarketingCampaign;
 use App\Models\CustomerCampaignLog;
+use App\Models\MarketingCampaign;
 use App\Models\Promotion;
 use App\Services\CdpService;
-use Illuminate\Http\Request;
+use App\Services\MaterializedViewRefresher;
+use App\Services\QuotaService;
+use App\Support\MaterializedViews\MaterializedViewReader;
+use App\Support\TenantRule;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 use Inertia\Response;
 
 class CdpController extends Controller
 {
+    public function __construct(
+        private MaterializedViewReader $mvReader,
+    ) {}
+
     /**
      * Display the CDP & RFM Dashboard.
      */
@@ -26,21 +32,44 @@ class CdpController extends Controller
         abort_unless($request->user()->can('manage_customers'), 403, 'Bạn không có quyền truy cập CDP & Phân tích RFM.');
 
         $restaurant = $request->user()->restaurant;
-        if ($restaurant && ! app(\App\Services\QuotaService::class)->hasFeature($restaurant, 'rfm_ai_analysis')) {
+        if ($restaurant && ! app(QuotaService::class)->hasFeature($restaurant, 'advanced_analytics')) {
             abort(403, 'Gói dịch vụ của bạn không hỗ trợ tính năng Phân tích AI Khách hàng RFM. Vui lòng liên hệ bộ phận hỗ trợ để kích hoạt tính năng này.');
         }
 
         $restaurantId = $request->user()->restaurant_id;
 
-        // Perform recalculation on-demand if there are any uncalculated customer records
-        $metrics = CdpService::getRfmMetrics($restaurantId);
+        // Đọc từ materialized view 'cdp_rfm' — không còn tự đồng bộ RFM đồng bộ
+        // ngay trên request, xem CdpRfmBuilder.
+        $metrics = $this->mvReader->read('cdp_rfm', $restaurantId);
 
-        $customers = Customer::where('restaurant_id', $restaurantId)
-            ->with('rfmAnalysis')
-            ->get()
-            ->map(fn($c) => [
+        // Phân trang phía server (giống customers/Index): trước đây ->get() tải
+        // TOÀN BỘ khách hàng kèm rfmAnalysis rồi mới lọc ở trình duyệt — với vài
+        // nghìn khách là vài MB JSON mỗi lần mở trang.
+        $search = trim((string) $request->input('search', ''));
+        $segment = (string) $request->input('segment', 'all');
+
+        $query = Customer::where('restaurant_id', $restaurantId)->with('rfmAnalysis');
+
+        if ($search !== '') {
+            $query->where(function ($q) use ($search) {
+                $q->where('full_name', 'like', "%{$search}%")
+                    ->orWhere('phone', 'like', "%{$search}%")
+                    ->orWhere('email', 'like', "%{$search}%");
+            });
+        }
+
+        if ($segment !== 'all') {
+            $query->whereHas('rfmAnalysis', fn ($q) => $q->where('rfm_segment', $segment));
+        }
+
+        $customers = $query
+            ->orderByRaw('last_order_at IS NULL')
+            ->orderByDesc('last_order_at')
+            ->paginate(20)
+            ->withQueryString()
+            ->through(fn ($c) => [
                 'id' => $c->id,
-                'customer_code' => 'KH-' . str_pad($c->id, 5, '0', STR_PAD_LEFT),
+                'customer_code' => 'KH-'.str_pad($c->id, 5, '0', STR_PAD_LEFT),
                 'full_name' => $c->full_name,
                 'phone' => $c->phone,
                 'email' => $c->email,
@@ -56,6 +85,7 @@ class CdpController extends Controller
         return Inertia::render('customers/CdpDashboard', [
             'metrics' => $metrics,
             'customers' => $customers,
+            'filters' => ['search' => $search, 'segment' => $segment],
         ]);
     }
 
@@ -67,12 +97,16 @@ class CdpController extends Controller
         abort_unless($request->user()->can('manage_customers'), 403);
 
         $restaurant = $request->user()->restaurant;
-        if ($restaurant && ! app(\App\Services\QuotaService::class)->hasFeature($restaurant, 'rfm_ai_analysis')) {
+        if ($restaurant && ! app(QuotaService::class)->hasFeature($restaurant, 'advanced_analytics')) {
             abort(403, 'Gói dịch vụ của bạn không hỗ trợ tính năng Phân tích AI Khách hàng RFM.');
         }
-        
+
         $restaurantId = $request->user()->restaurant_id;
         CdpService::calculateRfmForRestaurant($restaurantId);
+
+        // Refresh ngay dòng tổng hợp 'cdp_rfm' để trang thấy kết quả mới ngay,
+        // không phải chờ tới lượt chạy theo lịch (hàng ngày).
+        app(MaterializedViewRefresher::class)->refresh('cdp_rfm', $restaurantId);
 
         return back()->with('success', 'Đã làm mới dữ liệu chấm điểm & phân cụm RFM thành công.');
     }
@@ -85,10 +119,10 @@ class CdpController extends Controller
         abort_unless($request->user()->can('manage_customers'), 403);
 
         $restaurant = $request->user()->restaurant;
-        if ($restaurant && ! app(\App\Services\QuotaService::class)->hasFeature($restaurant, 'rfm_ai_analysis')) {
+        if ($restaurant && ! app(QuotaService::class)->hasFeature($restaurant, 'advanced_analytics')) {
             return response()->json(['success' => false, 'message' => 'Gói dịch vụ của bạn không hỗ trợ tính năng này.'], 403);
         }
-        
+
         $restaurantId = $request->user()->restaurant_id;
 
         $customers = Customer::where('customers.restaurant_id', $restaurantId)
@@ -97,9 +131,9 @@ class CdpController extends Controller
             ->select('customers.*', 'customer_rfm_analysis.rfm_score_code', 'customer_rfm_analysis.monetary_amount', 'customer_rfm_analysis.frequency_count', 'customer_rfm_analysis.recency_days')
             ->latest()
             ->get()
-            ->map(fn($c) => [
+            ->map(fn ($c) => [
                 'id' => $c->id,
-                'customer_code' => 'KH-' . str_pad($c->id, 5, '0', STR_PAD_LEFT),
+                'customer_code' => 'KH-'.str_pad($c->id, 5, '0', STR_PAD_LEFT),
                 'full_name' => $c->full_name,
                 'phone' => $c->phone,
                 'email' => $c->email,
@@ -127,14 +161,14 @@ class CdpController extends Controller
             'restaurant_id' => ['required', 'integer'],
             'session_id' => ['required', 'string', 'max:255'],
             'event_type' => ['required', 'string', 'max:100'],
-            'product_id' => ['nullable', 'integer', 'exists:products,id'],
+            'product_id' => ['nullable', 'integer', TenantRule::exists('products')],
             'quantity' => ['nullable', 'numeric'],
             'meta_data' => ['nullable', 'array'],
             'customer_phone' => ['nullable', 'string', 'max:20'],
         ]);
 
         $customerId = null;
-        if (!empty($data['customer_phone'])) {
+        if (! empty($data['customer_phone'])) {
             $customer = Customer::where('restaurant_id', $data['restaurant_id'])
                 ->where('phone', $data['customer_phone'])
                 ->first();
@@ -147,8 +181,8 @@ class CdpController extends Controller
             (int) $data['restaurant_id'],
             $data['session_id'],
             $data['event_type'],
-            !empty($data['product_id']) ? (int) $data['product_id'] : null,
-            !empty($data['quantity']) ? (float) $data['quantity'] : null,
+            ! empty($data['product_id']) ? (int) $data['product_id'] : null,
+            ! empty($data['quantity']) ? (float) $data['quantity'] : null,
             $data['meta_data'] ?? null,
             $customerId
         );
@@ -188,16 +222,16 @@ class CdpController extends Controller
 
         return DB::transaction(function () use ($data, $restaurantId, $customers, $targetCount, $request) {
             // If channel is discount/voucher, create a real promotion record
-            if ($data['channel_type'] === 'discount' && !empty($data['voucher_code'])) {
+            if ($data['channel_type'] === 'discount' && ! empty($data['voucher_code'])) {
                 // Check if promotion with this code already exists for this restaurant
                 $exists = Promotion::where('restaurant_id', $restaurantId)
                     ->where('code', $data['voucher_code'])
                     ->exists();
 
-                if (!$exists) {
+                if (! $exists) {
                     Promotion::create([
                         'restaurant_id' => $restaurantId,
-                        'name' => 'Chiến dịch: ' . $data['name'],
+                        'name' => 'Chiến dịch: '.$data['name'],
                         'code' => $data['voucher_code'],
                         'type' => 'percent',
                         'value' => 20.00,
@@ -237,7 +271,7 @@ class CdpController extends Controller
 
             return response()->json([
                 'success' => true,
-                'message' => 'Chiến dịch "' . $campaign->name . '" đã được khởi chạy thành công tới ' . $targetCount . ' khách hàng.',
+                'message' => 'Chiến dịch "'.$campaign->name.'" đã được khởi chạy thành công tới '.$targetCount.' khách hàng.',
                 'campaign' => $campaign,
             ]);
         });

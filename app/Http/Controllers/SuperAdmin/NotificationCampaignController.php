@@ -8,9 +8,9 @@ use App\Models\NotificationCampaign;
 use App\Models\Restaurant;
 use App\Models\SubscriptionPlan;
 use App\Models\User;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Http\JsonResponse;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -124,11 +124,11 @@ class NotificationCampaignController extends Controller
         if ($targetRole === 'owner') {
             $userQuery->where(function ($q) use ($targetOwnerIds) {
                 $q->whereIn('id', $targetOwnerIds)
-                  ->orWhere(function ($sq) {
-                      $sq->whereHas('roles', function ($rq) {
-                          $rq->where('name', 'owner');
-                      });
-                  });
+                    ->orWhere(function ($sq) {
+                        $sq->whereHas('roles', function ($rq) {
+                            $rq->where('name', 'owner');
+                        });
+                    });
             });
 
             if ($targetType !== 'all') {

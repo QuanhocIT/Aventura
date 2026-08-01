@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\Area;
 use App\Models\AuditLog;
 use App\Models\Employee;
 use App\Models\Order;
@@ -11,13 +12,13 @@ use App\Models\Product;
 use App\Models\Restaurant;
 use App\Models\RestaurantBranch;
 use App\Models\RestaurantTable;
-use App\Models\Area;
-use App\Models\ShiftClosing;
 use App\Models\Unit;
 use App\Models\User;
 use App\Models\WorkShift;
 use App\Services\FraudDetectionService;
+use Database\Seeders\PermissionsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Notification;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
@@ -27,13 +28,21 @@ class OrderAuditingAndFraudDetectionTest extends TestCase
     use RefreshDatabase;
 
     protected User $owner;
+
     protected User $cashier;
+
     protected Restaurant $restaurant;
+
     protected RestaurantBranch $branch;
+
     protected Area $area;
+
     protected RestaurantTable $table1;
+
     protected RestaurantTable $table2;
+
     protected WorkShift $shift;
+
     protected Product $product;
 
     protected function setUp(): void
@@ -54,19 +63,19 @@ class OrderAuditingAndFraudDetectionTest extends TestCase
         $this->restaurant = Restaurant::factory()->create(['owner_user_id' => $this->owner->id]);
         $this->branch = RestaurantBranch::factory()->create([
             'restaurant_id' => $this->restaurant->id,
-            'manager_user_id' => $this->owner->id
+            'manager_user_id' => $this->owner->id,
         ]);
 
         $this->owner->forceFill([
             'restaurant_id' => $this->restaurant->id,
-            'branch_id' => $this->branch->id
+            'branch_id' => $this->branch->id,
         ])->save();
 
         // Set up cashier (who will also have an Employee profile)
         $this->cashier = User::factory()->create([
             'restaurant_id' => $this->restaurant->id,
             'branch_id' => $this->branch->id,
-            'name' => 'Nguyễn Thị Thu'
+            'name' => 'Nguyễn Thị Thu',
         ]);
         $this->cashier->assignRole($cashierRole);
 
@@ -93,7 +102,7 @@ class OrderAuditingAndFraudDetectionTest extends TestCase
             'branch_id' => $this->branch->id,
             'name' => 'Khu A',
             'code' => 'khu-a',
-            'status' => 'active'
+            'status' => 'active',
         ]);
 
         $this->table1 = RestaurantTable::create([
@@ -102,7 +111,7 @@ class OrderAuditingAndFraudDetectionTest extends TestCase
             'area_id' => $this->area->id,
             'name' => 'Bàn 1',
             'capacity' => 4,
-            'status' => 'occupied'
+            'status' => 'occupied',
         ]);
 
         $this->table2 = RestaurantTable::create([
@@ -111,7 +120,7 @@ class OrderAuditingAndFraudDetectionTest extends TestCase
             'area_id' => $this->area->id,
             'name' => 'Bàn 2',
             'capacity' => 4,
-            'status' => 'available' // bàn trống để tách sang
+            'status' => 'available', // bàn trống để tách sang
         ]);
 
         // Set up Work Shift
@@ -123,7 +132,7 @@ class OrderAuditingAndFraudDetectionTest extends TestCase
             'start_time' => '06:00',
             'end_time' => '14:00',
             'is_overnight' => false,
-            'status' => 'active'
+            'status' => 'active',
         ]);
 
         // Set up Product
@@ -136,7 +145,7 @@ class OrderAuditingAndFraudDetectionTest extends TestCase
             'price' => 50000,
             'is_active' => true,
             'is_available' => true,
-            'description' => 'Phở ngon gia truyền 12345'
+            'description' => 'Phở ngon gia truyền 12345',
         ]);
     }
 
@@ -152,7 +161,7 @@ class OrderAuditingAndFraudDetectionTest extends TestCase
             'subtotal' => 100000,
             'total_amount' => 100000,
             'status' => 'pending',
-            'payment_status' => 'unpaid'
+            'payment_status' => 'unpaid',
         ]);
 
         $item1 = OrderItem::create([
@@ -161,7 +170,7 @@ class OrderAuditingAndFraudDetectionTest extends TestCase
             'product_id' => $this->product->id,
             'quantity' => 2,
             'unit_price' => 50000,
-            'line_total' => 100000
+            'line_total' => 100000,
         ]);
 
         // 2. Split order (move 1 Phở Bò to Table 2)
@@ -171,8 +180,8 @@ class OrderAuditingAndFraudDetectionTest extends TestCase
                 [
                     'order_item_id' => $item1->id,
                     'quantity' => 1,
-                ]
-            ]
+                ],
+            ],
         ]);
 
         $response->assertSessionHasNoErrors();
@@ -180,11 +189,11 @@ class OrderAuditingAndFraudDetectionTest extends TestCase
 
         // 3. Verify original order quantity is reduced (2 - 1 = 1)
         $item1->refresh();
-        $this->assertEquals(1.0, (float)$item1->quantity);
-        $this->assertEquals(50000.0, (float)$item1->line_total);
+        $this->assertEquals(1.0, (float) $item1->quantity);
+        $this->assertEquals(50000.0, (float) $item1->line_total);
 
         $order->refresh();
-        $this->assertEquals(50000.0, (float)$order->total_amount);
+        $this->assertEquals(50000.0, (float) $order->total_amount);
 
         // 4. Verify new split order exists with red flag
         $splitOrder = Order::where('restaurant_id', $this->restaurant->id)
@@ -192,9 +201,9 @@ class OrderAuditingAndFraudDetectionTest extends TestCase
             ->first();
 
         $this->assertNotNull($splitOrder);
-        $this->assertEquals(50000.0, (float)$splitOrder->total_amount);
-        $this->assertTrue((bool)$splitOrder->is_red_flagged);
-        $this->assertFalse((bool)$splitOrder->is_override_split_penalty);
+        $this->assertEquals(50000.0, (float) $splitOrder->total_amount);
+        $this->assertTrue((bool) $splitOrder->is_red_flagged);
+        $this->assertFalse((bool) $splitOrder->is_override_split_penalty);
         $this->assertEquals($order->id, $splitOrder->split_from_order_id);
 
         // 5. Verify audit log is recorded for the split
@@ -203,7 +212,7 @@ class OrderAuditingAndFraudDetectionTest extends TestCase
             'action' => 'order_split',
             'event' => 'created',
             'subject_type' => Order::class,
-            'subject_id' => $splitOrder->id
+            'subject_id' => $splitOrder->id,
         ]);
     }
 
@@ -233,7 +242,7 @@ class OrderAuditingAndFraudDetectionTest extends TestCase
             'payment_method' => 'cash',
             'status' => 'paid',
             'amount' => 60000,
-            'paid_at' => today()->setHour(9)->toDateTimeString()
+            'paid_at' => today()->setHour(9)->toDateTimeString(),
         ]);
 
         // 2. Preview shift closing - cash penalty should be applied
@@ -247,8 +256,8 @@ class OrderAuditingAndFraudDetectionTest extends TestCase
 
         // 60k cash collected, but since it's an unapproved split order, the penalty is -60k.
         // Therefore, expected_cash must be max(0, 60k - 60k) = 0!
-        $this->assertEquals(60000.0, (float)$data['split_penalty_total']);
-        $this->assertEquals(0.0, (float)$data['expected_cash']);
+        $this->assertEquals(60000.0, (float) $data['split_penalty_total']);
+        $this->assertEquals(0.0, (float) $data['expected_cash']);
         $this->assertCount(1, $data['split_orders']);
     }
 
@@ -271,20 +280,20 @@ class OrderAuditingAndFraudDetectionTest extends TestCase
 
         // Owner overrides split penalty
         $response = $this->actingAs($this->owner)->patch(route('orders.override-split-penalty', $order));
-        
+
         $response->assertSessionHasNoErrors();
         $response->assertRedirect();
 
         $order->refresh();
-        $this->assertTrue((bool)$order->is_override_split_penalty);
-        $this->assertFalse((bool)$order->is_red_flagged);
+        $this->assertTrue((bool) $order->is_override_split_penalty);
+        $this->assertFalse((bool) $order->is_red_flagged);
 
         // Verify override audit log
         $this->assertDatabaseHas('audit_logs', [
             'restaurant_id' => $this->restaurant->id,
             'action' => 'order_split_override',
             'event' => 'updated',
-            'subject_id' => $order->id
+            'subject_id' => $order->id,
         ]);
     }
 
@@ -300,7 +309,7 @@ class OrderAuditingAndFraudDetectionTest extends TestCase
             'discount_amount' => 0,
             'total_amount' => 50000,
             'status' => 'pending',
-            'payment_status' => 'unpaid'
+            'payment_status' => 'unpaid',
         ]);
 
         $item = OrderItem::create([
@@ -309,7 +318,7 @@ class OrderAuditingAndFraudDetectionTest extends TestCase
             'product_id' => $this->product->id,
             'quantity' => 1,
             'unit_price' => 50000,
-            'line_total' => 50000
+            'line_total' => 50000,
         ]);
 
         // Modify order: apply 10k discount and change unit price to 60k
@@ -319,9 +328,9 @@ class OrderAuditingAndFraudDetectionTest extends TestCase
                 [
                     'id' => $item->id,
                     'unit_price' => 60000,
-                    'quantity' => 1
-                ]
-            ]
+                    'quantity' => 1,
+                ],
+            ],
         ]);
 
         $response->assertSessionHasNoErrors();
@@ -332,7 +341,7 @@ class OrderAuditingAndFraudDetectionTest extends TestCase
             'restaurant_id' => $this->restaurant->id,
             'action' => 'discount_applied',
             'event' => 'updated',
-            'subject_id' => $order->id
+            'subject_id' => $order->id,
         ]);
 
         // Verify price modified audit log
@@ -340,14 +349,14 @@ class OrderAuditingAndFraudDetectionTest extends TestCase
             'restaurant_id' => $this->restaurant->id,
             'action' => 'price_modified',
             'event' => 'updated',
-            'subject_id' => $order->id
+            'subject_id' => $order->id,
         ]);
     }
 
     public function test_ai_fraud_detection_rules_yield_flagged_alerts(): void
     {
-        \Illuminate\Support\Facades\Http::fake([
-            '*/api/analytics/fraud-detection' => \Illuminate\Support\Facades\Http::response(null, 500),
+        Http::fake([
+            '*/api/analytics/fraud-detection' => Http::response(null, 500),
         ]);
 
         // Perform a price modification to generate an audit log
@@ -360,7 +369,7 @@ class OrderAuditingAndFraudDetectionTest extends TestCase
             'subtotal' => 50000,
             'total_amount' => 50000,
             'status' => 'completed',
-            'payment_status' => 'paid'
+            'payment_status' => 'paid',
         ]);
 
         // Create audit log entry directly to make sure restaurant_id and user_id are set correctly
@@ -375,19 +384,14 @@ class OrderAuditingAndFraudDetectionTest extends TestCase
             'old_values' => ['unit_price' => 50000],
             'new_values' => ['unit_price' => 30000],
             'ip_address' => '127.0.0.1',
-            'user_agent' => 'Mozilla/5.0'
+            'user_agent' => 'Mozilla/5.0',
         ]);
 
-        $service = new FraudDetectionService($this->restaurant->id, today()->startOfMonth()->toDateString(), today()->endOfMonth()->toDateString());
-        $alerts = $service->detectAiFraudAlerts();
+        $service = new FraudDetectionService;
+        $alerts = $service->detectAiFraudAlerts($this->restaurant->id, today()->startOfMonth()->toDateString(), today()->endOfMonth()->toDateString());
 
-        // Verify both fallback static alerts AND the parsed database audit log alert exist!
-        $this->assertCount(3, $alerts);
-
-        $simulatedAlert1 = collect($alerts)->firstWhere('employee_name', 'Nguyễn Thị Thu');
-        $this->assertNotNull($simulatedAlert1);
-        $this->assertEquals('AI: Sửa giá món nhiều lần', $simulatedAlert1['violation_type']);
-        $this->assertEquals(97.8, $simulatedAlert1['risk_score']);
+        // Verify the parsed database audit log alert exists!
+        $this->assertCount(1, $alerts);
 
         $dbAlert = collect($alerts)->firstWhere('violation_type', 'AI: Sửa đổi giá món nhạy cảm');
         $this->assertNotNull($dbAlert);
@@ -397,12 +401,12 @@ class OrderAuditingAndFraudDetectionTest extends TestCase
 
     public function test_waiter_can_create_order_but_cannot_pay_and_cannot_split(): void
     {
-        $this->seed(\Database\Seeders\PermissionsSeeder::class);
+        $this->seed(PermissionsSeeder::class);
 
         $waiter = User::factory()->create([
             'restaurant_id' => $this->restaurant->id,
             'branch_id' => $this->branch->id,
-            'name' => 'Nguyễn Văn Order'
+            'name' => 'Nguyễn Văn Order',
         ]);
         $waiter->assignRole('waiter');
 
@@ -419,7 +423,7 @@ class OrderAuditingAndFraudDetectionTest extends TestCase
             'subtotal' => 100000,
             'total_amount' => 100000,
             'status' => 'pending',
-            'payment_status' => 'unpaid'
+            'payment_status' => 'unpaid',
         ]);
 
         $item1 = OrderItem::create([
@@ -428,7 +432,7 @@ class OrderAuditingAndFraudDetectionTest extends TestCase
             'product_id' => $this->product->id,
             'quantity' => 2,
             'unit_price' => 50000,
-            'line_total' => 100000
+            'line_total' => 100000,
         ]);
 
         $responseSplit = $this->actingAs($waiter)->post(route('orders.split', $order), [
@@ -437,15 +441,15 @@ class OrderAuditingAndFraudDetectionTest extends TestCase
                 [
                     'order_item_id' => $item1->id,
                     'quantity' => 1,
-                ]
-            ]
+                ],
+            ],
         ]);
         $responseSplit->assertStatus(403);
 
         $responsePay = $this->actingAs($waiter)->post(route('orders.pay', $order), [
             'payment_method' => 'cash',
             'cash_received' => 100000,
-            'change_amount' => 0
+            'change_amount' => 0,
         ]);
         $responsePay->assertStatus(403);
     }

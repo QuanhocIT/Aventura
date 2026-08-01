@@ -3,13 +3,14 @@
 namespace App\Models;
 
 use App\Models\Concerns\BelongsToRestaurant;
-
 use Database\Factories\Restaurant\ProductCategoryFactory;
-use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Factories\Factory;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Facades\Cache;
 
 class ProductCategory extends Model
 {
@@ -24,10 +25,15 @@ class ProductCategory extends Model
         return $this->hasMany(Product::class, 'category_id');
     }
 
+    public function branch(): BelongsTo
+    {
+        return $this->belongsTo(RestaurantBranch::class, 'branch_id');
+    }
+
     protected static function booted(): void
     {
-        static::saved(fn ($category) => \Illuminate\Support\Facades\Cache::forget("restaurant_{$category->restaurant_id}_categories"));
-        static::deleted(fn ($category) => \Illuminate\Support\Facades\Cache::forget("restaurant_{$category->restaurant_id}_categories"));
+        static::saved(fn ($category) => Cache::forget("restaurant_{$category->restaurant_id}_categories"));
+        static::deleted(fn ($category) => Cache::forget("restaurant_{$category->restaurant_id}_categories"));
     }
 
     protected static function newFactory(): Factory
@@ -35,4 +41,3 @@ class ProductCategory extends Model
         return ProductCategoryFactory::new();
     }
 }
-

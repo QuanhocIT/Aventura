@@ -3,10 +3,13 @@
 namespace App\Http\Controllers\SuperAdmin;
 
 use App\Http\Controllers\Controller;
-use App\Models\SearchQueryLog;
 use App\Jobs\SyncSearchIndex;
-use Illuminate\Http\Request;
+use App\Models\Order;
+use App\Models\Product;
+use App\Models\Restaurant;
+use App\Models\SearchQueryLog;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -18,17 +21,17 @@ class MeilisearchConsoleController extends Controller
         [
             'index_name' => 'restaurants',
             'label' => 'Nhà hàng',
-            'model' => \App\Models\Restaurant::class,
+            'model' => Restaurant::class,
         ],
         [
             'index_name' => 'products',
             'label' => 'Thực đơn & Món ăn',
-            'model' => \App\Models\Product::class,
+            'model' => Product::class,
         ],
         [
             'index_name' => 'orders',
             'label' => 'Đơn hàng',
-            'model' => \App\Models\Order::class,
+            'model' => Order::class,
         ],
     ];
 
@@ -75,7 +78,7 @@ class MeilisearchConsoleController extends Controller
             }
 
             // Sync Status from cache
-            $syncStatus = Cache::get('meilisearch_sync_' . $indexName) ?? [
+            $syncStatus = Cache::get('meilisearch_sync_'.$indexName) ?? [
                 'status' => 'idle',
                 'action' => null,
                 'completed_at' => null,
@@ -174,14 +177,14 @@ class MeilisearchConsoleController extends Controller
         ]);
 
         $cfg = collect($this->indexesConfig)->firstWhere('index_name', $validated['index_name']);
-        if (!$cfg) {
+        if (! $cfg) {
             return response()->json([
                 'success' => false,
                 'message' => 'Chỉ mục không hợp lệ hoặc chưa được đăng ký trong hệ thống.',
             ], 400);
         }
 
-        $cacheKey = 'meilisearch_sync_' . $validated['index_name'];
+        $cacheKey = 'meilisearch_sync_'.$validated['index_name'];
         $syncStatus = [
             'status' => 'pending',
             'action' => $validated['action'],
@@ -197,7 +200,7 @@ class MeilisearchConsoleController extends Controller
         return response()->json([
             'success' => true,
             'sync_status' => $syncStatus,
-            'message' => 'Yêu cầu ' . ($validated['action'] === 'import' ? 'Đồng bộ' : 'Xóa sạch') . ' chỉ mục đã được đưa vào hàng đợi xử lý.',
+            'message' => 'Yêu cầu '.($validated['action'] === 'import' ? 'Đồng bộ' : 'Xóa sạch').' chỉ mục đã được đưa vào hàng đợi xử lý.',
         ]);
     }
 
@@ -205,9 +208,10 @@ class MeilisearchConsoleController extends Controller
     {
         try {
             SearchQueryLog::truncate();
+
             return response()->json(['success' => true, 'message' => 'Đã xóa sạch lịch sử thống kê truy vấn.']);
         } catch (\Throwable $e) {
-            return response()->json(['success' => false, 'message' => 'Lỗi xóa dữ liệu: ' . $e->getMessage()], 500);
+            return response()->json(['success' => false, 'message' => 'Lỗi xóa dữ liệu: '.$e->getMessage()], 500);
         }
     }
 }

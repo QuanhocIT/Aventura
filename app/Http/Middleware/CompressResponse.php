@@ -11,16 +11,15 @@ class CompressResponse
     /**
      * Handle an incoming request.
      *
-     * @param  \Illuminate\Http\Request  $request
-     * @param  \Closure(\Illuminate\Http\Request): (\Symfony\Component\HttpFoundation\Response)  $next
+     * @param  Closure(Request): (Response)  $next
      */
     public function handle(Request $request, Closure $next): Response
     {
         $response = $next($request);
 
         // Check if compression is enabled (defaults to true in production, false in local)
-        $enabled = config('app.compress_responses', !app()->isLocal());
-        if (!$enabled || !extension_loaded('zlib')) {
+        $enabled = config('app.compress_responses', ! app()->isLocal());
+        if (! $enabled || ! extension_loaded('zlib')) {
             return $response;
         }
 
@@ -31,7 +30,7 @@ class CompressResponse
 
         // Check if client supports Gzip
         $acceptEncoding = $request->header('Accept-Encoding', '');
-        if (!str_contains($acceptEncoding, 'gzip')) {
+        if (! str_contains($acceptEncoding, 'gzip')) {
             return $response;
         }
 
@@ -39,11 +38,11 @@ class CompressResponse
         $contentType = $response->headers->get('Content-Type', '');
         if (str_contains($contentType, 'text/') || str_contains($contentType, 'application/json')) {
             $content = $response->getContent();
-            
+
             // Only compress payloads larger than 1KB to avoid overhead
             if ($content !== false && strlen($content) > 1024) {
                 $compressed = gzencode($content, 5); // Level 5 compression offers a good balance of CPU speed and size reduction
-                
+
                 if ($compressed !== false) {
                     $response->setContent($compressed);
                     $response->headers->set('Content-Encoding', 'gzip');

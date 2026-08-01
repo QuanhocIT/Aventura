@@ -2,16 +2,16 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\TemporaryOrder;
-use App\Models\AuditLog;
-use App\Models\Order;
-use App\Services\OrderService;
-use App\Http\Controllers\PromotionController;
 use App\Events\Customer\TemporaryOrderUpdated;
-use Illuminate\Http\Request;
+use App\Models\AuditLog;
+use App\Models\Customer;
+use App\Models\Order;
+use App\Models\TemporaryOrder;
+use App\Services\LoyaltyService;
+use App\Services\OrderService;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Carbon\Carbon;
 
 class StaffQROrderController extends Controller
 {
@@ -30,17 +30,17 @@ class StaffQROrderController extends Controller
             ->with(['table.area'])
             ->latest()
             ->get()
-            ->map(fn($to) => [
-                'id'             => $to->id,
-                'table_name'     => $to->table?->name ?? 'Bàn trống',
-                'area_name'      => $to->table?->area?->name ?? 'Khu vực',
-                'total_amount'   => (float) $to->total_amount,
-                'customer_name'  => $to->customer_name,
+            ->map(fn ($to) => [
+                'id' => $to->id,
+                'table_name' => $to->table?->name ?? 'Bàn trống',
+                'area_name' => $to->table?->area?->name ?? 'Khu vực',
+                'total_amount' => (float) $to->total_amount,
+                'customer_name' => $to->customer_name,
                 'customer_phone' => $to->customer_phone,
-                'status'         => $to->status,
-                'items'          => $to->cart_data,
-                'minutes_elapsed'=> $to->created_at->diffInMinutes(now()),
-                'created_at'     => $to->created_at->format('H:i'),
+                'status' => $to->status,
+                'items' => $to->cart_data,
+                'minutes_elapsed' => $to->created_at->diffInMinutes(now()),
+                'created_at' => $to->created_at->format('H:i'),
             ]);
 
         return response()->json([
@@ -59,12 +59,20 @@ class StaffQROrderController extends Controller
         abort_unless(in_array($temporaryOrder->status, ['waiting_verification', 'escalated']), 422, 'Đơn hàng này đã được xử lý trước đó.');
 
         $order = DB::transaction(function () use ($temporaryOrder, $user) {
+            // Lock temporaryOrder to prevent double confirm
+            $temporaryOrder = TemporaryOrder::where('id', $temporaryOrder->id)->lockForUpdate()->firstOrFail();
+
+            if (! in_array($temporaryOrder->status, ['waiting_verification', 'escalated'])) {
+                throw new \Exception('Đơn hàng này đã được xử lý trước đó.');
+            }
+
             $customerId = null;
+            $customer = null;
             if ($temporaryOrder->customer_phone) {
-                $customer = \App\Models\Customer::firstOrCreate(
+                $customer = Customer::firstOrCreate(
                     [
                         'restaurant_id' => $temporaryOrder->restaurant_id,
-                        'phone' => $temporaryOrder->customer_phone
+                        'phone' => $temporaryOrder->customer_phone,
                     ],
                     [
                         'full_name' => $temporaryOrder->customer_name ?: 'Khách gọi món QR',
@@ -72,17 +80,26 @@ class StaffQROrderController extends Controller
                     ]
                 );
                 $customerId = $customer->id;
+                // Lock customer
+                $customer = Customer::where('id', $customerId)->lockForUpdate()->firstOrFail();
+            }
+
+            // Kiểm tra điểm loyalty trước
+            if ($temporaryOrder->redeem_points > 0) {
+                if (! $customer || $customer->loyalty_points < $temporaryOrder->redeem_points) {
+                    throw new \Exception('Khách hàng không đủ điểm tích lũy để thực hiện quy đổi.');
+                }
             }
 
             // Chuẩn bị payload cho OrderService
             $orderData = [
                 'table_id' => $temporaryOrder->table_id,
                 'customer_id' => $customerId,
-                'note'     => "Đơn QR-Order [Xác nhận bởi: {$user->name}]",
-                'items'    => collect($temporaryOrder->cart_data)->map(fn($item) => [
+                'note' => "Đơn QR-Order [Xác nhận bởi: {$user->name}]",
+                'items' => collect($temporaryOrder->cart_data)->map(fn ($item) => [
                     'product_id' => $item['product_id'],
-                    'quantity'   => (float) $item['quantity'],
-                    'notes'      => $item['notes'] ?? null,
+                    'quantity' => (float) $item['quantity'],
+                    'notes' => $item['notes'] ?? null,
                 ])->toArray(),
             ];
 
@@ -94,9 +111,23 @@ class StaffQROrderController extends Controller
                 'channel' => 'qr',
             ]);
 
+            // Trừ điểm loyalty chính thức nếu có
+            if ($temporaryOrder->redeem_points > 0 && $customer) {
+                $discountValue = app(LoyaltyService::class)->redeemPoints($customer, $temporaryOrder->redeem_points, $order);
+                if ($discountValue > 0) {
+                    $newDiscount = $order->discount_amount + $discountValue;
+                    $newTotal = max(0.0, $order->subtotal - $newDiscount);
+                    $order->update([
+                        'discount_amount' => $newDiscount,
+                        'total_amount' => $newTotal,
+                        'note' => ($order->note ? $order->note.' ' : '')."[Quy đổi {$temporaryOrder->redeem_points} điểm: -".number_format($discountValue).'đ]',
+                    ]);
+                }
+            }
+
             // Cập nhật trạng thái đơn đệm thành confirmed
             $temporaryOrder->update([
-                'status'   => 'confirmed',
+                'status' => 'confirmed',
                 'order_id' => $order->id,
             ]);
 
@@ -104,7 +135,7 @@ class StaffQROrderController extends Controller
             AuditLog::log('temporary_order_confirmed', 'updated', $temporaryOrder, [
                 'status' => 'waiting_verification',
             ], [
-                'status'   => 'confirmed',
+                'status' => 'confirmed',
                 'order_id' => $order->id,
             ]);
 
@@ -115,10 +146,10 @@ class StaffQROrderController extends Controller
         event(new TemporaryOrderUpdated($temporaryOrder));
 
         // Lấy gợi ý Upselling AI dựa trên các món ăn trong đơn hàng
-        $promotionController = new PromotionController();
+        $promotionController = app(PromotionController::class);
         $itemNames = collect($temporaryOrder->cart_data)->pluck('name')->filter()->toArray();
         $upsellRequest = new Request(['items' => $itemNames]);
-        $upsellRequest->setUserResolver(fn() => $user);
+        $upsellRequest->setUserResolver(fn () => $user);
         $suggestionResult = $promotionController->getUpsellSuggestion($upsellRequest);
         $upsell = $suggestionResult->getData();
 
@@ -126,7 +157,7 @@ class StaffQROrderController extends Controller
             'success' => true,
             'message' => 'Đã xác nhận và khởi tạo đơn hàng chính thức thành công!',
             'order_id' => $order->id,
-            'upsell'  => $upsell,
+            'upsell' => $upsell,
         ]);
     }
 
@@ -137,27 +168,42 @@ class StaffQROrderController extends Controller
     {
         $user = $request->user();
         abort_if($temporaryOrder->restaurant_id !== $user->restaurant_id, 403);
-        abort_unless(in_array($temporaryOrder->status, ['waiting_verification', 'escalated']), 422, 'Đơn hàng này đã được xử lý trước đó.');
 
         $data = $request->validate([
             'reason' => ['required', 'string', 'max:255'],
         ]);
 
-        $temporaryOrder->update([
-            'status'               => 'cancelled',
-            'cancelled_by'         => $user->id,
-            'cancellation_reason'  => $data['reason'],
-        ]);
+        try {
+            DB::transaction(function () use ($temporaryOrder, $user, $data) {
+                // Lock the temporary order row
+                $lockedOrder = TemporaryOrder::where('id', $temporaryOrder->id)->lockForUpdate()->firstOrFail();
 
-        // Ghi nhật ký kiểm toán với JSON log chi tiết
-        AuditLog::log('temporary_order_cancelled', 'updated', $temporaryOrder, [
-            'status' => 'waiting_verification',
-        ], [
-            'status'              => 'cancelled',
-            'cancelled_by'        => $user->name,
-            'cancellation_reason' => $data['reason'],
-            'cart_data'           => $temporaryOrder->cart_data,
-        ]);
+                if (! in_array($lockedOrder->status, ['waiting_verification', 'escalated'])) {
+                    throw new \Exception('Đơn hàng này đã được xử lý trước đó.');
+                }
+
+                $lockedOrder->update([
+                    'status' => 'cancelled',
+                    'cancelled_by' => $user->id,
+                    'cancellation_reason' => $data['reason'],
+                ]);
+
+                // Ghi nhật ký kiểm toán với JSON log chi tiết
+                AuditLog::log('temporary_order_cancelled', 'updated', $lockedOrder, [
+                    'status' => 'waiting_verification',
+                ], [
+                    'status' => 'cancelled',
+                    'cancelled_by' => $user->name,
+                    'cancellation_reason' => $data['reason'],
+                    'cart_data' => $lockedOrder->cart_data,
+                ]);
+            });
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage(),
+            ], 422);
+        }
 
         // Phát tín hiệu Realtime cập nhật trạng thái cho Khách hàng
         event(new TemporaryOrderUpdated($temporaryOrder));
@@ -183,15 +229,15 @@ class StaffQROrderController extends Controller
             ->with(['table.area', 'cancelledBy'])
             ->latest()
             ->get()
-            ->map(fn($to) => [
-                'id'                  => $to->id,
-                'table_name'          => $to->table?->name ?? 'Bàn trống',
-                'area_name'           => $to->table?->area?->name ?? 'Khu vực',
-                'total_amount'        => (float) $to->total_amount,
-                'items'               => $to->cart_data,
-                'cancelled_by_name'   => $to->cancelledBy?->name ?? 'Hệ thống',
+            ->map(fn ($to) => [
+                'id' => $to->id,
+                'table_name' => $to->table?->name ?? 'Bàn trống',
+                'area_name' => $to->table?->area?->name ?? 'Khu vực',
+                'total_amount' => (float) $to->total_amount,
+                'items' => $to->cart_data,
+                'cancelled_by_name' => $to->cancelledBy?->name ?? 'Hệ thống',
                 'cancellation_reason' => $to->cancellation_reason,
-                'cancelled_at'        => $to->updated_at->format('H:i d/m/Y'),
+                'cancelled_at' => $to->updated_at->format('H:i d/m/Y'),
             ]);
 
         return response()->json([

@@ -18,18 +18,18 @@ class GarbageCollectorController extends Controller
     {
         $types = MediaAsset::whereNotNull('attachable_type')->distinct()->pluck('attachable_type');
 
-        return MediaAsset::query()->where(function($q) use ($types) {
+        return MediaAsset::query()->where(function ($q) use ($types) {
             $q->whereNull('attachable_id')
-              ->orWhereNull('attachable_type');
+                ->orWhereNull('attachable_type');
 
             foreach ($types as $type) {
                 $className = Relation::getMorphedModel($type) ?? $type;
                 if (class_exists($className)) {
                     $model = new $className;
                     $table = $model->getTable();
-                    $q->orWhere(function($sub) use ($type, $table) {
+                    $q->orWhere(function ($sub) use ($type, $table) {
                         $sub->where('attachable_type', $type)
-                            ->whereNotExists(function($existsQuery) use ($table) {
+                            ->whereNotExists(function ($existsQuery) use ($table) {
                                 $existsQuery->select(DB::raw(1))
                                     ->from($table)
                                     ->whereColumn("{$table}.id", 'media_assets.attachable_id');
@@ -74,7 +74,7 @@ class GarbageCollectorController extends Controller
                 'total_count' => $totalCount,
                 'total_mb' => $totalMb,
                 'default_disk' => config('filesystems.default', 'public'),
-            ]
+            ],
         ]);
     }
 
@@ -103,7 +103,7 @@ class GarbageCollectorController extends Controller
                     Storage::disk($asset->disk)->delete($asset->file_path);
                 }
             } catch (\Exception $e) {
-                \Log::warning("Failed to delete physical file {$asset->file_path} on disk {$asset->disk}: " . $e->getMessage());
+                \Log::warning("Failed to delete physical file {$asset->file_path} on disk {$asset->disk}: ".$e->getMessage());
             }
 
             $freedBytes += $asset->size_bytes;

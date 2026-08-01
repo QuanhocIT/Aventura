@@ -3,9 +3,13 @@
 namespace App\Http\Controllers;
 
 use App\Models\Customer;
+use App\Services\CdpService;
+use App\Services\QuotaService;
 use Carbon\Carbon;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 use Inertia\Response;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -24,32 +28,74 @@ class CustomerController extends Controller
         // Ensure all customers have RFM records calculated at least once
         $uncalculatedCount = Customer::where('restaurant_id', $restaurantId)
             ->whereNotExists(function ($query) use ($restaurantId) {
-                $query->select(\Illuminate\Support\Facades\DB::raw(1))
+                $query->select(DB::raw(1))
                     ->from('customer_rfm_analysis')
                     ->whereColumn('customer_rfm_analysis.customer_id', 'customers.id')
                     ->where('customer_rfm_analysis.restaurant_id', $restaurantId);
             })->count();
 
         if ($uncalculatedCount > 0) {
-            \App\Services\CdpService::calculateRfmForRestaurant($restaurantId);
+            CdpService::calculateRfmForRestaurant($restaurantId);
         }
 
-        $query = Customer::query();
+        $search = $request->input('search');
+        $segment = $request->input('segment', 'all');
+        $sort = $request->input('sort', 'default');
+
+        $baseQuery = Customer::query();
 
         // Xử lý tìm kiếm động
-        if ($search = $request->input('search')) {
-            $query->where(function ($q) use ($search) {
+        if ($search) {
+            $baseQuery->where(function ($q) use ($search) {
                 $q->where('full_name', 'like', "%{$search}%")
-                  ->orWhere('phone', 'like', "%{$search}%")
-                  ->orWhere('email', 'like', "%{$search}%");
+                    ->orWhere('phone', 'like', "%{$search}%")
+                    ->orWhere('email', 'like', "%{$search}%");
             });
         }
 
-        $customers = $query->latest()
-            ->get()
-            ->map(fn ($c) => [
+        // Đếm theo từng phân khúc TRÊN CÙNG bộ lọc tìm kiếm (không áp segment/sort) để hiển thị
+        // số đếm trên tab luôn đúng với TOÀN BỘ dữ liệu phù hợp, không chỉ trang hiện tại.
+        $segmentCounts = [
+            'all' => (clone $baseQuery)->count(),
+            'vip' => (clone $baseQuery)->where('loyalty_points', '>=', 100)->count(),
+            'regular' => (clone $baseQuery)->where('loyalty_points', '>', 0)->where('loyalty_points', '<', 100)->count(),
+            'new' => (clone $baseQuery)->where('loyalty_points', 0)->count(),
+        ];
+
+        $tierTotal = max($segmentCounts['all'], 1);
+        $tierCounts = [
+            'gold' => (clone $baseQuery)->where('loyalty_points', '>=', 200)->count(),
+            'silver' => (clone $baseQuery)->where('loyalty_points', '>=', 100)->where('loyalty_points', '<', 200)->count(),
+            'bronze' => $segmentCounts['regular'],
+            'normal' => $segmentCounts['new'],
+        ];
+        $tierCounts['goldPct'] = (int) round($tierCounts['gold'] / $tierTotal * 100);
+        $tierCounts['silverPct'] = (int) round($tierCounts['silver'] / $tierTotal * 100);
+        $tierCounts['bronzePct'] = (int) round($tierCounts['bronze'] / $tierTotal * 100);
+        $tierCounts['normalPct'] = (int) round($tierCounts['normal'] / $tierTotal * 100);
+
+        $query = clone $baseQuery;
+
+        if ($segment === 'vip') {
+            $query->where('loyalty_points', '>=', 100);
+        } elseif ($segment === 'regular') {
+            $query->where('loyalty_points', '>', 0)->where('loyalty_points', '<', 100);
+        } elseif ($segment === 'new') {
+            $query->where('loyalty_points', 0);
+        }
+
+        match ($sort) {
+            'points_desc' => $query->orderByDesc('loyalty_points'),
+            'points_asc' => $query->orderBy('loyalty_points'),
+            'recent' => $query->orderByRaw('last_order_at IS NULL')->orderByDesc('last_order_at'),
+            default => $query->latest(),
+        };
+
+        $customers = $query->paginate(10)
+            ->withQueryString()
+            ->through(fn ($c) => [
                 'id' => $c->id,
-                'customer_code' => 'KH-' . str_pad($c->id, 5, '0', STR_PAD_LEFT),
+                'customer_code' => 'KH-'.str_pad($c->id, 5, '0', STR_PAD_LEFT),
                 'full_name' => $c->full_name,
                 'phone' => $c->phone,
                 'email' => $c->email,
@@ -61,29 +107,33 @@ class CustomerController extends Controller
                 'total_spent' => (float) ($c->total_spent ?? 0),
                 'last_order_at' => $c->last_order_at ? Carbon::parse($c->last_order_at)->format('H:i d/m/Y') : 'Chưa có',
                 'created_at' => $c->created_at->format('d/m/Y'),
+                'is_vip' => (bool) $c->is_vip,
+                'is_b2b' => (bool) $c->is_b2b,
+                'credit_limit' => (float) ($c->credit_limit ?? 0),
+                'current_debt' => (float) ($c->current_debt ?? 0),
             ]);
 
         // Tính toán thống kê CRM
-        $restaurantId   = $request->user()->restaurant_id;
+        $restaurantId = $request->user()->restaurant_id;
         $totalCustomers = Customer::count();
-        $totalPoints    = Customer::sum('loyalty_points');
-        $newThisMonth   = Customer::where('created_at', '>=', now()->startOfMonth())->count();
+        $totalPoints = Customer::sum('loyalty_points');
+        $newThisMonth = Customer::where('created_at', '>=', now()->startOfMonth())->count();
 
         // ── Retention stats ──────────────────────────────────────────────────
         // Khách quay lại: có ít nhất 2 đơn hàng trong 30 ngày qua
-        $cutoff   = now()->subDays(30);
-        $returning = \Illuminate\Support\Facades\DB::table('orders')
+        $cutoff = now()->subDays(30);
+        $returning = DB::table('orders_unified')
             ->where('restaurant_id', $restaurantId)
             ->where('status', 'completed')
             ->where('created_at', '>=', $cutoff)
             ->whereNotNull('customer_id')
-            ->select('customer_id', \Illuminate\Support\Facades\DB::raw('COUNT(*) as order_count'))
+            ->select('customer_id', DB::raw('COUNT(*) as order_count'))
             ->groupBy('customer_id')
             ->having('order_count', '>=', 2)
             ->count();
 
         $newCustomers30 = Customer::where('created_at', '>=', $cutoff)->count();
-        $totalOrdering  = \Illuminate\Support\Facades\DB::table('orders')
+        $totalOrdering = DB::table('orders_unified')
             ->where('restaurant_id', $restaurantId)
             ->where('status', 'completed')
             ->where('created_at', '>=', $cutoff)
@@ -95,12 +145,12 @@ class CustomerController extends Controller
             ? round($returning / $totalOrdering * 100, 1) : 0;
 
         $stats = [
-            'total'          => $totalCustomers,
-            'total_points'   => (int) $totalPoints,
+            'total' => $totalCustomers,
+            'total_points' => (int) $totalPoints,
             'new_this_month' => $newThisMonth,
             // Mới
-            'retention_rate'   => $retentionRate,
-            'returning_30d'    => $returning,
+            'retention_rate' => $retentionRate,
+            'returning_30d' => $returning,
             'new_customers_30d' => $newCustomers30,
             'total_ordering_30d' => $totalOrdering,
         ];
@@ -108,14 +158,18 @@ class CustomerController extends Controller
         $hasRfmFeature = false;
         $restaurant = $request->user()->restaurant;
         if ($restaurant) {
-            $hasRfmFeature = app(\App\Services\QuotaService::class)->hasFeature($restaurant, 'rfm_ai_analysis');
+            $hasRfmFeature = app(QuotaService::class)->hasFeature($restaurant, 'advanced_analytics');
         }
 
         return Inertia::render('customers/Index', [
             'customers' => $customers,
-            'stats'     => $stats,
-            'search'    => $search ?? '',
-            'isOwner'   => $request->user()->can('export_customers'),
+            'stats' => $stats,
+            'search' => $search ?? '',
+            'segment' => $segment,
+            'sort' => $sort,
+            'segmentCounts' => $segmentCounts,
+            'tierCounts' => $tierCounts,
+            'isOwner' => $request->user()->can('export_customers'),
             'hasRfmFeature' => $hasRfmFeature,
         ]);
     }
@@ -161,7 +215,7 @@ class CustomerController extends Controller
     /**
      * API tra cứu khách hàng nhanh theo SĐT (dành cho Thu ngân/Phục vụ tạo đơn).
      */
-    public function search(Request $request): \Illuminate\Http\JsonResponse
+    public function search(Request $request): JsonResponse
     {
         $phone = $request->input('phone');
         if (empty($phone)) {
@@ -170,7 +224,7 @@ class CustomerController extends Controller
 
         $customer = Customer::where('phone', $phone)->first();
 
-        if (!$customer) {
+        if (! $customer) {
             return response()->json(['success' => false, 'message' => 'Không tìm thấy thông tin khách hàng.']);
         }
 
@@ -184,7 +238,11 @@ class CustomerController extends Controller
                 'loyalty_points' => $customer->loyalty_points,
                 'membership_level' => $customer->membership_level ?? 'silver',
                 'total_spent' => (float) ($customer->total_spent ?? 0),
-            ]
+                'is_vip' => (bool) $customer->is_vip,
+                'is_b2b' => (bool) $customer->is_b2b,
+                'credit_limit' => (float) ($customer->credit_limit ?? 0),
+                'current_debt' => (float) ($customer->current_debt ?? 0),
+            ],
         ]);
     }
 
@@ -197,18 +255,18 @@ class CustomerController extends Controller
 
         $headers = [
             'Content-type' => 'text/csv; charset=UTF-8',
-            'Content-Disposition' => 'attachment; filename=aventura_crm_export_' . now()->format('Ymd_His') . '.csv',
+            'Content-Disposition' => 'attachment; filename=aventura_crm_export_'.now()->format('Ymd_His').'.csv',
             'Pragma' => 'no-cache',
             'Cache-Control' => 'must-revalidate, post-check=0, pre-check=0',
-            'Expires' => '0'
+            'Expires' => '0',
         ];
 
-        $callback = function() {
+        $callback = function () {
             $file = fopen('php://output', 'w');
-            
+
             // Thêm UTF-8 BOM để Excel hiển thị đúng tiếng Việt
-            fputs($file, "\xEF\xBB\xBF");
-            
+            fwrite($file, "\xEF\xBB\xBF");
+
             // Tiêu đề các cột dữ liệu
             fputcsv($file, [
                 'Mã Khách Hàng',
@@ -218,7 +276,7 @@ class CustomerController extends Controller
                 'Giới Tính',
                 'Ngày Sinh',
                 'Điểm Tích Lũy',
-                'Ngày Đăng Ký'
+                'Ngày Đăng Ký',
             ]);
 
             // Dùng cursor() hoặc chunk() để tối ưu bộ nhớ khi xuất file số lượng lớn
@@ -226,14 +284,14 @@ class CustomerController extends Controller
                 foreach ($customers as $c) {
                     $genderLabel = $c->gender === 'male' ? 'Nam' : ($c->gender === 'female' ? 'Nữ' : ($c->gender === 'other' ? 'Khác' : '—'));
                     fputcsv($file, [
-                        'KH-' . str_pad($c->id, 5, '0', STR_PAD_LEFT),
+                        'KH-'.str_pad($c->id, 5, '0', STR_PAD_LEFT),
                         $c->full_name,
                         $c->phone,
                         $c->email ?? '—',
                         $genderLabel,
                         $c->date_of_birth ? $c->date_of_birth->toDateString() : '—',
                         $c->loyalty_points,
-                        $c->created_at->format('Y-m-d H:i:s')
+                        $c->created_at->format('Y-m-d H:i:s'),
                     ]);
                 }
             });

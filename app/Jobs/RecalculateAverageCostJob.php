@@ -3,6 +3,7 @@
 namespace App\Jobs;
 
 use App\Models\Ingredient;
+use App\Services\ProductCostService;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Support\Facades\Log;
@@ -24,9 +25,10 @@ class RecalculateAverageCostJob implements ShouldQueue
     public function handle(): void
     {
         $ingredient = Ingredient::withoutGlobalScopes()->find($this->ingredientId);
-        
-        if (!$ingredient) {
-            Log::warning("RecalculateAverageCostJob: Ingredient not found", ['ingredient_id' => $this->ingredientId]);
+
+        if (! $ingredient) {
+            Log::warning('RecalculateAverageCostJob: Ingredient not found', ['ingredient_id' => $this->ingredientId]);
+
             return;
         }
 
@@ -39,31 +41,14 @@ class RecalculateAverageCostJob implements ShouldQueue
 
         $ingredient->update(['average_cost' => round($newAvg, 2)]);
 
-        // Recalculate product cost_price for all products that use this ingredient in their recipe
-        $recipes = \App\Models\ProductRecipe::where('ingredient_id', $this->ingredientId)->get();
-        $productIds = $recipes->pluck('product_id')->unique()->all();
+        // Giá vốn nguyên liệu đổi → tính lại giá vốn mọi món dùng nguyên liệu này.
+        // Công thức tính nằm ở ProductCostService để dùng chung với luồng sửa/xoá
+        // công thức trong InventoryManagementController (trước đây chỉ có ở đây,
+        // nên sửa công thức xong giá vốn món vẫn treo giá trị cũ).
+        $updatedProducts = app(ProductCostService::class)
+            ->recalculateForIngredient($this->ingredientId);
 
-        if (!empty($productIds)) {
-            $products = \App\Models\Product::whereIn('id', $productIds)->get();
-            $productRecipesGrouped = \App\Models\ProductRecipe::whereIn('product_id', $productIds)
-                ->with('ingredient')
-                ->get()
-                ->groupBy('product_id');
-
-            foreach ($products as $product) {
-                $totalCost = 0.0;
-                $productRecipes = $productRecipesGrouped->get($product->id) ?? collect();
-                foreach ($productRecipes as $pr) {
-                    $ingCost = $pr->ingredient ? (float) $pr->ingredient->average_cost : 0.0;
-                    $prQty = (float) $pr->quantity;
-                    $prWaste = (float) $pr->waste_rate;
-                    $totalCost += $prQty * $ingCost * (1.0 + ($prWaste / 100.0));
-                }
-                $product->update(['cost_price' => round($totalCost, 2)]);
-            }
-        }
-
-        Log::info("RecalculateAverageCostJob: Recalculated average cost and updated " . $recipes->count() . " products.", [
+        Log::info("RecalculateAverageCostJob: Recalculated average cost and updated {$updatedProducts} products.", [
             'ingredient_id' => $this->ingredientId,
             'old_avg' => $oldAvg,
             'new_avg' => $newAvg,

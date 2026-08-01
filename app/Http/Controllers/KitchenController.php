@@ -2,9 +2,11 @@
 
 namespace App\Http\Controllers;
 
+use App\Events\Customer\ProductStockUpdated;
+use App\Events\Kitchen\KitchenUpdated;
 use App\Models\OrderItem;
-use App\Models\Order;
-use App\Models\User;
+use App\Models\Product;
+use App\Services\QuotaService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -18,12 +20,15 @@ class KitchenController extends Controller
         abort_unless($user->can('manage_kitchen'), 403);
 
         $restaurant = $user->restaurant;
+        if (! $restaurant && ! $request->user()->hasRole('super_admin')) {
+            abort(403, 'Không tìm thấy nhà hàng.');
+        }
         $restaurant?->loadMissing('plan');
-        if ($restaurant && ! app(\App\Services\QuotaService::class)->hasFeature($restaurant, 'kitchen_display')) {
+        if ($restaurant && ! app(QuotaService::class)->hasFeature($restaurant, 'kitchen_display')) {
             return Inertia::render('FeatureGate', [
-                'feature'       => 'kitchen_display',
+                'feature' => 'kitchen_display',
                 'feature_label' => 'Màn hình Bếp (Kitchen Display)',
-                'plan_name'     => $restaurant->plan?->name ?? 'Miễn Phí',
+                'plan_name' => $restaurant->plan?->name ?? 'Miễn Phí',
                 'required_plan' => 'Cơ Bản',
             ]);
         }
@@ -51,6 +56,8 @@ class KitchenController extends Controller
                 'creator_name' => $item->order->creator?->name ?? 'Hệ thống',
                 'table_name' => $item->order->table?->name ?? 'Mang về',
                 'table_id' => $item->order->table_id,
+                // SLA riêng theo món: thời gian chuẩn bị chuẩn (phút), mặc định 10'
+                'prep_minutes' => max(1, (int) ($item->product?->preparation_time_minutes ?? 10)),
             ]);
 
         // 2. Đơn đã làm xong (Completed but not served yet)
@@ -61,7 +68,7 @@ class KitchenController extends Controller
             ->whereHas('order', function ($q) {
                 $q->whereNotIn('status', ['completed', 'cancelled']);
             })
-            ->with(['order.table', 'product'])
+            ->with(['order.table', 'product', 'preparedBy'])
             ->latest('prepared_at')
             ->get()
             ->map(fn ($item) => [
@@ -70,10 +77,11 @@ class KitchenController extends Controller
                 'quantity' => (float) $item->quantity,
                 'notes' => $item->notes,
                 'prepared_at' => $item->prepared_at->format('H:i'),
+                'prepared_by_name' => $item->preparedBy?->name ?? 'Bếp',
                 'table_name' => $item->order->table?->name ?? 'Mang về',
             ]);
 
-        $products = \App\Models\Product::where('restaurant_id', $restaurantId)
+        $products = Product::where('restaurant_id', $restaurantId)
             ->where('is_active', true)
             ->with('category')
             ->get()
@@ -92,7 +100,32 @@ class KitchenController extends Controller
             'pendingItems' => $pendingItems,
             'completedItems' => $completedItems,
             'products' => $products,
+            'kitchenStats' => $this->buildKitchenStats($restaurantId),
         ]);
+    }
+
+    /**
+     * Thống kê tốc độ bếp hôm nay: số món đã ra, thời gian chế biến trung bình,
+     * món chậm nhất. Tính bằng PHP để tương thích mọi DB (test chạy SQLite).
+     */
+    private function buildKitchenStats(int $restaurantId): array
+    {
+        $preparedToday = OrderItem::where('restaurant_id', $restaurantId)
+            ->whereNotNull('prepared_at')
+            ->whereDate('prepared_at', now()->toDateString())
+            ->get(['id', 'created_at', 'sent_to_kitchen_at', 'prepared_at']);
+
+        $prepTimes = $preparedToday->map(function (OrderItem $item) {
+            $start = $item->sent_to_kitchen_at ?? $item->created_at;
+
+            return max(0, $start->diffInMinutes($item->prepared_at));
+        });
+
+        return [
+            'done_today' => $preparedToday->count(),
+            'avg_prep_minutes' => $prepTimes->isNotEmpty() ? round($prepTimes->avg(), 1) : null,
+            'slowest_prep_minutes' => $prepTimes->isNotEmpty() ? (int) $prepTimes->max() : null,
+        ];
     }
 
     public function prepare(Request $request, OrderItem $item): RedirectResponse
@@ -101,14 +134,45 @@ class KitchenController extends Controller
         abort_unless($user->can('manage_kitchen'), 403);
         abort_if($item->restaurant_id !== $user->restaurant_id, 403);
 
+        if ($item->prepared_at !== null || $item->status === 'preparing' || $item->status === 'served') {
+            return back()->with('success', 'Món ăn đã được chế biến trước đó.');
+        }
+
         $item->update([
             'prepared_at' => now(),
+            'prepared_by' => $user->id,
             'status' => 'preparing', // transition status
         ]);
 
-        event(new \App\Events\Kitchen\KitchenUpdated($user->restaurant_id));
+        event(new KitchenUpdated($user->restaurant_id));
 
         return back()->with('success', 'Đã hoàn thành chuẩn bị món!');
+    }
+
+    public function prepareBulk(Request $request): RedirectResponse
+    {
+        $user = $request->user();
+        abort_unless($user->can('manage_kitchen'), 403);
+
+        $validated = $request->validate([
+            'item_ids' => ['required', 'array'],
+            'item_ids.*' => ['integer'],
+        ]);
+
+        $updatedCount = OrderItem::whereIn('id', $validated['item_ids'])
+            ->where('restaurant_id', $user->restaurant_id)
+            ->whereNull('prepared_at')
+            ->update([
+                'prepared_at' => now(),
+                'prepared_by' => $user->id,
+                'status' => 'preparing',
+            ]);
+
+        if ($updatedCount > 0) {
+            event(new KitchenUpdated($user->restaurant_id));
+        }
+
+        return back()->with('success', 'Đã hoàn thành chuẩn bị các món!');
     }
 
     public function serve(Request $request, OrderItem $item): RedirectResponse
@@ -117,17 +181,22 @@ class KitchenController extends Controller
         abort_unless($user->can('manage_kitchen'), 403);
         abort_if($item->restaurant_id !== $user->restaurant_id, 403);
 
+        if ($item->served_at !== null || $item->status === 'served') {
+            return back()->with('success', 'Món ăn đã được phục vụ trước đó.');
+        }
+
         $item->update([
             'served_at' => now(),
+            'served_by' => $user->id,
             'status' => 'served', // final status
         ]);
 
-        event(new \App\Events\Kitchen\KitchenUpdated($user->restaurant_id));
+        event(new KitchenUpdated($user->restaurant_id));
 
         return back()->with('success', 'Món ăn đã được phục vụ lấy đi!');
     }
 
-    public function pause(Request $request, \App\Models\Product $product): RedirectResponse
+    public function pause(Request $request, Product $product): RedirectResponse
     {
         $user = $request->user();
         abort_unless($user->can('manage_kitchen'), 403);
@@ -142,12 +211,12 @@ class KitchenController extends Controller
             'out_of_stock_until' => null,
         ]);
 
-        event(new \App\Events\Customer\ProductStockUpdated($user->restaurant_id));
+        event(new ProductStockUpdated($user->restaurant_id));
 
         return back()->with('success', "Đã tạm dừng phục vụ món {$product->name} trong {$validated['minutes']} phút!");
     }
 
-    public function markOutOfStock(Request $request, \App\Models\Product $product): RedirectResponse
+    public function markOutOfStock(Request $request, Product $product): RedirectResponse
     {
         $user = $request->user();
         abort_unless($user->can('manage_kitchen'), 403);
@@ -162,12 +231,12 @@ class KitchenController extends Controller
             'paused_until' => null,
         ]);
 
-        event(new \App\Events\Customer\ProductStockUpdated($user->restaurant_id));
+        event(new ProductStockUpdated($user->restaurant_id));
 
         return back()->with('success', "Đã báo hết món {$product->name} trong {$validated['minutes']} phút!");
     }
 
-    public function resume(Request $request, \App\Models\Product $product): RedirectResponse
+    public function resume(Request $request, Product $product): RedirectResponse
     {
         $user = $request->user();
         abort_unless($user->can('manage_kitchen'), 403);
@@ -178,7 +247,7 @@ class KitchenController extends Controller
             'out_of_stock_until' => null,
         ]);
 
-        event(new \App\Events\Customer\ProductStockUpdated($user->restaurant_id));
+        event(new ProductStockUpdated($user->restaurant_id));
 
         return back()->with('success', "Đã mở lại bán món {$product->name}!");
     }

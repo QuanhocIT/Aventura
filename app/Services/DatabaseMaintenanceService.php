@@ -4,24 +4,24 @@ namespace App\Services;
 
 use App\Models\DbMaintenanceLog;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Facades\Log;
 
 class DatabaseMaintenanceService
 {
     /**
      * Thực hiện các tác vụ tối ưu hóa cơ sở dữ liệu.
-     * 
-     * @param array $actions Các hành động tối ưu hóa ('cleanup_queues', 'clear_sessions', 'archive_audit_logs')
-     * @param int|null $userId ID người thực hiện
+     *
+     * @param  array  $actions  Các hành động tối ưu hóa ('cleanup_queues', 'clear_sessions', 'archive_audit_logs')
+     * @param  int|null  $userId  ID người thực hiện
      * @return array Kết quả thực hiện
      */
     public function optimize(array $actions, ?int $userId = null): array
     {
         $results = [];
         $status = 'success';
-        
+
         foreach ($actions as $action) {
             try {
                 switch ($action) {
@@ -38,10 +38,10 @@ class DatabaseMaintenanceService
                         Log::warning("Unknown optimization action requested: {$action}");
                 }
             } catch (\Exception $e) {
-                Log::error("Failed to run DB maintenance action [{$action}]: " . $e->getMessage());
+                Log::error("Failed to run DB maintenance action [{$action}]: ".$e->getMessage());
                 $results[$action] = [
                     'status' => 'failed',
-                    'error' => $e->getMessage()
+                    'error' => $e->getMessage(),
                 ];
                 $status = 'failed';
             }
@@ -58,7 +58,7 @@ class DatabaseMaintenanceService
         return [
             'status' => $status,
             'actions' => $actions,
-            'results' => $results
+            'results' => $results,
         ];
     }
 
@@ -85,7 +85,7 @@ class DatabaseMaintenanceService
             'status' => 'success',
             'failed_jobs_deleted' => $failedJobsDeleted,
             'job_batches_deleted' => $batchesDeleted,
-            'message' => "Đã dọn dẹp {$failedJobsDeleted} hàng đợi lỗi và {$batchesDeleted} lô công việc đã hoàn thành."
+            'message' => "Đã dọn dẹp {$failedJobsDeleted} hàng đợi lỗi và {$batchesDeleted} lô công việc đã hoàn thành.",
         ];
     }
 
@@ -112,7 +112,7 @@ class DatabaseMaintenanceService
         // 2. Dọn dẹp session file vật lý
         $sessionPath = storage_path('framework/sessions');
         if (is_dir($sessionPath)) {
-            $files = glob($sessionPath . '/*');
+            $files = glob($sessionPath.'/*');
             foreach ($files as $file) {
                 if (is_file($file)) {
                     $mtime = filemtime($file);
@@ -127,9 +127,9 @@ class DatabaseMaintenanceService
         // 3. Dọn dẹp Personal Access Tokens hết hạn
         if (Schema::hasTable('personal_access_tokens')) {
             $tokensDeleted = DB::table('personal_access_tokens')
-                ->where(function($q) {
+                ->where(function ($q) {
                     $q->whereNotNull('expires_at')
-                      ->where('expires_at', '<', now());
+                        ->where('expires_at', '<', now());
                 })
                 ->delete();
         }
@@ -139,7 +139,7 @@ class DatabaseMaintenanceService
             'db_sessions_deleted' => $dbSessionsDeleted,
             'file_sessions_deleted' => $fileSessionsDeleted,
             'expired_tokens_deleted' => $tokensDeleted,
-            'message' => "Đã xóa {$dbSessionsDeleted} session cơ sở dữ liệu, {$fileSessionsDeleted} tệp session hết hạn và {$tokensDeleted} mã token hết hạn."
+            'message' => "Đã xóa {$dbSessionsDeleted} session cơ sở dữ liệu, {$fileSessionsDeleted} tệp session hết hạn và {$tokensDeleted} mã token hết hạn.",
         ];
     }
 
@@ -149,12 +149,12 @@ class DatabaseMaintenanceService
     private function archiveAuditLogs(): array
     {
         $cutoffDate = now()->subMonths(6);
-        
-        if (!Schema::hasTable('audit_logs')) {
+
+        if (! Schema::hasTable('audit_logs')) {
             return [
                 'status' => 'success',
                 'archived_count' => 0,
-                'message' => "Không tìm thấy bảng audit_logs."
+                'message' => 'Không tìm thấy bảng audit_logs.',
             ];
         }
 
@@ -165,21 +165,21 @@ class DatabaseMaintenanceService
             return [
                 'status' => 'success',
                 'archived_count' => 0,
-                'message' => "Không có bản ghi audit_logs nào cũ hơn 6 tháng để lưu trữ."
+                'message' => 'Không có bản ghi audit_logs nào cũ hơn 6 tháng để lưu trữ.',
             ];
         }
 
         // Thực hiện ghi log tuần tự ra tệp để tiết kiệm bộ nhớ RAM
-        $archiveFilename = 'audit_logs_archive_' . date('Y_m_d_His') . '.json';
+        $archiveFilename = 'audit_logs_archive_'.date('Y_m_d_His').'.json';
         $tempDir = storage_path('app/temp-archives');
-        if (!file_exists($tempDir)) {
+        if (! file_exists($tempDir)) {
             mkdir($tempDir, 0755, true);
         }
-        
-        $tempFile = $tempDir . '/' . $archiveFilename;
+
+        $tempFile = $tempDir.'/'.$archiveFilename;
         $handle = fopen($tempFile, 'w');
-        if (!$handle) {
-            throw new \Exception("Không thể tạo tệp nén tạm thời lưu trữ audit log.");
+        if (! $handle) {
+            throw new \Exception('Không thể tạo tệp nén tạm thời lưu trữ audit log.');
         }
 
         fwrite($handle, '[');
@@ -187,7 +187,7 @@ class DatabaseMaintenanceService
 
         $query->orderBy('id')->chunk(1000, function ($logs) use ($handle, &$isFirst) {
             foreach ($logs as $log) {
-                if (!$isFirst) {
+                if (! $isFirst) {
                     fwrite($handle, ',');
                 }
                 fwrite($handle, json_encode($log));
@@ -199,13 +199,13 @@ class DatabaseMaintenanceService
         fclose($handle);
 
         // Nén tệp JSON thành gzip (.json.gz)
-        $gzFile = $tempFile . '.gz';
+        $gzFile = $tempFile.'.gz';
         $gzHandle = gzopen($gzFile, 'w9');
-        if (!$gzHandle) {
+        if (! $gzHandle) {
             if (file_exists($tempFile)) {
                 unlink($tempFile);
             }
-            throw new \Exception("Không thể nén tệp lưu trữ JSON thành gzip.");
+            throw new \Exception('Không thể nén tệp lưu trữ JSON thành gzip.');
         }
 
         gzwrite($gzHandle, file_get_contents($tempFile));
@@ -217,7 +217,7 @@ class DatabaseMaintenanceService
 
         // Upload lên Cloud Storage S3 hoặc Local fallback
         $disk = 'local';
-        $destination = 'archives/audit-logs/' . $archiveFilename . '.gz';
+        $destination = 'archives/audit-logs/'.$archiveFilename.'.gz';
         $uploaded = false;
 
         if ($this->isS3Configured()) {
@@ -228,11 +228,11 @@ class DatabaseMaintenanceService
                 $disk = 's3';
                 $uploaded = true;
             } catch (\Exception $e) {
-                Log::warning("S3 upload failed for audit log archive: " . $e->getMessage() . ". Saving locally.");
+                Log::warning('S3 upload failed for audit log archive: '.$e->getMessage().'. Saving locally.');
             }
         }
 
-        if (!$uploaded) {
+        if (! $uploaded) {
             $fileStream = fopen($gzFile, 'r');
             Storage::disk('local')->put($destination, $fileStream);
             fclose($fileStream);
@@ -254,7 +254,7 @@ class DatabaseMaintenanceService
             'archived_count' => $deletedCount,
             'disk' => $disk,
             'archive_file' => $destination,
-            'message' => "Đã sao lưu thành công {$deletedCount} bản ghi audit log cũ hơn 6 tháng lên bộ nhớ lưu trữ {$disk} ({$destination}) và giải phóng khỏi cơ sở dữ liệu chính."
+            'message' => "Đã sao lưu thành công {$deletedCount} bản ghi audit log cũ hơn 6 tháng lên bộ nhớ lưu trữ {$disk} ({$destination}) và giải phóng khỏi cơ sở dữ liệu chính.",
         ];
     }
 
@@ -263,8 +263,8 @@ class DatabaseMaintenanceService
      */
     private function isS3Configured(): bool
     {
-        return !empty(config('filesystems.disks.s3.key')) && 
-               !empty(config('filesystems.disks.s3.bucket')) &&
-               !empty(config('filesystems.disks.s3.secret'));
+        return ! empty(config('filesystems.disks.s3.key')) &&
+               ! empty(config('filesystems.disks.s3.bucket')) &&
+               ! empty(config('filesystems.disks.s3.secret'));
     }
 }

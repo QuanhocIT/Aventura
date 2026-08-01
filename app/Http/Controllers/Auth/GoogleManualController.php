@@ -22,7 +22,7 @@ class GoogleManualController extends Controller
             'prompt' => 'consent',
         ]);
 
-        return redirect('https://accounts.google.com/o/oauth2/v2/auth?' . $query);
+        return redirect('https://accounts.google.com/o/oauth2/v2/auth?'.$query);
     }
 
     public function handleGoogleCallback(Request $request)
@@ -41,7 +41,7 @@ class GoogleManualController extends Controller
         }
 
         $googleUser = Http::withHeaders([
-            'Authorization' => 'Bearer ' . $accessToken,
+            'Authorization' => 'Bearer '.$accessToken,
         ])->get('https://www.googleapis.com/oauth2/v3/userinfo')->json();
 
         $user = User::firstOrCreate(

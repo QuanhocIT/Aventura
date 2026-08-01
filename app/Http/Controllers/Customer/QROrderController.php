@@ -2,27 +2,32 @@
 
 namespace App\Http\Controllers\Customer;
 
+use App\Events\Customer\FeedbackSubmitted;
+use App\Events\Customer\PaymentRequested;
+use App\Events\Customer\StaffCalled;
+use App\Events\Customer\TemporaryOrderCreated;
 use App\Http\Controllers\Controller;
+use App\Jobs\VerifyTemporaryOrderDelayJob;
+use App\Models\Customer;
+use App\Models\CustomerFeedback;
+use App\Models\Inventory;
+use App\Models\Order;
+use App\Models\Product;
+use App\Models\ProductCategory;
 use App\Models\Restaurant;
 use App\Models\RestaurantTable;
-use App\Models\ProductCategory;
-use App\Models\Product;
-use App\Models\Inventory;
-use App\Models\TemporaryOrder;
-use App\Models\CustomerFeedback;
-use App\Models\WorkShift;
 use App\Models\ScheduleAssignment;
-use App\Models\Order;
-use App\Jobs\VerifyTemporaryOrderDelayJob;
-use App\Events\Customer\TemporaryOrderCreated;
-use App\Events\Customer\StaffCalled;
-use App\Events\Customer\PaymentRequested;
-use App\Events\Customer\FeedbackSubmitted;
-use Illuminate\Http\Request;
+use App\Models\TemporaryOrder;
+use App\Models\WorkShift;
+use App\Services\CdpService;
+use App\Support\TenantRule;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 use Inertia\Response;
-use Carbon\Carbon;
 
 class QROrderController extends Controller
 {
@@ -43,7 +48,7 @@ class QROrderController extends Controller
             ->where('status', 'active')
             ->orderBy('display_order')
             ->get()
-            ->map(fn($c) => [
+            ->map(fn ($c) => [
                 'id' => $c->id,
                 'name' => $c->name,
                 'slug' => $c->slug,
@@ -86,10 +91,12 @@ class QROrderController extends Controller
                 'name' => $p->name,
                 'description' => $p->description,
                 'price' => (float) $p->price,
+                'earn_points' => (int) ($p->earn_points ?? 0),
+                'redeem_points' => (int) ($p->redeem_points ?? 0),
                 'image_url' => $p->image_url,
                 'sku' => $p->sku,
                 'category_id' => $p->category_id,
-                'in_stock' => $inStock && $p->is_available && !$isKitchenPaused && !$isKitchenOutOfStock,
+                'in_stock' => $inStock && $p->is_available && ! $isKitchenPaused && ! $isKitchenOutOfStock,
                 'paused_until' => $p->paused_until ? $p->paused_until->toIso8601String() : null,
                 'out_of_stock_until' => $p->out_of_stock_until ? $p->out_of_stock_until->toIso8601String() : null,
                 'is_kitchen_paused' => $isKitchenPaused,
@@ -101,37 +108,45 @@ class QROrderController extends Controller
         $customerPhone = request()->get('phone');
         $recommendedProducts = collect();
         if ($customerPhone) {
-            $frequentProductIds = \Illuminate\Support\Facades\DB::table('order_items')
-                ->join('orders', 'order_items.order_id', '=', 'orders.id')
-                ->where('orders.restaurant_id', $restaurantId)
-                ->where('orders.customer_phone', $customerPhone)
-                ->select('order_items.product_id', \Illuminate\Support\Facades\DB::raw('COUNT(*) as order_count'))
-                ->groupBy('order_items.product_id')
-                ->orderByDesc('order_count')
-                ->limit(4)
-                ->pluck('product_id')
-                ->toArray();
-            
-            if (!empty($frequentProductIds)) {
+            // orders không có cột customer_phone — tra Customer theo phone rồi lọc theo customer_id.
+            $customerId = Customer::withoutGlobalScopes()
+                ->where('restaurant_id', $restaurantId)
+                ->where('phone', $customerPhone)
+                ->value('id');
+
+            $frequentProductIds = $customerId
+                ? DB::table('order_items')
+                    ->join('orders', 'order_items.order_id', '=', 'orders.id')
+                    ->where('orders.restaurant_id', $restaurantId)
+                    ->where('orders.customer_id', $customerId)
+                    ->select('order_items.product_id', DB::raw('COUNT(*) as order_count'))
+                    ->groupBy('order_items.product_id')
+                    ->orderByDesc('order_count')
+                    ->limit(4)
+                    ->pluck('product_id')
+                    ->toArray()
+                : [];
+
+            if (! empty($frequentProductIds)) {
                 $recommendedProducts = $products->whereIn('id', $frequentProductIds)->values();
             }
         }
 
         if ($recommendedProducts->count() < 2) {
-            $topProductIds = \Illuminate\Support\Facades\DB::table('order_items')
+            $topProductIds = DB::table('order_items')
                 ->join('orders', 'order_items.order_id', '=', 'orders.id')
                 ->where('orders.restaurant_id', $restaurantId)
-                ->select('order_items.product_id', \Illuminate\Support\Facades\DB::raw('COUNT(*) as total_count'))
+                ->select('order_items.product_id', DB::raw('COUNT(*) as total_count'))
                 ->groupBy('order_items.product_id')
                 ->orderByDesc('total_count')
                 ->limit(4)
                 ->pluck('product_id')
                 ->toArray();
-            
+
             $additionalProducts = $products->whereIn('id', $topProductIds)
                 ->whereNotIn('id', $recommendedProducts->pluck('id')->toArray())
                 ->values();
-                
+
             $recommendedProducts = $recommendedProducts->concat($additionalProducts)->take(4);
         }
 
@@ -139,6 +154,7 @@ class QROrderController extends Controller
         $recProductsDuplicated = $recommendedProducts->map(function ($p) {
             $duplicated = $p;
             $duplicated['category_id'] = 999999;
+
             return $duplicated;
         });
 
@@ -189,7 +205,25 @@ class QROrderController extends Controller
         // 5. Lấy danh sách nhân viên phục vụ trong ca trực hiện tại để khách hàng đánh giá
         $staffList = $this->resolveCurrentShiftStaff($restaurantId);
 
+        $currentCustomer = null;
+        $authUser = Auth::user();
+        if ($authUser && $authUser->phone) {
+            $customerObj = Customer::withoutGlobalScopes()
+                ->where('restaurant_id', $restaurantId)
+                ->where('phone', $authUser->phone)
+                ->first();
+            if ($customerObj) {
+                $currentCustomer = [
+                    'id' => $customerObj->id,
+                    'full_name' => $customerObj->full_name,
+                    'phone' => $customerObj->phone,
+                    'loyalty_points' => (int) $customerObj->loyalty_points,
+                ];
+            }
+        }
+
         return Inertia::render('customers/QROrder', [
+            'customer' => $currentCustomer,
             'restaurant' => [
                 'id' => $restaurant->id,
                 'name' => $restaurant->name,
@@ -224,7 +258,7 @@ class QROrderController extends Controller
             'session_id' => ['nullable', 'string', 'max:255'],
             'redeem_points' => ['nullable', 'integer', 'min:0'],
             'items' => ['required', 'array', 'min:1'],
-            'items.*.product_id' => ['required', 'exists:products,id'],
+            'items.*.product_id' => ['required', TenantRule::exists('products', restaurantId: (int) $restaurantId)],
             'items.*.quantity' => ['required', 'numeric', 'min:1'],
             'items.*.notes' => ['nullable', 'string', 'max:255'],
         ]);
@@ -247,7 +281,7 @@ class QROrderController extends Controller
 
         foreach ($data['items'] as $item) {
             $product = $products->get($item['product_id']);
-            if (!$product || !$product->is_active || !$product->is_available) {
+            if (! $product || ! $product->is_active || ! $product->is_available) {
                 return response()->json(['message' => "Món ăn {$product?->name} không còn phục vụ."], 422);
             }
 
@@ -287,17 +321,27 @@ class QROrderController extends Controller
 
         $customerId = null;
         $customer = null;
-        if (!empty($data['customer_phone'])) {
-            $customer = \App\Models\Customer::firstOrCreate(
-                [
-                    'restaurant_id' => $restaurantId,
-                    'phone' => $data['customer_phone']
-                ],
-                [
-                    'full_name' => $data['customer_name'] ?: 'Khách gọi món QR',
-                    'branch_id' => $table->branch_id,
-                ]
-            );
+        if (! empty($data['customer_phone'])) {
+            try {
+                $customer = Customer::firstOrCreate(
+                    [
+                        'restaurant_id' => $restaurantId,
+                        'phone' => $data['customer_phone'],
+                    ],
+                    [
+                        'full_name' => $data['customer_name'] ?: 'Khách gọi món QR',
+                        'branch_id' => $table->branch_id,
+                    ]
+                );
+            } catch (QueryException $e) {
+                // In case of concurrent creation, retrieve the existing record
+                $customer = Customer::where('restaurant_id', $restaurantId)
+                    ->where('phone', $data['customer_phone'])
+                    ->first();
+                if (! $customer) {
+                    throw $e;
+                }
+            }
             $customerId = $customer->id;
 
             if ($data['customer_name'] && ($customer->full_name === 'Khách gọi món QR' || empty($customer->full_name))) {
@@ -306,13 +350,13 @@ class QROrderController extends Controller
         }
 
         // Apply loyalty points discount (1 point = 100đ)
-        $redeemPoints = $data['redeem_points'] ?? 0;
+        $redeemPoints = (int) ($data['redeem_points'] ?? 0);
         $pointsDiscount = 0.0;
+        $actualRedeemPoints = 0;
         if ($customer && $redeemPoints > 0) {
-            if ($customer->loyalty_points >= $redeemPoints) {
-                $customer->decrement('loyalty_points', $redeemPoints);
-                $pointsDiscount = $redeemPoints * 100.0;
-            }
+            // Chỉ cho phép quy đổi tối đa số điểm khách đang có (pre-check)
+            $actualRedeemPoints = min($redeemPoints, $customer->loyalty_points);
+            $pointsDiscount = $actualRedeemPoints * 100.0;
         }
 
         $finalAmount = max(0.0, $totalAmount - $pointsDiscount);
@@ -327,12 +371,13 @@ class QROrderController extends Controller
             'status' => 'waiting_verification',
             'cart_data' => $cartData,
             'total_amount' => $finalAmount,
-            'notes' => $pointsDiscount > 0 ? "Sử dụng {$redeemPoints} điểm tích lũy giảm {$pointsDiscount}đ" : null,
+            // temporary_orders không có cột notes; thông tin điểm đã nằm trong redeem_points.
+            'redeem_points' => $actualRedeemPoints,
         ]);
 
         // Ghi nhận hành vi gửi đơn hàng và liên kết lịch sử
         $sessionId = $data['session_id'] ?? 'unknown_session';
-        \App\Services\CdpService::logBehavior(
+        CdpService::logBehavior(
             $restaurantId,
             $sessionId,
             'submit_order',
@@ -357,7 +402,7 @@ class QROrderController extends Controller
                 'total_amount' => $tempOrder->total_amount,
                 'cart_data' => $tempOrder->cart_data,
                 'created_at' => $tempOrder->created_at->toIso8601String(),
-            ]
+            ],
         ]);
     }
 
@@ -367,7 +412,7 @@ class QROrderController extends Controller
     public function callStaff(Request $request, $restaurantId): JsonResponse
     {
         $data = $request->validate([
-            'table_id' => ['required', 'exists:restaurant_tables,id'],
+            'table_id' => ['required', TenantRule::exists('restaurant_tables', restaurantId: (int) $restaurantId)],
             'message' => ['nullable', 'string', 'max:100'],
         ]);
 
@@ -392,7 +437,7 @@ class QROrderController extends Controller
     public function paymentRequest(Request $request, $restaurantId): JsonResponse
     {
         $data = $request->validate([
-            'table_id' => ['required', 'exists:restaurant_tables,id'],
+            'table_id' => ['required', TenantRule::exists('restaurant_tables', restaurantId: (int) $restaurantId)],
         ]);
 
         $table = RestaurantTable::where('restaurant_id', $restaurantId)
@@ -406,7 +451,7 @@ class QROrderController extends Controller
             ->whereIn('status', ['pending', 'confirmed', 'preparing'])
             ->exists();
 
-        if (!$hasUnpaidOrder) {
+        if (! $hasUnpaidOrder) {
             return response()->json([
                 'success' => false,
                 'message' => 'Bàn này hiện tại chưa có đơn hàng nào cần thanh toán.',
@@ -427,8 +472,8 @@ class QROrderController extends Controller
     public function submitFeedback(Request $request, $restaurantId): JsonResponse
     {
         $data = $request->validate([
-            'table_id' => ['required', 'exists:restaurant_tables,id'],
-            'order_id' => ['nullable', 'exists:orders,id'],
+            'table_id' => ['required', TenantRule::exists('restaurant_tables', restaurantId: (int) $restaurantId)],
+            'order_id' => ['nullable', TenantRule::exists('orders', restaurantId: (int) $restaurantId)],
             'rating' => ['required', 'integer', 'min:1', 'max:5'],
             'content' => ['nullable', 'string', 'max:1000'],
             'is_anonymous' => ['required', 'boolean'],
@@ -482,7 +527,7 @@ class QROrderController extends Controller
 
         foreach ($shifts as $shift) {
             $inShift = false;
-            if (!$shift->is_overnight) {
+            if (! $shift->is_overnight) {
                 $inShift = $currentTimeStr >= $shift->start_time && $currentTimeStr <= $shift->end_time;
             } else {
                 // Ca qua đêm (Ví dụ từ 22:00:00 đến 06:00:00 sáng hôm sau)
@@ -499,7 +544,7 @@ class QROrderController extends Controller
             }
         }
 
-        if (!$matchedShiftId) {
+        if (! $matchedShiftId) {
             return [];
         }
 
@@ -517,6 +562,7 @@ class QROrderController extends Controller
                         'role' => $asm->employee->role_title ?? 'Nhân viên',
                     ];
                 }
+
                 return null;
             })
             ->filter()

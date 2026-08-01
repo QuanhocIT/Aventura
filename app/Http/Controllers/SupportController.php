@@ -6,25 +6,30 @@ use App\Models\KnowledgeBaseArticle;
 use App\Models\SupportAnnouncement;
 use App\Models\SupportTicket;
 use App\Models\SupportTicketReply;
+use App\Services\SlaService;
 use App\Services\SupportPortalService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use Inertia\Inertia;
-use Inertia\Response;
 
 class SupportController extends Controller
 {
     public function __construct(
         protected SupportPortalService $supportPortal,
     ) {}
+
     /**
      * Hiển thị Cổng hỗ trợ cho Tenant.
      */
-    public function index(Request $request): Response
+    public function index(Request $request): mixed
     {
         $user = $request->user();
-        
+
+        if ($user && $user->isSuperAdmin()) {
+            return redirect('/super-admin/support');
+        }
+
         $tickets = SupportTicket::where('restaurant_id', $user->restaurant_id)
             ->with(['replies.user'])
             ->latest()
@@ -83,7 +88,7 @@ class SupportController extends Controller
         $priority = $classification['priority'];
 
         $restaurant = $user->restaurant;
-        if ($restaurant && app(\App\Services\QuotaService::class)->hasFeature($restaurant, 'priority_support')) {
+        if ($restaurant && $restaurant->plan?->code === 'enterprise') {
             $severity = 'critical';
             $priority = 'p1';
         }
@@ -91,7 +96,7 @@ class SupportController extends Controller
         $ticket = new SupportTicket([
             'restaurant_id' => $user->restaurant_id,
             'created_by' => $user->id,
-            'code' => 'TKT-' . now()->format('ymd') . '-' . Str::upper(Str::random(5)),
+            'code' => 'TKT-'.now()->format('ymd').'-'.Str::upper(Str::random(5)),
             'channel' => 'tenant_portal',
             'category' => $data['category'],
             'severity' => $severity,
@@ -101,7 +106,7 @@ class SupportController extends Controller
             'description' => $data['description'],
             'meta' => ['source' => 'tenant_support_center'],
         ]);
-        $ticket->sla_due_at = app(\App\Services\SlaService::class)->calculateSlaDueAt($ticket);
+        $ticket->sla_due_at = app(SlaService::class)->calculateSlaDueAt($ticket);
         $ticket->save();
 
         return back()->with('success', 'Đã gửi yêu cầu hỗ trợ thành công. Đội ngũ kỹ thuật đã được thông báo.');
@@ -143,27 +148,26 @@ class SupportController extends Controller
         $user = $request->user();
 
         $data = $request->validate([
-            'date'      => ['required', 'date', 'after_or_equal:today'],
+            'date' => ['required', 'date', 'after_or_equal:today'],
             'time_slot' => ['required', 'string'],
-            'phone'     => ['required', 'string', 'max:20'],
-            'notes'     => ['nullable', 'string'],
+            'phone' => ['required', 'string', 'max:20'],
+            'notes' => ['nullable', 'string'],
         ]);
 
         SupportTicket::create([
             'restaurant_id' => $user->restaurant_id,
-            'created_by'    => $user->id,
-            'code'          => 'DEMO-' . now()->format('ymd') . '-' . Str::upper(Str::random(4)),
-            'channel'       => 'tenant_portal',
-            'category'      => 'demo_booking',
-            'severity'      => 'low',
-            'priority'      => 'normal',
-            'status'        => 'open',
-            'title'         => 'Đặt lịch demo — ' . $data['date'] . ' ' . $data['time_slot'],
-            'description'   => "Số điện thoại: {$data['phone']}\nNgày: {$data['date']}\nKhung giờ: {$data['time_slot']}\nGhi chú: " . ($data['notes'] ?? 'Không có'),
-            'meta'          => ['source' => 'booking_demo', 'date' => $data['date'], 'time_slot' => $data['time_slot']],
+            'created_by' => $user->id,
+            'code' => 'DEMO-'.now()->format('ymd').'-'.Str::upper(Str::random(4)),
+            'channel' => 'tenant_portal',
+            'category' => 'demo_booking',
+            'severity' => 'low',
+            'priority' => 'normal',
+            'status' => 'open',
+            'title' => 'Đặt lịch demo — '.$data['date'].' '.$data['time_slot'],
+            'description' => "Số điện thoại: {$data['phone']}\nNgày: {$data['date']}\nKhung giờ: {$data['time_slot']}\nGhi chú: ".($data['notes'] ?? 'Không có'),
+            'meta' => ['source' => 'booking_demo', 'date' => $data['date'], 'time_slot' => $data['time_slot']],
         ]);
 
-        return back()->with('success', 'Đã đặt lịch demo thành công! Đội ngũ sẽ liên hệ qua số ' . $data['phone'] . ' trước giờ hẹn.');
+        return back()->with('success', 'Đã đặt lịch demo thành công! Đội ngũ sẽ liên hệ qua số '.$data['phone'].' trước giờ hẹn.');
     }
-
 }

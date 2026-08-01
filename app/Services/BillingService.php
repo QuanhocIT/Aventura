@@ -6,17 +6,17 @@ use App\Jobs\GenerateInvoiceDocuments;
 use App\Jobs\SendBillingInvoiceEmail;
 use App\Models\BillingAdjustment;
 use App\Models\BillingInvoice;
+use App\Models\CommissionLog;
 use App\Models\PaymentWebhook;
 use App\Models\Restaurant;
 use App\Models\RestaurantSubscription;
-use App\Models\SubscriptionPlan;
-use App\Models\User;
 use App\Models\SystemSetting;
-use App\Models\CommissionLog;
+use App\Models\User;
 use App\Notifications\DunningNotification;
-use App\Notifications\SubscriptionExpiryReminder;
+use Carbon\CarbonInterface;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
@@ -27,31 +27,37 @@ class BillingService
     {
         $transactionCode = $this->extractTransactionCode($payload);
 
-        $webhook = PaymentWebhook::query()->firstOrCreate(
-            ['provider' => $provider, 'transaction_code' => $transactionCode, 'signature' => $signature],
-            [
-                'event_type' => Arr::get($payload, 'event_type') ?? Arr::get($payload, 'eventType'),
-                'status' => 'received',
-                'headers' => $headers,
-                'payload' => $payload,
-            ]
-        );
+        return DB::transaction(function () use ($payload, $headers, $signature, $provider, $transactionCode) {
+            // 1. Tạo hoặc lấy PaymentWebhook trong transaction
+            $webhook = PaymentWebhook::query()->firstOrCreate(
+                ['provider' => $provider, 'transaction_code' => $transactionCode, 'signature' => $signature],
+                [
+                    'event_type' => Arr::get($payload, 'event_type') ?? Arr::get($payload, 'eventType'),
+                    'status' => 'received',
+                    'headers' => $headers,
+                    'payload' => $payload,
+                ]
+            );
 
-        if ($webhook->processed_at) {
-            return ['ok' => true, 'message' => 'Webhook already processed', 'duplicate' => true];
-        }
+            // Khóa bản ghi webhook để tránh race condition khi hai request chạy song song
+            $webhook = PaymentWebhook::where('id', $webhook->id)->lockForUpdate()->firstOrFail();
 
-        $restaurant = Restaurant::query()
-            ->whereHas('subscriptions', fn ($q) => $q->where('transaction_code', $transactionCode))
-            ->first();
+            if ($webhook->processed_at || $webhook->status === 'processed') {
+                return ['ok' => true, 'message' => 'Webhook already processed', 'duplicate' => true];
+            }
 
-        if (! $restaurant) {
-            $webhook->update(['status' => 'orphaned', 'processed_at' => now(), 'error_message' => 'Transaction code not found']);
+            // 2. Tìm Restaurant liên quan
+            $restaurant = Restaurant::query()
+                ->whereHas('subscriptions', fn ($q) => $q->where('transaction_code', $transactionCode))
+                ->first();
 
-            return ['ok' => false, 'message' => 'Transaction code not found'];
-        }
+            if (! $restaurant) {
+                $webhook->update(['status' => 'orphaned', 'processed_at' => now(), 'error_message' => 'Transaction code not found']);
 
-        return DB::transaction(function () use ($payload, $restaurant, $webhook, $transactionCode) {
+                return ['ok' => false, 'message' => 'Transaction code not found'];
+            }
+
+            // 3. Khóa subscription để cập nhật
             $subscription = $restaurant->subscriptions()
                 ->where('transaction_code', $transactionCode)
                 ->latest('id')
@@ -97,6 +103,9 @@ class BillingService
                 'subscription_started_at' => $subscription->started_at?->toDateString() ?? $paidAt->toDateString(),
             ]);
 
+            Cache::forget("quota_summary:{$restaurant->id}");
+            Cache::forget("user_permissions:{$restaurant->owner_user_id}");
+
             $invoice = BillingInvoice::query()->create([
                 'restaurant_id' => $restaurant->id,
                 'restaurant_subscription_id' => $subscription->id,
@@ -122,10 +131,10 @@ class BillingService
             try {
                 $this->awardReferralCommission($restaurant, $invoice);
             } catch (\Throwable $e) {
-                \Illuminate\Support\Facades\Log::error('Failed to award referral commission: ' . $e->getMessage(), [
+                Log::error('Failed to award referral commission: '.$e->getMessage(), [
                     'restaurant_id' => $restaurant->id,
                     'invoice_id' => $invoice->id,
-                    'exception' => $e
+                    'exception' => $e,
                 ]);
             }
 
@@ -278,13 +287,13 @@ class BillingService
      */
     public function sendExpiryReminders(): int
     {
-        $now  = now();
+        $now = now();
         $sent = 0;
 
         // Generate upcoming renewal invoices if within the upcoming due window
         $upcomingDays = (int) config('billing.upcoming_due_days', 7);
         $upcomingThreshold = $now->copy()->addDays($upcomingDays)->endOfDay();
-        
+
         RestaurantSubscription::query()
             ->with(['restaurant'])
             ->whereIn('status', ['trial', 'active'])
@@ -293,14 +302,16 @@ class BillingService
             ->chunkById(100, function ($subscriptions) {
                 foreach ($subscriptions as $subscription) {
                     $restaurant = $subscription->restaurant;
-                    if (!$restaurant) continue;
+                    if (! $restaurant) {
+                        continue;
+                    }
 
-                    $invoiceExists = \App\Models\BillingInvoice::query()
+                    $invoiceExists = BillingInvoice::query()
                         ->where('restaurant_subscription_id', $subscription->id)
                         ->where('type', 'upcoming_renewal')
                         ->exists();
 
-                    if (!$invoiceExists) {
+                    if (! $invoiceExists) {
                         $invoice = $this->createUpcomingInvoice($restaurant, $subscription);
                         $this->queueInvoiceRegeneration($invoice);
                         $this->queueInvoiceEmail($invoice);
@@ -329,32 +340,32 @@ class BillingService
         return $sent;
     }
 
-    private function sendDunningStage(int $fromDays, int $toDays, string $stage, array $statusIn, \Carbon\CarbonInterface $now): int
+    private function sendDunningStage(int $fromDays, int $toDays, string $stage, array $statusIn, CarbonInterface $now): int
     {
         $windowStart = $now->copy()->addDays($fromDays)->startOfDay();
-        $windowEnd   = $now->copy()->addDays($toDays)->endOfDay();
-        $sent        = 0;
+        $windowEnd = $now->copy()->addDays($toDays)->endOfDay();
+        $sent = 0;
 
         RestaurantSubscription::query()
             ->with(['restaurant.owner'])
             ->whereIn('status', $statusIn)
             ->whereNotNull('ended_at')
             ->whereBetween('ended_at', [$windowStart, $windowEnd])
-            ->where(function ($q) use ($now, $stage) {
+            ->where(function ($q) use ($stage) {
                 // Không gửi lại nếu đã gửi stage này hôm nay
                 $q->whereNull('last_notified_at')
-                  ->orWhere('billing_meta->dunning_stage', '!=', $stage)
-                  ->orWhereDate('last_notified_at', '<', now()->toDateString());
+                    ->orWhere('billing_meta->dunning_stage', '!=', $stage)
+                    ->orWhereDate('last_notified_at', '<', now()->toDateString());
             })
             ->chunkById(100, function ($subscriptions) use (&$sent, $now, $stage) {
                 foreach ($subscriptions as $subscription) {
                     $restaurant = $subscription->restaurant;
-                    if (!$restaurant || !$restaurant->owner) {
+                    if (! $restaurant || ! $restaurant->owner) {
                         continue;
                     }
 
                     $daysLeft = (int) $now->diffInDays($subscription->ended_at, false);
-                    $renewalUrl = route('billing.checkout') . '?plan=' . ($subscription->plan?->code ?? '');
+                    $renewalUrl = route('billing.checkout').'?plan='.($subscription->plan?->code ?? '');
 
                     $restaurant->owner->notify(new DunningNotification(
                         restaurantName: $restaurant->name,
@@ -379,31 +390,31 @@ class BillingService
         return $sent;
     }
 
-    private function sendOverdueDunning(\Carbon\CarbonInterface $now): int
+    private function sendOverdueDunning(CarbonInterface $now): int
     {
-        $graceDays   = (int) config('billing.grace_period_days', 30);
+        $graceDays = (int) config('billing.grace_period_days', 30);
         // Đưa ra cảnh báo khi quá hạn từ 1–3 ngày (trong grace period)
         $graceCutoff = $now->copy()->subDays(3)->startOfDay();
-        $sent        = 0;
+        $sent = 0;
 
         RestaurantSubscription::query()
             ->with(['restaurant.owner'])
             ->whereIn('status', ['expired'])
             ->whereNotNull('ended_at')
             ->whereBetween('ended_at', [$graceCutoff, $now->copy()->subDay()->endOfDay()])
-            ->where(function ($q) use ($now) {
+            ->where(function ($q) {
                 $q->whereNull('last_notified_at')
-                  ->orWhere('billing_meta->dunning_stage', '!=', 'overdue')
-                  ->orWhereDate('last_notified_at', '<', now()->toDateString());
+                    ->orWhere('billing_meta->dunning_stage', '!=', 'overdue')
+                    ->orWhereDate('last_notified_at', '<', now()->toDateString());
             })
             ->chunkById(100, function ($subscriptions) use (&$sent, $now) {
                 foreach ($subscriptions as $subscription) {
                     $restaurant = $subscription->restaurant;
-                    if (!$restaurant || !$restaurant->owner) {
+                    if (! $restaurant || ! $restaurant->owner) {
                         continue;
                     }
 
-                    $renewalUrl = route('billing.checkout') . '?plan=' . ($subscription->plan?->code ?? '');
+                    $renewalUrl = route('billing.checkout').'?plan='.($subscription->plan?->code ?? '');
 
                     $restaurant->owner->notify(new DunningNotification(
                         restaurantName: $restaurant->name,
@@ -435,7 +446,7 @@ class BillingService
      */
     public function calculateProration(RestaurantSubscription $currentSubscription): array
     {
-        if (!$currentSubscription->ended_at || $currentSubscription->ended_at->isPast()) {
+        if (! $currentSubscription->ended_at || $currentSubscription->ended_at->isPast()) {
             return ['credit_amount' => 0, 'remaining_days' => 0, 'daily_rate' => 0];
         }
 
@@ -444,15 +455,15 @@ class BillingService
             return ['credit_amount' => 0, 'remaining_days' => 0, 'daily_rate' => 0];
         }
 
-        $cycleDays  = $this->billingCycleDays($currentSubscription);
-        $dailyRate  = (float) $currentSubscription->price / max($cycleDays, 1);
+        $cycleDays = $this->billingCycleDays($currentSubscription);
+        $dailyRate = (float) $currentSubscription->price / max($cycleDays, 1);
         $creditAmount = round($dailyRate * $remainingDays);
 
         return [
-            'credit_amount'  => $creditAmount,
+            'credit_amount' => $creditAmount,
             'remaining_days' => $remainingDays,
-            'daily_rate'     => round($dailyRate),
-            'cycle_days'     => $cycleDays,
+            'daily_rate' => round($dailyRate),
+            'cycle_days' => $cycleDays,
         ];
     }
 
@@ -467,17 +478,17 @@ class BillingService
         ?User $actor = null
     ): BillingAdjustment {
         return BillingAdjustment::create([
-            'restaurant_id'             => $oldSub->restaurant_id,
+            'restaurant_id' => $oldSub->restaurant_id,
             'restaurant_subscription_id' => $newSub->id,
-            'created_by'                => $actor?->id,
-            'type'                      => 'proration_credit',
-            'days'                      => 0,
-            'discount_amount'           => $creditAmount,
-            'reason'                    => "Credit từ gói cũ (#{$oldSub->id}) — nâng cấp lên gói mới",
-            'meta'                      => [
+            'created_by' => $actor?->id,
+            'type' => 'proration_credit',
+            'days' => 0,
+            'discount_amount' => $creditAmount,
+            'reason' => "Credit từ gói cũ (#{$oldSub->id}) — nâng cấp lên gói mới",
+            'meta' => [
                 'old_subscription_id' => $oldSub->id,
                 'new_subscription_id' => $newSub->id,
-                'old_plan_id'         => $oldSub->plan_id,
+                'old_plan_id' => $oldSub->plan_id,
             ],
         ]);
     }
@@ -488,9 +499,9 @@ class BillingService
      */
     public function generateRenewalTransactions(): int
     {
-        $now       = now();
+        $now = now();
         $threshold = $now->copy()->addDays(7)->endOfDay();
-        $created   = 0;
+        $created = 0;
 
         RestaurantSubscription::query()
             ->with(['restaurant', 'plan'])
@@ -501,14 +512,16 @@ class BillingService
             // Không có pending renewal transaction rồi
             ->whereDoesntHave('restaurant.subscriptions', function ($q) use ($now) {
                 $q->where('status', 'expired')
-                  ->whereJsonContains('meta->pending_payment', true)
-                  ->where('started_at', '>=', $now->copy()->subDays(7));
+                    ->whereJsonContains('meta->pending_payment', true)
+                    ->where('started_at', '>=', $now->copy()->subDays(7));
             })
             ->chunkById(100, function ($subscriptions) use (&$created) {
                 foreach ($subscriptions as $subscription) {
                     $restaurant = $subscription->restaurant;
                     $plan = $subscription->plan;
-                    if (!$restaurant || !$plan) continue;
+                    if (! $restaurant || ! $plan) {
+                        continue;
+                    }
 
                     try {
                         $transactionCode = $this->generateTransactionCode($restaurant->id);
@@ -517,26 +530,26 @@ class BillingService
                         );
 
                         RestaurantSubscription::create([
-                            'restaurant_id'      => $restaurant->id,
-                            'plan_id'            => $plan->id,
-                            'status'             => 'expired',
-                            'started_at'         => $subscription->ended_at,
-                            'ended_at'           => $endsAt,
-                            'renewal_at'         => $endsAt,
-                            'original_price'     => $subscription->price,
-                            'price'              => $subscription->price,
-                            'billing_cycle'      => $subscription->billing_cycle,
+                            'restaurant_id' => $restaurant->id,
+                            'plan_id' => $plan->id,
+                            'status' => 'expired',
+                            'started_at' => $subscription->ended_at,
+                            'ended_at' => $endsAt,
+                            'renewal_at' => $endsAt,
+                            'original_price' => $subscription->price,
+                            'price' => $subscription->price,
+                            'billing_cycle' => $subscription->billing_cycle,
                             'auto_renewal_enabled' => true,
-                            'transaction_code'   => $transactionCode,
-                            'meta'               => [
-                                'source'         => 'auto_renewal',
-                                'parent_sub_id'  => $subscription->id,
-                                'plan_code'      => $plan->code,
+                            'transaction_code' => $transactionCode,
+                            'meta' => [
+                                'source' => 'auto_renewal',
+                                'parent_sub_id' => $subscription->id,
+                                'plan_code' => $plan->code,
                                 'pending_payment' => true,
                             ],
-                            'billing_meta'       => [
-                                'provider'               => 'sepay',
-                                'renewal_generated_at'  => now()->toIso8601String(),
+                            'billing_meta' => [
+                                'provider' => 'sepay',
+                                'renewal_generated_at' => now()->toIso8601String(),
                             ],
                         ]);
 
@@ -556,7 +569,7 @@ class BillingService
     private function generateTransactionCode(int $restaurantId): string
     {
         do {
-            $code = 'AVT' . str_pad((string) $restaurantId, 4, '0', STR_PAD_LEFT) . Str::upper(Str::random(8));
+            $code = 'AVT'.str_pad((string) $restaurantId, 4, '0', STR_PAD_LEFT).Str::upper(Str::random(8));
         } while (RestaurantSubscription::query()->where('transaction_code', $code)->exists());
 
         return $code;
@@ -595,11 +608,11 @@ class BillingService
         $cycle = strtolower(trim($subscription->billing_cycle ?? $subscription->plan?->billing_cycle ?? 'monthly'));
 
         return match ($cycle) {
-            'yearly'      => 365,
-            'quarterly'   => 90,
+            'yearly' => 365,
+            'quarterly' => 90,
             'half_yearly' => 180,
-            'biennial'    => 730,
-            default       => 30,
+            'biennial' => 730,
+            default => 30,
         };
     }
 
@@ -609,16 +622,16 @@ class BillingService
     private function awardReferralCommission(Restaurant $restaurant, BillingInvoice $invoice): void
     {
         $owner = $restaurant->owner;
-        if (!$owner) {
+        if (! $owner) {
             $owner = User::where('id', $restaurant->owner_user_id)->first();
         }
 
-        if (!$owner || !$owner->referred_by_id) {
+        if (! $owner || ! $owner->referred_by_id) {
             return;
         }
 
         $referrer = User::where('id', $owner->referred_by_id)->first();
-        if (!$referrer) {
+        if (! $referrer) {
             return;
         }
 
@@ -641,5 +654,77 @@ class BillingService
         ]);
 
         $referrer->increment('commission_balance', $commissionAmount);
+    }
+
+    // =========================================================================
+    // DUNNING MANUAL CONTROLS
+    // =========================================================================
+
+    /**
+     * Gửi email dunning thủ công cho một subscription (được gọi từ Dunning Dashboard).
+     */
+    public function manualSendDunning(RestaurantSubscription $subscription, string $stage = 'd7'): void
+    {
+        $restaurant = $subscription->restaurant ?? Restaurant::find($subscription->restaurant_id);
+        if (! $restaurant) {
+            return;
+        }
+
+        $owner = $restaurant->owner;
+        if (! $owner) {
+            return;
+        }
+
+        $now = now();
+        $daysLeft = $subscription->ended_at
+            ? (int) round($now->diffInDays($subscription->ended_at, false))
+            : 0;
+        $renewalUrl = route('billing.checkout').'?plan='.($subscription->plan?->code ?? '');
+
+        $owner->notify(new DunningNotification(
+            restaurantName: $restaurant->name,
+            expiresAt: optional($subscription->ended_at)->format('d/m/Y') ?? '',
+            daysLeft: $daysLeft,
+            renewalUrl: $renewalUrl,
+            stage: $stage,
+        ));
+
+        $subscription->update([
+            'last_notified_at' => $now,
+            'billing_meta' => array_merge($subscription->billing_meta ?? [], [
+                'dunning_stage' => $stage,
+                'dunning_sent_at' => $now->toIso8601String(),
+                'manual_send' => true,
+                'manual_send_at' => $now->toIso8601String(),
+            ]),
+        ]);
+
+        Log::info('Manual dunning email sent', [
+            'subscription_id' => $subscription->id,
+            'restaurant_id' => $restaurant->id,
+            'stage' => $stage,
+        ]);
+    }
+
+    /**
+     * Tạm dừng dunning cho subscription trong N ngày.
+     * Được lưu vào billing_meta JSON — không cần migration.
+     */
+    public function pauseDunning(RestaurantSubscription $subscription, int $days): void
+    {
+        $pausedUntil = now()->addDays($days);
+
+        $subscription->update([
+            'billing_meta' => array_merge($subscription->billing_meta ?? [], [
+                'dunning_paused_until' => $pausedUntil->toIso8601String(),
+                'dunning_paused_at' => now()->toIso8601String(),
+                'dunning_pause_days' => $days,
+            ]),
+        ]);
+
+        Log::info('Dunning paused', [
+            'subscription_id' => $subscription->id,
+            'paused_until' => $pausedUntil->toDateString(),
+        ]);
     }
 }

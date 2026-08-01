@@ -9,17 +9,14 @@ use App\Models\Product;
 use App\Models\ProductRecipe;
 use App\Models\PurchaseOrder;
 use App\Models\RequestForProposal;
-use App\Models\RfpBid;
 use App\Models\Restaurant;
 use App\Models\RestaurantBranch;
+use App\Models\RfpBid;
 use App\Models\Supplier;
 use App\Models\SupplierPriceHistory;
 use App\Models\Unit;
 use App\Models\User;
-use App\Services\InventoryReplenishService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Http\UploadedFile;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
@@ -29,11 +26,17 @@ class SupplierB2BIntegrationTest extends TestCase
     use RefreshDatabase;
 
     protected User $owner;
+
     protected User $supplierUser;
+
     protected Restaurant $restaurant;
+
     protected RestaurantBranch $branch;
+
     protected Supplier $supplier;
+
     protected Unit $unit;
+
     protected Ingredient $ingredient;
 
     protected function setUp(): void
@@ -53,12 +56,12 @@ class SupplierB2BIntegrationTest extends TestCase
         $this->restaurant = Restaurant::factory()->create(['owner_user_id' => $this->owner->id]);
         $this->branch = RestaurantBranch::factory()->create([
             'restaurant_id' => $this->restaurant->id,
-            'manager_user_id' => $this->owner->id
+            'manager_user_id' => $this->owner->id,
         ]);
 
         $this->owner->forceFill([
             'restaurant_id' => $this->restaurant->id,
-            'branch_id' => $this->branch->id
+            'branch_id' => $this->branch->id,
         ])->save();
 
         // Supplier setup
@@ -81,7 +84,7 @@ class SupplierB2BIntegrationTest extends TestCase
             'restaurant_id' => $this->restaurant->id,
             'name' => 'Gram',
             'symbol' => 'g',
-            'type' => 'mass'
+            'type' => 'mass',
         ]);
 
         $this->ingredient = Ingredient::create([
@@ -92,7 +95,7 @@ class SupplierB2BIntegrationTest extends TestCase
             'sku' => 'TOM-SU-01',
             'average_cost' => 500, // 500đ per g
             'min_stock_level' => 1000, // 1kg
-            'status' => 'active'
+            'status' => 'active',
         ]);
 
         Inventory::create([
@@ -241,12 +244,12 @@ class SupplierB2BIntegrationTest extends TestCase
                     'quantity_required' => 50.0,
                     'unit_symbol' => 'kg',
                     'notes' => 'Hàng loại 1',
-                ]
-            ]
+                ],
+            ],
         ]);
 
         $response->assertRedirect();
-        
+
         $rfp = RequestForProposal::latest()->first();
         $this->assertNotNull($rfp);
         $this->assertEquals('open', $rfp->status);
@@ -261,8 +264,8 @@ class SupplierB2BIntegrationTest extends TestCase
                 [
                     'rfp_item_id' => $rfpItem->id,
                     'proposed_price' => 450.0, // 450đ/g or /unit
-                ]
-            ]
+                ],
+            ],
         ]);
 
         $response->assertRedirect();
@@ -332,8 +335,8 @@ class SupplierB2BIntegrationTest extends TestCase
                     'ingredient_id' => $this->ingredient->id,
                     'quantity_received' => 10.0,
                     'invoice_price' => 500,
-                ]
-            ]
+                ],
+            ],
         ]);
 
         $po->refresh();
@@ -366,8 +369,8 @@ class SupplierB2BIntegrationTest extends TestCase
                     'ingredient_id' => $this->ingredient->id,
                     'quantity_received' => 10.0,
                     'invoice_price' => 600, // discrepant!
-                ]
-            ]
+                ],
+            ],
         ]);
 
         $po2->refresh();

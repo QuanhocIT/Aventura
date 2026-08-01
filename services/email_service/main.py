@@ -1,5 +1,5 @@
 import logging
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Depends
 from pydantic import BaseModel
 from typing import Any
 
@@ -7,6 +7,7 @@ from models import WelcomeEmailRequest, InvoiceEmailRequest, OtpEmailRequest, Ve
 from services.brevo_service import send_welcome_email, send_invoice_email, send_otp_email, send_verification_email, send_campaign_email
 from services.ai_service import analyze
 from config import BREVO_API_KEY
+from auth import require_api_key
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 logger = logging.getLogger(__name__)
@@ -16,6 +17,9 @@ app = FastAPI(
     description="Email & AI Python microservice cho Aventura SaaS",
     version="1.1.0",
 )
+
+# Dependency bảo mật chung — áp dụng lên toàn bộ route cần xác thực
+_auth = [Depends(require_api_key)]
 
 
 class AiInsightsRequest(BaseModel):
@@ -29,7 +33,7 @@ def health_check():
     return {"status": "ok", "brevo_configured": has_key}
 
 
-@app.post("/ai/insights")
+@app.post("/ai/insights", dependencies=_auth)
 def ai_insights(payload: AiInsightsRequest):
     try:
         result = analyze(payload.restaurants, payload.tenant_growth)
@@ -39,7 +43,7 @@ def ai_insights(payload: AiInsightsRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.post("/send/welcome", response_model=EmailResponse)
+@app.post("/send/welcome", response_model=EmailResponse, dependencies=_auth)
 def send_welcome(payload: WelcomeEmailRequest):
     if not BREVO_API_KEY:
         raise HTTPException(status_code=500, detail="BREVO_API_KEY chưa được cấu hình")
@@ -57,7 +61,7 @@ def send_welcome(payload: WelcomeEmailRequest):
         raise HTTPException(status_code=502, detail=str(e))
 
 
-@app.post("/send/otp", response_model=EmailResponse)
+@app.post("/send/otp", response_model=EmailResponse, dependencies=_auth)
 def send_otp(payload: OtpEmailRequest):
     if not BREVO_API_KEY:
         raise HTTPException(status_code=500, detail="BREVO_API_KEY chưa được cấu hình")
@@ -74,7 +78,7 @@ def send_otp(payload: OtpEmailRequest):
         raise HTTPException(status_code=502, detail=str(e))
 
 
-@app.post("/send/verification", response_model=EmailResponse)
+@app.post("/send/verification", response_model=EmailResponse, dependencies=_auth)
 def send_verification(payload: VerificationEmailRequest):
     if not BREVO_API_KEY:
         raise HTTPException(status_code=500, detail="BREVO_API_KEY chưa được cấu hình")
@@ -93,7 +97,7 @@ def send_verification(payload: VerificationEmailRequest):
         raise HTTPException(status_code=502, detail=str(e))
 
 
-@app.post("/send/invoice", response_model=EmailResponse)
+@app.post("/send/invoice", response_model=EmailResponse, dependencies=_auth)
 def send_invoice(payload: InvoiceEmailRequest):
     if not BREVO_API_KEY:
         raise HTTPException(status_code=500, detail="BREVO_API_KEY chưa được cấu hình")
@@ -115,7 +119,7 @@ def send_invoice(payload: InvoiceEmailRequest):
         raise HTTPException(status_code=502, detail=str(e))
 
 
-@app.post("/send/campaign", response_model=EmailResponse)
+@app.post("/send/campaign", response_model=EmailResponse, dependencies=_auth)
 def send_campaign(payload: CampaignEmailRequest):
     if not BREVO_API_KEY:
         raise HTTPException(status_code=500, detail="BREVO_API_KEY chưa được cấu hình")

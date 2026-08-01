@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
 import { Link } from '@inertiajs/vue3';
-import { Zap, X } from 'lucide-vue-next';
+import { Zap, X, CalendarCheck } from 'lucide-vue-next';
+import { ref, onMounted } from 'vue';
 import { Button } from '@/components/ui/button';
 import { register } from '@/routes';
 
@@ -17,8 +17,17 @@ function dismissStickyCta() {
     localStorage.setItem('aventura_sticky_cta_dismissed', '1');
 }
 
+const emit = defineEmits<{
+    (e: 'openDemo'): void;
+}>();
+
+function openDemoModal() {
+    emit('openDemo');
+}
+
 onMounted(() => {
-    stickyCtaDismissed.value = localStorage.getItem('aventura_sticky_cta_dismissed') === '1';
+    stickyCtaDismissed.value =
+        localStorage.getItem('aventura_sticky_cta_dismissed') === '1';
 });
 </script>
 
@@ -27,23 +36,50 @@ onMounted(() => {
     <Teleport to="body">
         <Transition name="slide-up">
             <div
-                v-if="canRegister && showStickyCta && !stickyCtaDismissed"
-                class="fixed bottom-0 left-0 right-0 z-50 border-t border-border bg-background/95 px-4 py-3 shadow-lg backdrop-blur"
+                v-if="showStickyCta && !stickyCtaDismissed"
+                class="fixed right-0 bottom-0 left-0 z-50 border-t border-t-white/10 bg-zinc-950/95 px-4 py-3 shadow-2xl backdrop-blur-lg"
             >
-                <div class="mx-auto flex max-w-7xl items-center justify-between gap-4">
-                    <p class="hidden text-sm font-medium sm:block">
-                        Bắt đầu miễn phí — không cần thẻ tín dụng
+                <div
+                    class="mx-auto flex max-w-7xl items-center justify-between gap-4"
+                >
+                    <p class="hidden text-sm text-zinc-300 sm:block">
+                        🚀
+                        <span class="font-semibold text-white"
+                            >Dùng thử miễn phí 14 ngày</span
+                        >
+                        — không cần thẻ tín dụng
                     </p>
-                    <div class="flex flex-1 items-center justify-end gap-3">
-                        <Button as-child size="sm">
-                            <Link :href="register()" class="flex items-center gap-1.5">
+                    <div class="flex flex-1 items-center justify-end gap-2">
+                        <!-- Demo booking button -->
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            class="hidden items-center gap-1.5 border-white/20 bg-white/5 text-zinc-200 hover:bg-white/10 hover:text-white sm:flex"
+                            @click="openDemoModal"
+                        >
+                            <CalendarCheck class="size-3.5" />
+                            Đặt lịch demo
+                        </Button>
+
+                        <!-- Register button -->
+                        <Button
+                            v-if="canRegister"
+                            as-child
+                            size="sm"
+                            class="border-none bg-amber-500 font-bold text-zinc-950 hover:bg-amber-400"
+                        >
+                            <Link
+                                :href="register()"
+                                class="flex items-center gap-1.5"
+                            >
                                 <Zap class="size-3.5" />
-                                Tạo tài khoản ngay
+                                Bắt đầu miễn phí
                             </Link>
                         </Button>
+
                         <button
                             @click="dismissStickyCta"
-                            class="rounded p-1 text-muted-foreground hover:text-foreground"
+                            class="rounded p-1 text-zinc-500 transition-colors hover:text-zinc-200"
                             aria-label="Đóng"
                         >
                             <X class="size-4" />
@@ -59,7 +95,9 @@ onMounted(() => {
 /* Sticky CTA slide-up */
 .slide-up-enter-active,
 .slide-up-leave-active {
-    transition: transform 0.3s ease, opacity 0.3s ease;
+    transition:
+        transform 0.3s ease,
+        opacity 0.3s ease;
 }
 .slide-up-enter-from,
 .slide-up-leave-to {

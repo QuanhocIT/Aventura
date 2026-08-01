@@ -6,12 +6,16 @@ use App\Models\Order;
 use App\Models\Product;
 use App\Models\ProductCategory;
 use App\Models\Promotion;
-use App\Models\AuditLog;
+use App\Services\AnalyticsServiceClient;
+use App\Services\CircuitBreaker;
 use App\Services\FraudDetectionService;
+use App\Services\PromotionApplicationService;
+use App\Services\QrCodeService;
+use App\Services\QuotaService;
+use App\Support\TenantRule;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
 use Inertia\Inertia;
@@ -19,6 +23,11 @@ use Inertia\Response;
 
 class PromotionController extends Controller
 {
+    public function __construct(
+        private FraudDetectionService $fraudService,
+        private PromotionApplicationService $promotionApplication,
+    ) {}
+
     /**
      * Hiển thị danh sách khuyến mãi & Dashboard kiểm toán gian lận AI.
      */
@@ -26,6 +35,20 @@ class PromotionController extends Controller
     {
         $user = $request->user();
         abort_unless($user->can('manage_orders') || $user->can('view_report'), 403);
+
+        $restaurant = $user->restaurant;
+        if (! $restaurant && ! $request->user()->hasRole('super_admin')) {
+            abort(403, 'Không tìm thấy nhà hàng.');
+        }
+        $restaurant?->loadMissing('plan');
+        if ($restaurant && ! app(QuotaService::class)->hasFeature($restaurant, 'advanced_analytics')) {
+            return Inertia::render('FeatureGate', [
+                'feature' => 'advanced_analytics',
+                'feature_label' => 'Khuyến mãi',
+                'plan_name' => $restaurant->plan?->name ?? 'Miễn Phí',
+                'required_plan' => 'Chuyên Nghiệp',
+            ]);
+        }
 
         $restaurantId = $user->restaurant_id;
 
@@ -51,14 +74,11 @@ class PromotionController extends Controller
             ]);
 
         // 2. Lấy dữ liệu kiểm toán gian lận & cảnh báo đỏ từ FraudDetectionService
-        $fraudService = new FraudDetectionService(
-            $restaurantId,
-            now()->subDays(30)->toDateString(),
-            now()->toDateString()
-        );
+        $start = now()->subDays(30)->toDateString();
+        $end = now()->toDateString();
 
-        $fraudAlerts = $fraudService->detectAiFraudAlerts();
-        $auditLogs = $fraudService->getAuditLogs();
+        $fraudAlerts = $this->fraudService->detectAiFraudAlerts($restaurantId, $start, $end);
+        $auditLogs = $this->fraudService->getAuditLogs($restaurantId);
 
         // Lọc các log áp dụng voucher để hiển thị tại tab kiểm toán voucher
         $voucherLogs = collect($auditLogs['logs'] ?? [])
@@ -97,8 +117,8 @@ class PromotionController extends Controller
 
         $data = $request->validate([
             'name' => ['required', 'string', 'max:255'],
-            'item_a_id' => ['required', 'integer', 'exists:products,id'],
-            'item_b_id' => ['required', 'integer', 'different:item_a_id', 'exists:products,id'],
+            'item_a_id' => ['required', 'integer', TenantRule::exists('products')],
+            'item_b_id' => ['required', 'integer', 'different:item_a_id', TenantRule::exists('products')],
             'combo_price' => ['required', 'numeric', 'min:0'],
             'notes' => ['nullable', 'string', 'max:1000'],
         ]);
@@ -107,13 +127,13 @@ class PromotionController extends Controller
         $itemB = Product::where('restaurant_id', $restaurantId)->findOrFail($data['item_b_id']);
 
         if ((float) $data['combo_price'] >= ((float) $itemA->price + (float) $itemB->price)) {
-            return back()->withErrors(['combo_price' => 'Giá combo phải rẻ hơn tổng giá bán lẻ của các món thành phần (' . number_format((float) $itemA->price + (float) $itemB->price) . 'đ).']);
+            return back()->withErrors(['combo_price' => 'Giá combo phải rẻ hơn tổng giá bán lẻ của các món thành phần ('.number_format((float) $itemA->price + (float) $itemB->price).'đ).']);
         }
 
         $comboCategory = ProductCategory::firstOrCreate(
             ['restaurant_id' => $restaurantId, 'name' => 'Combo'],
             [
-                'slug' => 'combo-' . Str::lower(Str::random(4)),
+                'slug' => 'combo-'.Str::lower(Str::random(4)),
                 'description' => 'Các combo món ăn kết hợp được tạo từ gợi ý phân tích giỏ hàng AI.',
                 'display_order' => ProductCategory::where('restaurant_id', $restaurantId)->count() + 1,
                 'status' => 'active',
@@ -123,9 +143,9 @@ class PromotionController extends Controller
         Product::create([
             'restaurant_id' => $restaurantId,
             'category_id' => $comboCategory->id,
-            'code' => 'COMBO-' . Str::upper(Str::random(6)),
+            'code' => 'COMBO-'.Str::upper(Str::random(6)),
             'name' => $data['name'],
-            'slug' => Str::slug($data['name']) . '-' . Str::lower(Str::random(4)),
+            'slug' => Str::slug($data['name']).'-'.Str::lower(Str::random(4)),
             'price' => $data['combo_price'],
             'description' => $data['notes'] ?? "Combo gồm {$itemA->name} và {$itemB->name}.",
             'is_active' => true,
@@ -153,13 +173,19 @@ class PromotionController extends Controller
             'max_discount_amount' => ['nullable', 'numeric', 'min:0'],
             'start_date' => ['nullable', 'date'],
             'end_date' => ['nullable', 'date', 'after_or_equal:start_date'],
+            'budget_cap' => ['nullable', 'numeric', 'min:0'],
+            'auto_deactivate_on_budget' => ['nullable', 'boolean'],
+            'is_stackable' => ['nullable', 'boolean'],
+            'stacking_priority' => ['nullable', 'integer', 'min:0'],
+            'stacking_group' => ['nullable', 'string', 'max:50'],
+            'conditions' => ['nullable', 'array'],
         ]);
 
         if ($data['type'] === 'percent') {
             if ($data['value'] < 1 || $data['value'] > 100) {
                 return back()->withErrors(['value' => 'Giá trị giảm giá phần trăm phải từ 1% đến 100%.']);
             }
-        } else if ($data['type'] === 'fixed_amount') {
+        } elseif ($data['type'] === 'fixed_amount') {
             $minOrder = $data['min_order_amount'] ?? 0;
             if ($data['value'] > $minOrder) {
                 return back()->withErrors(['value' => 'Số tiền giảm giá cố định không được lớn hơn giá trị đơn hàng tối thiểu.']);
@@ -169,7 +195,7 @@ class PromotionController extends Controller
         $restaurantId = $user->restaurant_id;
 
         // Nếu có mã code, kiểm tra xem có trùng lặp trong cùng nhà hàng không
-        if (!empty($data['code'])) {
+        if (! empty($data['code'])) {
             $exists = Promotion::where('restaurant_id', $restaurantId)
                 ->where('code', $data['code'])
                 ->exists();
@@ -192,8 +218,14 @@ class PromotionController extends Controller
             'max_discount_amount' => $data['max_discount_amount'] ?? 0,
             'start_date' => $data['start_date'] ?? null,
             'end_date' => $data['end_date'] ?? null,
+            'budget_cap' => $data['budget_cap'] ?? null,
+            'auto_deactivate_on_budget' => $data['auto_deactivate_on_budget'] ?? false,
+            'is_stackable' => $data['is_stackable'] ?? false,
+            'stacking_priority' => $data['stacking_priority'] ?? 0,
+            'stacking_group' => $data['stacking_group'] ?? null,
+            'conditions' => $data['conditions'] ?? null,
             'is_active' => true,
-            'is_approved' => $isOwner, // Tự động duyệt nếu là Owner
+            'is_approved' => $isOwner,
             'created_by' => $user->id,
             'approved_by' => $isOwner ? $user->id : null,
         ]);
@@ -220,20 +252,26 @@ class PromotionController extends Controller
             'max_discount_amount' => ['nullable', 'numeric', 'min:0'],
             'start_date' => ['nullable', 'date'],
             'end_date' => ['nullable', 'date', 'after_or_equal:start_date'],
+            'budget_cap' => ['nullable', 'numeric', 'min:0'],
+            'auto_deactivate_on_budget' => ['nullable', 'boolean'],
+            'is_stackable' => ['nullable', 'boolean'],
+            'stacking_priority' => ['nullable', 'integer', 'min:0'],
+            'stacking_group' => ['nullable', 'string', 'max:50'],
+            'conditions' => ['nullable', 'array'],
         ]);
 
         if ($data['type'] === 'percent') {
             if ($data['value'] < 1 || $data['value'] > 100) {
                 return back()->withErrors(['value' => 'Giá trị giảm giá phần trăm phải từ 1% đến 100%.']);
             }
-        } else if ($data['type'] === 'fixed_amount') {
+        } elseif ($data['type'] === 'fixed_amount') {
             $minOrder = $data['min_order_amount'] ?? 0;
             if ($data['value'] > $minOrder) {
                 return back()->withErrors(['value' => 'Số tiền giảm giá cố định không được lớn hơn giá trị đơn hàng tối thiểu.']);
             }
         }
 
-        if (!empty($data['code'])) {
+        if (! empty($data['code'])) {
             $exists = Promotion::where('restaurant_id', $promotion->restaurant_id)
                 ->where('code', strtoupper($data['code']))
                 ->where('id', '!=', $promotion->id)
@@ -288,7 +326,7 @@ class PromotionController extends Controller
         abort_if($promotion->restaurant_id !== $request->user()->restaurant_id, 403);
 
         $promotion->update([
-            'is_active' => !$promotion->is_active
+            'is_active' => ! $promotion->is_active,
         ]);
 
         return back()->with('success', 'Đã cập nhật trạng thái hoạt động của chương trình khuyến mãi.');
@@ -304,7 +342,7 @@ class PromotionController extends Controller
 
         $promotion->update([
             'is_approved' => true,
-            'approved_by' => $request->user()->id
+            'approved_by' => $request->user()->id,
         ]);
 
         return back()->with('success', 'Đã phê duyệt chương trình khuyến mãi thành công.');
@@ -316,126 +354,94 @@ class PromotionController extends Controller
     public function apply(Request $request): JsonResponse
     {
         $user = $request->user();
-        $restaurantId = $user->restaurant_id;
 
         $data = $request->validate([
-            'order_id' => ['required', 'exists:orders,id'],
+            'order_id' => ['required', TenantRule::exists('orders')],
             'code' => ['required', 'string'],
             'bypass_code' => ['nullable', 'string'],
         ]);
 
-        $order = Order::where('restaurant_id', $restaurantId)->findOrFail($data['order_id']);
-        
-        // 1. Tìm kiếm voucher hoạt động và đã được duyệt
-        $promotion = Promotion::where('restaurant_id', $restaurantId)
-            ->where('code', strtoupper($data['code']))
-            ->where('is_active', true)
-            ->where('is_approved', true)
-            ->first();
+        $result = $this->promotionApplication->applyToOrder(
+            $user->restaurant_id,
+            $user,
+            (int) $data['order_id'],
+            $data['code'],
+            $data['bypass_code'] ?? null,
+        );
 
-        if (!$promotion) {
-            return response()->json(['message' => 'Mã khuyến mãi không tồn tại hoặc đã bị vô hiệu hóa.'], 422);
-        }
-
-        // Real-Time Fraud Prevention Checks
-        $cashierAppliedCount = \App\Models\AuditLog::where('restaurant_id', $restaurantId)
-            ->where('user_id', $user->id)
-            ->where('action', 'discount_applied')
-            ->where('created_at', '>=', now()->subMinutes(5))
-            ->count();
-
-        $customerId = $order->customer_id;
-        $customerAppliedCount = 0;
-        if ($customerId) {
-            $customerAppliedCount = Order::where('restaurant_id', $restaurantId)
-                ->where('customer_id', $customerId)
-                ->where('id', '!=', $order->id)
-                ->whereNotNull('completed_at')
-                ->where('discount_amount', '>', 0)
-                ->where('completed_at', '>=', now()->subMinutes(10))
-                ->count();
-        }
-
-        $suspicious = ($cashierAppliedCount >= 3) || ($customerAppliedCount > 0);
-
-        if ($suspicious) {
-            $bypassCode = $data['bypass_code'] ?? null;
-            $bypassSetting = \Illuminate\Support\Facades\DB::table('restaurant_settings')
-                ->where('restaurant_id', $restaurantId)
-                ->where('key_name', 'manager_bypass_code')
-                ->value('value');
-            $expectedCode = $bypassSetting ? json_decode($bypassSetting) : 'MANAGER123';
-
-            if ($bypassCode !== $expectedCode) {
-                return response()->json([
-                    'status' => 'requires_bypass',
-                    'message' => 'Cảnh báo gian lận AI: Phát hiện tần suất áp dụng voucher bất thường. Yêu cầu nhập mã phê duyệt của quản lý để tiếp tục.'
-                ], 422);
+        if (! $result['success']) {
+            $body = ['message' => $result['message']];
+            if ($result['status'] === 'requires_bypass') {
+                $body['status'] = 'requires_bypass';
             }
 
-            // Log special bypass action
-            AuditLog::log('discount_applied_bypass', 'updated', $order, null, [
-                'cashier_applied_last_5_min' => $cashierAppliedCount,
-                'customer_applied_last_10_min' => $customerAppliedCount,
-                'bypass_code_used' => true,
-            ]);
+            return response()->json($body, 422);
         }
 
-        // 2. Kiểm tra thời hạn áp dụng
-        $now = now();
-        if ($promotion->start_date && $promotion->start_date->greaterThan($now)) {
-            return response()->json(['message' => 'Chương trình khuyến mãi chưa đến thời gian áp dụng.'], 422);
-        }
-        if ($promotion->end_date && $promotion->end_date->lessThan($now)) {
-            return response()->json(['message' => 'Mã khuyến mãi này đã hết hạn sử dụng.'], 422);
-        }
+        return response()->json(array_merge(['message' => $result['message']], $result['data']));
+    }
 
-        // 3. Kiểm tra giá trị đơn hàng tối thiểu
-        $subtotal = (float) $order->subtotal;
-        if ($subtotal < (float) $promotion->min_order_amount) {
-            return response()->json([
-                'message' => 'Đơn hàng chưa đạt giá trị tối thiểu để áp dụng mã giảm giá này. Giá trị tối thiểu cần đạt: ' . number_format($promotion->min_order_amount) . 'đ'
-            ], 422);
-        }
-
-        // 4. Tính toán số tiền được giảm
-        $discountAmount = 0.0;
-        if ($promotion->type === 'fixed_amount') {
-            $discountAmount = (float) $promotion->value;
-        } else {
-            // Giảm theo phần trăm
-            $calculated = $subtotal * ((float) $promotion->value / 100);
-            
-            // Giới hạn giảm giá tối đa
-            $maxDiscount = (float) $promotion->max_discount_amount;
-            if ($maxDiscount > 0 && $calculated > $maxDiscount) {
-                $discountAmount = $maxDiscount;
-            } else {
-                $discountAmount = $calculated;
-            }
-        }
-
-        // Đảm bảo số tiền giảm giá không lớn hơn subtotal
-        $discountAmount = min($discountAmount, $subtotal);
-
-        // 5. Cập nhật Order. Sự kiện Order update sẽ kích hoạt OrderObserver đẩy ngầm log qua Redis Queue.
-        $order->update([
-            'discount_amount' => $discountAmount,
-            'total_amount' => max(0.0, $subtotal - $discountAmount),
-            'note' => $order->note . " [Đã áp mã voucher: " . $promotion->code . "]"
+    public function validatePromotion(Request $request): JsonResponse
+    {
+        $user = $request->user();
+        $data = $request->validate([
+            'code' => ['required', 'string'],
+            'order_id' => ['nullable', TenantRule::exists('orders')],
         ]);
 
-        return response()->json([
-            'message' => 'Áp dụng mã giảm giá thành công!',
-            'discount_amount' => $discountAmount,
-            'total_amount' => $order->total_amount,
-            'promotion_name' => $promotion->name
-        ]);
+        return response()->json($this->promotionApplication->validateForOrder($user->restaurant_id, $data['code']));
     }
 
     /**
      * API phân tích giỏ hàng (Market Basket Analysis) - Gọi FastAPI hoặc Fallback.
      */
+    public function generateQr(Request $request, Promotion $promotion): JsonResponse
+    {
+        $user = $request->user();
+        abort_unless($promotion->restaurant_id === $user->restaurant_id, 403);
+
+        $qrService = app(QrCodeService::class);
+        $claimUrl = url("/customer/coupon/claim/{$promotion->restaurant_id}/{$promotion->code}");
+        $svg = $qrService->renderSvg($claimUrl, 300);
+
+        $filename = "promo_{$promotion->restaurant_id}_{$promotion->code}";
+        $path = $qrService->generateAndStore($claimUrl, $filename);
+
+        return response()->json([
+            'svg' => $svg,
+            'download_url' => asset("storage/{$path}"),
+            'claim_url' => $claimUrl,
+        ]);
+    }
+
+    public function printQrSheet(Request $request): \Illuminate\Http\Response
+    {
+        $user = $request->user();
+        $ids = $request->validate(['ids' => ['required', 'array']])['ids'];
+
+        $promotions = Promotion::where('restaurant_id', $user->restaurant_id)
+            ->whereIn('id', $ids)
+            ->whereNotNull('code')
+            ->get();
+
+        $qrService = app(QrCodeService::class);
+        $qrCodes = [];
+
+        foreach ($promotions as $promo) {
+            $claimUrl = url("/customer/coupon/claim/{$promo->restaurant_id}/{$promo->code}");
+            $qrCodes[] = [
+                'name' => $promo->name,
+                'code' => $promo->code,
+                'discount' => $promo->type === 'percent' ? "{$promo->value}%" : number_format($promo->value).'₫',
+                'svg' => $qrService->renderSvg($claimUrl, 200),
+            ];
+        }
+
+        $html = view('prints.promotion-qr-sheet', ['qrCodes' => $qrCodes, 'restaurant' => $user->restaurant?->name ?? ''])->render();
+
+        return response($html)->header('Content-Type', 'text/html');
+    }
+
     public function getBasketAnalysis(Request $request): JsonResponse
     {
         $user = $request->user();
@@ -462,7 +468,7 @@ class PromotionController extends Controller
             if (count($items) > 0) {
                 $ordersData[] = [
                     'order_id' => $order->id,
-                    'items' => $items
+                    'items' => $items,
                 ];
             }
         }
@@ -471,41 +477,38 @@ class PromotionController extends Controller
             return response()->json([
                 'total_orders' => 0,
                 'rules' => [],
-                'message' => 'Không đủ dữ liệu hóa đơn hoàn thành để chạy phân tích giỏ hàng.'
+                'message' => 'Không đủ dữ liệu hóa đơn hoàn thành để chạy phân tích giỏ hàng.',
             ]);
         }
 
-        // 2. Gửi request sang Python FastAPI microservice (port 8003)
-        $url = config('services.analytics.url') . '/api/analytics/basket-analysis';
+        // 2. Gửi request sang Python FastAPI microservice (port 8003), qua CircuitBreaker
+        // dùng chung (thay cờ Cache::has('analytics_service_offline') thủ công cũ — không
+        // có failure-threshold/backoff, không hiển thị được trạng thái trên dashboard vận hành).
+        $url = config('services.analytics.url').'/api/analytics/basket-analysis';
 
-        if (Cache::has('analytics_service_offline')) {
-            $fallbackResult = $this->runFallbackAnalysis($ordersData);
-            return response()->json($fallbackResult);
-        }
+        $result = app(CircuitBreaker::class)->for('analytics_service')->attempt(
+            function () use ($url, $ordersData) {
+                $response = Http::timeout(4) // Timeout ngắn 4 giây
+                    ->withHeaders(app(AnalyticsServiceClient::class)->authHeaders())
+                    ->post($url, [
+                        'orders' => $ordersData,
+                        'min_support' => 0.01,
+                        'min_confidence' => 0.05,
+                    ]);
 
-        try {
-            $response = Http::timeout(4) // Timeout ngắn 4 giây
-                ->post($url, [
-                    'orders' => $ordersData,
-                    'min_support' => 0.01,
-                    'min_confidence' => 0.05,
-                ]);
+                if ($response->successful()) {
+                    $result = $response->json();
+                    $result['source'] = 'Python Service (FastAPI + Pandas)';
 
-            if ($response->successful()) {
-                $result = $response->json();
-                $result['source'] = 'Python Service (FastAPI + Pandas)';
-                return response()->json($result);
-            }
+                    return $result;
+                }
 
-            Cache::put('analytics_service_offline', true, 300);
-        } catch (\Exception $e) {
-            // FastAPI service ngoại tuyến, kích hoạt Fallback cơ chế dự phòng tại Laravel
-            Cache::put('analytics_service_offline', true, 300);
-        }
+                throw new \RuntimeException('PromotionController::getBasketAnalysis: phản hồi không hợp lệ từ analytics service');
+            },
+            fn () => $this->runFallbackAnalysis($ordersData)
+        );
 
-        // 3. Fallback PHP: Thuật toán thống kê giỏ hàng hiệu quả ngay trong Laravel
-        $fallbackResult = $this->runFallbackAnalysis($ordersData);
-        return response()->json($fallbackResult);
+        return response()->json($result);
     }
 
     /**
@@ -523,7 +526,7 @@ class PromotionController extends Controller
 
         // Đếm tần suất món đơn và cặp món
         foreach ($ordersData as $order) {
-            $uniqueProducts = array_unique($order['items']);
+            $uniqueProducts = array_values(array_unique($order['items']));
             foreach ($uniqueProducts as $item) {
                 $itemCounts[$item] = ($itemCounts[$item] ?? 0) + 1;
             }
@@ -568,7 +571,7 @@ class PromotionController extends Controller
                     'support' => round($support, 4),
                     'confidence' => round($confidence, 4),
                     'lift' => round($lift, 4),
-                    'co_occurrence' => $countAB
+                    'co_occurrence' => $countAB,
                 ];
             }
         }
@@ -578,6 +581,7 @@ class PromotionController extends Controller
             if ($a['lift'] == $b['lift']) {
                 return $b['confidence'] <=> $a['confidence'];
             }
+
             return $b['lift'] <=> $a['lift'];
         });
 
@@ -606,39 +610,34 @@ class PromotionController extends Controller
             return response()->json([
                 'suggestion' => null,
                 'recommended_item' => null,
-                'source' => 'System'
+                'source' => 'System',
             ]);
         }
 
-        // 1. Gửi request sang Python FastAPI cổng 8003
-        $url = config('services.analytics.url') . '/api/analytics/upsell-suggestion';
+        // 1. Gửi request sang Python FastAPI cổng 8003, qua CircuitBreaker dùng chung.
+        $url = config('services.analytics.url').'/api/analytics/upsell-suggestion';
 
-        if (Cache::has('analytics_service_offline')) {
-            $fallback = $this->runFallbackUpsell($items, $restaurantId);
-            return response()->json($fallback);
-        }
+        $result = app(CircuitBreaker::class)->for('analytics_service')->attempt(
+            function () use ($url, $items) {
+                $response = Http::timeout(2) // Timeout cực ngắn 2s để đảm bảo trải nghiệm POS
+                    ->withHeaders(app(AnalyticsServiceClient::class)->authHeaders())
+                    ->post($url, [
+                        'items' => $items,
+                    ]);
 
-        try {
-            $response = Http::timeout(2) // Timeout cực ngắn 2s để đảm bảo trải nghiệm POS
-                ->post($url, [
-                    'items' => $items,
-                ]);
+                if ($response->successful()) {
+                    $result = $response->json();
+                    $result['source'] = 'Python Service (FastAPI + Pandas)';
 
-            if ($response->successful()) {
-                $result = $response->json();
-                $result['source'] = 'Python Service (FastAPI + Pandas)';
-                return response()->json($result);
-            }
+                    return $result;
+                }
 
-            Cache::put('analytics_service_offline', true, 300);
-        } catch (\Exception $e) {
-            // FastAPI lỗi hoặc offline, chạy Fallback ngay lập tức
-            Cache::put('analytics_service_offline', true, 300);
-        }
+                throw new \RuntimeException('PromotionController::getUpsellSuggestion: phản hồi không hợp lệ từ analytics service');
+            },
+            fn () => $this->runFallbackUpsell($items, $restaurantId)
+        );
 
-        // 2. Chạy cơ chế Fallback bằng PHP
-        $fallback = $this->runFallbackUpsell($items, $restaurantId);
-        return response()->json($fallback);
+        return response()->json($result);
     }
 
     /**
@@ -672,7 +671,7 @@ class PromotionController extends Controller
             return [
                 'suggestion' => 'Chào mừng quý khách! Hãy chọn thêm các món ăn đặc sắc từ thực đơn.',
                 'recommended_item' => null,
-                'source' => 'Laravel Fallback Engine (Fail-safe Active)'
+                'source' => 'Laravel Fallback Engine (Fail-safe Active)',
             ];
         }
 
@@ -710,7 +709,7 @@ class PromotionController extends Controller
             [$itemA, $itemB] = explode('|||', $key);
 
             // Chỉ xét nếu món A đang có trong giỏ hàng, và món B CHƯA có trong giỏ hàng
-            if (in_array($itemA, $items) && !in_array($itemB, $items)) {
+            if (in_array($itemA, $items) && ! in_array($itemB, $items)) {
                 $countA = $itemCounts[$itemA] ?? 0;
                 $countB = $itemCounts[$itemB] ?? 0;
 
@@ -729,7 +728,7 @@ class PromotionController extends Controller
                         'item_a' => $itemA,
                         'item_b' => $itemB,
                         'confidence' => $confidence,
-                        'lift' => $lift
+                        'lift' => $lift,
                     ];
                 }
             }
@@ -738,25 +737,25 @@ class PromotionController extends Controller
         if ($bestRule) {
             $itemA = $bestRule['item_a'];
             $itemB = $bestRule['item_b'];
-            
+
             // Gợi ý câu thoại thông minh kết hợp Marketing Voucher/Combo
             $suggestion = "AI đề xuất: Khách đang gọi {$itemA}, mời dùng thêm {$itemB} để được áp dụng mã giảm giá Combo ưu đãi đã cấu hình.";
-            
+
             return [
                 'suggestion' => $suggestion,
                 'recommended_item' => $itemB,
-                'source' => 'Laravel Fallback Engine (Fail-safe Active)'
+                'source' => 'Laravel Fallback Engine (Fail-safe Active)',
             ];
         }
 
         // Nếu không tìm thấy luật liên kết nào cụ thể, gợi ý món bán chạy nhất chưa có trong giỏ
         arsort($itemCounts);
         foreach ($itemCounts as $item => $cnt) {
-            if (!in_array($item, $items)) {
+            if (! in_array($item, $items)) {
                 return [
                     'suggestion' => "AI đề xuất: Món ăn đặc sắc '{$item}' đang bán rất chạy hôm nay, mời quý khách thưởng thức thêm!",
                     'recommended_item' => $item,
-                    'source' => 'Laravel Fallback Engine (Fail-safe Active)'
+                    'source' => 'Laravel Fallback Engine (Fail-safe Active)',
                 ];
             }
         }
@@ -764,7 +763,7 @@ class PromotionController extends Controller
         return [
             'suggestion' => 'Khách hàng đang gọi các món ăn tuyệt vời nhất của quán. Chúc quý khách ngon miệng!',
             'recommended_item' => null,
-            'source' => 'Laravel Fallback Engine (Fail-safe Active)'
+            'source' => 'Laravel Fallback Engine (Fail-safe Active)',
         ];
     }
 }

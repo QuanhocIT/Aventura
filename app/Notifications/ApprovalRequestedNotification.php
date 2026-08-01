@@ -24,12 +24,12 @@ class ApprovalRequestedNotification extends Notification
     public function toArray(object $notifiable): array
     {
         return [
-            'approval_id'    => $this->approval->id,
+            'approval_id' => $this->approval->id,
             'operation_type' => $this->approval->operation_type,
-            'operation_label'=> $this->approval->operationLabel(),
+            'operation_label' => $this->approval->operationLabel(),
             'requester_name' => $this->requester->name,
-            'message'        => "{$this->requester->name} yêu cầu {$this->approval->operationLabel()} — cần phê duyệt.",
-            'url'            => '/approvals',
+            'message' => "{$this->requester->name} yêu cầu {$this->approval->operationLabel()} — cần phê duyệt.",
+            'url' => '/approvals',
         ];
     }
 }

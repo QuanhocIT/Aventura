@@ -18,7 +18,7 @@ return new class extends Migration
                 'last_latency' => 0.0,
                 'created_at' => now(),
                 'updated_at' => now(),
-            ]
+            ],
         ]);
     }
 

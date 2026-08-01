@@ -17,14 +17,14 @@ class OnboardingController extends Controller
     public function updateProgress(Request $request): RedirectResponse
     {
         $data = $request->validate([
-            'current_day'  => ['required', 'integer', 'min:1', 'max:3'],
-            'step'         => ['nullable', 'string', 'max:100'],
-            'completed'    => ['nullable', 'boolean'],
-            'completed_day'=> ['nullable', 'integer', 'min:1', 'max:3'],
+            'current_day' => ['required', 'integer', 'min:1', 'max:3'],
+            'step' => ['nullable', 'string', 'max:100'],
+            'completed' => ['nullable', 'boolean'],
+            'completed_day' => ['nullable', 'integer', 'min:1', 'max:3'],
         ]);
 
         $user = $request->user();
-        if (!$user) {
+        if (! $user) {
             return back()->with('error', 'Chưa đăng nhập.');
         }
 
@@ -39,15 +39,15 @@ class OnboardingController extends Controller
         $status['current_day'] = (int) $data['current_day'];
 
         // Cập nhật bước cụ thể nếu có
-        if (!empty($data['step'])) {
-            $dayKey = 'day_' . $status['current_day'];
-            if (!isset($status[$dayKey])) {
+        if (! empty($data['step'])) {
+            $dayKey = 'day_'.$status['current_day'];
+            if (! isset($status[$dayKey])) {
                 $status[$dayKey] = ['started_at' => now()->toIso8601String(), 'completed_at' => null, 'steps' => []];
             }
-            if (!isset($status[$dayKey]['steps'])) {
+            if (! isset($status[$dayKey]['steps'])) {
                 $status[$dayKey]['steps'] = [];
             }
-            $status[$dayKey]['steps'][$data['step']] = !empty($data['completed']);
+            $status[$dayKey]['steps'][$data['step']] = ! empty($data['completed']);
 
             // Nếu đây là bước đầu tiên của ngày mới, đánh dấu started_at
             if (empty($status[$dayKey]['started_at'])) {
@@ -57,7 +57,7 @@ class OnboardingController extends Controller
 
         // Đánh dấu hoàn thành nguyên 1 ngày nếu có
         if (isset($data['completed_day'])) {
-            $compDayKey = 'day_' . $data['completed_day'];
+            $compDayKey = 'day_'.$data['completed_day'];
             if (isset($status[$compDayKey])) {
                 $status[$compDayKey]['completed_at'] = now()->toIso8601String();
 
@@ -65,7 +65,7 @@ class OnboardingController extends Controller
                 $nextDay = $data['completed_day'] + 1;
                 if ($nextDay <= 3) {
                     $status['current_day'] = $nextDay;
-                    $nextDayKey = 'day_' . $nextDay;
+                    $nextDayKey = 'day_'.$nextDay;
                     if (empty($status[$nextDayKey]['started_at'])) {
                         $status[$nextDayKey]['started_at'] = now()->toIso8601String();
                     }
@@ -84,7 +84,7 @@ class OnboardingController extends Controller
     public function resetProgress(Request $request): RedirectResponse
     {
         $user = $request->user();
-        if (!$user) {
+        if (! $user) {
             return back()->with('error', 'Chưa đăng nhập.');
         }
 
@@ -113,12 +113,12 @@ class OnboardingController extends Controller
 
         return Inertia::render('settings/Sandbox', [
             'sandbox' => $restaurant ? [
-                'sandbox_mode'      => (bool) $restaurant->sandbox_mode,
-                'sandbox_template'  => $restaurant->sandbox_template,
+                'sandbox_mode' => (bool) $restaurant->sandbox_mode,
+                'sandbox_template' => $restaurant->sandbox_template,
                 'sandbox_seeded_at' => $restaurant->sandbox_seeded_at?->toIso8601String(),
             ] : null,
             'status' => session('status'),
-            'error'  => session('error'),
+            'error' => session('error'),
         ]);
     }
 
@@ -128,12 +128,12 @@ class OnboardingController extends Controller
     public function toggleSandbox(Request $request): RedirectResponse
     {
         $restaurant = $request->user()?->restaurant;
-        if (!$restaurant) {
+        if (! $restaurant) {
             return back()->with('error', 'Không tìm thấy thông tin nhà hàng.');
         }
 
         $restaurant->forceFill([
-            'sandbox_mode' => !$restaurant->sandbox_mode,
+            'sandbox_mode' => ! $restaurant->sandbox_mode,
         ])->save();
 
         $state = $restaurant->sandbox_mode ? 'bật' : 'tắt';
@@ -151,7 +151,7 @@ class OnboardingController extends Controller
         ]);
 
         $restaurant = $request->user()?->restaurant;
-        if (!$restaurant) {
+        if (! $restaurant) {
             return back()->with('error', 'Không tìm thấy thông tin nhà hàng.');
         }
 
@@ -163,20 +163,20 @@ class OnboardingController extends Controller
             $seeder->seed($restaurant, $data['template']);
         } catch (\Throwable $e) {
             Log::error('DemoDataSeeder failed', [
-                'error'         => $e->getMessage(),
+                'error' => $e->getMessage(),
                 'restaurant_id' => $restaurant->id,
             ]);
 
-            return back()->with('error', 'Có lỗi xảy ra khi nạp dữ liệu mẫu: ' . $e->getMessage());
+            return back()->with('error', 'Có lỗi xảy ra khi nạp dữ liệu mẫu: '.$e->getMessage());
         }
 
         $templateNames = [
-            'bbq'        => 'Nhà hàng Nướng 🔥',
-            'cafe'       => 'Quán Cafe ☕',
+            'bbq' => 'Nhà hàng Nướng 🔥',
+            'cafe' => 'Quán Cafe ☕',
             'bubble_tea' => 'Tiệm Trà sữa 🧋',
         ];
 
-        return back()->with('status', '✅ Đã nạp dữ liệu mẫu "' . $templateNames[$data['template']] . '". Hãy khám phá Dashboard và màn hình POS nhé!');
+        return back()->with('status', '✅ Đã nạp dữ liệu mẫu "'.$templateNames[$data['template']].'". Hãy khám phá Dashboard và màn hình POS nhé!');
     }
 
     /**
@@ -185,7 +185,7 @@ class OnboardingController extends Controller
     public function resetDemo(Request $request, DemoDataSeederService $seeder): RedirectResponse
     {
         $restaurant = $request->user()?->restaurant;
-        if (!$restaurant) {
+        if (! $restaurant) {
             return back()->with('error', 'Không tìm thấy thông tin nhà hàng.');
         }
 
@@ -193,11 +193,11 @@ class OnboardingController extends Controller
             $seeder->reset($restaurant);
         } catch (\Throwable $e) {
             Log::error('DemoDataSeeder reset failed', [
-                'error'         => $e->getMessage(),
+                'error' => $e->getMessage(),
                 'restaurant_id' => $restaurant->id,
             ]);
 
-            return back()->with('error', 'Có lỗi xảy ra khi xóa dữ liệu mẫu: ' . $e->getMessage());
+            return back()->with('error', 'Có lỗi xảy ra khi xóa dữ liệu mẫu: '.$e->getMessage());
         }
 
         return back()->with('status', '🗑️ Đã xóa toàn bộ dữ liệu mẫu. Hệ thống sẵn sàng cho môi trường thực tế.');

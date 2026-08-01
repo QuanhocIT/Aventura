@@ -2,11 +2,13 @@
 
 namespace Tests\Feature;
 
-use App\Models\User;
 use App\Models\SystemSetting;
+use App\Models\User;
+use App\Providers\AppServiceProvider;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Crypt;
+use Illuminate\Support\Facades\DB;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
@@ -15,20 +17,22 @@ class SystemSettingTest extends TestCase
     use RefreshDatabase;
 
     private User $superAdmin;
+
     private User $normalUser;
 
     protected function setUp(): void
     {
         parent::setUp();
+        $this->withSession(['superadmin.2fa_verified_until' => now()->addMinutes(15)->timestamp]);
 
-        // Ensure super_admin role exists
-        $superAdminRole = Role::firstOrCreate(['name' => 'super_admin', 'guard_name' => 'web']);
+        Role::firstOrCreate(['name' => 'super_admin', 'guard_name' => 'web']);
 
         $this->superAdmin = User::factory()->create([
             'email_verified_at' => now(),
             'two_factor_confirmed_at' => now(),
         ]);
         $this->superAdmin->assignRole('super_admin');
+        $this->withSession(['superadmin.2fa_verified_user_id' => $this->superAdmin->id]);
 
         $this->normalUser = User::factory()->create([
             'email_verified_at' => now(),
@@ -51,7 +55,7 @@ class SystemSettingTest extends TestCase
 
         $response = $this->get('/super-admin/settings');
         $response->assertOk();
-        $response->assertSee('settings'); // inertia prop
+        $response->assertSee('settings');
     }
 
     public function test_super_admin_can_update_settings(): void
@@ -60,24 +64,23 @@ class SystemSettingTest extends TestCase
 
         $response = $this->post('/super-admin/settings', [
             'chatbot_similarity_threshold' => 0.35,
-            'chatbot_max_suggestions'      => 8,
-            'chatbot_cache_ttl'            => 600,
-            'mail_driver'                  => 'smtp',
-            'mail_smtp_host'               => 'smtp.mailtrap.io',
-            'mail_smtp_port'               => 2525,
-            'mail_smtp_username'           => 'user_test',
-            'mail_smtp_password'           => 'pass_test',
-            'mail_smtp_encryption'         => 'tls',
-            'mail_from_address'            => 'sender@test.com',
-            'mail_from_name'               => 'SaaS Test',
-            'upload_menu_image_max'        => 1024,
-            'upload_invoice_image_max'     => 2048,
+            'chatbot_max_suggestions' => 8,
+            'chatbot_cache_ttl' => 600,
+            'mail_driver' => 'smtp',
+            'mail_smtp_host' => 'smtp.mailtrap.io',
+            'mail_smtp_port' => 2525,
+            'mail_smtp_username' => 'user_test',
+            'mail_smtp_password' => 'pass_test',
+            'mail_smtp_encryption' => 'tls',
+            'mail_from_address' => 'sender@test.com',
+            'mail_from_name' => 'SaaS Test',
+            'upload_menu_image_max' => 1024,
+            'upload_invoice_image_max' => 2048,
         ]);
 
         $response->assertRedirect();
         $response->assertSessionHasNoErrors();
 
-        // Verify settings are in database
         $this->assertEquals(0.35, (float) SystemSetting::get('chatbot_similarity_threshold'));
         $this->assertEquals(8, (int) SystemSetting::get('chatbot_max_suggestions'));
         $this->assertEquals(600, (int) SystemSetting::get('chatbot_cache_ttl'));
@@ -89,25 +92,18 @@ class SystemSettingTest extends TestCase
 
     public function test_settings_caching_and_invalidation(): void
     {
-        // 1. Initial set
         SystemSetting::set('chatbot_similarity_threshold', '0.28');
-        
-        // Trigger cache generation
         $this->assertEquals('0.28', SystemSetting::get('chatbot_similarity_threshold'));
-        
-        // Ensure cache exists
+
         $cachedValue = Cache::get('system_setting:chatbot_similarity_threshold');
         $this->assertEquals('0.28', $cachedValue);
 
-        // 2. Direct database updates should not bypass cache
-        \Illuminate\Support\Facades\DB::table('system_settings')
+        DB::table('system_settings')
             ->where('key', 'chatbot_similarity_threshold')
             ->update(['value' => '0.50']);
 
-        // Since it's cached, SystemSetting::get() should still return '0.28'
         $this->assertEquals('0.28', SystemSetting::get('chatbot_similarity_threshold'));
 
-        // 3. SystemSetting::set() must clear the cache
         SystemSetting::set('chatbot_similarity_threshold', '0.42');
         $this->assertEquals('0.42', SystemSetting::get('chatbot_similarity_threshold'));
     }
@@ -123,19 +119,14 @@ class SystemSettingTest extends TestCase
         SystemSetting::set('mail_from_address', 'dynamic@sender.com');
         SystemSetting::set('mail_from_name', 'Dynamic System Name');
 
-        // Reset config defaults as if system boot occurred
         config(['mail.default' => 'old_driver']);
 
-        // Call Provider dynamically
-        $provider = new \App\Providers\AppServiceProvider(app());
-        
-        // Invoke loadDynamicSettings via Reflection since it's protected
-        $reflector = new \ReflectionClass(\App\Providers\AppServiceProvider::class);
+        $provider = new AppServiceProvider(app());
+        $reflector = new \ReflectionClass(AppServiceProvider::class);
         $method = $reflector->getMethod('loadDynamicSettings');
         $method->setAccessible(true);
         $method->invoke($provider);
 
-        // Assert Laravel config has been overridden
         $this->assertEquals('smtp', config('mail.default'));
         $this->assertEquals('dynamic-smtp.domain.local', config('mail.mailers.smtp.host'));
         $this->assertEquals(465, config('mail.mailers.smtp.port'));
@@ -144,5 +135,93 @@ class SystemSettingTest extends TestCase
         $this->assertEquals('ssl', config('mail.mailers.smtp.encryption'));
         $this->assertEquals('dynamic@sender.com', config('mail.from.address'));
         $this->assertEquals('Dynamic System Name', config('mail.from.name'));
+    }
+
+    public function test_sensitive_values_are_encrypted_in_database(): void
+    {
+        SystemSetting::set('mail_smtp_password', 'my_secret_pass');
+
+        $rawValue = DB::table('system_settings')
+            ->where('key', 'mail_smtp_password')
+            ->value('value');
+
+        $this->assertNotEquals('my_secret_pass', $rawValue);
+        $this->assertEquals('my_secret_pass', Crypt::decryptString($rawValue));
+        $this->assertEquals('my_secret_pass', SystemSetting::get('mail_smtp_password'));
+    }
+
+    public function test_sensitive_keys_decrypt_fallback_for_legacy_plaintext(): void
+    {
+        DB::table('system_settings')->insert([
+            'key' => 'mail_smtp_password',
+            'value' => 'plain_legacy_pass',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        Cache::forget('system_setting:mail_smtp_password');
+
+        $this->assertEquals('plain_legacy_pass', SystemSetting::get('mail_smtp_password'));
+    }
+
+    public function test_passwords_are_not_sent_to_frontend(): void
+    {
+        $this->actingAs($this->superAdmin);
+
+        SystemSetting::set('mail_smtp_password', 'super_secret');
+
+        $response = $this->get('/super-admin/settings');
+        $response->assertOk();
+
+        $page = $response->original->getData()['page'];
+        $settings = $page['props']['settings'];
+
+        $this->assertEquals('', $settings['mail_smtp_password']);
+        $this->assertTrue($settings['has_smtp_password']);
+    }
+
+    public function test_empty_password_does_not_overwrite_existing(): void
+    {
+        $this->actingAs($this->superAdmin);
+
+        SystemSetting::set('mail_smtp_password', 'original_pass');
+
+        $this->post('/super-admin/settings', [
+            'chatbot_similarity_threshold' => 0.28,
+            'chatbot_max_suggestions' => 5,
+            'chatbot_cache_ttl' => 300,
+            'mail_driver' => 'smtp',
+            'mail_smtp_host' => 'smtp.test.com',
+            'mail_smtp_port' => 587,
+            'mail_smtp_username' => 'user',
+            'mail_smtp_password' => '',
+            'mail_smtp_encryption' => 'tls',
+            'mail_from_address' => 'test@test.com',
+            'mail_from_name' => 'Test',
+            'upload_menu_image_max' => 2048,
+            'upload_invoice_image_max' => 4096,
+        ]);
+
+        $this->assertEquals('original_pass', SystemSetting::get('mail_smtp_password'));
+    }
+
+    public function test_test_email_rate_limited(): void
+    {
+        $this->actingAs($this->superAdmin);
+
+        $this->post('/super-admin/settings/test-email', [
+            'mail_driver' => 'smtp',
+            'mail_smtp_host' => 'smtp.test.com',
+            'mail_smtp_port' => 587,
+        ]);
+
+        $response = $this->post('/super-admin/settings/test-email', [
+            'mail_driver' => 'smtp',
+            'mail_smtp_host' => 'smtp.test.com',
+            'mail_smtp_port' => 587,
+        ]);
+
+        $response->assertRedirect();
+        $response->assertSessionHas('error');
     }
 }

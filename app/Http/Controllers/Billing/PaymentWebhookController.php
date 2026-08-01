@@ -8,6 +8,7 @@ use App\Jobs\SendBillingInvoiceEmail;
 use App\Services\BillingService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 
 class PaymentWebhookController extends Controller
 {
@@ -21,7 +22,8 @@ class PaymentWebhookController extends Controller
 
         if (empty($secret)) {
             if (app()->environment('production')) {
-                \Illuminate\Support\Facades\Log::critical('Billing Webhook Secret is not configured in production!');
+                Log::critical('Billing Webhook Secret is not configured in production!');
+
                 return response()->json(['message' => 'Configuration error'], 500);
             }
         } elseif (! hash_equals(hash_hmac('sha256', $rawBody, $secret), $signature)) {

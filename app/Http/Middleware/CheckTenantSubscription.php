@@ -22,16 +22,22 @@ class CheckTenantSubscription
             return $next($request);
         }
 
-        if ($restaurant->status === 'suspended') {
+        if ($restaurant->status === 'suspended' || $restaurant->lifecycleStatus() === 'suspended') {
             return $request->expectsJson()
-                ? response()->json(['message' => 'Tai khoan doanh nghiep da bi khoa. Vui long lien he bo phan ho tro.'], 403)
-                : abort(403, 'Tai khoan doanh nghiep da bi khoa. Vui long lien he bo phan ho tro.');
+                ? response()->json(['message' => 'Tài khoản doanh nghiệp đã bị khóa. Vui lòng liên hệ bộ phận hỗ trợ.'], 403)
+                : abort(403, 'Tài khoản doanh nghiệp đã bị khóa. Vui lòng liên hệ bộ phận hỗ trợ.');
+        }
+
+        if ($restaurant->lifecycleStatus() === 'archived') {
+            return $request->expectsJson()
+                ? response()->json(['message' => 'Tenant đã được lưu trữ và không còn hoạt động.'], 403)
+                : abort(403, 'Tenant đã được lưu trữ và không còn hoạt động.');
         }
 
         if ($restaurant->status === 'expired' && ! $request->isMethod('GET') && ! $request->isMethod('HEAD') && ! $request->isMethod('OPTIONS')) {
             return $request->expectsJson()
-                ? response()->json(['message' => 'Goi dich vu da het han. Vui long gia han de tiep tuc su dung tinh nang nay.'], 402)
-                : abort(402, 'Goi dich vu da het han. Vui long gia han de tiep tuc su dung tinh nang nay.');
+                ? response()->json(['message' => 'Gói dịch vụ đã hết hạn. Vui lòng gia hạn để tiếp tục sử dụng tính năng này.'], 402)
+                : abort(402, 'Gói dịch vụ đã hết hạn. Vui lòng gia hạn để tiếp tục sử dụng tính năng này.');
         }
 
         return $next($request);

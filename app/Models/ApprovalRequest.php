@@ -2,14 +2,14 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\BelongsToRestaurant;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-
-use App\Models\Concerns\BelongsToRestaurant;
 
 class ApprovalRequest extends Model
 {
     use BelongsToRestaurant;
+
     protected $fillable = [
         'restaurant_id',
         'branch_id',
@@ -24,7 +24,7 @@ class ApprovalRequest extends Model
 
     protected $casts = [
         'operation_data' => 'array',
-        'reviewed_at'    => 'datetime',
+        'reviewed_at' => 'datetime',
     ];
 
     public function restaurant(): BelongsTo
@@ -56,10 +56,10 @@ class ApprovalRequest extends Model
     {
         return match ($this->operation_type) {
             'inventory_purchase' => 'Nhập nguyên liệu',
-            'inventory_waste'    => 'Ghi hao hụt',
-            'salary_adjustment'  => 'Điều chỉnh lương',
-            'employee_create'    => 'Tạo nhân viên mới',
-            default              => $this->operation_type,
+            'inventory_waste' => 'Ghi hao hụt',
+            'salary_adjustment' => 'Điều chỉnh lương',
+            'employee_create' => 'Tạo nhân viên mới',
+            default => $this->operation_type,
         };
     }
 }

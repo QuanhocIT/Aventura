@@ -41,9 +41,9 @@ defineOptions({
 });
 
 // ─── State ───────────────────────────────────────────────────────────────────
-const loadingToggle  = ref(false);
+const loadingToggle = ref(false);
 const loadingTemplate = ref<string | null>(null);
-const loadingReset   = ref(false);
+const loadingReset = ref(false);
 const showResetConfirm = ref(false);
 
 const isSeeded = computed(() => !!props.sandbox?.sandbox_seeded_at);
@@ -112,61 +112,100 @@ const templates = [
     },
 ];
 
-const currentTemplate = computed(() =>
-    templates.find(t => t.id === props.sandbox?.sandbox_template) ?? null,
+const currentTemplate = computed(
+    () =>
+        templates.find((t) => t.id === props.sandbox?.sandbox_template) ?? null,
 );
 
 function formatDate(iso: string | null): string {
-    if (!iso) return '';
+    if (!iso) {
+        return '';
+    }
+
     return new Date(iso).toLocaleString('vi-VN', {
-        day: '2-digit', month: '2-digit', year: 'numeric',
-        hour: '2-digit', minute: '2-digit',
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
     });
 }
 
 // ─── Actions ─────────────────────────────────────────────────────────────────
 function toggleSandbox() {
-    if (loadingToggle.value) return;
+    if (loadingToggle.value) {
+        return;
+    }
+
     loadingToggle.value = true;
-    router.post('/settings/sandbox/toggle', {}, {
-        preserveScroll: true,
-        onFinish: () => { loadingToggle.value = false; },
-    });
+    router.post(
+        '/settings/sandbox/toggle',
+        {},
+        {
+            preserveScroll: true,
+            onFinish: () => {
+                loadingToggle.value = false;
+            },
+        },
+    );
 }
 
 function seedTemplate(templateId: string) {
-    if (loadingTemplate.value) return;
+    if (loadingTemplate.value) {
+        return;
+    }
+
     loadingTemplate.value = templateId;
-    router.post('/settings/sandbox/seed', { template: templateId }, {
-        preserveScroll: true,
-        onFinish: () => { loadingTemplate.value = null; },
-    });
+    router.post(
+        '/settings/sandbox/seed',
+        { template: templateId },
+        {
+            preserveScroll: true,
+            onFinish: () => {
+                loadingTemplate.value = null;
+            },
+        },
+    );
 }
 
 function resetDemo() {
-    if (loadingReset.value) return;
+    if (loadingReset.value) {
+        return;
+    }
+
     loadingReset.value = true;
     showResetConfirm.value = false;
-    router.post('/settings/sandbox/reset', {}, {
-        preserveScroll: true,
-        onFinish: () => { loadingReset.value = false; },
-    });
+    router.post(
+        '/settings/sandbox/reset',
+        {},
+        {
+            preserveScroll: true,
+            onFinish: () => {
+                loadingReset.value = false;
+            },
+        },
+    );
 }
 </script>
 
 <template>
     <Head title="Sandbox & Demo Data · Aventura" />
 
-    <div class="space-y-8 max-w-4xl">
+    <div class="max-w-4xl space-y-8">
         <!-- Header -->
         <div class="flex items-start gap-4">
-            <div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-violet-500 to-indigo-600 shadow-lg shadow-violet-200 dark:shadow-violet-900/30">
+            <div
+                class="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-violet-500 to-indigo-600 shadow-lg shadow-violet-200 dark:shadow-violet-900/30"
+            >
                 <FlaskConical class="size-6 text-white" />
             </div>
             <div>
-                <h1 class="text-xl font-bold text-foreground">Sandbox & Demo Data</h1>
+                <h1 class="text-xl font-bold text-foreground">
+                    Sandbox & Demo Data
+                </h1>
                 <p class="mt-0.5 text-sm text-muted-foreground">
-                    Khám phá toàn bộ tính năng với dữ liệu mẫu thực tế. Nạp — trải nghiệm — xóa chỉ với 1 click.
+                    Khám phá toàn bộ tính năng với dữ liệu mẫu thực tế. Nạp —
+                    trải nghiệm — xóa chỉ với 1 click.
                 </p>
             </div>
         </div>
@@ -192,19 +231,33 @@ function resetDemo() {
             <div class="flex items-center justify-between gap-6">
                 <div class="space-y-1">
                     <div class="flex items-center gap-2">
-                        <h2 class="text-base font-semibold text-foreground">Chế độ Thử nghiệm</h2>
+                        <h2 class="text-base font-semibold text-foreground">
+                            Chế độ Thử nghiệm
+                        </h2>
                         <span
                             class="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-inset"
-                            :class="sandbox?.sandbox_mode
-                                ? 'bg-violet-50 text-violet-700 ring-violet-200 dark:bg-violet-500/10 dark:text-violet-300 dark:ring-violet-500/30'
-                                : 'bg-muted text-muted-foreground ring-border'"
+                            :class="
+                                sandbox?.sandbox_mode
+                                    ? 'bg-violet-50 text-violet-700 ring-violet-200 dark:bg-violet-500/10 dark:text-violet-300 dark:ring-violet-500/30'
+                                    : 'bg-muted text-muted-foreground ring-border'
+                            "
                         >
-                            <span class="h-1.5 w-1.5 rounded-full" :class="sandbox?.sandbox_mode ? 'bg-violet-500' : 'bg-muted-foreground/50'" />
-                            {{ sandbox?.sandbox_mode ? 'Đang bật' : 'Đang tắt' }}
+                            <span
+                                class="h-1.5 w-1.5 rounded-full"
+                                :class="
+                                    sandbox?.sandbox_mode
+                                        ? 'bg-violet-500'
+                                        : 'bg-muted-foreground/50'
+                                "
+                            />
+                            {{
+                                sandbox?.sandbox_mode ? 'Đang bật' : 'Đang tắt'
+                            }}
                         </span>
                     </div>
                     <p class="text-sm text-muted-foreground">
-                        Khi bật, toàn bộ dữ liệu trong hệ thống được đánh dấu là "dữ liệu thử nghiệm" — không ảnh hưởng dữ liệu thực tế.
+                        Khi bật, toàn bộ dữ liệu trong hệ thống được đánh dấu là
+                        "dữ liệu thử nghiệm" — không ảnh hưởng dữ liệu thực tế.
                     </p>
                 </div>
 
@@ -212,13 +265,20 @@ function resetDemo() {
                     type="button"
                     :disabled="loadingToggle"
                     class="relative shrink-0 rounded-full transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                    :class="loadingToggle ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'"
+                    :class="
+                        loadingToggle
+                            ? 'cursor-not-allowed opacity-60'
+                            : 'cursor-pointer'
+                    "
                     @click="toggleSandbox"
                 >
-                    <Loader2 v-if="loadingToggle" class="size-10 animate-spin text-muted-foreground" />
+                    <Loader2
+                        v-if="loadingToggle"
+                        class="size-10 animate-spin text-muted-foreground"
+                    />
                     <ToggleRight
                         v-else-if="sandbox?.sandbox_mode"
-                        class="size-12 text-violet-600 dark:text-violet-400 transition-transform hover:scale-110"
+                        class="size-12 text-violet-600 transition-transform hover:scale-110 dark:text-violet-400"
                     />
                     <ToggleLeft
                         v-else
@@ -234,21 +294,44 @@ function resetDemo() {
             class="overflow-hidden rounded-2xl border"
             :class="currentTemplate.border"
         >
-            <div class="bg-gradient-to-r p-5" :class="currentTemplate.bgLight + ' dark:from-muted/30 dark:to-muted/10'">
+            <div
+                class="bg-gradient-to-r p-5"
+                :class="
+                    currentTemplate.bgLight +
+                    ' dark:from-muted/30 dark:to-muted/10'
+                "
+            >
                 <div class="flex items-start justify-between gap-4">
                     <div class="flex items-center gap-3">
-                        <span class="text-3xl">{{ currentTemplate.emoji }}</span>
+                        <span class="text-3xl">{{
+                            currentTemplate.emoji
+                        }}</span>
                         <div>
-                            <p class="text-xs font-medium uppercase tracking-wider text-muted-foreground">Đang chạy template</p>
-                            <h3 class="text-base font-bold text-foreground">{{ currentTemplate.name }}</h3>
+                            <p
+                                class="text-xs font-medium tracking-wider text-muted-foreground uppercase"
+                            >
+                                Đang chạy template
+                            </p>
+                            <h3 class="text-base font-bold text-foreground">
+                                {{ currentTemplate.name }}
+                            </h3>
                             <p class="mt-0.5 text-xs text-muted-foreground">
-                                Nạp lúc {{ formatDate(sandbox?.sandbox_seeded_at ?? null) }}
+                                Nạp lúc
+                                {{
+                                    formatDate(
+                                        sandbox?.sandbox_seeded_at ?? null,
+                                    )
+                                }}
                             </p>
                         </div>
                     </div>
                     <div class="flex shrink-0 items-center gap-2">
-                        <span class="flex items-center gap-1.5 rounded-full bg-emerald-100 px-3 py-1 text-xs font-medium text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300">
-                            <span class="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                        <span
+                            class="flex items-center gap-1.5 rounded-full bg-emerald-100 px-3 py-1 text-xs font-medium text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300"
+                        >
+                            <span
+                                class="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-500"
+                            />
                             Dữ liệu đang hoạt động
                         </span>
                     </div>
@@ -257,28 +340,28 @@ function resetDemo() {
                 <div class="mt-4 flex flex-wrap gap-2">
                     <a
                         href="/dashboard"
-                        class="inline-flex items-center gap-1.5 rounded-lg bg-white/80 px-3 py-1.5 text-xs font-medium text-foreground shadow-sm ring-1 ring-border hover:bg-white transition-colors dark:bg-muted/50 dark:hover:bg-muted"
+                        class="inline-flex items-center gap-1.5 rounded-lg bg-white/80 px-3 py-1.5 text-xs font-medium text-foreground shadow-sm ring-1 ring-border transition-colors hover:bg-white dark:bg-muted/50 dark:hover:bg-muted"
                     >
                         <Sparkles class="size-3.5 text-amber-500" />
                         Xem Dashboard
                     </a>
                     <a
                         href="/orders/create"
-                        class="inline-flex items-center gap-1.5 rounded-lg bg-white/80 px-3 py-1.5 text-xs font-medium text-foreground shadow-sm ring-1 ring-border hover:bg-white transition-colors dark:bg-muted/50 dark:hover:bg-muted"
+                        class="inline-flex items-center gap-1.5 rounded-lg bg-white/80 px-3 py-1.5 text-xs font-medium text-foreground shadow-sm ring-1 ring-border transition-colors hover:bg-white dark:bg-muted/50 dark:hover:bg-muted"
                     >
                         <Zap class="size-3.5 text-blue-500" />
                         Thử POS
                     </a>
                     <a
                         href="/kitchen"
-                        class="inline-flex items-center gap-1.5 rounded-lg bg-white/80 px-3 py-1.5 text-xs font-medium text-foreground shadow-sm ring-1 ring-border hover:bg-white transition-colors dark:bg-muted/50 dark:hover:bg-muted"
+                        class="inline-flex items-center gap-1.5 rounded-lg bg-white/80 px-3 py-1.5 text-xs font-medium text-foreground shadow-sm ring-1 ring-border transition-colors hover:bg-white dark:bg-muted/50 dark:hover:bg-muted"
                     >
                         <Flame class="size-3.5 text-rose-500" />
                         Màn hình Bếp
                     </a>
                     <a
                         href="/reports"
-                        class="inline-flex items-center gap-1.5 rounded-lg bg-white/80 px-3 py-1.5 text-xs font-medium text-foreground shadow-sm ring-1 ring-border hover:bg-white transition-colors dark:bg-muted/50 dark:hover:bg-muted"
+                        class="inline-flex items-center gap-1.5 rounded-lg bg-white/80 px-3 py-1.5 text-xs font-medium text-foreground shadow-sm ring-1 ring-border transition-colors hover:bg-white dark:bg-muted/50 dark:hover:bg-muted"
                     >
                         <CheckCircle2 class="size-3.5 text-emerald-500" />
                         Báo cáo
@@ -291,40 +374,60 @@ function resetDemo() {
         <div v-if="!isSeeded" class="space-y-4">
             <div class="flex items-center gap-2">
                 <Sparkles class="size-4 text-amber-500" />
-                <h2 class="text-sm font-semibold text-foreground uppercase tracking-wider">Chọn template dữ liệu mẫu</h2>
+                <h2
+                    class="text-sm font-semibold tracking-wider text-foreground uppercase"
+                >
+                    Chọn template dữ liệu mẫu
+                </h2>
             </div>
 
             <div class="grid gap-4 sm:grid-cols-3">
                 <div
                     v-for="template in templates"
                     :key="template.id"
-                    class="group relative overflow-hidden rounded-2xl border bg-card shadow-sm transition-all hover:shadow-md hover:-translate-y-0.5 cursor-default"
+                    class="group relative cursor-default overflow-hidden rounded-2xl border bg-card shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md"
                     :class="template.border"
                 >
                     <!-- Gradient header -->
                     <div class="bg-gradient-to-br p-5" :class="template.color">
                         <div class="flex items-center justify-between">
-                            <span class="text-4xl drop-shadow-sm">{{ template.emoji }}</span>
-                            <span class="rounded-full bg-white/20 px-2.5 py-1 text-xs font-semibold text-white backdrop-blur-sm">
+                            <span class="text-4xl drop-shadow-sm">{{
+                                template.emoji
+                            }}</span>
+                            <span
+                                class="rounded-full bg-white/20 px-2.5 py-1 text-xs font-semibold text-white backdrop-blur-sm"
+                            >
                                 {{ template.avgPrice }}
                             </span>
                         </div>
                         <div class="mt-3">
-                            <h3 class="font-bold text-white text-base leading-tight">{{ template.name }}</h3>
-                            <p class="mt-0.5 text-xs text-white/80">{{ template.tagline }}</p>
+                            <h3
+                                class="text-base leading-tight font-bold text-white"
+                            >
+                                {{ template.name }}
+                            </h3>
+                            <p class="mt-0.5 text-xs text-white/80">
+                                {{ template.tagline }}
+                            </p>
                         </div>
                     </div>
 
                     <!-- Items list -->
-                    <div class="p-4 space-y-2">
-                        <p class="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-3">Dữ liệu sẽ được tạo</p>
+                    <div class="space-y-2 p-4">
+                        <p
+                            class="mb-3 text-xs font-medium tracking-wider text-muted-foreground uppercase"
+                        >
+                            Dữ liệu sẽ được tạo
+                        </p>
                         <ul class="space-y-1.5">
                             <li
                                 v-for="item in template.items"
                                 :key="item"
                                 class="flex items-center gap-2 text-xs text-foreground"
                             >
-                                <CheckCircle2 class="size-3.5 shrink-0 text-emerald-500" />
+                                <CheckCircle2
+                                    class="size-3.5 shrink-0 text-emerald-500"
+                                />
                                 {{ item }}
                             </li>
                         </ul>
@@ -334,7 +437,7 @@ function resetDemo() {
                     <div class="px-4 pb-4">
                         <Button
                             type="button"
-                            class="w-full bg-gradient-to-r text-white shadow-sm border-none font-medium transition-all"
+                            class="w-full border-none bg-gradient-to-r font-medium text-white shadow-sm transition-all"
                             :class="template.color"
                             :disabled="!!loadingTemplate"
                             @click="seedTemplate(template.id)"
@@ -344,7 +447,11 @@ function resetDemo() {
                                 class="mr-2 size-4 animate-spin"
                             />
                             <Sparkles v-else class="mr-2 size-4" />
-                            {{ loadingTemplate === template.id ? 'Đang nạp dữ liệu...' : 'Nạp dữ liệu này' }}
+                            {{
+                                loadingTemplate === template.id
+                                    ? 'Đang nạp dữ liệu...'
+                                    : 'Nạp dữ liệu này'
+                            }}
                         </Button>
                     </div>
                 </div>
@@ -360,22 +467,34 @@ function resetDemo() {
                 <AlertTriangle class="mt-0.5 size-4 shrink-0 text-amber-500" />
                 <div>
                     <p class="font-medium">Đã có dữ liệu mẫu</p>
-                    <p class="mt-0.5 text-xs">Để nạp template khác, bạn cần xóa dữ liệu hiện tại trước. Nhấn nút bên dưới để xóa và bắt đầu lại.</p>
+                    <p class="mt-0.5 text-xs">
+                        Để nạp template khác, bạn cần xóa dữ liệu hiện tại
+                        trước. Nhấn nút bên dưới để xóa và bắt đầu lại.
+                    </p>
                 </div>
             </div>
         </div>
 
         <!-- Reset Section -->
-        <div v-if="isSeeded" class="rounded-2xl border border-rose-200 bg-rose-50/50 p-6 dark:border-rose-500/20 dark:bg-rose-500/5">
+        <div
+            v-if="isSeeded"
+            class="rounded-2xl border border-rose-200 bg-rose-50/50 p-6 dark:border-rose-500/20 dark:bg-rose-500/5"
+        >
             <div class="flex items-start gap-4">
-                <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-rose-100 dark:bg-rose-500/10">
+                <div
+                    class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-rose-100 dark:bg-rose-500/10"
+                >
                     <Trash2 class="size-5 text-rose-600 dark:text-rose-400" />
                 </div>
-                <div class="flex-1 min-w-0">
-                    <h3 class="font-semibold text-foreground">Xóa dữ liệu mẫu</h3>
+                <div class="min-w-0 flex-1">
+                    <h3 class="font-semibold text-foreground">
+                        Xóa dữ liệu mẫu
+                    </h3>
                     <p class="mt-1 text-sm text-muted-foreground">
-                        Hành động này sẽ xóa <strong>toàn bộ</strong> dữ liệu mẫu bao gồm: đơn hàng, nhân viên, sản phẩm, thực đơn, bàn bè và lịch sử doanh thu.
-                        Không thể hoàn tác. Nhà hàng sẽ trở về trạng thái trống để bắt đầu thực tế.
+                        Hành động này sẽ xóa <strong>toàn bộ</strong> dữ liệu
+                        mẫu bao gồm: đơn hàng, nhân viên, sản phẩm, thực đơn,
+                        bàn bè và lịch sử doanh thu. Không thể hoàn tác. Nhà
+                        hàng sẽ trở về trạng thái trống để bắt đầu thực tế.
                     </p>
 
                     <!-- Confirm step -->
@@ -396,22 +515,36 @@ function resetDemo() {
                         v-else
                         class="mt-4 rounded-xl border border-rose-300 bg-rose-100 p-4 dark:border-rose-500/30 dark:bg-rose-500/10"
                     >
-                        <p class="text-sm font-medium text-rose-800 dark:text-rose-300">
-                            ⚠️ Bạn có chắc chắn muốn xóa toàn bộ dữ liệu mẫu không?
+                        <p
+                            class="text-sm font-medium text-rose-800 dark:text-rose-300"
+                        >
+                            ⚠️ Bạn có chắc chắn muốn xóa toàn bộ dữ liệu mẫu
+                            không?
                         </p>
-                        <p class="mt-1 text-xs text-rose-700 dark:text-rose-400">
-                            Hành động này <strong>không thể hoàn tác</strong>. Tất cả đơn hàng, nhân viên và sản phẩm mẫu sẽ bị xóa vĩnh viễn.
+                        <p
+                            class="mt-1 text-xs text-rose-700 dark:text-rose-400"
+                        >
+                            Hành động này <strong>không thể hoàn tác</strong>.
+                            Tất cả đơn hàng, nhân viên và sản phẩm mẫu sẽ bị xóa
+                            vĩnh viễn.
                         </p>
                         <div class="mt-3 flex items-center gap-2">
                             <Button
                                 type="button"
-                                class="bg-rose-600 text-white hover:bg-rose-700 border-none"
+                                class="border-none bg-rose-600 text-white hover:bg-rose-700"
                                 :disabled="loadingReset"
                                 @click="resetDemo"
                             >
-                                <Loader2 v-if="loadingReset" class="mr-2 size-4 animate-spin" />
+                                <Loader2
+                                    v-if="loadingReset"
+                                    class="mr-2 size-4 animate-spin"
+                                />
                                 <Trash2 v-else class="mr-2 size-4" />
-                                {{ loadingReset ? 'Đang xóa...' : 'Xác nhận xóa' }}
+                                {{
+                                    loadingReset
+                                        ? 'Đang xóa...'
+                                        : 'Xác nhận xóa'
+                                }}
                             </Button>
                             <Button
                                 type="button"
@@ -429,26 +562,57 @@ function resetDemo() {
 
         <!-- How it works -->
         <div class="rounded-2xl border border-border bg-muted/30 p-6">
-            <h3 class="text-sm font-semibold text-foreground mb-4 flex items-center gap-2">
+            <h3
+                class="mb-4 flex items-center gap-2 text-sm font-semibold text-foreground"
+            >
                 <FlaskConical class="size-4 text-violet-500" />
                 Cách hoạt động
             </h3>
             <ol class="space-y-3">
                 <li class="flex gap-3 text-sm text-muted-foreground">
-                    <span class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-violet-100 text-xs font-bold text-violet-700 dark:bg-violet-500/10 dark:text-violet-300">1</span>
-                    <span><strong class="text-foreground">Bật Chế độ Thử nghiệm</strong> — Đánh dấu hệ thống là môi trường sandbox.</span>
+                    <span
+                        class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-violet-100 text-xs font-bold text-violet-700 dark:bg-violet-500/10 dark:text-violet-300"
+                        >1</span
+                    >
+                    <span
+                        ><strong class="text-foreground"
+                            >Bật Chế độ Thử nghiệm</strong
+                        >
+                        — Đánh dấu hệ thống là môi trường sandbox.</span
+                    >
                 </li>
                 <li class="flex gap-3 text-sm text-muted-foreground">
-                    <span class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-violet-100 text-xs font-bold text-violet-700 dark:bg-violet-500/10 dark:text-violet-300">2</span>
-                    <span><strong class="text-foreground">Chọn template</strong> — Hệ thống tự động tạo sản phẩm, nhân viên, ca làm việc và 100 đơn hàng lịch sử.</span>
+                    <span
+                        class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-violet-100 text-xs font-bold text-violet-700 dark:bg-violet-500/10 dark:text-violet-300"
+                        >2</span
+                    >
+                    <span
+                        ><strong class="text-foreground">Chọn template</strong>
+                        — Hệ thống tự động tạo sản phẩm, nhân viên, ca làm việc
+                        và 100 đơn hàng lịch sử.</span
+                    >
                 </li>
                 <li class="flex gap-3 text-sm text-muted-foreground">
-                    <span class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-violet-100 text-xs font-bold text-violet-700 dark:bg-violet-500/10 dark:text-violet-300">3</span>
-                    <span><strong class="text-foreground">Khám phá tự do</strong> — Dashboard, POS, Bếp, Báo cáo đều có dữ liệu thực tế để trải nghiệm.</span>
+                    <span
+                        class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-violet-100 text-xs font-bold text-violet-700 dark:bg-violet-500/10 dark:text-violet-300"
+                        >3</span
+                    >
+                    <span
+                        ><strong class="text-foreground">Khám phá tự do</strong>
+                        — Dashboard, POS, Bếp, Báo cáo đều có dữ liệu thực tế để
+                        trải nghiệm.</span
+                    >
                 </li>
                 <li class="flex gap-3 text-sm text-muted-foreground">
-                    <span class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-violet-100 text-xs font-bold text-violet-700 dark:bg-violet-500/10 dark:text-violet-300">4</span>
-                    <span><strong class="text-foreground">Reset 1 click</strong> — Sẵn sàng bắt đầu thực tế? Xóa sạch dữ liệu mẫu và nhập dữ liệu thật của bạn.</span>
+                    <span
+                        class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-violet-100 text-xs font-bold text-violet-700 dark:bg-violet-500/10 dark:text-violet-300"
+                        >4</span
+                    >
+                    <span
+                        ><strong class="text-foreground">Reset 1 click</strong>
+                        — Sẵn sàng bắt đầu thực tế? Xóa sạch dữ liệu mẫu và nhập
+                        dữ liệu thật của bạn.</span
+                    >
                 </li>
             </ol>
         </div>

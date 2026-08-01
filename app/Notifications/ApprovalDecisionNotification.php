@@ -26,15 +26,15 @@ class ApprovalDecisionNotification extends Notification
 
         $message = $this->decision === 'approved'
             ? "Yêu cầu {$label} của bạn đã được phê duyệt."
-            : "Yêu cầu {$label} của bạn đã bị từ chối" . ($this->approval->rejection_reason ? ": {$this->approval->rejection_reason}" : '.');
+            : "Yêu cầu {$label} của bạn đã bị từ chối".($this->approval->rejection_reason ? ": {$this->approval->rejection_reason}" : '.');
 
         return [
-            'approval_id'      => $this->approval->id,
-            'operation_type'   => $this->approval->operation_type,
-            'operation_label'  => $label,
-            'decision'         => $this->decision,
+            'approval_id' => $this->approval->id,
+            'operation_type' => $this->approval->operation_type,
+            'operation_label' => $label,
+            'decision' => $this->decision,
             'rejection_reason' => $this->approval->rejection_reason,
-            'message'          => $message,
+            'message' => $message,
         ];
     }
 }

@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class CustomerRfmAnalysis extends Model
 {
     use BelongsToRestaurant;
+
     protected $table = 'customer_rfm_analysis';
 
     protected $guarded = [];

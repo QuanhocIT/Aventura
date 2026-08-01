@@ -3,20 +3,20 @@
 namespace Tests\Feature;
 
 use App\Models\Employee;
-use App\Models\InventoryTransaction;
 use App\Models\Ingredient;
+use App\Models\InventoryTransaction;
 use App\Models\Restaurant;
 use App\Models\RestaurantBranch;
 use App\Models\Salary;
 use App\Models\SalaryAdjustment;
 use App\Models\ScheduleAssignment;
 use App\Models\ShiftClosing;
+use App\Models\User;
 use App\Models\ViolationReport;
 use App\Models\WorkShift;
-use App\Models\User;
 use App\Services\SalaryService;
-use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
@@ -25,10 +25,15 @@ class AutoPayrollTest extends TestCase
     use RefreshDatabase;
 
     private User $owner;
+
     private Restaurant $restaurant;
+
     private RestaurantBranch $branch;
+
     private Role $ownerRole;
+
     private Role $cashierRole;
+
     private Role $kitchenRole;
 
     protected function setUp(): void
@@ -451,7 +456,7 @@ class AutoPayrollTest extends TestCase
 
         // Kỳ lương 2026-05 hiện tại đã bị khóa, thử cập nhật chốt ca sẽ ném ngoại lệ
         $this->expectException(\Exception::class);
-        $this->expectExceptionMessage("Dữ liệu chấm công chốt ca đã bị khóa do bảng lương của kỳ này đã được phê duyệt.");
+        $this->expectExceptionMessage('Dữ liệu chấm công chốt ca đã bị khóa do bảng lương của kỳ này đã được phê duyệt.');
 
         $closing->update(['notes' => 'Co gang sua chua ghi chu sau khi luong da duyet']);
     }
@@ -581,7 +586,7 @@ class AutoPayrollTest extends TestCase
         $this->assertEquals(8000000, (float) $salary->net_salary); // Trở lại lương gốc
 
         // Kiểm tra Owner đã nhận được notification trong database thành công
-        $ownerNotificationExists = \Illuminate\Support\Facades\DB::table('notifications')
+        $ownerNotificationExists = DB::table('notifications')
             ->where('notifiable_id', $this->owner->id)
             ->exists();
 

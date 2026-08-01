@@ -14,7 +14,7 @@ class DeliveryBatchItem extends Model
     protected function casts(): array
     {
         return [
-            'eta'          => 'datetime',
+            'eta' => 'datetime',
             'picked_up_at' => 'datetime',
             'delivered_at' => 'datetime',
         ];

@@ -33,9 +33,9 @@ class StaffCalled implements ShouldBroadcastNow
     {
         return [
             'table_name' => $this->tableName,
-            'area_name'  => $this->areaName,
-            'message'    => $this->message,
-            'timestamp'  => now()->toIso8601String(),
+            'area_name' => $this->areaName,
+            'message' => $this->message,
+            'timestamp' => now()->toIso8601String(),
         ];
     }
 }

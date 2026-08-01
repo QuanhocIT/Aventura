@@ -6,8 +6,8 @@ use App\Models\Customer;
 use App\Models\CustomerBehaviorLog;
 use App\Models\CustomerRfmAnalysis;
 use App\Models\Order;
-use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\DB;
 
 class CdpService
 {
@@ -57,17 +57,9 @@ class CdpService
         $frequencyCount = $orders->count();
         $monetaryAmount = (float) $orders->sum('total_amount');
 
-        // Update total spent and membership level based on thresholds
-        $level = 'silver';
-        if ($monetaryAmount >= 5000000) {
-            $level = 'diamond';
-        } elseif ($monetaryAmount >= 2000000) {
-            $level = 'gold';
-        }
-        $customer->update([
-            'total_spent' => $monetaryAmount,
-            'membership_level' => $level,
-        ]);
+        // Update total spent and recalculate tier via LoyaltyService
+        $customer->update(['total_spent' => $monetaryAmount]);
+        app(LoyaltyService::class)->recalculateTier($customer);
 
         // Recency calculation
         $lastOrder = $orders->sortByDesc('completed_at')->first();
@@ -209,7 +201,7 @@ class CdpService
             $data = $segments->get($seg);
             $count = $data ? (int) $data->count : 0;
             $revenue = $data ? (float) $data->total_revenue : 0.0;
-            
+
             $segmentStats[$seg] = [
                 'count' => $count,
                 'revenue' => $revenue,
@@ -238,7 +230,7 @@ class CdpService
             ->latest()
             ->limit(50)
             ->get()
-            ->map(fn($log) => [
+            ->map(fn ($log) => [
                 'id' => $log->id,
                 'session_id' => $log->session_id,
                 'customer_name' => $log->customer_name ?: 'Khách ẩn danh',

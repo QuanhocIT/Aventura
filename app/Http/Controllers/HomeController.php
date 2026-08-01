@@ -19,11 +19,11 @@ class HomeController extends Controller
             ->get()
             ->groupBy('slot')
             ->map(fn ($group) => $group->map(fn (SiteBanner $b) => [
-                'id'        => $b->id,
-                'title'     => $b->title,
-                'subtitle'  => $b->subtitle,
+                'id' => $b->id,
+                'title' => $b->title,
+                'subtitle' => $b->subtitle,
                 'image_url' => $b->image_url,
-                'link_url'  => $b->link_url,
+                'link_url' => $b->link_url,
             ])->values()->all())
             ->all();
 
@@ -33,14 +33,14 @@ class HomeController extends Controller
             ->take(4)
             ->get()
             ->map(fn (NewsPost $p) => [
-                'id'                 => $p->id,
-                'title'              => $p->title,
-                'slug'               => $p->slug,
-                'excerpt'            => $p->excerpt,
-                'category'           => $p->category,
+                'id' => $p->id,
+                'title' => $p->title,
+                'slug' => $p->slug,
+                'excerpt' => $p->excerpt,
+                'category' => $p->category,
                 'featured_image_url' => $p->featured_image_url,
-                'is_featured'        => $p->is_featured,
-                'published_at'       => $p->published_at?->format('d/m/Y'),
+                'is_featured' => $p->is_featured,
+                'published_at' => $p->published_at?->format('d/m/Y'),
             ])->all();
 
         $plans = SubscriptionPlan::query()
@@ -49,22 +49,22 @@ class HomeController extends Controller
             ->orderBy('price')
             ->get()
             ->map(fn (SubscriptionPlan $p) => [
-                'id'            => $p->id,
-                'code'          => $p->code,
-                'name'          => $p->name,
-                'price'         => (int) $p->price,
+                'id' => $p->id,
+                'code' => $p->code,
+                'name' => $p->name,
+                'price' => (int) $p->price,
                 'billing_cycle' => $p->billing_cycle,
-                'max_branches'  => $p->max_branches,
-                'max_tables'    => $p->max_tables,
-                'max_users'     => $p->max_users,
-                'features'      => $p->features ?? [],
+                'max_branches' => $p->max_branches,
+                'max_tables' => $p->max_tables,
+                'max_users' => $p->max_users,
+                'features' => $p->features ?? [],
             ])->all();
 
         return Inertia::render('Khach', [
             'canRegister' => Features::enabled(Features::registration()),
-            'banners'     => $banners,
-            'latestNews'  => $latestNews,
-            'plans'       => $plans,
+            'banners' => $banners,
+            'latestNews' => $latestNews,
+            'plans' => $plans,
         ]);
     }
 }

@@ -2,27 +2,28 @@
 
 namespace Tests\Feature;
 
+use App\Models\AuditLog;
+use App\Models\Customer;
 use App\Models\Employee;
-use App\Models\InventoryTransaction;
 use App\Models\Ingredient;
+use App\Models\InventoryTransaction;
+use App\Models\Order;
+use App\Models\OrderItem;
+use App\Models\OvertimeRequest;
+use App\Models\Product;
+use App\Models\Promotion;
 use App\Models\Restaurant;
 use App\Models\RestaurantBranch;
 use App\Models\Salary;
 use App\Models\SalaryAdjustment;
 use App\Models\ScheduleAssignment;
-use App\Models\ShiftClosing;
+use App\Models\User;
 use App\Models\ViolationReport;
 use App\Models\WorkShift;
-use App\Models\User;
-use App\Models\Customer;
-use App\Models\Order;
-use App\Models\Product;
-use App\Models\OrderItem;
-use App\Models\Payment;
-use App\Services\SalaryService;
 use App\Services\OrderService;
-use Carbon\Carbon;
+use App\Services\SalaryService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Cache;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
@@ -31,10 +32,15 @@ class FiveProposalsDevelopmentTest extends TestCase
     use RefreshDatabase;
 
     private User $owner;
+
     private Restaurant $restaurant;
+
     private RestaurantBranch $branch;
+
     private Role $ownerRole;
+
     private Role $cashierRole;
+
     private Role $kitchenRole;
 
     protected function setUp(): void
@@ -73,18 +79,20 @@ class FiveProposalsDevelopmentTest extends TestCase
             'status' => 'active',
         ]);
 
-        $chef1User = User::factory()->create(['restaurant_id' => $this->restaurant->id, 'status' => 'active']);
+        $chef1User = User::factory()->create(['restaurant_id' => $this->restaurant->id, 'branch_id' => $this->branch->id, 'status' => 'active']);
         $chef1 = Employee::factory()->create([
             'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
             'user_id' => $chef1User->id,
             'role_id' => $this->kitchenRole->id,
             'status' => 'active',
             'base_salary' => 10000000,
         ]);
 
-        $chef2User = User::factory()->create(['restaurant_id' => $this->restaurant->id, 'status' => 'active']);
+        $chef2User = User::factory()->create(['restaurant_id' => $this->restaurant->id, 'branch_id' => $this->branch->id, 'status' => 'active']);
         $chef2 = Employee::factory()->create([
             'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
             'user_id' => $chef2User->id,
             'role_id' => $this->kitchenRole->id,
             'status' => 'active',
@@ -114,6 +122,7 @@ class FiveProposalsDevelopmentTest extends TestCase
 
         $ingredient = Ingredient::factory()->create([
             'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
             'name' => 'Salmon',
             'sku' => 'SALMON',
             'average_cost' => 100000,
@@ -123,6 +132,7 @@ class FiveProposalsDevelopmentTest extends TestCase
         // Waste event happens at 10:30:00 (during their shift)
         $waste = InventoryTransaction::create([
             'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
             'ingredient_id' => $ingredient->id,
             'type' => 'waste',
             'direction' => 'out',
@@ -162,6 +172,7 @@ class FiveProposalsDevelopmentTest extends TestCase
     {
         $employee = Employee::factory()->create([
             'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
             'status' => 'active',
             'compensation_type' => 'hourly',
             'pay_rate' => 50000, // 50,000/hr
@@ -198,6 +209,17 @@ class FiveProposalsDevelopmentTest extends TestCase
         // Case B: check-out late by 1 hour (overtime) -> paid 4 hours regular + 1 hour OT at 2.0x = 6 hours total (300,000 VND)
         Salary::truncate();
         ScheduleAssignment::truncate();
+        OvertimeRequest::truncate();
+
+        OvertimeRequest::create([
+            'restaurant_id' => $this->restaurant->id,
+            'employee_id' => $employee->id,
+            'scheduled_date' => '2026-05-10',
+            'hours_requested' => 1.0,
+            'hours_approved' => 1.0,
+            'status' => 'approved',
+            'approved_by' => $this->owner->id,
+        ]);
 
         ScheduleAssignment::create([
             'restaurant_id' => $this->restaurant->id,
@@ -217,12 +239,12 @@ class FiveProposalsDevelopmentTest extends TestCase
 
     public function test_proposal_3_real_time_fraud_prevention(): void
     {
-        $cashierUser = User::factory()->create(['restaurant_id' => $this->restaurant->id, 'status' => 'active']);
+        $cashierUser = User::factory()->create(['restaurant_id' => $this->restaurant->id, 'branch_id' => $this->branch->id, 'status' => 'active']);
         $cashierUser->assignRole($this->cashierRole);
 
-        $product = Product::factory()->create(['restaurant_id' => $this->restaurant->id, 'price' => 500000]);
-        
-        $promotion = \App\Models\Promotion::create([
+        $product = Product::factory()->create(['restaurant_id' => $this->restaurant->id, 'branch_id' => $this->branch->id, 'price' => 500000]);
+
+        $promotion = Promotion::create([
             'restaurant_id' => $this->restaurant->id,
             'name' => 'Test Promo',
             'code' => 'TESTVOUCHER',
@@ -234,6 +256,7 @@ class FiveProposalsDevelopmentTest extends TestCase
 
         $order = Order::create([
             'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
             'order_number' => 'ORD-TEST-FRAUD',
             'subtotal' => 500000,
             'total_amount' => 500000,
@@ -254,7 +277,7 @@ class FiveProposalsDevelopmentTest extends TestCase
 
         // Add 3 discount_applied audit logs in the last 5 minutes to trigger cashier fraud alert
         for ($i = 0; $i < 3; $i++) {
-            \App\Models\AuditLog::log('discount_applied', 'updated', $order, null, ['discount_amount' => 50000]);
+            AuditLog::log('discount_applied', 'updated', $order, null, ['discount_amount' => 50000]);
         }
 
         // Attempting to apply without bypass code should fail
@@ -265,7 +288,7 @@ class FiveProposalsDevelopmentTest extends TestCase
 
         $response->assertStatus(422);
         $response->assertJson([
-            'status' => 'requires_bypass'
+            'status' => 'requires_bypass',
         ]);
 
         // Attempting to apply with bypass code should succeed
@@ -280,16 +303,99 @@ class FiveProposalsDevelopmentTest extends TestCase
         $this->assertEquals(50000, (float) $order->discount_amount);
     }
 
+    public function test_voucher_fraud_prevention_cache_rate_limiter(): void
+    {
+        $cashierUser = User::factory()->create([
+            'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
+            'status' => 'active',
+        ]);
+        $cashierUser->assignRole(Role::firstOrCreate(['name' => 'waiter', 'guard_name' => 'web']));
+
+        $product = Product::factory()->create([
+            'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
+            'price' => 500000,
+        ]);
+
+        $promotion = Promotion::create([
+            'restaurant_id' => $this->restaurant->id,
+            'name' => 'Test Voucher 2',
+            'code' => 'TESTVOUCHER2',
+            'type' => 'fixed_amount',
+            'value' => 50000,
+            'is_active' => true,
+            'is_approved' => true,
+        ]);
+
+        $order = Order::create([
+            'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
+            'order_number' => 'ORD-TEST-FRAUD-2',
+            'subtotal' => 500000,
+            'total_amount' => 500000,
+            'status' => 'pending',
+            'payment_status' => 'unpaid',
+        ]);
+
+        OrderItem::create([
+            'restaurant_id' => $this->restaurant->id,
+            'order_id' => $order->id,
+            'product_id' => $product->id,
+            'quantity' => 1,
+            'unit_price' => 500000,
+            'line_total' => 500000,
+        ]);
+
+        $this->actingAs($cashierUser);
+
+        // Put 3 hits in the cache to simulate fast successive attempts (race condition)
+        $cashierFastKey = "voucher_applied_fast_check:{$this->restaurant->id}:{$cashierUser->id}";
+        Cache::put($cashierFastKey, 3, now()->addMinutes(5));
+
+        // Attempting to apply without bypass code should fail because cache count is 3 (rate limit hit)
+        $response = $this->postJson(route('promotions.apply'), [
+            'order_id' => $order->id,
+            'code' => 'TESTVOUCHER2',
+        ]);
+
+        $response->assertStatus(422);
+        $response->assertJson([
+            'status' => 'requires_bypass',
+        ]);
+
+        // Attempting with PIN code bypass should succeed
+        $managerUser = User::role('manager')->where('restaurant_id', $this->restaurant->id)->first();
+        if (! $managerUser) {
+            $managerRole = Role::firstOrCreate(['name' => 'manager', 'guard_name' => 'web']);
+            $managerUser = User::factory()->create(['restaurant_id' => $this->restaurant->id, 'branch_id' => $this->branch->id, 'status' => 'active']);
+            $managerUser->assignRole($managerRole);
+        }
+        $managerUser->update(['pin_code' => '8888']);
+
+        $response = $this->postJson(route('promotions.apply'), [
+            'order_id' => $order->id,
+            'code' => 'TESTVOUCHER2',
+            'bypass_code' => '8888',
+        ]);
+
+        $response->assertStatus(200);
+        $order->refresh();
+        $this->assertEquals(50000, (float) $order->discount_amount);
+    }
+
     public function test_proposal_4_loyalty_points_redemption_and_accumulation(): void
     {
         $customer = Customer::create([
             'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
             'full_name' => 'Gia Long',
             'loyalty_points' => 50,
         ]);
 
         $order = Order::create([
             'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
             'customer_id' => $customer->id,
             'order_number' => 'ORD-LOYALTY-TEST',
             'subtotal' => 200000,
@@ -299,7 +405,7 @@ class FiveProposalsDevelopmentTest extends TestCase
         ]);
 
         $orderService = app(OrderService::class);
-        
+
         // Pay order, redeem 10 points
         $orderService->payOrder($order, [
             'payment_method' => 'cash',
@@ -326,11 +432,12 @@ class FiveProposalsDevelopmentTest extends TestCase
 
     public function test_proposal_5_event_driven_salary_recalculation(): void
     {
-        $chefUser = User::factory()->create(['restaurant_id' => $this->restaurant->id, 'status' => 'active']);
+        $chefUser = User::factory()->create(['restaurant_id' => $this->restaurant->id, 'branch_id' => $this->branch->id, 'status' => 'active']);
         $chefUser->assignRole($this->kitchenRole);
 
         $chef = Employee::factory()->create([
             'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
             'user_id' => $chefUser->id,
             'role_id' => $this->kitchenRole->id,
             'status' => 'active',
@@ -347,7 +454,7 @@ class FiveProposalsDevelopmentTest extends TestCase
             'severity' => 'low',
             'description' => 'Di tre',
             'penalty_amount' => 50000,
-            'occurred_at' => now()->toDateString() . ' 08:00:00',
+            'occurred_at' => now()->toDateString().' 08:00:00',
             'status' => 'open',
         ]);
 

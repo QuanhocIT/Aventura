@@ -4,6 +4,7 @@ namespace App\Repositories\Eloquent;
 
 use App\Models\Order;
 use App\Repositories\OrderRepositoryInterface;
+use App\Support\Tenant\TenantContext;
 use Illuminate\Database\Eloquent\Builder;
 
 class EloquentOrderRepository implements OrderRepositoryInterface
@@ -14,18 +15,28 @@ class EloquentOrderRepository implements OrderRepositoryInterface
     public function getOrdersQuery(int $restaurantId, array $filters): Builder
     {
         $query = Order::where('restaurant_id', $restaurantId)
-            ->with(['table.area', 'items'])
+            ->with(['table.area', 'items.product', 'deliveryDetail'])
             ->latest();
 
-        if (!empty($filters['date'])) {
+        if (! empty($filters['date'])) {
             $query->whereBetween('created_at', [
-                $filters['date'] . ' 00:00:00',
-                $filters['date'] . ' 23:59:59'
+                $filters['date'].' 00:00:00',
+                $filters['date'].' 23:59:59',
             ]);
         }
 
-        if (!empty($filters['status']) && $filters['status'] !== 'all') {
+        if (! empty($filters['status']) && $filters['status'] !== 'all') {
             $query->where('status', $filters['status']);
+        }
+
+        // TRƯỚC ĐÂY KHÔNG LỌC THEO CHI NHÁNH: owner chuyển chi nhánh đang xem
+        // (BranchSwitchController) nhưng trang đơn hàng vẫn hiện đơn của MỌI
+        // chi nhánh — không đồng bộ với Dashboard/CashFlow đã lọc đúng.
+        $tenantContext = app(TenantContext::class);
+        if ($tenantContext->isBranchScoped() || $tenantContext->isUnassigned()) {
+            $tenantContext->applyBranchScope($query);
+        } elseif (! empty($filters['branch_id'])) {
+            $query->where('branch_id', $filters['branch_id']);
         }
 
         return $query;
@@ -34,26 +45,40 @@ class EloquentOrderRepository implements OrderRepositoryInterface
     /**
      * Lấy thống kê số lượng đơn hàng theo trạng thái và doanh thu trong ngày.
      */
-    public function getSummaryStats(int $restaurantId, string $date): array
+    public function getSummaryStats(int $restaurantId, string $date, bool $kitchenOnly = false, ?int $branchId = null): array
     {
-        $stats = Order::where('restaurant_id', $restaurantId)
+        $query = Order::where('restaurant_id', $restaurantId)
             ->whereBetween('created_at', [
-                $date . ' 00:00:00',
-                $date . ' 23:59:59'
-            ])
-            ->selectRaw('status, COUNT(*) as count, SUM(total_amount) as revenue')
+                $date.' 00:00:00',
+                $date.' 23:59:59',
+            ]);
+
+        $tenantContext = app(TenantContext::class);
+        if ($tenantContext->isBranchScoped() || $tenantContext->isUnassigned()) {
+            $tenantContext->applyBranchScope($query);
+        } elseif ($branchId) {
+            $query->where('branch_id', $branchId);
+        }
+
+        if ($kitchenOnly) {
+            $query->whereHas('items', function ($q) {
+                $q->whereNotNull('served_at');
+            });
+        }
+
+        $stats = $query->selectRaw('status, COUNT(*) as count, SUM(total_amount) as revenue')
             ->groupBy('status')
             ->get();
 
         $total = $stats->sum('count');
 
         return [
-            'total'     => (int) $total,
-            'pending'   => (int) ($stats->firstWhere('status', 'pending')?->count ?? 0),
+            'total' => (int) $total,
+            'pending' => (int) ($stats->firstWhere('status', 'pending')?->count ?? 0),
             'preparing' => (int) ($stats->firstWhere('status', 'preparing')?->count ?? 0),
             'completed' => (int) ($stats->firstWhere('status', 'completed')?->count ?? 0),
             'cancelled' => (int) ($stats->firstWhere('status', 'cancelled')?->count ?? 0),
-            'revenue'   => (float) ($stats->firstWhere('status', 'completed')?->revenue ?? 0),
+            'revenue' => (float) ($stats->firstWhere('status', 'completed')?->revenue ?? 0),
         ];
     }
 

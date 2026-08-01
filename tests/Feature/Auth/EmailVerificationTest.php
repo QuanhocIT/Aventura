@@ -8,6 +8,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\URL;
 use Laravel\Fortify\Features;
+use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
 class EmailVerificationTest extends TestCase
@@ -20,7 +21,7 @@ class EmailVerificationTest extends TestCase
 
         $this->skipUnlessFortifyHas(Features::emailVerification());
 
-        \Spatie\Permission\Models\Role::firstOrCreate(['name' => 'super_admin', 'guard_name' => 'web']);
+        Role::firstOrCreate(['name' => 'super_admin', 'guard_name' => 'web']);
     }
 
     public function test_email_verification_screen_can_be_rendered()

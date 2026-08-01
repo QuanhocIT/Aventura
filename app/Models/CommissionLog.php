@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class CommissionLog extends Model
 {
     use BelongsToRestaurant;
+
     protected $fillable = [
         'user_id',
         'buyer_id',

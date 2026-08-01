@@ -4,24 +4,30 @@ namespace App\Http\Controllers;
 
 use App\Events\FraudAlertTriggered;
 use App\Events\PurchaseOrderUpdated;
+use App\Jobs\ProcessApprovedPurchaseOrderJob;
+use App\Models\AccountPayable;
 use App\Models\AuditLog;
 use App\Models\Ingredient;
 use App\Models\Inventory;
 use App\Models\InventoryTransaction;
 use App\Models\PurchaseOrder;
-use App\Models\PurchaseOrderItem;
 use App\Models\Supplier;
 use App\Models\SupplierPriceHistory;
+use App\Models\SystemSetting;
 use App\Models\Unit;
-use App\Models\User;
+use App\Services\AnalyticsServiceClient;
+use App\Services\InventoryReplenishService;
 use App\Services\PriceAnalyticsService;
+use App\Services\QuotaService;
+use App\Services\SupplierSlaService;
 use App\Support\Tenant\TenantContext;
+use App\Support\TenantRule;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -29,7 +35,9 @@ use Inertia\Response;
 class SupplierController extends Controller
 {
     public function __construct(
-        protected PriceAnalyticsService $priceAnalytics
+        protected PriceAnalyticsService $priceAnalytics,
+        protected SupplierSlaService $slaService,
+        protected TenantContext $tenantContext,
     ) {}
 
     // =========================================================================
@@ -46,21 +54,28 @@ class SupplierController extends Controller
         $user = $request->user();
 
         $restaurant = $user->restaurant;
+        if (! $restaurant && ! $request->user()->hasRole('super_admin')) {
+            abort(403, 'Không tìm thấy nhà hàng.');
+        }
         $restaurant?->loadMissing('plan');
-        if ($restaurant && ! app(\App\Services\QuotaService::class)->hasFeature($restaurant, 'supplier_portal')) {
+        if ($restaurant && ! app(QuotaService::class)->hasFeature($restaurant, 'supplier_portal')) {
             return Inertia::render('FeatureGate', [
-                'feature'       => 'supplier_portal',
+                'feature' => 'supplier_portal',
                 'feature_label' => 'Cổng Nhà Cung Cấp',
-                'plan_name'     => $restaurant->plan?->name ?? 'Miễn Phí',
+                'plan_name' => $restaurant->plan?->name ?? 'Miễn Phí',
                 'required_plan' => 'Doanh Nghiệp',
             ]);
         }
 
         $suppliers = Supplier::where('restaurant_id', $user->restaurant_id)
+            ->when($this->tenantContext->isBranchScoped(), fn ($q) => $q->where(fn ($scope) => $scope
+                ->whereNull('branch_id')->orWhere('branch_id', $this->tenantContext->activeBranchId())))
             ->withCount(['ingredients', 'purchaseOrders'])
             ->get();
 
         $ingredients = Ingredient::where('restaurant_id', $user->restaurant_id)
+            ->when($this->tenantContext->isBranchScoped(), fn ($q) => $q->where(fn ($scope) => $scope
+                ->whereNull('branch_id')->orWhere('branch_id', $this->tenantContext->activeBranchId())))
             ->with(['unit'])
             ->get()
             ->map(fn ($ing) => [
@@ -73,6 +88,7 @@ class SupplierController extends Controller
             ]);
 
         $purchaseOrders = PurchaseOrder::where('restaurant_id', $user->restaurant_id)
+            ->when($this->tenantContext->isBranchScoped(), fn ($q) => $q->where('branch_id', $this->tenantContext->activeBranchId()))
             ->with(['supplier', 'creator', 'reviewer', 'items.ingredient.unit'])
             ->latest()
             ->get()
@@ -89,6 +105,11 @@ class SupplierController extends Controller
                 'discrepancy_details' => $po->discrepancy_details,
                 'created_by_name' => $po->creator?->name ?? 'Hệ thống',
                 'payment_status' => $po->payment_status,
+                'payment_method' => $po->payment_method,
+                'discount_percent' => (float) $po->discount_percent,
+                'shipping_method' => $po->shipping_method,
+                'mismatch_reason' => $po->mismatch_reason,
+                'resolution_action' => $po->resolution_action,
                 'escrow_transaction_id' => $po->escrow_transaction_id,
                 'created_at' => $po->created_at->format('d/m/Y H:i'),
                 'items' => $po->items->map(fn ($item) => [
@@ -131,6 +152,12 @@ class SupplierController extends Controller
             'email' => ['nullable', 'email', 'max:255'],
             'address' => ['nullable', 'string', 'max:500'],
             'notes' => ['nullable', 'string', 'max:1000'],
+            'tax_code' => ['nullable', 'string', 'max:50'],
+            'bank_name' => ['nullable', 'string', 'max:100'],
+            'bank_account_number' => ['nullable', 'string', 'max:50'],
+            'bank_account_holder' => ['nullable', 'string', 'max:255'],
+            'payment_terms' => ['nullable', 'string', 'in:cod,net7,net15,net30,prepaid'],
+            'category' => ['nullable', 'string', 'max:100'],
         ]);
 
         Supplier::create(array_merge($data, [
@@ -156,6 +183,12 @@ class SupplierController extends Controller
             'address' => ['nullable', 'string', 'max:500'],
             'notes' => ['nullable', 'string', 'max:1000'],
             'status' => ['required', 'in:active,inactive'],
+            'tax_code' => ['nullable', 'string', 'max:50'],
+            'bank_name' => ['nullable', 'string', 'max:100'],
+            'bank_account_number' => ['nullable', 'string', 'max:50'],
+            'bank_account_holder' => ['nullable', 'string', 'max:255'],
+            'payment_terms' => ['nullable', 'string', 'in:cod,net7,net15,net30,prepaid'],
+            'category' => ['nullable', 'string', 'max:100'],
         ]);
 
         $supplier->update($data);
@@ -184,20 +217,29 @@ class SupplierController extends Controller
 
         $request->validate([
             'items' => ['required', 'array', 'min:1'],
-            'items.*.ingredient_id' => ['required', 'exists:ingredients,id'],
+            'items.*.ingredient_id' => ['required', TenantRule::exists('ingredients')],
             'items.*.quantity' => ['required', 'numeric', 'min:0.001'],
             'notes' => ['nullable', 'string', 'max:500'],
             'delivery_due_date' => ['nullable', 'date'],
+            'payment_terms' => ['nullable', 'string', 'in:COD,NET_15,NET_30,NET_60'],
+            'payment_method' => ['nullable', 'string', 'in:banking,cod,credit'],
+            'discount_percent' => ['nullable', 'numeric', 'min:0', 'max:100'],
+            'shipping_method' => ['nullable', 'string', 'in:supplier_delivery,self_pickup,express'],
         ]);
 
         $user = $request->user();
+        $branchId = $this->resolveOperationalBranch($user);
+        abort_if($supplier->restaurant_id !== $user->restaurant_id, 403);
 
-        DB::transaction(function () use ($request, $supplier, $user) {
+        DB::transaction(function () use ($request, $supplier, $user, $branchId) {
             $totalAmount = 0;
             $itemsData = [];
 
             foreach ($request->input('items') as $item) {
-                $ingredient = Ingredient::findOrFail($item['ingredient_id']);
+                $ingredient = Ingredient::where('restaurant_id', $user->restaurant_id)
+                    ->whereKey($item['ingredient_id'])
+                    ->where(fn ($q) => $q->whereNull('branch_id')->orWhere('branch_id', $branchId))
+                    ->firstOrFail();
                 $qty = (float) $item['quantity'];
                 $price = (float) $ingredient->average_cost;
                 $cost = $qty * $price;
@@ -212,20 +254,37 @@ class SupplierController extends Controller
                 ];
             }
 
+            $discountPercent = (float) $request->input('discount_percent', 0);
+            $finalTotalAmount = $totalAmount * (1 - ($discountPercent / 100));
+
             // Create PO
             $isOwner = $user->hasRole('owner');
             $status = $isOwner ? 'approved' : 'pending_approval';
 
+            $paymentTerms = $request->input('payment_terms', 'COD');
+            $dueDate = match ($paymentTerms) {
+                'NET_15' => now()->addDays(15),
+                'NET_30' => now()->addDays(30),
+                'NET_60' => now()->addDays(60),
+                default => now(), // COD
+            };
+
             $po = PurchaseOrder::create([
                 'restaurant_id' => $user->restaurant_id,
+                'branch_id' => $branchId,
                 'supplier_id' => $supplier->id,
-                'po_number' => 'PO-' . now()->format('Ymd') . '-' . Str::upper(Str::random(5)),
+                'po_number' => 'PO-'.now()->format('Ymd').'-'.Str::upper(Str::random(5)),
                 'status' => $status,
-                'total_amount' => $totalAmount,
+                'total_amount' => $finalTotalAmount,
+                'payment_method' => $request->input('payment_method', 'banking'),
+                'discount_percent' => $discountPercent,
+                'shipping_method' => $request->input('shipping_method', 'supplier_delivery'),
                 'created_by' => $user->id,
                 'approved_by' => $isOwner ? $user->id : null,
                 'notes' => $request->input('notes'),
                 'delivery_due_date' => $request->input('delivery_due_date'),
+                'payment_terms' => $paymentTerms,
+                'due_date' => $dueDate->toDateString(),
             ]);
 
             foreach ($itemsData as $item) {
@@ -234,7 +293,7 @@ class SupplierController extends Controller
 
             if ($status === 'approved') {
                 $this->lockEscrow($po);
-                dispatch(new \App\Jobs\ProcessApprovedPurchaseOrderJob($po->id));
+                dispatch(new ProcessApprovedPurchaseOrderJob($po->id));
             }
         });
 
@@ -251,6 +310,7 @@ class SupplierController extends Controller
     public function approveOrder(Request $request, PurchaseOrder $purchaseOrder): RedirectResponse
     {
         abort_unless($request->user()->hasRole('owner'), 403);
+        $this->authorizePurchaseOrderBranch($request->user(), $purchaseOrder);
 
         $purchaseOrder->update([
             'status' => 'approved',
@@ -259,7 +319,7 @@ class SupplierController extends Controller
 
         $this->lockEscrow($purchaseOrder);
 
-        dispatch(new \App\Jobs\ProcessApprovedPurchaseOrderJob($purchaseOrder->id));
+        dispatch(new ProcessApprovedPurchaseOrderJob($purchaseOrder->id));
 
         return back()->with('success', 'Đã phê duyệt đơn hàng PO. Ký quỹ tiền thầu đã khóa tự động và tín hiệu đặt hàng đã đẩy sang nhà cung cấp.');
     }
@@ -270,6 +330,7 @@ class SupplierController extends Controller
     public function priceAnalytics(Supplier $supplier, Ingredient $ingredient)
     {
         $analysis = $this->priceAnalytics->analyzePriceHistory($supplier->id, $ingredient->id);
+
         return response()->json($analysis);
     }
 
@@ -279,16 +340,19 @@ class SupplierController extends Controller
     public function verifyOrder(Request $request, PurchaseOrder $purchaseOrder): RedirectResponse
     {
         abort_unless($request->user()->hasAnyRole(['owner', 'manager', 'inventory_staff']), 403);
+        $this->authorizePurchaseOrderBranch($request->user(), $purchaseOrder);
 
-        $maxSize = \App\Models\SystemSetting::get('upload_invoice_image_max', 4096);
+        $maxSize = SystemSetting::get('upload_invoice_image_max', 4096);
         $request->validate([
             'items' => ['required', 'array'],
-            'items.*.ingredient_id' => ['required', 'exists:ingredients,id'],
+            'items.*.ingredient_id' => ['required', TenantRule::exists('ingredients')],
             'items.*.quantity_received' => ['required', 'numeric', 'min:0'],
             'items.*.invoice_price' => ['required', 'numeric', 'min:0'],
-            'invoice_file' => ['nullable', 'file', 'image', 'mimes:jpeg,png,jpg,pdf', 'max:' . $maxSize],
+            'invoice_file' => ['nullable', 'file', 'image', 'mimes:jpeg,png,jpg,pdf', 'max:'.$maxSize],
             'rating' => ['nullable', 'integer', 'min:1', 'max:5'],
             'rating_notes' => ['nullable', 'string', 'max:500'],
+            'mismatch_reason' => ['nullable', 'string', 'max:255'],
+            'resolution_action' => ['nullable', 'string', 'max:255'],
         ]);
 
         $user = $request->user();
@@ -297,7 +361,7 @@ class SupplierController extends Controller
         $invoiceUrl = $purchaseOrder->invoice_file_url;
         if ($request->hasFile('invoice_file')) {
             $path = $request->file('invoice_file')->store('invoices', 'public');
-            $invoiceUrl = '/storage/' . $path;
+            $invoiceUrl = '/storage/'.$path;
         }
 
         $itemsInput = collect($request->input('items'))->keyBy('ingredient_id');
@@ -309,7 +373,9 @@ class SupplierController extends Controller
 
             foreach ($purchaseOrder->items as $item) {
                 $input = $itemsInput->get($item->ingredient_id);
-                if (!$input) continue;
+                if (! $input) {
+                    continue;
+                }
 
                 $receivedQty = (float) $input['quantity_received'];
                 $invoicePrice = (float) $input['invoice_price'];
@@ -347,6 +413,8 @@ class SupplierController extends Controller
                 'invoice_file_url' => $invoiceUrl,
                 'rating' => $request->input('rating'),
                 'rating_notes' => $request->input('rating_notes'),
+                'mismatch_reason' => $request->input('mismatch_reason'),
+                'resolution_action' => $request->input('resolution_action'),
                 'delivered_at' => now(),
             ]);
 
@@ -362,7 +430,7 @@ class SupplierController extends Controller
                 // Log JSON to audit_logs
                 $oldValues = [
                     'total_amount' => (float) $purchaseOrder->total_amount,
-                    'items' => $purchaseOrder->items->map(fn($it) => [
+                    'items' => $purchaseOrder->items->map(fn ($it) => [
                         'ingredient_id' => $it->ingredient_id,
                         'qty' => (float) $it->quantity_ordered,
                         'price' => (float) $it->price_per_unit,
@@ -386,11 +454,11 @@ class SupplierController extends Controller
                 );
 
                 // Clear fraud alerts cache to refresh immediately
-                \Illuminate\Support\Facades\Cache::forget("fraud_alerts:{$purchaseOrder->restaurant_id}:" . today()->startOfMonth()->toDateString() . ":" . today()->toDateString());
+                Cache::forget("fraud_alerts:{$purchaseOrder->restaurant_id}:".today()->startOfMonth()->toDateString().':'.today()->toDateString());
 
                 // Broadcast fraud alarm to owner
                 $alertData = [
-                    'id' => 'po-discrepancy-' . $log->id,
+                    'id' => 'po-discrepancy-'.$log->id,
                     'po_number' => $purchaseOrder->po_number,
                     'supplier_name' => $purchaseOrder->supplier->name,
                     'violation_type' => 'Đối soát mua hàng thất bại',
@@ -402,58 +470,74 @@ class SupplierController extends Controller
 
             } else {
                 // Success: update status and add to inventory
+                $isCod = $purchaseOrder->payment_terms === 'COD' || empty($purchaseOrder->payment_terms);
+                $paymentStatus = $isCod ? 'paid' : 'unpaid';
+
                 $purchaseOrder->update([
                     'status' => 'delivered',
                     'is_frozen' => false,
                     'is_discrepant' => false,
-                    'payment_status' => 'paid',
+                    'payment_status' => $paymentStatus,
                 ]);
 
-                foreach ($purchaseOrder->items as $item) {
-                    $inventory = Inventory::firstOrCreate(
-                        [
-                            'restaurant_id' => $purchaseOrder->restaurant_id,
-                            'branch_id' => $purchaseOrder->branch_id,
-                            'ingredient_id' => $item->ingredient_id
-                        ],
-                        [
-                            'quantity_on_hand' => 0,
-                            'theoretical_quantity' => 0,
-                            'last_cost' => 0
-                        ]
-                    );
-
-                    $oldQty = (float) $inventory->quantity_on_hand;
-                    $addedQty = (float) $item->quantity_received;
-
-                    $inventory->update([
-                        'quantity_on_hand' => $oldQty + $addedQty,
-                        'theoretical_quantity' => $inventory->theoretical_quantity + $addedQty,
-                        'last_cost' => $item->invoice_price_per_unit,
+                if (! $isCod) {
+                    AccountPayable::create([
+                        'restaurant_id' => $purchaseOrder->restaurant_id,
+                        'purchase_order_id' => $purchaseOrder->id,
+                        'supplier_id' => $purchaseOrder->supplier_id,
+                        'amount' => $invoiceTotalAmount,
+                        'paid_amount' => 0,
+                        'due_date' => $purchaseOrder->due_date ?? now()->toDateString(),
+                        'status' => 'unpaid',
                     ]);
+                }
+            }
 
-                    // Create purchase transaction
-                    InventoryTransaction::create([
+            // Always update physical inventory and log transactions for what was received
+            foreach ($purchaseOrder->items as $item) {
+                $inventory = Inventory::firstOrCreate(
+                    [
                         'restaurant_id' => $purchaseOrder->restaurant_id,
                         'branch_id' => $purchaseOrder->branch_id,
                         'ingredient_id' => $item->ingredient_id,
-                        'inventory_id' => $inventory->id,
-                        'performed_by' => $user->id,
-                        'supplier_id' => $purchaseOrder->supplier_id,
-                        'type' => 'purchase',
-                        'direction' => 'in',
-                        'quantity' => $addedQty,
-                        'unit_cost' => $item->invoice_price_per_unit,
-                        'total_cost' => $addedQty * $item->invoice_price_per_unit,
-                        'invoice_file_url' => $invoiceUrl,
-                        'notes' => "Nhập kho tự động hoàn tất từ PO #{$purchaseOrder->po_number}",
-                        'occurred_at' => now(),
-                    ]);
-                }
+                    ],
+                    [
+                        'quantity_on_hand' => 0,
+                        'theoretical_quantity' => 0,
+                        'last_cost' => 0,
+                    ]
+                );
 
-                // Broadcast update
-                event(new PurchaseOrderUpdated($purchaseOrder));
+                $oldQty = (float) $inventory->quantity_on_hand;
+                $addedQty = (float) $item->quantity_received;
+
+                $inventory->update([
+                    'quantity_on_hand' => $oldQty + $addedQty,
+                    'theoretical_quantity' => $inventory->theoretical_quantity + $addedQty,
+                    'last_cost' => $item->invoice_price_per_unit,
+                ]);
+
+                // Create purchase transaction
+                InventoryTransaction::create([
+                    'restaurant_id' => $purchaseOrder->restaurant_id,
+                    'branch_id' => $purchaseOrder->branch_id,
+                    'ingredient_id' => $item->ingredient_id,
+                    'inventory_id' => $inventory->id,
+                    'performed_by' => $user->id,
+                    'supplier_id' => $purchaseOrder->supplier_id,
+                    'type' => 'purchase',
+                    'direction' => 'in',
+                    'quantity' => $addedQty,
+                    'unit_cost' => $item->invoice_price_per_unit,
+                    'total_cost' => $addedQty * $item->invoice_price_per_unit,
+                    'invoice_file_url' => $invoiceUrl,
+                    'notes' => "Nhập kho tự động hoàn tất từ PO #{$purchaseOrder->po_number}".($hasDiscrepancy ? ' (Đóng băng tài chính do chênh lệch)' : ''),
+                    'occurred_at' => now(),
+                ]);
             }
+
+            // Broadcast update
+            event(new PurchaseOrderUpdated($purchaseOrder));
         });
 
         if ($hasDiscrepancy) {
@@ -463,362 +547,206 @@ class SupplierController extends Controller
         return back()->with('success', 'Đối soát chéo thành công. Hàng hóa đã được cộng kho vật lý tự động.');
     }
 
-    // =========================================================================
-    // SUPPLIER PORTAL ENDPOINTS (Supplier reps)
-    // =========================================================================
-
     /**
-     * Dashboard dành cho Nhà cung cấp.
+     * Lấy báo cáo SLA cho toàn bộ nhà cung cấp của nhà hàng.
      */
-    public function supplierDashboard(Request $request): Response
-    {
-        $user = $request->user();
-        abort_unless($user->hasRole('supplier') && $user->supplier_id, 403);
-
-        $supplier = Supplier::findOrFail($user->supplier_id);
-
-        $totalOrders = PurchaseOrder::withoutGlobalScopes()
-            ->where('supplier_id', $supplier->id)
-            ->count();
-
-        $completedOrders = PurchaseOrder::withoutGlobalScopes()
-            ->where('supplier_id', $supplier->id)
-            ->where('status', 'delivered')
-            ->count();
-
-        $pendingOrders = PurchaseOrder::withoutGlobalScopes()
-            ->where('supplier_id', $supplier->id)
-            ->whereIn('status', ['approved', 'preparing', 'shipping'])
-            ->count();
-
-        $totalRevenue = PurchaseOrder::withoutGlobalScopes()
-            ->where('supplier_id', $supplier->id)
-            ->where('status', 'delivered')
-            ->sum('invoice_total_amount');
-
-        $recentOrders = PurchaseOrder::withoutGlobalScopes()
-            ->where('supplier_id', $supplier->id)
-            ->latest()
-            ->take(5)
-            ->get()
-            ->map(fn ($po) => [
-                'id' => $po->id,
-                'po_number' => $po->po_number,
-                'status' => $po->status,
-                'total_amount' => (float) $po->total_amount,
-                'created_at' => $po->created_at->format('d/m/Y H:i'),
-            ]);
-
-        return Inertia::render('supplier/Dashboard', [
-            'supplier' => $supplier,
-            'stats' => [
-                'total_orders' => $totalOrders,
-                'completed_orders' => $completedOrders,
-                'pending_orders' => $pendingOrders,
-                'total_revenue' => (float) $totalRevenue,
-            ],
-            'recentOrders' => $recentOrders,
-        ]);
-    }
-
-    /**
-     * Danh mục & Bảng giá của Nhà cung cấp.
-     */
-    public function supplierCatalog(Request $request): Response
-    {
-        $user = $request->user();
-        abort_unless($user->hasRole('supplier') && $user->supplier_id, 403);
-
-        $supplier = Supplier::findOrFail($user->supplier_id);
-
-        $ingredients = Ingredient::withoutGlobalScopes()
-            ->where('supplier_id', $supplier->id)
-            ->with(['unit'])
-            ->get()
-            ->map(fn ($ing) => [
-                'id' => $ing->id,
-                'name' => $ing->name,
-                'sku' => $ing->sku,
-                'category_name' => $ing->category_name,
-                'description' => $ing->description,
-                'price' => (float) $ing->average_cost,
-                'unit_symbol' => $ing->unit?->symbol ?? '—',
-                'status' => $ing->status,
-            ]);
-
-        $units = Unit::withoutGlobalScopes()->get(['id', 'name', 'symbol']);
-
-        return Inertia::render('supplier/Catalog', [
-            'ingredients' => $ingredients,
-            'units' => $units,
-        ]);
-    }
-
-    /**
-     * Cập nhật / Thêm mới nguyên vật liệu niêm yết bảng giá.
-     */
-    public function storeCatalogItem(Request $request): RedirectResponse
-    {
-        $user = $request->user();
-        abort_unless($user->hasRole('supplier') && $user->supplier_id, 403);
-
-        $supplier = Supplier::findOrFail($user->supplier_id);
-
-        $request->validate([
-            'id' => ['nullable', 'integer'],
-            'name' => ['required', 'string', 'max:255'],
-            'sku' => ['required', 'string', 'max:100'],
-            'price' => ['required', 'numeric', 'min:0'],
-            'unit_id' => ['required', 'integer', 'exists:units,id'],
-            'category_name' => ['nullable', 'string', 'max:100'],
-            'description' => ['nullable', 'string'],
-            'status' => ['required', 'in:active,inactive'],
-        ]);
-
-        $price = (float) $request->input('price');
-        $id = $request->input('id');
-
-        DB::transaction(function () use ($request, $supplier, $user, $price, $id) {
-            if ($id) {
-                // Update
-                $ingredient = Ingredient::withoutGlobalScopes()->findOrFail($id);
-
-                $oldPrice = (float) $ingredient->average_cost;
-                $ingredient->update([
-                    'name' => $request->input('name'),
-                    'sku' => $request->input('sku'),
-                    'average_cost' => $price,
-                    'unit_id' => $request->input('unit_id'),
-                    'category_name' => $request->input('category_name'),
-                    'description' => $request->input('description'),
-                    'status' => $request->input('status'),
-                ]);
-
-                // If price changed, write to histories
-                if (abs($oldPrice - $price) > 0.01) {
-                    SupplierPriceHistory::create([
-                        'supplier_id' => $supplier->id,
-                        'ingredient_id' => $ingredient->id,
-                        'price' => $price,
-                        'effective_date' => now(),
-                        'created_by' => $user->id,
-                    ]);
-                }
-            } else {
-                // Create
-                $ingredient = Ingredient::create([
-                    'restaurant_id' => $supplier->restaurant_id, // multi-tenancy reference
-                    'supplier_id' => $supplier->id,
-                    'name' => $request->input('name'),
-                    'sku' => $request->input('sku'),
-                    'average_cost' => $price,
-                    'unit_id' => $request->input('unit_id'),
-                    'category_name' => $request->input('category_name'),
-                    'description' => $request->input('description'),
-                    'status' => $request->input('status'),
-                ]);
-
-                SupplierPriceHistory::create([
-                    'supplier_id' => $supplier->id,
-                    'ingredient_id' => $ingredient->id,
-                    'price' => $price,
-                    'effective_date' => now(),
-                    'created_by' => $user->id,
-                ]);
-            }
-        });
-
-        return back()->with('success', 'Đã lưu niêm yết nguyên vật liệu thành công.');
-    }
-
-    /**
-     * Xem và xử lý đơn hàng PO của Nhà cung cấp.
-     */
-    public function supplierOrders(Request $request): Response
-    {
-        $user = $request->user();
-        abort_unless($user->hasRole('supplier') && $user->supplier_id, 403);
-
-        $supplier = Supplier::findOrFail($user->supplier_id);
-
-        $orders = PurchaseOrder::withoutGlobalScopes()
-            ->where('supplier_id', $supplier->id)
-            ->with(['items.ingredient.unit'])
-            ->latest()
-            ->get()
-            ->map(fn ($po) => [
-                'id' => $po->id,
-                'po_number' => $po->po_number,
-                'status' => $po->status,
-                'total_amount' => (float) $po->total_amount,
-                'invoice_total_amount' => (float) $po->invoice_total_amount,
-                'invoice_file_url' => $po->invoice_file_url,
-                'notes' => $po->notes,
-                'created_at' => $po->created_at->format('d/m/Y H:i'),
-                'payment_status' => $po->payment_status,
-                'escrow_transaction_id' => $po->escrow_transaction_id,
-                'items' => $po->items->map(fn ($item) => [
-                    'id' => $item->id,
-                    'ingredient_id' => $item->ingredient_id,
-                    'ingredient_name' => $item->ingredient?->name ?? 'Unknown',
-                    'unit_symbol' => $item->ingredient?->unit?->symbol ?? '—',
-                    'quantity_ordered' => (float) $item->quantity_ordered,
-                    'quantity_received' => (float) $item->quantity_received,
-                    'price_per_unit' => (float) $item->price_per_unit,
-                ]),
-            ]);
-
-        return Inertia::render('supplier/Orders', [
-            'orders' => $orders,
-        ]);
-    }
-
-    /**
-     * Cập nhật trạng thái vận đơn của Nhà cung cấp.
-     */
-    public function updateOrderStatus(Request $request, PurchaseOrder $purchaseOrder): RedirectResponse
-    {
-        $user = $request->user();
-        abort_unless($user->hasRole('supplier') && $user->supplier_id === $purchaseOrder->supplier_id, 403);
-
-        $maxSize = \App\Models\SystemSetting::get('upload_invoice_image_max', 4096);
-        $request->validate([
-            'status' => ['required', 'in:preparing,shipping,delivered'],
-            'invoice_file' => ['nullable', 'file', 'image', 'mimes:jpeg,png,jpg,pdf', 'max:' . $maxSize],
-        ]);
-
-        $status = $request->input('status');
-
-        $invoiceUrl = $purchaseOrder->invoice_file_url;
-        if ($request->hasFile('invoice_file')) {
-            $path = $request->file('invoice_file')->store('invoices', 'public');
-            $invoiceUrl = '/storage/' . $path;
-        }
-
-        $purchaseOrder->update([
-            'status' => $status,
-            'invoice_file_url' => $invoiceUrl,
-        ]);
-
-        // Realtime notify restaurant
-        event(new PurchaseOrderUpdated($purchaseOrder));
-
-        return back()->with('success', 'Đã chuyển đổi trạng thái vận đơn thành công.');
-    }
-
-    /**
-     * Lấy chỉ số SLA đối soát và giao nhận của Nhà cung cấp.
-     */
-    public function getSlaMetrics(Request $request, Supplier $supplier)
+    public function getSlaDashboard(Request $request)
     {
         abort_unless($request->user()->hasAnyRole(['owner', 'manager', 'inventory_staff']), 403);
 
-        $pos = PurchaseOrder::where('supplier_id', $supplier->id)
-            ->whereIn('status', ['delivered', 'frozen'])
+        return response()->json([
+            'suppliers' => $this->slaService->calculateForRestaurant(
+                $request->user()->restaurant_id,
+                $this->tenantContext->activeBranchId(),
+            ),
+        ]);
+    }
+
+    /**
+     * Lấy danh sách nguyên vật liệu dưới ngưỡng tồn tối thiểu cùng nhà cung cấp tối ưu nhất.
+     */
+    public function getReplenishCockpit(Request $request)
+    {
+        abort_unless($request->user()->hasAnyRole(['owner', 'manager', 'inventory_staff']), 403);
+
+        $restaurantId = $request->user()->restaurant_id;
+        $branchId = $this->tenantContext->activeBranchId();
+
+        // Fetch active ingredients of the restaurant
+        $ingredients = Ingredient::where('restaurant_id', $restaurantId)
+            ->where('status', 'active')
+            ->when($branchId, fn ($q) => $q->where(fn ($scope) => $scope
+                ->whereNull('branch_id')->orWhere('branch_id', $branchId)))
+            ->with(['unit', 'supplier'])
             ->get();
 
-        $totalPos = $pos->count();
-        $onTimeCount = 0;
-        $accurateCount = 0;
+        // Get total stock levels grouped by ingredient across all branches
+        $inventories = Inventory::where('restaurant_id', $restaurantId)
+            ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
+            ->select('ingredient_id', DB::raw('SUM(quantity_on_hand) as quantity_on_hand'))
+            ->groupBy('ingredient_id')
+            ->get()
+            ->keyBy('ingredient_id');
 
-        foreach ($pos as $po) {
-            // Check accuracy
-            if (!$po->is_discrepant) {
-                $accurateCount++;
-            }
+        $suppliers = Supplier::where('restaurant_id', $restaurantId)->get()->keyBy('id');
+        $supplierIds = $suppliers->keys()->toArray();
 
-            // Check on-time
-            if ($po->delivery_due_date && $po->delivered_at) {
-                $dueDate = \Carbon\Carbon::parse($po->delivery_due_date);
-                $deliveredDate = \Carbon\Carbon::parse($po->delivered_at);
-                // 30 mins grace period
-                if ($deliveredDate->lte($dueDate->addMinutes(30))) {
-                    $onTimeCount++;
-                }
-            } else {
-                // If no due date, count as on-time for safety or ignore
-                $onTimeCount++;
-            }
-        }
+        $understockedIngredients = $ingredients->filter(function ($ing) use ($inventories) {
+            $inv = $inventories->get($ing->id);
+            $currentStock = $inv ? (float) $inv->quantity_on_hand : 0.0;
+            $minStock = (float) ($ing->min_stock_level ?? 0.0);
 
-        $onTimeRate = $totalPos > 0 ? ($onTimeCount / $totalPos) * 100 : 100;
-        $accuracyRate = $totalPos > 0 ? ($accurateCount / $totalPos) * 100 : 100;
+            return $currentStock < $minStock;
+        });
 
-        // Price Volatility per ingredient
-        $priceVolatility = [];
-        $ingredients = Ingredient::where('supplier_id', $supplier->id)->get();
-        $ingredientIds = $ingredients->pluck('id')->toArray();
-        $histories = SupplierPriceHistory::where('supplier_id', $supplier->id)
-            ->whereIn('ingredient_id', $ingredientIds)
-            ->orderBy('effective_date')
+        $understockedIngredientIds = $understockedIngredients->pluck('id')->toArray();
+
+        // Preload all price histories for understocked ingredients in a single query
+        $allPriceHistories = SupplierPriceHistory::whereIn('ingredient_id', $understockedIngredientIds)
+            ->whereIn('supplier_id', $supplierIds)
+            ->orderBy('effective_date', 'desc')
             ->get()
             ->groupBy('ingredient_id');
 
-        foreach ($ingredients as $ing) {
-            $prices = isset($histories[$ing->id])
-                ? $histories[$ing->id]->pluck('price')->toArray()
-                : [];
+        $cockpitData = [];
 
-            $count = count($prices);
-            if ($count > 1) {
-                $mean = array_sum($prices) / $count;
-                $variance = 0.0;
-                foreach ($prices as $p) {
-                    $variance += pow($p - $mean, 2);
-                }
-                $stdDev = sqrt($variance / ($count - 1));
-                $volatility = ($mean > 0) ? ($stdDev / $mean) * 100 : 0;
-            } else {
-                $volatility = 0;
+        foreach ($understockedIngredients as $ing) {
+            $inv = $inventories->get($ing->id);
+            $currentStock = $inv ? (float) $inv->quantity_on_hand : 0.0;
+            $minStock = (float) ($ing->min_stock_level ?? 0.0);
+
+            $deficit = $minStock - $currentStock;
+            $safetyMarginFactor = 1.2;
+            $suggestedQty = round($deficit * $safetyMarginFactor, 3);
+
+            // Find optimal supplier based on lowest price in history from preloaded collection
+            $priceHistories = isset($allPriceHistories[$ing->id])
+                ? $allPriceHistories[$ing->id]->unique('supplier_id')
+                : collect();
+
+            $cheapestRecord = $priceHistories->sortBy('price')->first();
+
+            $optimalSupplier = null;
+            $optimalPrice = (float) $ing->average_cost;
+            $isCheapestFromHistory = false;
+
+            if ($cheapestRecord) {
+                $optimalSupplier = $suppliers->get($cheapestRecord->supplier_id);
+                $optimalPrice = (float) $cheapestRecord->price;
+                $isCheapestFromHistory = true;
+            } elseif ($ing->supplier_id) {
+                $optimalSupplier = $suppliers->get($ing->supplier_id);
             }
 
-            $priceVolatility[] = [
+            $cockpitData[] = [
+                'ingredient_id' => $ing->id,
                 'ingredient_name' => $ing->name,
                 'sku' => $ing->sku,
-                'current_price' => (float) $ing->average_cost,
-                'price_history_count' => $count,
-                'volatility_percent' => round($volatility, 2),
+                'unit_symbol' => $ing->unit?->symbol ?? '—',
+                'current_stock' => $currentStock,
+                'min_stock_level' => $minStock,
+                'suggested_quantity' => $suggestedQty,
+                'optimal_supplier' => $optimalSupplier ? [
+                    'id' => $optimalSupplier->id,
+                    'name' => $optimalSupplier->name,
+                ] : null,
+                'optimal_price' => $optimalPrice,
+                'is_cheapest_from_history' => $isCheapestFromHistory,
+                'default_supplier' => $ing->supplier ? [
+                    'id' => $ing->supplier->id,
+                    'name' => $ing->supplier->name,
+                ] : null,
             ];
         }
 
-        // Get recent ratings
-        $recentRatings = $pos->whereNotNull('rating')->map(fn($po) => [
-            'po_number' => $po->po_number,
-            'rating' => $po->rating,
-            'rating_notes' => $po->rating_notes,
-            'delivered_at' => $po->delivered_at->format('d/m/Y H:i'),
-        ])->values()->all();
-
-        $averageRating = $pos->whereNotNull('rating')->avg('rating') ?? 5.0;
-
         return response()->json([
-            'supplier_id' => $supplier->id,
-            'supplier_name' => $supplier->name,
-            'total_orders_analyzed' => $totalPos,
-            'on_time_rate' => round($onTimeRate, 1),
-            'accuracy_rate' => round($accuracyRate, 1),
-            'average_rating' => round($averageRating, 1),
-            'price_volatility' => $priceVolatility,
-            'recent_ratings' => $recentRatings,
+            'recommendations' => $cockpitData,
         ]);
+    }
+
+    /**
+     * Soạn thảo đơn đặt hàng nháp PO gửi các nhà cung cấp tối ưu hàng loạt.
+     */
+    public function draftPoBulk(Request $request)
+    {
+        abort_unless($request->user()->hasAnyRole(['owner', 'manager', 'inventory_staff']), 403);
+
+        $request->validate([
+            'items' => ['required', 'array', 'min:1'],
+            'items.*.ingredient_id' => ['required', TenantRule::exists('ingredients')],
+            'items.*.quantity' => ['required', 'numeric', 'min:0.001'],
+            'items.*.supplier_id' => ['required', TenantRule::exists('suppliers')],
+            'items.*.price' => ['required', 'numeric', 'min:0'],
+        ]);
+
+        $user = $request->user();
+        $branchId = $this->resolveOperationalBranch($user);
+        $items = $request->input('items');
+
+        // Group by supplier
+        $grouped = collect($items)->groupBy('supplier_id');
+
+        $createdCount = 0;
+
+        DB::transaction(function () use ($grouped, $user, $branchId, &$createdCount) {
+            foreach ($grouped as $supplierId => $poItems) {
+                $totalAmount = 0;
+                $itemsData = [];
+
+                foreach ($poItems as $item) {
+                    $qty = (float) $item['quantity'];
+                    $price = (float) $item['price'];
+                    $cost = $qty * $price;
+                    $totalAmount += $cost;
+
+                    $itemsData[] = [
+                        'ingredient_id' => $item['ingredient_id'],
+                        'quantity_ordered' => $qty,
+                        'price_per_unit' => $price,
+                        'total_cost' => $cost,
+                    ];
+                }
+
+                // Create draft PO (pending_approval)
+                $po = PurchaseOrder::create([
+                    'restaurant_id' => $user->restaurant_id,
+                    'branch_id' => $branchId,
+                    'supplier_id' => $supplierId,
+                    'po_number' => 'PO-'.now()->format('Ymd').'-DRAFT-'.Str::upper(Str::random(4)),
+                    'status' => 'pending_approval',
+                    'total_amount' => $totalAmount,
+                    'created_by' => $user->id,
+                    'notes' => 'Đơn hàng tự động nháp được đề xuất bởi Cockpit Tự Động Hóa Chuỗi Cung Ứng.',
+                    'delivery_due_date' => now()->addDays(2), // default lead time
+                    'payment_terms' => 'COD',
+                    'due_date' => now()->toDateString(),
+                ]);
+
+                $po->items()->createMany($itemsData);
+
+                $createdCount++;
+            }
+        });
+
+        return back()->with('success', "Đã tự động soạn thảo thành công {$createdCount} đơn hàng PO nháp gửi đến các nhà cung cấp tối ưu nhất.");
     }
 
     /**
      * Chạy thủ công AI dự báo tồn kho và tự động đề xuất đơn hàng PO nháp.
      */
-    public function triggerAutoReplenish(Request $request, \App\Services\InventoryReplenishService $replenishService): RedirectResponse
+    public function triggerAutoReplenish(Request $request, InventoryReplenishService $replenishService): RedirectResponse
     {
         abort_unless($request->user()->hasAnyRole(['owner', 'manager']), 403);
 
         $user = $request->user();
-        $forecasts = $replenishService->getForecastAndReplenish($user->restaurant_id);
-        $pos = $replenishService->generateReplenishmentOrders($user->restaurant_id, $forecasts, $user->id);
-
+        $branchId = $this->resolveOperationalBranch($user);
+        $forecasts = $replenishService->getForecastAndReplenish($user->restaurant_id, $branchId);
+        $pos = $replenishService->generateReplenishmentOrders($user->restaurant_id, $forecasts, $user->id, $branchId);
         if (empty($pos)) {
             return back()->with('info', 'Tồn kho hiện tại vẫn ở mức an toàn. Không có nguyên liệu nào chạm ngưỡng cần bổ sung.');
         }
 
-        return back()->with('success', 'AI đã phân tích và tự động tạo thành công ' . count($pos) . ' đơn hàng PO nháp chờ bạn phê duyệt.');
+        return back()->with('success', 'AI đã phân tích và tự động tạo thành công '.count($pos).' đơn hàng PO nháp chờ bạn phê duyệt.');
     }
 
     /**
@@ -842,6 +770,7 @@ class SupplierController extends Controller
         try {
             // Forward file to Python FastAPI via HTTP client attach
             $response = Http::timeout(10)
+                ->withHeaders(app(AnalyticsServiceClient::class)->authHeaders())
                 ->attach('file', file_get_contents($file->getPathname()), $file->getClientOriginalName())
                 ->post($url, [
                     'po_context' => $poContext,
@@ -851,15 +780,15 @@ class SupplierController extends Controller
                 return response()->json($response->json());
             }
 
-            Log::warning("ocrInvoice: Python OCR service returned code " . $response->status());
+            Log::warning('ocrInvoice: Python OCR service returned code '.$response->status());
         } catch (\Throwable $e) {
-            Log::error("ocrInvoice: Failed to connect to Python OCR service: " . $e->getMessage());
+            Log::error('ocrInvoice: Failed to connect to Python OCR service: '.$e->getMessage());
         }
 
         // Fallback: If FastAPI is offline, parse po_context directly
         if ($poContext) {
             $items = json_decode($poContext, true);
-            $parsed = array_map(fn($it) => [
+            $parsed = array_map(fn ($it) => [
                 'ingredient_id' => $it['ingredient_id'],
                 'ingredient_name' => $it['ingredient_name'] ?? 'Vật tư',
                 'quantity' => (float) $it['quantity_ordered'],
@@ -867,7 +796,7 @@ class SupplierController extends Controller
             ], $items);
 
             return response()->json([
-                'invoice_number' => 'INV-FALLBACK-' . rand(1000, 9999),
+                'invoice_number' => 'INV-FALLBACK-'.rand(1000, 9999),
                 'items' => $parsed,
                 'confidence' => 0.85,
                 'message' => 'Chế độ dự phòng PHP hoạt động.',
@@ -884,7 +813,7 @@ class SupplierController extends Controller
     {
         $po->update([
             'payment_status' => 'escrow_locked',
-            'escrow_transaction_id' => 'ESC-' . now()->format('Ymd') . '-' . Str::upper(Str::random(8)),
+            'escrow_transaction_id' => 'ESC-'.now()->format('Ymd').'-'.Str::upper(Str::random(8)),
         ]);
     }
 
@@ -894,12 +823,13 @@ class SupplierController extends Controller
     public function releaseEscrow(Request $request, PurchaseOrder $purchaseOrder): RedirectResponse
     {
         abort_unless($request->user()->hasAnyRole(['owner', 'manager']) && $purchaseOrder->restaurant_id === $request->user()->restaurant_id, 403);
+        $this->authorizePurchaseOrderBranch($request->user(), $purchaseOrder);
         abort_unless($purchaseOrder->payment_status === 'escrow_locked', 400);
 
         // Price variance owner approval enforcement (> 10%)
         if ($purchaseOrder->is_discrepant && is_array($purchaseOrder->discrepancy_details)) {
             foreach ($purchaseOrder->discrepancy_details as $disc) {
-                if (!empty($disc['requires_owner']) && !$request->user()->hasRole('owner')) {
+                if (! empty($disc['requires_owner']) && ! $request->user()->hasRole('owner')) {
                     return back()->withErrors(['error' => 'Đơn hàng có biến động giá vượt quá 10% so với giá thỏa thuận, yêu cầu Chủ nhà hàng (Owner) phê duyệt giải ngân.']);
                 }
             }
@@ -920,6 +850,7 @@ class SupplierController extends Controller
     public function refundEscrow(Request $request, PurchaseOrder $purchaseOrder): RedirectResponse
     {
         abort_unless($request->user()->hasAnyRole(['owner', 'manager']) && $purchaseOrder->restaurant_id === $request->user()->restaurant_id, 403);
+        $this->authorizePurchaseOrderBranch($request->user(), $purchaseOrder);
         abort_unless($purchaseOrder->payment_status === 'escrow_locked', 400);
 
         $purchaseOrder->update([
@@ -931,283 +862,24 @@ class SupplierController extends Controller
         return back()->with('success', 'Đã hoàn trả tiền ký quỹ (Escrow Refunded) về tài khoản nhà hàng thành công.');
     }
 
-    /**
-     * Lấy danh sách các đề xuất chuyển kho liên chi nhánh (AI & PHP fallback).
-     */
-    public function transferRecommendations(Request $request): \Illuminate\Http\JsonResponse
+    private function resolveOperationalBranch($user): int
     {
-        abort_unless($request->user()->hasAnyRole(['owner', 'manager']), 403);
+        $branchId = $this->tenantContext->activeBranchId()
+            ?? ($user->isOwner() ? ($user->assignedBranchId() ?? $user->getRawOriginal('branch_id')) : null);
+        abort_if($branchId === null, 422, 'Hãy chọn chi nhánh hiện tại trước khi ghi nhận nghiệp vụ kho.');
+        abort_unless($user->canAccessBranch($branchId), 403);
 
-        $user = $request->user();
-
-        // 1. Fetch branches
-        $branches = \App\Models\RestaurantBranch::where('restaurant_id', $user->restaurant_id)->get();
-        if ($branches->count() <= 1) {
-            return response()->json(['recommendations' => [], 'message' => 'Bạn cần tối thiểu 2 chi nhánh để thực hiện luân chuyển kho liên chi nhánh.']);
-        }
-
-        // 2. Fetch active ingredients
-        $ingredients = \App\Models\Ingredient::where('restaurant_id', $user->restaurant_id)
-            ->where('status', 'active')
-            ->with('unit')
-            ->get();
-
-        // 3. Fetch inventories
-        $inventories = \App\Models\Inventory::where('restaurant_id', $user->restaurant_id)->get();
-
-        // 4. Fetch daily consumption per branch & ingredient over the last 30 days
-        $endDate = now();
-        $startDate = now()->subDays(30);
-
-        $orderItems = DB::table('order_items')
-            ->join('orders', 'order_items.order_id', '=', 'orders.id')
-            ->join('products', 'order_items.product_id', '=', 'products.id')
-            ->join('product_recipes', 'products.id', '=', 'product_recipes.product_id')
-            ->where('orders.restaurant_id', $user->restaurant_id)
-            ->where('orders.status', 'completed')
-            ->whereBetween('orders.completed_at', [$startDate, $endDate])
-            ->select(
-                'orders.branch_id',
-                'product_recipes.ingredient_id',
-                DB::raw('SUM(order_items.quantity * product_recipes.quantity * (1 + (product_recipes.waste_rate / 100))) as total_used')
-            )
-            ->groupBy('orders.branch_id', 'product_recipes.ingredient_id')
-            ->get();
-        
-        $dailyUsageMap = [];
-        foreach ($orderItems as $item) {
-            $dailyUsageMap[$item->branch_id][$item->ingredient_id] = (float) $item->total_used / 30.0;
-        }
-
-        // 5. Compile payload
-        $payload = [];
-        foreach ($ingredients as $ing) {
-            foreach ($branches as $branch) {
-                $inv = $inventories->first(fn($i) => $i->branch_id === $branch->id && $i->ingredient_id === $ing->id);
-                $currentStock = $inv ? (float) $inv->quantity_on_hand : 0.0;
-                $avgDaily = $dailyUsageMap[$branch->id][$ing->id] ?? 0.0;
-
-                $payload[] = [
-                    'branch_id' => $branch->id,
-                    'branch_name' => $branch->name,
-                    'ingredient_id' => $ing->id,
-                    'ingredient_name' => $ing->name,
-                    'sku' => $ing->sku,
-                    'current_stock' => $currentStock,
-                    'min_stock_level' => (float) $ing->min_stock_level,
-                    'unit_symbol' => $ing->unit?->symbol ?? 'kg',
-                    'average_daily_usage' => $avgDaily,
-                ];
-            }
-        }
-
-        // 6. Call Python FastAPI
-        $baseUrl = config('services.analytics.url');
-        $recommendations = null;
-
-        try {
-            $response = Http::timeout(10)->post("{$baseUrl}/api/analytics/transfer-recommendations", [
-                'inventories' => $payload
-            ]);
-
-            if ($response->successful()) {
-                $recommendations = $response->json()['recommendations'] ?? null;
-            }
-        } catch (\Throwable $e) {
-            Log::warning("transferRecommendations: Failed to contact Python service: " . $e->getMessage());
-        }
-
-        // 7. PHP Fallback if python is offline
-        if ($recommendations === null) {
-            $recommendations = [];
-            $groupedByIng = collect($payload)->groupBy('ingredient_id');
-            foreach ($groupedByIng as $ingId => $branchStockList) {
-                $deficits = $branchStockList->filter(fn($item) => $item['current_stock'] < $item['min_stock_level']);
-                $candidates = $branchStockList->filter(fn($item) => $item['current_stock'] > $item['min_stock_level']);
-
-                foreach ($deficits as $def) {
-                    $deficitQty = $def['min_stock_level'] - $def['current_stock'];
-                    $ingName = $def['ingredient_name'];
-                    $unit = $def['unit_symbol'];
-
-                    $validCandidates = [];
-                    foreach ($candidates as $cand) {
-                        if ($cand['branch_id'] === $def['branch_id']) continue;
-
-                        $excess = $cand['current_stock'] - $cand['min_stock_level'];
-                        $avgDaily = $cand['average_daily_usage'];
-                        $coverageDays = $avgDaily > 0 ? $cand['current_stock'] / $avgDaily : 999.0;
-
-                        if ($coverageDays >= 14.0 || $avgDaily <= 0.01) {
-                            $validCandidates[] = array_merge($cand, [
-                                'excess' => $excess,
-                                'coverage_days' => $coverageDays
-                            ]);
-                        }
-                    }
-
-                    if (empty($validCandidates)) continue;
-
-                    // Sort by excess desc
-                    usort($validCandidates, fn($a, $b) => $b['excess'] <=> $a['excess']);
-                    $best = $validCandidates[0];
-
-                    $suggested = min($deficitQty, $best['excess']);
-                    $reason = sprintf(
-                        "Chi nhánh '%s' đang có lượng tồn dư thừa %.2f %s (đủ dùng %.1f ngày với tốc độ tiêu thụ %.2f/ngày).",
-                        $best['branch_name'],
-                        $best['excess'],
-                        $unit,
-                        $best['coverage_days'],
-                        $best['average_daily_usage']
-                    );
-
-                    $recommendations[] = [
-                        'ingredient_id' => (int) $ingId,
-                        'ingredient_name' => $ingName,
-                        'unit_symbol' => $unit,
-                        'from_branch_id' => (int) $best['branch_id'],
-                        'from_branch_name' => $best['branch_name'],
-                        'to_branch_id' => (int) $def['branch_id'],
-                        'to_branch_name' => $def['branch_name'],
-                        'suggested_quantity' => round($suggested, 3),
-                        'reason' => $reason
-                    ];
-                }
-            }
-        }
-
-        return response()->json([
-            'recommendations' => $recommendations,
-            'branches' => $branches
-        ]);
+        return $branchId;
     }
 
-    /**
-     * Thực thi lệnh luân chuyển kho nội bộ.
-     */
-    public function storeInternalTransfer(Request $request): RedirectResponse
+    private function authorizePurchaseOrderBranch($user, PurchaseOrder $purchaseOrder): void
     {
-        abort_unless($request->user()->hasAnyRole(['owner', 'manager']), 403);
+        abort_unless($purchaseOrder->restaurant_id === $user->restaurant_id, 403);
+        abort_if($purchaseOrder->branch_id === null, 422, 'Đơn mua hàng cũ chưa được gắn chi nhánh. Hãy chạy backfill dữ liệu trước khi xử lý.');
+        abort_unless($user->canAccessBranch((int) $purchaseOrder->branch_id), 403);
 
-        $user = $request->user();
-
-        $request->validate([
-            'from_branch_id' => ['required', 'exists:restaurant_branches,id'],
-            'to_branch_id' => ['required', 'exists:restaurant_branches,id', 'different:from_branch_id'],
-            'ingredient_id' => ['required', 'exists:ingredients,id'],
-            'quantity' => ['required', 'numeric', 'min:0.001'],
-            'notes' => ['nullable', 'string', 'max:500'],
-        ]);
-
-        $fromBranchId = (int) $request->input('from_branch_id');
-        $toBranchId = (int) $request->input('to_branch_id');
-        $ingId = (int) $request->input('ingredient_id');
-        $quantity = (float) $request->input('quantity');
-
-        try {
-            DB::transaction(function () use ($user, $fromBranchId, $toBranchId, $ingId, $quantity, $request) {
-                // 1. Pessimistic lock on from_branch inventory
-                $invFrom = \App\Models\Inventory::where('restaurant_id', $user->restaurant_id)
-                    ->where('branch_id', $fromBranchId)
-                    ->where('ingredient_id', $ingId)
-                    ->lockForUpdate()
-                    ->first();
-
-                if (!$invFrom || (float) $invFrom->quantity_on_hand < $quantity) {
-                    throw new \Exception("Chi nhánh xuất không đủ tồn kho thực tế để chuyển.");
-                }
-
-                // 2. Pessimistic lock / create on to_branch inventory
-                $invTo = \App\Models\Inventory::where('restaurant_id', $user->restaurant_id)
-                    ->where('branch_id', $toBranchId)
-                    ->where('ingredient_id', $ingId)
-                    ->lockForUpdate()
-                    ->first();
-
-                if (!$invTo) {
-                    $invTo = \App\Models\Inventory::create([
-                        'restaurant_id' => $user->restaurant_id,
-                        'branch_id' => $toBranchId,
-                        'ingredient_id' => $ingId,
-                        'quantity_on_hand' => 0.0,
-                        'theoretical_quantity' => 0.0,
-                        'last_cost' => $invFrom->last_cost
-                    ]);
-                }
-
-                // 3. Update stock levels
-                $invFrom->decrement('quantity_on_hand', $quantity);
-                $invFrom->decrement('theoretical_quantity', $quantity);
-
-                $invTo->increment('quantity_on_hand', $quantity);
-                $invTo->increment('theoretical_quantity', $quantity);
-
-                // 4. Create out transaction for from_branch
-                \App\Models\InventoryTransaction::create([
-                    'restaurant_id' => $user->restaurant_id,
-                    'branch_id' => $fromBranchId,
-                    'ingredient_id' => $ingId,
-                    'inventory_id' => $invFrom->id,
-                    'performed_by' => $user->id,
-                    'type' => 'adjustment',
-                    'direction' => 'out',
-                    'quantity' => $quantity,
-                    'unit_cost' => $invFrom->last_cost,
-                    'total_cost' => $quantity * $invFrom->last_cost,
-                    'notes' => "Điều phối kho nội bộ: Xuất chuyển sang chi nhánh #" . $toBranchId,
-                    'occurred_at' => now(),
-                ]);
-
-                // 5. Create in transaction for to_branch
-                \App\Models\InventoryTransaction::create([
-                    'restaurant_id' => $user->restaurant_id,
-                    'branch_id' => $toBranchId,
-                    'ingredient_id' => $ingId,
-                    'inventory_id' => $invTo->id,
-                    'performed_by' => $user->id,
-                    'type' => 'adjustment',
-                    'direction' => 'in',
-                    'quantity' => $quantity,
-                    'unit_cost' => $invFrom->last_cost,
-                    'total_cost' => $quantity * $invFrom->last_cost,
-                    'notes' => "Điều phối kho nội bộ: Nhận hàng luân chuyển từ chi nhánh #" . $fromBranchId,
-                    'occurred_at' => now(),
-                ]);
-
-                // 6. Create internal transfer log
-                \App\Models\InternalTransfer::create([
-                    'restaurant_id' => $user->restaurant_id,
-                    'from_branch_id' => $fromBranchId,
-                    'to_branch_id' => $toBranchId,
-                    'ingredient_id' => $ingId,
-                    'quantity' => $quantity,
-                    'status' => 'completed',
-                    'created_by' => $user->id,
-                    'completed_by' => $user->id,
-                    'completed_at' => now(),
-                    'notes' => $request->input('notes') ?? 'Đề xuất luân chuyển kho nội bộ từ AI.',
-                ]);
-            });
-        } catch (\Throwable $e) {
-            return back()->with('error', $e->getMessage());
+        if ($this->tenantContext->isBranchScoped()) {
+            abort_unless((int) $purchaseOrder->branch_id === $this->tenantContext->activeBranchId(), 403);
         }
-
-        return back()->with('success', 'Đã thực hiện lệnh luân chuyển kho nội bộ liên chi nhánh thành công.');
-    }
-
-    /**
-     * Lấy nhật ký các lệnh luân chuyển kho nội bộ.
-     */
-    public function listInternalTransfers(Request $request): \Illuminate\Http\JsonResponse
-    {
-        abort_unless($request->user()->hasAnyRole(['owner', 'manager']), 403);
-
-        $transfers = \App\Models\InternalTransfer::where('restaurant_id', $request->user()->restaurant_id)
-            ->with(['fromBranch', 'toBranch', 'ingredient.unit', 'creator'])
-            ->latest()
-            ->get();
-
-        return response()->json(['transfers' => $transfers]);
     }
 }

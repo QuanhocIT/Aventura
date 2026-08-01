@@ -24,6 +24,7 @@ class SendBillingInvoiceEmail implements ShouldQueue
 
         if (! $invoice->recipient_email) {
             Log::warning('SendBillingInvoiceEmail: không có recipient_email', ['invoice_id' => $this->invoiceId]);
+
             return;
         }
 
@@ -33,20 +34,20 @@ class SendBillingInvoiceEmail implements ShouldQueue
             : null;
 
         $sent = $client->sendInvoice([
-            'recipient_email'  => $invoice->recipient_email,
-            'invoice_number'   => $invoice->invoice_number,
-            'restaurant_name'  => $invoice->restaurant?->name ?? '',
-            'plan_name'        => $planName,
-            'amount'           => (float) $invoice->total,
-            'currency'         => $invoice->currency ?? 'VND',
-            'issued_on'        => $invoice->issued_on?->format('d/m/Y') ?? now()->format('d/m/Y'),
-            'due_on'           => $invoice->due_on?->format('d/m/Y') ?? now()->addMonth()->format('d/m/Y'),
-            'pdf_url'          => $pdfUrl,
+            'recipient_email' => $invoice->recipient_email,
+            'invoice_number' => $invoice->invoice_number,
+            'restaurant_name' => $invoice->restaurant?->name ?? '',
+            'plan_name' => $planName,
+            'amount' => (float) $invoice->total,
+            'currency' => $invoice->currency ?? 'VND',
+            'issued_on' => $invoice->issued_on?->format('d/m/Y') ?? now()->format('d/m/Y'),
+            'due_on' => $invoice->due_on?->format('d/m/Y') ?? now()->addMonth()->format('d/m/Y'),
+            'pdf_url' => $pdfUrl,
         ]);
 
         if ($sent) {
             $invoice->update([
-                'status'  => 'sent',
+                'status' => 'sent',
                 'sent_at' => now(),
             ]);
         }

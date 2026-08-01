@@ -3,20 +3,20 @@
 namespace App\Http\Controllers\SuperAdmin;
 
 use App\Http\Controllers\Controller;
+use App\Models\DbMaintenanceLog;
 use App\Services\DatabaseBackupService;
 use App\Services\DatabaseMaintenanceService;
-use App\Models\DbMaintenanceLog;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Inertia\Inertia;
 use Inertia\Response;
-use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class BackupMaintenanceController extends Controller
 {
     protected DatabaseBackupService $backupService;
+
     protected DatabaseMaintenanceService $maintenanceService;
 
     public function __construct(
@@ -43,17 +43,17 @@ class BackupMaintenanceController extends Controller
 
         // 3. Tính toán dung lượng và trạng thái DB hiện tại
         $dbName = config('database.connections.mysql.database');
-        
+
         $dbSizeBytes = 0;
         try {
-            $sizeQuery = DB::select("
+            $sizeQuery = DB::select('
                 SELECT SUM(data_length + index_length) AS size
                 FROM information_schema.TABLES
                 WHERE table_schema = ?
-            ", [$dbName]);
+            ', [$dbName]);
             $dbSizeBytes = $sizeQuery[0]->size ?? 0;
         } catch (\Exception $e) {
-            \Log::warning("Could not calculate database size: " . $e->getMessage());
+            \Log::warning('Could not calculate database size: '.$e->getMessage());
         }
 
         $dbSizeMb = round($dbSizeBytes / (1024 * 1024), 2);
@@ -82,8 +82,8 @@ class BackupMaintenanceController extends Controller
         }
 
         // Kiểm tra xem S3 Cloud Storage có được cấu hình
-        $isS3Configured = !empty(config('filesystems.disks.s3.key')) && 
-                          !empty(config('filesystems.disks.s3.bucket'));
+        $isS3Configured = ! empty(config('filesystems.disks.s3.key')) &&
+                          ! empty(config('filesystems.disks.s3.bucket'));
 
         return Inertia::render('super-admin/backup-maintenance/Index', [
             'backups' => $backups,
@@ -104,7 +104,7 @@ class BackupMaintenanceController extends Controller
                 'old_audit_logs_count' => $oldAuditLogsCount,
                 'is_s3_configured' => $isS3Configured,
                 'default_disk' => $isS3Configured ? 'S3/MinIO' : 'Bộ nhớ máy chủ cục bộ',
-            ]
+            ],
         ]);
     }
 
@@ -115,9 +115,10 @@ class BackupMaintenanceController extends Controller
     {
         try {
             $result = $this->backupService->backup();
+
             return back()->with('success', "Sao lưu cơ sở dữ liệu thành công! Tệp tin {$result['filename']} ({$result['size_mb']} MB) đã được lưu vào {$result['disk']}.");
         } catch (\Exception $e) {
-            return back()->with('error', "Không thể sao lưu cơ sở dữ liệu: " . $e->getMessage());
+            return back()->with('error', 'Không thể sao lưu cơ sở dữ liệu: '.$e->getMessage());
         }
     }
 
@@ -128,23 +129,24 @@ class BackupMaintenanceController extends Controller
     {
         $validated = $request->validate([
             'actions' => 'required|array|min:1',
-            'actions.*' => 'string|in:cleanup_queues,clear_sessions,archive_audit_logs'
+            'actions.*' => 'string|in:cleanup_queues,clear_sessions,archive_audit_logs',
         ]);
 
         try {
             $res = $this->maintenanceService->optimize($validated['actions'], auth()->id());
-            
+
             if ($res['status'] === 'success') {
                 $messages = [];
                 foreach ($res['results'] as $action => $info) {
                     $messages[] = $info['message'] ?? 'Thành công';
                 }
-                return back()->with('success', "Tối ưu hóa cơ sở dữ liệu hoàn tất: " . implode(" | ", $messages));
+
+                return back()->with('success', 'Tối ưu hóa cơ sở dữ liệu hoàn tất: '.implode(' | ', $messages));
             } else {
-                return back()->with('error', "Một số tác vụ tối ưu hóa gặp sự cố. Vui lòng kiểm tra nhật ký chi tiết.");
+                return back()->with('error', 'Một số tác vụ tối ưu hóa gặp sự cố. Vui lòng kiểm tra nhật ký chi tiết.');
             }
         } catch (\Exception $e) {
-            return back()->with('error', "Lỗi tối ưu hóa cơ sở dữ liệu: " . $e->getMessage());
+            return back()->with('error', 'Lỗi tối ưu hóa cơ sở dữ liệu: '.$e->getMessage());
         }
     }
 
@@ -154,14 +156,14 @@ class BackupMaintenanceController extends Controller
     public function download(Request $request, string $filename)
     {
         $disk = $request->query('disk', 'local');
-        if (!in_array($disk, ['local', 's3'])) {
-            abort(400, "Disk không hợp lệ.");
+        if (! in_array($disk, ['local', 's3'])) {
+            abort(400, 'Disk không hợp lệ.');
         }
 
         try {
             return $this->backupService->downloadBackup($filename, $disk);
         } catch (\Exception $e) {
-            abort(404, "Lỗi tải tệp: " . $e->getMessage());
+            abort(404, 'Lỗi tải tệp: '.$e->getMessage());
         }
     }
 
@@ -171,8 +173,8 @@ class BackupMaintenanceController extends Controller
     public function delete(Request $request, string $filename): RedirectResponse
     {
         $disk = $request->query('disk', 'local');
-        if (!in_array($disk, ['local', 's3'])) {
-            return back()->with('error', "Disk không hợp lệ.");
+        if (! in_array($disk, ['local', 's3'])) {
+            return back()->with('error', 'Disk không hợp lệ.');
         }
 
         try {
@@ -180,9 +182,10 @@ class BackupMaintenanceController extends Controller
             if ($deleted) {
                 return back()->with('success', "Đã xóa thành công tệp sao lưu: {$filename}");
             }
-            return back()->with('error', "Không tìm thấy tệp sao lưu cần xóa.");
+
+            return back()->with('error', 'Không tìm thấy tệp sao lưu cần xóa.');
         } catch (\Exception $e) {
-            return back()->with('error', "Lỗi khi xóa tệp sao lưu: " . $e->getMessage());
+            return back()->with('error', 'Lỗi khi xóa tệp sao lưu: '.$e->getMessage());
         }
     }
 }

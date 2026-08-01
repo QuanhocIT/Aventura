@@ -5,26 +5,26 @@ namespace App\Services;
 use App\Models\Ingredient;
 use App\Models\Inventory;
 use App\Models\Order;
-use App\Models\OrderItem;
-use App\Models\ProductRecipe;
 use App\Models\PurchaseOrder;
-use App\Models\PurchaseOrderItem;
 use App\Models\Supplier;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 
 class InventoryReplenishService
 {
     /**
      * Thu thập lịch sử tiêu thụ và dự báo tồn kho nguyên liệu.
      */
-    public function getForecastAndReplenish(int $restaurantId): array
+    public function getForecastAndReplenish(int $restaurantId, ?int $branchId = null): array
     {
         // 1. Get all active ingredients of the restaurant
         $ingredients = Ingredient::where('restaurant_id', $restaurantId)
             ->where('status', 'active')
+            ->when($branchId, fn ($q) => $q->where(fn ($scope) => $scope
+                ->whereNull('branch_id')->orWhere('branch_id', $branchId)))
             ->get();
 
         if ($ingredients->isEmpty()) {
@@ -37,6 +37,8 @@ class InventoryReplenishService
 
         // Fetch completed orders
         $orders = Order::where('restaurant_id', $restaurantId)
+            ->when($branchId, fn ($q) => $q->where(fn ($scope) => $scope
+                ->whereNull('branch_id')->orWhere('branch_id', $branchId)))
             ->where('status', 'completed')
             ->whereBetween('completed_at', [$startDate, $endDate])
             ->with(['items.product.recipes'])
@@ -48,17 +50,19 @@ class InventoryReplenishService
             $date = Carbon::parse($order->completed_at)->toDateString();
             foreach ($order->items as $item) {
                 $product = $item->product;
-                if (!$product) continue;
+                if (! $product) {
+                    continue;
+                }
 
                 $recipes = $product->recipes;
                 foreach ($recipes as $recipe) {
                     $ingId = $recipe->ingredient_id;
                     $qtyUsed = $item->quantity * $recipe->quantity * (1 + ($recipe->waste_rate ?? 0) / 100);
 
-                    if (!isset($dailyUsage[$ingId])) {
+                    if (! isset($dailyUsage[$ingId])) {
                         $dailyUsage[$ingId] = [];
                     }
-                    if (!isset($dailyUsage[$ingId][$date])) {
+                    if (! isset($dailyUsage[$ingId][$date])) {
                         $dailyUsage[$ingId][$date] = 0;
                     }
                     $dailyUsage[$ingId][$date] += $qtyUsed;
@@ -68,6 +72,7 @@ class InventoryReplenishService
 
         // 3. Prepare payload
         $inventories = Inventory::where('restaurant_id', $restaurantId)
+            ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
             ->get()
             ->keyBy('ingredient_id');
 
@@ -102,24 +107,27 @@ class InventoryReplenishService
         // 4. Call FastAPI
         $baseUrl = config('services.analytics.url');
         $url = "{$baseUrl}/api/analytics/inventory-forecast-replenish";
-        $forecastResults = null;
 
-        try {
-            $response = Http::timeout(5)->post($url, [
-                'ingredients' => $payload,
-            ]);
+        $forecastResults = app(CircuitBreaker::class)->for('analytics_service')->attempt(
+            function () use ($url, $payload) {
+                $response = Http::timeout(5)
+                    ->withHeaders(app(AnalyticsServiceClient::class)->authHeaders())
+                    ->post($url, [
+                        'ingredients' => $payload,
+                    ]);
 
-            if ($response->successful()) {
-                $forecastResults = $response->json()['forecasts'] ?? null;
-            } else {
-                Log::warning("InventoryReplenishService: Python service returned code " . $response->status());
-            }
-        } catch (\Throwable $e) {
-            Log::error("InventoryReplenishService: Failed to contact Python service: " . $e->getMessage());
-        }
+                if (! $response->successful()) {
+                    Log::warning('InventoryReplenishService: Python service returned code '.$response->status());
+                    throw new \RuntimeException("Inventory replenish service trả lỗi HTTP {$response->status()}");
+                }
+
+                return $response->json()['forecasts'] ?? null;
+            },
+            fn () => null
+        );
 
         // Fallback to PHP if Python fails
-        if (!$forecastResults) {
+        if (! $forecastResults) {
             $forecastResults = $this->fallbackForecast($payload);
         }
 
@@ -129,7 +137,7 @@ class InventoryReplenishService
     /**
      * Tự động tạo PO nháp cho những nguyên liệu có cảnh báo từ AI.
      */
-    public function generateReplenishmentOrders(int $restaurantId, array $forecasts, int $creatorId): array
+    public function generateReplenishmentOrders(int $restaurantId, array $forecasts, int $creatorId, ?int $branchId = null): array
     {
         $createdPos = [];
 
@@ -137,20 +145,25 @@ class InventoryReplenishService
         $replenishBySupplier = []; // [supplier_id][] = ['ingredient_id' => x, 'qty' => y, 'price' => z]
 
         $ingredientIds = collect($forecasts)->pluck('ingredient_id')->toArray();
-        $ingredients = Ingredient::whereIn('id', $ingredientIds)->get()->keyBy('id');
+        $ingredients = Ingredient::whereIn('id', $ingredientIds)
+            ->where('restaurant_id', $restaurantId)
+            ->when($branchId, fn ($q) => $q->where(fn ($scope) => $scope
+                ->whereNull('branch_id')->orWhere('branch_id', $branchId)))
+            ->get()
+            ->keyBy('id');
 
         foreach ($forecasts as $f) {
-            if (!$f['needs_replenishment'] || $f['suggested_replenish_quantity'] <= 0) {
+            if (! $f['needs_replenishment'] || $f['suggested_replenish_quantity'] <= 0) {
                 continue;
             }
 
             $ingredient = $ingredients->get($f['ingredient_id']);
-            if (!$ingredient || !$ingredient->supplier_id) {
+            if (! $ingredient || ! $ingredient->supplier_id) {
                 continue;
             }
 
             $supplierId = $ingredient->supplier_id;
-            if (!isset($replenishBySupplier[$supplierId])) {
+            if (! isset($replenishBySupplier[$supplierId])) {
                 $replenishBySupplier[$supplierId] = [];
             }
 
@@ -170,17 +183,20 @@ class InventoryReplenishService
         $suppliers = Supplier::whereIn('id', $supplierIds)->get()->keyBy('id');
 
         // Create POs
-        DB::transaction(function () use ($restaurantId, $replenishBySupplier, $creatorId, $suppliers, &$createdPos) {
+        DB::transaction(function () use ($restaurantId, $branchId, $replenishBySupplier, $creatorId, $suppliers, &$createdPos) {
             foreach ($replenishBySupplier as $supplierId => $items) {
                 $supplier = $suppliers->get($supplierId);
-                if (!$supplier) continue;
+                if (! $supplier) {
+                    continue;
+                }
 
                 $totalAmount = array_sum(array_column($items, 'total_cost'));
 
                 $po = PurchaseOrder::create([
                     'restaurant_id' => $restaurantId,
+                    'branch_id' => $branchId,
                     'supplier_id' => $supplier->id,
-                    'po_number' => 'PO-' . now()->format('Ymd') . '-AI-' . strtoupper(\Illuminate\Support\Str::random(4)),
+                    'po_number' => 'PO-'.now()->format('Ymd').'-AI-'.strtoupper(Str::random(4)),
                     'status' => 'pending_approval', // Draft PO awaiting Owner approval
                     'total_amount' => $totalAmount,
                     'created_by' => $creatorId,
@@ -249,6 +265,7 @@ class InventoryReplenishService
                 'suggested_replenish_quantity' => $suggestedQty,
             ];
         }
+
         return $forecasts;
     }
 }

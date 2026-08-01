@@ -1,19 +1,21 @@
-from fastapi import FastAPI, HTTPException, File, UploadFile, Form
+from fastapi import FastAPI, HTTPException, File, UploadFile, Form, Depends
 import pandas as pd
 import numpy as np
 from typing import List
 import json
 from sklearn.linear_model import LinearRegression
 from models import (
-    BasketAnalysisRequest, 
-    UpsellSuggestionRequest, 
-    FraudDetectionRequest, 
-    InventoryForecastRequest, 
+    BasketAnalysisRequest,
+    UpsellSuggestionRequest,
+    FraudDetectionRequest,
+    InventoryForecastRequest,
     RevenueForecastRequest,
     PriceAnalyticsRequest,
     TransferRecommendationsRequest,
-    WeatherMenuForecastRequest
+    WeatherMenuForecastRequest,
+    CohortRetentionRequest
 )
+from auth import require_api_key
 
 
 app = FastAPI(
@@ -22,11 +24,14 @@ app = FastAPI(
     version="1.0.0"
 )
 
+# Dependency bảo mật chung — áp dụng lên toàn bộ route POST
+_auth = [Depends(require_api_key)]
+
 @app.get("/")
 def read_root():
     return {"status": "online", "service": "analytics_service"}
 
-@app.post("/api/analytics/basket-analysis")
+@app.post("/api/analytics/basket-analysis", dependencies=_auth)
 def perform_basket_analysis(request: BasketAnalysisRequest):
     if not request.orders:
         return {"rules": []}
@@ -93,7 +98,7 @@ def perform_basket_analysis(request: BasketAnalysisRequest):
         "rules": rules[:30] # Lấy tối đa 30 gợi ý tốt nhất
     }
 
-@app.post("/api/analytics/upsell-suggestion")
+@app.post("/api/analytics/upsell-suggestion", dependencies=_auth)
 def get_upsell_suggestion(request: UpsellSuggestionRequest):
     if not request.items:
         return {"suggestion": None, "recommended_item": None}
@@ -151,7 +156,7 @@ def get_upsell_suggestion(request: UpsellSuggestionRequest):
     }
 
 # --- AI Fraud Detection Endpoint ---
-@app.post("/api/analytics/fraud-detection")
+@app.post("/api/analytics/fraud-detection", dependencies=_auth)
 def perform_fraud_detection(request: FraudDetectionRequest):
     if not request.logs:
         return {"alerts": []}
@@ -240,7 +245,7 @@ def perform_fraud_detection(request: FraudDetectionRequest):
     return {"alerts": alerts}
 
 # --- AI Inventory Forecast Endpoint ---
-@app.post("/api/analytics/inventory-forecast")
+@app.post("/api/analytics/inventory-forecast", dependencies=_auth)
 def perform_inventory_forecast(request: InventoryForecastRequest):
     forecast_results = []
     
@@ -303,7 +308,7 @@ def perform_inventory_forecast(request: InventoryForecastRequest):
     return {"success": True, "forecast": forecast_results}
 
 # --- AI Revenue Forecast Endpoint ---
-@app.post("/api/analytics/revenue-forecast")
+@app.post("/api/analytics/revenue-forecast", dependencies=_auth)
 def perform_revenue_forecast(request: RevenueForecastRequest):
     if not request.history:
         return {
@@ -362,7 +367,7 @@ def perform_revenue_forecast(request: RevenueForecastRequest):
         "next_7_days": next_7_days
     }
 
-@app.post("/api/analytics/price-analytics")
+@app.post("/api/analytics/price-analytics", dependencies=_auth)
 def perform_price_analytics(request: PriceAnalyticsRequest):
     if not request.history:
         return {"trend": "stable", "percentage_change": 0.0, "monthly_averages": [], "recommendation": "Không có đủ dữ liệu lịch sử giá."}
@@ -395,7 +400,7 @@ def perform_price_analytics(request: PriceAnalyticsRequest):
         "recommendation": recommendation
     }
 
-@app.post("/api/analytics/inventory-forecast-replenish")
+@app.post("/api/analytics/inventory-forecast-replenish", dependencies=_auth)
 def forecast_inventory(request: InventoryForecastRequest):
     forecasts = []
     
@@ -436,7 +441,7 @@ def forecast_inventory(request: InventoryForecastRequest):
         
     return {"forecasts": forecasts}
 
-@app.post("/api/analytics/ocr-invoice")
+@app.post("/api/analytics/ocr-invoice", dependencies=_auth)
 def ocr_invoice(
     file: UploadFile = File(...),
     po_context: str = Form(None)
@@ -470,7 +475,7 @@ def ocr_invoice(
         "confidence": 0.96
     }
 
-@app.post("/api/analytics/transfer-recommendations")
+@app.post("/api/analytics/transfer-recommendations", dependencies=_auth)
 def get_transfer_recommendations(request: TransferRecommendationsRequest):
     if not request.inventories:
         return {"recommendations": []}
@@ -548,7 +553,7 @@ def get_transfer_recommendations(request: TransferRecommendationsRequest):
     return {"recommendations": recommendations}
 
 
-@app.post("/api/analytics/weather-menu-forecast")
+@app.post("/api/analytics/weather-menu-forecast", dependencies=_auth)
 def get_weather_menu_forecast(request: WeatherMenuForecastRequest):
     forecast_results = []
     
@@ -616,6 +621,73 @@ def get_weather_menu_forecast(request: WeatherMenuForecastRequest):
         "forecast": forecast_results
     }
 
+
+@app.post("/api/analytics/cohort-retention", dependencies=_auth)
+def calculate_cohort_retention(request: CohortRetentionRequest):
+    """
+    Phân tích cohort: nhóm nhà hàng theo tháng đăng ký (created_at), tính tỉ lệ
+    còn hoạt động (status=active và có đơn hàng) ở các mốc M+1/M+3/M+6.
+    PHP gửi sẵn dữ liệu thô (restaurants + order_activity theo ngày distinct) —
+    endpoint này chỉ thay phần nhóm cohort + tính tỉ lệ giữ chân (vốn là vòng
+    lặp PHP lồng nhau) bằng pandas cho gọn và dễ mở rộng chỉ số sau này.
+    """
+    if not request.restaurants:
+        return {"cohorts": []}
+
+    now = pd.Timestamp(request.now)
+
+    restaurants_df = pd.DataFrame([r.model_dump() for r in request.restaurants])
+    restaurants_df["created_at"] = pd.to_datetime(restaurants_df["created_at"])
+
+    if request.order_activity:
+        activity_df = pd.DataFrame([a.model_dump() for a in request.order_activity])
+        activity_df["order_date"] = pd.to_datetime(activity_df["order_date"])
+    else:
+        activity_df = pd.DataFrame(columns=["restaurant_id", "order_date"])
+
+    cohorts = []
+    for offset in range(request.months - 1, -1, -1):
+        cohort_start = (now - pd.DateOffset(months=offset)).replace(day=1).normalize()
+        cohort_end = cohort_start + pd.offsets.MonthEnd(0)
+
+        cohort_restaurants = restaurants_df[
+            (restaurants_df["created_at"] >= cohort_start) &
+            (restaurants_df["created_at"] <= cohort_end)
+        ]
+        total = len(cohort_restaurants)
+        active_ids = set(cohort_restaurants.loc[cohort_restaurants["status"] == "active", "restaurant_id"])
+
+        milestones = {}
+        for months_after in (1, 3, 6):
+            checkpoint = cohort_start + pd.DateOffset(months=months_after)
+
+            if total == 0 or checkpoint > now or not active_ids:
+                milestones[f"m{months_after}"] = None if checkpoint > now else 0.0
+                continue
+
+            window_start = checkpoint.replace(day=1)
+            window_end = window_start + pd.offsets.MonthEnd(0)
+
+            if activity_df.empty:
+                retained = 0
+            else:
+                in_window = activity_df[
+                    activity_df["restaurant_id"].isin(active_ids) &
+                    (activity_df["order_date"] >= window_start) &
+                    (activity_df["order_date"] <= window_end)
+                ]
+                retained = in_window["restaurant_id"].nunique()
+
+            milestones[f"m{months_after}"] = round((retained / total) * 100, 1)
+
+        cohorts.append({
+            "cohort": cohort_start.strftime("%m/%Y"),
+            "month": cohort_start.strftime("%Y-%m"),
+            "total": total,
+            **milestones,
+        })
+
+    return {"cohorts": cohorts}
 
 
 

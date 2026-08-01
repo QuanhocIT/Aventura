@@ -1,17 +1,20 @@
 <script setup lang="ts">
-import { computed } from 'vue';
 import { Link, usePage } from '@inertiajs/vue3';
-import { Bell } from 'lucide-vue-next';
-import Breadcrumbs from '@/components/Breadcrumbs.vue';
+import { AlertTriangle, Bell, Star } from 'lucide-vue-next';
+import { computed, ref } from 'vue';
 import AppearanceToggleInline from '@/components/AppearanceToggleInline.vue';
-import { SidebarTrigger } from '@/components/ui/sidebar';
+import BranchContextSelector from '@/components/BranchContextSelector.vue';
+import Breadcrumbs from '@/components/Breadcrumbs.vue';
+import PlatformFeedbackModal from '@/components/PlatformFeedbackModal.vue';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {
     DropdownMenu,
     DropdownMenuContent,
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { SidebarTrigger } from '@/components/ui/sidebar';
 import UserMenuContent from '@/components/UserMenuContent.vue';
+import { useBranchContext } from '@/composables/useBranchContext';
 import { getInitials } from '@/composables/useInitials';
 import type { BreadcrumbItem, User } from '@/types';
 
@@ -36,6 +39,30 @@ const navItems = [
     { label: 'Nhân viên', href: '/employees' },
     { label: 'Hỗ trợ', href: '/support' },
 ];
+
+const isSuperAdminRoute = computed(() => page.url.startsWith('/super-admin'));
+
+const roles = computed(() => {
+    const raw = page.props.roles ?? [];
+
+    return Array.isArray(raw)
+        ? raw
+        : Object.values(raw as Record<string, string>);
+});
+
+const isSuperAdmin = computed(() =>
+    roles.value.some((role) =>
+        [
+            'super_admin',
+            'system_admin',
+            'billing_admin',
+            'support_specialist',
+        ].includes(role),
+    ),
+);
+const { isAllBranches } = useBranchContext();
+
+const showFeedbackModal = ref(false);
 </script>
 
 <template>
@@ -47,15 +74,20 @@ const navItems = [
             <template v-if="breadcrumbs && breadcrumbs.length > 0">
                 <Breadcrumbs :breadcrumbs="breadcrumbs" />
             </template>
-            <nav v-else-if="user" class="hidden items-center gap-0.5 md:flex">
+            <nav
+                v-else-if="user && !isSuperAdminRoute"
+                class="hidden items-center gap-0.5 md:flex"
+            >
                 <Link
                     v-for="item in navItems"
                     :key="item.href"
                     :href="item.href"
                     class="rounded-md px-3 py-1.5 text-sm transition-colors"
-                    :class="page.url.startsWith(item.href)
-                        ? 'bg-muted text-foreground font-medium'
-                        : 'text-muted-foreground hover:bg-muted hover:text-foreground'"
+                    :class="
+                        page.url.startsWith(item.href)
+                            ? 'bg-muted font-medium text-foreground'
+                            : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                    "
                 >
                     {{ item.label }}
                 </Link>
@@ -63,25 +95,39 @@ const navItems = [
         </div>
 
         <div class="flex items-center gap-4">
+            <!-- The only global branch selector. Non-owners see a read-only context. -->
+            <BranchContextSelector class="mr-2" />
+
             <AppearanceToggleInline />
+
+            <!-- SaaS Service Feedback button (Dành riêng cho Chủ doanh nghiệp / Tenant users) -->
+            <button
+                v-if="user && !isSuperAdmin"
+                @click="showFeedbackModal = true"
+                class="flex cursor-pointer items-center gap-1.5 rounded-xl border border-amber-500/30 bg-amber-500/10 px-2.5 py-1.5 text-xs font-bold text-amber-600 shadow-2xs transition-all hover:scale-[1.02] hover:bg-amber-500/20 dark:text-amber-400"
+                title="Gửi đánh giá gói dịch vụ & hệ thống Aventura"
+            >
+                <Star class="size-3.5 fill-amber-400 text-amber-400" />
+                <span class="hidden sm:inline">Đánh giá dịch vụ</span>
+            </button>
 
             <!-- Flash notification indicator -->
             <button
                 v-if="user"
-                class="relative rounded-md p-2 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
+                class="relative cursor-pointer rounded-md p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
                 aria-label="Thông báo"
             >
                 <Bell class="size-4" />
                 <span
                     v-if="hasFlash"
-                    class="absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full bg-rose-500"
+                    class="absolute top-1.5 right-1.5 h-1.5 w-1.5 rounded-full bg-rose-500"
                 />
             </button>
 
             <DropdownMenu v-if="user">
                 <DropdownMenuTrigger as-child>
                     <button
-                        class="rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-ring cursor-pointer"
+                        class="cursor-pointer rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                     >
                         <Avatar class="h-9 w-9 border border-border">
                             <AvatarImage
@@ -98,14 +144,26 @@ const navItems = [
                     </button>
                 </DropdownMenuTrigger>
 
-                <DropdownMenuContent
-                    class="w-60"
-                    align="end"
-                    :side-offset="8"
-                >
+                <DropdownMenuContent class="w-60" align="end" :side-offset="8">
                     <UserMenuContent :user="user" />
                 </DropdownMenuContent>
             </DropdownMenu>
         </div>
     </header>
+
+    <div
+        v-if="isAllBranches"
+        class="mx-4 mt-2 flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5 text-xs font-medium text-amber-800 md:mx-6 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-200"
+        role="status"
+    >
+        <AlertTriangle
+            class="size-4 shrink-0 text-amber-600 dark:text-amber-400"
+        />
+        <span>
+            Bạn đang xem dữ liệu <strong>Toàn chuỗi</strong>. Các số liệu đang
+            được tổng hợp từ các chi nhánh.
+        </span>
+    </div>
+
+    <PlatformFeedbackModal v-model:open="showFeedbackModal" />
 </template>

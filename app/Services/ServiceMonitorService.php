@@ -2,8 +2,8 @@
 
 namespace App\Services;
 
-use App\Models\ServiceMaintenanceStatus;
 use App\Models\ServiceHealthLog;
+use App\Models\ServiceMaintenanceStatus;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
@@ -21,6 +21,7 @@ class ServiceMonitorService
                 return (bool) ($data[$serviceKey]['is_maintenance'] ?? false);
             }
         }
+
         return false;
     }
 
@@ -36,6 +37,7 @@ class ServiceMonitorService
                 return $data[$serviceKey]['message'] ?? null;
             }
         }
+
         return null;
     }
 
@@ -60,7 +62,7 @@ class ServiceMonitorService
         try {
             $statuses = ServiceMaintenanceStatus::all();
             $jsonConfig = [];
-            
+
             // If file exists, read it to merge pings
             $existingJson = [];
             $filePath = storage_path('framework/service-maintenance.json');
@@ -70,10 +72,10 @@ class ServiceMonitorService
 
             foreach ($statuses as $service) {
                 $jsonConfig[$service->service_key] = [
-                    'is_maintenance' => (bool)$service->is_maintenance,
+                    'is_maintenance' => (bool) $service->is_maintenance,
                     'message' => $service->maintenance_message,
                     'last_status' => $service->last_status ?: ($existingJson[$service->service_key]['last_status'] ?? 'unknown'),
-                    'last_latency' => (float)$service->last_latency ?: ($existingJson[$service->service_key]['last_latency'] ?? 0.0),
+                    'last_latency' => (float) $service->last_latency ?: ($existingJson[$service->service_key]['last_latency'] ?? 0.0),
                     'last_checked_at' => $service->last_checked_at ? $service->last_checked_at->toDateTimeString() : ($existingJson[$service->service_key]['last_checked_at'] ?? null),
                 ];
             }
@@ -90,7 +92,7 @@ class ServiceMonitorService
     public function setMaintenance(string $serviceKey, bool $isMaintenance, ?string $message = null): bool
     {
         $dbUpdated = false;
-        
+
         try {
             $service = ServiceMaintenanceStatus::where('service_key', $serviceKey)->first();
             if ($service) {
@@ -111,7 +113,7 @@ class ServiceMonitorService
             $jsonConfig = json_decode(file_get_contents($filePath), true) ?: [];
         }
 
-        if (!isset($jsonConfig[$serviceKey])) {
+        if (! isset($jsonConfig[$serviceKey])) {
             $jsonConfig[$serviceKey] = [
                 'is_maintenance' => $isMaintenance,
                 'message' => $message ?: 'Đang bảo trì',
@@ -140,48 +142,66 @@ class ServiceMonitorService
             case 'mysql':
                 return [
                     config('database.connections.mysql.host', '127.0.0.1'),
-                    (int) config('database.connections.mysql.port', 3306)
+                    (int) config('database.connections.mysql.port', 3306),
                 ];
             case 'redis':
                 return [
                     config('database.redis.default.host', '127.0.0.1'),
-                    (int) config('database.redis.default.port', 6379)
+                    (int) config('database.redis.default.port', 6379),
                 ];
             case 'reverb':
                 $host = config('reverb.apps.apps.0.options.host') ?: config('reverb.servers.reverb.host', '127.0.0.1');
                 $port = config('reverb.apps.apps.0.options.port') ?: config('reverb.servers.reverb.port', 8080);
+
                 return [$host, (int) $port];
             case 'meilisearch':
                 $url = config('scout.meilisearch.host', 'http://localhost:7700');
                 $parsed = parse_url($url);
+
                 return [
-                    $parsed['host'] ?? '127.0.0.1',
-                    (int) ($parsed['port'] ?? 7700)
+                    $this->normalizeHost($parsed['host'] ?? '127.0.0.1'),
+                    (int) ($parsed['port'] ?? 7700),
                 ];
             case 'email_service':
                 $url = config('services.email_microservice.url', 'http://localhost:8001');
                 $parsed = parse_url($url);
+
                 return [
-                    $parsed['host'] ?? '127.0.0.1',
-                    (int) ($parsed['port'] ?? 8001)
+                    $this->normalizeHost($parsed['host'] ?? '127.0.0.1'),
+                    (int) ($parsed['port'] ?? 8001),
                 ];
             case 'chatbot_service':
                 $url = config('services.chatbot.url', 'http://localhost:8002');
                 $parsed = parse_url($url);
+
                 return [
-                    $parsed['host'] ?? '127.0.0.1',
-                    (int) ($parsed['port'] ?? 8002)
+                    $this->normalizeHost($parsed['host'] ?? '127.0.0.1'),
+                    (int) ($parsed['port'] ?? 8002),
                 ];
             case 'analytics_service':
                 $url = config('services.analytics.url', 'http://localhost:8003');
                 $parsed = parse_url($url);
+
                 return [
-                    $parsed['host'] ?? '127.0.0.1',
-                    (int) ($parsed['port'] ?? 8003)
+                    $this->normalizeHost($parsed['host'] ?? '127.0.0.1'),
+                    (int) ($parsed['port'] ?? 8003),
                 ];
             default:
                 return ['127.0.0.1', 0];
         }
+    }
+
+    /**
+     * Ép 'localhost' về '127.0.0.1' tường minh trước khi fsockopen(). Trên máy
+     * Windows này, getaddrinfo("localhost") ưu tiên trả IPv6 (::1) trước — các
+     * Python microservice khởi động với --host 0.0.0.0 chỉ lắng nghe IPv4, nên
+     * kết nối tới ::1 treo tới hết timeout 2s rồi báo lỗi 10060, dù service
+     * đang chạy hoàn toàn bình thường (đã xác minh qua gọi thật thành công).
+     * mysql/redis không bị vì đã default sẵn '127.0.0.1', không phải chuỗi tên.
+     */
+    private function normalizeHost(string $host): string
+    {
+        return $host === 'localhost' ? '127.0.0.1' : $host;
     }
 
     /**
@@ -214,7 +234,7 @@ class ServiceMonitorService
                     return [
                         'status' => 'offline',
                         'latency' => $latency,
-                        'error' => 'MySQL port open, but connection failed: ' . $e->getMessage()
+                        'error' => 'MySQL port open, but connection failed: '.$e->getMessage(),
                     ];
                 }
             }
@@ -222,14 +242,14 @@ class ServiceMonitorService
             return [
                 'status' => 'online',
                 'latency' => round($latency, 2),
-                'error' => null
+                'error' => null,
             ];
         }
 
         return [
             'status' => 'offline',
             'latency' => 0.0,
-            'error' => "TCP connection failed to {$host}:{$port}. Error {$errno}: {$errstr}"
+            'error' => "TCP connection failed to {$host}:{$port}. Error {$errno}: {$errstr}",
         ];
     }
 
@@ -240,20 +260,20 @@ class ServiceMonitorService
     {
         $results = [];
         $dbAvailable = true;
-        
+
         try {
             $statuses = ServiceMaintenanceStatus::all();
         } catch (\Throwable $e) {
             $dbAvailable = false;
             // Fallback static configuration if DB connection fails
             $statuses = collect([
-                (object)['service_key' => 'mysql', 'name' => 'MySQL Database', 'port' => 3306, 'is_maintenance' => false, 'maintenance_message' => 'MySQL Database offline'],
-                (object)['service_key' => 'redis', 'name' => 'Redis Cache & Queue', 'port' => 6379, 'is_maintenance' => false, 'maintenance_message' => 'Redis offline'],
-                (object)['service_key' => 'reverb', 'name' => 'Laravel Reverb Websockets', 'port' => 8080, 'is_maintenance' => false, 'maintenance_message' => 'Reverb offline'],
-                (object)['service_key' => 'meilisearch', 'name' => 'Meilisearch Engine', 'port' => 7700, 'is_maintenance' => false, 'maintenance_message' => 'Meilisearch offline'],
-                (object)['service_key' => 'email_service', 'name' => 'Python Email Service', 'port' => 8001, 'is_maintenance' => false, 'maintenance_message' => 'Email offline'],
-                (object)['service_key' => 'chatbot_service', 'name' => 'Python Chatbot Service', 'port' => 8002, 'is_maintenance' => false, 'maintenance_message' => 'Chatbot offline'],
-                (object)['service_key' => 'analytics_service', 'name' => 'Python Analytics & AI Service', 'port' => 8003, 'is_maintenance' => false, 'maintenance_message' => 'Analytics offline'],
+                (object) ['service_key' => 'mysql', 'name' => 'MySQL Database', 'port' => 3306, 'is_maintenance' => false, 'maintenance_message' => 'MySQL Database offline'],
+                (object) ['service_key' => 'redis', 'name' => 'Redis Cache & Queue', 'port' => 6379, 'is_maintenance' => false, 'maintenance_message' => 'Redis offline'],
+                (object) ['service_key' => 'reverb', 'name' => 'Laravel Reverb Websockets', 'port' => 8080, 'is_maintenance' => false, 'maintenance_message' => 'Reverb offline'],
+                (object) ['service_key' => 'meilisearch', 'name' => 'Meilisearch Engine', 'port' => 7700, 'is_maintenance' => false, 'maintenance_message' => 'Meilisearch offline'],
+                (object) ['service_key' => 'email_service', 'name' => 'Python Email Service', 'port' => 8001, 'is_maintenance' => false, 'maintenance_message' => 'Email offline'],
+                (object) ['service_key' => 'chatbot_service', 'name' => 'Python Chatbot Service', 'port' => 8002, 'is_maintenance' => false, 'maintenance_message' => 'Chatbot offline'],
+                (object) ['service_key' => 'analytics_service', 'name' => 'Python Analytics & AI Service', 'port' => 8003, 'is_maintenance' => false, 'maintenance_message' => 'Analytics offline'],
             ]);
         }
 
@@ -298,7 +318,7 @@ class ServiceMonitorService
             $mMessage = isset($service->maintenance_message) ? $service->maintenance_message : ($existingJson[$service->service_key]['message'] ?? 'Dịch vụ đang bảo trì.');
 
             $jsonConfig[$service->service_key] = [
-                'is_maintenance' => (bool)$isMaintenance,
+                'is_maintenance' => (bool) $isMaintenance,
                 'message' => $mMessage,
                 'last_status' => $ping['status'],
                 'last_latency' => $ping['latency'],
@@ -318,7 +338,7 @@ class ServiceMonitorService
     {
         $stats = [];
         $services = ['mysql', 'redis', 'reverb', 'meilisearch', 'email_service', 'chatbot_service', 'analytics_service'];
-        
+
         $serviceNames = [
             'mysql' => 'MySQL Database',
             'redis' => 'Redis Cache & Queue',
@@ -347,8 +367,8 @@ class ServiceMonitorService
             $totalLogsCount = $serviceLogs->count();
             $onlineLogsCount = $serviceLogs->where('status', 'online')->count();
 
-            $overallUptime = $totalLogsCount > 0 
-                ? round(($onlineLogsCount / $totalLogsCount) * 100, 2) 
+            $overallUptime = $totalLogsCount > 0
+                ? round(($onlineLogsCount / $totalLogsCount) * 100, 2)
                 : 100.0;
 
             $dailyHistory = [];

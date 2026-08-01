@@ -20,7 +20,7 @@ class FraudAlertMail extends Mailable
     public function envelope(): Envelope
     {
         return new Envelope(
-            subject: '🚨 CẢNH BÁO RỦI RO GIAN LẬN: ' . $this->alertData['violation_type'] . ' - Aventura',
+            subject: '🚨 CẢNH BÁO RỦI RO GIAN LẬN: '.$this->alertData['violation_type'].' - Aventura',
         );
     }
 

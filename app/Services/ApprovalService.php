@@ -5,13 +5,13 @@ namespace App\Services;
 use App\Models\ApprovalRequest;
 use App\Models\Employee;
 use App\Models\Ingredient;
-use App\Models\Inventory;
 use App\Models\InventoryTransaction;
-use App\Models\Restaurant;
 use App\Models\Salary;
+use App\Models\SalaryAdjustment;
 use App\Models\User;
 use App\Notifications\ApprovalDecisionNotification;
 use App\Notifications\ApprovalRequestedNotification;
+use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 
 class ApprovalService
@@ -27,12 +27,12 @@ class ApprovalService
     public function submitRequest(string $operationType, array $data, User $requester): ApprovalRequest
     {
         $request = ApprovalRequest::create([
-            'restaurant_id'  => $requester->restaurant_id,
-            'branch_id'      => $requester->branch_id,
-            'requester_id'   => $requester->id,
+            'restaurant_id' => $requester->restaurant_id,
+            'branch_id' => $requester->branch_id,
+            'requester_id' => $requester->id,
             'operation_type' => $operationType,
             'operation_data' => $data,
-            'status'         => 'pending',
+            'status' => 'pending',
         ]);
 
         // Thông báo Owner
@@ -53,10 +53,16 @@ class ApprovalService
     public function approve(ApprovalRequest $approval, User $reviewer): void
     {
         DB::transaction(function () use ($approval, $reviewer) {
-            $this->executeOperation($approval);
+            // Khóa bi quan bản ghi phê duyệt để tránh chạy trùng lặp
+            $lockedApproval = ApprovalRequest::where('id', $approval->id)->lockForUpdate()->firstOrFail();
+            if ($lockedApproval->status !== 'pending') {
+                throw new \Exception('Yêu cầu này đã được xử lý trước đó.');
+            }
 
-            $approval->update([
-                'status'      => 'approved',
+            $this->executeOperation($lockedApproval);
+
+            $lockedApproval->update([
+                'status' => 'approved',
                 'reviewer_id' => $reviewer->id,
                 'reviewed_at' => now(),
             ]);
@@ -70,12 +76,20 @@ class ApprovalService
      */
     public function reject(ApprovalRequest $approval, User $reviewer, string $reason): void
     {
-        $approval->update([
-            'status'           => 'rejected',
-            'reviewer_id'      => $reviewer->id,
-            'reviewed_at'      => now(),
-            'rejection_reason' => $reason,
-        ]);
+        DB::transaction(function () use ($approval, $reviewer, $reason) {
+            // Khóa bi quan bản ghi phê duyệt
+            $lockedApproval = ApprovalRequest::where('id', $approval->id)->lockForUpdate()->firstOrFail();
+            if ($lockedApproval->status !== 'pending') {
+                throw new \Exception('Yêu cầu này đã được xử lý trước đó.');
+            }
+
+            $lockedApproval->update([
+                'status' => 'rejected',
+                'reviewer_id' => $reviewer->id,
+                'reviewed_at' => now(),
+                'rejection_reason' => $reason,
+            ]);
+        });
 
         $approval->requester?->notify(new ApprovalDecisionNotification($approval, 'rejected'));
     }
@@ -89,9 +103,9 @@ class ApprovalService
 
         match ($approval->operation_type) {
             'inventory_purchase' => $this->executePurchase($data, $approval->restaurant_id, $approval->requester_id),
-            'inventory_waste'    => $this->executeWaste($data, $approval->restaurant_id, $approval->requester_id),
-            'salary_adjustment'  => $this->executeSalaryAdjustment($data, $approval->restaurant_id),
-            default              => null,
+            'inventory_waste' => $this->executeWaste($data, $approval->restaurant_id, $approval->requester_id),
+            'salary_adjustment' => $this->executeSalaryAdjustment($data, $approval->restaurant_id),
+            default => null,
         };
     }
 
@@ -104,12 +118,18 @@ class ApprovalService
     {
         $transaction = $this->inventoryService->executeWaste($data, $restaurantId, $performedBy);
 
-        $ingredient = Ingredient::withoutGlobalScopes()->findOrFail($data['ingredient_id']);
-        $wasteQty  = (float) $data['quantity'];
+        $ingredientQuery = Ingredient::withoutGlobalScopes()
+            ->where('restaurant_id', $restaurantId)
+            ->when(! empty($data['branch_id']), fn ($q) => $q->where('branch_id', $data['branch_id']));
+        $ingredient = $ingredientQuery->findOrFail($data['ingredient_id']);
+        $wasteQty = (float) $data['quantity'];
         $wasteCost = $wasteQty * (float) $ingredient->average_cost;
 
         if ($transaction && ! empty($data['employee_id']) && $wasteCost > 0) {
-            $employee = Employee::withoutGlobalScopes()->find($data['employee_id']);
+            $employee = Employee::withoutGlobalScopes()
+                ->where('restaurant_id', $restaurantId)
+                ->when(! empty($data['branch_id']), fn ($q) => $q->where('branch_id', $data['branch_id']))
+                ->find($data['employee_id']);
             if ($employee) {
                 $allowedRatio = $ingredient ? (float) ($ingredient->allowed_waste_ratio ?? 0) : 0;
                 $penaltyAmount = $wasteCost * (1 - $allowedRatio / 100);
@@ -118,13 +138,13 @@ class ApprovalService
                 if ($penaltyAmount > 0) {
                     $salary = $this->salaryService->getOrCreateDraft($restaurantId, $employee, now()->toDateString());
                     $this->salaryService->addAdjustment($salary, [
-                        'employee_id'    => $employee->id,
-                        'type'           => 'inventory_loss',
-                        'amount'         => $penaltyAmount,
-                        'reason'         => "Hao hụt {$ingredient->name}: {$wasteQty} " . ($ingredient->unit?->symbol ?? '') . ' — ' . number_format($wasteCost) . 'đ' . " (Đã khấu trừ " . $allowedRatio . "% định mức cho phép)",
-                        'reference_id'   => $transaction->id,
+                        'employee_id' => $employee->id,
+                        'type' => 'inventory_loss',
+                        'amount' => $penaltyAmount,
+                        'reason' => "Hao hụt {$ingredient->name}: {$wasteQty} ".($ingredient->unit?->symbol ?? '').' — '.number_format($wasteCost).'đ'.' (Đã khấu trừ '.$allowedRatio.'% định mức cho phép)',
+                        'reference_id' => $transaction->id,
                         'reference_type' => InventoryTransaction::class,
-                        'status'         => 'applied',
+                        'status' => 'applied',
                     ]);
                 }
             }
@@ -138,11 +158,11 @@ class ApprovalService
         if ($data['type'] === 'advance') {
             $employee = $salary->employee;
             if ($employee) {
-                $salaryMonth = \Carbon\Carbon::parse($salary->pay_period_start);
+                $salaryMonth = Carbon::parse($salary->pay_period_start);
                 $calculationDate = today()->isSameMonth($salaryMonth) ? today() : $salaryMonth->endOfMonth();
                 $earnedWages = $this->salaryService->calculateEarnedWagesForMonth($employee, $calculationDate->toDateString());
 
-                $existingAdvanceAmount = \App\Models\SalaryAdjustment::withoutGlobalScopes()
+                $existingAdvanceAmount = SalaryAdjustment::withoutGlobalScopes()
                     ->where('salary_id', $salary->id)
                     ->where('type', 'advance')
                     ->where('status', 'applied')
@@ -157,10 +177,10 @@ class ApprovalService
 
         $this->salaryService->addAdjustment($salary, [
             'employee_id' => $salary->employee_id,
-            'type'        => $data['type'],
-            'amount'      => $data['amount'],
-            'reason'      => $data['reason'],
-            'status'      => 'applied',
+            'type' => $data['type'],
+            'amount' => $data['amount'],
+            'reason' => $data['reason'],
+            'status' => 'applied',
         ]);
     }
 }

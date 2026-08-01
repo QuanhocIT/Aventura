@@ -2,15 +2,16 @@
 
 namespace App\Services;
 
-use App\Models\Restaurant;
+use App\Mail\ChurnEarlyWarningMail;
+use App\Models\Coupon;
 use App\Models\Order;
+use App\Models\Restaurant;
 use App\Models\SupportTicket;
 use App\Models\User;
-use App\Models\Coupon;
-use App\Mail\ChurnEarlyWarningMail;
-use Illuminate\Support\Facades\Mail;
-use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Str;
 
 class CustomerSuccessService
 {
@@ -120,7 +121,7 @@ class CustomerSuccessService
             if ($prevWeeklyAvg == 0 && $currentWeekOrders == 0) {
                 $reasons[] = 'Không phát sinh bất kỳ đơn hàng nào trong 4 tuần gần đây.';
             } else {
-                $reasons[] = 'Tần suất tạo đơn hàng giảm đột ngột ' . round($dropPercentage) . '% so với trung bình 3 tuần trước.';
+                $reasons[] = 'Tần suất tạo đơn hàng giảm đột ngột '.round($dropPercentage).'% so với trung bình 3 tuần trước.';
             }
         }
         if ($ticketDeduction > 0) {
@@ -224,10 +225,30 @@ class CustomerSuccessService
                         ));
                         $results['emails_sent']++;
                     } catch (\Exception $e) {
-                        Log::error("Failed to send churn early warning email to {$recipientEmail}: " . $e->getMessage());
+                        Log::error("Failed to send churn early warning email to {$recipientEmail}: ".$e->getMessage());
                     }
                 } else {
                     Log::warning("No owner email found for at-risk restaurant: {$restaurant->name} (Code: {$restaurant->code})");
+                }
+
+                // Tự động tạo Support Ticket cho bộ phận chăm sóc khách hàng
+                try {
+                    SupportTicket::create([
+                        'restaurant_id' => $restaurant->id,
+                        'title' => '[Tự động] Nhà hàng có nguy cơ rời bỏ cao - '.$restaurant->name,
+                        'description' => "Hệ thống phát hiện nhà hàng {$restaurant->name} ({$restaurant->code}) đang có nguy cơ rời bỏ cao (Health Score: {$restaurant->health_score}).\n\n".
+                                         "Lý do cảnh báo:\n- ".str_replace(' | ', "\n- ", $metrics['churn_risk_reason'])."\n\n".
+                                         "Đề xuất hành động:\nCSKH liên hệ thăm hỏi tình hình vận hành và gửi mã coupon giảm giá 30% gia hạn dịch vụ: {$coupon->code}.",
+                        'status' => 'open',
+                        'priority' => 'high',
+                        'severity' => 'medium',
+                        'code' => 'CHURN-'.now()->format('ymd').'-'.Str::upper(Str::random(4)),
+                        'category' => 'Retention',
+                        'created_by' => 1, // System / Admin
+                        'sla_due_at' => now()->addDays(2),
+                    ]);
+                } catch (\Exception $e) {
+                    Log::error("Failed to create automated support ticket for churn risk of restaurant ID {$restaurant->id}: ".$e->getMessage());
                 }
             }
         }

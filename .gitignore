@@ -27,6 +27,17 @@ yarn-error.log
 /.nova
 /.vscode
 /.zed
+/.claude
+/scratch
+/aventura.sql
+/database/aventura.sql
+/dump.rdb
 services/*/venv/
+services/*/__pycache__/
+services/*/*/__pycache__/
+services/*/service.log
+services/*/service.err.log
+services/.pytest_cache/
+**/.pytest_cache/
 
 meilisearch.exe

@@ -1,7 +1,9 @@
 <?php
 
 use App\Http\Controllers\OnboardingController;
+use App\Http\Controllers\Settings\BranchController;
 use App\Http\Controllers\Settings\ProfileController;
+use App\Http\Controllers\Settings\ReferralSettingsController;
 use App\Http\Controllers\Settings\RestaurantController;
 use App\Http\Controllers\Settings\SecurityController;
 use Illuminate\Support\Facades\Route;
@@ -16,10 +18,15 @@ Route::middleware(['auth'])->group(function () {
     Route::get('settings/restaurant', [RestaurantController::class, 'edit'])->name('restaurant.edit');
     Route::patch('settings/restaurant', [RestaurantController::class, 'update'])->name('restaurant.update');
 
+    Route::get('settings/branches', [BranchController::class, 'index'])->name('branches.index');
+    Route::post('settings/branches', [BranchController::class, 'store'])->name('branches.store')->middleware('tenant.quota:branches');
+    Route::patch('settings/branches/{branch}', [BranchController::class, 'update'])->name('branches.update');
+    Route::delete('settings/branches/{branch}', [BranchController::class, 'destroy'])->name('branches.destroy');
+
     Route::get('settings/referrals', function () {
         return redirect()->route('profile.edit', ['tab' => 'referrals']);
     })->name('settings.referrals.edit');
-    Route::post('settings/referrals/withdraw', [\App\Http\Controllers\Settings\ReferralSettingsController::class, 'withdraw'])->name('settings.referrals.withdraw');
+    Route::post('settings/referrals/withdraw', [ReferralSettingsController::class, 'withdraw'])->name('settings.referrals.withdraw');
 
     // Sandbox & Demo Data
     Route::get('settings/sandbox', [OnboardingController::class, 'sandboxPage'])->name('settings.sandbox');
@@ -38,6 +45,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::put('settings/password', [SecurityController::class, 'update'])
         ->middleware('throttle:6,1')
         ->name('user-password.update');
+
+    Route::put('settings/pin', [SecurityController::class, 'updatePin'])
+        ->middleware('throttle:6,1')
+        ->name('user-pin.update');
 
     Route::inertia('settings/appearance', 'settings/Appearance')->name('appearance.edit');
 });

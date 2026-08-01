@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\ApprovalRequest;
 use App\Models\Employee;
 use App\Models\Ingredient;
 use App\Models\Inventory;
@@ -10,13 +11,22 @@ use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\Product;
 use App\Models\ProductRecipe;
+use App\Models\PurchaseOrder;
 use App\Models\Restaurant;
+use App\Models\RestaurantBranch;
 use App\Models\RestaurantTable;
+use App\Models\Salary;
 use App\Models\ScheduleAssignment;
+use App\Models\ShiftSwap;
+use App\Models\SubscriptionPlan;
+use App\Models\Supplier;
+use App\Models\Unit;
 use App\Models\User;
 use App\Models\WorkShift;
 use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
+use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
@@ -25,11 +35,19 @@ class ComprehensiveValidationTest extends TestCase
     use RefreshDatabase;
 
     protected User $owner;
+
     protected User $cashier;
+
     protected Employee $employee1;
+
     protected Employee $employee2;
+
     protected Restaurant $restaurant;
+
+    protected RestaurantBranch $branch;
+
     protected Role $ownerRole;
+
     protected Role $cashierRole;
 
     protected function setUp(): void
@@ -44,7 +62,7 @@ class ComprehensiveValidationTest extends TestCase
         $this->ownerRole->givePermissionTo(Role::firstOrCreate(['name' => 'approve_requests', 'guard_name' => 'web']));
         $this->ownerRole->givePermissionTo(Role::firstOrCreate(['name' => 'manage_orders', 'guard_name' => 'web']));
         $this->ownerRole->givePermissionTo(Role::firstOrCreate(['name' => 'create_orders', 'guard_name' => 'web']));
-        
+
         $this->cashierRole->givePermissionTo(Role::firstOrCreate(['name' => 'create_orders', 'guard_name' => 'web']));
         $this->cashierRole->givePermissionTo(Role::firstOrCreate(['name' => 'process_payments', 'guard_name' => 'web']));
 
@@ -52,6 +70,11 @@ class ComprehensiveValidationTest extends TestCase
             'name' => 'Aventura Test Restaurant',
             'code' => 'TESTREST',
             'status' => 'active',
+        ]);
+        $this->branch = RestaurantBranch::factory()->create([
+            'restaurant_id' => $this->restaurant->id,
+            'code' => 'VALIDATION-A',
+            'name' => 'Chi nhánh kiểm thử',
         ]);
 
         $this->owner = User::factory()->create([
@@ -63,6 +86,7 @@ class ComprehensiveValidationTest extends TestCase
 
         $this->cashier = User::factory()->create([
             'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
             'email' => 'cashier@test.com',
             'status' => 'active',
         ]);
@@ -70,6 +94,7 @@ class ComprehensiveValidationTest extends TestCase
 
         $this->employee1 = Employee::factory()->create([
             'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
             'role_id' => $this->cashierRole->id,
             'status' => 'active',
             'full_name' => 'Nguyen Van A',
@@ -77,6 +102,7 @@ class ComprehensiveValidationTest extends TestCase
 
         $this->employee2 = Employee::factory()->create([
             'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
             'role_id' => $this->cashierRole->id,
             'status' => 'active',
             'full_name' => 'Tran Van B',
@@ -86,6 +112,7 @@ class ComprehensiveValidationTest extends TestCase
         for ($i = 0; $i < 3; $i++) {
             Employee::factory()->create([
                 'restaurant_id' => $this->restaurant->id,
+                'branch_id' => $this->branch->id,
                 'role_id' => $this->cashierRole->id,
                 'status' => 'active',
             ]);
@@ -226,12 +253,14 @@ class ComprehensiveValidationTest extends TestCase
 
         $table = RestaurantTable::factory()->create([
             'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
             'capacity' => 2,
             'status' => 'available',
         ]);
 
         $product = Product::factory()->create([
             'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
             'price' => 50000,
             'is_active' => true,
             'is_available' => true,
@@ -242,8 +271,8 @@ class ComprehensiveValidationTest extends TestCase
             'table_id' => $table->id,
             'guests_count' => 4,
             'items' => [
-                ['product_id' => $product->id, 'quantity' => 1]
-            ]
+                ['product_id' => $product->id, 'quantity' => 1],
+            ],
         ]);
 
         $response->assertSessionHasErrors(['guests_count']);
@@ -255,11 +284,13 @@ class ComprehensiveValidationTest extends TestCase
 
         $product = Product::factory()->create([
             'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
             'price' => 50000,
         ]);
 
         $order = Order::factory()->create([
             'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
             'subtotal' => 50000,
             'total_amount' => 50000,
         ]);
@@ -277,8 +308,8 @@ class ComprehensiveValidationTest extends TestCase
         // Try to reduce price without bypass code
         $response = $this->patch(route('orders.update', $order->id), [
             'items' => [
-                ['id' => $orderItem->id, 'product_id' => $product->id, 'unit_price' => 20000, 'quantity' => 1]
-            ]
+                ['id' => $orderItem->id, 'product_id' => $product->id, 'unit_price' => 20000, 'quantity' => 1],
+            ],
         ]);
         $response->assertSessionHasErrors(['items']);
 
@@ -286,8 +317,8 @@ class ComprehensiveValidationTest extends TestCase
         $response2 = $this->patch(route('orders.update', $order->id), [
             'bypass_code' => 'MANAGER123',
             'items' => [
-                ['id' => $orderItem->id, 'product_id' => $product->id, 'unit_price' => 20000, 'quantity' => 1]
-            ]
+                ['id' => $orderItem->id, 'product_id' => $product->id, 'unit_price' => 20000, 'quantity' => 1],
+            ],
         ]);
         $response2->assertSessionHasNoErrors();
     }
@@ -315,13 +346,95 @@ class ComprehensiveValidationTest extends TestCase
         $response2->assertSessionHasNoErrors();
     }
 
+    public function test_order_cancellation_manager_pin_bypass(): void
+    {
+        $this->actingAs($this->cashier);
+
+        // Assign a pin code to the manager (who has manager/owner role)
+        $managerUser = User::role('manager')->where('restaurant_id', $this->restaurant->id)->first();
+        if (! $managerUser) {
+            $managerRole = Role::firstOrCreate(['name' => 'manager', 'guard_name' => 'web']);
+            $managerUser = User::factory()->create(['restaurant_id' => $this->restaurant->id, 'status' => 'active']);
+            $managerUser->assignRole($managerRole);
+        }
+        $managerUser->update(['pin_code' => '9999']);
+
+        $order = Order::factory()->create([
+            'restaurant_id' => $this->restaurant->id,
+            'status' => 'pending',
+        ]);
+
+        // Try with manager PIN code
+        $response = $this->patch(route('orders.update-status', $order->id), [
+            'status' => 'cancelled',
+            'bypass_code' => '9999',
+        ]);
+        $response->assertSessionHasNoErrors();
+    }
+
+    public function test_order_cancellation_manager_email_password_bypass(): void
+    {
+        $this->actingAs($this->cashier);
+
+        $managerUser = User::role('manager')->where('restaurant_id', $this->restaurant->id)->first();
+        if (! $managerUser) {
+            $managerRole = Role::firstOrCreate(['name' => 'manager', 'guard_name' => 'web']);
+            $managerUser = User::factory()->create(['restaurant_id' => $this->restaurant->id, 'status' => 'active', 'password' => 'secret123']);
+            $managerUser->assignRole($managerRole);
+        } else {
+            $managerUser->update(['password' => 'secret123']);
+        }
+
+        $order = Order::factory()->create([
+            'restaurant_id' => $this->restaurant->id,
+            'status' => 'pending',
+        ]);
+
+        // Try with manager email & password bypass_code formatted as email:password
+        $response = $this->patch(route('orders.update-status', $order->id), [
+            'status' => 'cancelled',
+            'bypass_code' => $managerUser->email.':secret123',
+        ]);
+        $response->assertSessionHasNoErrors();
+    }
+
+    public function test_order_cancellation_lockout_after_3_failed_attempts(): void
+    {
+        $this->actingAs($this->cashier);
+
+        $order = Order::factory()->create([
+            'restaurant_id' => $this->restaurant->id,
+            'status' => 'pending',
+        ]);
+
+        // Submit incorrect bypass code 2 times
+        for ($i = 0; $i < 2; $i++) {
+            $response = $this->patch(route('orders.update-status', $order->id), [
+                'status' => 'cancelled',
+                'bypass_code' => 'WRONG_CODE_'.$i,
+            ]);
+            $response->assertSessionHasErrors(['status']);
+        }
+
+        // The 3rd attempt should hit the lockout validation exception and return the lockout message
+        $response = $this->patch(route('orders.update-status', $order->id), [
+            'status' => 'cancelled',
+            'bypass_code' => 'WRONG_CODE_3',
+        ]);
+
+        $response->assertSessionHasErrors(['bypass_code']);
+    }
+
     public function test_schedule_11_hour_rest_rule_validation(): void
     {
+        Carbon::setTestNow('2026-06-08 00:00:00');
         $this->actingAs($this->owner);
+        $this->post(route('branch.switch'), ['branch_id' => $this->branch->id])->assertRedirect();
 
         // Monday is 2026-06-08, Tuesday is 2026-06-09
         $shiftA = WorkShift::factory()->create([
             'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
             'name' => 'Shift A',
             'start_time' => '08:00:00',
             'end_time' => '16:00:00',
@@ -329,6 +442,7 @@ class ComprehensiveValidationTest extends TestCase
 
         $shiftB = WorkShift::factory()->create([
             'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
             'name' => 'Shift B',
             'start_time' => '18:00:00',
             'end_time' => '02:00:00',
@@ -338,6 +452,7 @@ class ComprehensiveValidationTest extends TestCase
         // Create assignment for Shift B on Monday (ends Tuesday 02:00)
         ScheduleAssignment::create([
             'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
             'employee_id' => $this->employee1->id,
             'shift_id' => $shiftB->id,
             'scheduled_date' => '2026-06-08',
@@ -353,20 +468,24 @@ class ComprehensiveValidationTest extends TestCase
 
         $response->assertSessionHasErrors(['shift_name']);
         $this->assertStringContainsString('nghỉ 11h', strtolower(session()->get('errors')->get('shift_name')[0]));
+        Carbon::setTestNow();
     }
 
     public function test_inventory_profit_margin_and_expiry_validation(): void
     {
         $this->actingAs($this->owner);
+        $this->post(route('branch.switch'), ['branch_id' => $this->branch->id])->assertRedirect();
 
         $ingredient = Ingredient::factory()->create([
             'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
             'name' => 'Ingredient Test',
             'average_cost' => 10000,
         ]);
 
         $product = Product::factory()->create([
             'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
             'name' => 'Product Test',
             'price' => 50000,
         ]);
@@ -381,7 +500,7 @@ class ComprehensiveValidationTest extends TestCase
             'waste_rate' => 0,
         ]);
 
-        $file = \Illuminate\Http\UploadedFile::fake()->image('invoice.png');
+        $file = UploadedFile::fake()->image('invoice.png');
 
         // Cost per unit = 0.1 * 600,000 = 60,000 >= selling price 50,000 (invalid)
         $response = $this->post(route('inventory.purchases.store'), [
@@ -405,7 +524,7 @@ class ComprehensiveValidationTest extends TestCase
 
     public function test_self_approval_prevention_on_approval_requests(): void
     {
-        $approval = \App\Models\ApprovalRequest::create([
+        $approval = ApprovalRequest::create([
             'restaurant_id' => $this->restaurant->id,
             'requester_id' => $this->owner->id,
             'operation_type' => 'inventory_purchase',
@@ -444,7 +563,7 @@ class ComprehensiveValidationTest extends TestCase
         $this->employee1->update(['user_id' => $this->owner->id]);
 
         $shift = WorkShift::factory()->create(['restaurant_id' => $this->restaurant->id]);
-        
+
         $assign1 = ScheduleAssignment::create([
             'restaurant_id' => $this->restaurant->id,
             'employee_id' => $this->employee1->id,
@@ -461,7 +580,7 @@ class ComprehensiveValidationTest extends TestCase
             'status' => 'scheduled',
         ]);
 
-        $swap = \App\Models\ShiftSwap::create([
+        $swap = ShiftSwap::create([
             'restaurant_id' => $this->restaurant->id,
             'requester_assignment_id' => $assign1->id,
             'receiver_assignment_id' => $assign2->id,
@@ -487,7 +606,7 @@ class ComprehensiveValidationTest extends TestCase
         $periodStart = today()->startOfMonth()->toDateString();
         $periodEnd = today()->endOfMonth()->toDateString();
 
-        $salary = \App\Models\Salary::create([
+        $salary = Salary::create([
             'restaurant_id' => $this->restaurant->id,
             'employee_id' => $this->employee1->id,
             'pay_period_start' => $periodStart,
@@ -520,20 +639,23 @@ class ComprehensiveValidationTest extends TestCase
         $this->ownerRole->givePermissionTo(Role::firstOrCreate(['name' => 'supplier_portal', 'guard_name' => 'web']));
         $this->actingAs($this->owner);
 
-        $supplier = \App\Models\Supplier::create([
+        $supplier = Supplier::create([
             'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
             'name' => 'Supplier Test',
             'status' => 'active',
         ]);
 
         $ingredient = Ingredient::factory()->create([
             'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
             'supplier_id' => $supplier->id,
             'average_cost' => 100000, // list price
         ]);
 
-        $po = \App\Models\PurchaseOrder::create([
+        $po = PurchaseOrder::create([
             'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
             'supplier_id' => $supplier->id,
             'po_number' => 'PO-TEST-123',
             'status' => 'approved',
@@ -556,22 +678,25 @@ class ComprehensiveValidationTest extends TestCase
                     'ingredient_id' => $ingredient->id,
                     'quantity_received' => 1,
                     'invoice_price' => 120000, // 20% higher
-                ]
+                ],
             ],
             'rating' => 5,
         ]);
 
         $responseVerify->assertSessionHas('warning'); // failed match and frozen
-        
+
         $po->refresh();
         $this->assertTrue($po->is_frozen);
         $this->assertTrue($po->is_discrepant);
 
         // Try to release escrow as cashier/manager (not owner)
-        $manager = User::factory()->create(['restaurant_id' => $this->restaurant->id]);
+        $manager = User::factory()->create([
+            'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
+        ]);
         $managerRole = Role::firstOrCreate(['name' => 'manager', 'guard_name' => 'web']);
         $manager->assignRole($managerRole);
-        
+
         $responseReleaseManager = $this->actingAs($manager)->post(route('suppliers.orders.release-escrow', $po->id));
         $responseReleaseManager->assertSessionHasErrors(['error']);
 
@@ -598,7 +723,7 @@ class ComprehensiveValidationTest extends TestCase
 
         // Link employee1 to cashier user
         $this->employee1->update(['user_id' => $this->cashier->id]);
-        
+
         $assignment = ScheduleAssignment::create([
             'restaurant_id' => $this->restaurant->id,
             'employee_id' => $this->employee1->id,
@@ -674,5 +799,153 @@ class ComprehensiveValidationTest extends TestCase
         ]);
         $responseCheckoutSuccess->assertSessionHasNoErrors();
         $responseCheckoutSuccess->assertSessionHas('success');
+    }
+
+    public function test_duplicate_checkin_is_blocked(): void
+    {
+        // Configure restaurant without GPS/QR so we can test pure check-in logic
+        $this->restaurant->update([
+            'latitude' => null,
+            'longitude' => null,
+            'qr_checkin_code' => null,
+        ]);
+
+        $shift = WorkShift::factory()->create([
+            'restaurant_id' => $this->restaurant->id,
+            'start_time' => now()->subMinutes(10)->format('H:i:s'),
+            'end_time' => now()->addHours(4)->format('H:i:s'),
+            'status' => 'active',
+        ]);
+
+        // Link employee1 to cashier via user_id
+        $this->employee1->update(['user_id' => $this->cashier->id]);
+
+        // Create a scheduled assignment for employee1
+        $assignment = ScheduleAssignment::factory()->create([
+            'restaurant_id' => $this->restaurant->id,
+            'employee_id' => $this->employee1->id,
+            'shift_id' => $shift->id,
+            'scheduled_date' => now()->toDateString(),
+            'status' => 'scheduled',
+        ]);
+
+        $this->actingAs($this->cashier);
+
+        // First check-in should succeed
+        $resp1 = $this->post(route('schedules.check-in'), []);
+        $resp1->assertSessionHasNoErrors();
+        $assignment->refresh();
+        $this->assertEquals('checked_in', $assignment->status);
+        $this->assertNotNull($assignment->check_in_at);
+        $originalCheckInAt = $assignment->check_in_at->toDateTimeString();
+
+        // Second check-in: no more 'scheduled' slot found. Backend should return
+        // the idempotent-success since employee is already checked-in today.
+        $resp2 = $this->post(route('schedules.check-in'), []);
+        // Either returns early with success (idempotent) OR returns an error about no slot.
+        // The critical assertion is that assignment check_in_at was NOT overwritten.
+        $assignment->refresh();
+        $this->assertEquals('checked_in', $assignment->status);
+        $this->assertEquals($originalCheckInAt, $assignment->check_in_at->toDateTimeString());
+    }
+
+    public function test_violation_report_created_successfully(): void
+    {
+        // Give owner the needed permissions
+        $permView = Permission::firstOrCreate(['name' => 'view_violations',   'guard_name' => 'web']);
+        $permReport = Permission::firstOrCreate(['name' => 'report_violations', 'guard_name' => 'web']);
+        $permManage = Permission::firstOrCreate(['name' => 'manage_violations', 'guard_name' => 'web']);
+        $this->ownerRole->givePermissionTo([$permView, $permReport, $permManage]);
+
+        $this->actingAs($this->owner);
+
+        // Enable hr_full feature for testing (bypass quota gate) using actual schema columns
+        $plan = SubscriptionPlan::firstOrCreate(
+            ['code' => 'pro_test'],
+            [
+                'name' => 'Chuyên Nghiệp',
+                'price' => 0,
+                'billing_cycle' => 'monthly',
+                'max_branches' => 10,
+                'max_tables' => 100,
+                'max_users' => 50,
+                'max_dishes' => 500,
+                'features' => json_encode(['hr_full' => true]),
+                'status' => 'active',
+            ]
+        );
+        $this->restaurant->update(['plan_id' => $plan->id]);
+
+        $response = $this->post(route('violations.store'), [
+            'employee_id' => $this->employee1->id,
+            'violation_type' => 'Đi trễ',
+            'description' => 'Nhân viên đến trễ hơn 30 phút không có lý do chính đáng.',
+            'is_anonymous' => false,
+            'occurred_at' => now()->toDateTimeString(),
+        ]);
+
+        $response->assertSessionHasNoErrors();
+        $response->assertSessionHas('success');
+
+        // Verify violation was stored in DB
+        $this->assertDatabaseHas('violation_reports', [
+            'restaurant_id' => $this->restaurant->id,
+            'employee_id' => $this->employee1->id,
+            'violation_type' => 'Đi trễ',
+            'status' => 'open',
+        ]);
+    }
+
+    public function test_internal_transfer_duplicate_blocked_by_insufficient_stock(): void
+    {
+        // Test that InternalTransfer correctly blocks when stock is insufficient (prevents over-transfer)
+        $managerRole = Role::firstOrCreate(['name' => 'manager', 'guard_name' => 'web']);
+        $manager = User::factory()->create([
+            'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
+            'status' => 'active',
+        ]);
+        $manager->assignRole($managerRole);
+
+        $branch1 = RestaurantBranch::factory()->create(['restaurant_id' => $this->restaurant->id]);
+        $branch2 = RestaurantBranch::factory()->create(['restaurant_id' => $this->restaurant->id]);
+
+        $unit = Unit::factory()->create(['restaurant_id' => $this->restaurant->id]);
+        $ingredient = Ingredient::factory()->create([
+            'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $branch1->id,
+            'unit_id' => $unit->id,
+            'status' => 'active',
+        ]);
+
+        // Create inventory with only 5kg on hand
+        Inventory::factory()->create([
+            'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $branch1->id,
+            'ingredient_id' => $ingredient->id,
+            'quantity_on_hand' => 5.0,
+        ]);
+
+        // Cross-branch transfers are an owner operation; keep this fixture focused on
+        // the insufficient-stock rollback rather than a role authorization failure.
+        $this->actingAs($this->owner);
+
+        // Try to transfer 10kg (more than available 5kg)
+        $response = $this->post(route('inventory.internal-transfers'), [
+            'from_branch_id' => $branch1->id,
+            'to_branch_id' => $branch2->id,
+            'ingredient_id' => $ingredient->id,
+            'quantity' => 10.0,
+            'notes' => 'Test over-transfer',
+        ]);
+
+        $response->assertSessionHas('error');
+
+        // Verify stock was NOT changed
+        $this->assertDatabaseHas('inventories', [
+            'branch_id' => $branch1->id,
+            'ingredient_id' => $ingredient->id,
+            'quantity_on_hand' => 5.0,
+        ]);
     }
 }

@@ -2,6 +2,8 @@
 
 namespace App\Services;
 
+use App\Models\SystemSetting;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
@@ -16,9 +18,10 @@ class ChatbotService
 
     public function sendMessage(string $sessionId, string $message, string $source = 'widget'): array
     {
-        if (app(\App\Services\ServiceMonitorService::class)->isMaintenance('chatbot_service')) {
-            $msg = app(\App\Services\ServiceMonitorService::class)->getMaintenanceMessage('chatbot_service') 
+        if (app(ServiceMonitorService::class)->isMaintenance('chatbot_service')) {
+            $msg = app(ServiceMonitorService::class)->getMaintenanceMessage('chatbot_service')
                 ?: 'Trợ lý ảo AI Chatbot hiện đang bảo trì nâng cấp. Vui lòng quay lại sau.';
+
             return [
                 'found' => false,
                 'answer' => $msg,
@@ -35,67 +38,70 @@ class ChatbotService
             return $this->unavailableResponse();
         }
 
-        try {
-            $response = Http::timeout(3)
-                ->retry(1, 200)
-                ->post($this->baseUrl.'/chat', [
-                    'session_id' => $sessionId,
-                    'message' => $message,
-                    'source' => $source,
-                ]);
+        return app(CircuitBreaker::class)->for('chatbot_service')->attempt(
+            function () use ($sessionId, $message, $source) {
+                $response = Http::timeout(3)
+                    ->retry(1, 200)
+                    ->post($this->baseUrl.'/chat', [
+                        'session_id' => $sessionId,
+                        'message' => $message,
+                        'source' => $source,
+                    ]);
 
-            if ($response->successful()) {
+                if (! $response->successful()) {
+                    Log::warning('ChatbotService: phản hồi lỗi', [
+                        'status' => $response->status(),
+                        'body' => $response->body(),
+                    ]);
+
+                    throw new \RuntimeException("Chatbot service trả lỗi HTTP {$response->status()}");
+                }
+
                 return $response->json();
+            },
+            function () {
+                return $this->unavailableResponse();
             }
-
-            Log::warning('ChatbotService: phản hồi lỗi', [
-                'status' => $response->status(),
-                'body' => $response->body(),
-            ]);
-
-            return $this->unavailableResponse();
-        } catch (\Throwable $e) {
-            Log::error('ChatbotService: không kết nối được Python service', [
-                'error' => $e->getMessage(),
-            ]);
-
-            return $this->unavailableResponse();
-        }
+        );
     }
 
     public function getSuggestions(?string $category = null, int $limit = 5): array
     {
-        if (empty($this->baseUrl) || app(\App\Services\ServiceMonitorService::class)->isMaintenance('chatbot_service')) {
+        if (empty($this->baseUrl) || app(ServiceMonitorService::class)->isMaintenance('chatbot_service')) {
             return [];
         }
 
-        // If service is currently known to be offline, fail fast to prevent timeout lag
-        if (\Illuminate\Support\Facades\Cache::has('chatbot_service_offline')) {
+        // Fail fast nếu mạch đang OPEN, tránh cả overhead tính cache key bên dưới
+        if (! app(CircuitBreaker::class)->for('chatbot_service')->isAvailable()) {
             return [];
         }
 
-        $cacheKey = 'chatbot_suggestions_' . ($category ?? 'all') . '_' . $limit;
+        $cacheKey = 'chatbot_suggestions_'.($category ?? 'all').'_'.$limit;
 
-        return \Illuminate\Support\Facades\Cache::remember($cacheKey, 600, function () use ($category, $limit) {
-            try {
-                $params = ['limit' => $limit];
-                if ($category) {
-                    $params['category'] = $category;
-                }
+        $ttl = (int) SystemSetting::get('chatbot_cache_ttl', 300);
 
-                $response = Http::timeout(2)
-                    ->get($this->baseUrl.'/suggestions', $params);
+        return Cache::remember($cacheKey, $ttl, function () use ($category, $limit) {
+            return app(CircuitBreaker::class)->for('chatbot_service')->attempt(
+                function () use ($category, $limit) {
+                    $params = ['limit' => $limit];
+                    if ($category) {
+                        $params['category'] = $category;
+                    }
 
-                if ($response->successful()) {
+                    $response = Http::timeout(2)->get($this->baseUrl.'/suggestions', $params);
+
+                    if (! $response->successful()) {
+                        throw new \RuntimeException("Chatbot suggestions trả lỗi HTTP {$response->status()}");
+                    }
+
                     return $response->json('suggestions', []);
-                }
-            } catch (\Throwable $e) {
-                Log::warning('ChatbotService: lỗi lấy suggestions', ['error' => $e->getMessage()]);
-                // Cache the offline status for 2 minutes to prevent subsequent blocking calls
-                \Illuminate\Support\Facades\Cache::put('chatbot_service_offline', true, 120);
-            }
+                },
+                function () {
+                    Log::warning('ChatbotService: lỗi lấy suggestions, mạch chatbot_service ghi nhận thất bại');
 
-            return [];
+                    return [];
+                }
+            );
         });
     }
 
@@ -117,9 +123,10 @@ class ChatbotService
 
     public function sendAdvisorMessage(string $sessionId, string $message, int $restaurantId): array
     {
-        if (app(\App\Services\ServiceMonitorService::class)->isMaintenance('chatbot_service')) {
-            $msg = app(\App\Services\ServiceMonitorService::class)->getMaintenanceMessage('chatbot_service') 
+        if (app(ServiceMonitorService::class)->isMaintenance('chatbot_service')) {
+            $msg = app(ServiceMonitorService::class)->getMaintenanceMessage('chatbot_service')
                 ?: 'Trợ lý ảo AI Chatbot hiện đang bảo trì nâng cấp. Vui lòng quay lại sau.';
+
             return [
                 'found' => false,
                 'answer' => $msg,
@@ -136,31 +143,30 @@ class ChatbotService
             return $this->unavailableResponse();
         }
 
-        try {
-            $response = Http::timeout(10)
-                ->post($this->baseUrl.'/advisor-chat', [
-                    'session_id' => $sessionId,
-                    'message' => $message,
-                    'restaurant_id' => $restaurantId,
-                ]);
+        return app(CircuitBreaker::class)->for('chatbot_service')->attempt(
+            function () use ($sessionId, $message, $restaurantId) {
+                $response = Http::timeout(10)
+                    ->post($this->baseUrl.'/advisor-chat', [
+                        'session_id' => $sessionId,
+                        'message' => $message,
+                        'restaurant_id' => $restaurantId,
+                    ]);
 
-            if ($response->successful()) {
+                if (! $response->successful()) {
+                    Log::warning('ChatbotService: phản hồi lỗi từ advisor-chat', [
+                        'status' => $response->status(),
+                        'body' => $response->body(),
+                    ]);
+
+                    throw new \RuntimeException("Advisor-chat trả lỗi HTTP {$response->status()}");
+                }
+
                 return $response->json();
+            },
+            function () {
+                return $this->unavailableResponse();
             }
-
-            Log::warning('ChatbotService: phản hồi lỗi từ advisor-chat', [
-                'status' => $response->status(),
-                'body' => $response->body(),
-            ]);
-
-            return $this->unavailableResponse();
-        } catch (\Throwable $e) {
-            Log::error('ChatbotService: không kết nối được Python service /advisor-chat', [
-                'error' => $e->getMessage(),
-            ]);
-
-            return $this->unavailableResponse();
-        }
+        );
     }
 
     public function reloadCache(): bool
@@ -171,6 +177,7 @@ class ChatbotService
 
         try {
             $response = Http::timeout(10)->post($this->baseUrl.'/reload-cache');
+
             return $response->successful();
         } catch (\Throwable $e) {
             return false;
@@ -215,7 +222,6 @@ class ChatbotService
 
         return ['status' => 'error', 'knowledge_count' => 0, 'cache_age_seconds' => null];
     }
-
 
     private function unavailableResponse(): array
     {

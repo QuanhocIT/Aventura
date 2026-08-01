@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Models\MaintenanceMode;
 use App\Services\ServiceMonitorService;
 use Closure;
 use Illuminate\Http\Request;
@@ -9,9 +10,7 @@ use Symfony\Component\HttpFoundation\Response;
 
 class CheckServiceMaintenance
 {
-    public function __construct(private ServiceMonitorService $monitorService)
-    {
-    }
+    public function __construct(private ServiceMonitorService $monitorService) {}
 
     /**
      * Handle an incoming request.
@@ -19,32 +18,45 @@ class CheckServiceMaintenance
     public function handle(Request $request, Closure $next): Response
     {
         // Bypass checks for super-admin or public status routes
-        if ($request->is('super-admin*') || $request->is('status') || $request->is('api/status-data') || $request->is('impersonate*')) {
+        if ($request->is('super-admin*') || $request->user()?->isSuperAdmin() || $request->is('status') || $request->is('api/status-data') || $request->is('impersonate*')) {
             return $next($request);
+        }
+
+        try {
+            $maintenance = MaintenanceMode::activeFor($request->user()?->restaurant_id);
+        } catch (\Throwable) {
+            $maintenance = null;
+        }
+
+        if ($maintenance) {
+            return $this->maintenanceResponse($request, $maintenance->message ?: 'Hệ thống đang được bảo trì. Vui lòng quay lại sau.');
         }
 
         // Check if MySQL database is under maintenance
         if ($this->monitorService->isMaintenance('mysql')) {
-            $message = $this->monitorService->getMaintenanceMessage('mysql') 
+            $message = $this->monitorService->getMaintenanceMessage('mysql')
                 ?: 'Hệ thống cơ sở dữ liệu MySQL đang được bảo trì nâng cấp. Vui lòng quay lại sau.';
 
-            if ($request->expectsJson() || $request->header('X-Inertia')) {
-                return response()->json([
-                    'message' => $message,
-                    'under_maintenance' => true,
-                ], 503);
-            }
-
-            // Fallback to error view
-            if (view()->exists('errors.mysql-maintenance')) {
-                return response()->view('errors.mysql-maintenance', ['message' => $message], 503);
-            }
-
-            // Fallback inline styling if view doesn't render
-            return response($this->getFallbackHtml($message), 503);
+            return $this->maintenanceResponse($request, $message);
         }
 
         return $next($request);
+    }
+
+    private function maintenanceResponse(Request $request, string $message): Response
+    {
+        if ($request->expectsJson() || $request->header('X-Inertia')) {
+            return response()->json([
+                'message' => $message,
+                'under_maintenance' => true,
+            ], 503);
+        }
+
+        if (view()->exists('errors.mysql-maintenance')) {
+            return response()->view('errors.mysql-maintenance', ['message' => $message], 503);
+        }
+
+        return response($this->getFallbackHtml($message), 503);
     }
 
     /**

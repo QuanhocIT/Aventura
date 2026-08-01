@@ -31,17 +31,17 @@ class PublishScheduledNewsPosts extends Command
 
             AuditLog::create([
                 'restaurant_id' => null,
-                'branch_id'     => null,
-                'user_id'       => null,
-                'user_role'     => 'system',
-                'event'         => 'updated',
-                'action'        => 'news_post_auto_publish',
-                'subject_type'  => NewsPost::class,
-                'subject_id'    => $post->id,
-                'old_values'    => ['is_published' => false],
-                'new_values'    => ['is_published' => true],
-                'ip_address'    => null,
-                'user_agent'    => null,
+                'branch_id' => null,
+                'user_id' => null,
+                'user_role' => 'system',
+                'event' => 'updated',
+                'action' => 'news_post_auto_publish',
+                'subject_type' => NewsPost::class,
+                'subject_id' => $post->id,
+                'old_values' => ['is_published' => false],
+                'new_values' => ['is_published' => true],
+                'ip_address' => null,
+                'user_agent' => null,
             ]);
 
             $this->line("→ Đã xuất bản: #{$post->id} \"{$post->title}\" (lên lịch: {$post->published_at})");

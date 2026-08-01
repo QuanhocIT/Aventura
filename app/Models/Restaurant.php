@@ -3,22 +3,22 @@
 namespace App\Models;
 
 use Database\Factories\Tenant\RestaurantFactory;
-use Laravel\Scout\Searchable;
-use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Factories\Factory;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Carbon;
+use Laravel\Scout\Searchable;
 
 class Restaurant extends Model
 {
     use HasFactory;
-    use SoftDeletes;
     use Searchable;
+    use SoftDeletes;
 
     protected $guarded = [];
 
@@ -47,29 +47,45 @@ class Restaurant extends Model
     {
         return [
             'subscription_started_at' => 'datetime',
-            'subscription_ends_at'    => 'datetime',
-            'trial_ends_at'           => 'datetime',
-            'grace_period_minutes'    => 'integer',
-            'ot_multiplier'           => 'float',
-            'latitude'                => 'float',
-            'longitude'               => 'float',
-            'checkin_radius_meters'   => 'integer',
-            'qr_checkin_expires_at'   => 'datetime',
-            'last_active_at'          => 'datetime',
-            'inactive_flagged_at'     => 'datetime',
-            'is_inactive_flagged'     => 'boolean',
+            'subscription_ends_at' => 'datetime',
+            'trial_ends_at' => 'datetime',
+            'grace_period_minutes' => 'integer',
+            'ot_multiplier' => 'float',
+            'latitude' => 'float',
+            'longitude' => 'float',
+            'checkin_radius_meters' => 'integer',
+            'qr_checkin_expires_at' => 'datetime',
+            'last_active_at' => 'datetime',
+            'inactive_flagged_at' => 'datetime',
+            'is_inactive_flagged' => 'boolean',
             'storage_warning_sent_at' => 'datetime',
-            'sandbox_mode'            => 'boolean',
-            'sandbox_seeded_at'       => 'datetime',
-            'health_score'            => 'integer',
-            'churn_risk_flagged_at'   => 'datetime',
-            'last_health_checked_at'  => 'datetime',
+            'sandbox_mode' => 'boolean',
+            'sandbox_seeded_at' => 'datetime',
+            'health_score' => 'integer',
+            'churn_risk_flagged_at' => 'datetime',
+            'last_health_checked_at' => 'datetime',
+            'manager_bypass_code' => 'encrypted',
         ];
     }
 
     public function plan(): BelongsTo
     {
-        return $this->belongsTo(SubscriptionPlan::class, 'plan_id');
+        return $this->belongsTo(SubscriptionPlan::class, 'plan_id')->withTrashed();
+    }
+
+    public function internalNotes(): HasMany
+    {
+        return $this->hasMany(RestaurantInternalNote::class)->latest();
+    }
+
+    public function tags(): HasMany
+    {
+        return $this->hasMany(RestaurantTag::class);
+    }
+
+    public function followups(): HasMany
+    {
+        return $this->hasMany(RestaurantFollowup::class)->latest();
     }
 
     public function owner(): BelongsTo
@@ -85,6 +101,11 @@ class Restaurant extends Model
     public function branches(): HasMany
     {
         return $this->hasMany(RestaurantBranch::class);
+    }
+
+    public function featureFlags(): HasMany
+    {
+        return $this->hasMany(RestaurantFeatureFlag::class);
     }
 
     public function employees(): HasMany
@@ -104,7 +125,7 @@ class Restaurant extends Model
 
     public function revenueSummaries(): HasMany
     {
-        return $this->hasMany(\App\Models\RestaurantRevenueSummary::class);
+        return $this->hasMany(RestaurantRevenueSummary::class);
     }
 
     public function subscriptions(): HasMany
@@ -151,12 +172,39 @@ class Restaurant extends Model
 
     public function media(): MorphMany
     {
-        return $this->morphMany(\App\Models\MediaAsset::class, 'attachable');
+        return $this->morphMany(MediaAsset::class, 'attachable');
     }
 
-    public function isActive(): bool { return $this->status === 'active'; }
-    public function isSuspended(): bool { return $this->status === 'suspended'; }
-    public function isExpired(): bool { return $this->status === 'expired'; }
+    public function isActive(): bool
+    {
+        return $this->status === 'active';
+    }
+
+    public function isSuspended(): bool
+    {
+        return $this->status === 'suspended';
+    }
+
+    public function isExpired(): bool
+    {
+        return $this->status === 'expired';
+    }
+
+    public function lifecycleStatus(): string
+    {
+        return $this->lifecycle_status
+            ?: ($this->sandbox_mode ? 'sandbox' : ($this->status === 'suspended' ? 'suspended' : 'active'));
+    }
+
+    public function isArchived(): bool
+    {
+        return $this->lifecycleStatus() === 'archived';
+    }
+
+    public function isSandbox(): bool
+    {
+        return $this->lifecycleStatus() === 'sandbox';
+    }
 
     public function currentAccessStatus(): string
     {

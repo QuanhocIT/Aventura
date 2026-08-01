@@ -2,32 +2,34 @@
 
 namespace Tests\Feature;
 
+use App\Mail\ChurnEarlyWarningMail;
 use App\Models\Order;
 use App\Models\Restaurant;
-use App\Models\RestaurantSubscription;
 use App\Models\SubscriptionPlan;
 use App\Models\SupportTicket;
 use App\Models\User;
-use App\Models\Coupon;
-use App\Mail\ChurnEarlyWarningMail;
 use App\Services\CustomerSuccessService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Mail;
-use Tests\TestCase;
 use Spatie\Permission\Models\Role;
+use Tests\TestCase;
 
 class CustomerSuccessTest extends TestCase
 {
     use RefreshDatabase;
 
     protected User $superAdmin;
+
     protected User $owner;
+
     protected Restaurant $restaurant;
+
     protected SubscriptionPlan $plan;
 
     protected function setUp(): void
     {
         parent::setUp();
+        $this->withSession(['superadmin.2fa_verified_until' => now()->addMinutes(15)->timestamp]);
 
         // Disable Scout search indexing to prevent Meilisearch connections during testing
         config(['scout.driver' => null]);
@@ -41,6 +43,7 @@ class CustomerSuccessTest extends TestCase
             'two_factor_confirmed_at' => now(),
         ]);
         $this->superAdmin->assignRole('super_admin');
+        $this->withSession(['superadmin.2fa_verified_user_id' => $this->superAdmin->id]);
 
         // Setup Restaurant Owner
         $this->owner = User::factory()->create([
@@ -83,7 +86,7 @@ class CustomerSuccessTest extends TestCase
 
         // Case 1: Optimal health
         $this->owner->update(['last_login_at' => now()->subHours(5)]);
-        
+
         // Setup some orders for previous 3 weeks and current week
         for ($i = 0; $i < 3; $i++) {
             Order::factory()->create([
@@ -108,7 +111,7 @@ class CustomerSuccessTest extends TestCase
 
         // Case 2: Inactivity & Unresolved Tickets (Medium Risk)
         $this->owner->update(['last_login_at' => now()->subDays(5)]); // -10 points
-        
+
         SupportTicket::create([
             'restaurant_id' => $this->restaurant->id,
             'code' => 'TKT-001',
@@ -123,7 +126,7 @@ class CustomerSuccessTest extends TestCase
         $metrics = $service->calculateHealthScore($this->restaurant);
 
         $this->assertEquals(80, $metrics['health_score']); // 100 - 10 (login) - 10 (ticket) = 80 -> low limit is 80 (>= 80 is low)
-        
+
         // Add another ticket to drop it to medium risk
         SupportTicket::create([
             'restaurant_id' => $this->restaurant->id,
@@ -160,18 +163,18 @@ class CustomerSuccessTest extends TestCase
             'restaurant_id' => $this->restaurant->id,
             'created_at' => now()->subDays(2),
         ]);
-        
+
         // 2. High unresolved tickets count (>=3 tickets)
         for ($i = 0; $i < 3; $i++) {
             SupportTicket::create([
                 'restaurant_id' => $this->restaurant->id,
-                'code' => 'TKT-00' . $i,
+                'code' => 'TKT-00'.$i,
                 'category' => 'technical',
                 'severity' => 'high',
                 'priority' => 'p2',
                 'status' => 'open',
-                'title' => 'Lỗi ' . $i,
-                'description' => 'Mô tả ' . $i,
+                'title' => 'Lỗi '.$i,
+                'description' => 'Mô tả '.$i,
             ]); // -30
         }
 

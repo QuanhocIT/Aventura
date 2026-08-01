@@ -3,10 +3,11 @@
 namespace Tests\Feature;
 
 use App\Models\Restaurant;
+use App\Models\RestaurantSubscription;
+use App\Models\SubscriptionPlan;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Hash;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
@@ -16,14 +17,19 @@ class SuperAdminAdvancedSecurityTest extends TestCase
     use RefreshDatabase;
 
     private User $superAdmin;
+
     private User $tenantUser;
+
     private Restaurant $restaurant;
+
     private Role $superAdminRole;
+
     private Role $ownerRole;
 
     protected function setUp(): void
     {
         parent::setUp();
+        $this->withSession(['superadmin.2fa_verified_until' => now()->addMinutes(15)->timestamp]);
 
         $this->superAdminRole = Role::firstOrCreate(['name' => 'super_admin', 'guard_name' => 'web']);
         $this->ownerRole = Role::firstOrCreate(['name' => 'owner', 'guard_name' => 'web']);
@@ -37,16 +43,17 @@ class SuperAdminAdvancedSecurityTest extends TestCase
             'status' => 'active',
         ]);
         $this->superAdmin->assignRole($this->superAdminRole);
+        $this->withSession(['superadmin.2fa_verified_user_id' => $this->superAdmin->id]);
 
         $this->restaurant = Restaurant::factory()->create();
 
         // Seed a dummy active subscription so applyManualOverride does not throw a 404
-        $plan = \App\Models\SubscriptionPlan::firstOrCreate(
+        $plan = SubscriptionPlan::firstOrCreate(
             ['code' => 'free'],
             ['name' => 'Free Plan']
         );
 
-        \App\Models\RestaurantSubscription::create([
+        RestaurantSubscription::create([
             'restaurant_id' => $this->restaurant->id,
             'plan_id' => $plan->id,
             'status' => 'active',
@@ -88,13 +95,26 @@ class SuperAdminAdvancedSecurityTest extends TestCase
     {
         $this->actingAs($this->superAdmin);
 
-        $response = $this->post(route('superadmin.impersonate.start', $this->tenantUser->id));
+        $response = $this->post(route('superadmin.impersonate.start', $this->tenantUser->id), [
+            'reason' => 'Sắm vai hỗ trợ kỹ thuật cho nhà hàng',
+        ]);
 
         $response->assertRedirect(route('dashboard'));
         $response->assertSessionHas('impersonate_original_user_id', $this->superAdmin->id);
-        
+
         // Đảm bảo user đăng nhập đã chuyển sang tenantUser
         $this->assertEquals($this->tenantUser->id, Auth::id());
+
+        // Hành động sắm vai PHẢI được ghi vào audit_logs để SuperAdmin khác kiểm
+        // tra được sau này — trước đây SuperAdminAuditStream::record() ghi thẳng
+        // $level ('warning') vào cột event (ENUM created/updated/deleted), luôn vi
+        // phạm ràng buộc và bị catch nuốt mất, khiến bảng audit_logs không bao giờ
+        // có dòng nào cho impersonate_start dù đây là hành động rủi ro cao nhất.
+        $this->assertDatabaseHas('audit_logs', [
+            'action' => 'impersonate_start',
+            'user_id' => $this->superAdmin->id,
+            'subject_id' => $this->tenantUser->id,
+        ]);
     }
 
     /**
@@ -104,8 +124,10 @@ class SuperAdminAdvancedSecurityTest extends TestCase
     {
         // Giả lập trạng thái đã sắm vai
         $this->actingAs($this->superAdmin);
-        
-        $responseStart = $this->post(route('superadmin.impersonate.start', $this->tenantUser->id));
+
+        $responseStart = $this->post(route('superadmin.impersonate.start', $this->tenantUser->id), [
+            'reason' => 'Sắm vai hỗ trợ kỹ thuật cho nhà hàng',
+        ]);
         $responseStart->assertRedirect(route('dashboard'));
         $this->assertEquals($this->tenantUser->id, Auth::id());
 
@@ -114,9 +136,14 @@ class SuperAdminAdvancedSecurityTest extends TestCase
 
         $responseStop->assertRedirect(route('superadmin.accounts.index'));
         $responseStop->assertSessionMissing('impersonate_original_user_id');
-        
+
         // Trả lại tài khoản Super Admin gốc
         $this->assertEquals($this->superAdmin->id, Auth::id());
+
+        $this->assertDatabaseHas('audit_logs', [
+            'action' => 'impersonate_stop',
+            'subject_id' => $this->tenantUser->id,
+        ]);
     }
 
     /**

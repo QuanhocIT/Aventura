@@ -37,11 +37,11 @@ class NewsController extends Controller
             ->pluck('total', 'category');
 
         return Inertia::render('News', [
-            'posts'           => $posts,
-            'featuredPosts'   => $featuredPosts,
-            'activeCategory'  => $request->string('category')->toString() ?: null,
-            'activeSearch'    => $request->string('search')->toString() ?: null,
-            'categoryCounts'  => $categoryCounts,
+            'posts' => $posts,
+            'featuredPosts' => $featuredPosts,
+            'activeCategory' => $request->string('category')->toString() ?: null,
+            'activeSearch' => $request->string('search')->toString() ?: null,
+            'categoryCounts' => $categoryCounts,
         ]);
     }
 
@@ -59,7 +59,7 @@ class NewsController extends Controller
             ->map(fn (NewsPost $p) => $this->postCard($p));
 
         return Inertia::render('NewsShow', [
-            'post'         => $this->postDetail($post),
+            'post' => $this->postDetail($post),
             'relatedPosts' => $relatedPosts,
         ]);
     }
@@ -70,18 +70,18 @@ class NewsController extends Controller
         $readingTime = max(1, (int) ceil($wordCount / 200));
 
         return [
-            'id'                 => $post->id,
-            'title'              => $post->title,
-            'slug'               => $post->slug,
-            'excerpt'            => $post->excerpt,
-            'category'           => $post->category,
-            'tags'               => $post->tags ?? [],
+            'id' => $post->id,
+            'title' => $post->title,
+            'slug' => $post->slug,
+            'excerpt' => $post->excerpt,
+            'category' => $post->category,
+            'tags' => $post->tags ?? [],
             'featured_image_url' => $post->featured_image_url,
-            'is_featured'        => $post->is_featured,
-            'view_count'         => $post->view_count,
-            'published_at'       => $post->published_at?->format('d/m/Y'),
-            'author_name'        => $post->author?->name ?? 'Aventura Team',
-            'reading_time'       => $readingTime,
+            'is_featured' => $post->is_featured,
+            'view_count' => $post->view_count,
+            'published_at' => $post->published_at?->format('d/m/Y'),
+            'author_name' => $post->author?->name ?? 'Aventura Team',
+            'reading_time' => $readingTime,
         ];
     }
 

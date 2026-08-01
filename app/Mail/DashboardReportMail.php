@@ -2,6 +2,7 @@
 
 namespace App\Mail;
 
+use Carbon\CarbonInterface;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Mail\Mailable;
@@ -17,7 +18,7 @@ class DashboardReportMail extends Mailable implements ShouldQueue
      */
     public function __construct(
         public string $frequency,
-        public \Carbon\CarbonInterface $generatedAt,
+        public CarbonInterface $generatedAt,
         public array $snapshot,
     ) {}
 

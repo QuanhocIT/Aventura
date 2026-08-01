@@ -7,8 +7,8 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
-use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\Cache;
 
 class SyncSearchIndex implements ShouldQueue
 {
@@ -28,8 +28,8 @@ class SyncSearchIndex implements ShouldQueue
      */
     public function handle(): void
     {
-        $cacheKey = 'meilisearch_sync_' . $this->indexName;
-        
+        $cacheKey = 'meilisearch_sync_'.$this->indexName;
+
         Cache::put($cacheKey, [
             'status' => 'processing',
             'action' => $this->action,

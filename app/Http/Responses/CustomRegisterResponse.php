@@ -32,6 +32,7 @@ class CustomRegisterResponse implements RegisterResponseContract
             if (! in_array($cycle, ['monthly', 'yearly'])) {
                 $cycle = 'monthly';
             }
+
             return redirect()->route('billing.checkout', ['plan' => Str::lower($plan->code), 'cycle' => $cycle]);
         }
 

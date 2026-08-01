@@ -35,24 +35,24 @@ class LoadBalancingService
                     $distanceFactor = min($km / 20, 1.0);
                 }
 
-                $max          = max(1, (int) $shipper->max_orders_per_batch);
-                $orderRatio   = $load['orders'] / $max;
+                $max = max(1, (int) $shipper->max_orders_per_batch);
+                $orderRatio = $load['orders'] / $max;
 
                 // Score: distance×0.4 + orderLoad×0.6
                 $score = ($distanceFactor * 0.4) + ($orderRatio * 0.6);
 
                 return [
-                    'id'             => $shipper->id,
-                    'name'           => $shipper->employee?->full_name ?? "Shipper #{$shipper->id}",
-                    'vehicle_type'   => $shipper->vehicle_type,
-                    'vehicle_plate'  => $shipper->vehicle_plate,
-                    'score'          => round($score, 4),
+                    'id' => $shipper->id,
+                    'name' => $shipper->employee?->full_name ?? "Shipper #{$shipper->id}",
+                    'vehicle_type' => $shipper->vehicle_type,
+                    'vehicle_plate' => $shipper->vehicle_plate,
+                    'score' => round($score, 4),
                     'current_orders' => $load['orders'],
-                    'available_slots'=> max(0, $max - $load['orders']),
-                    'max_orders'     => $max,
-                    'has_gps'        => $shipper->hasGps(),
-                    'last_seen_at'   => $shipper->last_seen_at?->toISOString(),
-                    'distance_factor'=> round($distanceFactor, 4),
+                    'available_slots' => max(0, $max - $load['orders']),
+                    'max_orders' => $max,
+                    'has_gps' => $shipper->hasGps(),
+                    'last_seen_at' => $shipper->last_seen_at?->toISOString(),
+                    'distance_factor' => round($distanceFactor, 4),
                 ];
             })
             ->filter(fn ($s) => $s['available_slots'] > 0)

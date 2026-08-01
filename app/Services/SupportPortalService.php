@@ -98,7 +98,7 @@ class SupportPortalService
     {
         $content = Str::lower($title.' '.$description);
 
-        if (Str::contains($content, ['bep', 'kitchen', 'realtime', 'khong nhan', 'không nh?n', 'thanh toan', 'thanh toán', 'khong vao don'])) {
+        if (Str::contains($content, ['bep', 'kitchen', 'realtime', 'khong nhan', 'không nhận', 'thanh toan', 'thanh toán', 'khong vao don'])) {
             return ['severity' => 'critical', 'priority' => 'p1'];
         }
 

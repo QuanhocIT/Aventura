@@ -3,15 +3,16 @@
 namespace App\Models;
 
 use App\Models\Concerns\BelongsToRestaurant;
-
+use App\Support\Tenant\TenantContext;
 use Database\Factories\Restaurant\RestaurantTableFactory;
-use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Factories\Factory;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Facades\Cache;
 
 class RestaurantTable extends Model
 {
@@ -50,8 +51,32 @@ class RestaurantTable extends Model
 
     protected static function booted(): void
     {
-        static::saved(fn ($table) => \Illuminate\Support\Facades\Cache::forget("restaurant_{$table->restaurant_id}_tables"));
-        static::deleted(fn ($table) => \Illuminate\Support\Facades\Cache::forget("restaurant_{$table->restaurant_id}_tables"));
+        static::saved(function ($table) {
+            self::forgetScopedCaches($table);
+            Cache::forget("quota_summary:{$table->restaurant_id}");
+        });
+        static::deleted(function ($table) {
+            self::forgetScopedCaches($table);
+            Cache::forget("quota_summary:{$table->restaurant_id}");
+        });
+    }
+
+    private static function forgetScopedCaches(self $table): void
+    {
+        foreach (['tables', 'areas'] as $resource) {
+            Cache::forget("restaurant_{$table->restaurant_id}_{$resource}");
+            Cache::forget("restaurant_{$table->restaurant_id}_{$resource}:scope:all");
+            Cache::forget("restaurant_{$table->restaurant_id}_{$resource}:scope:none");
+
+            if ($table->branch_id) {
+                Cache::forget("restaurant_{$table->restaurant_id}_{$resource}:scope:".TenantContext::branchScopeKey((int) $table->branch_id));
+            }
+
+            $originalBranchId = $table->getOriginal('branch_id');
+            if ($originalBranchId && (int) $originalBranchId !== (int) $table->branch_id) {
+                Cache::forget("restaurant_{$table->restaurant_id}_{$resource}:scope:".TenantContext::branchScopeKey((int) $originalBranchId));
+            }
+        }
     }
 
     protected static function newFactory(): Factory
@@ -59,4 +84,3 @@ class RestaurantTable extends Model
         return RestaurantTableFactory::new();
     }
 }
-

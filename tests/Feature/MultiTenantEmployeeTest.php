@@ -7,7 +7,7 @@ use App\Models\Restaurant;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\URL;
-use Illuminate\Support\Facades\Hash;
+use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
 class MultiTenantEmployeeTest extends TestCase
@@ -42,7 +42,7 @@ class MultiTenantEmployeeTest extends TestCase
             'status' => 'inactive',
         ]);
 
-        $role = \Spatie\Permission\Models\Role::firstOrCreate(['name' => 'cashier', 'guard_name' => 'web']);
+        $role = Role::firstOrCreate(['name' => 'cashier', 'guard_name' => 'web']);
 
         $employee = Employee::factory()->create([
             'user_id' => $user->id,
@@ -74,7 +74,7 @@ class MultiTenantEmployeeTest extends TestCase
         $restaurantA = Restaurant::factory()->create(['name' => 'Restaurant A']);
         $restaurantB = Restaurant::factory()->create(['name' => 'Restaurant B']);
 
-        $ownerRole = \Spatie\Permission\Models\Role::firstOrCreate(['name' => 'owner', 'guard_name' => 'web']);
+        $ownerRole = Role::firstOrCreate(['name' => 'owner', 'guard_name' => 'web']);
 
         // Create active account in Restaurant A
         $userA = User::factory()->create([
@@ -106,7 +106,7 @@ class MultiTenantEmployeeTest extends TestCase
         // Should be logged in and redirected to choose-restaurant
         $response->assertRedirect(route('choose-restaurant'));
         $this->assertTrue(auth()->check());
-        
+
         $response->assertSessionHas('multi_tenant_users');
         $this->assertEquals(
             [$restaurantA->id => $userA->id, $restaurantB->id => $userB->id],
@@ -119,7 +119,7 @@ class MultiTenantEmployeeTest extends TestCase
         $restaurantA = Restaurant::factory()->create(['name' => 'Restaurant A']);
         $restaurantB = Restaurant::factory()->create(['name' => 'Restaurant B']);
 
-        $ownerRole = \Spatie\Permission\Models\Role::firstOrCreate(['name' => 'owner', 'guard_name' => 'web']);
+        $ownerRole = Role::firstOrCreate(['name' => 'owner', 'guard_name' => 'web']);
 
         $userA = User::factory()->create([
             'email' => 'multi@example.com',
@@ -143,7 +143,7 @@ class MultiTenantEmployeeTest extends TestCase
         // Set session state
         session(['multi_tenant_users' => [
             $restaurantA->id => $userA->id,
-            $restaurantB->id => $userB->id
+            $restaurantB->id => $userB->id,
         ]]);
 
         // Choose Restaurant B
@@ -152,7 +152,7 @@ class MultiTenantEmployeeTest extends TestCase
         ]);
 
         $response->assertRedirect('/dashboard');
-        
+
         // Verify current authenticated user is now User B
         $this->assertEquals($userB->id, auth()->id());
     }

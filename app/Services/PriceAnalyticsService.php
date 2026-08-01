@@ -40,22 +40,25 @@ class PriceAnalyticsService
         $baseUrl = config('services.analytics.url');
         $url = "{$baseUrl}/api/analytics/price-analytics";
 
-        try {
-            $response = Http::timeout(5)->post($url, [
-                'history' => $historyPayload,
-            ]);
+        return app(CircuitBreaker::class)->for('analytics_service')->attempt(
+            function () use ($url, $historyPayload) {
+                $response = Http::timeout(5)
+                    ->withHeaders(app(AnalyticsServiceClient::class)->authHeaders())
+                    ->post($url, [
+                        'history' => $historyPayload,
+                    ]);
 
-            if ($response->successful()) {
+                if (! $response->successful()) {
+                    Log::warning('PriceAnalyticsService: Python service returned error code '.$response->status());
+                    throw new \RuntimeException("Price analytics service trả lỗi HTTP {$response->status()}");
+                }
+
                 return $response->json();
+            },
+            function () use ($historyPayload) {
+                return $this->fallbackAnalysis($historyPayload);
             }
-
-            Log::warning("PriceAnalyticsService: Python service returned error code " . $response->status());
-        } catch (\Throwable $e) {
-            Log::error("PriceAnalyticsService: Failed to contact Python microservice: " . $e->getMessage());
-        }
-
-        // Fallback PHP implementation
-        return $this->fallbackAnalysis($historyPayload);
+        );
     }
 
     /**
@@ -94,13 +97,13 @@ class PriceAnalyticsService
 
         if ($change > 5) {
             $trend = 'upward';
-            $recommendation = "Giá vật tư tăng mạnh (" . round($change, 1) . "%). Đề xuất tăng giá vốn cost_price và xem xét điều chỉnh giá bán [Nguồn: Fallback PHP].";
+            $recommendation = 'Giá vật tư tăng mạnh ('.round($change, 1).'%). Đề xuất tăng giá vốn cost_price và xem xét điều chỉnh giá bán [Nguồn: Fallback PHP].';
         } elseif ($change < -5) {
             $trend = 'downward';
-            $recommendation = "Giá vật tư giảm (" . round(abs($change), 1) . "%). Có thể giảm giá vốn cost_price để tăng biên lợi nhuận [Nguồn: Fallback PHP].";
+            $recommendation = 'Giá vật tư giảm ('.round(abs($change), 1).'%). Có thể giảm giá vốn cost_price để tăng biên lợi nhuận [Nguồn: Fallback PHP].';
         } else {
             $trend = 'stable';
-            $recommendation = "Giá vật tư bình ổn. Không cần điều chỉnh giá vốn [Nguồn: Fallback PHP].";
+            $recommendation = 'Giá vật tư bình ổn. Không cần điều chỉnh giá vốn [Nguồn: Fallback PHP].';
         }
 
         return [

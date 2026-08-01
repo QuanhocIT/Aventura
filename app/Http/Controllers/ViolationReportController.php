@@ -2,18 +2,18 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\ViolationReport;
+use App\Models\AuditLog;
 use App\Models\Employee;
 use App\Models\Salary;
 use App\Models\SalaryAdjustment;
-use App\Models\AuditLog;
-use App\Support\Tenant\TenantContext;
-use Illuminate\Http\Request;
-use Illuminate\Http\JsonResponse;
+use App\Models\ViolationReport;
+use App\Services\QuotaService;
+use App\Services\SalaryService;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 use Inertia\Response;
-use Illuminate\Support\Facades\DB;
 
 class ViolationReportController extends Controller
 {
@@ -26,12 +26,15 @@ class ViolationReportController extends Controller
         abort_unless($user->can('view_violations') || $user->can('report_violations'), 403);
 
         $restaurant = $user->restaurant;
+        if (! $restaurant && ! $request->user()->hasRole('super_admin')) {
+            abort(403, 'Không tìm thấy nhà hàng.');
+        }
         $restaurant?->loadMissing('plan');
-        if ($restaurant && ! app(\App\Services\QuotaService::class)->hasFeature($restaurant, 'hr_full')) {
+        if ($restaurant && ! app(QuotaService::class)->hasFeature($restaurant, 'hr_full')) {
             return Inertia::render('FeatureGate', [
-                'feature'       => 'hr_full',
+                'feature' => 'hr_full',
                 'feature_label' => 'Báo cáo Vi phạm Nội bộ',
-                'plan_name'     => $restaurant->plan?->name ?? 'Miễn Phí',
+                'plan_name' => $restaurant->plan?->name ?? 'Miễn Phí',
                 'required_plan' => 'Chuyên Nghiệp',
             ]);
         }
@@ -41,7 +44,7 @@ class ViolationReportController extends Controller
         // 1. Lấy danh sách vé tố cáo, map ẩn danh để bảo vệ người tố giác
         $query = ViolationReport::where('restaurant_id', $restaurantId);
 
-        if (!$user->can('view_violations')) {
+        if (! $user->can('view_violations')) {
             $query->where('reported_by', $user->id);
         }
 
@@ -73,7 +76,7 @@ class ViolationReportController extends Controller
         $employees = Employee::where('restaurant_id', $restaurantId)
             ->where('status', 'active')
             ->get()
-            ->map(fn($e) => [
+            ->map(fn ($e) => [
                 'id' => $e->id,
                 'full_name' => $e->full_name,
                 'job_title' => $e->job_title,
@@ -97,7 +100,7 @@ class ViolationReportController extends Controller
         $branchId = $user->branch_id;
 
         $data = $request->validate([
-            'employee_id' => ['required', 'exists:employees,id'],
+            'employee_id' => ['required', "exists:employees,id,restaurant_id,{$restaurantId}"],
             'violation_type' => ['required', 'string', 'max:100'],
             'description' => ['required', 'string', 'max:2000'],
             'is_anonymous' => ['required', 'boolean'],
@@ -121,7 +124,7 @@ class ViolationReportController extends Controller
         // Ghi Audit Log cho hành vi tạo tố cáo
         AuditLog::log('violation_reported', 'created', $report, null, [
             'violation_type' => $report->violation_type,
-            'is_anonymous' => (bool)$report->is_anonymous,
+            'is_anonymous' => (bool) $report->is_anonymous,
         ]);
 
         return back()->with('success', 'Gửi tố cáo nội bộ thành công! Ban quản trị sẽ bảo mật tuyệt đối danh tính và xem xét vụ việc.');
@@ -139,24 +142,24 @@ class ViolationReportController extends Controller
         $data = $request->validate([
             'severity' => ['required', 'in:low,medium,high,critical'],
             'penalty_amount' => ['required', 'numeric', 'min:0'],
-            'status' => ['required', 'in:resolved,dismissed'],
+            'status' => ['required', 'in:resolved,dismissed,investigating'],
             'resolution_notes' => ['nullable', 'string', 'max:1000'],
         ]);
 
         $oldValues = [
             'status' => $report->status,
             'severity' => $report->severity,
-            'penalty_amount' => (float)$report->penalty_amount,
+            'penalty_amount' => (float) $report->penalty_amount,
         ];
 
         DB::transaction(function () use ($report, $data) {
-            $penaltyAmount = (float)$data['penalty_amount'];
+            $penaltyAmount = (float) $data['penalty_amount'];
 
             // Tự động tích hợp cấn trừ lương khi xác định vi phạmresolved và có phạt tiền
             if ($data['status'] === 'resolved' && $penaltyAmount > 0) {
                 $employee = $report->employee;
                 if ($employee) {
-                    $salaryService = app(\App\Services\SalaryService::class);
+                    $salaryService = app(SalaryService::class);
                     // 1. Tìm hoặc khởi tạo bản ghi Salary Nháp của nhân viên vi phạm dùng Carbon thống nhất
                     $salary = $salaryService->getOrCreateDraft($report->restaurant_id, $employee, now()->toDateString());
 
@@ -189,7 +192,7 @@ class ViolationReportController extends Controller
         AuditLog::log('violation_resolved', 'updated', $report, $oldValues, [
             'status' => $report->status,
             'severity' => $report->severity,
-            'penalty_amount' => (float)$report->penalty_amount,
+            'penalty_amount' => (float) $report->penalty_amount,
             'resolved_by' => $user->name,
             'resolution_notes' => $data['resolution_notes'] ?? null,
         ]);

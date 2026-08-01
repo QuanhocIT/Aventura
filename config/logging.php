@@ -127,6 +127,13 @@ return [
             'path' => storage_path('logs/laravel.log'),
         ],
 
+        'superadmin_audit' => [
+            'driver' => 'daily',
+            'path' => storage_path('logs/superadmin_audit.log'),
+            'level' => 'info',
+            'days' => 90,
+        ],
+
     ],
 
 ];

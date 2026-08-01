@@ -2,22 +2,32 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\CustomerFeedback;
-use App\Models\Order;
-use App\Models\Promotion;
-use App\Models\WorkShift;
-use App\Models\ScheduleAssignment;
+use App\Concerns\GeneratesSignedCaptcha;
+use App\Concerns\VerifiesTurnstile;
 use App\Models\AuditLog;
+use App\Models\CustomerFeedback;
+use App\Models\Employee;
+use App\Models\Order;
+use App\Models\Product;
+use App\Models\Promotion;
+use App\Models\Restaurant;
+use App\Models\RestaurantTable;
+use App\Models\ScheduleAssignment;
+use App\Models\SystemSetting;
+use App\Models\WorkShift;
 use App\Support\Tenant\TenantContext;
-use Illuminate\Http\Request;
+use Carbon\Carbon;
+use Carbon\CarbonInterface;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
-use Illuminate\Support\Facades\DB;
 
 class FeedbackController extends Controller
 {
+    use GeneratesSignedCaptcha, VerifiesTurnstile;
+
     /**
      * Hiển thị danh sách phản hồi và các phân tích đối chiếu (Chỉ dành cho Owner & Manager).
      */
@@ -44,7 +54,7 @@ class FeedbackController extends Controller
         })->filter()->unique()->toArray();
 
         $assignmentsGrouped = collect();
-        if (!empty($orderDates)) {
+        if (! empty($orderDates)) {
             $assignmentsGrouped = ScheduleAssignment::where('restaurant_id', $restaurantId)
                 ->where(function ($q) use ($orderDates) {
                     foreach ($orderDates as $date) {
@@ -54,18 +64,19 @@ class FeedbackController extends Controller
                 ->with(['employee.user'])
                 ->get()
                 ->groupBy(function ($asm) {
-                    $date = $asm->scheduled_date instanceof \Carbon\CarbonInterface
+                    $date = $asm->scheduled_date instanceof CarbonInterface
                         ? $asm->scheduled_date->toDateString()
-                        : \Carbon\Carbon::parse($asm->scheduled_date)->toDateString();
-                    return $date . '_' . $asm->shift_id;
+                        : Carbon::parse($asm->scheduled_date)->toDateString();
+
+                    return $date.'_'.$asm->shift_id;
                 });
         }
 
         // Tải sản phẩm và nhân viên của nhà hàng để ánh xạ thông tin đánh giá
-        $products = \App\Models\Product::where('restaurant_id', $restaurantId)->get()->keyBy('id');
-        $employees = \App\Models\Employee::where('restaurant_id', $restaurantId)->with('user')->get()->keyBy('id');
+        $products = Product::where('restaurant_id', $restaurantId)->get()->keyBy('id');
+        $employees = Employee::where('restaurant_id', $restaurantId)->with('user')->get()->keyBy('id');
 
-        $feedbacks = $feedbackModels->map(function ($fb) use ($restaurantId, $shifts, $assignmentsGrouped, $products, $employees) {
+        $feedbacks = $feedbackModels->map(function ($fb) use ($shifts, $assignmentsGrouped, $products, $employees) {
             $responsibleShift = null;
             $responsibleStaff = [];
 
@@ -76,7 +87,7 @@ class FeedbackController extends Controller
 
                 foreach ($shifts as $shift) {
                     $inShift = false;
-                    if (!$shift->is_overnight) {
+                    if (! $shift->is_overnight) {
                         $inShift = $orderTimeStr >= $shift->start_time && $orderTimeStr <= $shift->end_time;
                     } else {
                         // Ca qua đêm (Ví dụ từ 22:00:00 đến 06:00:00 sáng hôm sau)
@@ -89,9 +100,9 @@ class FeedbackController extends Controller
 
                     if ($inShift) {
                         $responsibleShift = $shift->name;
-                        
+
                         // Lấy lịch phân công đã được bulk load trước đó
-                        $key = $orderDate . '_' . $shift->id;
+                        $key = $orderDate.'_'.$shift->id;
                         $assignments = $assignmentsGrouped->get($key, collect());
 
                         foreach ($assignments as $asm) {
@@ -138,13 +149,14 @@ class FeedbackController extends Controller
                 'submitted_by_phone' => $fb->is_anonymous ? null : $fb->submitted_by_phone,
                 'rating' => (int) $fb->rating,
                 'content' => $fb->content,
+                'sentiment' => $fb->sentiment,
                 'status' => $fb->status,
                 'is_anonymous' => (bool) $fb->is_anonymous,
                 'order_id' => $fb->order_id,
                 'order_number' => $fb->order?->order_number,
                 'table_name' => $fb->order?->table?->name ?? 'Mang về',
                 'created_at' => $fb->created_at->format('H:i d/m/Y'),
-                'items' => $fb->order ? $fb->order->items->map(fn($item) => $item->product?->name)->filter()->values()->toArray() : [],
+                'items' => $fb->order ? $fb->order->items->map(fn ($item) => $item->product?->name)->filter()->values()->toArray() : [],
                 'responsible_shift' => $responsibleShift ?? 'Không xác định',
                 'responsible_staff' => $responsibleStaff,
                 'compensation_voucher' => $fb->compensation_voucher,
@@ -159,7 +171,7 @@ class FeedbackController extends Controller
             ->where('is_active', true)
             ->where('is_approved', true)
             ->get()
-            ->map(fn($p) => [
+            ->map(fn ($p) => [
                 'id' => $p->id,
                 'name' => $p->name,
                 'code' => $p->code,
@@ -189,7 +201,7 @@ class FeedbackController extends Controller
                 'new' => $newFeedback,
                 'average' => $averageRating,
                 'distribution' => $ratingDistribution,
-            ]
+            ],
         ]);
     }
 
@@ -208,7 +220,7 @@ class FeedbackController extends Controller
                     'order_number' => $order->order_number,
                     'table_name' => $order->table?->name ?? 'Mang về',
                     'restaurant_id' => $order->restaurant_id,
-                    'items' => $order->items->map(fn($item) => [
+                    'items' => $order->items->map(fn ($item) => [
                         'product_id' => $item->product_id,
                         'name' => $item->product?->name ?? 'Món ăn',
                     ])->filter()->values()->toArray(),
@@ -229,7 +241,7 @@ class FeedbackController extends Controller
                     'order_number' => $order->order_number,
                     'table_name' => $order->table?->name ?? 'Mang về',
                     'restaurant_id' => $order->restaurant_id,
-                    'items' => $order->items->map(fn($item) => [
+                    'items' => $order->items->map(fn ($item) => [
                         'product_id' => $item->product_id,
                         'name' => $item->product?->name ?? 'Món ăn',
                     ])->filter()->values()->toArray(),
@@ -241,7 +253,7 @@ class FeedbackController extends Controller
         // Tự động phân giải tên nhà hàng để giao diện trông cá nhân hóa
         $restaurantName = 'Aventura Restaurant';
         if ($restaurantId) {
-            $res = \App\Models\Restaurant::find($restaurantId);
+            $res = Restaurant::find($restaurantId);
             if ($res) {
                 $restaurantName = $res->name;
             }
@@ -250,12 +262,36 @@ class FeedbackController extends Controller
         // Tải danh sách nhân sự trực trong ca hiện tại
         $staffList = $restaurantId ? $this->resolveCurrentShiftStaff($restaurantId) : [];
 
+        $turnstileSiteKey = env('TURNSTILE_SITE_KEY') ?: SystemSetting::get('turnstile_site_key');
+        $captchaQuestion = null;
+        $captchaToken = null;
+        if (! $turnstileSiteKey) {
+            $num1 = rand(1, 10);
+            $num2 = rand(1, 10);
+            $operator = rand(0, 1) ? '+' : '-';
+            if ($operator === '-') {
+                if ($num1 < $num2) {
+                    $temp = $num1;
+                    $num1 = $num2;
+                    $num2 = $temp;
+                }
+                $answer = $num1 - $num2;
+            } else {
+                $answer = $num1 + $num2;
+            }
+            $captchaToken = $this->generateCaptchaToken((string) $answer);
+            $captchaQuestion = "{$num1} {$operator} {$num2} = ?";
+        }
+
         return Inertia::render('feedback/PublicCreate', [
             'orderContext' => $orderContext,
             'queryRestaurantId' => $restaurantId ? (int) $restaurantId : null,
             'queryTableId' => $tableId ? (int) $tableId : null,
             'restaurantName' => $restaurantName,
             'staffList' => $staffList,
+            'turnstileSiteKey' => $turnstileSiteKey,
+            'captchaQuestion' => $captchaQuestion,
+            'captchaToken' => $captchaToken,
         ]);
     }
 
@@ -264,6 +300,28 @@ class FeedbackController extends Controller
      */
     public function store(Request $request): JsonResponse
     {
+        if (! app()->runningUnitTests()) {
+            $turnstileSiteKey = env('TURNSTILE_SITE_KEY') ?: SystemSetting::get('turnstile_site_key');
+            if ($turnstileSiteKey) {
+                $token = $request->input('cf-turnstile-response');
+                if (! $token || ! $this->verifyTurnstile($token)) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Vui lòng hoàn thành xác minh bảo mật Cloudflare Turnstile.',
+                    ], 422);
+                }
+            } else {
+                $captchaAnswer = $request->input('captcha_answer');
+                $captchaToken = $request->input('captcha_token');
+                if (! $this->verifyCaptchaToken($captchaToken, $captchaAnswer)) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Câu trả lời xác minh bảo mật không chính xác hoặc đã hết hạn.',
+                    ], 422);
+                }
+            }
+        }
+
         $data = $request->validate([
             'rating' => ['required', 'integer', 'min:1', 'max:5'],
             'content' => ['nullable', 'string', 'max:1000'],
@@ -281,7 +339,7 @@ class FeedbackController extends Controller
         $branchId = null;
 
         // 1. Phân giải restaurant_id & branch_id từ đơn hàng
-        if (!empty($data['order_id'])) {
+        if (! empty($data['order_id'])) {
             $order = Order::find($data['order_id']);
             if ($order) {
                 $restaurantId = $order->restaurant_id;
@@ -290,22 +348,22 @@ class FeedbackController extends Controller
         }
 
         // 2. Nếu không có order_id, lấy từ table_id
-        if (!$restaurantId && !empty($data['table_id'])) {
-            $table = \App\Models\RestaurantTable::find($data['table_id']);
+        if (! $restaurantId && ! empty($data['table_id'])) {
+            $table = RestaurantTable::find($data['table_id']);
             if ($table) {
                 $restaurantId = $table->restaurant_id;
             }
         }
 
         // 3. Dự phòng lấy từ TenantContext hoặc tham số truyền lên
-        if (!$restaurantId) {
+        if (! $restaurantId) {
             $restaurantId = $data['restaurant_id'] ?? app(TenantContext::class)->getRestaurantId();
         }
 
-        if (!$restaurantId) {
+        if (! $restaurantId) {
             return response()->json([
                 'success' => false,
-                'message' => 'Không thể xác định thông tin chi nhánh nhà hàng để tiếp nhận phản hồi.'
+                'message' => 'Không thể xác định thông tin chi nhánh nhà hàng để tiếp nhận phản hồi.',
             ], 422);
         }
 
@@ -324,11 +382,165 @@ class FeedbackController extends Controller
             'status' => 'new',
         ]);
 
+        // Tự động phân bổ điểm sao đánh giá cho nhân viên trong ca làm việc
+        try {
+            $this->dispatchRatingToStaff($feedback);
+        } catch (\Exception $e) {
+            logger()->error('Failed to dispatch rating to staff: '.$e->getMessage());
+        }
+
         return response()->json([
             'success' => true,
             'message' => 'Cảm ơn quý khách đã gửi đánh giá! Ý kiến của quý khách đã được tiếp nhận và xử lý.',
             'feedback_id' => $feedback->id,
         ]);
+    }
+
+    /**
+     * Tự động phân bổ đánh giá sao từ khách hàng cho nhân viên trong ca làm việc.
+     */
+    public function dispatchRatingToStaff(CustomerFeedback $feedback): void
+    {
+        $restaurantId = $feedback->restaurant_id;
+        if (! $restaurantId) {
+            return;
+        }
+
+        // Lấy thời điểm gọi đơn hàng hoặc thời điểm gửi đánh giá
+        $order = $feedback->order;
+        $time = $order ? $order->created_at : $feedback->created_at;
+        $dateStr = $time ? $time->toDateString() : now()->toDateString();
+        $timeStr = $time ? $time->toTimeString() : now()->toTimeString();
+
+        // 1. Tìm ca trực hoạt động tại thời điểm này
+        $shifts = WorkShift::where('restaurant_id', $restaurantId)
+            ->where('status', 'active')
+            ->get();
+
+        $matchedShift = null;
+        foreach ($shifts as $shift) {
+            $inShift = false;
+            if (! $shift->is_overnight) {
+                $inShift = $timeStr >= $shift->start_time && $timeStr <= $shift->end_time;
+            } else {
+                if ($shift->start_time > $shift->end_time) {
+                    $inShift = $timeStr >= $shift->start_time || $timeStr <= $shift->end_time;
+                } else {
+                    $inShift = $timeStr >= $shift->start_time && $timeStr <= $shift->end_time;
+                }
+            }
+            if ($inShift) {
+                $matchedShift = $shift;
+                break;
+            }
+        }
+
+        // Tìm danh sách phân ca trong ngày
+        $assignmentsQuery = ScheduleAssignment::where('restaurant_id', $restaurantId)
+            ->whereDate('scheduled_date', $dateStr)
+            ->with(['employee']);
+
+        if ($matchedShift) {
+            $assignmentsQuery->where('shift_id', $matchedShift->id);
+        }
+
+        $assignments = $assignmentsQuery->get();
+        if ($assignments->isEmpty()) {
+            return;
+        }
+
+        $employees = $assignments->pluck('employee')->filter()->keyBy('id');
+        if ($employees->isEmpty()) {
+            return;
+        }
+
+        // 2. Phân loại nhân sự theo chuyên môn
+        $kitchenStaff = [];
+        $serviceStaff = [];
+        $allShiftStaff = $employees->all();
+
+        foreach ($employees as $emp) {
+            $title = mb_strtolower($emp->job_title ?? '');
+            $role = mb_strtolower($emp->role ?? '');
+
+            if (str_contains($title, 'bếp') || str_contains($title, 'chef') || str_contains($title, 'cook') || str_contains($title, 'kitchen') || str_contains($title, 'pha chế') || str_contains($title, 'bar') || str_contains($role, 'kitchen')) {
+                $kitchenStaff[$emp->id] = $emp;
+            }
+
+            if (str_contains($title, 'thu ngân') || str_contains($title, 'cashier') || str_contains($title, 'phục vụ') || str_contains($title, 'order') || str_contains($title, 'waiter') || str_contains($role, 'cashier') || str_contains($role, 'waiter') || str_contains($role, 'manager')) {
+                $serviceStaff[$emp->id] = $emp;
+            }
+        }
+
+        if (empty($kitchenStaff)) {
+            $kitchenStaff = $allShiftStaff;
+        }
+        if (empty($serviceStaff)) {
+            $serviceStaff = $allShiftStaff;
+        }
+
+        $empRatingsMap = [];
+
+        // A. Đánh giá Đồ ăn (items_rating) -> Phân bổ cho nhân viên Bếp
+        if (! empty($feedback->items_rating) && is_array($feedback->items_rating)) {
+            $itemRatings = array_filter(array_map('floatval', $feedback->items_rating));
+            if (! empty($itemRatings)) {
+                $avgItemRating = array_sum($itemRatings) / count($itemRatings);
+                foreach ($kitchenStaff as $emp) {
+                    $empRatingsMap[$emp->id][] = $avgItemRating;
+                }
+            }
+        }
+
+        // B. Đánh giá Trực tiếp Đích danh (staff_rating)
+        if (! empty($feedback->staff_rating) && is_array($feedback->staff_rating)) {
+            foreach ($feedback->staff_rating as $empId => $score) {
+                $scoreNum = (float) $score;
+                if ($scoreNum > 0 && isset($employees[$empId])) {
+                    $empRatingsMap[$empId][] = $scoreNum;
+                }
+            }
+        }
+
+        // C. Đánh giá Dịch vụ / Thái độ chung (rating 1-5 sao)
+        $generalRating = (float) $feedback->rating;
+        if ($generalRating > 0) {
+            if (empty($feedback->staff_rating)) {
+                foreach ($serviceStaff as $emp) {
+                    $empRatingsMap[$emp->id][] = $generalRating;
+                }
+            }
+            if (empty($feedback->items_rating)) {
+                foreach ($kitchenStaff as $emp) {
+                    $empRatingsMap[$emp->id][] = $generalRating;
+                }
+            }
+        }
+
+        // 3. Cập nhật rating_star và rating_count cho từng nhân viên
+        foreach ($empRatingsMap as $empId => $ratings) {
+            $emp = $employees[$empId] ?? null;
+            if (! $emp || empty($ratings)) {
+                continue;
+            }
+
+            $currentCount = (int) ($emp->rating_count ?? 0);
+            $currentStar = (float) ($emp->rating_star ?? 5.0);
+
+            $newRatingsCount = count($ratings);
+            $sumNewRatings = array_sum($ratings);
+
+            $totalCount = $currentCount + $newRatingsCount;
+            if ($totalCount > 0) {
+                $newStarAvg = (($currentStar * $currentCount) + $sumNewRatings) / $totalCount;
+                $newStarAvg = round(max(1.0, min(5.0, $newStarAvg)), 2);
+
+                $emp->update([
+                    'rating_star' => $newStarAvg,
+                    'rating_count' => $totalCount,
+                ]);
+            }
+        }
     }
 
     /**
@@ -387,7 +599,7 @@ class FeedbackController extends Controller
 
         foreach ($shifts as $shift) {
             $inShift = false;
-            if (!$shift->is_overnight) {
+            if (! $shift->is_overnight) {
                 $inShift = $currentTimeStr >= $shift->start_time && $currentTimeStr <= $shift->end_time;
             } else {
                 // Ca qua đêm (Ví dụ từ 22:00:00 đến 06:00:00 sáng hôm sau)
@@ -404,7 +616,7 @@ class FeedbackController extends Controller
             }
         }
 
-        if (!$matchedShiftId) {
+        if (! $matchedShiftId) {
             return [];
         }
 
@@ -422,6 +634,7 @@ class FeedbackController extends Controller
                         'role' => $asm->employee->role_title ?? 'Nhân viên',
                     ];
                 }
+
                 return null;
             })
             ->filter()
@@ -429,4 +642,3 @@ class FeedbackController extends Controller
             ->toArray();
     }
 }
-

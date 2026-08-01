@@ -5,6 +5,7 @@ namespace Database\Seeders;
 use Illuminate\Database\Seeder;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
+use Spatie\Permission\PermissionRegistrar;
 
 class PermissionsSeeder extends Seeder
 {
@@ -114,7 +115,7 @@ class PermissionsSeeder extends Seeder
 
         // Xóa cache permission để đảm bảo cập nhật ngay lập tức
         try {
-            app(\Spatie\Permission\PermissionRegistrar::class)->forgetCachedPermissions();
+            app(PermissionRegistrar::class)->forgetCachedPermissions();
         } catch (\Throwable $e) {
             // Bỏ qua nếu có lỗi cache
         }

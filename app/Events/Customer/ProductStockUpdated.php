@@ -28,7 +28,7 @@ class ProductStockUpdated implements ShouldBroadcastNow
     {
         return [
             'restaurant_id' => $this->restaurantId,
-            'timestamp'     => now()->toIso8601String(),
+            'timestamp' => now()->toIso8601String(),
         ];
     }
 }

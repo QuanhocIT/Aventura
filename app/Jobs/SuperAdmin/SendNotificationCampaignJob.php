@@ -53,13 +53,13 @@ class SendNotificationCampaignJob implements ShouldQueue
                 // Only restaurant owners
                 $userQuery->where(function ($q) use ($targetOwnerIds) {
                     $q->whereIn('id', $targetOwnerIds)
-                      ->orWhere(function ($sq) {
-                          $sq->whereHas('roles', function ($rq) {
-                              $rq->where('name', 'owner');
-                          });
-                      });
+                        ->orWhere(function ($sq) {
+                            $sq->whereHas('roles', function ($rq) {
+                                $rq->where('name', 'owner');
+                            });
+                        });
                 });
-                
+
                 // Restrict to targeted restaurants if target_type is not 'all'
                 if ($this->campaign->target_type !== 'all') {
                     $userQuery->whereIn('restaurant_id', $targetRestaurantIds);
@@ -77,7 +77,7 @@ class SendNotificationCampaignJob implements ShouldQueue
             $sentCount = 0;
             $channels = $this->campaign->channels ?? [];
 
-            Log::info("SendNotificationCampaignJob: Campaign #{$this->campaign->id} resolved target users: " . $targetUsers->count());
+            Log::info("SendNotificationCampaignJob: Campaign #{$this->campaign->id} resolved target users: ".$targetUsers->count());
 
             // 3. Deliver Websocket (Real-time Laravel Reverb)
             // Since this is a broadcast, we dispatch the event once to the public channel.
@@ -90,7 +90,7 @@ class SendNotificationCampaignJob implements ShouldQueue
             // 4. Deliver Emails
             if (in_array('email', $channels)) {
                 foreach ($targetUsers as $user) {
-                    if (!empty($user->email)) {
+                    if (! empty($user->email)) {
                         $emailClient->sendCampaignEmail([
                             'email' => $user->email,
                             'name' => $user->name,
@@ -105,9 +105,9 @@ class SendNotificationCampaignJob implements ShouldQueue
             // 5. Deliver Push Notifications
             if (in_array('push', $channels)) {
                 foreach ($targetUsers as $user) {
-                    if (!empty($user->device_token)) {
+                    if (! empty($user->device_token)) {
                         $pushService->send($user, $this->campaign->title, $this->campaign->content);
-                        if (!in_array('email', $channels)) {
+                        if (! in_array('email', $channels)) {
                             // If email wasn't sent, increment sent count for push
                             $sentCount++;
                         }
@@ -130,8 +130,8 @@ class SendNotificationCampaignJob implements ShouldQueue
             Log::info("SendNotificationCampaignJob: Campaign #{$this->campaign->id} completed successfully.");
 
         } catch (\Throwable $e) {
-            Log::error("SendNotificationCampaignJob failed: " . $e->getMessage(), [
-                'exception' => $e
+            Log::error('SendNotificationCampaignJob failed: '.$e->getMessage(), [
+                'exception' => $e,
             ]);
             $this->campaign->update(['status' => 'failed']);
             throw $e;

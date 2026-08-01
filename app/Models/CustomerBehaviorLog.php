@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class CustomerBehaviorLog extends Model
 {
     use BelongsToRestaurant;
+
     protected $guarded = [];
 
     protected function casts(): array

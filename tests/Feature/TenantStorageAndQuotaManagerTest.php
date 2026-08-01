@@ -20,15 +20,21 @@ class TenantStorageAndQuotaManagerTest extends TestCase
     use RefreshDatabase;
 
     protected User $superAdmin;
+
     protected User $owner;
+
     protected Restaurant $restaurant;
+
     protected SubscriptionPlan $plan;
+
     protected RestaurantSubscription $subscription;
+
     protected QuotaService $quotaService;
 
     protected function setUp(): void
     {
         parent::setUp();
+        $this->withSession(['superadmin.2fa_verified_until' => now()->addMinutes(15)->timestamp]);
 
         $this->quotaService = app(QuotaService::class);
 
@@ -37,6 +43,7 @@ class TenantStorageAndQuotaManagerTest extends TestCase
             'two_factor_confirmed_at' => now(),
         ]);
         $this->superAdmin->assignRole('super_admin');
+        $this->withSession(['superadmin.2fa_verified_user_id' => $this->superAdmin->id]);
 
         // 2. Setup Owner
         $this->owner = User::factory()->create([
@@ -57,9 +64,9 @@ class TenantStorageAndQuotaManagerTest extends TestCase
         ]);
 
         $this->plan->update([
-            'features' => array_merge((array)$this->plan->features, [
+            'features' => array_merge((array) $this->plan->features, [
                 'max_storage_mb' => 500,
-            ])
+            ]),
         ]);
 
         // 4. Setup Restaurant

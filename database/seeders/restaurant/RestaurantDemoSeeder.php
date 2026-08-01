@@ -34,7 +34,6 @@ class RestaurantDemoSeeder extends Seeder
         $owner = User::where('email', 'owner@bepso.test')->firstOrFail();
         $restaurant = $owner->restaurant()->firstOrFail();
 
-
         $manager = $this->upsertStaffUser('manager@bepso.test', 'Manager Demo', '0900000002', 'manager', $restaurant);
         $cashier = $this->upsertStaffUser('cashier@bepso.test', 'Cashier Demo', '0900000003', 'cashier', $restaurant);
         $kitchen = $this->upsertStaffUser('kitchen@bepso.test', 'Kitchen Demo', '0900000004', 'kitchen', $restaurant);

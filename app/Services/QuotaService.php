@@ -2,15 +2,35 @@
 
 namespace App\Services;
 
+use App\Models\MediaAsset;
+use App\Models\Product;
 use App\Models\Restaurant;
+use App\Support\TenantFeatureFlags;
 
 class QuotaService
 {
+    // null = không giới hạn
     // null = không giới hạn
     public function getLimit(Restaurant $restaurant, string $resource): ?int
     {
         if ($resource === 'storage_mb' && $restaurant->custom_storage_limit_mb !== null) {
             return $restaurant->custom_storage_limit_mb;
+        }
+
+        // 1. Ưu tiên đọc từ Locked-in Subscription Snapshot (Bảo vệ khách hàng cũ khỏi xung đột khi sửa Gói Master)
+        $subscription = $restaurant->subscriptions()->where('status', 'active')->latest()->first();
+        $snapshot = $subscription?->meta['snapshot'] ?? null;
+
+        if ($snapshot) {
+            return match ($resource) {
+                'branches' => $snapshot['max_branches'] ?? null,
+                'tables' => $snapshot['max_tables'] ?? null,
+                'employees' => $snapshot['max_users'] ?? null,
+                'dishes' => $snapshot['max_dishes'] ?? null,
+                'areas' => isset($snapshot['features']['max_areas']) ? ($snapshot['features']['max_areas'] === null ? null : (int) $snapshot['features']['max_areas']) : 2,
+                'storage_mb' => (int) ($snapshot['features']['max_storage_mb'] ?? 500),
+                default => null,
+            };
         }
 
         $plan = $restaurant->plan;
@@ -20,13 +40,13 @@ class QuotaService
         }
 
         return match ($resource) {
-            'branches'   => $plan->max_branches,
-            'tables'     => $plan->max_tables,
-            'employees'  => $plan->max_users,
-            'dishes'     => $plan->max_dishes,
-            'areas'      => isset($plan->features['max_areas']) ? ($plan->features['max_areas'] === null ? null : (int) $plan->features['max_areas']) : 2,
+            'branches' => $plan->max_branches,
+            'tables' => $plan->max_tables,
+            'employees' => $plan->max_users,
+            'dishes' => $plan->max_dishes,
+            'areas' => isset($plan->features['max_areas']) ? ($plan->features['max_areas'] === null ? null : (int) $plan->features['max_areas']) : 2,
             'storage_mb' => (int) ($plan->features['max_storage_mb'] ?? 500),
-            default      => null,
+            default => null,
         };
     }
 
@@ -35,35 +55,66 @@ class QuotaService
         return $this->getLimit($restaurant, $resource) === null;
     }
 
+    public function getResourceUsage(Restaurant $restaurant, string $resource): float
+    {
+        return match ($resource) {
+            'branches' => (float) $restaurant->branches()->count(),
+            'tables' => (float) $restaurant->tables()->count(),
+            'employees' => (float) $restaurant->employees()->where('status', 'active')->count(),
+            'areas' => (float) $restaurant->areas()->count(),
+            'storage_mb' => (float) round(MediaAsset::where('restaurant_id', $restaurant->id)->sum('size_bytes') / (1024 * 1024), 2),
+            'dishes' => (float) Product::where('restaurant_id', $restaurant->id)->count(),
+            default => 0.0,
+        };
+    }
+
     public function getUsage(Restaurant $restaurant): array
     {
-        $storageBytes = \App\Models\MediaAsset::where('restaurant_id', $restaurant->id)->sum('size_bytes');
-        $storageMb = round($storageBytes / (1024 * 1024), 2);
-
         return [
-            'branches'  => $restaurant->branches()->count(),
-            'tables'    => $restaurant->tables()->count(),
-            'employees' => $restaurant->employees()->where('status', 'active')->count(),
-            'areas'     => $restaurant->areas()->count(),
-            'storage_mb' => $storageMb,
-            'dishes'    => \App\Models\Product::where('restaurant_id', $restaurant->id)->count(),
+            'branches' => (int) $this->getResourceUsage($restaurant, 'branches'),
+            'tables' => (int) $this->getResourceUsage($restaurant, 'tables'),
+            'employees' => (int) $this->getResourceUsage($restaurant, 'employees'),
+            'areas' => (int) $this->getResourceUsage($restaurant, 'areas'),
+            'storage_mb' => $this->getResourceUsage($restaurant, 'storage_mb'),
+            'dishes' => (int) $this->getResourceUsage($restaurant, 'dishes'),
         ];
     }
 
-    public function canAdd(Restaurant $restaurant, string $resource): bool
+    public function canAdd(Restaurant $restaurant, string $resource, ?array $usage = null): bool
     {
         if ($this->isUnlimited($restaurant, $resource)) {
             return true;
         }
 
         $limit = $this->getLimit($restaurant, $resource);
-        $usage = $this->getUsage($restaurant);
 
-        return ($usage[$resource] ?? 0) < ($limit ?? 0);
+        if ($usage !== null) {
+            $used = $usage[$resource] ?? 0;
+        } else {
+            $used = $this->getResourceUsage($restaurant, $resource);
+        }
+
+        return $used < ($limit ?? 0);
     }
 
     public function hasFeature(Restaurant $restaurant, string $feature): bool
     {
+        $override = $restaurant->featureFlags()
+            ->where('feature', $feature)
+            ->value('enabled');
+
+        if ($override !== null) {
+            return (bool) $override;
+        }
+
+        // 1. Ưu tiên đọc từ Locked-in Subscription Snapshot (Bảo vệ khách hàng cũ)
+        $subscription = $restaurant->subscriptions()->where('status', 'active')->latest()->first();
+        $snapshot = $subscription?->meta['snapshot'] ?? null;
+
+        if ($snapshot && isset($snapshot['features'])) {
+            return (bool) ($snapshot['features'][$feature] ?? false);
+        }
+
         $plan = $restaurant->plan;
 
         if (! $plan) {
@@ -89,44 +140,34 @@ class QuotaService
         $usage = $this->getUsage($restaurant);
 
         $format = function (string $res) use ($restaurant, $usage) {
-            $limit     = $this->getLimit($restaurant, $res);
+            $limit = $this->getLimit($restaurant, $res);
             $unlimited = $limit === null;
-            $used      = $usage[$res] ?? 0;
+            $used = $usage[$res] ?? 0;
 
             return [
-                'used'       => $used,
-                'limit'      => $limit,
-                'unlimited'  => $unlimited,
+                'used' => $used,
+                'limit' => $limit,
+                'unlimited' => $unlimited,
                 'percentage' => $unlimited ? 0 : $this->percentage($used, $limit ?? 0),
-                'can_add'    => $this->canAdd($restaurant, $res),
+                'can_add' => $this->canAdd($restaurant, $res, $usage),
             ];
         };
 
         return [
-            'plan'      => $restaurant->plan?->name ?? 'Unknown',
+            'plan' => $restaurant->plan?->name ?? 'Unknown',
             'plan_code' => $restaurant->plan?->code ?? 'free',
             'resources' => [
-                'branches'  => $format('branches'),
-                'tables'    => $format('tables'),
+                'branches' => $format('branches'),
+                'tables' => $format('tables'),
                 'employees' => $format('employees'),
-                'areas'     => $format('areas'),
+                'areas' => $format('areas'),
                 'storage_mb' => $format('storage_mb'),
-                'dishes'    => $format('dishes'),
+                'dishes' => $format('dishes'),
             ],
             'features' => [
-                'kitchen_display'    => $this->hasFeature($restaurant, 'kitchen_display'),
-                'qr_ordering'        => $this->hasFeature($restaurant, 'qr_ordering'),
-                'inventory_basic'    => $this->hasFeature($restaurant, 'inventory_basic'),
-                'hr_timekeeping'     => $this->hasFeature($restaurant, 'hr_timekeeping'),
-                'hr_full'            => $this->hasFeature($restaurant, 'hr_full'),
-                'advanced_analytics' => $this->hasFeature($restaurant, 'advanced_analytics'),
-                'realtime'           => $this->hasFeature($restaurant, 'realtime'),
-                'fraud_detection'    => $this->hasFeature($restaurant, 'fraud_detection'),
-                'email_reports'      => $this->hasFeature($restaurant, 'email_reports'),
-                'ai_advisor'         => $this->hasFeature($restaurant, 'ai_advisor'),
-                'supplier_portal'    => $this->hasFeature($restaurant, 'supplier_portal'),
-                'ai_forecasting'     => $this->hasFeature($restaurant, 'ai_forecasting'),
-                'api_access'         => $this->hasFeature($restaurant, 'api_access'),
+                ...collect(TenantFeatureFlags::keys())
+                    ->mapWithKeys(fn (string $feature) => [$feature => $this->hasFeature($restaurant, $feature)])
+                    ->all(),
             ],
             'rate_limit' => $this->getRateLimit($restaurant),
         ];

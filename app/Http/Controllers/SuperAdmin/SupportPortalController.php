@@ -5,6 +5,7 @@ namespace App\Http\Controllers\SuperAdmin;
 use App\Events\SuperAdmin\DashboardMetricsUpdated;
 use App\Events\Support\SupportAnnouncementPublished;
 use App\Http\Controllers\Controller;
+use App\Mail\SupportTicketEscalationMail;
 use App\Models\KnowledgeBaseArticle;
 use App\Models\Restaurant;
 use App\Models\SupportAnnouncement;
@@ -13,14 +14,15 @@ use App\Models\SupportTicketReply;
 use App\Models\SystemAlert;
 use App\Models\SystemAlertRule;
 use App\Models\User;
+use App\Services\QuotaService;
+use App\Services\SlaService;
 use App\Services\SupportPortalService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
 use Inertia\Inertia;
 use Inertia\Response;
-use App\Services\SlaService;
-use App\Mail\SupportTicketEscalationMail;
 
 class SupportPortalController extends Controller
 {
@@ -132,9 +134,9 @@ class SupportPortalController extends Controller
         $severity = $classification['severity'];
         $priority = $classification['priority'];
 
-        if (!empty($data['restaurant_id'])) {
+        if (! empty($data['restaurant_id'])) {
             $restaurant = Restaurant::find($data['restaurant_id']);
-            if ($restaurant && app(\App\Services\QuotaService::class)->hasFeature($restaurant, 'priority_support')) {
+            if ($restaurant && app(QuotaService::class)->hasFeature($restaurant, 'priority_support')) {
                 $severity = 'critical';
                 $priority = 'p1';
             }
@@ -164,12 +166,12 @@ class SupportPortalController extends Controller
     public function updateTicket(Request $request, SupportTicket $ticket): RedirectResponse
     {
         $data = $request->validate([
-            'status'      => ['nullable', 'in:open,in_progress,waiting_restaurant,resolved,closed'],
+            'status' => ['nullable', 'in:open,in_progress,waiting_restaurant,resolved,closed'],
             'assigned_to' => ['nullable', 'exists:users,id'],
-            'title'       => ['nullable', 'string', 'max:255'],
+            'title' => ['nullable', 'string', 'max:255'],
             'description' => ['nullable', 'string'],
-            'category'    => ['nullable', 'string', 'max:100'],
-            'severity'    => ['nullable', 'in:low,medium,high,critical'],
+            'category' => ['nullable', 'string', 'max:100'],
+            'severity' => ['nullable', 'in:low,medium,high,critical'],
         ]);
 
         if (isset($data['status'])) {
@@ -206,12 +208,12 @@ class SupportPortalController extends Controller
     public function updateReply(Request $request, SupportTicket $ticket, SupportTicketReply $reply): RedirectResponse
     {
         $data = $request->validate([
-            'message'     => ['required', 'string'],
+            'message' => ['required', 'string'],
             'is_internal' => ['nullable', 'boolean'],
         ]);
 
         $reply->update([
-            'message'     => $data['message'],
+            'message' => $data['message'],
             'is_internal' => (bool) ($data['is_internal'] ?? $reply->is_internal),
         ]);
 
@@ -228,10 +230,10 @@ class SupportPortalController extends Controller
     public function bulkUpdateTickets(Request $request): RedirectResponse
     {
         $data = $request->validate([
-            'ticket_ids'   => ['required', 'array'],
+            'ticket_ids' => ['required', 'array'],
             'ticket_ids.*' => ['integer', 'exists:support_tickets,id'],
-            'status'       => ['nullable', 'in:open,in_progress,waiting_restaurant,resolved,closed'],
-            'assigned_to'  => ['nullable', 'exists:users,id'],
+            'status' => ['nullable', 'in:open,in_progress,waiting_restaurant,resolved,closed'],
+            'assigned_to' => ['nullable', 'exists:users,id'],
         ]);
 
         $updates = [];
@@ -248,27 +250,27 @@ class SupportPortalController extends Controller
             SupportTicket::whereIn('id', $data['ticket_ids'])->update($updates);
         }
 
-        return back()->with('success', 'Đã cập nhật ' . count($data['ticket_ids']) . ' ticket.');
+        return back()->with('success', 'Đã cập nhật '.count($data['ticket_ids']).' ticket.');
     }
 
     public function updateRule(Request $request, SystemAlertRule $rule): RedirectResponse
     {
         $data = $request->validate([
-            'name'             => ['required', 'string', 'max:255'],
-            'metric_key'       => ['required', 'string', 'max:100'],
-            'operator'         => ['required', 'in:>,>=,<,<=,='],
-            'threshold'        => ['required', 'numeric'],
+            'name' => ['required', 'string', 'max:255'],
+            'metric_key' => ['required', 'string', 'max:100'],
+            'operator' => ['required', 'in:>,>=,<,<=,='],
+            'threshold' => ['required', 'numeric'],
             'cooldown_minutes' => ['required', 'integer', 'min:1'],
-            'channels'         => ['nullable', 'array'],
+            'channels' => ['nullable', 'array'],
         ]);
 
         $rule->update([
-            'name'             => $data['name'],
-            'metric_key'       => $data['metric_key'],
-            'operator'         => $data['operator'],
-            'threshold'        => $data['threshold'],
+            'name' => $data['name'],
+            'metric_key' => $data['metric_key'],
+            'operator' => $data['operator'],
+            'threshold' => $data['threshold'],
             'cooldown_minutes' => $data['cooldown_minutes'],
-            'channels'         => array_values($data['channels'] ?? []),
+            'channels' => array_values($data['channels'] ?? []),
         ]);
 
         return back()->with('success', 'Đã cập nhật rule cảnh báo.');
@@ -418,10 +420,10 @@ class SupportPortalController extends Controller
 
     public function exportCsv(Request $request)
     {
-        $csvRow = fn (array $fields) => implode(',', array_map(
+        $csvRow = fn (array $fields) => implode(';', array_map(
             fn ($v) => '"'.str_replace('"', '""', (string) $v).'"',
             $fields
-        )).PHP_EOL;
+        ))."\r\n";
 
         $csv = $csvRow(['ID', 'Code', 'Nhà hàng', 'Tiêu đề', 'Danh mục', 'Mức độ', 'Trạng thái', 'Người xử lý', 'Ngày tạo']);
 
@@ -462,14 +464,14 @@ class SupportPortalController extends Controller
         $tickets = SupportTicket::whereNull('first_response_at')
             ->whereNotIn('status', ['resolved', 'closed'])
             ->get();
-        
+
         $slaService = app(SlaService::class);
         foreach ($tickets as $ticket) {
             $ticket->update([
                 'sla_due_at' => $slaService->calculateSlaDueAt($ticket),
             ]);
         }
-        
+
         return back()->with('success', 'Đã tính toán lại thời hạn SLA cho toàn bộ ticket đang mở.');
     }
 
@@ -481,7 +483,7 @@ class SupportPortalController extends Controller
 
         foreach ($superAdmins as $admin) {
             if ($admin->email) {
-                \Illuminate\Support\Facades\Mail::to($admin->email)->send(new SupportTicketEscalationMail($ticket, $admin));
+                Mail::to($admin->email)->send(new SupportTicketEscalationMail($ticket, $admin));
             }
         }
 

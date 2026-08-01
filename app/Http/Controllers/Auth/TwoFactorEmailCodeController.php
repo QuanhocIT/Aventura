@@ -47,11 +47,11 @@ class TwoFactorEmailCodeController extends Controller
             'expires_in_minutes' => self::CODE_TTL_MINUTES,
         ]);
 
-        RateLimiter::hit($throttleKey, 60);
-
         if (! $sent) {
             return back()->with('error', 'Không thể gửi email lúc này. Vui lòng thử lại sau hoặc dùng ứng dụng Authenticator.');
         }
+
+        RateLimiter::hit($throttleKey, 60);
 
         $user->forceFill([
             'two_factor_email_code' => Hash::make($code),

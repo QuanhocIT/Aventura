@@ -3,12 +3,12 @@
 namespace App\Models;
 
 use App\Models\Concerns\BelongsToRestaurant;
-
 use Database\Factories\Restaurant\OrderItemFactory;
-use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Factories\Factory;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Facades\Cache;
 
 class OrderItem extends Model
 {
@@ -36,9 +36,25 @@ class OrderItem extends Model
         return $this->belongsTo(Product::class);
     }
 
+    public function preparedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'prepared_by');
+    }
+
+    public function servedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'served_by');
+    }
+
+    protected static function booted(): void
+    {
+        $clearCache = fn ($item) => Cache::forget("restaurant_{$item->restaurant_id}_tables");
+        static::saved($clearCache);
+        static::deleted($clearCache);
+    }
+
     protected static function newFactory(): Factory
     {
         return OrderItemFactory::new();
     }
 }
-

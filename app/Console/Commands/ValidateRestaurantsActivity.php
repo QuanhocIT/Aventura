@@ -2,17 +2,18 @@
 
 namespace App\Console\Commands;
 
-use App\Models\Restaurant;
-use App\Models\RestaurantDailyCheck;
+use App\Mail\SuperAdminValidatorReportMail;
 use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\Payment;
+use App\Models\Restaurant;
+use App\Models\RestaurantDailyCheck;
 use App\Models\SystemSetting;
 use App\Models\User;
-use App\Mail\SuperAdminValidatorReportMail;
 use Illuminate\Console\Command;
-use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Mail;
 
 class ValidateRestaurantsActivity extends Command
 {
@@ -46,17 +47,17 @@ class ValidateRestaurantsActivity extends Command
 
         // 1. Nhóm số lượng đơn hàng theo nhà hàng
         $ordersCountByRestaurant = Order::whereBetween('created_at', [$startOfDay, $endOfDay])
-            ->select('restaurant_id', \Illuminate\Support\Facades\DB::raw('count(*) as count'))
+            ->select('restaurant_id', DB::raw('count(*) as count'))
             ->groupBy('restaurant_id')
             ->pluck('count', 'restaurant_id')
             ->toArray();
 
         // 2. Nhóm số món ăn được chuẩn bị/phục vụ theo nhà hàng
         $dishesCountByRestaurant = OrderItem::where(function ($q) use ($startOfDay, $endOfDay) {
-                $q->whereBetween('prepared_at', [$startOfDay, $endOfDay])
-                  ->orWhereBetween('served_at', [$startOfDay, $endOfDay]);
-            })
-            ->select('restaurant_id', \Illuminate\Support\Facades\DB::raw('count(*) as count'))
+            $q->whereBetween('prepared_at', [$startOfDay, $endOfDay])
+                ->orWhereBetween('served_at', [$startOfDay, $endOfDay]);
+        })
+            ->select('restaurant_id', DB::raw('count(*) as count'))
             ->groupBy('restaurant_id')
             ->pluck('count', 'restaurant_id')
             ->toArray();
@@ -64,7 +65,7 @@ class ValidateRestaurantsActivity extends Command
         // 3. Nhóm doanh thu thực nhận theo nhà hàng
         $revenueByRestaurant = Payment::where('status', 'paid')
             ->whereBetween('paid_at', [$startOfDay, $endOfDay])
-            ->select('restaurant_id', \Illuminate\Support\Facades\DB::raw('sum(amount) as total'))
+            ->select('restaurant_id', DB::raw('sum(amount) as total'))
             ->groupBy('restaurant_id')
             ->pluck('total', 'restaurant_id')
             ->toArray();
@@ -85,7 +86,7 @@ class ValidateRestaurantsActivity extends Command
 
             $previousFlagged = (bool) $restaurant->is_inactive_flagged;
             $activeSubscription = $restaurant->activeSubscription;
-            $hasActiveSubscription = !is_null($activeSubscription) && $activeSubscription->isActive();
+            $hasActiveSubscription = ! is_null($activeSubscription) && $activeSubscription->isActive();
 
             if ($hadActivity) {
                 $activeToday++;
@@ -105,7 +106,7 @@ class ValidateRestaurantsActivity extends Command
                 ];
             } else {
                 $inactiveToday++;
-                
+
                 // Xác định mốc cuối hoạt động để tính số ngày không hoạt động
                 $lastActive = $restaurant->last_active_at ?: $restaurant->created_at;
                 $inactiveDays = (int) $lastActive->diffInDays(now());
@@ -115,9 +116,9 @@ class ValidateRestaurantsActivity extends Command
 
                 if ($shouldFlag) {
                     $restaurant->is_inactive_flagged = true;
-                    if (!$previousFlagged) {
+                    if (! $previousFlagged) {
                         $restaurant->inactive_flagged_at = now();
-                        
+
                         $newlyFlaggedList[] = [
                             'name' => $restaurant->name,
                             'code' => $restaurant->code,
@@ -182,12 +183,13 @@ class ValidateRestaurantsActivity extends Command
                     ));
                 }
             }
-            $this->info("Đã gửi báo cáo cho " . $superAdmins->count() . " tài khoản SuperAdmin.");
+            $this->info('Đã gửi báo cáo cho '.$superAdmins->count().' tài khoản SuperAdmin.');
         } else {
-            $this->warn("Không tìm thấy tài khoản SuperAdmin nào nhận email.");
+            $this->warn('Không tìm thấy tài khoản SuperAdmin nào nhận email.');
         }
 
-        $this->info("Hoàn tất quy trình kiểm định hoạt động.");
+        $this->info('Hoàn tất quy trình kiểm định hoạt động.');
+
         return self::SUCCESS;
     }
 }

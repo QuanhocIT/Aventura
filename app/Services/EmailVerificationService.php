@@ -9,11 +9,10 @@ use Illuminate\Support\Facades\URL;
 class EmailVerificationService
 {
     public const CODE_TTL_MINUTES = 30;
+
     private const LINK_TTL_MINUTES = 60;
 
-    public function __construct(private readonly EmailMicroserviceClient $emailClient)
-    {
-    }
+    public function __construct(private readonly EmailMicroserviceClient $emailClient) {}
 
     /**
      * Tạo đồng thời 1 link xác nhận (bấm vào là xong) và 1 mã OTP 6 số

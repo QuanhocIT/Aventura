@@ -1,0 +1,550 @@
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>6.1. Thời Gian Phát Triển Dự Án – Aventura SaaS</title>
+  <meta name="description"
+    content="Bảng kế hoạch thực hiện dự án hệ thống quản lý nhà hàng Aventura theo mô hình SaaS." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    *,
+    *::before,
+    *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    :root {
+      --brand-primary: #c8a96e;
+      --brand-dark: #1a1209;
+      --brand-mid: #2e1f0b;
+      --brand-surface: #fdf6ec;
+      --brand-surface2: #fff9f2;
+      --brand-border: #e8d5b0;
+      --brand-text: #2c1a06;
+      --brand-muted: #7a5c38;
+      --brand-accent: #9b6f2f;
+      --header-bg: #3d2810;
+      --row-alt: #fef8ee;
+      --row-hover: #fff3d9;
+      --milestone-bg: #f5e6cc;
+      --milestone-border: #c8a96e;
+      --shadow-sm: 0 2px 8px rgba(200, 169, 110, .18);
+      --shadow-md: 0 8px 32px rgba(61, 40, 16, .18);
+      --radius: 14px;
+    }
+
+    html {
+      font-size: 15px;
+      scroll-behavior: smooth;
+    }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background: linear-gradient(135deg, #fdf6ec 0%, #fff9f2 60%, #fdefd5 100%);
+      color: var(--brand-text);
+      min-height: 100vh;
+      padding: 48px 24px 80px;
+    }
+
+    .page-wrapper {
+      max-width: 980px;
+      margin: 0 auto;
+    }
+
+    .page-heading {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      margin-bottom: 10px;
+    }
+
+    .page-heading .badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 52px;
+      height: 52px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #c8a96e, #9b6f2f);
+      color: #fff;
+      font-size: 1.25rem;
+      font-weight: 700;
+      box-shadow: var(--shadow-sm);
+      flex-shrink: 0;
+    }
+
+    .page-heading h1 {
+      font-size: 1.6rem;
+      font-weight: 700;
+      color: var(--brand-dark);
+      letter-spacing: -.3px;
+    }
+
+    .page-heading h1 span {
+      color: var(--brand-primary);
+    }
+
+    .page-subtitle {
+      font-size: .85rem;
+      color: var(--brand-muted);
+      margin-bottom: 36px;
+      padding-left: 68px;
+      letter-spacing: .2px;
+    }
+
+    .table-card {
+      background: #fff;
+      border-radius: var(--radius);
+      box-shadow: var(--shadow-md);
+      border: 1px solid var(--brand-border);
+      overflow: hidden;
+    }
+
+    .table-card::before {
+      content: '';
+      display: block;
+      height: 4px;
+      background: linear-gradient(90deg, #c8a96e 0%, #e8c97a 50%, #9b6f2f 100%);
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      table-layout: fixed;
+    }
+
+    col.col-milestone {
+      width: 22%;
+    }
+
+    col.col-task {
+      width: 25%;
+    }
+
+    col.col-detail {
+      width: 53%;
+    }
+
+    thead tr {
+      background: var(--header-bg);
+    }
+
+    thead th {
+      padding: 14px 18px;
+      font-size: .78rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: var(--brand-primary);
+      text-align: left;
+      border-right: 1px solid rgba(200, 169, 110, .2);
+    }
+
+    thead th:last-child {
+      border-right: none;
+    }
+
+    tbody tr {
+      transition: background .15s;
+      border-bottom: 1px solid var(--brand-border);
+    }
+
+    tbody tr:last-child {
+      border-bottom: none;
+    }
+
+    tbody tr:hover {
+      background: var(--row-hover);
+    }
+
+    tbody tr:nth-child(even) {
+      background: var(--row-alt);
+    }
+
+    tbody tr:nth-child(even):hover {
+      background: var(--row-hover);
+    }
+
+    td {
+      padding: 11px 18px;
+      font-size: .84rem;
+      line-height: 1.5;
+      vertical-align: middle;
+      border-right: 1px solid var(--brand-border);
+    }
+
+    td:last-child {
+      border-right: none;
+    }
+
+    .milestone-cell {
+      font-weight: 600;
+      font-size: .82rem;
+      color: var(--brand-accent);
+      background: var(--milestone-bg) !important;
+      border-right: 3px solid var(--milestone-border) !important;
+      line-height: 1.45;
+      vertical-align: top;
+      padding-top: 14px;
+    }
+
+    .milestone-cell .ms-num {
+      display: block;
+      font-size: .7rem;
+      font-weight: 700;
+      letter-spacing: .6px;
+      text-transform: uppercase;
+      color: var(--brand-primary);
+      margin-bottom: 3px;
+    }
+
+    .milestone-cell .ms-date {
+      display: block;
+      font-weight: 400;
+      font-size: .73rem;
+      color: var(--brand-muted);
+      margin-top: 4px;
+    }
+
+    .task-cell {
+      font-weight: 500;
+      color: var(--brand-dark);
+    }
+
+    .detail-cell {
+      color: #4a3520;
+      font-weight: 400;
+    }
+
+    .detail-cell .chip {
+      display: inline-block;
+      background: linear-gradient(90deg, #f5e6cc, #fdf1da);
+      border: 1px solid #e2c68a;
+      border-radius: 20px;
+      padding: 1px 9px;
+      font-size: .72rem;
+      font-weight: 500;
+      color: var(--brand-accent);
+      margin: 2px 3px 2px 0;
+      vertical-align: middle;
+    }
+
+    .table-caption {
+      text-align: center;
+      font-style: italic;
+      font-size: .8rem;
+      color: var(--brand-muted);
+      padding: 16px 0 4px;
+    }
+
+    .legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px 24px;
+      margin-top: 28px;
+      padding: 16px 22px;
+      background: #fff;
+      border-radius: 10px;
+      border: 1px solid var(--brand-border);
+      box-shadow: var(--shadow-sm);
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: .78rem;
+      color: var(--brand-muted);
+    }
+
+    .legend-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    @media (max-width: 640px) {
+      body {
+        padding: 28px 10px 60px;
+      }
+
+      col.col-milestone {
+        width: 28%;
+      }
+
+      col.col-task {
+        width: 28%;
+      }
+
+      col.col-detail {
+        width: 44%;
+      }
+
+      td,
+      thead th {
+        padding: 9px 10px;
+        font-size: .77rem;
+      }
+
+      .page-heading h1 {
+        font-size: 1.1rem;
+      }
+    }
+  </style>
+</head>
+
+<body>
+
+  <div class="page-wrapper">
+
+    <div class="page-heading">
+      <div class="badge">6.1</div>
+      <h1>Thời Gian <span>Phát Triển Dự Án</span></h1>
+    </div>
+    <p class="page-subtitle">Hệ thống quản lý nhà hàng Aventura &mdash; Mô hình SaaS đa người thuê (Multi-tenant)</p>
+
+    <div class="table-card">
+      <table aria-label="Bảng kế hoạch thực hiện dự án Aventura">
+        <colgroup>
+          <col class="col-milestone" />
+          <col class="col-task" />
+          <col class="col-detail" />
+        </colgroup>
+        <thead>
+          <tr>
+            <th scope="col">Milestone</th>
+            <th scope="col">Công việc</th>
+            <th scope="col">Công việc cụ thể</th>
+          </tr>
+        </thead>
+        <tbody>
+
+          <!-- 1. Lên ý tưởng & Phân tích -->
+          <tr>
+            <td class="milestone-cell" rowspan="2">
+              <span class="ms-num">Milestone 1</span>
+              Lên ý tưởng &amp; Phân tích
+              <span class="ms-date">01/04 – 10/05/2026</span>
+            </td>
+            <td class="task-cell">Xác định yêu cầu dự án</td>
+            <td class="detail-cell">
+              Phân tích nhu cầu doanh nghiệp nhà hàng, xác định chức năng cốt lõi
+              <span class="chip">đặt bàn</span><span class="chip">quản lý đơn</span>
+              <span class="chip">kho nguyên liệu</span><span class="chip">nhân sự</span>
+              <span class="chip">báo cáo</span>
+            </td>
+          </tr>
+          <tr>
+            <td class="task-cell">Phân tích kỹ thuật</td>
+            <td class="detail-cell">Chọn công nghệ (Laravel 12, Vue 3, Python FastAPI), thiết kế kiến trúc multi-tenant
+              SaaS và sơ đồ CSDL tổng thể</td>
+          </tr>
+
+          <!-- 2. Thiết kế -->
+          <tr>
+            <td class="milestone-cell" rowspan="2">
+              <span class="ms-num">Milestone 2</span>
+              Thiết kế
+              <span class="ms-date">23/05 – 04/06/2026</span>
+            </td>
+            <td class="task-cell">Thiết kế giao diện</td>
+            <td class="detail-cell">Thiết kế UI/UX cho trang chủ, dashboard nhà hàng, quản lý đặt bàn, đơn hàng, báo cáo
+              và cổng Super Admin</td>
+          </tr>
+          <tr>
+            <td class="task-cell">Thiết kế CSDL</td>
+            <td class="detail-cell">Xây dựng schema đa người thuê: tenants, users, plans, orders, tables, menu_items,
+              inventory, staff, revenues</td>
+          </tr>
+
+          <!-- 3. Cài đặt -->
+          <tr>
+            <td class="milestone-cell" rowspan="2">
+              <span class="ms-num">Milestone 3</span>
+              Cài đặt &amp; Cấu hình
+              <span class="ms-date">05/06 – 14/06/2026</span>
+            </td>
+            <td class="task-cell">Thiết lập môi trường</td>
+            <td class="detail-cell">Cài đặt Docker, Laragon, Laravel 12, Vite + Vue 3, Redis, Meilisearch, Python
+              FastAPI, cấu hình CI/CD GitHub Actions</td>
+          </tr>
+          <tr>
+            <td class="task-cell">Thiết kế layout</td>
+            <td class="detail-cell">Xây dựng layout client (nhà hàng), admin (Super Admin) và tenant dashboard với Vue
+              Router + Pinia</td>
+          </tr>
+
+          <!-- 4. Phát triển hệ thống -->
+          <tr>
+            <td class="milestone-cell" rowspan="10">
+              <span class="ms-num">Milestone 4</span>
+              Phát triển hệ thống
+              <span class="ms-date">15/06 – 12/07/2026</span>
+            </td>
+            <td class="task-cell">Quản lý tenant &amp; gói dịch vụ</td>
+            <td class="detail-cell">Thêm, sửa, xóa (soft delete) nhà hàng; quản lý gói SaaS (Basic / Pro / Enterprise);
+              chu kỳ thanh toán</td>
+          </tr>
+          <tr>
+            <td class="task-cell">Quản lý thực đơn</td>
+            <td class="detail-cell">CRUD món ăn, danh mục, giá bán, ảnh món, trạng thái hiển thị, khuyến mãi combo</td>
+          </tr>
+          <tr>
+            <td class="task-cell">Quản lý bàn</td>
+            <td class="detail-cell">Sơ đồ bàn theo tầng/khu vực, trạng thái real-time: trống / đang dùng / đặt trước
+            </td>
+          </tr>
+          <tr>
+            <td class="task-cell">Đặt bàn &amp; đơn hàng</td>
+            <td class="detail-cell">Khách đặt bàn online; nhân viên tạo đơn, thêm món, tách / gộp bàn; trạng thái bếp
+              real-time qua WebSocket</td>
+          </tr>
+          <tr>
+            <td class="task-cell">Thanh toán</td>
+            <td class="detail-cell">In hóa đơn, thanh toán tiền mặt / QR / VNPay, quản lý ca thu ngân, lịch sử giao dịch
+            </td>
+          </tr>
+          <tr>
+            <td class="task-cell">Quản lý kho nguyên liệu</td>
+            <td class="detail-cell">Nhập / xuất kho, cảnh báo tồn kho thấp, lịch sử nhập hàng, liên kết nguyên liệu với
+              món ăn</td>
+          </tr>
+          <tr>
+            <td class="task-cell">Quản lý nhân sự</td>
+            <td class="detail-cell">Phân quyền theo vai trò (chủ nhà hàng, thu ngân, bếp trưởng, phục vụ); chấm công; ca
+              làm việc</td>
+          </tr>
+          <tr>
+            <td class="task-cell">Báo cáo &amp; thống kê</td>
+            <td class="detail-cell">Doanh thu theo ngày/tuần/tháng, top món bán chạy, hiệu suất nhân viên, biểu đồ
+              Chart.js</td>
+          </tr>
+          <tr>
+            <td class="task-cell">Python – Analytics Service</td>
+            <td class="detail-cell">Phân tích giỏ hàng (Apriori), phát hiện gian lận (Fraud Detection), dự báo tồn kho
+              &amp; doanh thu (Scikit-learn)</td>
+          </tr>
+          <tr>
+            <td class="task-cell">Tìm kiếm &amp; hiệu năng</td>
+            <td class="detail-cell">Meilisearch toàn văn; Redis cache; Laravel Horizon quản lý queue; AJAX cập nhật bất
+              đồng bộ</td>
+          </tr>
+
+          <!-- 5. Tài khoản & AI -->
+          <tr>
+            <td class="milestone-cell" rowspan="4">
+              <span class="ms-num">Milestone 5</span>
+              Tài khoản &amp; AI / Chatbot
+              <span class="ms-date">13/07 – 20/07/2026</span>
+            </td>
+            <td class="task-cell">Tài khoản người dùng</td>
+            <td class="detail-cell">Đăng ký, đăng nhập, quên mật khẩu; xác thực 2FA; cập nhật hồ sơ; lịch sử đơn hàng
+              &amp; thanh toán</td>
+          </tr>
+          <tr>
+            <td class="task-cell">Chatbot hỗ trợ</td>
+            <td class="detail-cell">FAQ chatbot NLP tự động; Advisor chatbot hỗ trợ chủ nhà hàng phân tích nghiệp vụ
+              (FastAPI + NLP)</td>
+          </tr>
+          <tr>
+            <td class="task-cell">Email &amp; thông báo</td>
+            <td class="detail-cell">Gửi email xác nhận đặt bàn, OTP, hóa đơn, chiến dịch marketing qua Brevo API; push
+              notification</td>
+          </tr>
+          <tr>
+            <td class="task-cell">AI Insights (Super Admin)</td>
+            <td class="detail-cell">Dashboard AI tổng hợp doanh thu toàn hệ thống, phát hiện tenant bất thường, đề xuất
+              gói nâng cấp</td>
+          </tr>
+
+          <!-- 6. Nâng cao -->
+          <tr>
+            <td class="milestone-cell" rowspan="3">
+              <span class="ms-num">Milestone 6</span>
+              Nâng cao &amp; Hoàn thiện
+              <span class="ms-date">13/07 – 20/07/2026</span>
+            </td>
+            <td class="task-cell">Liên kết nâng cao</td>
+            <td class="detail-cell">Tích hợp Google Maps vị trí nhà hàng; đặt bàn nhóm; chương trình khách hàng thân
+              thiết</td>
+          </tr>
+          <tr>
+            <td class="task-cell">Bảo mật</td>
+            <td class="detail-cell">Tích hợp reCAPTCHA, rate limiting, CSRF protection, mã hóa dữ liệu nhạy cảm, audit
+              log hành vi</td>
+          </tr>
+          <tr>
+            <td class="task-cell">Giám sát hệ thống</td>
+            <td class="detail-cell">Laravel Pulse theo dõi slow queries; Horizon dashboard queue; cảnh báo Slack khi
+              queue thất bại</td>
+          </tr>
+
+          <!-- 7. Kiểm thử -->
+          <tr>
+            <td class="milestone-cell" rowspan="2">
+              <span class="ms-num">Milestone 7</span>
+              Kiểm thử &amp; Fix bug
+              <span class="ms-date">26/07 – 29/07/2026</span>
+            </td>
+            <td class="task-cell">Kiểm thử toàn bộ hệ thống</td>
+            <td class="detail-cell">Viết PHPUnit / Pest test (Unit, Feature, Integration); kiểm thử API Postman; kiểm
+              thử UI; tạo báo cáo kiểm thử</td>
+          </tr>
+          <tr>
+            <td class="task-cell">Fix bug</td>
+            <td class="detail-cell">Sửa toàn bộ lỗi trong quá trình kiểm thử; tối ưu hiệu năng truy vấn CSDL và response
+              time API</td>
+          </tr>
+
+          <!-- 8. Báo cáo -->
+          <tr>
+            <td class="milestone-cell">
+              <span class="ms-num">Milestone 8</span>
+              Báo cáo &amp; Bảo vệ
+              <span class="ms-date">30/07 – 31/07/2026</span>
+            </td>
+            <td class="task-cell">Hoàn thiện báo cáo</td>
+            <td class="detail-cell">Chuẩn bị tài liệu kỹ thuật, slide thuyết trình, demo hệ thống thực tế và bảo vệ đồ
+              án 🎓</td>
+          </tr>
+
+        </tbody>
+      </table>
+    </div>
+
+    <p class="table-caption">
+      <em>Hình 6.1. Bảng kế hoạch thực hiện dự án – Hệ thống quản lý nhà hàng Aventura SaaS.</em>
+    </p>
+
+    <div class="legend" role="note" aria-label="Chú thích">
+      <div class="legend-item">
+        <div class="legend-dot" style="background:#c8a96e;"></div>
+        Cột Milestone – mốc thời gian chính
+      </div>
+      <div class="legend-item">
+        <div class="legend-dot" style="background:#3d2810;"></div>
+        Tiêu đề cột
+      </div>
+      <div class="legend-item">
+        <div class="legend-dot" style="background:#fef8ee;"></div>
+        Hàng xen kẽ (dễ đọc)
+      </div>
+      <div class="legend-item">
+        <div class="legend-dot" style="background:#e8c97a;"></div>
+        <span
+          style="display:inline-block;background:linear-gradient(90deg,#f5e6cc,#fdf1da);border:1px solid #e2c68a;border-radius:20px;padding:1px 9px;font-size:.72rem;font-weight:500;color:#9b6f2f;">chip</span>&nbsp;Nhãn
+        nghiệp vụ / công nghệ
+      </div>
+    </div>
+
+  </div>
+</body>
+
+</html>

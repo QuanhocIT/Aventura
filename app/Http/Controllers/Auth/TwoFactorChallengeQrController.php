@@ -3,6 +3,12 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Models\User;
+use BaconQrCode\Renderer\Color\Rgb;
+use BaconQrCode\Renderer\Image\SvgImageBackEnd;
+use BaconQrCode\Renderer\ImageRenderer;
+use BaconQrCode\Renderer\RendererStyle\Fill;
+use BaconQrCode\Renderer\RendererStyle\RendererStyle;
+use BaconQrCode\Writer;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
@@ -37,9 +43,9 @@ class TwoFactorChallengeQrController extends Controller
         $qrCodeSvg = $this->generateQrSvg($qrCodeUrl);
 
         return response()->json([
-            'qr_code'         => $qrCodeSvg,
-            'setup_key'       => $secret,
-            'otpauth_url'     => $qrCodeUrl,
+            'qr_code' => $qrCodeSvg,
+            'setup_key' => $secret,
+            'otpauth_url' => $qrCodeUrl,
         ]);
     }
 
@@ -59,15 +65,15 @@ class TwoFactorChallengeQrController extends Controller
     {
         try {
             // Fortify dùng BaconQrCode để render SVG — dùng lại luôn
-            $svg = (new \BaconQrCode\Writer(
-                new \BaconQrCode\Renderer\ImageRenderer(
-                    new \BaconQrCode\Renderer\RendererStyle\RendererStyle(192, 0, null, null,
-                        \BaconQrCode\Renderer\RendererStyle\Fill::uniformColor(
-                            new \BaconQrCode\Renderer\Color\Rgb(255, 255, 255),
-                            new \BaconQrCode\Renderer\Color\Rgb(45, 55, 72)
+            $svg = (new Writer(
+                new ImageRenderer(
+                    new RendererStyle(192, 0, null, null,
+                        Fill::uniformColor(
+                            new Rgb(255, 255, 255),
+                            new Rgb(45, 55, 72)
                         )
                     ),
-                    new \BaconQrCode\Renderer\Image\SvgImageBackEnd()
+                    new SvgImageBackEnd
                 )
             ))->writeString($url);
 

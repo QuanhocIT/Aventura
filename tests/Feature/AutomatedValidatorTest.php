@@ -2,15 +2,15 @@
 
 namespace Tests\Feature;
 
+use App\Mail\SuperAdminValidatorReportMail;
 use App\Models\Order;
 use App\Models\Restaurant;
+use App\Models\RestaurantDailyCheck;
 use App\Models\RestaurantSubscription;
 use App\Models\SubscriptionPlan;
 use App\Models\User;
-use App\Models\RestaurantDailyCheck;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Mail;
-use App\Mail\SuperAdminValidatorReportMail;
 use Tests\TestCase;
 
 class AutomatedValidatorTest extends TestCase
@@ -18,19 +18,24 @@ class AutomatedValidatorTest extends TestCase
     use RefreshDatabase;
 
     protected User $superAdmin;
+
     protected Restaurant $restaurant;
+
     protected SubscriptionPlan $plan;
+
     protected RestaurantSubscription $subscription;
 
     protected function setUp(): void
     {
         parent::setUp();
+        $this->withSession(['superadmin.2fa_verified_until' => now()->addMinutes(15)->timestamp]);
 
         // 1. Setup SuperAdmin with 2FA confirmed to bypassRequireSuperAdminTwoFactor middleware
         $this->superAdmin = User::factory()->create([
             'two_factor_confirmed_at' => now(),
         ]);
         $this->superAdmin->assignRole('super_admin');
+        $this->withSession(['superadmin.2fa_verified_user_id' => $this->superAdmin->id]);
 
         // 2. Setup Plan
         $this->plan = SubscriptionPlan::create([

@@ -3,12 +3,15 @@
 namespace App\Models;
 
 use App\Models\Concerns\BelongsToRestaurant;
-
+use App\Support\Tenant\TenantContext;
+use Carbon\Carbon;
 use Database\Factories\Hr\ScheduleAssignmentFactory;
-use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Factories\Factory;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Cache;
 
 class ScheduleAssignment extends Model
 {
@@ -19,18 +22,49 @@ class ScheduleAssignment extends Model
 
     protected static function booted(): void
     {
+        static::creating(function (self $assignment): void {
+            if ($assignment->branch_id === null && $assignment->employee_id) {
+                $assignment->branch_id = Employee::withoutGlobalScopes()
+                    ->whereKey($assignment->employee_id)
+                    ->value('branch_id');
+            }
+        });
+
         $lockCheck = function (self $model) {
-            $date = $model->scheduled_date instanceof \Carbon\Carbon
+            $date = $model->scheduled_date instanceof Carbon
                 ? $model->scheduled_date->toDateString()
-                : \Carbon\Carbon::parse($model->scheduled_date)->toDateString();
+                : Carbon::parse($model->scheduled_date)->toDateString();
 
             if (Salary::isPeriodLocked($model->restaurant_id, $model->employee_id, $date)) {
-                throw new \Exception("Dữ liệu lịch trực đã bị khóa do bảng lương của kỳ này đã được phê duyệt.");
+                throw new \Exception('Dữ liệu lịch trực đã bị khóa do bảng lương của kỳ này đã được phê duyệt.');
+            }
+        };
+
+        $clearCache = function (self $model) {
+            try {
+                $date = Carbon::parse($model->scheduled_date);
+                $startOfMonth = $date->copy()->startOfMonth()->toDateString();
+                $endOfMonth = $date->copy()->endOfMonth()->toDateString();
+
+                $scopeKeys = [TenantContext::SCOPE_ALL];
+                if ($model->branch_id) {
+                    $scopeKeys[] = TenantContext::branchScopeKey((int) $model->branch_id);
+                }
+
+                foreach ($scopeKeys as $scopeKey) {
+                    Cache::forget("schedule_monthly_assignments:{$model->restaurant_id}:{$scopeKey}:{$startOfMonth}:{$endOfMonth}");
+                    Cache::forget("schedule_staffing_tips:{$model->restaurant_id}:{$scopeKey}");
+                }
+            } catch (\Exception $e) {
+                // Prevent model failures if cache issues arise
             }
         };
 
         static::updating($lockCheck);
         static::deleting($lockCheck);
+
+        static::saved($clearCache);
+        static::deleted($clearCache);
     }
 
     protected function casts(): array
@@ -55,7 +89,7 @@ class ScheduleAssignment extends Model
 
     public static function findEmployeesOnShiftAt($timestamp, $restaurantId)
     {
-        $dateTime = \Carbon\Carbon::parse($timestamp);
+        $dateTime = Carbon::parse($timestamp);
         $targetDate = $dateTime->toDateString();
         $prevDate = $dateTime->copy()->subDay()->toDateString();
         $nextDate = $dateTime->copy()->addDay()->toDateString();
@@ -70,24 +104,24 @@ class ScheduleAssignment extends Model
 
         foreach ($assignments as $assignment) {
             $shift = $assignment->shift;
-            if (!$shift || $shift->status !== 'active') {
+            if (! $shift || $shift->status !== 'active') {
                 continue;
             }
 
-            $dateStr = $assignment->scheduled_date instanceof \Carbon\Carbon
+            $dateStr = $assignment->scheduled_date instanceof Carbon
                 ? $assignment->scheduled_date->toDateString()
-                : \Carbon\Carbon::parse($assignment->scheduled_date)->toDateString();
+                : Carbon::parse($assignment->scheduled_date)->toDateString();
 
-            if (!in_array($dateStr, [$prevDate, $targetDate, $nextDate])) {
+            if (! in_array($dateStr, [$prevDate, $targetDate, $nextDate])) {
                 continue;
             }
 
-            $start = \Carbon\Carbon::parse($dateStr . ' ' . $shift->start_time);
-            
+            $start = Carbon::parse($dateStr.' '.$shift->start_time);
+
             if ($shift->is_overnight || $shift->end_time < $shift->start_time) {
-                $end = \Carbon\Carbon::parse($dateStr . ' ' . $shift->end_time)->addDay();
+                $end = Carbon::parse($dateStr.' '.$shift->end_time)->addDay();
             } else {
-                $end = \Carbon\Carbon::parse($dateStr . ' ' . $shift->end_time);
+                $end = Carbon::parse($dateStr.' '.$shift->end_time);
             }
 
             if ($dateTime->between($start, $end)) {
@@ -101,6 +135,53 @@ class ScheduleAssignment extends Model
     public static function findEmployeeOnShiftAt($timestamp, $restaurantId)
     {
         $active = self::findEmployeesOnShiftAt($timestamp, $restaurantId);
+
+        return $active->first()?->employee;
+    }
+
+    public static function findEmployeesOnShiftAtFromCollection(Collection $assignmentsCollection, $timestamp)
+    {
+        $dateTime = Carbon::parse($timestamp);
+        $targetDate = $dateTime->toDateString();
+        $prevDate = $dateTime->copy()->subDay()->toDateString();
+        $nextDate = $dateTime->copy()->addDay()->toDateString();
+
+        $activeAssignments = collect();
+
+        foreach ($assignmentsCollection as $assignment) {
+            $shift = $assignment->shift;
+            if (! $shift || $shift->status !== 'active') {
+                continue;
+            }
+
+            $dateStr = $assignment->scheduled_date instanceof Carbon
+                ? $assignment->scheduled_date->toDateString()
+                : Carbon::parse($assignment->scheduled_date)->toDateString();
+
+            if (! in_array($dateStr, [$prevDate, $targetDate, $nextDate])) {
+                continue;
+            }
+
+            $start = Carbon::parse($dateStr.' '.$shift->start_time);
+
+            if ($shift->is_overnight || $shift->end_time < $shift->start_time) {
+                $end = Carbon::parse($dateStr.' '.$shift->end_time)->addDay();
+            } else {
+                $end = Carbon::parse($dateStr.' '.$shift->end_time);
+            }
+
+            if ($dateTime->between($start, $end)) {
+                $activeAssignments->push($assignment);
+            }
+        }
+
+        return $activeAssignments;
+    }
+
+    public static function findEmployeeOnShiftAtFromCollection(Collection $assignmentsCollection, $timestamp)
+    {
+        $active = self::findEmployeesOnShiftAtFromCollection($assignmentsCollection, $timestamp);
+
         return $active->first()?->employee;
     }
 
@@ -109,4 +190,3 @@ class ScheduleAssignment extends Model
         return ScheduleAssignmentFactory::new();
     }
 }
-

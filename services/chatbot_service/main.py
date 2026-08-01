@@ -1,5 +1,5 @@
 import logging
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from typing import Optional
 
@@ -15,6 +15,7 @@ from models import (
 from services import nlp_service
 from services.db_service import increment_view, record_feedback, log_unanswered_query
 import time
+from auth import require_api_key
 
 logging.basicConfig(
     level=logging.INFO,
@@ -35,6 +36,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Dependency bảo mật — áp dụng lên các route cần xác thực nội bộ
+_auth = [Depends(require_api_key)]
+
 
 @app.on_event("startup")
 def startup_event():
@@ -54,7 +58,7 @@ def health_check():
     )
 
 
-@app.post("/chat", response_model=ChatResponse)
+@app.post("/chat", response_model=ChatResponse, dependencies=_auth)
 def chat(payload: ChatRequest):
     """Xử lý câu hỏi người dùng và trả về câu trả lời phù hợp nhất."""
     if not payload.message or not payload.message.strip():
@@ -99,7 +103,7 @@ def chat(payload: ChatRequest):
     return ChatResponse(**result)
 
 
-@app.post("/advisor-chat", response_model=ChatResponse)
+@app.post("/advisor-chat", response_model=ChatResponse, dependencies=_auth)
 def advisor_chat(payload: AdvisorChatRequest):
     """Xử lý câu hỏi của Chủ doanh nghiệp và trả về phân tích nghiệp vụ."""
     if not payload.message or not payload.message.strip():
@@ -139,7 +143,7 @@ def suggestions(
     )
 
 
-@app.post("/feedback", response_model=FeedbackResponse)
+@app.post("/feedback", response_model=FeedbackResponse, dependencies=_auth)
 def feedback(payload: FeedbackRequest):
     """Ghi nhận phản hồi hữu ích / không hữu ích của người dùng."""
     try:
@@ -151,7 +155,7 @@ def feedback(payload: FeedbackRequest):
     return FeedbackResponse(success=True, message="Cảm ơn phản hồi của bạn!")
 
 
-@app.post("/reload-cache")
+@app.post("/reload-cache", dependencies=_auth)
 def reload_cache():
     """Force reload NLP cache từ DB (gọi sau khi admin cập nhật knowledge base)."""
     try:
@@ -163,7 +167,7 @@ def reload_cache():
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.post("/log-unanswered")
+@app.post("/log-unanswered", dependencies=_auth)
 def log_unanswered(payload: LogUnansweredRequest):
     """Laravel gọi endpoint này để ghi nhận câu hỏi không có câu trả lời kèm user context."""
     try:
@@ -181,7 +185,7 @@ def log_unanswered(payload: LogUnansweredRequest):
         return {"success": False}
 
 
-@app.post("/test-query", response_model=TestQueryResponse)
+@app.post("/test-query", response_model=TestQueryResponse, dependencies=_auth)
 def test_query(payload: TestQueryRequest):
     """Chạy matching và trả về điểm phân tích chi tiết — dùng cho Playground của Superadmin."""
     if not payload.query or not payload.query.strip():

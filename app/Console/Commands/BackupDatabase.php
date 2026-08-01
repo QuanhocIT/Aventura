@@ -27,18 +27,19 @@ class BackupDatabase extends Command
     public function handle(DatabaseBackupService $backupService): int
     {
         $this->info('Đang bắt đầu sao lưu cơ sở dữ liệu...');
-        
+
         try {
             $result = $backupService->backup();
-            
-            $this->info("Sao lưu thành công!");
+
+            $this->info('Sao lưu thành công!');
             $this->line("Tệp tin: {$result['filename']}");
             $this->line("Dung lượng: {$result['size_mb']} MB");
             $this->line("Lưu tại Disk: {$result['disk']}");
-            
+
             return self::SUCCESS;
         } catch (\Exception $e) {
-            $this->error("Lỗi khi sao lưu cơ sở dữ liệu: " . $e->getMessage());
+            $this->error('Lỗi khi sao lưu cơ sở dữ liệu: '.$e->getMessage());
+
             return self::FAILURE;
         }
     }

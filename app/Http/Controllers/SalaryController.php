@@ -2,14 +2,22 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\ApprovalRequest;
+use App\Models\RestaurantBranch;
 use App\Models\Salary;
 use App\Models\SalaryAdjustment;
 use App\Models\User;
+use App\Notifications\SalaryDisputeNotification;
+use App\Notifications\SalaryReadyNotification;
 use App\Services\ApprovalService;
+use App\Services\QuotaService;
 use App\Services\SalaryService;
+use App\Support\Tenant\TenantContext;
+use App\Support\TenantRule;
 use Carbon\Carbon;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -18,6 +26,7 @@ class SalaryController extends Controller
     public function __construct(
         private SalaryService $salaryService,
         private ApprovalService $approvalService,
+        private TenantContext $tenantContext,
     ) {}
 
     public function index(Request $request): Response
@@ -27,12 +36,15 @@ class SalaryController extends Controller
         $user = $request->user();
 
         $restaurant = $user->restaurant;
+        if (! $restaurant && ! $request->user()->hasRole('super_admin')) {
+            abort(403, 'Không tìm thấy nhà hàng.');
+        }
         $restaurant?->loadMissing('plan');
-        if ($restaurant && ! app(\App\Services\QuotaService::class)->hasFeature($restaurant, 'hr_full')) {
+        if ($restaurant && ! app(QuotaService::class)->hasFeature($restaurant, 'hr_full')) {
             return Inertia::render('FeatureGate', [
-                'feature'       => 'hr_full',
+                'feature' => 'hr_full',
                 'feature_label' => 'Quản lý Lương & Nhân sự',
-                'plan_name'     => $restaurant->plan?->name ?? 'Miễn Phí',
+                'plan_name' => $restaurant->plan?->name ?? 'Miễn Phí',
                 'required_plan' => 'Chuyên Nghiệp',
             ]);
         }
@@ -43,33 +55,48 @@ class SalaryController extends Controller
         [$year, $month] = explode('-', $period);
 
         $periodStart = Carbon::createFromDate($year, $month, 1)->startOfMonth()->toDateString();
-        $periodEnd   = Carbon::createFromDate($year, $month, 1)->endOfMonth()->toDateString();
+        $periodEnd = Carbon::createFromDate($year, $month, 1)->endOfMonth()->toDateString();
+
+        // TRƯỚC ĐÂY KHÔNG LỌC CHI NHÁNH: branch_id chỉ được lấy ra để HIỂN THỊ
+        // (dòng 'branch_id' => $s->employee?->branch_id bên dưới), không dùng để
+        // lọc — owner chuyển chi nhánh nhưng vẫn thấy bảng lương MỌI chi nhánh.
+        $branchId = $this->tenantContext->activeBranchId();
 
         $salaries = Salary::withoutGlobalScopes()
             ->where('restaurant_id', $restaurantId)
             ->where('pay_period_start', $periodStart)
             ->where('pay_period_end', $periodEnd)
-            ->with(['employee:id,full_name,job_title,employment_type,branch_id', 'adjustments'])
+            ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
+            ->with(['employee:id,employee_code,full_name,job_title,employment_type,compensation_type,pay_rate,base_salary,branch_id', 'employee.trustScore', 'adjustments'])
             ->get()
             ->map(function (Salary $s) {
+                $breakdown = $this->salaryService->getSalaryCalculationDetails($s);
+
                 return [
-                    'id'               => $s->id,
-                    'employee_name'    => $s->employee?->full_name ?? '—',
-                    'job_title'        => $s->employee?->job_title ?? '',
-                    'employment_type'  => $s->employee?->employment_type ?? '',
-                    'branch_id'        => $s->employee?->branch_id,
-                    'base_salary'      => (float) $s->base_salary,
-                    'bonus_amount'     => (float) $s->bonus_amount,
+                    'id' => $s->id,
+                    'employee_id' => $s->employee_id,
+                    'employee_code' => $s->employee?->employee_code ?? 'NV-'.$s->employee_id,
+                    'employee_name' => $s->employee?->full_name ?? '—',
+                    'job_title' => $s->employee?->job_title ?? '',
+                    'employment_type' => $s->employee?->employment_type ?? 'full-time',
+                    'compensation_type' => $s->employee?->compensation_type ?? 'fixed',
+                    'pay_rate' => (float) ($s->employee?->pay_rate ?? 0),
+                    'contract_base_salary' => (float) ($s->employee?->base_salary ?? 0),
+                    'trust_score' => $s->employee?->trustScore?->score ?? 100,
+                    'branch_id' => $s->employee?->branch_id,
+                    'base_salary' => (float) $s->base_salary,
+                    'bonus_amount' => (float) $s->bonus_amount,
                     'deduction_amount' => (float) $s->deduction_amount,
-                    'net_salary'       => (float) $s->net_salary,
-                    'status'           => $s->status,
-                    'paid_at'          => $s->paid_at?->format('d/m/Y H:i'),
-                    'adjustments'      => $s->adjustments->map(fn (SalaryAdjustment $a) => [
-                        'id'             => $a->id,
-                        'type'           => $a->type,
-                        'amount'         => (float) $a->amount,
-                        'reason'         => $a->reason,
-                        'status'         => $a->status,
+                    'net_salary' => (float) $s->net_salary,
+                    'status' => $s->status,
+                    'paid_at' => $s->paid_at?->format('d/m/Y H:i'),
+                    'breakdown' => $breakdown,
+                    'adjustments' => $s->adjustments->map(fn (SalaryAdjustment $a) => [
+                        'id' => $a->id,
+                        'type' => $a->type,
+                        'amount' => (float) $a->amount,
+                        'reason' => $a->reason,
+                        'status' => $a->status,
                         'dispute_reason' => $a->dispute_reason,
                     ])->values(),
                 ];
@@ -77,22 +104,43 @@ class SalaryController extends Controller
             ->values();
 
         $totals = [
-            'total_payroll'    => (float) $salaries->sum('net_salary'),
+            'total_payroll' => (float) $salaries->sum('net_salary'),
             'total_deductions' => (float) $salaries->sum('deduction_amount'),
-            'total_bonuses'    => (float) $salaries->sum('bonus_amount'),
-            'headcount'        => $salaries->count(),
+            'total_bonuses' => (float) $salaries->sum('bonus_amount'),
+            'headcount' => $salaries->count(),
         ];
 
         // Lấy danh sách chi nhánh phục vụ bộ lọc ở Frontend
-        $branches = \App\Models\RestaurantBranch::where('restaurant_id', $restaurantId)->get(['id', 'name']);
+        $branches = RestaurantBranch::where('restaurant_id', $restaurantId)
+            ->when(! $user->canViewAllBranches(), fn ($q) => $q->where('id', $branchId))
+            ->get(['id', 'name']);
 
         return Inertia::render('salaries/Index', [
-            'salaries'   => $salaries,
-            'totals'     => $totals,
-            'period'     => $period,
-            'branches'   => $branches,
+            'salaries' => $salaries,
+            'totals' => $totals,
+            'period' => $period,
+            'branches' => $branches,
             'canApprove' => $user->hasAnyRole(['owner', 'manager']),
         ]);
+    }
+
+    public function bulkApprove(Request $request): RedirectResponse
+    {
+        abort_unless($request->user()->can('manage_salary'), 403);
+
+        $data = $request->validate([
+            'salary_ids' => ['required', 'array', 'min:1'],
+            'salary_ids.*' => ['integer', TenantRule::exists('salaries')],
+        ]);
+
+        $approvedCount = $this->salaryService->bulkApprove(
+            $request->user()->restaurant_id,
+            $data['salary_ids'],
+            $request->user()->id,
+            $this->tenantContext->activeBranchId(),
+        );
+
+        return back()->with('success', "Đã phê duyệt thành công {$approvedCount} bảng lương.");
     }
 
     public function generate(Request $request): RedirectResponse
@@ -100,7 +148,11 @@ class SalaryController extends Controller
         abort_unless($request->user()->can('manage_salary'), 403);
 
         $period = $request->input('period', today()->format('Y-m'));
-        $result = $this->salaryService->generateMonthlyDrafts($request->user()->restaurant_id, $period);
+        $result = $this->salaryService->generateMonthlyDrafts(
+            $request->user()->restaurant_id,
+            $period,
+            $this->tenantContext->activeBranchId(),
+        );
 
         $msg = "Đã tạo {$result['created']} bảng lương, bỏ qua {$result['skipped']} (đã tồn tại).";
 
@@ -110,12 +162,22 @@ class SalaryController extends Controller
     public function approve(Request $request, Salary $salary): RedirectResponse
     {
         abort_unless($request->user()->can('manage_salary'), 403);
+        $this->authorizeSalaryBranch($request->user(), $salary);
         abort_if($salary->status === 'paid', 422);
 
         $salary->update([
-            'status'      => 'approved',
+            'status' => 'approved',
             'approved_by' => $request->user()->id,
         ]);
+
+        $employeeUser = $salary->employee?->user;
+        if ($employeeUser) {
+            $periodStr = $salary->pay_period_start ? Carbon::parse($salary->pay_period_start)->format('m/Y') : '';
+            $employeeUser->notify(new SalaryReadyNotification(
+                $salary,
+                "Phiếu lương kỳ {$periodStr} đã được phê duyệt. Bạn có thể xem chi tiết ngay."
+            ));
+        }
 
         return back()->with('success', 'Đã duyệt bảng lương.');
     }
@@ -123,12 +185,22 @@ class SalaryController extends Controller
     public function markPaid(Request $request, Salary $salary): RedirectResponse
     {
         abort_unless($request->user()->can('manage_salary') && $request->user()->can('approve_requests'), 403);
+        $this->authorizeSalaryBranch($request->user(), $salary);
         abort_unless($salary->status === 'approved', 422);
 
         $salary->update([
-            'status'  => 'paid',
+            'status' => 'paid',
             'paid_at' => now(),
         ]);
+
+        $employeeUser = $salary->employee?->user;
+        if ($employeeUser) {
+            $periodStr = $salary->pay_period_start ? Carbon::parse($salary->pay_period_start)->format('m/Y') : '';
+            $employeeUser->notify(new SalaryReadyNotification(
+                $salary,
+                "Lương kỳ {$periodStr} đã được thanh toán. Hãy kiểm tra tài khoản của bạn."
+            ));
+        }
 
         return back()->with('success', 'Đã đánh dấu đã thanh toán lương.');
     }
@@ -136,55 +208,64 @@ class SalaryController extends Controller
     public function storeAdjustment(Request $request, Salary $salary): RedirectResponse
     {
         abort_unless($request->user()->can('manage_salary'), 403);
+        $this->authorizeSalaryBranch($request->user(), $salary);
         abort_if($salary->status === 'paid', 422);
 
         $data = $request->validate([
-            'type'   => ['required', 'in:bonus,penalty,violation,advance'],
+            'type' => ['required', 'in:bonus,penalty,violation,advance'],
             'amount' => ['required', 'numeric', 'min:0.01'],
             'reason' => ['required', 'string', 'max:500'],
         ]);
 
-        if ($data['type'] === 'advance') {
-            $employee = $salary->employee;
-            if (!$employee) {
-                return back()->withErrors(['amount' => 'Nhân viên không tồn tại.']);
-            }
-            $salaryMonth = Carbon::parse($salary->pay_period_start);
-            $calculationDate = today()->isSameMonth($salaryMonth) ? today() : $salaryMonth->endOfMonth();
-            $earnedWages = $this->salaryService->calculateEarnedWagesForMonth($employee, $calculationDate->toDateString());
-            
-            $existingAdvanceAmount = SalaryAdjustment::withoutGlobalScopes()
-                ->where('salary_id', $salary->id)
-                ->where('type', 'advance')
-                ->where('status', 'applied')
-                ->sum('amount');
-                
-            $pendingAdvanceAmount = (float) \App\Models\ApprovalRequest::forRestaurant($request->user()->restaurant_id)
-                ->where('status', 'pending')
-                ->where('operation_type', 'salary_adjustment')
-                ->where('operation_data->salary_id', $salary->id)
-                ->where('operation_data->type', 'advance')
-                ->sum('operation_data->amount');
-                
-            $limit = $earnedWages * 0.50;
-            if (($existingAdvanceAmount + $pendingAdvanceAmount + $data['amount']) > $limit) {
-                return back()->withErrors(['amount' => sprintf('Yêu cầu tạm ứng vượt quá giới hạn 50%% tiền lương tích lũy trong tháng (Tích lũy: %sđ, Hạn mức tối đa: %sđ, Đã tạm ứng/đang chờ: %sđ).', number_format($earnedWages), number_format($limit), number_format($existingAdvanceAmount + $pendingAdvanceAmount))]);
-            }
+        try {
+            DB::transaction(function () use ($salary, $data, $request) {
+                // Lock the salary record
+                $lockedSalary = Salary::where('id', $salary->id)->lockForUpdate()->firstOrFail();
+
+                if ($data['type'] === 'advance') {
+                    $employee = $lockedSalary->employee;
+                    if (! $employee) {
+                        throw new \Exception('Nhân viên không tồn tại.');
+                    }
+                    $salaryMonth = Carbon::parse($lockedSalary->pay_period_start);
+                    $calculationDate = today()->isSameMonth($salaryMonth) ? today() : $salaryMonth->endOfMonth();
+                    $earnedWages = $this->salaryService->calculateEarnedWagesForMonth($employee, $calculationDate->toDateString());
+
+                    $existingAdvanceAmount = SalaryAdjustment::withoutGlobalScopes()
+                        ->where('salary_id', $lockedSalary->id)
+                        ->where('type', 'advance')
+                        ->where('status', 'applied')
+                        ->sum('amount');
+
+                    $pendingAdvanceAmount = (float) ApprovalRequest::forRestaurant($request->user()->restaurant_id)
+                        ->where('status', 'pending')
+                        ->where('operation_type', 'salary_adjustment')
+                        ->where('operation_data->salary_id', $lockedSalary->id)
+                        ->where('operation_data->type', 'advance')
+                        ->sum('operation_data->amount');
+
+                    $limit = $earnedWages * 0.50;
+                    if (($existingAdvanceAmount + $pendingAdvanceAmount + $data['amount']) > $limit) {
+                        throw new \Exception(sprintf('Yêu cầu tạm ứng vượt quá giới hạn 50%% tiền lương tích lũy trong tháng (Tích lũy: %sđ, Hạn mức tối đa: %sđ, Đã tạm ứng/đang chờ: %sđ).', number_format($earnedWages), number_format($limit), number_format($existingAdvanceAmount + $pendingAdvanceAmount)));
+                    }
+                }
+
+                if (! $request->user()->can('approve_requests')) {
+                    $this->approvalService->submitRequest('salary_adjustment', array_merge($data, [
+                        'salary_id' => $lockedSalary->id,
+                    ]), $request->user());
+                } else {
+                    $this->salaryService->addAdjustment($lockedSalary, array_merge($data, [
+                        'employee_id' => $lockedSalary->employee_id,
+                        'status' => 'applied',
+                    ]));
+                }
+            });
+        } catch (\Exception $e) {
+            return back()->withErrors(['amount' => $e->getMessage()]);
         }
 
-        if (! $request->user()->can('approve_requests')) {
-            $this->approvalService->submitRequest('salary_adjustment', array_merge($data, [
-                'salary_id' => $salary->id,
-            ]), $request->user());
-            return back()->with('success', 'Yêu cầu điều chỉnh lương đã gửi Chủ nhà hàng để phê duyệt.');
-        }
-
-        $this->salaryService->addAdjustment($salary, array_merge($data, [
-            'employee_id' => $salary->employee_id,
-            'status'      => 'applied',
-        ]));
-
-        return back()->with('success', 'Đã thêm điều chỉnh lương.');
+        return back()->with('success', $request->user()->can('approve_requests') ? 'Đã thêm điều chỉnh lương.' : 'Yêu cầu điều chỉnh lương đã gửi Chủ nhà hàng để phê duyệt.');
     }
 
     /**
@@ -195,41 +276,58 @@ class SalaryController extends Controller
         abort_unless($request->user()->can('manage_salary'), 403);
 
         $data = $request->validate([
-            'salary_ids'   => ['required', 'array'],
-            'salary_ids.*' => ['required', 'exists:salaries,id'],
-            'type'         => ['required', 'in:bonus,penalty,violation,advance'],
-            'amount'       => ['required', 'numeric', 'min:0.01'],
-            'reason'       => ['required', 'string', 'max:500'],
+            'salary_ids' => ['required', 'array'],
+            'salary_ids.*' => ['required', TenantRule::exists('salaries')],
+            'type' => ['required', 'in:bonus,penalty,violation,advance'],
+            'amount' => ['required', 'numeric', 'min:0.01'],
+            'reason' => ['required', 'string', 'max:500'],
         ]);
 
+        // Eager-load employee: trước đây $salary->employee trong vòng lặp bên dưới
+        // bắn 1 query/bảng lương (N+1) khi điều chỉnh lương hàng loạt.
         $salaries = Salary::withoutGlobalScopes()
+            ->with('employee')
             ->where('restaurant_id', $request->user()->restaurant_id)
             ->whereIn('id', $data['salary_ids'])
+            ->when($this->tenantContext->activeBranchId(), fn ($q) => $q->where('branch_id', $this->tenantContext->activeBranchId()))
             ->get();
+
+        $canApprove = $request->user()->can('approve_requests');
 
         // Check advances limits first
         if ($data['type'] === 'advance') {
+            $salaryIds = $salaries->pluck('id');
+
+            // Gộp 2 truy vấn sum() vốn chạy trong vòng lặp thành 2 truy vấn tổng.
+            $existingAdvances = SalaryAdjustment::withoutGlobalScopes()
+                ->whereIn('salary_id', $salaryIds)
+                ->where('type', 'advance')
+                ->where('status', 'applied')
+                ->groupBy('salary_id')
+                ->selectRaw('salary_id, SUM(amount) as total')
+                ->pluck('total', 'salary_id');
+
+            $pendingAdvances = ApprovalRequest::forRestaurant($request->user()->restaurant_id)
+                ->where('status', 'pending')
+                ->where('operation_type', 'salary_adjustment')
+                ->where('operation_data->type', 'advance')
+                ->get(['operation_data'])
+                ->groupBy(fn ($r) => (int) data_get($r->operation_data, 'salary_id'))
+                ->map(fn ($group) => (float) $group->sum(fn ($r) => (float) data_get($r->operation_data, 'amount')));
+
             foreach ($salaries as $salary) {
-                if ($salary->status === 'paid') continue;
+                if ($salary->status === 'paid') {
+                    continue;
+                }
                 $employee = $salary->employee;
                 if ($employee) {
                     $salaryMonth = Carbon::parse($salary->pay_period_start);
                     $calculationDate = today()->isSameMonth($salaryMonth) ? today() : $salaryMonth->endOfMonth();
                     $earnedWages = $this->salaryService->calculateEarnedWagesForMonth($employee, $calculationDate->toDateString());
-                    
-                    $existingAdvanceAmount = SalaryAdjustment::withoutGlobalScopes()
-                        ->where('salary_id', $salary->id)
-                        ->where('type', 'advance')
-                        ->where('status', 'applied')
-                        ->sum('amount');
-                        
-                    $pendingAdvanceAmount = (float) \App\Models\ApprovalRequest::forRestaurant($request->user()->restaurant_id)
-                        ->where('status', 'pending')
-                        ->where('operation_type', 'salary_adjustment')
-                        ->where('operation_data->salary_id', $salary->id)
-                        ->where('operation_data->type', 'advance')
-                        ->sum('operation_data->amount');
-                        
+
+                    $existingAdvanceAmount = (float) ($existingAdvances[$salary->id] ?? 0);
+                    $pendingAdvanceAmount = (float) ($pendingAdvances[$salary->id] ?? 0);
+
                     $limit = $earnedWages * 0.50;
                     if (($existingAdvanceAmount + $pendingAdvanceAmount + $data['amount']) > $limit) {
                         return back()->withErrors(['amount' => sprintf('Yêu cầu tạm ứng cho nhân viên %s vượt quá giới hạn 50%% tiền lương tích lũy trong tháng (Tích lũy: %sđ, Hạn mức tối đa: %sđ).', $employee->full_name, number_format($earnedWages), number_format($limit))]);
@@ -240,28 +338,30 @@ class SalaryController extends Controller
 
         $count = 0;
         foreach ($salaries as $salary) {
-            if ($salary->status === 'paid') continue;
+            if ($salary->status === 'paid') {
+                continue;
+            }
 
-            if (!$request->user()->can('approve_requests')) {
+            if (! $canApprove) {
                 $this->approvalService->submitRequest('salary_adjustment', [
                     'salary_id' => $salary->id,
-                    'type'      => $data['type'],
-                    'amount'    => $data['amount'],
-                    'reason'    => $data['reason'],
+                    'type' => $data['type'],
+                    'amount' => $data['amount'],
+                    'reason' => $data['reason'],
                 ], $request->user());
             } else {
                 $this->salaryService->addAdjustment($salary, [
                     'employee_id' => $salary->employee_id,
-                    'type'        => $data['type'],
-                    'amount'      => $data['amount'],
-                    'reason'      => $data['reason'],
-                    'status'      => 'applied',
+                    'type' => $data['type'],
+                    'amount' => $data['amount'],
+                    'reason' => $data['reason'],
+                    'status' => 'applied',
                 ]);
             }
             $count++;
         }
 
-        $msg = $request->user()->can('approve_requests')
+        $msg = $canApprove
             ? "Đã áp dụng điều chỉnh lương hàng loạt cho {$count} nhân sự thành công."
             : "Đã gửi đề xuất điều chỉnh lương hàng loạt cho {$count} nhân sự lên Chủ nhà hàng phê duyệt.";
 
@@ -282,7 +382,7 @@ class SalaryController extends Controller
         ]);
 
         $adjustment->update([
-            'status'         => 'disputed',
+            'status' => 'disputed',
             'dispute_reason' => $data['dispute_reason'],
         ]);
 
@@ -295,9 +395,20 @@ class SalaryController extends Controller
             ->first();
 
         if ($owner) {
-            $owner->notify(new \App\Notifications\SalaryDisputeNotification($adjustment, $request->user()));
+            $owner->notify(new SalaryDisputeNotification($adjustment, $request->user()));
         }
 
         return back()->with('success', 'Đã gửi khiếu nại cấn trừ lương thành công. Khoản phạt này đã tạm thời được đóng băng chờ Owner giải quyết.');
+    }
+
+    private function authorizeSalaryBranch(User $user, Salary $salary): void
+    {
+        abort_unless($salary->restaurant_id === $user->restaurant_id, 403);
+        abort_unless($user->canAccessBranch($salary->branch_id !== null ? (int) $salary->branch_id : null), 403);
+
+        $activeBranchId = $this->tenantContext->activeBranchId();
+        if ($activeBranchId !== null && (int) $salary->branch_id !== $activeBranchId) {
+            abort(403, 'Bảng lương không thuộc chi nhánh hiện tại.');
+        }
     }
 }

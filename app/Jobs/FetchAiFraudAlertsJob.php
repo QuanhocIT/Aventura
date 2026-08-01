@@ -4,10 +4,12 @@ namespace App\Jobs;
 
 use App\Models\AuditLog;
 use App\Models\Employee;
+use App\Services\AnalyticsServiceClient;
+use App\Services\CircuitBreaker;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
 class FetchAiFraudAlertsJob implements ShouldQueue
@@ -24,7 +26,7 @@ class FetchAiFraudAlertsJob implements ShouldQueue
 
     public function handle(): void
     {
-        if (Cache::has('analytics_service_offline')) {
+        if (! app(CircuitBreaker::class)->for('analytics_service')->isAvailable()) {
             return;
         }
 
@@ -54,17 +56,23 @@ class FetchAiFraudAlertsJob implements ShouldQueue
         }
 
         // 2. Call Python FastAPI microservice
-        $url = config('services.analytics.url') . '/api/analytics/fraud-detection';
+        $url = config('services.analytics.url').'/api/analytics/fraud-detection';
 
-        try {
-            $response = Http::timeout(10)
-                ->post($url, [
-                    'logs' => $logPayload,
-                ]);
+        app(CircuitBreaker::class)->for('analytics_service')->attempt(
+            function () use ($url, $logPayload, $cacheKey) {
+                $response = Http::timeout(10)
+                    ->withHeaders(app(AnalyticsServiceClient::class)->authHeaders())
+                    ->post($url, [
+                        'logs' => $logPayload,
+                    ]);
 
-            if ($response->successful()) {
+                if (! $response->successful()) {
+                    Log::warning('FetchAiFraudAlertsJob: FastAPI returned non-successful response', ['status' => $response->status()]);
+                    throw new \RuntimeException("Fraud detection service trả lỗi HTTP {$response->status()}");
+                }
+
                 $data = $response->json();
-                if (!empty($data['alerts'])) {
+                if (! empty($data['alerts'])) {
                     $alerts = array_map(function ($alert) {
                         $emp = Employee::withoutGlobalScopes()
                             ->where('restaurant_id', $this->restaurantId)
@@ -74,32 +82,33 @@ class FetchAiFraudAlertsJob implements ShouldQueue
                         $employeeId = $emp ? $emp->id : null;
 
                         return [
-                            'id'             => $alert['id'],
-                            'employee_id'    => $employeeId,
-                            'employee_name'  => $alert['employee_name'],
+                            'id' => $alert['id'],
+                            'employee_id' => $employeeId,
+                            'employee_name' => $alert['employee_name'],
                             'violation_type' => $alert['violation_type'],
-                            'severity'       => $alert['severity'],
-                            'description'    => $alert['description'] . " [Nguồn: Python AI Service]",
-                            'penalty_amount' => (float)$alert['penalty_amount'],
-                            'occurred_at'    => today()->toDateString(),
-                            'risk_score'     => (float)$alert['risk_score'],
-                            'reason'         => $alert['reason'],
+                            'severity' => $alert['severity'],
+                            'description' => $alert['description'].' [Nguồn: Python AI Service]',
+                            'penalty_amount' => (float) $alert['penalty_amount'],
+                            'occurred_at' => today()->toDateString(),
+                            'risk_score' => (float) $alert['risk_score'],
+                            'reason' => $alert['reason'],
                         ];
                     }, $data['alerts']);
 
                     // Cache results in Redis for 10 minutes
                     Cache::put($cacheKey, $alerts, 600);
-                    Log::info("FetchAiFraudAlertsJob: Successfully fetched and cached alerts.", ['restaurant_id' => $this->restaurantId]);
+                    Log::info('FetchAiFraudAlertsJob: Successfully fetched and cached alerts.', ['restaurant_id' => $this->restaurantId]);
                 } else {
                     Cache::put($cacheKey, [], 600);
                 }
-            } else {
-                Log::warning("FetchAiFraudAlertsJob: FastAPI returned non-successful response", ['status' => $response->status()]);
+
+                return true;
+            },
+            function () {
+                Log::error('FetchAiFraudAlertsJob: mạch analytics_service ghi nhận thất bại, bỏ qua lần fetch này');
+
+                return false;
             }
-        } catch (\Throwable $e) {
-            // Cache the offline status for 5 minutes (300 seconds)
-            Cache::put('analytics_service_offline', true, 300);
-            Log::error("FetchAiFraudAlertsJob: Failed to call Python microservice: " . $e->getMessage());
-        }
+        );
     }
 }

@@ -30,11 +30,11 @@ class ChatbotDiagnosticsController extends Controller
 
         return Inertia::render('super-admin/chatbot/Diagnostics', [
             'unansweredQueries' => $queries,
-            'showResolved'      => $request->boolean('resolved'),
-            'health'            => $health,
-            'stats'             => [
-                'total_unanswered'  => ChatbotUnansweredQuery::where('is_resolved', false)->count(),
-                'total_resolved'    => ChatbotUnansweredQuery::where('is_resolved', true)->count(),
+            'showResolved' => $request->boolean('resolved'),
+            'health' => $health,
+            'stats' => [
+                'total_unanswered' => ChatbotUnansweredQuery::where('is_resolved', false)->count(),
+                'total_resolved' => ChatbotUnansweredQuery::where('is_resolved', true)->count(),
                 'total_occurrences' => ChatbotUnansweredQuery::where('is_resolved', false)->sum('occurrence_count'),
             ],
         ]);
@@ -57,13 +57,13 @@ class ChatbotDiagnosticsController extends Controller
     public function bulkResolve(Request $request): RedirectResponse
     {
         $request->validate([
-            'ids'   => ['required', 'array'],
+            'ids' => ['required', 'array'],
             'ids.*' => ['integer'],
         ]);
 
         ChatbotUnansweredQuery::whereIn('id', $request->input('ids'))->update(['is_resolved' => true]);
 
-        return back()->with('success', 'Đã đánh dấu ' . count($request->input('ids')) . ' câu hỏi là đã xử lý.');
+        return back()->with('success', 'Đã đánh dấu '.count($request->input('ids')).' câu hỏi là đã xử lý.');
     }
 
     public function deleteResolved(): RedirectResponse

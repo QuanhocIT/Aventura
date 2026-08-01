@@ -11,6 +11,7 @@ class RfpItem extends Model
     use HasFactory;
 
     protected $table = 'rfp_items';
+
     protected $guarded = [];
 
     public function rfp(): BelongsTo

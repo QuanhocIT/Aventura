@@ -3,11 +3,12 @@
 namespace App\Http\Controllers\SuperAdmin;
 
 use App\Http\Controllers\Controller;
+use App\Mail\ChurnEarlyWarningMail;
+use App\Models\Coupon;
 use App\Models\Restaurant;
 use App\Models\SubscriptionPlan;
-use App\Models\Coupon;
+use App\Models\User;
 use App\Services\CustomerSuccessService;
-use App\Mail\ChurnEarlyWarningMail;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Mail;
@@ -25,14 +26,20 @@ class ChurnController extends Controller
         $highRiskCount = Restaurant::where('churn_risk_level', 'high')->whereIn('status', ['active', 'suspended'])->count();
         $mediumRiskCount = Restaurant::where('churn_risk_level', 'medium')->whereIn('status', ['active', 'suspended'])->count();
         $lowRiskCount = Restaurant::where('churn_risk_level', 'low')->whereIn('status', ['active', 'suspended'])->count();
-        
+
         $avgHealthScore = Restaurant::whereIn('status', ['active', 'suspended'])->avg('health_score') ?? 100;
         $avgHealthScore = round((float) $avgHealthScore, 1);
 
         $emailsSentCount = Restaurant::whereNotNull('churn_risk_flagged_at')->count();
 
+        // New system KPIs
+        $systemRiskRatio = $totalChecked > 0 ? round((($highRiskCount + $mediumRiskCount) / $totalChecked) * 100, 1) : 0;
+        $urgentActionRequired = Restaurant::where('churn_risk_level', 'high')
+            ->where('status', 'active')
+            ->count();
+
         // Query restaurants
-        $query = Restaurant::with(['plan', 'owner'])
+        $query = Restaurant::with(['plan', 'owner', 'internalNotes.user', 'followups.assignedUser', 'tags'])
             ->whereIn('status', ['active', 'suspended']);
 
         // Filter by risk level
@@ -47,14 +54,14 @@ class ChurnController extends Controller
 
         // Search filter
         if ($request->filled('search')) {
-            $search = '%' . $request->string('search') . '%';
+            $search = '%'.$request->string('search').'%';
             $query->where(function ($q) use ($search) {
                 $q->where('name', 'like', $search)
-                  ->orWhere('code', 'like', $search)
-                  ->orWhereHas('owner', function ($userQuery) use ($search) {
-                      $userQuery->where('name', 'like', $search)
-                                ->orWhere('email', 'like', $search);
-                  });
+                    ->orWhere('code', 'like', $search)
+                    ->orWhereHas('owner', function ($userQuery) use ($search) {
+                        $userQuery->where('name', 'like', $search)
+                            ->orWhere('email', 'like', $search);
+                    });
             });
         }
 
@@ -65,7 +72,7 @@ class ChurnController extends Controller
             ->through(function ($restaurant) {
                 // Calculate dynamic breakdown for details modal/popover
                 $breakdown = $this->customerSuccess->calculateHealthScore($restaurant);
-                
+
                 return [
                     'id' => $restaurant->id,
                     'name' => $restaurant->name,
@@ -80,17 +87,39 @@ class ChurnController extends Controller
                     'owner_name' => $restaurant->owner?->name ?? '-',
                     'owner_email' => $restaurant->owner?->email ?? $restaurant->email ?? '-',
                     'owner_phone' => $restaurant->owner?->phone ?? $restaurant->phone ?? '-',
+                    'tags' => $restaurant->tags->map(fn ($t) => [
+                        'id' => $t->id,
+                        'name' => $t->name,
+                        'color' => $t->color,
+                    ]),
+                    'notes' => $restaurant->internalNotes->map(fn ($note) => [
+                        'id' => $note->id,
+                        'note' => $note->note,
+                        'created_at' => $note->created_at->format('d/m/Y H:i'),
+                        'user_name' => $note->user?->name ?? 'Hệ thống',
+                    ]),
+                    'followups' => $restaurant->followups->map(fn ($f) => [
+                        'id' => $f->id,
+                        'note' => $f->note,
+                        'remind_at' => $f->remind_at->format('d/m/Y H:i'),
+                        'status' => $f->status,
+                        'assigned_user_name' => $f->assignedUser?->name ?? 'Không phân công',
+                    ]),
                     'breakdown' => [
                         'days_since_login' => $breakdown['days_since_login'],
                         'current_week_orders' => $breakdown['current_week_orders'],
                         'prev_weekly_avg' => $breakdown['prev_weekly_avg'],
                         'unresolved_tickets' => $breakdown['unresolved_tickets'],
                         'drop_percentage' => $breakdown['drop_percentage'],
-                    ]
+                    ],
                 ];
             });
 
         $plans = SubscriptionPlan::orderBy('name')->get(['id', 'name']);
+
+        $admins = User::whereNull('restaurant_id')
+            ->orderBy('name')
+            ->get(['id', 'name', 'email']);
 
         return Inertia::render('super-admin/support/ChurnDashboard', [
             'stats' => [
@@ -100,9 +129,12 @@ class ChurnController extends Controller
                 'medium_risk' => $mediumRiskCount,
                 'low_risk' => $lowRiskCount,
                 'emails_sent' => $emailsSentCount,
+                'system_risk_ratio' => $systemRiskRatio,
+                'urgent_action_required' => $urgentActionRequired,
             ],
             'restaurants' => $restaurants,
             'plans' => $plans,
+            'admins' => $admins,
             'filters' => $request->only(['risk_level', 'plan_id', 'search']),
         ]);
     }
@@ -130,7 +162,7 @@ class ChurnController extends Controller
         $recipientEmail = $restaurant->owner?->email ?? $restaurant->email;
         $ownerName = $restaurant->owner?->name ?? 'Quý đối tác';
 
-        if (!$recipientEmail) {
+        if (! $recipientEmail) {
             return back()->with('error', 'Không tìm thấy địa chỉ email chủ sở hữu nhà hàng.');
         }
 
@@ -163,9 +195,9 @@ class ChurnController extends Controller
             $restaurant->churn_risk_flagged_at = now();
             $restaurant->save();
 
-            return back()->with('success', 'Đã gửi email chăm sóc & tặng mã gia hạn thành công tới: ' . $recipientEmail);
+            return back()->with('success', 'Đã gửi email chăm sóc & tặng mã gia hạn thành công tới: '.$recipientEmail);
         } catch (\Exception $e) {
-            return back()->with('error', 'Lỗi gửi email: ' . $e->getMessage());
+            return back()->with('error', 'Lỗi gửi email: '.$e->getMessage());
         }
     }
 }

@@ -2,8 +2,8 @@
 
 namespace Tests\Feature;
 
-use App\Models\User;
 use App\Models\ServiceMaintenanceStatus;
+use App\Models\User;
 use App\Services\ServiceMonitorService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Spatie\Permission\Models\Role;
@@ -14,11 +14,13 @@ class ServiceMonitorTest extends TestCase
     use RefreshDatabase;
 
     private User $superAdmin;
+
     private User $normalUser;
 
     protected function setUp(): void
     {
         parent::setUp();
+        $this->withSession(['superadmin.2fa_verified_until' => now()->addMinutes(15)->timestamp]);
 
         // Ensure super_admin role exists
         $superAdminRole = Role::firstOrCreate(['name' => 'super_admin', 'guard_name' => 'web']);
@@ -28,12 +30,13 @@ class ServiceMonitorTest extends TestCase
             'two_factor_confirmed_at' => now(),
         ]);
         $this->superAdmin->assignRole('super_admin');
+        $this->withSession(['superadmin.2fa_verified_user_id' => $this->superAdmin->id]);
 
         $this->normalUser = User::factory()->create([
             'email_verified_at' => now(),
         ]);
 
-        // Run migrations and default seeder inserts services. 
+        // Run migrations and default seeder inserts services.
         // We'll clean up the JSON file before and after tests.
         @unlink(storage_path('framework/service-maintenance.json'));
     }
@@ -57,7 +60,7 @@ class ServiceMonitorTest extends TestCase
     public function test_super_admin_can_access_monitor_panel(): void
     {
         $this->actingAs($this->superAdmin);
-        
+
         $response = $this->get('/super-admin/service-monitor');
         $response->assertOk();
         $response->assertSee('services'); // inertia prop
@@ -72,7 +75,7 @@ class ServiceMonitorTest extends TestCase
         $response->assertJsonStructure([
             'success',
             'results',
-            'services'
+            'services',
         ]);
 
         $this->assertFileExists(storage_path('framework/service-maintenance.json'));
@@ -89,7 +92,7 @@ class ServiceMonitorTest extends TestCase
         // Toggle ON
         $response = $this->post("/super-admin/service-monitor/{$service->service_key}/toggle-maintenance", [
             'is_maintenance' => true,
-            'message' => 'Chatbot AI undergoing maintenance'
+            'message' => 'Chatbot AI undergoing maintenance',
         ]);
 
         $response->assertOk();
@@ -111,13 +114,13 @@ class ServiceMonitorTest extends TestCase
         $this->actingAs($this->superAdmin);
 
         $service = ServiceMaintenanceStatus::where('service_key', 'email_service')->first();
-        
+
         $response = $this->post("/super-admin/service-monitor/{$service->service_key}/update-message", [
-            'message' => 'Custom Email Service Message'
+            'message' => 'Custom Email Service Message',
         ]);
 
         $response->assertOk();
-        
+
         $service->refresh();
         $this->assertEquals('Custom Email Service Message', $service->maintenance_message);
     }
@@ -132,8 +135,28 @@ class ServiceMonitorTest extends TestCase
         $response->assertJsonStructure([
             'overall_status',
             'uptime_stats',
-            'current_statuses'
+            'current_statuses',
         ]);
+    }
+
+    /**
+     * getServiceConnectionDetails() TRƯỚC ĐÂY trả thẳng chuỗi 'localhost' cho
+     * email_service/chatbot_service/analytics_service/meilisearch (lấy từ
+     * parse_url() của URL cấu hình) — trên Windows, fsockopen('localhost', ...)
+     * ưu tiên thử IPv6 (::1) trước, trong khi các service này chỉ bind IPv4
+     * (--host 0.0.0.0), khiến pingService() luôn báo "offline" (treo tới hết
+     * timeout 2s) dù service đang chạy hoàn toàn bình thường. Đảm bảo không
+     * còn nơi nào trả về đúng literal 'localhost' nữa.
+     */
+    public function test_service_connection_details_never_return_literal_localhost(): void
+    {
+        $monitorService = app(ServiceMonitorService::class);
+
+        foreach (['email_service', 'chatbot_service', 'analytics_service', 'meilisearch'] as $serviceKey) {
+            [$host] = $monitorService->getServiceConnectionDetails($serviceKey);
+
+            $this->assertNotSame('localhost', $host, "{$serviceKey} không được trả về literal 'localhost' — dùng '127.0.0.1' để tránh treo do resolve IPv6 trên Windows.");
+        }
     }
 
     public function test_mysql_maintenance_mode_blocks_requests_for_non_admins(): void

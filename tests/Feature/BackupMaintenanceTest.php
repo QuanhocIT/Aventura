@@ -3,8 +3,6 @@
 namespace Tests\Feature;
 
 use App\Models\User;
-use App\Models\AuditLog;
-use App\Models\DbMaintenanceLog;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -18,6 +16,7 @@ class BackupMaintenanceTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+        $this->withSession(['superadmin.2fa_verified_until' => now()->addMinutes(15)->timestamp]);
         Storage::fake('local');
         Storage::fake('s3');
     }
@@ -43,7 +42,8 @@ class BackupMaintenanceTest extends TestCase
         $admin->forceFill([
             'two_factor_confirmed_at' => now(),
         ])->save();
-        
+        $this->withSession(['superadmin.2fa_verified_user_id' => $admin->id]);
+
         $this->actingAs($admin)
             ->get('/super-admin/backup-maintenance')
             ->assertStatus(200);
@@ -59,6 +59,7 @@ class BackupMaintenanceTest extends TestCase
         $admin->forceFill([
             'two_factor_confirmed_at' => now(),
         ])->save();
+        $this->withSession(['superadmin.2fa_verified_user_id' => $admin->id]);
 
         $response = $this->actingAs($admin)
             ->post('/super-admin/backup-maintenance/backup');
@@ -82,6 +83,7 @@ class BackupMaintenanceTest extends TestCase
         $admin->forceFill([
             'two_factor_confirmed_at' => now(),
         ])->save();
+        $this->withSession(['superadmin.2fa_verified_user_id' => $admin->id]);
 
         // Tạo dữ liệu giả lập cho failed_jobs
         if (Schema::hasTable('failed_jobs')) {
@@ -91,7 +93,7 @@ class BackupMaintenanceTest extends TestCase
                 'queue' => 'default',
                 'payload' => '{}',
                 'exception' => 'Test exception',
-                'failed_at' => now()
+                'failed_at' => now(),
             ]);
             $this->assertEquals(1, DB::table('failed_jobs')->count());
         }
@@ -99,7 +101,7 @@ class BackupMaintenanceTest extends TestCase
         // Kích hoạt tối ưu hóa (chỉ dọn dẹp Queue)
         $response = $this->actingAs($admin)
             ->post('/super-admin/backup-maintenance/optimize', [
-                'actions' => ['cleanup_queues']
+                'actions' => ['cleanup_queues'],
             ]);
 
         $response->assertRedirect();
@@ -114,7 +116,7 @@ class BackupMaintenanceTest extends TestCase
         $this->assertDatabaseHas('db_maintenance_logs', [
             'user_id' => $admin->id,
             'action' => 'cleanup_queues',
-            'status' => 'success'
+            'status' => 'success',
         ]);
     }
 
@@ -128,6 +130,7 @@ class BackupMaintenanceTest extends TestCase
         $admin->forceFill([
             'two_factor_confirmed_at' => now(),
         ])->save();
+        $this->withSession(['superadmin.2fa_verified_user_id' => $admin->id]);
 
         $lifetimeSeconds = config('session.lifetime', 120) * 60;
 
@@ -137,13 +140,13 @@ class BackupMaintenanceTest extends TestCase
             DB::table('sessions')->insert([
                 'id' => 'expired_session_1',
                 'payload' => 'payload',
-                'last_activity' => time() - ($lifetimeSeconds + 100)
+                'last_activity' => time() - ($lifetimeSeconds + 100),
             ]);
             // Session còn hạn
             DB::table('sessions')->insert([
                 'id' => 'active_session_1',
                 'payload' => 'payload',
-                'last_activity' => time() - 10
+                'last_activity' => time() - 10,
             ]);
             $this->assertEquals(2, DB::table('sessions')->count());
         }
@@ -151,7 +154,7 @@ class BackupMaintenanceTest extends TestCase
         // Kích hoạt tối ưu hóa (chỉ xóa sessions)
         $response = $this->actingAs($admin)
             ->post('/super-admin/backup-maintenance/optimize', [
-                'actions' => ['clear_sessions']
+                'actions' => ['clear_sessions'],
             ]);
 
         $response->assertRedirect();
@@ -175,6 +178,7 @@ class BackupMaintenanceTest extends TestCase
         $admin->forceFill([
             'two_factor_confirmed_at' => now(),
         ])->save();
+        $this->withSession(['superadmin.2fa_verified_user_id' => $admin->id]);
 
         // Tạo các bản ghi Audit Log giả lập
         if (Schema::hasTable('audit_logs')) {
@@ -184,7 +188,7 @@ class BackupMaintenanceTest extends TestCase
                 'action' => 'login',
                 'created_at' => now()->subMonths(7),
             ]);
-            
+
             // Log mới (trong vòng 6 tháng)
             DB::table('audit_logs')->insert([
                 'event' => 'deleted',
@@ -200,7 +204,7 @@ class BackupMaintenanceTest extends TestCase
         // Kích hoạt lưu trữ audit log
         $response = $this->actingAs($admin)
             ->post('/super-admin/backup-maintenance/optimize', [
-                'actions' => ['archive_audit_logs']
+                'actions' => ['archive_audit_logs'],
             ]);
 
         $response->assertRedirect();

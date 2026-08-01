@@ -95,5 +95,22 @@ class WeatherMenuForecastRequest(BaseModel):
     products: List[ProductSalesData]
 
 
+# --- SaaS Cohort Retention Analysis ---
+class RestaurantCohortData(BaseModel):
+    restaurant_id: int
+    created_at: str  # ISO date — dùng để gán vào cohort theo tháng đăng ký
+    status: str  # active/suspended/expired/...
+
+class OrderActivityData(BaseModel):
+    restaurant_id: int
+    order_date: str  # ISO date — 1 dòng mỗi ngày có đơn hàng (đã distinct phía PHP)
+
+class CohortRetentionRequest(BaseModel):
+    restaurants: List[RestaurantCohortData]
+    order_activity: List[OrderActivityData] = []
+    months: int = 6  # số cohort tháng gần nhất cần phân tích
+    now: str  # ISO datetime — mốc "hiện tại" theo góc nhìn PHP, không dùng datetime.now() phía Python để kết quả xác định (deterministic) khi test
+
+
 
 

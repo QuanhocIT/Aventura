@@ -15,11 +15,11 @@ class ShipperLocationLog extends Model
     protected function casts(): array
     {
         return [
-            'latitude'    => 'decimal:7',
-            'longitude'   => 'decimal:7',
-            'speed_kmh'   => 'decimal:2',
-            'accuracy_m'  => 'decimal:2',
-            'logged_at'   => 'datetime',
+            'latitude' => 'decimal:7',
+            'longitude' => 'decimal:7',
+            'speed_kmh' => 'decimal:2',
+            'accuracy_m' => 'decimal:2',
+            'logged_at' => 'datetime',
         ];
     }
 

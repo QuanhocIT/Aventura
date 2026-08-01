@@ -1,21 +1,26 @@
 <script setup lang="ts">
-import { computed, ref, onMounted, onUnmounted } from 'vue';
 import { Head, Link, usePage } from '@inertiajs/vue3';
-import AppTopbarLayout from '@/layouts/AppTopbarLayout.vue';
+import { computed, ref, onMounted, onUnmounted } from 'vue';
+import DemoBookingModal from '@/components/DemoBookingModal.vue';
 import { Button } from '@/components/ui/button';
+import AppTopbarLayout from '@/layouts/AppTopbarLayout.vue';
 import { register } from '@/routes';
 
 // Import subcomponents
-import KhachPromoBanner from './khach/components/KhachPromoBanner.vue';
+import KhachCaseStudy from './khach/components/KhachCaseStudy.vue';
+import KhachComparison from './khach/components/KhachComparison.vue';
+import KhachFaq from './khach/components/KhachFaq.vue';
+import KhachFeatures from './khach/components/KhachFeatures.vue';
 import KhachHero from './khach/components/KhachHero.vue';
 import KhachHowItWorks from './khach/components/KhachHowItWorks.vue';
-import KhachFeatures from './khach/components/KhachFeatures.vue';
 import KhachNews from './khach/components/KhachNews.vue';
 import KhachPricing from './khach/components/KhachPricing.vue';
-import KhachTestimonials from './khach/components/KhachTestimonials.vue';
-import KhachFaq from './khach/components/KhachFaq.vue';
+import KhachPromoBanner from './khach/components/KhachPromoBanner.vue';
 import KhachStats from './khach/components/KhachStats.vue';
 import KhachStickyCta from './khach/components/KhachStickyCta.vue';
+import KhachTestimonials from './khach/components/KhachTestimonials.vue';
+import KhachTrustIntegrations from './khach/components/KhachTrustIntegrations.vue';
+import KhachVideoDemo from './khach/components/KhachVideoDemo.vue';
 
 interface Banner {
     id: number;
@@ -62,6 +67,7 @@ const promoBanners = computed(() => props.banners?.promo ?? []);
 const firstPromoBanner = computed(() => promoBanners.value[0] ?? null);
 
 const showStickyCta = ref(false);
+const isDemoModalOpen = ref(false);
 let heroObserver: IntersectionObserver | null = null;
 let revealObserver: IntersectionObserver | null = null;
 
@@ -69,9 +75,9 @@ onMounted(() => {
     // Observer for toggling sticky bottom CTA bar
     heroObserver = new IntersectionObserver(
         ([entry]) => {
-            showStickyCta.value = !entry.isIntersecting; 
+            showStickyCta.value = !entry.isIntersecting;
         },
-        { threshold: 0.1 }
+        { threshold: 0.1 },
     );
     const heroEl = document.getElementById('hero-section');
 
@@ -89,7 +95,7 @@ onMounted(() => {
                 }
             });
         },
-        { threshold: 0.1 }
+        { threshold: 0.1 },
     );
     document.querySelectorAll('.reveal-on-scroll').forEach((el) => {
         revealObserver?.observe(el);
@@ -104,7 +110,22 @@ onUnmounted(() => {
 
 <template>
     <AppTopbarLayout transparent>
-        <Head title="Aventura | SaaS quản lý nhà hàng" />
+        <Head title="Aventura | SaaS quản lý nhà hàng">
+            <meta
+                name="description"
+                content="Aventura - Nền tảng quản lý nhà hàng thông minh. QR Order, Kitchen Display, Quản lý Kho, Nhân sự, Báo cáo AI. Dùng thử miễn phí."
+            />
+            <meta
+                property="og:title"
+                content="Aventura | SaaS quản lý nhà hàng"
+            />
+            <meta
+                property="og:description"
+                content="Vận hành nhà hàng vượt trội — QR Order, Kitchen Display, AI Analytics. Dùng thử miễn phí 14 ngày."
+            />
+            <meta property="og:type" content="website" />
+            <meta name="twitter:card" content="summary_large_image" />
+        </Head>
 
         <!-- 1. Promo Banner -->
         <KhachPromoBanner :firstPromoBanner="firstPromoBanner" />
@@ -112,33 +133,51 @@ onUnmounted(() => {
         <!-- 2. Hero Section -->
         <KhachHero :banners="banners" />
 
-        <!-- 3. How It Works -->
+        <!-- 3. Video Demo -->
+        <KhachVideoDemo />
+
+        <!-- 4. How It Works -->
         <KhachHowItWorks />
 
-        <!-- 4. Features Map & Console -->
+        <!-- 5. Features Map & Console -->
         <KhachFeatures />
 
-        <!-- 5. Latest News -->
+        <!-- 6. Comparison Table -->
+        <KhachComparison />
+
+        <!-- 7. Trust Badges + Integrations -->
+        <KhachTrustIntegrations />
+
+        <!-- 8. Latest News -->
         <KhachNews :latestNews="latestNews" />
 
-        <!-- 6. Pricing -->
+        <!-- 9. Pricing -->
         <KhachPricing :plans="plans" :canRegister="canRegister" :user="user" />
 
-        <!-- 7. Testimonials -->
+        <!-- 10. Testimonials -->
         <KhachTestimonials />
 
-        <!-- 8. FAQ Accordion -->
+        <!-- 11. Case Study -->
+        <KhachCaseStudy />
+
+        <!-- 12. FAQ Accordion -->
         <KhachFaq :canRegister="canRegister" />
 
-        <!-- 9. Stats count-up -->
+        <!-- 13. Stats count-up -->
         <KhachStats />
 
-        <!-- 10. Call to Action / footer section -->
-        <section class="px-4 py-10 lg:py-12 lg:px-8">
+        <!-- 14. Call to Action / footer section -->
+        <section
+            class="bg-gradient-to-b from-primary/5 via-transparent to-transparent px-4 py-16 lg:px-8 lg:py-20"
+        >
             <div
                 class="reveal-on-scroll mx-auto flex max-w-4xl flex-col items-center gap-5 text-center"
             >
-                <h2 class="text-3xl font-semibold">Đăng ký và thử ngay</h2>
+                <h2
+                    class="heading-section text-gradient-brand text-3xl font-bold"
+                >
+                    Đăng ký và thử ngay
+                </h2>
                 <p class="max-w-2xl text-muted-foreground">
                     Aventura đủ gọn để thử, đủ sâu để chạy thật. Gói Free có hạn
                     mức rõ; gói Pro mở khóa phần cần kiểm soát.
@@ -147,16 +186,35 @@ onUnmounted(() => {
                     <Button v-if="canRegister" as-child size="lg">
                         <Link :href="register()">Bắt đầu miễn phí</Link>
                     </Button>
-                    <Button as-child variant="outline" size="lg">
-                        <a href="#features">Xem lại tính năng</a>
+                    <Button
+                        variant="outline"
+                        size="lg"
+                        @click="isDemoModalOpen = true"
+                    >
+                        <span class="flex cursor-pointer items-center gap-2">
+                            <span>📅</span> Đặt lịch demo với chuyên gia
+                        </span>
                     </Button>
                 </div>
+                <p class="text-xs text-muted-foreground">
+                    Demo 30 phút · Không cam kết · Chuyên gia tư vấn 1:1
+                </p>
             </div>
         </section>
     </AppTopbarLayout>
 
     <!-- 11. Sticky bottom CTA bar -->
-    <KhachStickyCta :canRegister="canRegister" :showStickyCta="showStickyCta" />
+    <KhachStickyCta
+        :canRegister="canRegister"
+        :showStickyCta="showStickyCta"
+        @openDemo="isDemoModalOpen = true"
+    />
+
+    <!-- Demo Booking Modal -->
+    <DemoBookingModal
+        :isOpen="isDemoModalOpen"
+        @close="isDemoModalOpen = false"
+    />
 </template>
 
 <style>
@@ -164,8 +222,9 @@ onUnmounted(() => {
 .reveal-on-scroll {
     opacity: 0;
     transform: translateY(24px);
-    transition: opacity 0.8s cubic-bezier(0.16, 1, 0.3, 1), 
-                transform 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+    transition:
+        opacity 0.8s cubic-bezier(0.16, 1, 0.3, 1),
+        transform 0.8s cubic-bezier(0.16, 1, 0.3, 1);
 }
 .reveal-on-scroll.revealed {
     opacity: 1;

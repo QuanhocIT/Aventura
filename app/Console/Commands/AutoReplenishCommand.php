@@ -25,6 +25,7 @@ class AutoReplenishCommand extends Command
 
         if ($restaurants->isEmpty()) {
             $this->warn('Không có nhà hàng hoạt động nào được tìm thấy.');
+
             return 0;
         }
 
@@ -34,29 +35,38 @@ class AutoReplenishCommand extends Command
             // Find an owner or manager to associate as the PO creator (defaulting to the first owner/system user)
             $owner = $restaurant->users->where('status', 'active')->first();
 
-            if (!$owner) {
+            if (! $owner) {
                 $this->warn("Bỏ qua nhà hàng {$restaurant->name}: Không tìm thấy tài khoản quản trị hoạt động.");
+
                 continue;
             }
 
             try {
-                // 1. Get forecasts
-                $forecasts = $replenishService->getForecastAndReplenish($restaurant->id);
-                $this->info("Đã nhận dự báo cho " . count($forecasts) . " nguyên vật liệu.");
+                $forecasts = [];
+                // Forecasts and replenishment orders are generated per branch.
+                $this->info('Đã nhận dự báo cho '.count($forecasts).' nguyên vật liệu.');
 
-                // 2. Generate replenishment orders (Draft POs)
-                $pos = $replenishService->generateReplenishmentOrders($restaurant->id, $forecasts, $owner->id);
+                // Generate replenishment orders (Draft POs) per branch.
+                $pos = [];
+                foreach ($restaurant->branches()->where('status', 'active')->get(['id', 'name']) as $branch) {
+                    $branchForecasts = $replenishService->getForecastAndReplenish($restaurant->id, $branch->id);
+                    $this->info("Forecast branch {$branch->name}: ".count($branchForecasts).' ingredients.');
+                    $pos = array_merge(
+                        $pos,
+                        $replenishService->generateReplenishmentOrders($restaurant->id, $branchForecasts, $owner->id, $branch->id),
+                    );
+                }
 
                 if (empty($pos)) {
-                    $this->info("Tồn kho ở mức an toàn. Không có đơn đặt hàng đề xuất nào được tạo.");
+                    $this->info('Tồn kho ở mức an toàn. Không có đơn đặt hàng đề xuất nào được tạo.');
                 } else {
-                    $this->info("Thành công: Đã tạo " . count($pos) . " đơn đặt hàng PO nháp mới:");
+                    $this->info('Thành công: Đã tạo '.count($pos).' đơn đặt hàng PO nháp mới:');
                     foreach ($pos as $po) {
-                        $this->line("  - Đơn PO: {$po->po_number} | Đối tác: {$po->supplier->name} | Tổng tiền: " . number_format($po->total_amount) . "đ");
+                        $this->line("  - Đơn PO: {$po->po_number} | Đối tác: {$po->supplier->name} | Tổng tiền: ".number_format($po->total_amount).'đ');
                     }
                 }
             } catch (\Throwable $e) {
-                $this->error("Lỗi khi chạy dự báo cho nhà hàng {$restaurant->id}: " . $e->getMessage());
+                $this->error("Lỗi khi chạy dự báo cho nhà hàng {$restaurant->id}: ".$e->getMessage());
             }
         }
 

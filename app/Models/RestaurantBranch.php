@@ -3,14 +3,14 @@
 namespace App\Models;
 
 use App\Models\Concerns\BelongsToRestaurant;
-
 use Database\Factories\Restaurant\RestaurantBranchFactory;
-use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Factories\Factory;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Facades\Cache;
 
 class RestaurantBranch extends Model
 {
@@ -19,6 +19,19 @@ class RestaurantBranch extends Model
     use SoftDeletes;
 
     protected $guarded = [];
+
+    protected static function booted(): void
+    {
+        // Xóa cache branches trong Inertia share khi branch thay đổi
+        $invalidate = function (self $branch) {
+            Cache::forget("tenant_branches:v2:{$branch->restaurant_id}:all");
+            Cache::forget("tenant_branches:{$branch->restaurant_id}");
+        };
+
+        static::created($invalidate);
+        static::updated($invalidate);
+        static::deleted($invalidate);
+    }
 
     public function restaurant(): BelongsTo
     {
@@ -35,9 +48,18 @@ class RestaurantBranch extends Model
         return $this->hasMany(Area::class, 'branch_id');
     }
 
+    public function employees(): HasMany
+    {
+        return $this->hasMany(Employee::class, 'branch_id');
+    }
+
+    public function tables(): HasMany
+    {
+        return $this->hasMany(RestaurantTable::class, 'branch_id');
+    }
+
     protected static function newFactory(): Factory
     {
         return RestaurantBranchFactory::new();
     }
 }
-

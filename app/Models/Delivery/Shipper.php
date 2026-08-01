@@ -20,19 +20,19 @@ class Shipper extends Model
     protected function casts(): array
     {
         return [
-            'is_active'          => 'boolean',
-            'last_seen_at'       => 'datetime',
-            'current_lat'        => 'decimal:7',
-            'current_lng'        => 'decimal:7',
-            'max_capacity_kg'    => 'decimal:2',
+            'is_active' => 'boolean',
+            'last_seen_at' => 'datetime',
+            'current_lat' => 'decimal:7',
+            'current_lng' => 'decimal:7',
+            'max_capacity_kg' => 'decimal:2',
         ];
     }
 
     /** Vehicle speed in km/h for ETA calculations */
     public const SPEED_PROFILES = [
-        'bike'      => 13,
+        'bike' => 13,
         'motorbike' => 32,
-        'car'       => 38,
+        'car' => 38,
     ];
 
     public function employee(): BelongsTo
@@ -79,7 +79,7 @@ class Shipper extends Model
             ? $this->activeBatch
             : $this->activeBatch()->first();
 
-        if (!$batch) {
+        if (! $batch) {
             return ['orders' => 0, 'active_batch_id' => null];
         }
 
@@ -88,7 +88,7 @@ class Shipper extends Model
             : $batch->items()->count();
 
         return [
-            'orders'          => $orders,
+            'orders' => $orders,
             'active_batch_id' => $batch->id,
         ];
     }

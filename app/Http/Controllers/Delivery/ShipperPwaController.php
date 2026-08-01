@@ -29,26 +29,26 @@ class ShipperPwaController extends Controller
             ->first();
 
         return Inertia::render('delivery/shipper/App', [
-            'shipper'      => $shipper ? [
-                'id'           => $shipper->id,
+            'shipper' => $shipper ? [
+                'id' => $shipper->id,
                 'vehicle_type' => $shipper->vehicle_type,
-                'name'         => $shipper->employee?->full_name,
+                'name' => $shipper->employee?->full_name,
                 'active_batch' => $shipper->activeBatch ? [
-                    'id'     => $shipper->activeBatch->id,
+                    'id' => $shipper->activeBatch->id,
                     'status' => $shipper->activeBatch->status,
-                    'items'  => $shipper->activeBatch->items->map(fn ($item) => [
-                        'id'             => $item->id,
-                        'order_id'       => $item->order_id,
-                        'order_number'   => $item->order?->order_number,
+                    'items' => $shipper->activeBatch->items->map(fn ($item) => [
+                        'id' => $item->id,
+                        'order_id' => $item->order_id,
+                        'order_number' => $item->order?->order_number,
                         'sequence_order' => $item->sequence_order,
-                        'status'         => $item->status,
-                        'eta'            => $item->eta?->toISOString(),
-                        'address'        => $item->order?->deliveryDetail?->address,
-                        'customer_name'  => $item->order?->deliveryDetail?->customer_name,
-                        'phone'          => $item->order?->deliveryDetail?->phone,
-                        'latitude'       => $item->order?->deliveryDetail?->latitude ? (float) $item->order->deliveryDetail->latitude : null,
-                        'longitude'      => $item->order?->deliveryDetail?->longitude ? (float) $item->order->deliveryDetail->longitude : null,
-                        'cod_amount'     => (float) ($item->order?->deliveryDetail?->cod_amount ?? 0),
+                        'status' => $item->status,
+                        'eta' => $item->eta?->toISOString(),
+                        'address' => $item->order?->deliveryDetail?->address,
+                        'customer_name' => $item->order?->deliveryDetail?->customer_name,
+                        'phone' => $item->order?->deliveryDetail?->phone,
+                        'latitude' => $item->order?->deliveryDetail?->latitude ? (float) $item->order->deliveryDetail->latitude : null,
+                        'longitude' => $item->order?->deliveryDetail?->longitude ? (float) $item->order->deliveryDetail->longitude : null,
+                        'cod_amount' => (float) ($item->order?->deliveryDetail?->cod_amount ?? 0),
                     ])->values(),
                 ] : null,
             ] : null,
@@ -60,9 +60,9 @@ class ShipperPwaController extends Controller
     {
         $validated = $request->validate([
             'shipper_id' => ['required', 'integer'],
-            'latitude'   => ['required', 'numeric', 'between:-90,90'],
-            'longitude'  => ['required', 'numeric', 'between:-180,180'],
-            'speed_kmh'  => ['nullable', 'numeric', 'min:0'],
+            'latitude' => ['required', 'numeric', 'between:-90,90'],
+            'longitude' => ['required', 'numeric', 'between:-180,180'],
+            'speed_kmh' => ['nullable', 'numeric', 'min:0'],
             'accuracy_m' => ['nullable', 'numeric', 'min:0'],
         ]);
 
@@ -73,18 +73,18 @@ class ShipperPwaController extends Controller
 
         DB::transaction(function () use ($shipper, $validated) {
             ShipperLocationLog::create([
-                'shipper_id'    => $shipper->id,
+                'shipper_id' => $shipper->id,
                 'restaurant_id' => $shipper->restaurant_id,
-                'latitude'      => $validated['latitude'],
-                'longitude'     => $validated['longitude'],
-                'speed_kmh'     => $validated['speed_kmh'] ?? null,
-                'accuracy_m'    => $validated['accuracy_m'] ?? null,
-                'logged_at'     => now(),
+                'latitude' => $validated['latitude'],
+                'longitude' => $validated['longitude'],
+                'speed_kmh' => $validated['speed_kmh'] ?? null,
+                'accuracy_m' => $validated['accuracy_m'] ?? null,
+                'logged_at' => now(),
             ]);
 
             $shipper->update([
-                'current_lat'  => $validated['latitude'],
-                'current_lng'  => $validated['longitude'],
+                'current_lat' => $validated['latitude'],
+                'current_lng' => $validated['longitude'],
                 'last_seen_at' => now(),
             ]);
         });
@@ -114,12 +114,12 @@ class ShipperPwaController extends Controller
     {
         $validated = $request->validate([
             'shipper_id' => ['required', 'integer'],
-            'pings'      => ['required', 'array', 'min:1', 'max:50'],
-            'pings.*.latitude'   => ['required', 'numeric', 'between:-90,90'],
-            'pings.*.longitude'  => ['required', 'numeric', 'between:-180,180'],
-            'pings.*.speed_kmh'  => ['nullable', 'numeric', 'min:0'],
+            'pings' => ['required', 'array', 'min:1', 'max:50'],
+            'pings.*.latitude' => ['required', 'numeric', 'between:-90,90'],
+            'pings.*.longitude' => ['required', 'numeric', 'between:-180,180'],
+            'pings.*.speed_kmh' => ['nullable', 'numeric', 'min:0'],
             'pings.*.accuracy_m' => ['nullable', 'numeric', 'min:0'],
-            'pings.*.logged_at'  => ['nullable', 'date'],
+            'pings.*.logged_at' => ['nullable', 'date'],
         ]);
 
         $shipper = Shipper::where('id', $validated['shipper_id'])
@@ -129,15 +129,15 @@ class ShipperPwaController extends Controller
 
         DB::transaction(function () use ($shipper, $validated) {
             $logs = array_map(fn ($p) => [
-                'shipper_id'  => $shipper->id,
-                'restaurant_id'=> $shipper->restaurant_id,
-                'latitude'    => $p['latitude'],
-                'longitude'   => $p['longitude'],
-                'speed_kmh'   => $p['speed_kmh'] ?? null,
-                'accuracy_m'  => $p['accuracy_m'] ?? null,
-                'logged_at'   => $p['logged_at'] ?? now(),
-                'created_at'  => now(),
-                'updated_at'  => now(),
+                'shipper_id' => $shipper->id,
+                'restaurant_id' => $shipper->restaurant_id,
+                'latitude' => $p['latitude'],
+                'longitude' => $p['longitude'],
+                'speed_kmh' => $p['speed_kmh'] ?? null,
+                'accuracy_m' => $p['accuracy_m'] ?? null,
+                'logged_at' => $p['logged_at'] ?? now(),
+                'created_at' => now(),
+                'updated_at' => now(),
             ], $validated['pings']);
 
             ShipperLocationLog::insert($logs);
@@ -145,8 +145,8 @@ class ShipperPwaController extends Controller
             // Update shipper position to last ping
             $last = end($validated['pings']);
             $shipper->update([
-                'current_lat'  => $last['latitude'],
-                'current_lng'  => $last['longitude'],
+                'current_lat' => $last['latitude'],
+                'current_lng' => $last['longitude'],
                 'last_seen_at' => now(),
             ]);
         });
@@ -168,11 +168,11 @@ class ShipperPwaController extends Controller
         abort_if($item->batch->restaurant_id !== $request->user()->restaurant_id, 403);
 
         $userShipper = Shipper::whereHas('employee', fn ($q) => $q->where('user_id', $request->user()->id))->first();
-        abort_if(!$userShipper || $item->batch->shipper_id !== $userShipper->id, 403);
+        abort_if(! $userShipper || $item->batch->shipper_id !== $userShipper->id, 403);
 
         $validated = $request->validate([
             'status' => ['required', 'in:picked_up,delivered,failed'],
-            'notes'  => ['nullable', 'string', 'max:500'],
+            'notes' => ['nullable', 'string', 'max:500'],
         ]);
 
         $item = $this->dispatcher->updateItemStatus(

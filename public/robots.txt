@@ -1,2 +1,9 @@
 User-agent: *
-Disallow:
+Allow: /
+Disallow: /dashboard
+Disallow: /super-admin
+Disallow: /api/
+Disallow: /billing/
+Disallow: /settings/
+
+Sitemap: https://aventura.vn/sitemap.xml

@@ -4,6 +4,8 @@ import {
     Activity,
     Building2,
     Check,
+    ChevronDown,
+    ChevronUp,
     Coins,
     Crown,
     Database,
@@ -22,28 +24,142 @@ import {
     Users,
     X,
     Zap,
-    Percent
+    Percent,
+    Search,
+    AlertTriangle,
+    RotateCcw,
+    Trash2,
 } from 'lucide-vue-next';
-import { ref } from 'vue';
+import { ref, computed } from 'vue';
+import {
+    PageHeader,
+    StatusBadge,
+    ProgressBar,
+    DataTable,
+} from '@/components/super-admin';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import {
+    Card,
+    CardContent,
+    CardDescription,
+    CardHeader,
+    CardTitle,
+} from '@/components/ui/card';
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogHeader,
+    DialogTitle,
+} from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from '@/components/ui/select';
+import {
+    Sheet,
+    SheetContent,
+    SheetDescription,
+    SheetHeader,
+    SheetTitle,
+} from '@/components/ui/sheet';
 import AppLayout from '@/layouts/AppLayout.vue';
 
 defineOptions({ layout: AppLayout });
 
 interface Plan {
-    id: number; code: string; name: string; price: number;
-    billing_cycle: string; max_branches: number; max_tables: number; max_users: number;
-    features: Record<string, any>; status: string; restaurants_count: number;
+    id: number;
+    code: string;
+    name: string;
+    price: number;
+    billing_cycle: string;
+    max_branches: number;
+    max_tables: number;
+    max_users: number;
+    features: Record<string, any>;
+    status: string;
+    is_deleted?: boolean;
+    deleted_at?: string;
+    restaurants_count: number;
 }
 
-defineProps<{ plans: Plan[] }>();
+const props = defineProps<{ plans: Plan[] }>();
+
+const currentPage = ref(1);
+const itemsPerPage = 4;
+
+const paginatedPlans = computed(() => {
+    const startIndex = (currentPage.value - 1) * itemsPerPage;
+
+    return props.plans.slice(startIndex, startIndex + itemsPerPage);
+});
+
+const totalPages = computed(() => {
+    return Math.ceil(props.plans.length / itemsPerPage);
+});
+
+const billingPeriod = ref<'monthly' | 'yearly'>('monthly');
+const showComparison = ref(false);
+const restaurantSearch = ref('');
+const expandedPlanIds = ref<number[]>([]);
+
+function isPlanExpanded(planId: number) {
+    return expandedPlanIds.value.includes(planId);
+}
+
+function togglePlanDetails(planId: number) {
+    expandedPlanIds.value = isPlanExpanded(planId)
+        ? expandedPlanIds.value.filter((id) => id !== planId)
+        : [...expandedPlanIds.value, planId];
+}
+
+const planToDelete = ref<Plan | null>(null);
+const isDeleteModalOpen = ref(false);
+
+const planToRestore = ref<Plan | null>(null);
+const isRestoreModalOpen = ref(false);
+
+function confirmDelete(plan: Plan) {
+    planToDelete.value = plan;
+    isDeleteModalOpen.value = true;
+}
+
+function executeDelete() {
+    if (!planToDelete.value) {
+        return;
+    }
+
+    useForm({}).delete(`/super-admin/plans/${planToDelete.value.id}`, {
+        onSuccess: () => {
+            isDeleteModalOpen.value = false;
+            planToDelete.value = null;
+        },
+    });
+}
+
+function confirmRestore(plan: Plan) {
+    planToRestore.value = plan;
+    isRestoreModalOpen.value = true;
+}
+
+function executeRestore() {
+    if (!planToRestore.value) {
+        return;
+    }
+
+    useForm({}).post(`/super-admin/plans/${planToRestore.value.id}/restore`, {
+        onSuccess: () => {
+            isRestoreModalOpen.value = false;
+            planToRestore.value = null;
+        },
+    });
+}
 
 const editingId = ref<number | null>(null);
 const editingPlanCode = ref<string>('');
@@ -65,19 +181,30 @@ const createForm = useForm({
     max_storage_mb: 500,
     api_rate_limit: 30,
     yearly_discount_percent: 20,
-    kitchen_display:    false,
-    qr_ordering:        false,
-    inventory_basic:    false,
-    hr_timekeeping:     false,
-    hr_full:            false,
+    kitchen_display: false,
+    qr_ordering: false,
+    inventory_basic: false,
+    supplier_portal: false,
+    kiosk_mode: false,
+    table_reservation: false,
+    hr_timekeeping: false,
+    hr_full: false,
+    shift_management: false,
+    crm_loyalty: false,
+    marketing_campaign: false,
+    custom_domain: false,
     advanced_analytics: false,
-    realtime:           false,
-    fraud_detection:    false,
-    email_reports:      false,
-    ai_advisor:         false,
-    supplier_portal:    false,
-    ai_forecasting:     false,
-    api_access:         false,
+    realtime: false,
+    fraud_detection: false,
+    email_reports: false,
+    ai_advisor: false,
+    ai_forecasting: false,
+    delivery_integration: false,
+    e_invoice: false,
+    multi_branch_sync: false,
+    multi_currency: false,
+    api_access: false,
+    automated_backup: false,
 });
 
 function submitCreate() {
@@ -104,19 +231,30 @@ const form = useForm({
     max_storage_mb: 500,
     api_rate_limit: 30,
     yearly_discount_percent: 20,
-    kitchen_display:    false,
-    qr_ordering:        false,
-    inventory_basic:    false,
-    hr_timekeeping:     false,
-    hr_full:            false,
+    kitchen_display: false,
+    qr_ordering: false,
+    inventory_basic: false,
+    supplier_portal: false,
+    kiosk_mode: false,
+    table_reservation: false,
+    hr_timekeeping: false,
+    hr_full: false,
+    shift_management: false,
+    crm_loyalty: false,
+    marketing_campaign: false,
+    custom_domain: false,
     advanced_analytics: false,
-    realtime:           false,
-    fraud_detection:    false,
-    email_reports:      false,
-    ai_advisor:         false,
-    supplier_portal:    false,
-    ai_forecasting:     false,
-    api_access:         false,
+    realtime: false,
+    fraud_detection: false,
+    email_reports: false,
+    ai_advisor: false,
+    ai_forecasting: false,
+    delivery_integration: false,
+    e_invoice: false,
+    multi_branch_sync: false,
+    multi_currency: false,
+    api_access: false,
+    automated_backup: false,
 });
 
 const toForm = (v: number | null) => (v === null ? -1 : v);
@@ -126,35 +264,46 @@ function startEdit(plan: Plan) {
     editingPlanCode.value = plan.code;
     isEditing.value = true;
     activeTab.value = 'info';
-    form.name               = plan.name;
-    form.description        = plan.features?.description ?? planNotes[plan.code] ?? '';
-    form.price              = plan.price;
-    form.max_branches       = toForm(plan.max_branches);
-    form.max_tables         = toForm(plan.max_tables);
-    form.max_users          = toForm(plan.max_users);
-    form.max_areas          = plan.features?.max_areas ?? 2;
-    form.max_storage_mb     = plan.features?.max_storage_mb ?? 500;
-    form.api_rate_limit     = plan.features?.api_rate_limit ?? 30;
+    form.name = plan.name;
+    form.description = plan.features?.description ?? planNotes[plan.code] ?? '';
+    form.price = plan.price;
+    form.max_branches = toForm(plan.max_branches);
+    form.max_tables = toForm(plan.max_tables);
+    form.max_users = toForm(plan.max_users);
+    form.max_areas = plan.features?.max_areas ?? 2;
+    form.max_storage_mb = plan.features?.max_storage_mb ?? 500;
+    form.api_rate_limit = plan.features?.api_rate_limit ?? 30;
     form.yearly_discount_percent = plan.features?.yearly_discount_percent ?? 20;
-    form.kitchen_display    = plan.features?.kitchen_display ?? false;
-    form.qr_ordering        = plan.features?.qr_ordering ?? false;
-    form.inventory_basic    = plan.features?.inventory_basic ?? false;
-    form.hr_timekeeping     = plan.features?.hr_timekeeping ?? false;
-    form.hr_full            = plan.features?.hr_full ?? false;
+    form.kitchen_display = plan.features?.kitchen_display ?? false;
+    form.qr_ordering = plan.features?.qr_ordering ?? false;
+    form.inventory_basic = plan.features?.inventory_basic ?? false;
+    form.supplier_portal = plan.features?.supplier_portal ?? false;
+    form.kiosk_mode = plan.features?.kiosk_mode ?? false;
+    form.table_reservation = plan.features?.table_reservation ?? false;
+    form.hr_timekeeping = plan.features?.hr_timekeeping ?? false;
+    form.hr_full = plan.features?.hr_full ?? false;
+    form.shift_management = plan.features?.shift_management ?? false;
+    form.crm_loyalty = plan.features?.crm_loyalty ?? false;
+    form.marketing_campaign = plan.features?.marketing_campaign ?? false;
+    form.custom_domain = plan.features?.custom_domain ?? false;
     form.advanced_analytics = plan.features?.advanced_analytics ?? false;
-    form.realtime           = plan.features?.realtime ?? false;
-    form.fraud_detection    = plan.features?.fraud_detection ?? false;
-    form.email_reports      = plan.features?.email_reports ?? false;
-    form.ai_advisor         = plan.features?.ai_advisor ?? false;
-    form.supplier_portal    = plan.features?.supplier_portal ?? false;
-    form.ai_forecasting     = plan.features?.ai_forecasting ?? false;
-    form.api_access         = plan.features?.api_access ?? false;
+    form.realtime = plan.features?.realtime ?? false;
+    form.fraud_detection = plan.features?.fraud_detection ?? false;
+    form.email_reports = plan.features?.email_reports ?? false;
+    form.ai_advisor = plan.features?.ai_advisor ?? false;
+    form.ai_forecasting = plan.features?.ai_forecasting ?? false;
+    form.delivery_integration = plan.features?.delivery_integration ?? false;
+    form.e_invoice = plan.features?.e_invoice ?? false;
+    form.multi_branch_sync = plan.features?.multi_branch_sync ?? false;
+    form.multi_currency = plan.features?.multi_currency ?? false;
+    form.api_access = plan.features?.api_access ?? false;
+    form.automated_backup = plan.features?.automated_backup ?? false;
 }
 
 function save(planId: number) {
     form.patch(`/super-admin/plans/${planId}`, {
         onSuccess: () => {
-            editingId.value = null; 
+            editingId.value = null;
             isEditing.value = false;
         },
     });
@@ -166,7 +315,9 @@ async function showRestaurants(plan: Plan) {
     restaurants.value = [];
 
     try {
-        const response = await fetch(`/super-admin/plans/${plan.id}/restaurants`);
+        const response = await fetch(
+            `/super-admin/plans/${plan.id}/restaurants`,
+        );
         const data = await response.json();
         restaurants.value = data.restaurants || [];
     } catch (e) {
@@ -176,60 +327,187 @@ async function showRestaurants(plan: Plan) {
     }
 }
 
+const filteredRestaurants = computed(() => {
+    const q = restaurantSearch.value.trim().toLowerCase();
+
+    if (!q) {
+        return restaurants.value;
+    }
+
+    return restaurants.value.filter(
+        (r) =>
+            r.name?.toLowerCase().includes(q) ||
+            r.code?.toLowerCase().includes(q) ||
+            r.owner_name?.toLowerCase().includes(q) ||
+            r.owner_email?.toLowerCase().includes(q),
+    );
+});
+
+function getInitials(name: string): string {
+    return name
+        ? name
+              .split(' ')
+              .map((n) => n[0])
+              .slice(0, 2)
+              .join('')
+              .toUpperCase()
+        : 'HT';
+}
+
+const avatarGradients = [
+    'from-sky-400 to-blue-500 shadow-sky-500/10',
+    'from-emerald-400 to-teal-500 shadow-emerald-500/10',
+    'from-amber-400 to-orange-500 shadow-amber-500/10',
+    'from-violet-400 to-indigo-500 shadow-violet-500/10',
+    'from-rose-400 to-pink-500 shadow-rose-500/10',
+];
+function getGradientForName(name: string): string {
+    let hash = 0;
+
+    for (let i = 0; i < name.length; i++) {
+        hash = name.charCodeAt(i) + ((hash << 5) - hash);
+    }
+
+    const index = Math.abs(hash) % avatarGradients.length;
+
+    return avatarGradients[index];
+}
+
 const ALL_FEATURES: { key: string; label: string }[] = [
-    { key: 'kitchen_display',    label: 'Màn hình Bếp (Kitchen Display)' },
-    { key: 'qr_ordering',        label: 'Đặt món qua QR' },
-    { key: 'inventory_basic',    label: 'Quản lý Tồn kho' },
-    { key: 'hr_timekeeping',     label: 'Chấm công & Lịch làm việc' },
-    { key: 'hr_full',            label: 'Lương & Nhân sự đầy đủ' },
+    // 1. Vận hành & POS
+    { key: 'kitchen_display', label: 'Màn hình Bếp (Kitchen Display)' },
+    { key: 'qr_ordering', label: 'Đặt món qua QR' },
+    { key: 'inventory_basic', label: 'Quản lý Tồn kho' },
+    { key: 'supplier_portal', label: 'Cổng Nhà cung cấp (Supplier)' },
+    { key: 'kiosk_mode', label: 'Kiosk Tự phục vụ' },
+    { key: 'table_reservation', label: 'Đặt bàn Trực tuyến' },
+
+    // 2. Nhân sự & Ca làm
+    { key: 'hr_timekeeping', label: 'Chấm công & Lịch làm việc' },
+    { key: 'hr_full', label: 'Lương & Nhân sự đầy đủ' },
+    { key: 'shift_management', label: 'Quản lý Ca & Giao tiền' },
+
+    // 3. CRM & Marketing
+    { key: 'crm_loyalty', label: 'CRM & Tích điểm VIP' },
+    { key: 'marketing_campaign', label: 'Voucher & Khuyến mãi' },
+    { key: 'custom_domain', label: 'Tên miền riêng (Custom Domain)' },
+
+    // 4. Phân tích & Tự động hóa
     { key: 'advanced_analytics', label: 'Báo cáo Nâng cao' },
-    { key: 'realtime',           label: 'Cập nhật thời gian thực' },
-    { key: 'fraud_detection',    label: 'Phát hiện Gian lận' },
-    { key: 'email_reports',      label: 'Email Báo cáo tự động' },
-    { key: 'ai_advisor',         label: 'AI Tư vấn chiến lược' },
-    { key: 'supplier_portal',    label: 'Cổng Nhà cung cấp (Supplier)' },
-    { key: 'ai_forecasting',     label: 'AI Dự báo Tồn kho' },
-    { key: 'api_access',         label: 'Truy cập API' },
+    { key: 'realtime', label: 'Cập nhật thời gian thực' },
+    { key: 'fraud_detection', label: 'Phát hiện Gian lận' },
+    { key: 'email_reports', label: 'Email Báo cáo tự động' },
+
+    // 5. Trí tuệ Nhân tạo AI
+    { key: 'ai_advisor', label: 'AI Tư vấn chiến lược' },
+    { key: 'ai_forecasting', label: 'AI Dự báo Tồn kho' },
+
+    // 6. Tích hợp & Enterprise
+    { key: 'delivery_integration', label: 'Kết nối Sàn Giao hàng' },
+    { key: 'e_invoice', label: 'Hóa đơn Điện tử VAT' },
+    { key: 'multi_branch_sync', label: 'Đồng bộ Liên chi nhánh' },
+    { key: 'multi_currency', label: 'Đa Tiền tệ & Đa Ngôn ngữ' },
+    { key: 'api_access', label: 'Truy cập API' },
+    { key: 'automated_backup', label: 'Sao lưu Dữ liệu Tự động' },
 ];
 
 const FEATURE_CATEGORIES = [
     {
         name: 'Vận hành & POS',
         icon: 'Activity',
-        keys: ['kitchen_display', 'qr_ordering', 'inventory_basic', 'supplier_portal']
+        keys: [
+            'kitchen_display',
+            'qr_ordering',
+            'inventory_basic',
+            'supplier_portal',
+            'kiosk_mode',
+            'table_reservation',
+        ],
     },
     {
-        name: 'Nhân sự & Chấm công',
+        name: 'Nhân sự & Ca làm',
         icon: 'Users',
-        keys: ['hr_timekeeping', 'hr_full']
+        keys: ['hr_timekeeping', 'hr_full', 'shift_management'],
     },
     {
-        name: 'Phân tích & AI',
+        name: 'CRM & Marketing',
+        icon: 'Tag',
+        keys: ['crm_loyalty', 'marketing_campaign', 'custom_domain'],
+    },
+    {
+        name: 'Phân tích & Tự động hóa',
+        icon: 'FileText',
+        keys: [
+            'advanced_analytics',
+            'realtime',
+            'fraud_detection',
+            'email_reports',
+        ],
+    },
+    {
+        name: 'Trí tuệ Nhân tạo AI',
         icon: 'Sparkles',
-        keys: ['advanced_analytics', 'fraud_detection', 'ai_advisor', 'ai_forecasting']
+        keys: ['ai_advisor', 'ai_forecasting'],
     },
     {
-        name: 'Hệ thống & Tích hợp',
+        name: 'Tích hợp & Enterprise',
         icon: 'Globe',
-        keys: ['realtime', 'email_reports', 'api_access']
-    }
+        keys: [
+            'delivery_integration',
+            'e_invoice',
+            'multi_branch_sync',
+            'multi_currency',
+            'api_access',
+            'automated_backup',
+        ],
+    },
 ];
+
+const FEATURE_DESCRIPTIONS: Record<string, string> = {
+    kitchen_display: 'Màn hình hiển thị chế biến món ăn trực quan tại bếp.',
+    qr_ordering: 'Khách quét mã QR tại bàn để tự đặt món, thanh toán.',
+    inventory_basic: 'Theo dõi lượng tồn kho và định lượng món ăn cơ bản.',
+    supplier_portal: 'Cổng giao tiếp đặt hàng, quản lý giá với nhà cung cấp.',
+    kiosk_mode: 'Màn hình cảm ứng cho khách hàng tự gọi món và thanh toán.',
+    table_reservation: 'Cho phép khách hàng đặt giữ bàn trước qua website.',
+    hr_timekeeping: 'Sắp xếp lịch trực và chấm công GPS/Camera thông minh.',
+    hr_full: 'Quản lý nhân sự, tính lương tự động, thuế và bảo hiểm.',
+    shift_management: 'Chốt ca làm việc, đối soát tiền mặt và bàn giao ca.',
+    crm_loyalty: 'Tích điểm đổi quà, quản lý hạng khách hàng VIP & Birthday.',
+    marketing_campaign: 'Tạo mã giảm giá, khuyến mãi combo theo khung giờ.',
+    custom_domain: 'Gán tên miền thương hiệu riêng cho trang Menu Online.',
+    advanced_analytics: 'Báo cáo doanh thu, chi phí, lợi nhuận chuyên sâu.',
+    realtime: 'Đồng bộ hóa tức thì mọi dữ liệu trên toàn hệ thống.',
+    fraud_detection: 'Cảnh báo gian lận, hủy món hoặc sai lệch hóa đơn từ AI.',
+    email_reports: 'Báo cáo tự động gửi trực tiếp đến email của quản lý.',
+    ai_advisor: 'AI phân tích và gợi ý tối ưu giá, thực đơn kinh doanh.',
+    ai_forecasting: 'AI phân tích dữ liệu cũ để dự đoán lượng hàng cần nhập.',
+    delivery_integration:
+        'Tự động đồng bộ đơn hàng từ GrabFood, ShopeeFood, Be.',
+    e_invoice: 'Xuất hóa đơn điện tử VAT trực tiếp từ máy POS bán hàng.',
+    multi_branch_sync: 'Tự động đồng bộ thực đơn và giá giữa các chi nhánh.',
+    multi_currency: 'Hỗ trợ thanh toán nhiều loại tiền tệ và ngôn ngữ.',
+    api_access: 'Cung cấp cổng API kết nối các phần mềm bên ngoài.',
+    automated_backup: 'Tự động sao lưu dữ liệu hệ thống mỗi 24 giờ.',
+};
 
 const categoryIcon: Record<string, any> = {
     Activity: Activity,
     Users: Users,
     Sparkles: Sparkles,
     Globe: Globe,
+    Tag: Tag,
+    FileText: FileText,
 };
 
 function getFeatureLabel(key: string): string {
-    return ALL_FEATURES.find(f => f.key === key)?.label || key;
+    return ALL_FEATURES.find((f) => f.key === key)?.label || key;
 }
 
 function planFeatures(plan: Plan): string[] {
     const lim = (v: number | null, unit: string) =>
         v === null || v === -1 ? `Không giới hạn ${unit}` : `${v} ${unit}`;
-    const mb   = plan.features?.max_storage_mb ?? 500;
+    const mb = plan.features?.max_storage_mb ?? 500;
     const rate = plan.features?.api_rate_limit ?? 30;
 
     const list = [
@@ -241,315 +519,1170 @@ function planFeatures(plan: Plan): string[] {
     ];
 
     for (const f of ALL_FEATURES) {
-        if (plan.features?.[f.key]) list.push(f.label);
+        if (plan.features?.[f.key]) {
+            list.push(f.label);
+        }
     }
 
     return list;
 }
 
 function planUnsupported(plan: Plan): string[] {
-    return ALL_FEATURES
-        .filter(f => !plan.features?.[f.key])
-        .map(f => f.label);
+    return ALL_FEATURES.filter((f) => !plan.features?.[f.key]).map(
+        (f) => f.label,
+    );
 }
 
 function formatVnd(v: number) {
     return v === 0 ? '0đ' : new Intl.NumberFormat('vi-VN').format(v) + 'đ';
 }
 
+const formatLimit = (v: number | null) =>
+    v === null || v === -1 ? 'Vô hạn' : v;
+const formatStorage = (mb: number) =>
+    mb >= 1024 ? `${mb / 1024} GB` : `${mb} MB`;
+const formatRate = (r: number) => new Intl.NumberFormat('vi-VN').format(r);
+
 const planNotes: Record<string, string> = {
-    free:       'Gói cơ bản, trải nghiệm POS miễn phí.',
-    starter:    'Đầy đủ vận hành: bếp, QR, chấm công, tồn kho.',
-    pro:        'Nâng cao toàn diện: AI, nhân sự, báo cáo, chống gian lận.',
-    enterprise: 'Giải pháp doanh nghiệp: nhà cung cấp, AI dự báo, API không giới hạn.',
+    free: 'Gói cơ bản, trải nghiệm POS miễn phí.',
+    starter: 'Đầy đủ vận hành: bếp, QR, chấm công, tồn kho.',
+    pro: 'Nâng cao toàn diện: AI, nhân sự, báo cáo, chống gian lận.',
+    enterprise:
+        'Giải pháp doanh nghiệp: nhà cung cấp, AI dự báo, API không giới hạn.',
 };
 
 const planIcon: Record<string, any> = {
-    free: Star, starter: Check, pro: Crown, enterprise: Users,
+    free: Star,
+    starter: Zap,
+    pro: Crown,
+    enterprise: Sparkles,
 };
 </script>
 
 <template>
     <Head title="Quản lý gói dịch vụ" />
 
-    <div class="flex flex-col gap-6 p-6">
-        <div class="flex items-center justify-between">
-            <div>
-                <h1 class="text-2xl font-bold">Gói dịch vụ</h1>
-                <p class="text-sm text-muted-foreground">
-                    Thay đổi ở đây sẽ hiển thị ngay trên trang khách hàng
-                </p>
-            </div>
-            <div class="flex items-center gap-2">
-                <Button size="sm" variant="outline" @click="isCreating = true; activeCreateTab = 'info'">
-                    <Plus class="size-4 mr-1.5" />
+    <div class="flex flex-col gap-5 px-6 py-5">
+        <PageHeader
+            title="Gói dịch vụ"
+            subtitle="Thay đổi ở đây sẽ hiển thị ngay trên trang khách hàng"
+            :icon="Layers"
+        >
+            <template #actions>
+                <!-- Billing Period Toggle Switcher -->
+                <div
+                    class="shadow-3xs flex items-center rounded-xl border border-border/60 bg-muted/40 p-1 text-[11px] font-bold"
+                >
+                    <button
+                        type="button"
+                        @click="billingPeriod = 'monthly'"
+                        :class="[
+                            'cursor-pointer rounded-lg px-3 py-1.5 transition-all',
+                            billingPeriod === 'monthly'
+                                ? 'bg-background text-foreground shadow-2xs'
+                                : 'text-muted-foreground hover:text-foreground',
+                        ]"
+                    >
+                        Hàng tháng
+                    </button>
+                    <button
+                        type="button"
+                        @click="billingPeriod = 'yearly'"
+                        :class="[
+                            'flex cursor-pointer items-center gap-1.5 rounded-lg px-3 py-1.5 transition-all',
+                            billingPeriod === 'yearly'
+                                ? 'bg-background text-foreground shadow-2xs'
+                                : 'text-muted-foreground hover:text-foreground',
+                        ]"
+                    >
+                        Hàng năm
+                        <Badge
+                            class="h-4 rounded-sm border-none bg-emerald-500/10 px-1 text-[9px] leading-none font-black text-emerald-600 hover:bg-emerald-500/15"
+                            >-20%</Badge
+                        >
+                    </button>
+                </div>
+
+                <Button
+                    size="sm"
+                    variant="outline"
+                    class="shadow-3xs cursor-pointer rounded-xl border-border/80 text-xs font-bold"
+                    @click="showComparison = true"
+                >
+                    <Table class="mr-1.5 size-4 text-indigo-500" />
+                    So sánh gói
+                </Button>
+
+                <Button
+                    size="sm"
+                    class="cursor-pointer rounded-xl bg-primary text-xs font-bold text-primary-foreground shadow-sm"
+                    @click="
+                        isCreating = true;
+                        activeCreateTab = 'info';
+                    "
+                >
+                    <Plus class="mr-1.5 size-4" />
                     Tạo gói mới
                 </Button>
-                <Badge variant="outline" class="gap-1.5">
-                    <span class="size-2 rounded-full bg-green-500 animate-pulse inline-block" />
-                    Đồng bộ trang khách
-                </Badge>
-            </div>
-        </div>
+                <StatusBadge status="active" variant="dot" size="sm"
+                    >Đồng bộ trang khách</StatusBadge
+                >
+            </template>
+        </PageHeader>
 
         <div class="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
-            <div v-for="plan in plans" :key="plan.id" class="flex flex-col gap-0">
+            <div
+                v-for="plan in paginatedPlans"
+                :key="plan.id"
+                class="flex flex-col gap-0"
+            >
                 <Card
-                    class="flex flex-col justify-between border-border transition-all duration-200 hover:shadow-md h-full"
+                    class="group flex flex-col overflow-hidden rounded-2xl border border-border/40 bg-card/45 backdrop-blur-md transition-all duration-300 hover:-translate-y-1.5 hover:shadow-xl"
                     :class="{
-                        'border-2 border-primary shadow-sm': plan.code === 'pro',
-                        'border-2 border-violet-500/80 bg-gradient-to-b from-violet-500/5 to-transparent': plan.code === 'enterprise',
+                        'border-primary/50 bg-gradient-to-b from-primary/[0.03] to-transparent shadow-md ring-1 ring-primary/20':
+                            plan.code === 'pro' && !plan.is_deleted,
+                        'border-violet-500/50 bg-gradient-to-b from-violet-500/[0.04] to-transparent shadow-md ring-1 ring-violet-500/20':
+                            plan.code === 'enterprise' && !plan.is_deleted,
+                        'border-dashed border-rose-500/40 bg-rose-500/[0.02] opacity-80':
+                            plan.is_deleted || plan.status === 'inactive',
                     }"
                 >
-                    <CardHeader>
-                        <div class="mb-2 flex items-center justify-between">
+                    <CardHeader class="min-h-[218px] pb-4">
+                        <div
+                            class="mb-2 flex min-h-12 items-start justify-between"
+                        >
                             <CardTitle
-                                class="flex items-center gap-1.5 text-2xl font-bold"
+                                class="flex items-center gap-1.5 text-xl font-black"
                                 :class="{
-                                    'text-primary': plan.code === 'pro',
-                                    'text-violet-500': plan.code === 'enterprise',
+                                    'text-primary':
+                                        plan.code === 'pro' && !plan.is_deleted,
+                                    'text-violet-500':
+                                        plan.code === 'enterprise' &&
+                                        !plan.is_deleted,
+                                    'text-rose-500 line-through opacity-80':
+                                        plan.is_deleted ||
+                                        plan.status === 'inactive',
                                 }"
                             >
-                                <component :is="planIcon[plan.code] ?? Star" class="size-5" />
+                                <component
+                                    :is="planIcon[plan.code] ?? Star"
+                                    class="size-4.5 group-hover:animate-pulse"
+                                />
                                 {{ plan.name }}
                             </CardTitle>
                             <div class="flex items-center gap-1">
-                                <Badge v-if="plan.code === 'free'" variant="secondary">Mặc định</Badge>
-                                <Badge v-else-if="plan.code === 'pro'">Khuyến nghị</Badge>
-                                <Badge v-else-if="plan.code === 'enterprise'" class="bg-violet-600 text-white">VIP</Badge>
-                                <Button variant="ghost" size="icon" class="size-7 ml-1" @click="startEdit(plan)">
-                                    <Edit2 class="size-3.5 text-muted-foreground" />
+                                <Badge
+                                    v-if="
+                                        plan.is_deleted ||
+                                        plan.status === 'inactive'
+                                    "
+                                    variant="destructive"
+                                    class="rounded-full border border-rose-500/30 bg-rose-500/10 px-2 py-0 text-[9px] font-extrabold text-rose-500 uppercase"
+                                    >Ngừng cung cấp</Badge
+                                >
+                                <Badge
+                                    v-else-if="plan.code === 'free'"
+                                    variant="secondary"
+                                    class="rounded-full border border-slate-500/25 bg-slate-500/10 px-2 py-0 text-[9px] font-extrabold text-slate-500 uppercase"
+                                    >Mặc định</Badge
+                                >
+                                <Badge
+                                    v-else-if="plan.code === 'pro'"
+                                    class="rounded-full border border-primary/25 bg-primary/10 px-2 py-0 text-[9px] font-extrabold text-primary uppercase"
+                                    >Khuyến nghị</Badge
+                                >
+                                <Badge
+                                    v-else-if="plan.code === 'enterprise'"
+                                    class="rounded-full border border-violet-600/25 bg-violet-600/10 px-2 py-0 text-[9px] font-extrabold text-violet-600 uppercase"
+                                    >VIP</Badge
+                                >
+                                <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    title="Chỉnh sửa gói"
+                                    class="ml-1 size-7 cursor-pointer rounded-full hover:bg-muted/70"
+                                    @click="startEdit(plan)"
+                                >
+                                    <Edit2
+                                        class="size-3.5 text-muted-foreground"
+                                    />
+                                </Button>
+                                <Button
+                                    v-if="
+                                        !plan.is_deleted &&
+                                        plan.status === 'active'
+                                    "
+                                    variant="ghost"
+                                    size="icon"
+                                    title="Ngừng cung cấp (Xóa mềm)"
+                                    class="size-7 cursor-pointer rounded-full text-muted-foreground transition-colors hover:bg-rose-500/15 hover:text-rose-500"
+                                    @click="confirmDelete(plan)"
+                                >
+                                    <Trash2 class="size-3.5" />
+                                </Button>
+                                <Button
+                                    v-else
+                                    variant="ghost"
+                                    size="icon"
+                                    title="Khôi phục gói"
+                                    class="size-7 cursor-pointer rounded-full text-emerald-600 transition-colors hover:bg-emerald-500/15 hover:text-emerald-500"
+                                    @click="confirmRestore(plan)"
+                                >
+                                    <RotateCcw class="size-3.5" />
                                 </Button>
                             </div>
                         </div>
 
-                        <div class="flex items-end gap-1">
+                        <div class="mt-1 flex min-h-10 items-end gap-1">
                             <span
-                                class="text-3xl font-extrabold"
+                                class="font-mono text-3xl font-black tracking-tight text-slate-800 dark:text-slate-100"
                                 :class="{
-                                    'text-primary': plan.code === 'pro',
-                                    'text-violet-500': plan.code === 'enterprise',
+                                    'bg-gradient-to-r from-primary to-orange-500 bg-clip-text text-transparent':
+                                        plan.code === 'pro',
+                                    'bg-gradient-to-r from-violet-500 to-indigo-500 bg-clip-text text-transparent':
+                                        plan.code === 'enterprise',
                                 }"
                             >
-                                {{ formatVnd(plan.price) }}
+                                {{
+                                    billingPeriod === 'monthly'
+                                        ? formatVnd(plan.price)
+                                        : formatVnd(
+                                              plan.price === 0
+                                                  ? 0
+                                                  : Math.round(
+                                                        plan.price *
+                                                            (1 -
+                                                                (plan.features
+                                                                    ?.yearly_discount_percent ??
+                                                                    20) /
+                                                                    100),
+                                                    ),
+                                          )
+                                }}
                             </span>
-                            <span class="pb-1 text-xs text-muted-foreground">/tháng</span>
+                            <span
+                                class="pb-1 text-[9px] font-black tracking-wider text-muted-foreground uppercase"
+                            >
+                                {{
+                                    billingPeriod === 'monthly'
+                                        ? '/tháng'
+                                        : '/tháng (trả năm)'
+                                }}
+                            </span>
+                        </div>
+                        <!-- Yearly savings badge -->
+                        <div
+                            v-if="billingPeriod === 'yearly' && plan.price > 0"
+                            class="mt-1 min-h-[15px] animate-in text-[10px] font-black tracking-wider text-emerald-500 uppercase duration-200 slide-in-from-top-1"
+                        >
+                            Tiết kiệm
+                            {{
+                                formatVnd(
+                                    plan.price *
+                                        12 *
+                                        ((plan.features
+                                            ?.yearly_discount_percent ?? 20) /
+                                            100),
+                                )
+                            }}/năm
                         </div>
 
-                        <CardDescription class="mt-2 min-h-[36px] text-xs">
-                            {{ plan.features?.description || planNotes[plan.code] || '' }}
+                        <CardDescription
+                            class="mt-2 min-h-[36px] text-[11px] leading-relaxed font-semibold text-muted-foreground"
+                        >
+                            {{
+                                plan.features?.description ||
+                                planNotes[plan.code] ||
+                                ''
+                            }}
                         </CardDescription>
                     </CardHeader>
 
-                    <CardContent class="flex-grow space-y-1.5 text-xs">
-                        <p v-for="feat in planFeatures(plan)" :key="feat" class="flex items-center gap-2">
-                            <Check
-                                class="size-4 flex-shrink-0 text-emerald-500"
-                                :class="{
-                                    'text-primary': plan.code === 'pro',
-                                    'text-violet-500': plan.code === 'enterprise',
-                                }"
-                            />
-                            {{ feat }}
-                        </p>
-                        <p
-                            v-for="unfeat in planUnsupported(plan)"
-                            :key="unfeat"
-                            class="flex items-center gap-2 text-muted-foreground opacity-60"
+                    <CardContent class="space-y-4 pt-0">
+                        <!-- Limits metrics grid -->
+                        <div
+                            class="grid grid-cols-2 gap-2 rounded-xl border border-border/30 bg-muted/40 p-2.5"
                         >
-                            <X class="size-4 flex-shrink-0" />
-                            {{ unfeat }}
-                        </p>
+                            <!-- Branches -->
+                            <div
+                                class="shadow-3xs flex items-center gap-2 rounded-lg border border-border/20 bg-background/50 p-1.5"
+                            >
+                                <Building2
+                                    class="size-3.5 shrink-0 text-muted-foreground/80"
+                                />
+                                <div class="min-w-0">
+                                    <p
+                                        class="text-[8px] leading-none font-black text-muted-foreground uppercase"
+                                    >
+                                        Chi nhánh
+                                    </p>
+                                    <p
+                                        class="mt-1 truncate font-mono text-xs leading-none font-black"
+                                    >
+                                        {{ formatLimit(plan.max_branches) }}
+                                    </p>
+                                </div>
+                            </div>
+                            <!-- Tables -->
+                            <div
+                                class="shadow-3xs flex items-center gap-2 rounded-lg border border-border/20 bg-background/50 p-1.5"
+                            >
+                                <Table
+                                    class="size-3.5 shrink-0 text-muted-foreground/80"
+                                />
+                                <div class="min-w-0">
+                                    <p
+                                        class="text-[8px] leading-none font-black text-muted-foreground uppercase"
+                                    >
+                                        Số bàn
+                                    </p>
+                                    <p
+                                        class="mt-1 truncate font-mono text-xs leading-none font-black"
+                                    >
+                                        {{ formatLimit(plan.max_tables) }}
+                                    </p>
+                                </div>
+                            </div>
+                            <!-- Staff -->
+                            <div
+                                class="shadow-3xs flex items-center gap-2 rounded-lg border border-border/20 bg-background/50 p-1.5"
+                            >
+                                <Users
+                                    class="size-3.5 shrink-0 text-muted-foreground/80"
+                                />
+                                <div class="min-w-0">
+                                    <p
+                                        class="text-[8px] leading-none font-black text-muted-foreground uppercase"
+                                    >
+                                        Nhân viên
+                                    </p>
+                                    <p
+                                        class="mt-1 truncate font-mono text-xs leading-none font-black"
+                                    >
+                                        {{ formatLimit(plan.max_users) }}
+                                    </p>
+                                </div>
+                            </div>
+                            <!-- Storage -->
+                            <div
+                                class="shadow-3xs flex items-center gap-2 rounded-lg border border-border/20 bg-background/50 p-1.5"
+                            >
+                                <HardDrive
+                                    class="size-3.5 shrink-0 text-muted-foreground/80"
+                                />
+                                <div class="min-w-0">
+                                    <p
+                                        class="text-[8px] leading-none font-black text-muted-foreground uppercase"
+                                    >
+                                        Lưu trữ
+                                    </p>
+                                    <p
+                                        class="mt-1 truncate font-mono text-xs leading-none font-black text-slate-800 dark:text-slate-200"
+                                    >
+                                        {{
+                                            formatStorage(
+                                                plan.features?.max_storage_mb ??
+                                                    500,
+                                            )
+                                        }}
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- API rate limit under the limits grid -->
+                        <div
+                            class="flex items-center justify-between rounded-lg border border-border/20 bg-muted/20 px-3 py-1.5 font-mono text-[9px] font-black tracking-wider text-muted-foreground uppercase"
+                        >
+                            <span class="flex items-center gap-1"
+                                ><Activity class="size-3 text-sky-500" /> API
+                                Rate Limit</span
+                            >
+                            <span class="font-black text-foreground"
+                                >{{
+                                    formatRate(
+                                        plan.features?.api_rate_limit ?? 30,
+                                    )
+                                }}
+                                req/m</span
+                            >
+                        </div>
+
+                        <button
+                            type="button"
+                            class="flex w-full cursor-pointer items-center justify-between rounded-lg border border-dashed border-border/50 bg-muted/10 px-3 py-2 text-left text-[10px] font-bold text-muted-foreground transition-colors hover:border-primary/40 hover:bg-primary/5 hover:text-foreground"
+                            :aria-expanded="isPlanExpanded(plan.id)"
+                            @click="togglePlanDetails(plan.id)"
+                        >
+                            <span class="flex items-center gap-1.5">
+                                <component
+                                    :is="
+                                        isPlanExpanded(plan.id)
+                                            ? ChevronUp
+                                            : ChevronDown
+                                    "
+                                    class="size-3.5 text-primary"
+                                />
+                                {{
+                                    isPlanExpanded(plan.id)
+                                        ? 'Thu gọn tính năng'
+                                        : 'Xem chi tiết tính năng'
+                                }}
+                            </span>
+                            <span class="font-mono text-[9px] tabular-nums">
+                                {{
+                                    ALL_FEATURES.filter(
+                                        (f) => plan.features?.[f.key],
+                                    ).length
+                                }}/{{ ALL_FEATURES.length }}
+                            </span>
+                        </button>
+
+                        <!-- Features list checklist -->
+                        <div
+                            v-if="isPlanExpanded(plan.id)"
+                            class="flex-grow space-y-2 border-t border-dashed border-border/40 pt-4"
+                        >
+                            <!-- Enabled boolean features -->
+                            <div
+                                v-for="feat in ALL_FEATURES.filter(
+                                    (f) => plan.features?.[f.key],
+                                )"
+                                :key="feat.key"
+                                class="flex items-start gap-2.5"
+                            >
+                                <span
+                                    class="shadow-3xs mt-0.5 flex size-4 shrink-0 items-center justify-center rounded-full border border-emerald-500/20 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                                >
+                                    <Check class="size-2.5 stroke-[3]" />
+                                </span>
+                                <span
+                                    class="text-[11px] leading-snug font-bold text-slate-700 dark:text-slate-200"
+                                    >{{ feat.label }}</span
+                                >
+                            </div>
+                            <!-- Disabled boolean features -->
+                            <div
+                                v-for="unfeat in ALL_FEATURES.filter(
+                                    (f) => !plan.features?.[f.key],
+                                )"
+                                :key="unfeat.key"
+                                class="flex items-start gap-2.5 opacity-40"
+                            >
+                                <span
+                                    class="shadow-3xs mt-0.5 flex size-4 shrink-0 items-center justify-center rounded-full border border-border/60 bg-muted text-muted-foreground"
+                                >
+                                    <X class="size-2.5 stroke-[3]" />
+                                </span>
+                                <span
+                                    class="text-[11px] leading-snug font-semibold text-muted-foreground line-through"
+                                    >{{ unfeat.label }}</span
+                                >
+                            </div>
+                        </div>
                     </CardContent>
 
                     <!-- Meta footer -->
-                    <div class="px-6 pb-4 pt-2 border-t border-border mt-3">
-                        <div class="text-xs text-muted-foreground flex items-center justify-between">
-                            <button 
-                                @click="showRestaurants(plan)" 
-                                class="text-xs text-muted-foreground hover:text-primary hover:underline transition-colors flex items-center gap-1 cursor-pointer"
+                    <div
+                        class="mt-3 border-t border-border/40 bg-muted/10 px-6 pt-2 pb-4"
+                    >
+                        <div
+                            class="flex items-center justify-between text-xs text-muted-foreground"
+                        >
+                            <button
+                                @click="showRestaurants(plan)"
+                                class="shadow-3xs flex cursor-pointer items-center gap-1 rounded-full border border-border/50 bg-muted px-2.5 py-1 text-[11px] font-bold text-muted-foreground transition-all hover:bg-primary/5 hover:text-primary"
                             >
+                                <span
+                                    class="inline-block size-1.5 animate-pulse rounded-full bg-emerald-500"
+                                ></span>
                                 {{ plan.restaurants_count }} nhà hàng đang dùng
                             </button>
-                            <span class="font-mono text-[10px] bg-muted px-1.5 py-0.5 rounded">{{ plan.code }}</span>
+                            <span
+                                class="rounded border border-slate-800 bg-slate-900 px-2 py-0.5 font-mono text-[9px] font-black tracking-wider text-slate-400 uppercase"
+                                >{{ plan.code }}</span
+                            >
                         </div>
                     </div>
                 </Card>
             </div>
         </div>
 
+        <!-- Pagination Controls -->
+        <div
+            v-if="totalPages > 1"
+            class="mt-4 flex animate-in items-center justify-center gap-3 duration-300 fade-in slide-in-from-bottom-2"
+        >
+            <Button
+                variant="outline"
+                size="sm"
+                :disabled="currentPage === 1"
+                @click="currentPage--"
+                class="cursor-pointer rounded-xl border-border/80 px-4 py-2 transition-all duration-300 hover:bg-muted"
+            >
+                Trang trước
+            </Button>
+
+            <div class="flex items-center gap-1.5">
+                <Button
+                    v-for="page in totalPages"
+                    :key="page"
+                    size="sm"
+                    :variant="currentPage === page ? 'default' : 'outline'"
+                    @click="currentPage = page"
+                    class="size-9 cursor-pointer rounded-xl font-bold transition-all duration-300"
+                    :class="
+                        currentPage === page
+                            ? 'scale-[1.05] bg-indigo-600 text-white shadow-xs'
+                            : 'border-border/80 hover:bg-muted'
+                    "
+                >
+                    {{ page }}
+                </Button>
+            </div>
+
+            <Button
+                variant="outline"
+                size="sm"
+                :disabled="currentPage === totalPages"
+                @click="currentPage++"
+                class="cursor-pointer rounded-xl border-border/80 px-4 py-2 transition-all duration-300 hover:bg-muted"
+            >
+                Trang sau
+            </Button>
+        </div>
+
         <!-- Info note -->
-        <p class="text-xs text-muted-foreground text-center">
-            Thay đổi giá hoặc tính năng sẽ ảnh hưởng ngay đến trang khách hàng — không cần deploy lại.
+        <p class="text-center text-xs text-muted-foreground">
+            Thay đổi giá hoặc tính năng sẽ ảnh hưởng ngay đến trang khách hàng —
+            không cần deploy lại.
         </p>
 
         <!-- ── PLAN EDIT SHEET (DRAWER) ── -->
         <Sheet v-model:open="isEditing">
-            <SheetContent class="sm:max-w-xl overflow-y-auto" @close="editingId = null">
-                <SheetHeader class="pb-4 border-b border-border">
-                    <SheetTitle class="text-xl font-bold flex items-center justify-between">
-                        <div class="flex items-center gap-2">
-                            <component :is="planIcon[editingPlanCode] ?? Edit2" class="size-5 text-indigo-500 animate-pulse" />
-                            Chỉnh sửa gói dịch vụ
+            <SheetContent
+                class="overflow-y-auto border-l border-zinc-200/50 bg-background/95 backdrop-blur-md sm:max-w-xl dark:border-zinc-800/50"
+                @close="editingId = null"
+            >
+                <SheetHeader class="border-b border-border pb-5">
+                    <SheetTitle
+                        class="flex items-center justify-between text-xl font-bold"
+                    >
+                        <div class="flex items-center gap-2.5">
+                            <div
+                                class="rounded-xl bg-indigo-500/10 p-2 text-indigo-500 shadow-2xs"
+                            >
+                                <component
+                                    :is="planIcon[editingPlanCode] ?? Edit2"
+                                    class="size-5 animate-pulse"
+                                />
+                            </div>
+                            <span
+                                class="bg-gradient-to-r from-slate-900 to-slate-700 bg-clip-text text-transparent dark:from-white dark:to-zinc-300"
+                            >
+                                Chỉnh sửa gói dịch vụ
+                            </span>
                         </div>
-                        <Badge variant="outline" class="font-mono text-[10px] bg-muted px-2 py-0.5 uppercase tracking-wide border-indigo-500/20 text-indigo-600 rounded-full">{{ editingPlanCode }}</Badge>
+                        <Badge
+                            variant="outline"
+                            class="rounded-full border-indigo-500/20 bg-indigo-500/5 px-2.5 py-1 font-mono text-[10px] font-semibold tracking-wider text-indigo-600 uppercase dark:text-indigo-400"
+                        >
+                            {{ editingPlanCode }}
+                        </Badge>
                     </SheetTitle>
-                    <SheetDescription>Cập nhật thông tin chi tiết và hạn mức cho gói {{ form.name }}</SheetDescription>
+                    <SheetDescription
+                        class="pt-1.5 text-xs text-muted-foreground"
+                    >
+                        Cập nhật thông tin chi tiết, cấu hình giới hạn tài
+                        nguyên và tính năng cho gói
+                        <span class="font-bold text-foreground">{{
+                            form.name
+                        }}</span>
+                    </SheetDescription>
                 </SheetHeader>
-                
+
                 <!-- Tab Selector -->
-                <div class="flex border-b border-border/60 my-4 bg-muted/40 p-1 rounded-xl">
+                <div
+                    class="my-5 flex rounded-xl border border-border/80 bg-muted/40 p-1 shadow-2xs"
+                >
                     <button
                         type="button"
                         @click="activeTab = 'info'"
-                        class="flex-1 py-2 text-center text-xs font-bold rounded-lg transition-all cursor-pointer"
-                        :class="activeTab === 'info' ? 'bg-background shadow-xs text-foreground' : 'text-muted-foreground hover:text-foreground'"
+                        class="flex flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-lg py-2.5 text-center text-xs font-bold transition-all duration-300"
+                        :class="
+                            activeTab === 'info'
+                                ? 'scale-[1.02] bg-background text-foreground shadow-sm'
+                                : 'text-muted-foreground hover:text-foreground'
+                        "
                     >
+                        <Activity class="size-3.5 text-indigo-500" />
                         Thông tin & Hạn mức
                     </button>
                     <button
                         type="button"
                         @click="activeTab = 'features'"
-                        class="flex-1 py-2 text-center text-xs font-bold rounded-lg transition-all cursor-pointer"
-                        :class="activeTab === 'features' ? 'bg-background shadow-xs text-foreground' : 'text-muted-foreground hover:text-foreground'"
+                        class="flex flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-lg py-2.5 text-center text-xs font-bold transition-all duration-300"
+                        :class="
+                            activeTab === 'features'
+                                ? 'scale-[1.02] bg-background text-foreground shadow-sm'
+                                : 'text-muted-foreground hover:text-foreground'
+                        "
                     >
-                        Tính năng ({{ ALL_FEATURES.filter(f => (form as any)[f.key]).length }})
+                        <Sparkles class="size-3.5 text-indigo-500" />
+                        Tính năng ({{
+                            ALL_FEATURES.filter((f) => (form as any)[f.key])
+                                .length
+                        }})
                     </button>
                 </div>
 
-                <div class="flex flex-col gap-4 py-2">
+                <div class="flex flex-col gap-5 py-2">
                     <!-- Tab 1: Info & Limits -->
-                    <div v-show="activeTab === 'info'" class="space-y-4 animate-in fade-in duration-200">
-                        <div class="grid grid-cols-2 gap-4">
-                            <div class="col-span-2 grid gap-1.5">
-                                <Label class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Tên gói</Label>
-                                <div class="relative flex items-center">
-                                    <div class="absolute left-3.5 text-muted-foreground pointer-events-none">
-                                        <Tag class="size-4 text-indigo-500" />
+                    <div
+                        v-show="activeTab === 'info'"
+                        class="animate-in space-y-6 duration-300 zoom-in-95 fade-in"
+                    >
+                        <!-- Group 1: General Info Card -->
+                        <div
+                            class="space-y-4 rounded-2xl border border-border/60 bg-card p-4.5 shadow-2xs"
+                        >
+                            <h3
+                                class="flex items-center gap-1.5 border-b border-border/40 pb-2 text-xs font-bold tracking-wider text-muted-foreground uppercase"
+                            >
+                                <Tag class="size-3.5 text-indigo-500" />
+                                Thông tin cơ bản
+                            </h3>
+
+                            <div class="grid grid-cols-2 gap-4">
+                                <div class="col-span-2 grid gap-1.5">
+                                    <Label
+                                        class="text-[11px] font-semibold text-muted-foreground"
+                                        >TÊN GÓI</Label
+                                    >
+                                    <div class="relative flex items-center">
+                                        <div
+                                            class="pointer-events-none absolute left-3.5 text-muted-foreground"
+                                        >
+                                            <Tag
+                                                class="size-4 text-indigo-500"
+                                            />
+                                        </div>
+                                        <Input
+                                            v-model="form.name"
+                                            class="rounded-xl border-border bg-background/50 pl-10 focus:bg-background focus-visible:border-indigo-500 focus-visible:ring-indigo-500/20"
+                                        />
                                     </div>
-                                    <Input v-model="form.name" class="pl-10 rounded-xl border-border focus-visible:ring-indigo-500/20 focus-visible:border-indigo-500" />
+                                </div>
+
+                                <div class="col-span-2 grid gap-1.5">
+                                    <Label
+                                        class="text-[11px] font-semibold text-muted-foreground"
+                                        >MÔ TẢ NGẮN (HIỂN THỊ TRÊN TRANG
+                                        KHÁCH)</Label
+                                    >
+                                    <div class="relative">
+                                        <textarea
+                                            v-model="form.description"
+                                            rows="2"
+                                            class="flex w-full resize-none rounded-xl border border-border border-input bg-background/50 py-2.5 pr-3 pl-10 text-sm text-foreground transition-all focus:bg-background focus-visible:border-indigo-500 focus-visible:ring-2 focus-visible:ring-indigo-500/20 focus-visible:ring-ring focus-visible:outline-none"
+                                            placeholder="Mô tả ngắn về gói dịch vụ..."
+                                        />
+                                        <div
+                                            class="pointer-events-none absolute top-3 left-3.5 text-muted-foreground"
+                                        >
+                                            <FileText
+                                                class="size-4 text-indigo-500"
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="grid gap-1.5">
+                                    <Label
+                                        class="text-[11px] font-semibold text-muted-foreground"
+                                        >GIÁ (VND/THÁNG)</Label
+                                    >
+                                    <div class="relative flex items-center">
+                                        <div
+                                            class="pointer-events-none absolute left-3.5 text-muted-foreground"
+                                        >
+                                            <Coins
+                                                class="size-4 text-indigo-500"
+                                            />
+                                        </div>
+                                        <Input
+                                            v-model.number="form.price"
+                                            type="number"
+                                            min="0"
+                                            class="rounded-xl border-border bg-background/50 pl-10 focus:bg-background focus-visible:border-indigo-500 focus-visible:ring-indigo-500/20"
+                                        />
+                                    </div>
+                                </div>
+
+                                <div class="grid gap-1.5">
+                                    <Label
+                                        class="text-[11px] font-semibold text-muted-foreground"
+                                        >CHIẾT KHẤU GÓI NĂM (%)</Label
+                                    >
+                                    <div class="relative flex items-center">
+                                        <div
+                                            class="pointer-events-none absolute left-3.5 text-muted-foreground"
+                                        >
+                                            <Percent
+                                                class="size-4 text-indigo-500"
+                                            />
+                                        </div>
+                                        <Input
+                                            v-model.number="
+                                                form.yearly_discount_percent
+                                            "
+                                            type="number"
+                                            min="0"
+                                            max="100"
+                                            class="rounded-xl border-border bg-background/50 pl-10 focus:bg-background focus-visible:border-indigo-500 focus-visible:ring-indigo-500/20"
+                                        />
+                                    </div>
                                 </div>
                             </div>
-                            <div class="col-span-2 grid gap-1.5">
-                                <Label class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Mô tả ngắn (hiển thị trên trang khách)</Label>
-                                <div class="relative">
-                                    <textarea
-                                        v-model="form.description"
-                                        rows="2"
-                                        class="flex w-full rounded-xl border border-input bg-background pl-10 pr-3 py-2.5 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring border-border focus-visible:ring-indigo-500/20 focus-visible:border-indigo-500 resize-none"
-                                        placeholder="Mô tả ngắn về gói dịch vụ..."
-                                    />
-                                    <div class="absolute left-3.5 top-3 text-muted-foreground pointer-events-none">
-                                        <FileText class="size-4 text-indigo-500" />
+                        </div>
+
+                        <!-- Group 2: Operational Limits Card -->
+                        <div
+                            class="space-y-4 rounded-2xl border border-border/60 bg-card p-4.5 shadow-2xs"
+                        >
+                            <h3
+                                class="flex items-center gap-1.5 border-b border-border/40 pb-2 text-xs font-bold tracking-wider text-muted-foreground uppercase"
+                            >
+                                <Building2 class="size-3.5 text-indigo-500" />
+                                Hạn mức tài nguyên
+                            </h3>
+
+                            <div class="grid grid-cols-2 gap-4">
+                                <!-- Branches Limit -->
+                                <div
+                                    class="col-span-2 grid gap-1.5 sm:col-span-1"
+                                >
+                                    <Label
+                                        class="text-[11px] font-semibold text-muted-foreground"
+                                        >CHI NHÁNH TỐI ĐA</Label
+                                    >
+                                    <div class="relative flex items-center">
+                                        <div
+                                            class="pointer-events-none absolute left-3.5 z-10 text-muted-foreground"
+                                        >
+                                            <Building2
+                                                class="size-4 text-indigo-500"
+                                            />
+                                        </div>
+                                        <Input
+                                            :type="
+                                                form.max_branches === -1
+                                                    ? 'text'
+                                                    : 'number'
+                                            "
+                                            :value="
+                                                form.max_branches === -1
+                                                    ? 'Vô hạn (Không giới hạn)'
+                                                    : form.max_branches
+                                            "
+                                            @input="
+                                                (e: Event) => {
+                                                    if (
+                                                        form.max_branches !== -1
+                                                    ) {
+                                                        form.max_branches =
+                                                            (
+                                                                e.target as HTMLInputElement
+                                                            ).value === ''
+                                                                ? 1
+                                                                : parseInt(
+                                                                      (
+                                                                          e.target as HTMLInputElement
+                                                                      ).value,
+                                                                  );
+                                                    }
+                                                }
+                                            "
+                                            :disabled="form.max_branches === -1"
+                                            class="w-full rounded-xl border-border pr-24 pl-10 focus-visible:border-indigo-500 focus-visible:ring-indigo-500/20"
+                                            :class="
+                                                form.max_branches === -1
+                                                    ? 'border-indigo-500/20 bg-indigo-500/[0.03] font-bold text-indigo-600 dark:bg-indigo-500/[0.05] dark:text-indigo-400'
+                                                    : 'bg-background/50 focus:bg-background'
+                                            "
+                                        />
+                                        <button
+                                            type="button"
+                                            @click="
+                                                form.max_branches =
+                                                    form.max_branches === -1
+                                                        ? 1
+                                                        : -1
+                                            "
+                                            class="absolute right-2 cursor-pointer rounded-lg px-2.5 py-1 text-[10px] font-bold tracking-wider uppercase transition-all duration-200"
+                                            :class="
+                                                form.max_branches === -1
+                                                    ? 'bg-indigo-500 text-white shadow-xs hover:bg-indigo-600'
+                                                    : 'bg-zinc-100 text-zinc-500 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-700'
+                                            "
+                                        >
+                                            {{
+                                                form.max_branches === -1
+                                                    ? 'Giới hạn'
+                                                    : 'Vô hạn'
+                                            }}
+                                        </button>
                                     </div>
                                 </div>
-                            </div>
-                            <div class="grid gap-1.5">
-                                <Label class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Giá (VND/tháng)</Label>
-                                <div class="relative flex items-center">
-                                    <div class="absolute left-3.5 text-muted-foreground pointer-events-none">
-                                        <Coins class="size-4 text-indigo-500" />
+
+                                <!-- Tables Limit -->
+                                <div
+                                    class="col-span-2 grid gap-1.5 sm:col-span-1"
+                                >
+                                    <Label
+                                        class="text-[11px] font-semibold text-muted-foreground"
+                                        >BÀN TỐI ĐA</Label
+                                    >
+                                    <div class="relative flex items-center">
+                                        <div
+                                            class="pointer-events-none absolute left-3.5 z-10 text-muted-foreground"
+                                        >
+                                            <Table
+                                                class="size-4 text-indigo-500"
+                                            />
+                                        </div>
+                                        <Input
+                                            :type="
+                                                form.max_tables === -1
+                                                    ? 'text'
+                                                    : 'number'
+                                            "
+                                            :value="
+                                                form.max_tables === -1
+                                                    ? 'Vô hạn (Không giới hạn)'
+                                                    : form.max_tables
+                                            "
+                                            @input="
+                                                (e: Event) => {
+                                                    if (
+                                                        form.max_tables !== -1
+                                                    ) {
+                                                        form.max_tables =
+                                                            (
+                                                                e.target as HTMLInputElement
+                                                            ).value === ''
+                                                                ? 1
+                                                                : parseInt(
+                                                                      (
+                                                                          e.target as HTMLInputElement
+                                                                      ).value,
+                                                                  );
+                                                    }
+                                                }
+                                            "
+                                            :disabled="form.max_tables === -1"
+                                            class="w-full rounded-xl border-border pr-24 pl-10 focus-visible:border-indigo-500 focus-visible:ring-indigo-500/20"
+                                            :class="
+                                                form.max_tables === -1
+                                                    ? 'border-indigo-500/20 bg-indigo-500/[0.03] font-bold text-indigo-600 dark:bg-indigo-500/[0.05] dark:text-indigo-400'
+                                                    : 'bg-background/50 focus:bg-background'
+                                            "
+                                        />
+                                        <button
+                                            type="button"
+                                            @click="
+                                                form.max_tables =
+                                                    form.max_tables === -1
+                                                        ? 15
+                                                        : -1
+                                            "
+                                            class="absolute right-2 cursor-pointer rounded-lg px-2.5 py-1 text-[10px] font-bold tracking-wider uppercase transition-all duration-200"
+                                            :class="
+                                                form.max_tables === -1
+                                                    ? 'bg-indigo-500 text-white shadow-xs hover:bg-indigo-600'
+                                                    : 'bg-zinc-100 text-zinc-500 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-700'
+                                            "
+                                        >
+                                            {{
+                                                form.max_tables === -1
+                                                    ? 'Giới hạn'
+                                                    : 'Vô hạn'
+                                            }}
+                                        </button>
                                     </div>
-                                    <Input v-model.number="form.price" type="number" min="0" class="pl-10 rounded-xl border-border focus-visible:ring-indigo-500/20 focus-visible:border-indigo-500" />
                                 </div>
-                            </div>
-                            <div class="grid gap-1.5">
-                                <Label class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Chiết khấu gói năm (%)</Label>
-                                <div class="relative flex items-center">
-                                    <div class="absolute left-3.5 text-muted-foreground pointer-events-none">
-                                        <Percent class="size-4 text-indigo-500" />
+
+                                <!-- Users Limit -->
+                                <div
+                                    class="col-span-2 grid gap-1.5 sm:col-span-1"
+                                >
+                                    <Label
+                                        class="text-[11px] font-semibold text-muted-foreground"
+                                        >NHÂN VIÊN TỐI ĐA</Label
+                                    >
+                                    <div class="relative flex items-center">
+                                        <div
+                                            class="pointer-events-none absolute left-3.5 z-10 text-muted-foreground"
+                                        >
+                                            <Users
+                                                class="size-4 text-indigo-500"
+                                            />
+                                        </div>
+                                        <Input
+                                            :type="
+                                                form.max_users === -1
+                                                    ? 'text'
+                                                    : 'number'
+                                            "
+                                            :value="
+                                                form.max_users === -1
+                                                    ? 'Vô hạn (Không giới hạn)'
+                                                    : form.max_users
+                                            "
+                                            @input="
+                                                (e: Event) => {
+                                                    if (form.max_users !== -1) {
+                                                        form.max_users =
+                                                            (
+                                                                e.target as HTMLInputElement
+                                                            ).value === ''
+                                                                ? 1
+                                                                : parseInt(
+                                                                      (
+                                                                          e.target as HTMLInputElement
+                                                                      ).value,
+                                                                  );
+                                                    }
+                                                }
+                                            "
+                                            :disabled="form.max_users === -1"
+                                            class="w-full rounded-xl border-border pr-24 pl-10 focus-visible:border-indigo-500 focus-visible:ring-indigo-500/20"
+                                            :class="
+                                                form.max_users === -1
+                                                    ? 'border-indigo-500/20 bg-indigo-500/[0.03] font-bold text-indigo-600 dark:bg-indigo-500/[0.05] dark:text-indigo-400'
+                                                    : 'bg-background/50 focus:bg-background'
+                                            "
+                                        />
+                                        <button
+                                            type="button"
+                                            @click="
+                                                form.max_users =
+                                                    form.max_users === -1
+                                                        ? 5
+                                                        : -1
+                                            "
+                                            class="absolute right-2 cursor-pointer rounded-lg px-2.5 py-1 text-[10px] font-bold tracking-wider uppercase transition-all duration-200"
+                                            :class="
+                                                form.max_users === -1
+                                                    ? 'bg-indigo-500 text-white shadow-xs hover:bg-indigo-600'
+                                                    : 'bg-zinc-100 text-zinc-500 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-700'
+                                            "
+                                        >
+                                            {{
+                                                form.max_users === -1
+                                                    ? 'Giới hạn'
+                                                    : 'Vô hạn'
+                                            }}
+                                        </button>
                                     </div>
-                                    <Input v-model.number="form.yearly_discount_percent" type="number" min="0" max="100" class="pl-10 rounded-xl border-border focus-visible:ring-indigo-500/20 focus-visible:border-indigo-500" />
                                 </div>
-                            </div>
-                            <div class="grid gap-1.5">
-                                <Label class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Rate limit (req/phút)</Label>
-                                <div class="relative flex items-center">
-                                    <div class="absolute left-3.5 text-muted-foreground pointer-events-none">
-                                        <Activity class="size-4 text-indigo-500" />
+
+                                <!-- Areas Limit -->
+                                <div
+                                    class="col-span-2 grid gap-1.5 sm:col-span-1"
+                                >
+                                    <Label
+                                        class="text-[11px] font-semibold text-muted-foreground"
+                                        >KHU VỰC TỐI ĐA</Label
+                                    >
+                                    <div class="relative flex items-center">
+                                        <div
+                                            class="pointer-events-none absolute left-3.5 z-10 text-muted-foreground"
+                                        >
+                                            <Layers
+                                                class="size-4 text-indigo-500"
+                                            />
+                                        </div>
+                                        <Input
+                                            :type="
+                                                form.max_areas === -1
+                                                    ? 'text'
+                                                    : 'number'
+                                            "
+                                            :value="
+                                                form.max_areas === -1
+                                                    ? 'Vô hạn (Không giới hạn)'
+                                                    : form.max_areas
+                                            "
+                                            @input="
+                                                (e: Event) => {
+                                                    if (form.max_areas !== -1) {
+                                                        form.max_areas =
+                                                            (
+                                                                e.target as HTMLInputElement
+                                                            ).value === ''
+                                                                ? 1
+                                                                : parseInt(
+                                                                      (
+                                                                          e.target as HTMLInputElement
+                                                                      ).value,
+                                                                  );
+                                                    }
+                                                }
+                                            "
+                                            :disabled="form.max_areas === -1"
+                                            class="w-full rounded-xl border-border pr-24 pl-10 focus-visible:border-indigo-500 focus-visible:ring-indigo-500/20"
+                                            :class="
+                                                form.max_areas === -1
+                                                    ? 'border-indigo-500/20 bg-indigo-500/[0.03] font-bold text-indigo-600 dark:bg-indigo-500/[0.05] dark:text-indigo-400'
+                                                    : 'bg-background/50 focus:bg-background'
+                                            "
+                                        />
+                                        <button
+                                            type="button"
+                                            @click="
+                                                form.max_areas =
+                                                    form.max_areas === -1
+                                                        ? 2
+                                                        : -1
+                                            "
+                                            class="absolute right-2 cursor-pointer rounded-lg px-2.5 py-1 text-[10px] font-bold tracking-wider uppercase transition-all duration-200"
+                                            :class="
+                                                form.max_areas === -1
+                                                    ? 'bg-indigo-500 text-white shadow-xs hover:bg-indigo-600'
+                                                    : 'bg-zinc-100 text-zinc-500 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-700'
+                                            "
+                                        >
+                                            {{
+                                                form.max_areas === -1
+                                                    ? 'Giới hạn'
+                                                    : 'Vô hạn'
+                                            }}
+                                        </button>
                                     </div>
-                                    <Input v-model.number="form.api_rate_limit" type="number" min="10" class="pl-10 rounded-xl border-border focus-visible:ring-indigo-500/20 focus-visible:border-indigo-500" />
                                 </div>
-                            </div>
-                            <div class="grid gap-1.5">
-                                <div class="flex items-center justify-between">
-                                    <Label class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Chi nhánh tối đa</Label>
-                                    <Badge v-if="form.max_branches === -1" variant="outline" class="bg-indigo-500/10 text-indigo-600 border-indigo-500/20 text-[10px] py-0 px-1.5 h-4 font-bold">Vô hạn</Badge>
-                                </div>
-                                <div class="relative flex items-center">
-                                    <div class="absolute left-3.5 text-muted-foreground pointer-events-none">
-                                        <Building2 class="size-4 text-indigo-500" />
+
+                                <!-- API Rate Limit -->
+                                <div
+                                    class="col-span-2 grid gap-1.5 sm:col-span-1"
+                                >
+                                    <Label
+                                        class="text-[11px] font-semibold text-muted-foreground"
+                                        >API RATE LIMIT (REQ/PHÚT)</Label
+                                    >
+                                    <div class="relative flex items-center">
+                                        <div
+                                            class="pointer-events-none absolute left-3.5 text-muted-foreground"
+                                        >
+                                            <Activity
+                                                class="size-4 text-indigo-500"
+                                            />
+                                        </div>
+                                        <Input
+                                            v-model.number="form.api_rate_limit"
+                                            type="number"
+                                            min="10"
+                                            class="rounded-xl border-border bg-background/50 pl-10 focus:bg-background focus-visible:border-indigo-500 focus-visible:ring-indigo-500/20"
+                                        />
                                     </div>
-                                    <Input v-model.number="form.max_branches" type="number" min="-1" class="pl-10 rounded-xl border-border focus-visible:ring-indigo-500/20 focus-visible:border-indigo-500" />
                                 </div>
-                            </div>
-                            <div class="grid gap-1.5">
-                                <div class="flex items-center justify-between">
-                                    <Label class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Bàn tối đa</Label>
-                                    <Badge v-if="form.max_tables === -1" variant="outline" class="bg-indigo-500/10 text-indigo-600 border-indigo-500/20 text-[10px] py-0 px-1.5 h-4 font-bold">Vô hạn</Badge>
-                                </div>
-                                <div class="relative flex items-center">
-                                    <div class="absolute left-3.5 text-muted-foreground pointer-events-none">
-                                        <Table class="size-4 text-indigo-500" />
+
+                                <!-- Storage Limit -->
+                                <div
+                                    class="col-span-2 grid gap-1.5 sm:col-span-1"
+                                >
+                                    <Label
+                                        class="text-[11px] font-semibold text-muted-foreground"
+                                        >DUNG LƯỢNG LƯU TRỮ (MB)</Label
+                                    >
+                                    <div class="relative flex items-center">
+                                        <div
+                                            class="pointer-events-none absolute left-3.5 text-muted-foreground"
+                                        >
+                                            <HardDrive
+                                                class="size-4 text-indigo-500"
+                                            />
+                                        </div>
+                                        <Input
+                                            v-model.number="form.max_storage_mb"
+                                            type="number"
+                                            min="1"
+                                            class="rounded-xl border-border bg-background/50 pl-10 focus:bg-background focus-visible:border-indigo-500 focus-visible:ring-indigo-500/20"
+                                        />
                                     </div>
-                                    <Input v-model.number="form.max_tables" type="number" min="-1" class="pl-10 rounded-xl border-border focus-visible:ring-indigo-500/20 focus-visible:border-indigo-500" />
-                                </div>
-                            </div>
-                            <div class="grid gap-1.5">
-                                <div class="flex items-center justify-between">
-                                    <Label class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Nhân viên tối đa</Label>
-                                    <Badge v-if="form.max_users === -1" variant="outline" class="bg-indigo-500/10 text-indigo-600 border-indigo-500/20 text-[10px] py-0 px-1.5 h-4 font-bold">Vô hạn</Badge>
-                                </div>
-                                <div class="relative flex items-center">
-                                    <div class="absolute left-3.5 text-muted-foreground pointer-events-none">
-                                        <Users class="size-4 text-indigo-500" />
-                                    </div>
-                                    <Input v-model.number="form.max_users" type="number" min="-1" class="pl-10 rounded-xl border-border focus-visible:ring-indigo-500/20 focus-visible:border-indigo-500" />
-                                </div>
-                            </div>
-                            <div class="grid gap-1.5">
-                                <div class="flex items-center justify-between">
-                                    <Label class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Khu vực tối đa</Label>
-                                    <Badge v-if="form.max_areas === -1" variant="outline" class="bg-indigo-500/10 text-indigo-600 border-indigo-500/20 text-[10px] py-0 px-1.5 h-4 font-bold">Vô hạn</Badge>
-                                </div>
-                                <div class="relative flex items-center">
-                                    <div class="absolute left-3.5 text-muted-foreground pointer-events-none">
-                                        <Layers class="size-4 text-indigo-500" />
-                                    </div>
-                                    <Input v-model.number="form.max_areas" type="number" min="-1" class="pl-10 rounded-xl border-border focus-visible:ring-indigo-500/20 focus-visible:border-indigo-500" />
-                                </div>
-                            </div>
-                            <div class="col-span-2 grid gap-1.5">
-                                <Label class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Dung lượng lưu trữ tối đa (MB)</Label>
-                                <div class="relative flex items-center">
-                                    <div class="absolute left-3.5 text-muted-foreground pointer-events-none">
-                                        <HardDrive class="size-4 text-indigo-500" />
-                                    </div>
-                                    <Input v-model.number="form.max_storage_mb" type="number" min="1" class="pl-10 rounded-xl border-border focus-visible:ring-indigo-500/20 focus-visible:border-indigo-500" />
                                 </div>
                             </div>
                         </div>
                     </div>
 
                     <!-- Tab 2: Feature Toggles -->
-                    <div v-show="activeTab === 'features'" class="space-y-4 animate-in fade-in duration-200">
-                        <div v-for="category in FEATURE_CATEGORIES" :key="category.name" class="rounded-2xl border border-border bg-card p-4 space-y-3.5 shadow-xs">
-                            <div class="flex items-center gap-2 border-b border-border/50 pb-2">
-                                <component :is="categoryIcon[category.icon] ?? Sparkles" class="size-4 text-indigo-500" />
-                                <h3 class="text-xs font-bold uppercase tracking-wider text-foreground">{{ category.name }}</h3>
-                            </div>
-                            
-                            <div class="grid grid-cols-1 gap-2">
-                                <div 
-                                    v-for="key in category.keys" 
-                                    :key="key" 
-                                    class="flex items-center justify-between p-3 rounded-xl border border-border bg-muted/10 hover:bg-muted/20 transition-all duration-200"
-                                    :class="{'border-indigo-500/20 bg-indigo-500/[0.02] shadow-2xs': (form as any)[key]}"
+                    <div
+                        v-show="activeTab === 'features'"
+                        class="animate-in space-y-6 duration-300 zoom-in-95 fade-in"
+                    >
+                        <div
+                            v-for="category in FEATURE_CATEGORIES"
+                            :key="category.name"
+                            class="space-y-4 rounded-2xl border border-border/80 bg-card p-5 shadow-2xs"
+                        >
+                            <div
+                                class="flex items-center gap-2.5 border-b border-border/50 pb-3"
+                            >
+                                <div
+                                    class="rounded-lg bg-indigo-500/10 p-1.5 text-indigo-500"
                                 >
-                                    <span class="text-xs font-medium text-foreground pr-2">{{ getFeatureLabel(key) }}</span>
-                                    <label class="relative inline-flex items-center cursor-pointer shrink-0">
-                                        <input type="checkbox" v-model="(form as any)[key]" class="sr-only peer" />
-                                        <div class="w-8 h-4.5 bg-zinc-200 dark:bg-zinc-800 rounded-full peer peer-checked:after:translate-x-3.5 peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-zinc-300 after:border after:rounded-full after:h-3.5 after:w-3.5 after:transition-all peer-checked:bg-gradient-to-r peer-checked:from-indigo-600 peer-checked:to-violet-600"></div>
+                                    <component
+                                        :is="
+                                            categoryIcon[category.icon] ??
+                                            Sparkles
+                                        "
+                                        class="size-4"
+                                    />
+                                </div>
+                                <h3
+                                    class="text-xs font-bold tracking-wider text-foreground uppercase"
+                                >
+                                    {{ category.name }}
+                                </h3>
+                            </div>
+
+                            <div class="grid grid-cols-1 gap-3">
+                                <div
+                                    v-for="key in category.keys"
+                                    :key="key"
+                                    class="flex items-center justify-between rounded-xl border border-border bg-zinc-50/50 p-3.5 transition-all duration-300 hover:border-indigo-500/20 hover:shadow-2xs dark:bg-zinc-950/20"
+                                    :class="{
+                                        'border-indigo-500/25 bg-gradient-to-r from-indigo-500/[0.03] to-violet-500/[0.03] shadow-[0_0_15px_rgba(99,102,241,0.05)]':
+                                            (form as any)[key],
+                                    }"
+                                >
+                                    <div
+                                        class="flex animate-in flex-col gap-0.5 duration-300 fade-in"
+                                    >
+                                        <span
+                                            class="pr-2 text-xs font-bold text-foreground"
+                                        >
+                                            {{ getFeatureLabel(key) }}
+                                        </span>
+                                        <span
+                                            class="max-w-sm text-[10px] leading-normal text-muted-foreground"
+                                        >
+                                            {{
+                                                FEATURE_DESCRIPTIONS[key] ?? ''
+                                            }}
+                                        </span>
+                                    </div>
+                                    <label
+                                        class="relative inline-flex shrink-0 cursor-pointer items-center"
+                                    >
+                                        <input
+                                            type="checkbox"
+                                            v-model="(form as any)[key]"
+                                            class="peer sr-only"
+                                        />
+                                        <div
+                                            class="peer h-5 w-9 rounded-full bg-zinc-200 peer-checked:bg-gradient-to-r peer-checked:from-indigo-600 peer-checked:to-violet-600 after:absolute after:top-[2px] after:left-[2px] after:h-4 after:w-4 after:rounded-full after:border after:border-zinc-300 after:bg-white after:transition-all after:content-[''] peer-checked:after:translate-x-4 peer-checked:after:border-white dark:bg-zinc-800"
+                                        ></div>
                                     </label>
                                 </div>
                             </div>
@@ -557,21 +1690,23 @@ const planIcon: Record<string, any> = {
                     </div>
 
                     <!-- Actions -->
-                    <div class="flex gap-3 pt-4 border-t border-border mt-4">
-                        <Button 
-                            size="lg" 
-                            @click="editingId && save(editingId)" 
-                            :disabled="form.processing" 
-                            class="flex-1 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white font-bold text-xs uppercase tracking-wider shadow-md hover:shadow-lg transition-all hover:-translate-y-0.5 active:translate-y-0 cursor-pointer border-none py-6"
+                    <div class="mt-4 flex gap-3 border-t border-border pt-5">
+                        <Button
+                            size="lg"
+                            @click="editingId && save(editingId)"
+                            :disabled="form.processing"
+                            class="flex-1 cursor-pointer rounded-xl border-none bg-gradient-to-r from-indigo-600 to-violet-600 py-6 text-xs font-bold tracking-wider text-white uppercase shadow-md transition-all duration-300 hover:-translate-y-0.5 hover:from-indigo-500 hover:to-violet-500 hover:shadow-lg focus:ring-2 focus:ring-indigo-500/20 active:translate-y-0"
                         >
-                            <Save class="size-4 mr-1.5" />
-                            {{ form.processing ? 'Đang lưu...' : 'Lưu thay đổi' }}
+                            <Save class="mr-1.5 size-4" />
+                            {{
+                                form.processing ? 'Đang lưu...' : 'Lưu thay đổi'
+                            }}
                         </Button>
-                        <Button 
-                            size="lg" 
-                            variant="outline" 
+                        <Button
+                            size="lg"
+                            variant="outline"
                             @click="isEditing = false"
-                            class="rounded-xl border-border font-bold text-xs uppercase tracking-wider py-6"
+                            class="rounded-xl border-border py-6 text-xs font-bold tracking-wider uppercase transition-all hover:bg-zinc-50 dark:hover:bg-zinc-900"
                         >
                             Hủy
                         </Button>
@@ -581,215 +1716,749 @@ const planIcon: Record<string, any> = {
         </Sheet>
 
         <!-- ── CREATE PLAN DIALOG ── -->
-        <Dialog :open="isCreating" @update:open="val => { if (!val) { isCreating = false; createForm.reset(); } }">
-            <DialogContent class="sm:max-w-xl max-h-[90vh] overflow-y-auto rounded-2xl">
-                <DialogHeader class="pb-4 border-b border-border">
-                    <DialogTitle class="text-xl font-bold flex items-center gap-2">
-                        <component :is="planIcon[createForm.code] ?? Sparkles" class="size-5 text-indigo-500" />
-                        Tạo gói dịch vụ mới
+        <Dialog
+            :open="isCreating"
+            @update:open="
+                (val) => {
+                    if (!val) {
+                        isCreating = false;
+                        createForm.reset();
+                    }
+                }
+            "
+        >
+            <DialogContent
+                class="max-h-[90vh] overflow-y-auto rounded-2xl border border-zinc-200/50 bg-background/95 backdrop-blur-md sm:max-w-xl dark:border-zinc-800/50"
+            >
+                <DialogHeader class="border-b border-border pb-5">
+                    <DialogTitle
+                        class="flex items-center gap-2.5 text-xl font-bold"
+                    >
+                        <div
+                            class="rounded-xl bg-indigo-500/10 p-2 text-indigo-500 shadow-2xs"
+                        >
+                            <component
+                                :is="planIcon[createForm.code] ?? Sparkles"
+                                class="size-5"
+                            />
+                        </div>
+                        <span
+                            class="bg-gradient-to-r from-slate-900 to-slate-700 bg-clip-text text-transparent dark:from-white dark:to-zinc-300"
+                        >
+                            Tạo gói dịch vụ mới
+                        </span>
                     </DialogTitle>
-                    <DialogDescription>Gói mới sẽ xuất hiện ngay trên trang khách hàng sau khi tạo.</DialogDescription>
+                    <DialogDescription
+                        class="pt-1.5 text-xs text-muted-foreground"
+                    >
+                        Gói dịch vụ mới sẽ được thêm vào hệ thống và hiển thị
+                        ngay trên trang khách hàng sau khi tạo.
+                    </DialogDescription>
                 </DialogHeader>
 
                 <!-- Tab Selector for Create -->
-                <div class="flex border-b border-border/60 my-4 bg-muted/40 p-1 rounded-xl">
+                <div
+                    class="my-5 flex rounded-xl border border-border/80 bg-muted/40 p-1 shadow-2xs"
+                >
                     <button
                         type="button"
                         @click="activeCreateTab = 'info'"
-                        class="flex-1 py-2 text-center text-xs font-bold rounded-lg transition-all cursor-pointer"
-                        :class="activeCreateTab === 'info' ? 'bg-background shadow-xs text-foreground' : 'text-muted-foreground hover:text-foreground'"
+                        class="flex flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-lg py-2.5 text-center text-xs font-bold transition-all duration-300"
+                        :class="
+                            activeCreateTab === 'info'
+                                ? 'scale-[1.02] bg-background text-foreground shadow-sm'
+                                : 'text-muted-foreground hover:text-foreground'
+                        "
                     >
+                        <Activity class="size-3.5 text-indigo-500" />
                         Thông tin & Hạn mức
                     </button>
                     <button
                         type="button"
                         @click="activeCreateTab = 'features'"
-                        class="flex-1 py-2 text-center text-xs font-bold rounded-lg transition-all cursor-pointer"
-                        :class="activeCreateTab === 'features' ? 'bg-background shadow-xs text-foreground' : 'text-muted-foreground hover:text-foreground'"
+                        class="flex flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-lg py-2.5 text-center text-xs font-bold transition-all duration-300"
+                        :class="
+                            activeCreateTab === 'features'
+                                ? 'scale-[1.02] bg-background text-foreground shadow-sm'
+                                : 'text-muted-foreground hover:text-foreground'
+                        "
                     >
-                        Tính năng ({{ ALL_FEATURES.filter(f => (createForm as any)[f.key]).length }})
+                        <Sparkles class="size-3.5 text-indigo-500" />
+                        Tính năng ({{
+                            ALL_FEATURES.filter(
+                                (f) => (createForm as any)[f.key],
+                            ).length
+                        }})
                     </button>
                 </div>
 
-                <form class="flex flex-col gap-4 py-2" @submit.prevent="submitCreate">
+                <form
+                    class="flex flex-col gap-5 py-2"
+                    @submit.prevent="submitCreate"
+                >
                     <!-- Tab 1: Info & Limits -->
-                    <div v-show="activeCreateTab === 'info'" class="space-y-4 animate-in fade-in duration-200">
-                        <div class="grid grid-cols-2 gap-4">
-                            <div class="grid gap-1.5">
-                                <Label class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Mã gói (code) <span class="text-destructive">*</span></Label>
-                                <div class="relative flex items-center">
-                                    <div class="absolute left-3.5 text-muted-foreground pointer-events-none">
-                                        <Lock class="size-4 text-indigo-500" />
+                    <div
+                        v-show="activeCreateTab === 'info'"
+                        class="animate-in space-y-6 duration-300 zoom-in-95 fade-in"
+                    >
+                        <!-- Group 1: General Info Card -->
+                        <div
+                            class="space-y-4 rounded-2xl border border-border/60 bg-card p-4.5 shadow-2xs"
+                        >
+                            <h3
+                                class="flex items-center gap-1.5 border-b border-border/40 pb-2 text-xs font-bold tracking-wider text-muted-foreground uppercase"
+                            >
+                                <Tag class="size-3.5 text-indigo-500" />
+                                Thông tin cơ bản
+                            </h3>
+
+                            <div class="grid grid-cols-2 gap-4">
+                                <div class="grid gap-1.5">
+                                    <Label
+                                        class="flex items-center gap-0.5 text-[11px] font-semibold text-muted-foreground"
+                                    >
+                                        MÃ GÓI (CODE)
+                                        <span class="text-destructive">*</span>
+                                    </Label>
+                                    <div class="relative flex items-center">
+                                        <div
+                                            class="pointer-events-none absolute left-3.5 text-muted-foreground"
+                                        >
+                                            <Lock
+                                                class="size-4 text-indigo-500"
+                                            />
+                                        </div>
+                                        <Input
+                                            v-model="createForm.code"
+                                            placeholder="vd: starter"
+                                            class="rounded-xl border-border bg-background/50 pl-10 focus:bg-background focus-visible:border-indigo-500 focus-visible:ring-indigo-500/20"
+                                        />
                                     </div>
-                                    <Input v-model="createForm.code" placeholder="vd: starter" class="pl-10 rounded-xl border-border focus-visible:ring-indigo-500/20 focus-visible:border-indigo-500" />
+                                    <p
+                                        v-if="createForm.errors.code"
+                                        class="mt-1 text-xs text-destructive"
+                                    >
+                                        {{ createForm.errors.code }}
+                                    </p>
                                 </div>
-                                <p v-if="createForm.errors.code" class="text-xs text-destructive mt-1">{{ createForm.errors.code }}</p>
-                            </div>
-                            <div class="grid gap-1.5">
-                                <Label class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Chu kỳ thanh toán <span class="text-destructive">*</span></Label>
-                                <Select v-model="createForm.billing_cycle">
-                                    <SelectTrigger class="h-9 text-sm rounded-xl border-border focus:ring-indigo-500/20 focus:border-indigo-500">
-                                        <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent class="rounded-xl">
-                                        <SelectItem value="monthly">Hàng tháng</SelectItem>
-                                        <SelectItem value="yearly">Hàng năm</SelectItem>
-                                        <SelectItem value="quarterly">Hàng quý</SelectItem>
-                                    </SelectContent>
-                                </Select>
-                            </div>
-                            <div class="col-span-2 grid gap-1.5">
-                                <Label class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Tên gói <span class="text-destructive">*</span></Label>
-                                <div class="relative flex items-center">
-                                    <div class="absolute left-3.5 text-muted-foreground pointer-events-none">
-                                        <Tag class="size-4 text-indigo-500" />
+
+                                <div class="grid gap-1.5">
+                                    <Label
+                                        class="flex items-center gap-0.5 text-[11px] font-semibold text-muted-foreground"
+                                    >
+                                        CHU KỲ THANH TOÁN
+                                        <span class="text-destructive">*</span>
+                                    </Label>
+                                    <Select v-model="createForm.billing_cycle">
+                                        <SelectTrigger
+                                            class="h-9 rounded-xl border-border bg-background/50 text-sm focus:border-indigo-500 focus:bg-background focus:ring-indigo-500/20"
+                                        >
+                                            <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent class="rounded-xl">
+                                            <SelectItem value="monthly"
+                                                >Hàng tháng</SelectItem
+                                            >
+                                            <SelectItem value="yearly"
+                                                >Hàng năm</SelectItem
+                                            >
+                                            <SelectItem value="quarterly"
+                                                >Hàng quý</SelectItem
+                                            >
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+
+                                <div class="col-span-2 grid gap-1.5">
+                                    <Label
+                                        class="flex items-center gap-0.5 text-[11px] font-semibold text-muted-foreground"
+                                    >
+                                        TÊN GÓI
+                                        <span class="text-destructive">*</span>
+                                    </Label>
+                                    <div class="relative flex items-center">
+                                        <div
+                                            class="pointer-events-none absolute left-3.5 text-muted-foreground"
+                                        >
+                                            <Tag
+                                                class="size-4 text-indigo-500"
+                                            />
+                                        </div>
+                                        <Input
+                                            v-model="createForm.name"
+                                            placeholder="vd: Gói Khởi Nghiệp"
+                                            class="rounded-xl border-border bg-background/50 pl-10 focus:bg-background focus-visible:border-indigo-500 focus-visible:ring-indigo-500/20"
+                                        />
                                     </div>
-                                    <Input v-model="createForm.name" placeholder="vd: Gói Khởi Nghiệp" class="pl-10 rounded-xl border-border focus-visible:ring-indigo-500/20 focus-visible:border-indigo-500" />
+                                    <p
+                                        v-if="createForm.errors.name"
+                                        class="mt-1 text-xs text-destructive"
+                                    >
+                                        {{ createForm.errors.name }}
+                                    </p>
                                 </div>
-                                <p v-if="createForm.errors.name" class="text-xs text-destructive mt-1">{{ createForm.errors.name }}</p>
-                            </div>
-                            <div class="col-span-2 grid gap-1.5">
-                                <Label class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Mô tả ngắn (hiển thị trang khách)</Label>
-                                <div class="relative">
-                                    <textarea
-                                        v-model="createForm.description"
-                                        rows="2"
-                                        class="flex w-full rounded-xl border border-input bg-background pl-10 pr-3 py-2.5 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring border-border focus-visible:ring-indigo-500/20 focus-visible:border-indigo-500 resize-none"
-                                        placeholder="Mô tả ngắn gọn về gói..."
-                                    />
-                                    <div class="absolute left-3.5 top-3 text-muted-foreground pointer-events-none">
-                                        <FileText class="size-4 text-indigo-500" />
+
+                                <div class="col-span-2 grid gap-1.5">
+                                    <Label
+                                        class="text-[11px] font-semibold text-muted-foreground"
+                                        >MÔ TẢ NGẮN (HIỂN THỊ TRANG
+                                        KHÁCH)</Label
+                                    >
+                                    <div class="relative">
+                                        <textarea
+                                            v-model="createForm.description"
+                                            rows="2"
+                                            class="flex w-full resize-none rounded-xl border border-border border-input bg-background/50 py-2.5 pr-3 pl-10 text-sm text-foreground transition-all focus:bg-background focus-visible:border-indigo-500 focus-visible:ring-2 focus-visible:ring-indigo-500/20 focus-visible:ring-ring focus-visible:outline-none"
+                                            placeholder="Mô tả ngắn gọn về gói..."
+                                        />
+                                        <div
+                                            class="pointer-events-none absolute top-3 left-3.5 text-muted-foreground"
+                                        >
+                                            <FileText
+                                                class="size-4 text-indigo-500"
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="grid gap-1.5">
+                                    <Label
+                                        class="flex items-center gap-0.5 text-[11px] font-semibold text-muted-foreground"
+                                    >
+                                        GIÁ (VND/THÁNG)
+                                        <span class="text-destructive">*</span>
+                                    </Label>
+                                    <div class="relative flex items-center">
+                                        <div
+                                            class="pointer-events-none absolute left-3.5 text-muted-foreground"
+                                        >
+                                            <Coins
+                                                class="size-4 text-indigo-500"
+                                            />
+                                        </div>
+                                        <Input
+                                            v-model.number="createForm.price"
+                                            type="number"
+                                            min="0"
+                                            class="rounded-xl border-border bg-background/50 pl-10 focus:bg-background focus-visible:border-indigo-500 focus-visible:ring-indigo-500/20"
+                                        />
+                                    </div>
+                                </div>
+
+                                <div class="grid gap-1.5">
+                                    <Label
+                                        class="text-[11px] font-semibold text-muted-foreground"
+                                        >CHIẾT KHẤU GÓI NĂM (%)</Label
+                                    >
+                                    <div class="relative flex items-center">
+                                        <div
+                                            class="pointer-events-none absolute left-3.5 text-muted-foreground"
+                                        >
+                                            <Percent
+                                                class="size-4 text-indigo-500"
+                                            />
+                                        </div>
+                                        <Input
+                                            v-model.number="
+                                                createForm.yearly_discount_percent
+                                            "
+                                            type="number"
+                                            min="0"
+                                            max="100"
+                                            class="rounded-xl border-border bg-background/50 pl-10 focus:bg-background focus-visible:border-indigo-500 focus-visible:ring-indigo-500/20"
+                                        />
                                     </div>
                                 </div>
                             </div>
-                            <div class="grid gap-1.5">
-                                <Label class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Giá (VND/tháng) <span class="text-destructive">*</span></Label>
-                                <div class="relative flex items-center">
-                                    <div class="absolute left-3.5 text-muted-foreground pointer-events-none">
-                                        <Coins class="size-4 text-indigo-500" />
+                        </div>
+
+                        <!-- Group 2: Operational Limits Card -->
+                        <div
+                            class="space-y-4 rounded-2xl border border-border/60 bg-card p-4.5 shadow-2xs"
+                        >
+                            <h3
+                                class="flex items-center gap-1.5 border-b border-border/40 pb-2 text-xs font-bold tracking-wider text-muted-foreground uppercase"
+                            >
+                                <Building2 class="size-3.5 text-indigo-500" />
+                                Hạn mức tài nguyên
+                            </h3>
+
+                            <div class="grid grid-cols-2 gap-4">
+                                <!-- Branches Limit -->
+                                <div
+                                    class="col-span-2 grid gap-1.5 sm:col-span-1"
+                                >
+                                    <Label
+                                        class="text-[11px] font-semibold text-muted-foreground"
+                                        >CHI NHÁNH TỐI ĐA</Label
+                                    >
+                                    <div class="relative flex items-center">
+                                        <div
+                                            class="pointer-events-none absolute left-3.5 z-10 text-muted-foreground"
+                                        >
+                                            <Building2
+                                                class="size-4 text-indigo-500"
+                                            />
+                                        </div>
+                                        <Input
+                                            :type="
+                                                createForm.max_branches === -1
+                                                    ? 'text'
+                                                    : 'number'
+                                            "
+                                            :value="
+                                                createForm.max_branches === -1
+                                                    ? 'Vô hạn (Không giới hạn)'
+                                                    : createForm.max_branches
+                                            "
+                                            @input="
+                                                (e: Event) => {
+                                                    if (
+                                                        createForm.max_branches !==
+                                                        -1
+                                                    ) {
+                                                        createForm.max_branches =
+                                                            (
+                                                                e.target as HTMLInputElement
+                                                            ).value === ''
+                                                                ? 1
+                                                                : parseInt(
+                                                                      (
+                                                                          e.target as HTMLInputElement
+                                                                      ).value,
+                                                                  );
+                                                    }
+                                                }
+                                            "
+                                            :disabled="
+                                                createForm.max_branches === -1
+                                            "
+                                            class="w-full rounded-xl border-border pr-24 pl-10 focus-visible:border-indigo-500 focus-visible:ring-indigo-500/20"
+                                            :class="
+                                                createForm.max_branches === -1
+                                                    ? 'border-indigo-500/20 bg-indigo-500/[0.03] font-bold text-indigo-600 dark:bg-indigo-500/[0.05] dark:text-indigo-400'
+                                                    : 'bg-background/50 focus:bg-background'
+                                            "
+                                        />
+                                        <button
+                                            type="button"
+                                            @click="
+                                                createForm.max_branches =
+                                                    createForm.max_branches ===
+                                                    -1
+                                                        ? 1
+                                                        : -1
+                                            "
+                                            class="absolute right-2 cursor-pointer rounded-lg px-2.5 py-1 text-[10px] font-bold tracking-wider uppercase transition-all duration-200"
+                                            :class="
+                                                createForm.max_branches === -1
+                                                    ? 'bg-indigo-500 text-white shadow-xs hover:bg-indigo-600'
+                                                    : 'bg-zinc-100 text-zinc-500 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-700'
+                                            "
+                                        >
+                                            {{
+                                                createForm.max_branches === -1
+                                                    ? 'Giới hạn'
+                                                    : 'Vô hạn'
+                                            }}
+                                        </button>
                                     </div>
-                                    <Input v-model.number="createForm.price" type="number" min="0" class="pl-10 rounded-xl border-border focus-visible:ring-indigo-500/20 focus-visible:border-indigo-500" />
                                 </div>
-                            </div>
-                            <div class="grid gap-1.5">
-                                <Label class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Chiết khấu gói năm (%)</Label>
-                                <div class="relative flex items-center">
-                                    <div class="absolute left-3.5 text-muted-foreground pointer-events-none">
-                                        <Percent class="size-4 text-indigo-500" />
+
+                                <!-- Tables Limit -->
+                                <div
+                                    class="col-span-2 grid gap-1.5 sm:col-span-1"
+                                >
+                                    <Label
+                                        class="text-[11px] font-semibold text-muted-foreground"
+                                        >BÀN TỐI ĐA</Label
+                                    >
+                                    <div class="relative flex items-center">
+                                        <div
+                                            class="pointer-events-none absolute left-3.5 z-10 text-muted-foreground"
+                                        >
+                                            <Table
+                                                class="size-4 text-indigo-500"
+                                            />
+                                        </div>
+                                        <Input
+                                            :type="
+                                                createForm.max_tables === -1
+                                                    ? 'text'
+                                                    : 'number'
+                                            "
+                                            :value="
+                                                createForm.max_tables === -1
+                                                    ? 'Vô hạn (Không giới hạn)'
+                                                    : createForm.max_tables
+                                            "
+                                            @input="
+                                                (e: Event) => {
+                                                    if (
+                                                        createForm.max_tables !==
+                                                        -1
+                                                    ) {
+                                                        createForm.max_tables =
+                                                            (
+                                                                e.target as HTMLInputElement
+                                                            ).value === ''
+                                                                ? 1
+                                                                : parseInt(
+                                                                      (
+                                                                          e.target as HTMLInputElement
+                                                                      ).value,
+                                                                  );
+                                                    }
+                                                }
+                                            "
+                                            :disabled="
+                                                createForm.max_tables === -1
+                                            "
+                                            class="w-full rounded-xl border-border pr-24 pl-10 focus-visible:border-indigo-500 focus-visible:ring-indigo-500/20"
+                                            :class="
+                                                createForm.max_tables === -1
+                                                    ? 'border-indigo-500/20 bg-indigo-500/[0.03] font-bold text-indigo-600 dark:bg-indigo-500/[0.05] dark:text-indigo-400'
+                                                    : 'bg-background/50 focus:bg-background'
+                                            "
+                                        />
+                                        <button
+                                            type="button"
+                                            @click="
+                                                createForm.max_tables =
+                                                    createForm.max_tables === -1
+                                                        ? 15
+                                                        : -1
+                                            "
+                                            class="absolute right-2 cursor-pointer rounded-lg px-2.5 py-1 text-[10px] font-bold tracking-wider uppercase transition-all duration-200"
+                                            :class="
+                                                createForm.max_tables === -1
+                                                    ? 'bg-indigo-500 text-white shadow-xs hover:bg-indigo-600'
+                                                    : 'bg-zinc-100 text-zinc-500 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-700'
+                                            "
+                                        >
+                                            {{
+                                                createForm.max_tables === -1
+                                                    ? 'Giới hạn'
+                                                    : 'Vô hạn'
+                                            }}
+                                        </button>
                                     </div>
-                                    <Input v-model.number="createForm.yearly_discount_percent" type="number" min="0" max="100" class="pl-10 rounded-xl border-border focus-visible:ring-indigo-500/20 focus-visible:border-indigo-500" />
                                 </div>
-                            </div>
-                            <div class="grid gap-1.5">
-                                <Label class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Rate limit (req/phút)</Label>
-                                <div class="relative flex items-center">
-                                    <div class="absolute left-3.5 text-muted-foreground pointer-events-none">
-                                        <Activity class="size-4 text-indigo-500" />
+
+                                <!-- Users Limit -->
+                                <div
+                                    class="col-span-2 grid gap-1.5 sm:col-span-1"
+                                >
+                                    <Label
+                                        class="text-[11px] font-semibold text-muted-foreground"
+                                        >NHÂN VIÊN TỐI ĐA</Label
+                                    >
+                                    <div class="relative flex items-center">
+                                        <div
+                                            class="pointer-events-none absolute left-3.5 z-10 text-muted-foreground"
+                                        >
+                                            <Users
+                                                class="size-4 text-indigo-500"
+                                            />
+                                        </div>
+                                        <Input
+                                            :type="
+                                                createForm.max_users === -1
+                                                    ? 'text'
+                                                    : 'number'
+                                            "
+                                            :value="
+                                                createForm.max_users === -1
+                                                    ? 'Vô hạn (Không giới hạn)'
+                                                    : createForm.max_users
+                                            "
+                                            @input="
+                                                (e: Event) => {
+                                                    if (
+                                                        createForm.max_users !==
+                                                        -1
+                                                    ) {
+                                                        createForm.max_users =
+                                                            (
+                                                                e.target as HTMLInputElement
+                                                            ).value === ''
+                                                                ? 1
+                                                                : parseInt(
+                                                                      (
+                                                                          e.target as HTMLInputElement
+                                                                      ).value,
+                                                                  );
+                                                    }
+                                                }
+                                            "
+                                            :disabled="
+                                                createForm.max_users === -1
+                                            "
+                                            class="w-full rounded-xl border-border pr-24 pl-10 focus-visible:border-indigo-500 focus-visible:ring-indigo-500/20"
+                                            :class="
+                                                createForm.max_users === -1
+                                                    ? 'border-indigo-500/20 bg-indigo-500/[0.03] font-bold text-indigo-600 dark:bg-indigo-500/[0.05] dark:text-indigo-400'
+                                                    : 'bg-background/50 focus:bg-background'
+                                            "
+                                        />
+                                        <button
+                                            type="button"
+                                            @click="
+                                                createForm.max_users =
+                                                    createForm.max_users === -1
+                                                        ? 5
+                                                        : -1
+                                            "
+                                            class="absolute right-2 cursor-pointer rounded-lg px-2.5 py-1 text-[10px] font-bold tracking-wider uppercase transition-all duration-200"
+                                            :class="
+                                                createForm.max_users === -1
+                                                    ? 'bg-indigo-500 text-white shadow-xs hover:bg-indigo-600'
+                                                    : 'bg-zinc-100 text-zinc-500 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-700'
+                                            "
+                                        >
+                                            {{
+                                                createForm.max_users === -1
+                                                    ? 'Giới hạn'
+                                                    : 'Vô hạn'
+                                            }}
+                                        </button>
                                     </div>
-                                    <Input v-model.number="createForm.api_rate_limit" type="number" min="10" class="pl-10 rounded-xl border-border focus-visible:ring-indigo-500/20 focus-visible:border-indigo-500" />
                                 </div>
-                            </div>
-                            <div class="grid gap-1.5">
-                                <div class="flex items-center justify-between">
-                                    <Label class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Chi nhánh tối đa</Label>
-                                    <Badge v-if="createForm.max_branches === -1" variant="outline" class="bg-indigo-500/10 text-indigo-600 border-indigo-500/20 text-[10px] py-0 px-1.5 h-4 font-bold">Vô hạn</Badge>
-                                </div>
-                                <div class="relative flex items-center">
-                                    <div class="absolute left-3.5 text-muted-foreground pointer-events-none">
-                                        <Building2 class="size-4 text-indigo-500" />
+
+                                <!-- Areas Limit -->
+                                <div
+                                    class="col-span-2 grid gap-1.5 sm:col-span-1"
+                                >
+                                    <Label
+                                        class="text-[11px] font-semibold text-muted-foreground"
+                                        >KHU VỰC TỐI ĐA</Label
+                                    >
+                                    <div class="relative flex items-center">
+                                        <div
+                                            class="pointer-events-none absolute left-3.5 z-10 text-muted-foreground"
+                                        >
+                                            <Layers
+                                                class="size-4 text-indigo-500"
+                                            />
+                                        </div>
+                                        <Input
+                                            :type="
+                                                createForm.max_areas === -1
+                                                    ? 'text'
+                                                    : 'number'
+                                            "
+                                            :value="
+                                                createForm.max_areas === -1
+                                                    ? 'Vô hạn (Không giới hạn)'
+                                                    : createForm.max_areas
+                                            "
+                                            @input="
+                                                (e: Event) => {
+                                                    if (
+                                                        createForm.max_areas !==
+                                                        -1
+                                                    ) {
+                                                        createForm.max_areas =
+                                                            (
+                                                                e.target as HTMLInputElement
+                                                            ).value === ''
+                                                                ? 1
+                                                                : parseInt(
+                                                                      (
+                                                                          e.target as HTMLInputElement
+                                                                      ).value,
+                                                                  );
+                                                    }
+                                                }
+                                            "
+                                            :disabled="
+                                                createForm.max_areas === -1
+                                            "
+                                            class="w-full rounded-xl border-border pr-24 pl-10 focus-visible:border-indigo-500 focus-visible:ring-indigo-500/20"
+                                            :class="
+                                                createForm.max_areas === -1
+                                                    ? 'border-indigo-500/20 bg-indigo-500/[0.03] font-bold text-indigo-600 dark:bg-indigo-500/[0.05] dark:text-indigo-400'
+                                                    : 'bg-background/50 focus:bg-background'
+                                            "
+                                        />
+                                        <button
+                                            type="button"
+                                            @click="
+                                                createForm.max_areas =
+                                                    createForm.max_areas === -1
+                                                        ? 2
+                                                        : -1
+                                            "
+                                            class="absolute right-2 cursor-pointer rounded-lg px-2.5 py-1 text-[10px] font-bold tracking-wider uppercase transition-all duration-200"
+                                            :class="
+                                                createForm.max_areas === -1
+                                                    ? 'bg-indigo-500 text-white shadow-xs hover:bg-indigo-600'
+                                                    : 'bg-zinc-100 text-zinc-500 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-700'
+                                            "
+                                        >
+                                            {{
+                                                createForm.max_areas === -1
+                                                    ? 'Giới hạn'
+                                                    : 'Vô hạn'
+                                            }}
+                                        </button>
                                     </div>
-                                    <Input v-model.number="createForm.max_branches" type="number" min="-1" class="pl-10 rounded-xl border-border focus-visible:ring-indigo-500/20 focus-visible:border-indigo-500" />
                                 </div>
-                            </div>
-                            <div class="grid gap-1.5">
-                                <div class="flex items-center justify-between">
-                                    <Label class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Bàn tối đa</Label>
-                                    <Badge v-if="createForm.max_tables === -1" variant="outline" class="bg-indigo-500/10 text-indigo-600 border-indigo-500/20 text-[10px] py-0 px-1.5 h-4 font-bold">Vô hạn</Badge>
-                                </div>
-                                <div class="relative flex items-center">
-                                    <div class="absolute left-3.5 text-muted-foreground pointer-events-none">
-                                        <Table class="size-4 text-indigo-500" />
+
+                                <!-- API Rate Limit -->
+                                <div
+                                    class="col-span-2 grid gap-1.5 sm:col-span-1"
+                                >
+                                    <Label
+                                        class="text-[11px] font-semibold text-muted-foreground"
+                                        >API RATE LIMIT (REQ/PHÚT)</Label
+                                    >
+                                    <div class="relative flex items-center">
+                                        <div
+                                            class="pointer-events-none absolute left-3.5 text-muted-foreground"
+                                        >
+                                            <Activity
+                                                class="size-4 text-indigo-500"
+                                            />
+                                        </div>
+                                        <Input
+                                            v-model.number="
+                                                createForm.api_rate_limit
+                                            "
+                                            type="number"
+                                            min="10"
+                                            class="rounded-xl border-border bg-background/50 pl-10 focus:bg-background focus-visible:border-indigo-500 focus-visible:ring-indigo-500/20"
+                                        />
                                     </div>
-                                    <Input v-model.number="createForm.max_tables" type="number" min="-1" class="pl-10 rounded-xl border-border focus-visible:ring-indigo-500/20 focus-visible:border-indigo-500" />
                                 </div>
-                            </div>
-                            <div class="grid gap-1.5">
-                                <div class="flex items-center justify-between">
-                                    <Label class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Nhân viên tối đa</Label>
-                                    <Badge v-if="createForm.max_users === -1" variant="outline" class="bg-indigo-500/10 text-indigo-600 border-indigo-500/20 text-[10px] py-0 px-1.5 h-4 font-bold">Vô hạn</Badge>
-                                </div>
-                                <div class="relative flex items-center">
-                                    <div class="absolute left-3.5 text-muted-foreground pointer-events-none">
-                                        <Users class="size-4 text-indigo-500" />
+
+                                <!-- Storage Limit -->
+                                <div
+                                    class="col-span-2 grid gap-1.5 sm:col-span-1"
+                                >
+                                    <Label
+                                        class="text-[11px] font-semibold text-muted-foreground"
+                                        >DUNG LƯỢNG LƯU TRỮ (MB)</Label
+                                    >
+                                    <div class="relative flex items-center">
+                                        <div
+                                            class="pointer-events-none absolute left-3.5 text-muted-foreground"
+                                        >
+                                            <HardDrive
+                                                class="size-4 text-indigo-500"
+                                            />
+                                        </div>
+                                        <Input
+                                            v-model.number="
+                                                createForm.max_storage_mb
+                                            "
+                                            type="number"
+                                            min="1"
+                                            class="rounded-xl border-border bg-background/50 pl-10 focus:bg-background focus-visible:border-indigo-500 focus-visible:ring-indigo-500/20"
+                                        />
                                     </div>
-                                    <Input v-model.number="createForm.max_users" type="number" min="-1" class="pl-10 rounded-xl border-border focus-visible:ring-indigo-500/20 focus-visible:border-indigo-500" />
-                                </div>
-                            </div>
-                            <div class="grid gap-1.5">
-                                <div class="flex items-center justify-between">
-                                    <Label class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Khu vực tối đa</Label>
-                                    <Badge v-if="createForm.max_areas === -1" variant="outline" class="bg-indigo-500/10 text-indigo-600 border-indigo-500/20 text-[10px] py-0 px-1.5 h-4 font-bold">Vô hạn</Badge>
-                                </div>
-                                <div class="relative flex items-center">
-                                    <div class="absolute left-3.5 text-muted-foreground pointer-events-none">
-                                        <Layers class="size-4 text-indigo-500" />
-                                    </div>
-                                    <Input v-model.number="createForm.max_areas" type="number" min="-1" class="pl-10 rounded-xl border-border focus-visible:ring-indigo-500/20 focus-visible:border-indigo-500" />
-                                </div>
-                            </div>
-                            <div class="col-span-2 grid gap-1.5">
-                                <Label class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Lưu trữ (MB)</Label>
-                                <div class="relative flex items-center">
-                                    <div class="absolute left-3.5 text-muted-foreground pointer-events-none">
-                                        <HardDrive class="size-4 text-indigo-500" />
-                                    </div>
-                                    <Input v-model.number="createForm.max_storage_mb" type="number" min="1" class="pl-10 rounded-xl border-border focus-visible:ring-indigo-500/20 focus-visible:border-indigo-500" />
                                 </div>
                             </div>
                         </div>
                     </div>
 
                     <!-- Tab 2: Feature Toggles for Create -->
-                    <div v-show="activeCreateTab === 'features'" class="space-y-4 animate-in fade-in duration-200">
-                        <div v-for="category in FEATURE_CATEGORIES" :key="category.name" class="rounded-2xl border border-border bg-card p-4 space-y-3.5 shadow-xs">
-                            <div class="flex items-center gap-2 border-b border-border/50 pb-2">
-                                <component :is="categoryIcon[category.icon] ?? Sparkles" class="size-4 text-indigo-500" />
-                                <h3 class="text-xs font-bold uppercase tracking-wider text-foreground">{{ category.name }}</h3>
-                            </div>
-                            
-                            <div class="grid grid-cols-1 gap-2">
-                                <div 
-                                    v-for="key in category.keys" 
-                                    :key="key" 
-                                    class="flex items-center justify-between p-3 rounded-xl border border-border bg-muted/10 hover:bg-muted/20 transition-all duration-200"
-                                    :class="{'border-indigo-500/20 bg-indigo-500/[0.02] shadow-2xs': (createForm as any)[key]}"
+                    <div
+                        v-show="activeCreateTab === 'features'"
+                        class="animate-in space-y-6 duration-300 zoom-in-95 fade-in"
+                    >
+                        <div
+                            v-for="category in FEATURE_CATEGORIES"
+                            :key="category.name"
+                            class="space-y-4 rounded-2xl border border-border/80 bg-card p-5 shadow-2xs"
+                        >
+                            <div
+                                class="flex items-center gap-2.5 border-b border-border/50 pb-3"
+                            >
+                                <div
+                                    class="rounded-lg bg-indigo-500/10 p-1.5 text-indigo-500"
                                 >
-                                    <span class="text-xs font-medium text-foreground pr-2">{{ getFeatureLabel(key) }}</span>
-                                    <label class="relative inline-flex items-center cursor-pointer shrink-0">
-                                        <input type="checkbox" v-model="(createForm as any)[key]" class="sr-only peer" />
-                                        <div class="w-8 h-4.5 bg-zinc-200 dark:bg-zinc-800 rounded-full peer peer-checked:after:translate-x-3.5 peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-zinc-300 after:border after:rounded-full after:h-3.5 after:w-3.5 after:transition-all peer-checked:bg-gradient-to-r peer-checked:from-indigo-600 peer-checked:to-violet-600"></div>
+                                    <component
+                                        :is="
+                                            categoryIcon[category.icon] ??
+                                            Sparkles
+                                        "
+                                        class="size-4"
+                                    />
+                                </div>
+                                <h3
+                                    class="text-xs font-bold tracking-wider text-foreground uppercase"
+                                >
+                                    {{ category.name }}
+                                </h3>
+                            </div>
+
+                            <div class="grid grid-cols-1 gap-3">
+                                <div
+                                    v-for="key in category.keys"
+                                    :key="key"
+                                    class="flex items-center justify-between rounded-xl border border-border bg-zinc-50/50 p-3.5 transition-all duration-300 hover:border-indigo-500/20 hover:shadow-2xs dark:bg-zinc-950/20"
+                                    :class="{
+                                        'border-indigo-500/25 bg-gradient-to-r from-indigo-500/[0.03] to-violet-500/[0.03] shadow-[0_0_15px_rgba(99,102,241,0.05)]':
+                                            (createForm as any)[key],
+                                    }"
+                                >
+                                    <div
+                                        class="flex animate-in flex-col gap-0.5 duration-300 fade-in"
+                                    >
+                                        <span
+                                            class="pr-2 text-xs font-bold text-foreground"
+                                        >
+                                            {{ getFeatureLabel(key) }}
+                                        </span>
+                                        <span
+                                            class="max-w-sm text-[10px] leading-normal text-muted-foreground"
+                                        >
+                                            {{
+                                                FEATURE_DESCRIPTIONS[key] ?? ''
+                                            }}
+                                        </span>
+                                    </div>
+                                    <label
+                                        class="relative inline-flex shrink-0 cursor-pointer items-center"
+                                    >
+                                        <input
+                                            type="checkbox"
+                                            v-model="(createForm as any)[key]"
+                                            class="peer sr-only"
+                                        />
+                                        <div
+                                            class="peer h-5 w-9 rounded-full bg-zinc-200 peer-checked:bg-gradient-to-r peer-checked:from-indigo-600 peer-checked:to-violet-600 after:absolute after:top-[2px] after:left-[2px] after:h-4 after:w-4 after:rounded-full after:border after:border-zinc-300 after:bg-white after:transition-all after:content-[''] peer-checked:after:translate-x-4 peer-checked:after:border-white dark:bg-zinc-800"
+                                        ></div>
                                     </label>
                                 </div>
                             </div>
                         </div>
                     </div>
 
-                    <div class="flex gap-3 pt-4 border-t border-border mt-4">
-                        <Button 
-                            type="submit" 
-                            size="lg" 
-                            :disabled="createForm.processing" 
-                            class="flex-1 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white font-bold text-xs uppercase tracking-wider shadow-md hover:shadow-lg transition-all hover:-translate-y-0.5 active:translate-y-0 cursor-pointer border-none py-6"
+                    <div class="mt-4 flex gap-3 border-t border-border pt-5">
+                        <Button
+                            type="submit"
+                            size="lg"
+                            :disabled="createForm.processing"
+                            class="flex-1 cursor-pointer rounded-xl border-none bg-gradient-to-r from-indigo-600 to-violet-600 py-6 text-xs font-bold tracking-wider text-white uppercase shadow-md transition-all duration-300 hover:-translate-y-0.5 hover:from-indigo-500 hover:to-violet-500 hover:shadow-lg focus:ring-2 focus:ring-indigo-500/20 active:translate-y-0"
                         >
-                            <Plus class="size-4 mr-1.5" />
-                            {{ createForm.processing ? 'Đang tạo...' : 'Tạo gói' }}
+                            <Plus class="mr-1.5 size-4" />
+                            {{
+                                createForm.processing
+                                    ? 'Đang tạo...'
+                                    : 'Tạo gói'
+                            }}
                         </Button>
-                        <Button 
-                            type="button" 
-                            size="lg" 
-                            variant="outline" 
-                            @click="isCreating = false; createForm.reset()"
-                            class="rounded-xl border-border font-bold text-xs uppercase tracking-wider py-6"
+                        <Button
+                            type="button"
+                            size="lg"
+                            variant="outline"
+                            @click="
+                                isCreating = false;
+                                createForm.reset();
+                            "
+                            class="rounded-xl border-border py-6 text-xs font-bold tracking-wider uppercase transition-all hover:bg-zinc-50 dark:hover:bg-zinc-900"
                         >
                             Hủy
                         </Button>
@@ -799,56 +2468,518 @@ const planIcon: Record<string, any> = {
         </Dialog>
 
         <!-- ── RESTAURANT DIRECTORY DIALOG ── -->
-        <Dialog :open="!!selectedPlanForRestaurants" @update:open="val => { if(!val) selectedPlanForRestaurants = null }">
-            <DialogContent class="sm:max-w-2xl max-h-[80vh] overflow-y-auto">
-                <DialogHeader>
-                    <DialogTitle>Nhà hàng đang dùng gói: {{ selectedPlanForRestaurants?.name }}</DialogTitle>
-                    <DialogDescription>Danh sách các doanh nghiệp đang đăng ký gói dịch vụ này.</DialogDescription>
+        <Dialog
+            :open="!!selectedPlanForRestaurants"
+            @update:open="
+                (val) => {
+                    if (!val) {
+                        selectedPlanForRestaurants = null;
+                        restaurantSearch = '';
+                    }
+                }
+            "
+        >
+            <DialogContent
+                class="max-h-[80vh] overflow-y-auto rounded-2xl sm:max-w-2xl"
+            >
+                <DialogHeader class="border-b border-border/40 pb-3">
+                    <DialogTitle
+                        class="flex items-center gap-2 text-base font-bold"
+                    >
+                        <Database class="size-5 text-indigo-500" />
+                        <span
+                            >Nhà hàng đang dùng gói:
+                            {{ selectedPlanForRestaurants?.name }}</span
+                        >
+                    </DialogTitle>
+                    <DialogDescription
+                        >Danh sách các doanh nghiệp đang đăng ký sử dụng gói
+                        dịch vụ này.</DialogDescription
+                    >
                 </DialogHeader>
 
-                <div class="py-4">
-                    <div v-if="isLoadingRestaurants" class="flex items-center justify-center py-8">
-                        <span class="size-6 rounded-full border-2 border-primary border-t-transparent animate-spin inline-block" />
+                <div class="py-3">
+                    <div
+                        v-if="isLoadingRestaurants"
+                        class="flex items-center justify-center py-12"
+                    >
+                        <span
+                            class="inline-block size-6 animate-spin rounded-full border-2 border-primary border-t-transparent"
+                        />
                     </div>
-                    <div v-else-if="restaurants.length === 0" class="text-center py-8 text-sm text-muted-foreground">
+                    <div
+                        v-else-if="restaurants.length === 0"
+                        class="py-12 text-center text-sm font-semibold text-muted-foreground"
+                    >
                         Không có nhà hàng nào đang sử dụng gói này.
                     </div>
-                    <div v-else class="overflow-x-auto rounded-lg border border-border">
-                        <table class="w-full text-left border-collapse text-xs">
-                            <thead>
-                                <tr class="bg-muted border-b border-border text-muted-foreground uppercase font-semibold">
-                                    <th class="p-3">Tên Nhà Hàng</th>
-                                    <th class="p-3">Mã Code</th>
-                                    <th class="p-3">Chủ sở hữu</th>
-                                    <th class="p-3">Ngày hết hạn</th>
-                                    <th class="p-3 text-right">Trạng thái</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <tr v-for="res in restaurants" :key="res.id" class="border-b border-border last:border-0 hover:bg-muted/30">
-                                    <td class="p-3 font-semibold">
-                                        <a :href="`/super-admin/restaurants/${res.id}`" class="text-primary hover:underline">
-                                            {{ res.name }}
-                                        </a>
-                                    </td>
-                                    <td class="p-3 font-mono text-[10px]">{{ res.code }}</td>
-                                    <td class="p-3">
-                                        <div>{{ res.owner_name }}</div>
-                                        <div class="text-[10px] text-muted-foreground">{{ res.owner_email }}</div>
-                                    </td>
-                                    <td class="p-3">{{ res.subscription_ends_at }}</td>
-                                    <td class="p-3 text-right">
-                                        <Badge 
-                                            :variant="res.status === 'active' ? 'default' : 'secondary'"
-                                            :class="res.status === 'active' ? 'bg-emerald-500 text-white' : ''"
+                    <div
+                        v-else
+                        class="animate-in space-y-4 duration-200 fade-in"
+                    >
+                        <!-- Real-time search filter input -->
+                        <div class="relative flex items-center">
+                            <div
+                                class="pointer-events-none absolute left-3.5 text-muted-foreground/80"
+                            >
+                                <Search class="size-4" />
+                            </div>
+                            <Input
+                                v-model="restaurantSearch"
+                                placeholder="Tìm kiếm nhanh tên nhà hàng, mã code, chủ sở hữu..."
+                                class="h-9 rounded-xl border-border py-2 pr-4 pl-10 text-xs focus-visible:border-indigo-500 focus-visible:ring-indigo-500/20"
+                            />
+                            <button
+                                v-if="restaurantSearch"
+                                type="button"
+                                @click="restaurantSearch = ''"
+                                class="absolute right-3 cursor-pointer rounded-full p-0.5 text-muted-foreground hover:bg-muted/50 hover:text-foreground"
+                            >
+                                <X class="size-3" />
+                            </button>
+                        </div>
+
+                        <!-- Results table -->
+                        <div
+                            v-if="filteredRestaurants.length > 0"
+                            class="overflow-hidden rounded-xl border border-border bg-background/50"
+                        >
+                            <table
+                                class="w-full border-collapse text-left text-[11px] font-semibold"
+                            >
+                                <thead>
+                                    <tr
+                                        class="border-b border-border bg-muted/50 font-black tracking-wider text-muted-foreground uppercase"
+                                    >
+                                        <th class="p-3">Tên Nhà Hàng</th>
+                                        <th class="p-3">Mã Code</th>
+                                        <th class="p-3">Chủ sở hữu</th>
+                                        <th class="p-3">Ngày hết hạn</th>
+                                        <th class="p-3 text-right">
+                                            Trạng thái
+                                        </th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-border/40">
+                                    <tr
+                                        v-for="res in filteredRestaurants"
+                                        :key="res.id"
+                                        class="text-slate-700 transition-all hover:bg-muted/30 dark:text-slate-300"
+                                    >
+                                        <td class="p-3 font-semibold">
+                                            <div
+                                                class="flex items-center gap-2.5"
+                                            >
+                                                <!-- Initials round avatar with gradient shadow -->
+                                                <div
+                                                    :class="[
+                                                        'flex size-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-tr text-[9px] font-black text-white shadow-xs',
+                                                        getGradientForName(
+                                                            res.name,
+                                                        ),
+                                                    ]"
+                                                >
+                                                    {{ getInitials(res.name) }}
+                                                </div>
+                                                <div class="min-w-0">
+                                                    <a
+                                                        :href="`/super-admin/restaurants/${res.id}`"
+                                                        class="block truncate font-black text-primary hover:underline"
+                                                    >
+                                                        {{ res.name }}
+                                                    </a>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td
+                                            class="p-3 font-mono text-[9px] text-slate-500"
                                         >
-                                            {{ res.status }}
-                                        </Badge>
-                                    </td>
-                                </tr>
-                            </tbody>
-                        </table>
+                                            {{ res.code }}
+                                        </td>
+                                        <td class="p-3 font-medium">
+                                            <div
+                                                class="font-bold text-slate-800 dark:text-slate-200"
+                                            >
+                                                {{ res.owner_name }}
+                                            </div>
+                                            <div
+                                                class="max-w-[150px] truncate text-[9px] text-muted-foreground"
+                                            >
+                                                {{ res.owner_email }}
+                                            </div>
+                                        </td>
+                                        <td class="p-3 font-mono">
+                                            {{ res.subscription_ends_at }}
+                                        </td>
+                                        <td class="p-3 text-right">
+                                            <Badge
+                                                variant="outline"
+                                                :class="[
+                                                    'rounded-full px-2 py-0 text-[9px] font-black uppercase',
+                                                    res.status === 'active'
+                                                        ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-600'
+                                                        : 'border-slate-500/20 bg-slate-500/10 text-slate-600',
+                                                ]"
+                                            >
+                                                {{ res.status }}
+                                            </Badge>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <!-- Empty Search Results -->
+                        <div
+                            v-else
+                            class="py-10 text-center text-xs font-semibold text-muted-foreground"
+                        >
+                            Không tìm thấy nhà hàng nào phù hợp với từ khóa tìm
+                            kiếm.
+                        </div>
                     </div>
+                </div>
+            </DialogContent>
+        </Dialog>
+
+        <!-- ── FEATURE COMPARISON DIALOG ── -->
+        <Dialog
+            :open="showComparison"
+            @update:open="(val) => (showComparison = val)"
+        >
+            <DialogContent
+                class="max-h-[85vh] overflow-y-auto rounded-2xl sm:max-w-4xl"
+            >
+                <DialogHeader class="border-b border-border/40 pb-3">
+                    <DialogTitle
+                        class="flex items-center gap-2 text-base font-bold"
+                    >
+                        <Table class="size-5 text-indigo-500" />
+                        <span>Bảng so sánh chi tiết các gói dịch vụ</span>
+                    </DialogTitle>
+                    <DialogDescription
+                        >Đối chiếu hạn mức và quyền lợi tính năng đầy đủ giữa
+                        các gói dịch vụ hiện hành.</DialogDescription
+                    >
+                </DialogHeader>
+
+                <div class="overflow-x-auto py-3">
+                    <table class="w-full border-collapse text-left text-xs">
+                        <thead>
+                            <tr class="border-b border-border/60 bg-muted/50">
+                                <th
+                                    class="w-[240px] p-3 font-black tracking-wider text-muted-foreground uppercase"
+                                >
+                                    Hạn mức & Tính năng
+                                </th>
+                                <th
+                                    v-for="plan in plans"
+                                    :key="plan.id"
+                                    class="w-[150px] p-3 text-center"
+                                >
+                                    <div
+                                        class="mb-1 flex items-center justify-center gap-1 text-sm font-black text-foreground"
+                                    >
+                                        <component
+                                            :is="planIcon[plan.code] ?? Star"
+                                            class="size-3.5 text-indigo-500"
+                                        />
+                                        {{ plan.name }}
+                                    </div>
+                                    <div
+                                        class="font-mono text-[10px] font-black text-muted-foreground"
+                                    >
+                                        {{ formatVnd(plan.price) }}/tháng
+                                    </div>
+                                </th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-border/40">
+                            <!-- Section: Limits -->
+                            <tr
+                                class="bg-muted/10 text-[10px] font-black tracking-wider text-muted-foreground uppercase"
+                            >
+                                <td colspan="5" class="p-3">
+                                    Hạn mức vận hành (Limits)
+                                </td>
+                            </tr>
+                            <tr
+                                class="font-medium transition-colors hover:bg-muted/20"
+                            >
+                                <td
+                                    class="p-3 font-semibold text-slate-800 dark:text-slate-200"
+                                >
+                                    Chi nhánh tối đa
+                                </td>
+                                <td
+                                    v-for="plan in plans"
+                                    :key="plan.id"
+                                    class="p-3 text-center font-mono font-bold"
+                                >
+                                    {{ formatLimit(plan.max_branches) }}
+                                </td>
+                            </tr>
+                            <tr
+                                class="font-medium transition-colors hover:bg-muted/20"
+                            >
+                                <td
+                                    class="p-3 font-semibold text-slate-800 dark:text-slate-200"
+                                >
+                                    Số bàn tối đa
+                                </td>
+                                <td
+                                    v-for="plan in plans"
+                                    :key="plan.id"
+                                    class="p-3 text-center font-mono font-bold"
+                                >
+                                    {{ formatLimit(plan.max_tables) }}
+                                </td>
+                            </tr>
+                            <tr
+                                class="font-medium transition-colors hover:bg-muted/20"
+                            >
+                                <td
+                                    class="p-3 font-semibold text-slate-800 dark:text-slate-200"
+                                >
+                                    Nhân viên tối đa
+                                </td>
+                                <td
+                                    v-for="plan in plans"
+                                    :key="plan.id"
+                                    class="p-3 text-center font-mono font-bold"
+                                >
+                                    {{ formatLimit(plan.max_users) }}
+                                </td>
+                            </tr>
+                            <tr
+                                class="font-medium transition-colors hover:bg-muted/20"
+                            >
+                                <td
+                                    class="p-3 font-semibold text-slate-800 dark:text-slate-200"
+                                >
+                                    Khu vực tối đa
+                                </td>
+                                <td
+                                    v-for="plan in plans"
+                                    :key="plan.id"
+                                    class="p-3 text-center font-mono font-bold"
+                                >
+                                    {{
+                                        formatLimit(
+                                            plan.features?.max_areas ?? 2,
+                                        )
+                                    }}
+                                </td>
+                            </tr>
+                            <tr
+                                class="font-medium transition-colors hover:bg-muted/20"
+                            >
+                                <td
+                                    class="p-3 font-semibold text-slate-800 dark:text-slate-200"
+                                >
+                                    Dung lượng lưu trữ
+                                </td>
+                                <td
+                                    v-for="plan in plans"
+                                    :key="plan.id"
+                                    class="p-3 text-center font-mono font-bold"
+                                >
+                                    {{
+                                        formatStorage(
+                                            plan.features?.max_storage_mb ??
+                                                500,
+                                        )
+                                    }}
+                                </td>
+                            </tr>
+                            <tr
+                                class="font-medium transition-colors hover:bg-muted/20"
+                            >
+                                <td
+                                    class="p-3 font-semibold text-slate-800 dark:text-slate-200"
+                                >
+                                    Rate Limit (API req/phút)
+                                </td>
+                                <td
+                                    v-for="plan in plans"
+                                    :key="plan.id"
+                                    class="p-3 text-center font-mono font-bold"
+                                >
+                                    {{
+                                        formatRate(
+                                            plan.features?.api_rate_limit ?? 30,
+                                        )
+                                    }}
+                                    req/m
+                                </td>
+                            </tr>
+                            <tr
+                                class="font-medium transition-colors hover:bg-muted/20"
+                            >
+                                <td
+                                    class="p-3 font-semibold text-slate-800 dark:text-slate-200"
+                                >
+                                    Chiết khấu gói năm
+                                </td>
+                                <td
+                                    v-for="plan in plans"
+                                    :key="plan.id"
+                                    class="p-3 text-center font-mono font-black font-bold text-emerald-500"
+                                >
+                                    {{
+                                        plan.features
+                                            ?.yearly_discount_percent ?? 20
+                                    }}%
+                                </td>
+                            </tr>
+
+                            <!-- Section: Features Checklist -->
+                            <tr
+                                class="bg-muted/10 text-[10px] font-black tracking-wider text-muted-foreground uppercase"
+                            >
+                                <td colspan="5" class="p-3">
+                                    Tính năng tích hợp (Features)
+                                </td>
+                            </tr>
+                            <tr
+                                v-for="feat in ALL_FEATURES"
+                                :key="feat.key"
+                                class="font-medium text-slate-700 transition-colors hover:bg-muted/20 dark:text-slate-300"
+                            >
+                                <td
+                                    class="p-3 font-bold text-slate-800 dark:text-slate-200"
+                                >
+                                    {{ feat.label }}
+                                </td>
+                                <td
+                                    v-for="plan in plans"
+                                    :key="plan.id"
+                                    class="p-3 text-center"
+                                >
+                                    <span
+                                        v-if="plan.features?.[feat.key]"
+                                        class="shadow-3xs inline-flex size-5 items-center justify-center rounded-full border border-emerald-500/20 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                                    >
+                                        <Check class="size-3 stroke-[3]" />
+                                    </span>
+                                    <span
+                                        v-else
+                                        class="inline-flex size-5 shrink-0 items-center justify-center rounded-full border border-border bg-muted text-muted-foreground/30 opacity-40"
+                                    >
+                                        <X class="size-3 stroke-[3]" />
+                                    </span>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </DialogContent>
+        </Dialog>
+
+        <!-- Soft Delete Confirmation Dialog -->
+        <Dialog v-model:open="isDeleteModalOpen">
+            <DialogContent class="sm:max-w-md">
+                <DialogHeader>
+                    <DialogTitle
+                        class="flex items-center gap-2 font-bold text-rose-500"
+                    >
+                        <AlertTriangle class="size-5" />
+                        Ngừng cung cấp gói {{ planToDelete?.name }}
+                    </DialogTitle>
+                    <DialogDescription
+                        class="space-y-2 pt-2 text-xs leading-relaxed"
+                    >
+                        <p class="font-medium text-foreground">
+                            Bạn có chắc chắn muốn xóa (ngừng cung cấp) gói dịch
+                            vụ
+                            <span class="font-bold text-rose-500">{{
+                                planToDelete?.name
+                            }}</span
+                            >?
+                        </p>
+                        <div
+                            class="space-y-1 rounded-xl border border-rose-500/20 bg-rose-500/5 p-3 font-semibold text-rose-600 dark:text-rose-400"
+                        >
+                            <p
+                                class="text-[11px] font-bold tracking-wider uppercase"
+                            >
+                                🔒 Quy tắc Xóa mềm (Soft Delete):
+                            </p>
+                            <ul
+                                class="list-inside list-disc space-y-0.5 text-[11px] font-normal"
+                            >
+                                <li>
+                                    Gói này sẽ
+                                    <strong>không hiển thị</strong> trên trang
+                                    đăng ký hoặc nâng cấp cho khách hàng mới.
+                                </li>
+                                <li>
+                                    Những nhà hàng
+                                    <strong
+                                        >đã mua/đang dùng gói này vẫn được tiếp
+                                        tục sử dụng</strong
+                                    >
+                                    bình thường cho tới hết hạn.
+                                </li>
+                            </ul>
+                        </div>
+                    </DialogDescription>
+                </DialogHeader>
+                <div class="mt-4 flex justify-end gap-2">
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        class="cursor-pointer"
+                        @click="isDeleteModalOpen = false"
+                        >Hủy</Button
+                    >
+                    <Button
+                        variant="destructive"
+                        size="sm"
+                        class="cursor-pointer font-bold"
+                        @click="executeDelete"
+                    >
+                        Xác nhận Ngừng cung cấp
+                    </Button>
+                </div>
+            </DialogContent>
+        </Dialog>
+
+        <!-- Restore Confirmation Dialog -->
+        <Dialog v-model:open="isRestoreModalOpen">
+            <DialogContent class="sm:max-w-md">
+                <DialogHeader>
+                    <DialogTitle
+                        class="flex items-center gap-2 font-bold text-emerald-600 dark:text-emerald-400"
+                    >
+                        <RotateCcw class="size-5" />
+                        Khôi phục gói {{ planToRestore?.name }}
+                    </DialogTitle>
+                    <DialogDescription
+                        class="pt-2 text-xs leading-relaxed font-medium text-foreground"
+                    >
+                        Bạn có chắc chắn muốn khôi phục và tiếp tục mở bán gói
+                        <span class="font-bold text-emerald-500">{{
+                            planToRestore?.name
+                        }}</span>
+                        cho khách hàng mới?
+                    </DialogDescription>
+                </DialogHeader>
+                <div class="mt-4 flex justify-end gap-2">
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        class="cursor-pointer"
+                        @click="isRestoreModalOpen = false"
+                        >Hủy</Button
+                    >
+                    <Button
+                        class="cursor-pointer bg-emerald-600 font-bold text-white hover:bg-emerald-700"
+                        size="sm"
+                        @click="executeRestore"
+                    >
+                        Xác nhận Khôi phục
+                    </Button>
                 </div>
             </DialogContent>
         </Dialog>

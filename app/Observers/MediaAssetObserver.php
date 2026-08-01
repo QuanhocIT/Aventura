@@ -14,18 +14,18 @@ class MediaAssetObserver
     public function created(MediaAsset $mediaAsset): void
     {
         $restaurant = $mediaAsset->restaurant;
-        if (!$restaurant) {
+        if (! $restaurant) {
             return;
         }
 
         $summary = $this->quotaService->getSummary($restaurant);
         $storageInfo = $summary['resources']['storage_mb'] ?? null;
 
-        if ($storageInfo && !$storageInfo['unlimited']) {
+        if ($storageInfo && ! $storageInfo['unlimited']) {
             $percentage = $storageInfo['percentage'];
             if ($percentage >= 90) {
                 $lastSent = $restaurant->storage_warning_sent_at;
-                if (!$lastSent || now()->diffInHours($lastSent) >= 24) {
+                if (! $lastSent || now()->diffInHours($lastSent) >= 24) {
                     $owner = $restaurant->owner;
                     if ($owner) {
                         $owner->notify(new StorageQuotaWarningNotification(
@@ -53,14 +53,14 @@ class MediaAssetObserver
 
     protected function resetWarningIfBelowThreshold(?Restaurant $restaurant): void
     {
-        if (!$restaurant || !$restaurant->storage_warning_sent_at) {
+        if (! $restaurant || ! $restaurant->storage_warning_sent_at) {
             return;
         }
 
         $summary = $this->quotaService->getSummary($restaurant);
         $storageInfo = $summary['resources']['storage_mb'] ?? null;
 
-        if ($storageInfo && !$storageInfo['unlimited']) {
+        if ($storageInfo && ! $storageInfo['unlimited']) {
             if ($storageInfo['percentage'] < 90) {
                 $restaurant->update(['storage_warning_sent_at' => null]);
             }

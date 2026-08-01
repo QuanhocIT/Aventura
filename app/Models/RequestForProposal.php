@@ -5,7 +5,6 @@ namespace App\Models;
 use App\Models\Concerns\BelongsToRestaurant;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class RequestForProposal extends Model
@@ -14,6 +13,7 @@ class RequestForProposal extends Model
     use HasFactory;
 
     protected $table = 'request_for_proposals';
+
     protected $guarded = [];
 
     protected function casts(): array

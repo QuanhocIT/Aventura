@@ -129,17 +129,17 @@ class ChatbotKnowledgeController extends Controller
     {
         AuditLog::create([
             'restaurant_id' => null,
-            'branch_id'     => null,
-            'user_id'       => $request->user()->id,
-            'user_role'     => 'admin',
-            'event'         => $event,
-            'action'        => $action,
-            'subject_type'  => ChatbotKnowledge::class,
-            'subject_id'    => $knowledge->id,
-            'old_values'    => $old,
-            'new_values'    => $new,
-            'ip_address'    => $request->ip(),
-            'user_agent'    => $request->userAgent(),
+            'branch_id' => null,
+            'user_id' => $request->user()->id,
+            'user_role' => 'admin',
+            'event' => $event,
+            'action' => $action,
+            'subject_type' => ChatbotKnowledge::class,
+            'subject_id' => $knowledge->id,
+            'old_values' => $old,
+            'new_values' => $new,
+            'ip_address' => $request->ip(),
+            'user_agent' => $request->userAgent(),
         ]);
     }
 }

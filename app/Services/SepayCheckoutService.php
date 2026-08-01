@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\Restaurant;
 use App\Models\RestaurantSubscription;
 use App\Models\SubscriptionPlan;
+use Carbon\CarbonInterface;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use RuntimeException;
@@ -17,7 +18,7 @@ class SepayCheckoutService
     public function createCheckout(Restaurant $restaurant, SubscriptionPlan $plan, string $source = 'upgrade', string $billingCycle = 'monthly'): array
     {
         if ((float) $plan->price <= 0) {
-            throw new RuntimeException('Goi mien phi khong can thanh toan.');
+            throw new RuntimeException('Gói miễn phí không cần thanh toán.');
         }
 
         $subscription = DB::transaction(function () use ($restaurant, $plan, $source, $billingCycle): RestaurantSubscription {
@@ -79,9 +80,22 @@ class SepayCheckoutService
         $description = $subscription->transaction_code;
         $accountName = (string) config('services.sepay.account_name');
 
+        // Chuẩn hóa tên ngân hàng cho SePay / VietQR
+        $normalizedBank = match (strtoupper($bank)) {
+            'MBBANK', 'MB BANK' => 'MB',
+            'VIETINBANK', 'CTG' => 'ICB',
+            'VIETCOMBANK', 'VCB' => 'VCB',
+            'TECHCOMBANK', 'TCB' => 'TCB',
+            'BIDV' => 'BIDV',
+            'AGRIBANK' => 'VBA',
+            'TPBANK' => 'TPB',
+            'VPBANK' => 'VPB',
+            default => $bank,
+        };
+
         return $baseUrl.'?'.http_build_query([
             'acc' => $accountNumber,
-            'bank' => $bank,
+            'bank' => $normalizedBank,
             'amount' => (int) $subscription->price,
             'des' => $description,
             'template' => $template,
@@ -89,7 +103,7 @@ class SepayCheckoutService
         ], '', '&', PHP_QUERY_RFC3986);
     }
 
-    private function calculateEndsAt(?RestaurantSubscription $activeSubscription, string $billingCycle = 'monthly'): \Carbon\CarbonInterface
+    private function calculateEndsAt(?RestaurantSubscription $activeSubscription, string $billingCycle = 'monthly'): CarbonInterface
     {
         $base = $activeSubscription?->ended_at && $activeSubscription->ended_at->isFuture()
             ? $activeSubscription->ended_at->copy()

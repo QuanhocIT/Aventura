@@ -14,6 +14,7 @@ class RouteOptimizationService
         $dLng = deg2rad($lng2 - $lng1);
         $a = sin($dLat / 2) ** 2
             + cos(deg2rad($lat1)) * cos(deg2rad($lat2)) * sin($dLng / 2) ** 2;
+
         return $R * 2 * atan2(sqrt($a), sqrt(1 - $a));
     }
 
@@ -24,27 +25,37 @@ class RouteOptimizationService
      */
     public function nearestNeighbor(array $points, ?array $origin = null): array
     {
-        if (empty($points)) return [];
+        if (empty($points)) {
+            return [];
+        }
 
         $unvisited = $points;
-        $route     = [];
+        $route = [];
 
-        $current = $origin ?? array_shift($unvisited);
+        if ($origin !== null) {
+            $current = $origin;
+        } else {
+            // Không có origin (shipper chưa bật GPS): điểm đầu tiên vừa là nơi
+            // xuất phát vừa là 1 điểm dừng — TRƯỚC ĐÂY bị array_shift rồi quên
+            // đưa vào $route, làm rơi mất 1 đơn khỏi lộ trình tối ưu.
+            $current = array_shift($unvisited);
+            $route[] = $current;
+        }
 
-        while (!empty($unvisited)) {
-            $best      = null;
-            $bestDist  = PHP_FLOAT_MAX;
+        while (! empty($unvisited)) {
+            $best = null;
+            $bestDist = PHP_FLOAT_MAX;
 
             foreach ($unvisited as $key => $p) {
                 $d = $this->haversine((float) $current['lat'], (float) $current['lng'], (float) $p['lat'], (float) $p['lng']);
                 if ($d < $bestDist) {
                     $bestDist = $d;
-                    $best     = $key;
+                    $best = $key;
                 }
             }
 
-            $route[]   = $unvisited[$best];
-            $current   = $unvisited[$best];
+            $route[] = $unvisited[$best];
+            $current = $unvisited[$best];
             unset($unvisited[$best]);
         }
 
@@ -56,7 +67,7 @@ class RouteOptimizationService
      */
     public function twoOpt(array $route): array
     {
-        $n       = count($route);
+        $n = count($route);
         $improved = true;
 
         while ($improved) {
@@ -64,7 +75,7 @@ class RouteOptimizationService
             for ($i = 0; $i < $n - 1; $i++) {
                 for ($j = $i + 2; $j < $n; $j++) {
                     $before = $this->haversine(
-                        (float) $route[$i]['lat'],   (float) $route[$i]['lng'],
+                        (float) $route[$i]['lat'], (float) $route[$i]['lng'],
                         (float) $route[$i + 1]['lat'], (float) $route[$i + 1]['lng']
                     ) + $this->haversine(
                         (float) $route[$j]['lat'], (float) $route[$j]['lng'],
@@ -73,8 +84,8 @@ class RouteOptimizationService
                     );
 
                     $after = $this->haversine(
-                        (float) $route[$i]['lat'],   (float) $route[$i]['lng'],
-                        (float) $route[$j]['lat'],   (float) $route[$j]['lng']
+                        (float) $route[$i]['lat'], (float) $route[$i]['lng'],
+                        (float) $route[$j]['lat'], (float) $route[$j]['lng']
                     ) + $this->haversine(
                         (float) $route[$i + 1]['lat'], (float) $route[$i + 1]['lng'],
                         (float) ($route[$j + 1]['lat'] ?? $route[0]['lat']),
@@ -82,7 +93,7 @@ class RouteOptimizationService
                     );
 
                     if ($after < $before - 0.001) {
-                        $route    = array_merge(
+                        $route = array_merge(
                             array_slice($route, 0, $i + 1),
                             array_reverse(array_slice($route, $i + 1, $j - $i)),
                             array_slice($route, $j)
@@ -101,7 +112,7 @@ class RouteOptimizationService
      */
     public function orOpt(array $route): array
     {
-        $n       = count($route);
+        $n = count($route);
         $improved = true;
 
         while ($improved) {
@@ -123,16 +134,18 @@ class RouteOptimizationService
                 );
 
                 for ($j = 0; $j < $n; $j++) {
-                    if ($j === $i || $j === ($i - 1 + $n) % $n) continue;
+                    if ($j === $i || $j === ($i - 1 + $n) % $n) {
+                        continue;
+                    }
                     $a = $route[$j];
                     $b = $route[($j + 1) % $n];
 
                     $insertCost = $this->haversine(
-                        (float) $a['lat'],    (float) $a['lng'],
+                        (float) $a['lat'], (float) $a['lng'],
                         (float) $node['lat'], (float) $node['lng']
                     ) + $this->haversine(
                         (float) $node['lat'], (float) $node['lng'],
-                        (float) $b['lat'],    (float) $b['lng']
+                        (float) $b['lat'], (float) $b['lng']
                     ) - $this->haversine(
                         (float) $a['lat'], (float) $a['lng'],
                         (float) $b['lat'], (float) $b['lng']
@@ -174,26 +187,26 @@ class RouteOptimizationService
 
     private function attachEta(array $route, ?array $origin, int $speedKmh): array
     {
-        $now             = now();
-        $cumulativeKm    = 0;
-        $current         = $origin;
-        $result          = [];
+        $now = now();
+        $cumulativeKm = 0;
+        $current = $origin;
+        $result = [];
 
         foreach ($route as $idx => $point) {
             if ($current !== null) {
                 $cumulativeKm += $this->haversine(
                     (float) $current['lat'], (float) $current['lng'],
-                    (float) $point['lat'],   (float) $point['lng']
+                    (float) $point['lat'], (float) $point['lng']
                 );
             }
 
             $minutes = $speedKmh > 0 ? ($cumulativeKm / $speedKmh) * 60 : 0;
 
             $result[] = array_merge($point, [
-                'sequence'         => $idx + 1,
-                'cumulative_km'    => round($cumulativeKm, 2),
-                'eta'              => $now->copy()->addMinutes((int) $minutes)->toISOString(),
-                'eta_minutes'      => (int) $minutes,
+                'sequence' => $idx + 1,
+                'cumulative_km' => round($cumulativeKm, 2),
+                'eta' => $now->copy()->addMinutes((int) $minutes)->toISOString(),
+                'eta_minutes' => (int) $minutes,
             ]);
 
             $current = $point;

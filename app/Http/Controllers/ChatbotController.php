@@ -4,9 +4,12 @@ namespace App\Http\Controllers;
 
 use App\Models\ChatbotSession;
 use App\Services\ChatbotService;
+use App\Services\QuotaService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
+use Inertia\Inertia;
+use Inertia\Response;
 
 class ChatbotController extends Controller
 {
@@ -93,11 +96,25 @@ class ChatbotController extends Controller
         }
     }
 
-    public function advisorIndex(Request $request): \Inertia\Response
+    public function advisorIndex(Request $request): Response
     {
         abort_unless($request->user()->hasAnyRole(['owner', 'manager']), 403);
 
-        return \Inertia\Inertia::render('ai-advisor/Index');
+        $restaurant = $request->user()->restaurant;
+        if (! $restaurant && ! $request->user()->hasRole('super_admin')) {
+            abort(403, 'Không tìm thấy nhà hàng.');
+        }
+        $restaurant?->loadMissing('plan');
+        if ($restaurant && ! app(QuotaService::class)->hasFeature($restaurant, 'ai_advisor')) {
+            return Inertia::render('FeatureGate', [
+                'feature' => 'ai_advisor',
+                'feature_label' => 'Trợ lý AI Chiến lược',
+                'plan_name' => $restaurant->plan?->name ?? 'Miễn Phí',
+                'required_plan' => 'Chuyên Nghiệp',
+            ]);
+        }
+
+        return Inertia::render('ai-advisor/Index');
     }
 
     public function advisorHistory(Request $request): JsonResponse

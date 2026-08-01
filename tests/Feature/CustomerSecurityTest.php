@@ -7,8 +7,8 @@ use App\Models\Employee;
 use App\Models\Restaurant;
 use App\Models\RestaurantBranch;
 use App\Models\ScheduleAssignment;
-use App\Models\WorkShift;
 use App\Models\User;
+use App\Models\WorkShift;
 use App\Support\Tenant\TenantContext;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Spatie\Permission\Models\Role;
@@ -19,17 +19,25 @@ class CustomerSecurityTest extends TestCase
     use RefreshDatabase;
 
     private User $ownerA;
+
     private User $managerA;
+
     private User $cashierA;
+
     private Restaurant $restaurantA;
+
     private RestaurantBranch $branchA;
 
     private User $ownerB;
+
     private Restaurant $restaurantB;
+
     private RestaurantBranch $branchB;
 
     private Role $ownerRole;
+
     private Role $managerRole;
+
     private Role $cashierRole;
 
     protected function setUp(): void
@@ -46,7 +54,7 @@ class CustomerSecurityTest extends TestCase
         $this->ownerA->assignRole($this->ownerRole);
         $this->restaurantA = Restaurant::factory()->create(['owner_user_id' => $this->ownerA->id]);
         $this->ownerA->update(['restaurant_id' => $this->restaurantA->id]);
-        
+
         $this->branchA = RestaurantBranch::factory()->create([
             'restaurant_id' => $this->restaurantA->id,
             'manager_user_id' => $this->ownerA->id,
@@ -79,7 +87,7 @@ class CustomerSecurityTest extends TestCase
         $this->ownerB->assignRole($this->ownerRole);
         $this->restaurantB = Restaurant::factory()->create(['owner_user_id' => $this->ownerB->id]);
         $this->ownerB->update(['restaurant_id' => $this->restaurantB->id]);
-        
+
         $this->branchB = RestaurantBranch::factory()->create([
             'restaurant_id' => $this->restaurantB->id,
             'manager_user_id' => $this->ownerB->id,
@@ -123,7 +131,7 @@ class CustomerSecurityTest extends TestCase
     public function test_read_and_write_permission_for_authorised_roles(): void
     {
         app(TenantContext::class)->setRestaurantId($this->restaurantA->id);
-        
+
         // 1. Owner can access CRM and create
         $response = $this->actingAs($this->ownerA)->get('/customers');
         $response->assertStatus(200);
@@ -157,7 +165,7 @@ class CustomerSecurityTest extends TestCase
         $response = $this->actingAs($this->ownerA)->get('/customers/export');
         $response->assertStatus(200);
         $response->assertHeader('Content-type', 'text/csv; charset=UTF-8');
-        
+
         $content = $response->streamedContent();
         $this->assertStringContainsString('Khách Hàng A', $content);
         $this->assertStringContainsString('0901111111', $content);

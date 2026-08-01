@@ -8,8 +8,8 @@ use Illuminate\Database\Eloquent\Model;
 
 class SearchQueryLog extends Model
 {
-    use HasFactory;
     use BelongsToRestaurant;
+    use HasFactory;
 
     const UPDATED_AT = null;
 

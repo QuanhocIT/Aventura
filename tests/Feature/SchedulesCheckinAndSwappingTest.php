@@ -19,12 +19,19 @@ class SchedulesCheckinAndSwappingTest extends TestCase
     use RefreshDatabase;
 
     private User $owner;
+
     private User $employeeUser1;
+
     private User $employeeUser2;
+
     private Employee $employee1;
+
     private Employee $employee2;
+
     private Restaurant $restaurant;
+
     private RestaurantBranch $branch;
+
     private WorkShift $shift;
 
     protected function setUp(): void
@@ -186,6 +193,74 @@ class SchedulesCheckinAndSwappingTest extends TestCase
             'latitude' => 10.7769,
             'longitude' => 106.7009,
             'qr_code' => 'QR_EXPIRED',
+        ]);
+
+        $response->assertSessionHasErrors(['email']);
+        $assignment->refresh();
+        $this->assertEquals('scheduled', $assignment->status);
+    }
+
+    public function test_dynamic_qr_checkin_success(): void
+    {
+        // Setup a daily QR code so the system expects a QR code verification
+        $this->restaurant->update([
+            'qr_checkin_code' => 'QR_STATIC_TEST',
+            'qr_checkin_expires_at' => now()->addHours(1),
+        ]);
+
+        $assignment = ScheduleAssignment::create([
+            'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
+            'employee_id' => $this->employee1->id,
+            'shift_id' => $this->shift->id,
+            'scheduled_date' => today()->toDateString(),
+            'status' => 'scheduled',
+        ]);
+
+        // Calculate a valid dynamic QR code token — cùng công thức với
+        // ScheduleController::getDynamicQR()/TimeClockService::checkIn(): salt là
+        // config('app.key'), KHÔNG phải chuỗi tuỳ ý (test cũ hardcode sai salt nên
+        // luôn thất bại, không phải flaky theo thứ tự chạy như tưởng trước đây).
+        $nowTs = now()->timestamp;
+        $chunk = floor($nowTs / 20);
+        $secretSalt = config('app.key', 'aventura_secret_salt');
+        $validToken = 'DYN_'.substr(hash_hmac('sha256', (string) $chunk, (string) $this->restaurant->id.$secretSalt), 0, 8);
+
+        $this->actingAs($this->employeeUser1);
+        $response = $this->post(route('schedules.check-in'), [
+            'latitude' => 10.7769,
+            'longitude' => 106.7009,
+            'qr_code' => $validToken,
+        ]);
+
+        $response->assertSessionHasNoErrors();
+        $assignment->refresh();
+        $this->assertEquals('checked_in', $assignment->status);
+    }
+
+    public function test_dynamic_qr_checkin_fails_invalid_token(): void
+    {
+        $this->restaurant->update([
+            'qr_checkin_code' => 'QR_STATIC_TEST',
+            'qr_checkin_expires_at' => now()->addHours(1),
+        ]);
+
+        $assignment = ScheduleAssignment::create([
+            'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
+            'employee_id' => $this->employee1->id,
+            'shift_id' => $this->shift->id,
+            'scheduled_date' => today()->toDateString(),
+            'status' => 'scheduled',
+        ]);
+
+        $invalidToken = 'DYN_INVALID';
+
+        $this->actingAs($this->employeeUser1);
+        $response = $this->post(route('schedules.check-in'), [
+            'latitude' => 10.7769,
+            'longitude' => 106.7009,
+            'qr_code' => $invalidToken,
         ]);
 
         $response->assertSessionHasErrors(['email']);

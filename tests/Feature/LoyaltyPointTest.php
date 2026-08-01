@@ -2,9 +2,10 @@
 
 namespace Tests\Feature;
 
-use App\Models\Order;
 use App\Models\Customer;
+use App\Models\Order;
 use App\Models\Restaurant;
+use App\Models\RestaurantBranch;
 use App\Models\User;
 use App\Services\OrderService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -18,7 +19,7 @@ class LoyaltyPointTest extends TestCase
     {
         // 1. Setup restaurant, branch, and user
         $restaurant = Restaurant::factory()->create();
-        $branch = \App\Models\RestaurantBranch::factory()->create([
+        $branch = RestaurantBranch::factory()->create([
             'restaurant_id' => $restaurant->id,
             'manager_user_id' => null,
         ]);
@@ -80,7 +81,7 @@ class LoyaltyPointTest extends TestCase
 
         // 5. Assertions
         $order->refresh();
-        
+
         // Gold gets 5% discount = 50,000 VND on a 1,000,000 VND order
         $this->assertEquals(50000.0, $order->discount_amount);
         $this->assertEquals(950000.0, $order->total_amount);
@@ -89,16 +90,16 @@ class LoyaltyPointTest extends TestCase
         // Earned points: 950,000 / 10,000 = 95 points. Total = 100 + 95 = 195 points
         $goldCustomer->refresh();
         $this->assertEquals(195, $goldCustomer->loyalty_points);
-        
+
         // Total spent updated: 3,000,000 + 950,000 = 3,950,000
-        $this->assertEquals(3950000.0, (float)$goldCustomer->total_spent);
+        $this->assertEquals(3950000.0, (float) $goldCustomer->total_spent);
     }
 
     public function test_customer_points_redemption_discount()
     {
         // 1. Setup restaurant, branch, and user
         $restaurant = Restaurant::factory()->create();
-        $branch = \App\Models\RestaurantBranch::factory()->create([
+        $branch = RestaurantBranch::factory()->create([
             'restaurant_id' => $restaurant->id,
             'manager_user_id' => null,
         ]);

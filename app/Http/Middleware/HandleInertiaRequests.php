@@ -4,6 +4,9 @@ namespace App\Http\Middleware;
 
 use App\Models\ApprovalRequest;
 use App\Models\SubscriptionPlan;
+use App\Models\SystemMaintenanceSchedule;
+use App\Services\QuotaService;
+use App\Support\Tenant\TenantContext;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Inertia\Middleware;
@@ -39,6 +42,8 @@ class HandleInertiaRequests extends Middleware
     public function share(Request $request): array
     {
         $user = $request->user();
+        $tenantContext = app(TenantContext::class);
+        $isSuperAdmin = $user?->isSuperAdmin() ?? false;
 
         // Spatie tự động invalidate cache khi roles/permissions thay đổi
         // Không cần forgetCachedPermissions() trên mỗi request
@@ -46,63 +51,108 @@ class HandleInertiaRequests extends Middleware
         $roles = $user?->getRoleNames() ?? [];
 
         $tenant = null;
-        if ($user && $user->restaurant_id) {
+        if ($user && $user->restaurant_id && ! $isSuperAdmin) {
             $restaurant = $user->restaurant;
             if ($restaurant) {
+                // Cache branches per restaurant (5 phút) — không query DB mỗi request
+                $branches = $user->canViewAllBranches()
+                    ? Cache::remember(
+                        "tenant_branches:v2:{$restaurant->id}:all",
+                        300,
+                        fn () => $restaurant->branches()->select('id', 'name')->get()->toArray()
+                    )
+                    : ($tenantContext->isBranchScoped()
+                        ? $restaurant->branches()
+                            ->whereKey($tenantContext->activeBranchId())
+                            ->select('id', 'name')
+                            ->get()
+                            ->toArray()
+                        : []);
+
                 $tenant = [
-                    'id'                   => $restaurant->id,
-                    'name'                 => $restaurant->name,
-                    'status'               => $restaurant->status,
-                    'trial_ends_at'        => $restaurant->trial_ends_at?->toDateString(),
+                    'id' => $restaurant->id,
+                    'name' => $restaurant->name,
+                    'status' => $restaurant->status,
+                    'lifecycle_status' => $restaurant->lifecycleStatus(),
+                    'trial_ends_at' => $restaurant->trial_ends_at?->toDateString(),
                     'subscription_ends_at' => $restaurant->subscription_ends_at?->toDateString(),
                     'plan' => $restaurant->plan ? [
-                        'code'         => $restaurant->plan->code,
-                        'name'         => $restaurant->plan->name,
+                        'code' => $restaurant->plan->code,
+                        'name' => $restaurant->plan->name,
                         'max_branches' => $restaurant->plan->max_branches,
-                        'max_tables'   => $restaurant->plan->max_tables,
-                        'max_users'    => $restaurant->plan->max_users,
-                        'features'     => $restaurant->plan->features,
+                        'max_tables' => $restaurant->plan->max_tables,
+                        'max_users' => $restaurant->plan->max_users,
+                        'features' => $restaurant->plan->features,
                     ] : null,
                     'quota_summary' => Cache::remember(
                         "quota_summary:{$restaurant->id}",
                         120, // 2 phút
-                        fn () => app(\App\Services\QuotaService::class)->getSummary($restaurant)
+                        fn () => app(QuotaService::class)->getSummary($restaurant)
                     ),
+                    'branches' => $branches,
+                    'active_branch_id' => $tenantContext->activeBranchId(),
+                    'scope' => $tenantContext->scope(),
+                    'scope_key' => $tenantContext->scopeKey(),
                 ];
             }
         }
 
-        $availablePlans = Cache::remember('subscription_plans_active', 3600, function () {
+        // Super Admin không hiển thị subscription widget nên không cần đọc và
+        // serialize toàn bộ danh sách plan vào mọi response Inertia.
+        $availablePlans = $isSuperAdmin ? [] : Cache::remember('subscription_plans_active', 3600, function () {
             return SubscriptionPlan::where('status', 'active')
                 ->orderBy('price')
                 ->get()
                 ->map(fn (SubscriptionPlan $p) => [
-                    'id'            => $p->id,
-                    'code'          => $p->code,
-                    'name'          => $p->name,
-                    'price'         => (int) $p->price,
+                    'id' => $p->id,
+                    'code' => $p->code,
+                    'name' => $p->name,
+                    'price' => (int) $p->price,
                     'billing_cycle' => $p->billing_cycle,
-                    'max_branches'  => $p->max_branches,
-                    'max_tables'    => $p->max_tables,
-                    'max_users'     => $p->max_users,
-                    'features'      => $p->features ?? [],
+                    'max_branches' => $p->max_branches,
+                    'max_tables' => $p->max_tables,
+                    'max_users' => $p->max_users,
+                    'features' => $p->features ?? [],
                 ])
                 ->values()
                 ->all();
         });
 
-        // Không gán trực tiếp roles vào user để tránh lỗi update DB
+        // Chỉ expose các trường an toàn cần thiết — không dùng toArray() rãi rác
+        $safeUser = $user ? [
+            'id' => $user->id,
+            'name' => $user->name,
+            'email' => $user->email,
+            'phone' => $user->phone,
+            'avatar_url' => $user->avatar_url,
+            'restaurant_id' => $user->restaurant_id,
+            'branch_id' => $user->getRawOriginal('branch_id'),
+            'assigned_branch_id' => $user->assignedBranchId(),
+            'supplier_id' => $user->supplier_id,
+            'status' => $user->status,
+            'onboarding_status' => $user->onboarding_status,
+            'email_verified_at' => $user->email_verified_at,
+            'last_login_at' => $user->last_login_at,
+            'referral_code' => $user->referral_code,
+            'has_pin' => ! empty($user->pin_code), // chỉ gửi boolean, không gửi hash
+            'two_factor_enabled' => ! empty($user->two_factor_confirmed_at),
+            'permissions' => Cache::remember(
+                "user_permissions:{$user->id}",
+                300,
+                fn () => $user->getAllPermissions()->pluck('name')->toArray()
+            ),
+            'roles' => $roles->toArray(),
+        ] : null;
+
         return [
             ...parent::share($request),
             'name' => config('app.name'),
             'auth' => [
-                'user' => $user ? array_merge($user->toArray(), [
-                    'permissions' => $user->getAllPermissions()->pluck('name')->toArray(),
-                    'roles' => $roles->toArray(),
-                ]) : null,
+                'user' => $safeUser,
+                'shift_allowed_until' => session('shift_allowed_until'),
             ],
-            'roles'           => $roles,
-            'tenant'          => $tenant,
+            'roles' => $roles,
+            'tenant' => $tenant,
             'available_plans' => $availablePlans,
             'pendingApprovalCount' => $user?->hasRole('owner') && $user->restaurant_id
                 ? Cache::remember(
@@ -113,12 +163,21 @@ class HandleInertiaRequests extends Middleware
                 : 0,
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
             'is_impersonating' => $request->session()->has('impersonate_original_user_id'),
+            'impersonate_read_only' => $request->session()->has('impersonate_original_user_id') && (! $request->session()->get('impersonate_write_until') || now()->timestamp >= $request->session()->get('impersonate_write_until')),
+            'impersonate_write_until' => $request->session()->get('impersonate_write_until'),
+            'impersonate_reason' => $request->session()->get('impersonate_reason'),
             'flash' => [
-                'success'      => $request->session()->get('success'),
-                'error'        => $request->session()->get('error'),
+                'success' => $request->session()->get('success'),
+                'error' => $request->session()->get('error'),
                 'temp_password' => $request->session()->get('temp_password'),
+                'webhook_secret' => $request->session()->get('webhook_secret'),
             ],
-            'service_maintenance' => json_decode(@file_get_contents(storage_path('framework/service-maintenance.json')), true) ?: [],
+            'locale' => app()->getLocale(),
+            'upcoming_maintenance' => Cache::remember('upcoming_maintenance', 60, fn () => SystemMaintenanceSchedule::whereIn('status', ['scheduled', 'active'])
+                ->where('downtime_start', '<=', now()->addHours(24))
+                ->where('downtime_end', '>', now())
+                ->first()?->only(['title', 'downtime_start', 'downtime_end', 'banner_message', 'status', 'services'])
+            ),
         ];
     }
 }

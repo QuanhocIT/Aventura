@@ -22,24 +22,24 @@ class ShipperController extends Controller
             ->orderByDesc('is_active')
             ->get()
             ->map(fn (Shipper $s) => [
-                'id'                   => $s->id,
-                'employee_id'          => $s->employee_id,
-                'name'                 => $s->employee?->full_name ?? "Shipper #{$s->id}",
-                'vehicle_type'         => $s->vehicle_type,
-                'vehicle_plate'        => $s->vehicle_plate,
-                'is_active'            => $s->is_active,
+                'id' => $s->id,
+                'employee_id' => $s->employee_id,
+                'name' => $s->employee?->full_name ?? "Shipper #{$s->id}",
+                'vehicle_type' => $s->vehicle_type,
+                'vehicle_plate' => $s->vehicle_plate,
+                'is_active' => $s->is_active,
                 'max_orders_per_batch' => $s->max_orders_per_batch,
-                'max_capacity_kg'      => (float) $s->max_capacity_kg,
-                'deleted_at'           => $s->deleted_at?->toISOString(),
+                'max_capacity_kg' => (float) $s->max_capacity_kg,
+                'deleted_at' => $s->deleted_at?->toISOString(),
             ]);
 
         $employees = Employee::where('restaurant_id', $restaurantId)
             ->whereDoesntHave('shipper')
             ->orderBy('full_name')
-            ->get(['id', 'full_name', 'name']);
+            ->get(['id', 'full_name']);
 
         return Inertia::render('delivery/Shippers', [
-            'shippers'  => $shippers,
+            'shippers' => $shippers,
             'employees' => $employees,
         ]);
     }
@@ -49,20 +49,20 @@ class ShipperController extends Controller
         $restaurantId = $request->user()->restaurant_id;
 
         $validated = $request->validate([
-            'employee_id'          => ['required', 'integer', "exists:employees,id,restaurant_id,{$restaurantId}"],
-            'vehicle_type'         => ['required', 'in:bike,motorbike,car'],
-            'vehicle_plate'        => ['nullable', 'string', 'max:20'],
+            'employee_id' => ['required', 'integer', "exists:employees,id,restaurant_id,{$restaurantId}"],
+            'vehicle_type' => ['required', 'in:bike,motorbike,car'],
+            'vehicle_plate' => ['nullable', 'string', 'max:20'],
             'max_orders_per_batch' => ['nullable', 'integer', 'min:1', 'max:20'],
-            'max_capacity_kg'      => ['nullable', 'numeric', 'min:1', 'max:500'],
+            'max_capacity_kg' => ['nullable', 'numeric', 'min:1', 'max:500'],
         ]);
 
         $shipper = Shipper::create([
-            'employee_id'          => $validated['employee_id'],
-            'vehicle_type'         => $validated['vehicle_type'],
-            'vehicle_plate'        => $validated['vehicle_plate'] ?? null,
+            'employee_id' => $validated['employee_id'],
+            'vehicle_type' => $validated['vehicle_type'],
+            'vehicle_plate' => $validated['vehicle_plate'] ?? null,
             'max_orders_per_batch' => $validated['max_orders_per_batch'] ?? 5,
-            'max_capacity_kg'      => $validated['max_capacity_kg'] ?? 20,
-            'is_active'            => true,
+            'max_capacity_kg' => $validated['max_capacity_kg'] ?? 20,
+            'is_active' => true,
         ]);
 
         return response()->json($shipper->load('employee'), 201);
@@ -73,11 +73,11 @@ class ShipperController extends Controller
         abort_if($shipper->restaurant_id !== $request->user()->restaurant_id, 403);
 
         $validated = $request->validate([
-            'vehicle_type'         => ['sometimes', 'in:bike,motorbike,car'],
-            'vehicle_plate'        => ['nullable', 'string', 'max:20'],
+            'vehicle_type' => ['sometimes', 'in:bike,motorbike,car'],
+            'vehicle_plate' => ['nullable', 'string', 'max:20'],
             'max_orders_per_batch' => ['sometimes', 'integer', 'min:1', 'max:20'],
-            'max_capacity_kg'      => ['sometimes', 'numeric', 'min:1', 'max:500'],
-            'is_active'            => ['sometimes', 'boolean'],
+            'max_capacity_kg' => ['sometimes', 'numeric', 'min:1', 'max:500'],
+            'is_active' => ['sometimes', 'boolean'],
         ]);
 
         $shipper->update($validated);

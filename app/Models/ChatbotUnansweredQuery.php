@@ -24,10 +24,10 @@ class ChatbotUnansweredQuery extends Model
     ];
 
     protected $casts = [
-        'best_score'       => 'float',
+        'best_score' => 'float',
         'occurrence_count' => 'integer',
-        'is_resolved'      => 'boolean',
-        'last_seen_at'     => 'datetime',
+        'is_resolved' => 'boolean',
+        'last_seen_at' => 'datetime',
     ];
 
     public function user(): BelongsTo

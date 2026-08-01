@@ -11,6 +11,7 @@ export default defineConfig({
         host: '127.0.0.1',
     },
     build: {
+        cssMinify: 'lightningcss',
         rollupOptions: {
             output: {
                 manualChunks(id) {
@@ -22,6 +23,11 @@ export default defineConfig({
                     }
                     if (id.includes('node_modules/lucide')) {
                         return 'icons';
+                    }
+                    // Leaflet chỉ được dynamic-import ở các trang bản đồ — tách chunk
+                    // riêng để không bị gộp vào vendor tải ngay từ trang đầu tiên.
+                    if (id.includes('node_modules/leaflet')) {
+                        return 'leaflet';
                     }
                     if (id.includes('node_modules')) {
                         return 'vendor';

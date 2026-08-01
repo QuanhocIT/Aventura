@@ -14,18 +14,18 @@ class OrderPaymentQrController extends Controller
     public function paymentQr(Request $request, Order $order): JsonResponse
     {
         $restaurant = $order->restaurant;
-        
+
         $bank = $restaurant->qr_bank_id ?: 'mbbank';
         $accountNumber = $restaurant->qr_account_number ?: '1234567890';
         $accountName = $restaurant->qr_account_name ?: 'AVENTURA RESTAURANT';
-        
+
         $amount = (int) $order->total_amount;
-        $description = "AVTORD" . $order->id;
-        
-        $qrUrl = "https://img.vietqr.io/image/{$bank}-{$accountNumber}-compact.png?" . http_build_query([
+        $description = 'AVTORD'.$order->id;
+
+        $qrUrl = "https://img.vietqr.io/image/{$bank}-{$accountNumber}-compact.png?".http_build_query([
             'amount' => $amount,
             'addInfo' => $description,
-            'accountName' => $accountName
+            'accountName' => $accountName,
         ]);
 
         return response()->json([
@@ -35,7 +35,7 @@ class OrderPaymentQrController extends Controller
             'order_number' => $order->order_number,
             'total_amount' => $amount,
             'description' => $description,
-            'qr_enabled' => (bool) $restaurant->qr_enabled
+            'qr_enabled' => (bool) $restaurant->qr_enabled,
         ]);
     }
 
@@ -48,7 +48,7 @@ class OrderPaymentQrController extends Controller
             'success' => true,
             'payment_status' => $order->payment_status,
             'status' => $order->status,
-            'is_paid' => $order->payment_status === 'paid'
+            'is_paid' => $order->payment_status === 'paid',
         ]);
     }
 }

@@ -167,8 +167,7 @@ return new class extends Migration
              WHERE TABLE_SCHEMA = DATABASE()
                AND TABLE_NAME = ?
                AND CONSTRAINT_NAME = ?
-               AND CONSTRAINT_TYPE = ?'
-            ,
+               AND CONSTRAINT_TYPE = ?',
             [$tableName, $constraintName, 'FOREIGN KEY']
         );
 
@@ -186,8 +185,7 @@ return new class extends Migration
              FROM information_schema.STATISTICS
              WHERE TABLE_SCHEMA = DATABASE()
                AND TABLE_NAME = ?
-               AND INDEX_NAME = ?'
-            ,
+               AND INDEX_NAME = ?',
             [$tableName, $indexName]
         );
 

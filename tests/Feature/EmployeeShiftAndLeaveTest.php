@@ -2,13 +2,14 @@
 
 namespace Tests\Feature;
 
+use App\Http\Middleware\SetTenantContext;
 use App\Models\Employee;
 use App\Models\LeaveRequest;
 use App\Models\Restaurant;
 use App\Models\RestaurantBranch;
 use App\Models\ScheduleAssignment;
-use App\Models\WorkShift;
 use App\Models\User;
+use App\Models\WorkShift;
 use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Spatie\Permission\Models\Role;
@@ -19,15 +20,19 @@ class EmployeeShiftAndLeaveTest extends TestCase
     use RefreshDatabase;
 
     private User $owner;
+
     private Restaurant $restaurant;
+
     private RestaurantBranch $branch;
+
     private Role $ownerRole;
+
     private Role $cashierRole;
 
     protected function setUp(): void
     {
         parent::setUp();
-        \App\Http\Middleware\SetTenantContext::$enforceShiftLockInTests = true;
+        SetTenantContext::$enforceShiftLockInTests = true;
 
         $this->owner = User::factory()->create(['status' => 'active']);
         $this->restaurant = Restaurant::factory()->create([
@@ -42,13 +47,13 @@ class EmployeeShiftAndLeaveTest extends TestCase
 
         $this->ownerRole = Role::firstOrCreate(['name' => 'owner', 'guard_name' => 'web']);
         $this->cashierRole = Role::firstOrCreate(['name' => 'cashier', 'guard_name' => 'web']);
-        
+
         $this->owner->assignRole($this->ownerRole);
     }
 
     protected function tearDown(): void
     {
-        \App\Http\Middleware\SetTenantContext::$enforceShiftLockInTests = false;
+        SetTenantContext::$enforceShiftLockInTests = false;
         parent::tearDown();
     }
 
@@ -56,6 +61,7 @@ class EmployeeShiftAndLeaveTest extends TestCase
     {
         $cashierUser = User::factory()->create([
             'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
             'status' => 'active',
             'password' => bcrypt('password'),
         ]);
@@ -65,6 +71,8 @@ class EmployeeShiftAndLeaveTest extends TestCase
             'restaurant_id' => $this->restaurant->id,
             'user_id' => $cashierUser->id,
             'role_id' => $this->cashierRole->id,
+            'branch_id' => $this->branch->id,
+            'job_title' => 'Cashier',
             'status' => 'active',
         ]);
 
@@ -229,7 +237,7 @@ class EmployeeShiftAndLeaveTest extends TestCase
         // Approve leave request
         $response = $this->actingAs($this->owner)->patch("/employees/leaves/{$leave->id}/approve");
         $response->assertRedirect();
-        
+
         // Assert schedules updated
         $this->assertSame('leave_approved', $schedule1->fresh()->status);
         $this->assertSame('leave_approved', $schedule2->fresh()->status);
@@ -268,7 +276,7 @@ class EmployeeShiftAndLeaveTest extends TestCase
         // Assert employee status is terminated
         $employeeFresh = Employee::withTrashed()->find($employee->id);
         $this->assertSame('terminated', $employeeFresh->status);
-        
+
         // Assert user account is inactive
         $this->assertSame('inactive', $cashierUser->fresh()->status);
 
@@ -342,11 +350,11 @@ class EmployeeShiftAndLeaveTest extends TestCase
             ->patch("/employees/leaves/{$leave->id}/approve", [
                 'replacements' => [
                     $assignment->id => $employee2->id,
-                ]
+                ],
             ]);
 
         $responseApprove->assertRedirect();
-        
+
         // Assertions
         $this->assertSame('approved', $leave->fresh()->status);
         $this->assertSame('leave_approved', $assignment->fresh()->status);

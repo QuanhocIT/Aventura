@@ -2,23 +2,27 @@
 
 namespace App\Http\Controllers;
 
+use App\Jobs\ProcessApprovedPurchaseOrderJob;
 use App\Models\Ingredient;
 use App\Models\PurchaseOrder;
 use App\Models\RequestForProposal;
 use App\Models\RfpBid;
-use App\Models\RfpBidItem;
 use App\Models\RfpItem;
 use App\Models\Supplier;
+use App\Services\QuotaService;
+use App\Support\Tenant\TenantContext;
 use Carbon\Carbon;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 use Inertia\Inertia;
 use Inertia\Response;
 
 class RfpController extends Controller
 {
+    public function __construct(private TenantContext $tenantContext) {}
+
     // =========================================================================
     // RESTAURANT ADMIN ENDPOINTS (Owners, Managers)
     // =========================================================================
@@ -33,23 +37,31 @@ class RfpController extends Controller
         $user = $request->user();
 
         $restaurant = $user->restaurant;
+        if (! $restaurant && ! $request->user()->hasRole('super_admin')) {
+            abort(403, 'Không tìm thấy nhà hàng.');
+        }
         $restaurant?->loadMissing('plan');
-        if ($restaurant && ! app(\App\Services\QuotaService::class)->hasFeature($restaurant, 'supplier_portal')) {
+        if ($restaurant && ! app(QuotaService::class)->hasFeature($restaurant, 'supplier_portal')) {
             return Inertia::render('FeatureGate', [
-                'feature'       => 'supplier_portal',
+                'feature' => 'supplier_portal',
                 'feature_label' => 'Quản lý Thầu (RFP)',
-                'plan_name'     => $restaurant->plan?->name ?? 'Miễn Phí',
+                'plan_name' => $restaurant->plan?->name ?? 'Miễn Phí',
                 'required_plan' => 'Doanh Nghiệp',
             ]);
         }
 
         $rfps = RequestForProposal::where('restaurant_id', $user->restaurant_id)
+            ->when($this->tenantContext->isBranchScoped(), function ($q) {
+                $q->where(function ($query) {
+                    $query->whereNull('branch_id')->orWhere('branch_id', $this->tenantContext->activeBranchId());
+                });
+            })
             ->with([
                 'items',
                 'bids.supplier.purchaseOrders' => function ($q) {
                     $q->whereIn('status', ['delivered', 'frozen']);
                 },
-                'bids.items.rfpItem'
+                'bids.items.rfpItem',
             ])
             ->latest()
             ->get();
@@ -62,10 +74,10 @@ class RfpController extends Controller
 
             // Pre-calculate baseline values
             $minPrice = (float) $bids->min('total_amount');
-            
+
             $bidLeadTimes = [];
             foreach ($bids as $bid) {
-                $leadTime = max(1, now()->diffInDays(\Carbon\Carbon::parse($bid->proposed_delivery_date)));
+                $leadTime = max(1, now()->diffInDays(Carbon::parse($bid->proposed_delivery_date)));
                 $bidLeadTimes[$bid->id] = $leadTime;
             }
             $minLeadTime = count($bidLeadTimes) > 0 ? min($bidLeadTimes) : 1;
@@ -73,7 +85,7 @@ class RfpController extends Controller
             foreach ($bids as $bid) {
                 // 1. Calculate SLA score
                 $supplierId = $bid->supplier_id;
-                
+
                 $pos = $bid->supplier ? $bid->supplier->purchaseOrders : collect();
 
                 $totalPos = $pos->count();
@@ -81,13 +93,13 @@ class RfpController extends Controller
                 $accurateCount = 0;
 
                 foreach ($pos as $po) {
-                    if (!$po->is_discrepant) {
+                    if (! $po->is_discrepant) {
                         $accurateCount++;
                     }
 
                     if ($po->delivery_due_date && $po->delivered_at) {
-                        $dueDate = \Carbon\Carbon::parse($po->delivery_due_date);
-                        $deliveredDate = \Carbon\Carbon::parse($po->delivered_at);
+                        $dueDate = Carbon::parse($po->delivery_due_date);
+                        $deliveredDate = Carbon::parse($po->delivered_at);
                         if ($deliveredDate->lte($dueDate->addMinutes(30))) {
                             $onTimeCount++;
                         }
@@ -117,8 +129,8 @@ class RfpController extends Controller
             }
 
             // Rank bids by score descending
-            $rankedBids = $bids->sortByDesc(fn($b) => $b->getAttribute('ai_score'))->values();
-            
+            $rankedBids = $bids->sortByDesc(fn ($b) => $b->getAttribute('ai_score'))->values();
+
             // Highlight the best bid
             if ($rankedBids->isNotEmpty()) {
                 $bestBid = $rankedBids->first();
@@ -126,9 +138,9 @@ class RfpController extends Controller
                     if ($bid->id === $bestBid->id) {
                         $bid->setAttribute('is_ai_recommended', true);
                         $avgAmount = $bids->avg('total_amount');
-                        $savingPct = $bid->total_amount > 0 ? round((($avgAmount - (float)$bid->total_amount) / (float)$bid->total_amount) * 100, 1) : 0;
+                        $savingPct = $bid->total_amount > 0 ? round((($avgAmount - (float) $bid->total_amount) / (float) $bid->total_amount) * 100, 1) : 0;
                         $bid->setAttribute('ai_reason', sprintf(
-                            "Giá thầu tối ưu nhất (tiết kiệm %s%% so với trung bình), giao hàng nhanh nhất và điểm uy tín SLA đạt %s/10.",
+                            'Giá thầu tối ưu nhất (tiết kiệm %s%% so với trung bình), giao hàng nhanh nhất và điểm uy tín SLA đạt %s/10.',
                             $savingPct > 0 ? $savingPct : '0',
                             $bid->getAttribute('sla_score')
                         ));
@@ -164,10 +176,12 @@ class RfpController extends Controller
         ]);
 
         $user = $request->user();
+        $branchId = $this->requireActiveBranch($request);
 
-        DB::transaction(function () use ($request, $user) {
+        DB::transaction(function () use ($request, $user, $branchId) {
             $rfp = RequestForProposal::create([
                 'restaurant_id' => $user->restaurant_id,
+                'branch_id' => $branchId,
                 'title' => $request->input('title'),
                 'description' => $request->input('description'),
                 'due_date' => Carbon::parse($request->input('due_date')),
@@ -193,6 +207,8 @@ class RfpController extends Controller
     public function close(Request $request, RequestForProposal $rfp): RedirectResponse
     {
         abort_unless($request->user()->hasAnyRole(['owner', 'manager']) && $rfp->restaurant_id === $request->user()->restaurant_id, 403);
+        abort_unless($request->user()->canAccessBranch($rfp->branch_id), 403);
+        $this->assertActiveBranchMatches($rfp->branch_id);
 
         $rfp->update(['status' => 'closed']);
 
@@ -206,65 +222,82 @@ class RfpController extends Controller
     {
         $rfp = $bid->rfp;
         abort_unless($request->user()->hasRole('owner') && $rfp->restaurant_id === $request->user()->restaurant_id, 403);
-        abort_unless($rfp->status !== 'completed', 400);
+        abort_unless($request->user()->canAccessBranch($rfp->branch_id), 403);
+        $this->assertActiveBranchMatches($rfp->branch_id);
 
-        DB::transaction(function () use ($bid, $rfp, $request) {
-            // 1. Accept winning bid and reject others
-            $bid->update(['status' => 'accepted']);
-            $rfp->bids()->where('id', '!=', $bid->id)->update(['status' => 'rejected']);
-            $rfp->update(['status' => 'completed']);
+        try {
+            DB::transaction(function () use ($bid, $rfp, $request) {
+                // Lock RFP row
+                $lockedRfp = RequestForProposal::where('id', $rfp->id)->lockForUpdate()->firstOrFail();
 
-            // 2. Generate approved Purchase Order automatically
-            $po = PurchaseOrder::create([
-                'restaurant_id' => $rfp->restaurant_id,
-                'supplier_id' => $bid->supplier_id,
-                'po_number' => 'PO-' . now()->format('Ymd') . '-RFP-' . $rfp->id,
-                'status' => 'approved',
-                'total_amount' => $bid->total_amount,
-                'created_by' => $request->user()->id,
-                'approved_by' => $request->user()->id,
-                'notes' => "Đơn hàng tự động tạo từ hồ sơ thầu thắng cuộc cho yêu cầu RFP #{$rfp->id}: {$rfp->title}.",
-                'delivery_due_date' => $bid->proposed_delivery_date,
-                'payment_status' => 'escrow_locked',
-                'escrow_transaction_id' => 'ESC-' . now()->format('Ymd') . '-' . \Illuminate\Support\Str::upper(\Illuminate\Support\Str::random(8)),
-            ]);
-
-            // 3. Map bid items to PO items
-            $itemNames = $bid->items->map(fn($item) => $item->rfpItem->ingredient_name)->toArray();
-            
-            $ingredientsByName = Ingredient::where('restaurant_id', $rfp->restaurant_id)
-                ->whereIn('name', $itemNames)
-                ->get()
-                ->keyBy('name');
-
-            $fallbackIngredient = Ingredient::where('restaurant_id', $rfp->restaurant_id)
-                ->where('supplier_id', $bid->supplier_id)
-                ->first();
-
-            foreach ($bid->items as $bidItem) {
-                // Try to map to an existing ingredient in restaurant inventory by name match
-                $ingredient = $ingredientsByName->get($bidItem->rfpItem->ingredient_name);
-
-                // If not found, map to the first ingredient associated with this supplier as fallback
-                if (!$ingredient) {
-                    $ingredient = $fallbackIngredient;
+                if ($lockedRfp->status === 'completed') {
+                    throw new \Exception('Yêu cầu báo giá (RFP) này đã hoàn thành hoặc đã được duyệt thầu.');
                 }
 
-                if (!$ingredient) {
-                    throw new \Exception("Không tìm thấy nguyên vật liệu phù hợp cho '{$bidItem->rfpItem->ingredient_name}' trong kho của nhà hàng. Vui lòng thiết lập nguyên vật liệu này trước khi duyệt thầu.");
-                }
+                // 1. Accept winning bid and reject others
+                $bid->update(['status' => 'accepted']);
+                $lockedRfp->bids()->where('id', '!=', $bid->id)->update(['status' => 'rejected']);
+                $lockedRfp->update(['status' => 'completed']);
 
-                $po->items()->create([
-                    'ingredient_id' => $ingredient->id,
-                    'quantity_ordered' => $bidItem->rfpItem->quantity_required,
-                    'price_per_unit' => $bidItem->proposed_price_per_unit,
-                    'total_cost' => $bidItem->rfpItem->quantity_required * $bidItem->proposed_price_per_unit,
+                // 2. Generate approved Purchase Order automatically
+                $po = PurchaseOrder::create([
+                    'restaurant_id' => $lockedRfp->restaurant_id,
+                    'branch_id' => $lockedRfp->branch_id,
+                    'supplier_id' => $bid->supplier_id,
+                    'po_number' => 'PO-'.now()->format('Ymd').'-RFP-'.$lockedRfp->id,
+                    'status' => 'approved',
+                    'total_amount' => $bid->total_amount,
+                    'created_by' => $request->user()->id,
+                    'approved_by' => $request->user()->id,
+                    'notes' => "Đơn hàng tự động tạo từ hồ sơ thầu thắng cuộc cho yêu cầu RFP #{$lockedRfp->id}: {$lockedRfp->title}.",
+                    'delivery_due_date' => $bid->proposed_delivery_date,
+                    'payment_status' => 'escrow_locked',
+                    'escrow_transaction_id' => 'ESC-'.now()->format('Ymd').'-'.Str::upper(Str::random(8)),
                 ]);
-            }
 
-            // 4. Dispatch PO processing job (triggers realtime broadcast to supplier)
-            dispatch(new \App\Jobs\ProcessApprovedPurchaseOrderJob($po->id));
-        });
+                // 3. Map bid items to PO items
+                $itemNames = $bid->items->map(fn ($item) => $item->rfpItem->ingredient_name)->toArray();
+
+                $ingredientsByName = Ingredient::where('restaurant_id', $lockedRfp->restaurant_id)
+                    ->when($lockedRfp->branch_id, fn ($q) => $q->where(fn ($scope) => $scope
+                        ->whereNull('branch_id')->orWhere('branch_id', $lockedRfp->branch_id)))
+                    ->whereIn('name', $itemNames)
+                    ->get()
+                    ->keyBy('name');
+
+                $fallbackIngredient = Ingredient::where('restaurant_id', $lockedRfp->restaurant_id)
+                    ->when($lockedRfp->branch_id, fn ($q) => $q->where(fn ($scope) => $scope
+                        ->whereNull('branch_id')->orWhere('branch_id', $lockedRfp->branch_id)))
+                    ->where('supplier_id', $bid->supplier_id)
+                    ->first();
+
+                foreach ($bid->items as $bidItem) {
+                    // Try to map to an existing ingredient in restaurant inventory by name match
+                    $ingredient = $ingredientsByName->get($bidItem->rfpItem->ingredient_name);
+
+                    // If not found, map to the first ingredient associated with this supplier as fallback
+                    if (! $ingredient) {
+                        $ingredient = $fallbackIngredient;
+                    }
+
+                    if (! $ingredient) {
+                        throw new \Exception("Không tìm thấy nguyên vật liệu phù hợp cho '{$bidItem->rfpItem->ingredient_name}' trong kho của nhà hàng. Vui lòng thiết lập nguyên vật liệu này trước khi duyệt thầu.");
+                    }
+
+                    $po->items()->create([
+                        'ingredient_id' => $ingredient->id,
+                        'quantity_ordered' => $bidItem->rfpItem->quantity_required,
+                        'price_per_unit' => $bidItem->proposed_price_per_unit,
+                        'total_cost' => $bidItem->rfpItem->quantity_required * $bidItem->proposed_price_per_unit,
+                    ]);
+                }
+
+                // 4. Dispatch PO processing job (triggers realtime broadcast to supplier)
+                dispatch(new ProcessApprovedPurchaseOrderJob($po->id));
+            });
+        } catch (\Exception $e) {
+            return back()->withErrors(['error' => $e->getMessage()]);
+        }
 
         return back()->with('success', 'Đã chấp nhận hồ sơ thầu thắng cuộc. Đơn hàng PO đã được tạo và tự động gửi tới nhà cung cấp.');
     }
@@ -352,5 +385,23 @@ class RfpController extends Controller
         });
 
         return back()->with('success', 'Đã nộp hồ sơ báo giá thầu thành công. Chủ nhà hàng sẽ đánh giá và phản hồi bạn.');
+    }
+
+    private function requireActiveBranch(Request $request): int
+    {
+        $branchId = $this->tenantContext->activeBranchId()
+            ?? ($request->user()->isOwner() ? $request->user()->assignedBranchId() : null);
+        abort_if($branchId === null, 422, 'Hãy chọn chi nhánh hiện tại trước khi tạo yêu cầu nhập hàng.');
+        abort_unless($request->user()->canAccessBranch($branchId), 403);
+
+        return $branchId;
+    }
+
+    private function assertActiveBranchMatches(?int $branchId): void
+    {
+        $activeBranchId = $this->tenantContext->activeBranchId();
+        if ($activeBranchId !== null && (int) $branchId !== $activeBranchId) {
+            abort(403, 'RFP không thuộc chi nhánh hiện tại.');
+        }
     }
 }

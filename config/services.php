@@ -25,9 +25,9 @@ return [
     ],
 
     'google' => [
-        'client_id'     => env('GOOGLE_CLIENT_ID'),
+        'client_id' => env('GOOGLE_CLIENT_ID'),
         'client_secret' => env('GOOGLE_CLIENT_SECRET'),
-        'redirect'      => env('GOOGLE_REDIRECT_URI'),
+        'redirect' => env('GOOGLE_REDIRECT_URI'),
     ],
 
     'sepay' => [
@@ -37,7 +37,6 @@ return [
         'checkout_url' => env('SEPAY_CHECKOUT_URL', 'https://qr.sepay.vn/img'),
         'qr_template' => env('SEPAY_QR_TEMPLATE', 'compact'),
     ],
-
 
     'email_microservice' => [
         'url' => env('EMAIL_SERVICE_URL', ''),
@@ -53,6 +52,68 @@ return [
 
     'analytics' => [
         'url' => env('ANALYTICS_SERVICE_URL', 'http://localhost:8003'),
+    ],
+
+    // Khóa nội bộ dùng để Laravel xác thực với Python microservices.
+    // Cùng giá trị với INTERNAL_API_KEY trong .env của từng Python service.
+    'microservices' => [
+        'internal_api_key' => env('INTERNAL_API_KEY', ''),
+    ],
+
+    'openweather' => [
+        'api_key' => env('OPENWEATHER_API_KEY', ''),
+        'url' => env('OPENWEATHER_URL', 'https://api.openweathermap.org/data/2.5/forecast'),
+    ],
+
+    'vnpay' => [
+        'tmncode' => env('VNPAY_TMNCODE', ''),
+        'hashsecret' => env('VNPAY_HASHSECRET', ''),
+        'url' => env('VNPAY_URL', 'https://sandbox.vnpayment.vn/paymentv2/vpcpay.html'),
+        'return_url' => env('VNPAY_RETURN_URL', ''),
+    ],
+
+    'momo' => [
+        'partner_code' => env('MOMO_PARTNER_CODE', ''),
+        'access_key' => env('MOMO_ACCESS_KEY', ''),
+        'secret_key' => env('MOMO_SECRET_KEY', ''),
+        'endpoint' => env('MOMO_ENDPOINT', 'https://test-payment.momo.vn/v2/gateway/api/create'),
+    ],
+
+    'zalopay' => [
+        'app_id' => env('ZALOPAY_APP_ID', ''),
+        'key1' => env('ZALOPAY_KEY1', ''),
+        'key2' => env('ZALOPAY_KEY2', ''),
+        'endpoint' => env('ZALOPAY_ENDPOINT', 'https://sb-openapi.zalopay.vn/v2/create'),
+    ],
+
+    'grabfood' => [
+        // Để trống = chế độ demo, push trạng thái đơn chỉ ghi log
+        'status_url' => env('GRABFOOD_STATUS_URL', ''),
+    ],
+
+    'shopeefood' => [
+        'status_url' => env('SHOPEEFOOD_STATUS_URL', ''),
+    ],
+
+    'push' => [
+        'driver' => env('PUSH_DRIVER', 'log'),
+        'fcm' => [
+            'server_key' => env('FCM_SERVER_KEY'),
+        ],
+    ],
+
+    'sms' => [
+        'driver' => env('SMS_DRIVER', 'log'),
+        'twilio' => [
+            'sid' => env('TWILIO_SID'),
+            'token' => env('TWILIO_TOKEN'),
+            'from' => env('TWILIO_FROM'),
+        ],
+        'vonage' => [
+            'key' => env('VONAGE_KEY'),
+            'secret' => env('VONAGE_SECRET'),
+            'from' => env('VONAGE_FROM', 'Aventura'),
+        ],
     ],
 
 ];

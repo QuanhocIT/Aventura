@@ -1,12 +1,27 @@
 <script setup lang="ts">
 import { Head, usePage } from '@inertiajs/vue3';
-import { ref, computed, onMounted, nextTick } from 'vue';
-import { 
-    Bot, Send, Loader2, Sparkles, AlertCircle, TrendingUp, 
-    BarChart3, ShieldAlert, Package, ArrowRight, User
+import {
+    Bot,
+    Send,
+    Loader2,
+    Sparkles,
+    AlertCircle,
+    TrendingUp,
+    BarChart3,
+    ShieldAlert,
+    Package,
+    ArrowRight,
+    User,
 } from 'lucide-vue-next';
+import { ref, computed, onMounted, nextTick } from 'vue';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import {
+    Card,
+    CardContent,
+    CardHeader,
+    CardTitle,
+    CardDescription,
+} from '@/components/ui/card';
 import AppLayout from '@/layouts/AppLayout.vue';
 
 defineOptions({ layout: AppLayout });
@@ -29,19 +44,41 @@ const sessionId = ref('');
 
 // List of suggested strategic questions to WOW the business owner
 const strategicSuggestions = [
-    { text: 'Doanh thu hôm nay đạt bao nhiêu?', category: 'finance', icon: TrendingUp },
-    { text: 'Món nào bán chạy nhất trong ngày?', category: 'sales', icon: BarChart3 },
-    { text: 'Có cảnh báo gian lận nào chưa xử lý không?', category: 'fraud', icon: ShieldAlert },
-    { text: 'Nguyên liệu nào đang sắp hết trong kho?', category: 'inventory', icon: Package },
-    { text: 'Dự báo doanh thu ngày mai thế nào?', category: 'forecast', icon: Sparkles }
+    {
+        text: 'Doanh thu hôm nay đạt bao nhiêu?',
+        category: 'finance',
+        icon: TrendingUp,
+    },
+    {
+        text: 'Món nào bán chạy nhất trong ngày?',
+        category: 'sales',
+        icon: BarChart3,
+    },
+    {
+        text: 'Có cảnh báo gian lận nào chưa xử lý không?',
+        category: 'fraud',
+        icon: ShieldAlert,
+    },
+    {
+        text: 'Nguyên liệu nào đang sắp hết trong kho?',
+        category: 'inventory',
+        icon: Package,
+    },
+    {
+        text: 'Dự báo doanh thu ngày mai thế nào?',
+        category: 'forecast',
+        icon: Sparkles,
+    },
 ];
 
 onMounted(async () => {
     sessionId.value = getOrCreateSessionId();
 
     const restored = await loadHistory(sessionId.value);
+
     if (restored) {
         scrollToBottom();
+
         return;
     }
 
@@ -50,20 +87,33 @@ onMounted(async () => {
         id: 'welcome',
         role: 'bot',
         content: `Xin chào **${user.value?.name || 'Chủ quán'}**! Tôi là **Trợ lý AI Chiến lược** của bạn. 📊\n\nTôi có thể truy xuất số liệu doanh thu thời gian thực, phân tích các nhóm món bán chạy, cảnh báo rủi ro gian lận hoặc dự đoán lượng nguyên liệu kho.\n\nBạn có thể hỏi tôi bất kỳ điều gì, hoặc chọn nhanh các câu hỏi gợi ý bên trái.`,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
     });
 });
 
 async function loadHistory(session: string): Promise<boolean> {
     try {
-        const res = await fetch(`${route('chatbot.advisor-history')}?session_id=${encodeURIComponent(session)}`, {
-            headers: { 'X-Requested-With': 'XMLHttpRequest' },
-        });
-        if (!res.ok) return false;
+        const res = await fetch(
+            `${route('chatbot.advisor-history')}?session_id=${encodeURIComponent(session)}`,
+            {
+                headers: { 'X-Requested-With': 'XMLHttpRequest' },
+            },
+        );
+
+        if (!res.ok) {
+            return false;
+        }
 
         const data = await res.json();
-        const history = (data.messages ?? []) as Array<{ role: 'user' | 'bot'; content: string; timestamp: string }>;
-        if (history.length === 0) return false;
+        const history = (data.messages ?? []) as Array<{
+            role: 'user' | 'bot';
+            content: string;
+            timestamp: string;
+        }>;
+
+        if (history.length === 0) {
+            return false;
+        }
 
         messages.value = history.map((m) => ({
             id: crypto.randomUUID(),
@@ -71,6 +121,7 @@ async function loadHistory(session: string): Promise<boolean> {
             content: m.content,
             timestamp: m.timestamp,
         }));
+
         return true;
     } catch {
         return false;
@@ -80,10 +131,12 @@ async function loadHistory(session: string): Promise<boolean> {
 function getOrCreateSessionId(): string {
     const key = 'aventura_advisor_session';
     let id = localStorage.getItem(key);
+
     if (!id) {
         id = crypto.randomUUID();
         localStorage.setItem(key, id);
     }
+
     return id;
 }
 
@@ -94,16 +147,19 @@ function selectSuggestion(text: string) {
 
 async function sendMessage() {
     const text = inputText.value.trim();
-    if (!text || isLoading.value) return;
+
+    if (!text || isLoading.value) {
+        return;
+    }
 
     inputText.value = '';
-    
+
     // User message
     messages.value.push({
         id: crypto.randomUUID(),
         role: 'user',
         content: text,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
     });
     scrollToBottom();
 
@@ -115,12 +171,17 @@ async function sendMessage() {
             headers: {
                 'Content-Type': 'application/json',
                 'X-Requested-With': 'XMLHttpRequest',
-                'X-CSRF-TOKEN': (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement)?.content ?? '',
+                'X-CSRF-TOKEN':
+                    (
+                        document.querySelector(
+                            'meta[name="csrf-token"]',
+                        ) as HTMLMetaElement
+                    )?.content ?? '',
             },
             body: JSON.stringify({
                 session_id: sessionId.value,
-                message: text
-            })
+                message: text,
+            }),
         });
 
         if (res.ok) {
@@ -128,8 +189,10 @@ async function sendMessage() {
             messages.value.push({
                 id: crypto.randomUUID(),
                 role: 'bot',
-                content: data.answer ?? 'Xin lỗi, tôi không thể xử lý câu trả lời lúc này.',
-                timestamp: new Date().toISOString()
+                content:
+                    data.answer ??
+                    'Xin lỗi, tôi không thể xử lý câu trả lời lúc này.',
+                timestamp: new Date().toISOString(),
             });
         } else {
             throw new Error();
@@ -138,8 +201,9 @@ async function sendMessage() {
         messages.value.push({
             id: crypto.randomUUID(),
             role: 'bot',
-            content: '❌ Có lỗi kết nối đến máy chủ AI. Vui lòng kiểm tra lại dịch vụ Python microservice.',
-            timestamp: new Date().toISOString()
+            content:
+                '❌ Có lỗi kết nối đến máy chủ AI. Vui lòng kiểm tra lại dịch vụ Python microservice.',
+            timestamp: new Date().toISOString(),
         });
     } finally {
         isLoading.value = false;
@@ -157,7 +221,8 @@ function handleKeydown(e: KeyboardEvent) {
 function scrollToBottom() {
     nextTick(() => {
         if (messagesContainer.value) {
-            messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight;
+            messagesContainer.value.scrollTop =
+                messagesContainer.value.scrollHeight;
         }
     });
 }
@@ -167,7 +232,10 @@ function renderMarkdown(text: string): string {
     return text
         .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
         .replace(/\*(.+?)\*/g, '<em>$1</em>')
-        .replace(/`([^`]+)`/g, '<code class="bg-muted px-1 py-0.5 rounded text-xs">$1</code>')
+        .replace(
+            /`([^`]+)`/g,
+            '<code class="bg-muted px-1 py-0.5 rounded text-xs">$1</code>',
+        )
         .replace(/\n/g, '<br>');
 }
 </script>
@@ -175,14 +243,22 @@ function renderMarkdown(text: string): string {
 <template>
     <Head title="Trợ lý AI Chiến lược" />
 
-    <div class="flex flex-col lg:flex-row gap-6 p-4 lg:p-6 max-w-7xl mx-auto w-full h-[calc(100vh-10rem)] min-h-[500px]">
+    <div
+        class="mx-auto flex h-[calc(100vh-10rem)] min-h-[500px] w-full max-w-7xl flex-col gap-6 p-4 lg:flex-row lg:p-6"
+    >
         <!-- Left Panel: Strategic Suggestions -->
-        <div class="w-full lg:w-80 shrink-0 flex flex-col gap-4">
-            <Card class="bg-gradient-to-br from-indigo-500/10 via-purple-500/5 to-transparent border border-indigo-550/10">
+        <div class="flex w-full shrink-0 flex-col gap-4 lg:w-80">
+            <Card
+                class="border-indigo-550/10 border bg-gradient-to-br from-indigo-500/10 via-purple-500/5 to-transparent"
+            >
                 <CardHeader class="pb-3">
                     <div class="flex items-center gap-2">
-                        <Sparkles class="size-5 text-indigo-500 animate-pulse" />
-                        <CardTitle class="text-base font-bold">Gợi ý phân tích AI</CardTitle>
+                        <Sparkles
+                            class="size-5 animate-pulse text-indigo-500"
+                        />
+                        <CardTitle class="text-base font-bold"
+                            >Gợi ý phân tích AI</CardTitle
+                        >
                     </div>
                     <CardDescription class="text-xs">
                         Các kịch bản hỏi nhanh dữ liệu vận hành từ hệ thống.
@@ -193,32 +269,50 @@ function renderMarkdown(text: string): string {
                         v-for="s in strategicSuggestions"
                         :key="s.text"
                         @click="selectSuggestion(s.text)"
-                        class="w-full text-left p-3 rounded-xl border border-border/60 bg-card hover:bg-indigo-50/30 dark:hover:bg-indigo-950/20 hover:border-indigo-500/30 transition-all flex items-center gap-3 group text-xs font-semibold text-foreground"
+                        class="group flex w-full items-center gap-3 rounded-xl border border-border/60 bg-card p-3 text-left text-xs font-semibold text-foreground transition-all hover:border-indigo-500/30 hover:bg-indigo-50/30 dark:hover:bg-indigo-950/20"
                     >
-                        <div class="h-8 w-8 rounded-lg bg-indigo-500/10 text-indigo-500 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+                        <div
+                            class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-indigo-500/10 text-indigo-500 transition-transform group-hover:scale-105"
+                        >
                             <component :is="s.icon" class="size-4" />
                         </div>
-                        <span class="flex-1 line-clamp-2 leading-relaxed">{{ s.text }}</span>
-                        <ArrowRight class="size-3.5 text-muted-foreground opacity-0 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all" />
+                        <span class="line-clamp-2 flex-1 leading-relaxed">{{
+                            s.text
+                        }}</span>
+                        <ArrowRight
+                            class="size-3.5 text-muted-foreground opacity-0 transition-all group-hover:translate-x-0.5 group-hover:opacity-100"
+                        />
                     </button>
                 </CardContent>
             </Card>
         </div>
 
         <!-- Right Panel: Chat Window -->
-        <Card class="flex-1 flex flex-col overflow-hidden bg-gradient-to-b from-card to-background border-border relative">
+        <Card
+            class="relative flex flex-1 flex-col overflow-hidden border-border bg-gradient-to-b from-card to-background"
+        >
             <!-- Header -->
-            <CardHeader class="border-b border-border/80 pb-4 shrink-0 bg-card/65 backdrop-blur-md z-10">
+            <CardHeader
+                class="z-10 shrink-0 border-b border-border/80 bg-card/65 pb-4 backdrop-blur-md"
+            >
                 <div class="flex items-center gap-3">
-                    <div class="h-10 w-10 rounded-2xl bg-indigo-500/15 text-indigo-500 flex items-center justify-center border border-indigo-500/20 shadow-inner">
+                    <div
+                        class="flex h-10 w-10 items-center justify-center rounded-2xl border border-indigo-500/20 bg-indigo-500/15 text-indigo-500 shadow-inner"
+                    >
                         <Bot class="size-5 animate-pulse" />
                     </div>
                     <div>
-                        <CardTitle class="text-sm font-bold flex items-center gap-1.5">
+                        <CardTitle
+                            class="flex items-center gap-1.5 text-sm font-bold"
+                        >
                             Trợ lý AI Chiến lược Aventura
-                            <span class="h-2 w-2 rounded-full bg-emerald-500 animate-ping"></span>
+                            <span
+                                class="h-2 w-2 animate-ping rounded-full bg-emerald-500"
+                            ></span>
                         </CardTitle>
-                        <CardDescription class="text-xxs uppercase tracking-wider font-extrabold text-indigo-600 dark:text-indigo-400">
+                        <CardDescription
+                            class="text-xxs font-extrabold tracking-wider text-indigo-600 uppercase dark:text-indigo-400"
+                        >
                             Hệ thống Phân tích Doanh nghiệp Thông minh
                         </CardDescription>
                     </div>
@@ -226,19 +320,26 @@ function renderMarkdown(text: string): string {
             </CardHeader>
 
             <!-- Chat message area -->
-            <div 
+            <div
                 ref="messagesContainer"
-                class="flex-1 overflow-y-auto px-5 py-6 space-y-4 scroll-smooth"
+                class="flex-1 space-y-4 overflow-y-auto scroll-smooth px-5 py-6"
             >
-                <div 
-                    v-for="msg in messages" 
+                <div
+                    v-for="msg in messages"
                     :key="msg.id"
-                    :class="['flex gap-3 max-w-[85%] transition-all', msg.role === 'user' ? 'ml-auto flex-row-reverse' : '']"
+                    :class="[
+                        'flex max-w-[85%] gap-3 transition-all',
+                        msg.role === 'user' ? 'ml-auto flex-row-reverse' : '',
+                    ]"
                 >
                     <!-- Avatar -->
-                    <div 
-                        :class="['h-8 w-8 rounded-xl shrink-0 flex items-center justify-center text-xs font-bold shadow-sm border', 
-                                 msg.role === 'bot' ? 'bg-indigo-500/10 text-indigo-500 border-indigo-500/20' : 'bg-muted text-foreground border-border']"
+                    <div
+                        :class="[
+                            'flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border text-xs font-bold shadow-sm',
+                            msg.role === 'bot'
+                                ? 'border-indigo-500/20 bg-indigo-500/10 text-indigo-500'
+                                : 'border-border bg-muted text-foreground',
+                        ]"
                     >
                         <Bot v-if="msg.role === 'bot'" class="size-4" />
                         <User v-else class="size-4" />
@@ -246,11 +347,13 @@ function renderMarkdown(text: string): string {
 
                     <!-- Chat bubble -->
                     <div class="flex flex-col gap-1">
-                        <div 
-                            :class="['p-3.5 rounded-2xl text-xs leading-relaxed border',
-                                     msg.role === 'user' 
-                                         ? 'rounded-tr-none bg-indigo-600 text-white border-indigo-700 shadow-md shadow-indigo-600/10' 
-                                         : 'rounded-tl-none bg-muted/50 border-border/80 text-foreground']"
+                        <div
+                            :class="[
+                                'rounded-2xl border p-3.5 text-xs leading-relaxed',
+                                msg.role === 'user'
+                                    ? 'rounded-tr-none border-indigo-700 bg-indigo-600 text-white shadow-md shadow-indigo-600/10'
+                                    : 'rounded-tl-none border-border/80 bg-muted/50 text-foreground',
+                            ]"
                         >
                             <span v-html="renderMarkdown(msg.content)"></span>
                         </div>
@@ -258,21 +361,35 @@ function renderMarkdown(text: string): string {
                 </div>
 
                 <!-- Typing indicator -->
-                <div v-if="isLoading" class="flex gap-3 max-w-[85%]">
-                    <div class="h-8 w-8 rounded-xl shrink-0 flex items-center justify-center bg-indigo-500/10 text-indigo-500 border border-indigo-500/20">
+                <div v-if="isLoading" class="flex max-w-[85%] gap-3">
+                    <div
+                        class="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-indigo-500/20 bg-indigo-500/10 text-indigo-500"
+                    >
                         <Bot class="size-4" />
                     </div>
-                    <div class="flex items-center gap-1 bg-muted/40 border border-border/60 rounded-2xl rounded-tl-none px-4 py-3">
-                        <span class="size-1.5 animate-bounce rounded-full bg-indigo-500/60 [animation-delay:0ms]" />
-                        <span class="size-1.5 animate-bounce rounded-full bg-indigo-500/60 [animation-delay:150ms]" />
-                        <span class="size-1.5 animate-bounce rounded-full bg-indigo-500/60 [animation-delay:300ms]" />
+                    <div
+                        class="flex items-center gap-1 rounded-2xl rounded-tl-none border border-border/60 bg-muted/40 px-4 py-3"
+                    >
+                        <span
+                            class="size-1.5 animate-bounce rounded-full bg-indigo-500/60 [animation-delay:0ms]"
+                        />
+                        <span
+                            class="size-1.5 animate-bounce rounded-full bg-indigo-500/60 [animation-delay:150ms]"
+                        />
+                        <span
+                            class="size-1.5 animate-bounce rounded-full bg-indigo-500/60 [animation-delay:300ms]"
+                        />
                     </div>
                 </div>
             </div>
 
             <!-- Input area -->
-            <div class="p-4 border-t border-border shrink-0 bg-card/65 backdrop-blur-md z-10">
-                <div class="flex items-center gap-2 rounded-2xl border border-border bg-muted/40 px-4 py-2.5 transition focus-within:border-indigo-500/40 focus-within:bg-background focus-within:shadow-md">
+            <div
+                class="z-10 shrink-0 border-t border-border bg-card/65 p-4 backdrop-blur-md"
+            >
+                <div
+                    class="flex items-center gap-2 rounded-2xl border border-border bg-muted/40 px-4 py-2.5 transition focus-within:border-indigo-500/40 focus-within:bg-background focus-within:shadow-md"
+                >
                     <input
                         v-model="inputText"
                         @keydown="handleKeydown"
@@ -285,7 +402,7 @@ function renderMarkdown(text: string): string {
                         @click="sendMessage"
                         :disabled="!inputText.trim() || isLoading"
                         size="icon"
-                        class="h-8 w-8 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl shrink-0 transition"
+                        class="h-8 w-8 shrink-0 rounded-xl bg-indigo-600 text-white transition hover:bg-indigo-500"
                     >
                         <Loader2 v-if="isLoading" class="size-4 animate-spin" />
                         <Send v-else class="size-4" />

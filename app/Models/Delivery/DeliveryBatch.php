@@ -17,9 +17,9 @@ class DeliveryBatch extends Model
     protected function casts(): array
     {
         return [
-            'optimized_route'            => 'array',
-            'dispatched_at'              => 'datetime',
-            'completed_at'               => 'datetime',
+            'optimized_route' => 'array',
+            'dispatched_at' => 'datetime',
+            'completed_at' => 'datetime',
         ];
     }
 
@@ -52,13 +52,19 @@ class DeliveryBatch extends Model
     {
         if ($this->relationLoaded('items')) {
             $total = $this->items->count();
-            if ($total === 0) return 0;
+            if ($total === 0) {
+                return 0;
+            }
             $done = $this->items->whereIn('status', ['delivered', 'failed'])->count();
+
             return (int) round(($done / $total) * 100);
         }
         $total = $this->items()->count();
-        if ($total === 0) return 0;
+        if ($total === 0) {
+            return 0;
+        }
         $done = $this->items()->whereIn('status', ['delivered', 'failed'])->count();
+
         return (int) round(($done / $total) * 100);
     }
 }

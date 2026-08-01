@@ -14,6 +14,17 @@ class ShiftSwap extends Model
 
     protected $guarded = [];
 
+    protected static function booted(): void
+    {
+        static::creating(function (self $swap): void {
+            if ($swap->branch_id === null && $swap->requester_assignment_id) {
+                $swap->branch_id = ScheduleAssignment::withoutGlobalScopes()
+                    ->whereKey($swap->requester_assignment_id)
+                    ->value('branch_id');
+            }
+        });
+    }
+
     public function requesterAssignment(): BelongsTo
     {
         return $this->belongsTo(ScheduleAssignment::class, 'requester_assignment_id');

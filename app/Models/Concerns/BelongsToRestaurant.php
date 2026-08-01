@@ -4,6 +4,7 @@ namespace App\Models\Concerns;
 
 use App\Support\Tenant\TenantContext;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Model;
 
 trait BelongsToRestaurant
 {
@@ -34,5 +35,37 @@ trait BelongsToRestaurant
                 $model->restaurant_id = $restaurantId;
             }
         });
+    }
+
+    /**
+     * Scope route-model-binding theo nhà hàng của người dùng đăng nhập.
+     *
+     * Lý do: middleware SetTenantContext (nguồn của global scope 'restaurant') chạy
+     * SAU SubstituteBindings, nên global scope là no-op lúc bind → nếu chỉ dựa vào
+     * nó, một owner có thể thao tác trên bản ghi của nhà hàng KHÁC qua {model} trên
+     * URL (IDOR). Ở đây ta scope thủ công theo auth()->user() (auth đã chạy trước
+     * binding). Super admin không bị scope; route công khai (guest) giữ nguyên.
+     */
+    public function resolveRouteBinding($value, $field = null): ?Model
+    {
+        $field = $field ?: $this->getRouteKeyName();
+        $table = $this->getTable();
+        $query = $this->newQuery()->where($table.'.'.$field, $value);
+
+        $user = auth()->user();
+        $isSuperAdmin = $user && method_exists($user, 'isSuperAdmin') && $user->isSuperAdmin();
+
+        if ($user && $user->restaurant_id && ! $isSuperAdmin) {
+            if (method_exists($this, 'shouldIncludeSystemShared') && $this->shouldIncludeSystemShared()) {
+                $query->where(function ($q) use ($table, $user): void {
+                    $q->whereNull($table.'.restaurant_id')
+                        ->orWhere($table.'.restaurant_id', $user->restaurant_id);
+                });
+            } else {
+                $query->where($table.'.restaurant_id', $user->restaurant_id);
+            }
+        }
+
+        return $query->first();
     }
 }

@@ -15,9 +15,9 @@ class ShipperLocationUpdated implements ShouldBroadcastNow
 
     public function __construct(
         public Shipper $shipper,
-        public float   $latitude,
-        public float   $longitude,
-        public ?float  $speedKmh = null,
+        public float $latitude,
+        public float $longitude,
+        public ?float $speedKmh = null,
     ) {}
 
     public function broadcastOn(): array
@@ -29,10 +29,10 @@ class ShipperLocationUpdated implements ShouldBroadcastNow
     {
         return [
             'shipper_id' => $this->shipper->id,
-            'latitude'   => $this->latitude,
-            'longitude'  => $this->longitude,
-            'speed_kmh'  => $this->speedKmh,
-            'logged_at'  => now()->toISOString(),
+            'latitude' => $this->latitude,
+            'longitude' => $this->longitude,
+            'speed_kmh' => $this->speedKmh,
+            'logged_at' => now()->toISOString(),
         ];
     }
 

@@ -63,7 +63,7 @@ class Coupon extends Model
      */
     public function getDiscountAmount(float $price): float
     {
-        if (!$this->isValid()) {
+        if (! $this->isValid()) {
             return 0;
         }
 

@@ -21,7 +21,7 @@ return new class extends Migration
                 'shipping',
                 'delivered',
                 'frozen',
-                'cancelled'
+                'cancelled',
             ])->default('pending_approval');
             $table->decimal('total_amount', 12, 2);
             $table->decimal('invoice_total_amount', 12, 2)->default(0);

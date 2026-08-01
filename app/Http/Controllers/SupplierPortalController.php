@@ -2,14 +2,18 @@
 
 namespace App\Http\Controllers;
 
+use App\Events\PurchaseOrderUpdated;
 use App\Models\Ingredient;
 use App\Models\PurchaseOrder;
 use App\Models\Supplier;
 use App\Models\SupplierPriceHistory;
+use App\Models\SystemSetting;
 use App\Models\Unit;
-use App\Events\PurchaseOrderUpdated;
+use App\Support\TenantRule;
+use Carbon\Carbon;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -57,6 +61,35 @@ class SupplierPortalController extends Controller
                 'created_at' => $po->created_at->format('d/m/Y H:i'),
             ]);
 
+        $pos = PurchaseOrder::withoutGlobalScopes()
+            ->where('supplier_id', $supplier->id)
+            ->whereIn('status', ['delivered', 'frozen'])
+            ->get();
+
+        $totalPos = $pos->count();
+        $onTimeCount = 0;
+        $accurateCount = 0;
+
+        foreach ($pos as $po) {
+            if (! $po->is_discrepant) {
+                $accurateCount++;
+            }
+
+            if ($po->delivery_due_date && $po->delivered_at) {
+                $dueDate = Carbon::parse($po->delivery_due_date);
+                $deliveredDate = Carbon::parse($po->delivered_at);
+                if ($deliveredDate->lte($dueDate->addMinutes(30))) {
+                    $onTimeCount++;
+                }
+            } else {
+                $onTimeCount++;
+            }
+        }
+
+        $onTimeRate = $totalPos > 0 ? ($onTimeCount / $totalPos) * 100 : 100;
+        $accuracyRate = $totalPos > 0 ? ($accurateCount / $totalPos) * 100 : 100;
+        $averageRating = $pos->whereNotNull('rating')->avg('rating') ?? 5.0;
+
         return Inertia::render('supplier/Dashboard', [
             'supplier' => $supplier,
             'stats' => [
@@ -66,6 +99,11 @@ class SupplierPortalController extends Controller
                 'total_revenue' => (float) $totalRevenue,
             ],
             'recentOrders' => $recentOrders,
+            'sla' => [
+                'on_time_rate' => round($onTimeRate, 1),
+                'accuracy_rate' => round($accuracyRate, 1),
+                'average_rating' => round($averageRating, 1),
+            ],
         ]);
     }
 
@@ -97,6 +135,7 @@ class SupplierPortalController extends Controller
         $units = Unit::withoutGlobalScopes()->get(['id', 'name', 'symbol']);
 
         return Inertia::render('supplier/Catalog', [
+            'supplier' => $supplier,
             'ingredients' => $ingredients,
             'units' => $units,
         ]);
@@ -117,7 +156,7 @@ class SupplierPortalController extends Controller
             'name' => ['required', 'string', 'max:255'],
             'sku' => ['required', 'string', 'max:100'],
             'price' => ['required', 'numeric', 'min:0'],
-            'unit_id' => ['required', 'integer', 'exists:units,id'],
+            'unit_id' => ['required', 'integer', TenantRule::exists('units', restaurantId: (int) $supplier->restaurant_id)],
             'category_name' => ['nullable', 'string', 'max:100'],
             'description' => ['nullable', 'string'],
             'status' => ['required', 'in:active,inactive'],
@@ -130,6 +169,7 @@ class SupplierPortalController extends Controller
             if ($id) {
                 // Update
                 $ingredient = Ingredient::withoutGlobalScopes()->findOrFail($id);
+                abort_unless((int) $ingredient->supplier_id === (int) $supplier->id, 403);
 
                 $oldPrice = (float) $ingredient->average_cost;
                 $ingredient->update([
@@ -229,10 +269,10 @@ class SupplierPortalController extends Controller
         $user = $request->user();
         abort_unless($user->hasRole('supplier') && $user->supplier_id === $purchaseOrder->supplier_id, 403);
 
-        $maxSize = \App\Models\SystemSetting::get('upload_invoice_image_max', 4096);
+        $maxSize = SystemSetting::get('upload_invoice_image_max', 4096);
         $request->validate([
             'status' => ['required', 'in:preparing,shipping,delivered'],
-            'invoice_file' => ['nullable', 'file', 'image', 'mimes:jpeg,png,jpg,pdf', 'max:' . $maxSize],
+            'invoice_file' => ['nullable', 'file', 'image', 'mimes:jpeg,png,jpg,pdf', 'max:'.$maxSize],
         ]);
 
         $status = $request->input('status');
@@ -240,7 +280,7 @@ class SupplierPortalController extends Controller
         $invoiceUrl = $purchaseOrder->invoice_file_url;
         if ($request->hasFile('invoice_file')) {
             $path = $request->file('invoice_file')->store('invoices', 'public');
-            $invoiceUrl = '/storage/' . $path;
+            $invoiceUrl = '/storage/'.$path;
         }
 
         $purchaseOrder->update([
@@ -259,7 +299,11 @@ class SupplierPortalController extends Controller
      */
     public function getSlaMetrics(Request $request, Supplier $supplier)
     {
-        abort_unless($request->user()->hasAnyRole(['owner', 'manager', 'inventory_staff']), 403);
+        $user = $request->user();
+        $isAllowed = $user->hasAnyRole(['owner', 'manager', 'inventory_staff']) ||
+            ($user->hasRole('supplier') && (int) $user->supplier_id === (int) $supplier->id);
+
+        abort_unless($isAllowed, 403);
 
         $pos = PurchaseOrder::where('supplier_id', $supplier->id)
             ->whereIn('status', ['delivered', 'frozen'])
@@ -271,14 +315,14 @@ class SupplierPortalController extends Controller
 
         foreach ($pos as $po) {
             // Check accuracy
-            if (!$po->is_discrepant) {
+            if (! $po->is_discrepant) {
                 $accurateCount++;
             }
 
             // Check on-time
             if ($po->delivery_due_date && $po->delivered_at) {
-                $dueDate = \Carbon\Carbon::parse($po->delivery_due_date);
-                $deliveredDate = \Carbon\Carbon::parse($po->delivered_at);
+                $dueDate = Carbon::parse($po->delivery_due_date);
+                $deliveredDate = Carbon::parse($po->delivered_at);
                 // 30 mins grace period
                 if ($deliveredDate->lte($dueDate->addMinutes(30))) {
                     $onTimeCount++;
@@ -330,7 +374,7 @@ class SupplierPortalController extends Controller
         }
 
         // Get recent ratings
-        $recentRatings = $pos->whereNotNull('rating')->map(fn($po) => [
+        $recentRatings = $pos->whereNotNull('rating')->map(fn ($po) => [
             'po_number' => $po->po_number,
             'rating' => $po->rating,
             'rating_notes' => $po->rating_notes,
@@ -350,5 +394,4 @@ class SupplierPortalController extends Controller
             'recent_ratings' => $recentRatings,
         ]);
     }
-
 }

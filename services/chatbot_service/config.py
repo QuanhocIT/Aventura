@@ -12,3 +12,9 @@ DB_PASSWORD: str = os.getenv("DB_PASSWORD", "")
 CACHE_TTL_SECONDS: int = int(os.getenv("CACHE_TTL_SECONDS", "300"))
 SIMILARITY_THRESHOLD: float = float(os.getenv("SIMILARITY_THRESHOLD", "0.28"))
 MAX_SUGGESTIONS: int = int(os.getenv("MAX_SUGGESTIONS", "5"))
+
+# Khóa nội bộ xác thực giao tiếp từ Laravel.
+# Sinh bằng: openssl rand -hex 32
+# Để trống ở môi trường dev (bỏ qua kiểm tra).
+INTERNAL_API_KEY: str = os.getenv("INTERNAL_API_KEY", "")
+

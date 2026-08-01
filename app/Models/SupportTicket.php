@@ -2,12 +2,11 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\BelongsToRestaurant;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
-
-use App\Models\Concerns\BelongsToRestaurant;
 
 class SupportTicket extends Model
 {
@@ -35,10 +34,11 @@ class SupportTicket extends Model
             if ($this->sla_due_at && $this->first_response_at->gt($this->sla_due_at)) {
                 return 'breached';
             }
+
             return 'fulfilled';
         }
 
-        if (!$this->sla_due_at) {
+        if (! $this->sla_due_at) {
             return 'pending';
         }
 

@@ -18,10 +18,10 @@ class RestaurantController extends Controller
 
         return Inertia::render('settings/Restaurant', [
             'restaurant' => $restaurant ? [
-                'name'     => $restaurant->name,
-                'phone'    => $restaurant->phone,
-                'email'    => $restaurant->email,
-                'address'  => $restaurant->address,
+                'name' => $restaurant->name,
+                'phone' => $restaurant->phone,
+                'email' => $restaurant->email,
+                'address' => $restaurant->address,
                 'tax_code' => $restaurant->tax_code,
                 'timezone' => $restaurant->timezone,
                 'currency' => $restaurant->currency,
@@ -30,6 +30,9 @@ class RestaurantController extends Controller
                 'qr_account_number' => $restaurant->qr_account_number,
                 'qr_account_name' => $restaurant->qr_account_name,
                 'qr_enabled' => (bool) $restaurant->qr_enabled,
+                'reservation_deposit_amount' => (float) ($restaurant->reservation_deposit_amount ?? 0),
+                'latitude' => $restaurant->latitude ? (float) $restaurant->latitude : null,
+                'longitude' => $restaurant->longitude ? (float) $restaurant->longitude : null,
             ] : null,
             'status' => $request->session()->get('status'),
         ]);
@@ -44,16 +47,19 @@ class RestaurantController extends Controller
         }
 
         $data = $request->validate([
-            'name'     => ['required', 'string', 'max:255'],
-            'phone'    => ['nullable', 'string', 'max:20'],
-            'email'    => ['nullable', 'email', 'max:255'],
-            'address'  => ['nullable', 'string', 'max:500'],
+            'name' => ['required', 'string', 'max:255'],
+            'phone' => ['nullable', 'string', 'max:20'],
+            'email' => ['nullable', 'email', 'max:255'],
+            'address' => ['nullable', 'string', 'max:500'],
             'tax_code' => ['nullable', 'string', 'max:50'],
-            'logo'     => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:2048'],
+            'logo' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:2048'],
             'qr_bank_id' => ['nullable', 'string', 'max:50'],
             'qr_account_number' => ['nullable', 'string', 'max:50'],
             'qr_account_name' => ['nullable', 'string', 'max:255'],
             'qr_enabled' => ['nullable', 'boolean'],
+            'reservation_deposit_amount' => ['nullable', 'numeric', 'min:0', 'max:100000000'],
+            'latitude' => ['nullable', 'numeric', 'between:-90,90'],
+            'longitude' => ['nullable', 'numeric', 'between:-180,180'],
         ]);
 
         $data['qr_enabled'] = $request->boolean('qr_enabled');
@@ -63,7 +69,7 @@ class RestaurantController extends Controller
                 Storage::disk('public')->delete(Str::after($restaurant->logo_url, '/storage/'));
             }
 
-            $data['logo_url'] = '/storage/' . $request->file('logo')->store('restaurants', 'public');
+            $data['logo_url'] = '/storage/'.$request->file('logo')->store('restaurants', 'public');
         }
 
         unset($data['logo']);

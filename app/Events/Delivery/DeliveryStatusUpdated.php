@@ -16,12 +16,13 @@ class DeliveryStatusUpdated implements ShouldBroadcastNow
 
     public function __construct(
         public DeliveryBatchItem $item,
-        public ?DeliveryBatch    $batch = null,
+        public ?DeliveryBatch $batch = null,
     ) {}
 
     public function broadcastOn(): array
     {
         $restaurantId = $this->batch?->restaurant_id ?? $this->item->batch?->restaurant_id;
+
         return [new PrivateChannel("delivery.{$restaurantId}")];
     }
 
@@ -29,14 +30,14 @@ class DeliveryStatusUpdated implements ShouldBroadcastNow
     {
         return [
             'item' => [
-                'id'             => $this->item->id,
-                'batch_id'       => $this->item->batch_id,
-                'order_id'       => $this->item->order_id,
+                'id' => $this->item->id,
+                'batch_id' => $this->item->batch_id,
+                'order_id' => $this->item->order_id,
                 'sequence_order' => $this->item->sequence_order,
-                'status'         => $this->item->status,
-                'picked_up_at'   => $this->item->picked_up_at?->toISOString(),
-                'delivered_at'   => $this->item->delivered_at?->toISOString(),
-                'eta'            => $this->item->eta?->toISOString(),
+                'status' => $this->item->status,
+                'picked_up_at' => $this->item->picked_up_at?->toISOString(),
+                'delivered_at' => $this->item->delivered_at?->toISOString(),
+                'eta' => $this->item->eta?->toISOString(),
             ],
             'batch_status' => $this->batch?->status,
         ];

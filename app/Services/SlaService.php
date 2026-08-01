@@ -2,12 +2,12 @@
 
 namespace App\Services;
 
+use App\Mail\SupportTicketEscalationMail;
 use App\Models\SupportTicket;
 use App\Models\User;
-use App\Mail\SupportTicketEscalationMail;
 use Illuminate\Support\Carbon;
-use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 
 class SlaService
 {
@@ -18,10 +18,10 @@ class SlaService
     {
         return match ($planCode) {
             'enterprise' => 2,
-            'pro'        => 12,
-            'starter'    => 24,
-            'free'       => 48,
-            default      => 48,
+            'pro' => 12,
+            'starter' => 24,
+            'free' => 48,
+            default => 48,
         };
     }
 
@@ -31,7 +31,7 @@ class SlaService
     public function calculateSlaDueAt(SupportTicket $ticket): ?Carbon
     {
         $createdAt = $ticket->created_at ? Carbon::parse($ticket->created_at) : now();
-        
+
         $restaurant = $ticket->restaurant;
         if ($restaurant && $restaurant->plan) {
             $slaHours = $this->getSlaHoursForPlan($restaurant->plan->code);
@@ -76,6 +76,7 @@ class SlaService
 
         if ($superAdmins->isEmpty()) {
             Log::warning('No superadmins found to escalate tickets to.');
+
             return [];
         }
 
@@ -95,7 +96,7 @@ class SlaService
                 $escalatedTickets[] = $ticket;
                 Log::info("Support ticket {$ticket->code} escalated successfully.");
             } catch (\Exception $e) {
-                Log::error("Failed to escalate ticket {$ticket->code}: " . $e->getMessage());
+                Log::error("Failed to escalate ticket {$ticket->code}: ".$e->getMessage());
             }
         }
 
@@ -113,10 +114,10 @@ class SlaService
             ->where(function ($query) {
                 $query->where(function ($q) {
                     $q->whereNotNull('first_response_at')
-                      ->whereColumn('first_response_at', '>', 'sla_due_at');
+                        ->whereColumn('first_response_at', '>', 'sla_due_at');
                 })->orWhere(function ($q) {
                     $q->whereNull('first_response_at')
-                      ->where('sla_due_at', '<', now());
+                        ->where('sla_due_at', '<', now());
                 });
             })->count();
 

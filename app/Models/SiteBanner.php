@@ -12,9 +12,9 @@ class SiteBanner extends Model
     protected function casts(): array
     {
         return [
-            'is_active'  => 'boolean',
-            'starts_at'  => 'datetime',
-            'ends_at'    => 'datetime',
+            'is_active' => 'boolean',
+            'starts_at' => 'datetime',
+            'ends_at' => 'datetime',
             'sort_order' => 'integer',
         ];
     }
@@ -30,6 +30,6 @@ class SiteBanner extends Model
 
     public function getImageUrlAttribute(): string
     {
-        return '/storage/' . $this->image_path;
+        return '/storage/'.$this->image_path;
     }
 }

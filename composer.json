@@ -23,6 +23,7 @@
         "laravel/wayfinder": "^0.1.14",
         "meilisearch/meilisearch-php": "^1.16",
         "predis/predis": "^2.3",
+        "sentry/sentry-laravel": "*",
         "spatie/laravel-permission": "^7.4"
     },
     "require-dev": {
@@ -59,11 +60,14 @@
             "Composer\\Config::disableProcessTimeout",
             "npx concurrently -c \"#93c5fd,#c4b5fd,#fdba74,#a7f3d0\" \"php artisan serve\" \"php artisan queue:listen --tries=1\" \"npm run dev\" \"php artisan reverb:start\" --names='server,queue,vite,reverb'"
         ],
+        "dev:ai": [
+            "powershell -ExecutionPolicy Bypass -File services/start-all.ps1"
+        ],
         "lint": [
-            "pint --parallel"
+            "pint --parallel app routes config database tests"
         ],
         "lint:check": [
-            "pint --parallel --test"
+            "pint --parallel --test app routes config database tests"
         ],
         "ci:check": [
             "Composer\\Config::disableProcessTimeout",

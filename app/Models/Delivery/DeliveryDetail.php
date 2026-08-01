@@ -17,10 +17,10 @@ class DeliveryDetail extends Model
     {
         return [
             'delivered_at' => 'datetime',
-            'latitude'     => 'decimal:7',
-            'longitude'    => 'decimal:7',
+            'latitude' => 'decimal:7',
+            'longitude' => 'decimal:7',
             'delivery_fee' => 'decimal:2',
-            'cod_amount'   => 'decimal:2',
+            'cod_amount' => 'decimal:2',
         ];
     }
 
