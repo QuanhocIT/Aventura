@@ -69,15 +69,15 @@ const props = defineProps<{
 }>();
 
 const seasonColors: Record<string, string> = {
-    tet: 'from-red-500/20 to-amber-500/10 border-red-500/30',
-    valentine: 'from-pink-500/20 to-rose-500/10 border-pink-500/30',
-    women_day_8_3: 'from-fuchsia-500/20 to-pink-500/10 border-fuchsia-500/30',
-    women_day_20_10: 'from-violet-500/20 to-purple-500/10 border-violet-500/30',
-    mid_autumn: 'from-amber-500/20 to-yellow-500/10 border-amber-500/30',
-    national_day: 'from-red-600/20 to-yellow-500/10 border-red-600/30',
-    black_friday: 'from-slate-800/30 to-slate-600/10 border-slate-700/40',
-    noel: 'from-emerald-500/20 to-red-500/10 border-emerald-500/30',
-    custom: 'from-sky-500/20 to-indigo-500/10 border-sky-500/30',
+    tet: 'border-border/60 bg-card/80',
+    valentine: 'border-border/60 bg-card/80',
+    women_day_8_3: 'border-border/60 bg-card/80',
+    women_day_20_10: 'border-border/60 bg-card/80',
+    mid_autumn: 'border-border/60 bg-card/80',
+    national_day: 'border-border/60 bg-card/80',
+    black_friday: 'border-border/60 bg-card/80',
+    noel: 'border-border/60 bg-card/80',
+    custom: 'border-border/60 bg-card/80',
 };
 
 const seasonEmojis: Record<string, string> = {
@@ -309,25 +309,28 @@ async function deleteTemplate(id: number) {
         </div>
 
         <!-- AI Advisor Banner -->
-        <SectionCard accent-color="violet" class="!space-y-0">
+        <SectionCard
+            accent-color="violet"
+            class="!space-y-0 border-border/60 bg-card/60 [background-image:none]"
+        >
             <div
                 class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between"
             >
                 <div class="flex items-start gap-3.5">
                     <div
-                        class="flex size-10 shrink-0 items-center justify-center rounded-xl border border-indigo-500/20 bg-indigo-500/10 text-indigo-500"
+                        class="flex size-10 shrink-0 items-center justify-center rounded-xl border border-primary/20 bg-primary/10 text-primary"
                     >
                         <Sparkles class="size-5 animate-pulse" />
                     </div>
                     <div class="space-y-1">
                         <h4
-                            class="text-sm font-bold text-indigo-950 dark:text-indigo-200"
+                            class="text-sm font-bold text-foreground"
                         >
                             Trợ lý AI & gợi ý chiến dịch:
                             {{ aiRecommendation.title }}
                         </h4>
                         <p
-                            class="text-xs leading-relaxed text-indigo-700/80 dark:text-indigo-300/80"
+                            class="text-xs leading-relaxed text-muted-foreground"
                         >
                             {{ aiRecommendation.text }}
                         </p>
@@ -338,7 +341,7 @@ async function deleteTemplate(id: number) {
                 >
                     <Button
                         size="sm"
-                        class="bg-indigo-600 text-xs font-bold text-white hover:bg-indigo-700"
+                        class="bg-primary text-xs font-bold text-primary-foreground hover:bg-primary/90"
                         @click="applyAiRecommendation"
                     >
                         <Zap class="mr-1.5 size-3.5" /> Áp dụng ngay
@@ -356,7 +359,7 @@ async function deleteTemplate(id: number) {
                 v-for="t in templates"
                 :key="t.id"
                 :class="[
-                    'group relative overflow-hidden rounded-2xl border bg-gradient-to-br p-5 transition-all duration-300 hover:-translate-y-1 hover:shadow-lg',
+                    'group relative overflow-hidden rounded-2xl border p-5 transition-all duration-300 hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-md',
                     seasonColors[t.season] ?? seasonColors.custom,
                 ]"
             >
@@ -681,7 +684,7 @@ async function deleteTemplate(id: number) {
 
                         <div
                             :class="[
-                                'group relative w-full overflow-hidden rounded-2xl border border-border/40 bg-gradient-to-br p-5 shadow-md transition-all duration-300',
+                                'group relative w-full overflow-hidden rounded-2xl border border-border/60 bg-card/80 p-5 shadow-xs transition-all duration-300',
                                 seasonColors[form.season] ??
                                     seasonColors.custom,
                             ]"
