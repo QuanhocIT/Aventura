@@ -3,7 +3,6 @@ import {
     BarChart3,
     Bot,
     Building2,
-    Check,
     ChevronRight,
     Monitor,
     Package,
@@ -332,7 +331,7 @@ onUnmounted(() => {
                 <!-- LEFT COLUMN: Operations & Data Flow Console (5/12 columns) -->
                 <div class="reveal-on-scroll space-y-4 lg:col-span-5">
                     <div
-                        class="relative flex min-h-[480px] flex-col justify-between overflow-hidden rounded-2xl border bg-zinc-950 p-6 text-zinc-100 shadow-2xl transition-all duration-500"
+                        class="relative flex min-h-[520px] flex-col justify-between overflow-hidden rounded-2xl border bg-zinc-950 p-4 text-zinc-100 shadow-2xl transition-all duration-500 sm:min-h-[480px] sm:p-6"
                         :style="`border-color: ${colorGlowBorder}; box-shadow: 0 10px 30px -10px ${colorGlowBorder}`"
                     >
                         <!-- Color Glow Effects behind the console -->
@@ -356,7 +355,7 @@ onUnmounted(() => {
 
                         <!-- Console Header -->
                         <div
-                            class="flex items-center justify-between border-b border-zinc-900 pb-4"
+                            class="flex flex-col items-start gap-3 border-b border-zinc-900 pb-4 sm:flex-row sm:items-center sm:justify-between"
                         >
                             <div class="flex items-center gap-2">
                                 <div class="flex gap-1.5">
@@ -375,7 +374,9 @@ onUnmounted(() => {
                                     >DATAFLOW_MONITOR v1.0.0</span
                                 >
                             </div>
-                            <div class="flex items-center gap-1.5">
+                            <div
+                                class="flex w-full flex-wrap items-center gap-1.5 sm:w-auto"
+                            >
                                 <button
                                     @click="toggleAutoPlay"
                                     class="flex cursor-pointer items-center gap-1.5 rounded-lg border px-2 py-1 text-[9.5px] font-bold transition-all duration-300 active:scale-95"
@@ -439,7 +440,7 @@ onUnmounted(() => {
                             >
                                 <!-- Selected Feature Overview -->
                                 <div class="mt-4 space-y-3">
-                                    <div class="flex items-center gap-3">
+                                    <div class="flex min-w-0 items-start gap-3">
                                         <div
                                             class="rounded-xl border p-2.5 transition-all duration-300"
                                             :class="{
@@ -477,9 +478,9 @@ onUnmounted(() => {
                                                 class="size-6 animate-pulse"
                                             />
                                         </div>
-                                        <div>
+                                        <div class="min-w-0">
                                             <h3
-                                                class="flex items-center gap-2 text-base font-bold tracking-tight text-white"
+                                                class="flex flex-wrap items-center gap-2 text-base font-bold tracking-tight text-white"
                                             >
                                                 Bước {{ activeFeature.step }}:
                                                 {{ activeFeature.title }}

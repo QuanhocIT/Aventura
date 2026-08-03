@@ -20,8 +20,6 @@ const heroIndex = ref(0);
 const heroDir = ref<'next' | 'prev'>('next');
 let heroTimer: ReturnType<typeof setInterval> | null = null;
 
-const heroBanners = computed(() => props.banners?.hero ?? []);
-
 const defaultSlides = [
     {
         subtitle: 'VẬN HÀNH THÔNG MINH – CHỐNG THẤT THOÁT TUYỆT ĐỐI',
@@ -166,7 +164,7 @@ onUnmounted(() => {
         </div>
 
         <div
-            class="relative z-10 mx-auto grid max-w-7xl gap-12 lg:grid-cols-[1.1fr_0.9fr] lg:items-center"
+            class="relative z-10 mx-auto grid max-w-7xl gap-8 lg:grid-cols-[1.1fr_0.9fr] lg:items-center lg:gap-12"
         >
             <!-- Premium gradient blobs -->
             <div
@@ -187,7 +185,7 @@ onUnmounted(() => {
 
             <!-- Left Column: Premium Value Proposition & Feature Badges -->
             <div
-                class="relative flex min-h-[480px] flex-col justify-center sm:min-h-[420px] lg:min-h-[450px]"
+                class="relative flex min-h-[560px] flex-col justify-center sm:min-h-[420px] lg:min-h-[450px]"
             >
                 <Transition :name="`slide-${heroDir}`">
                     <div
@@ -209,18 +207,20 @@ onUnmounted(() => {
 
                         <!-- Description -->
                         <p
-                            class="mt-6 max-w-xl text-base leading-relaxed text-zinc-300 lg:text-lg"
+                            class="mt-5 max-w-xl text-base leading-relaxed text-zinc-300 sm:mt-6 lg:text-lg"
                         >
                             {{ activeSlides[heroIndex].description }}
                         </p>
 
                         <!-- Glassmorphic Tag Badges in Travel layout style -->
-                        <div class="mt-10 flex flex-wrap gap-3.5">
+                        <div
+                            class="mt-8 flex flex-wrap gap-2.5 sm:mt-10 sm:gap-3.5"
+                        >
                             <div
                                 v-for="(badge, idx) in activeSlides[heroIndex]
                                     .badges"
                                 :key="idx"
-                                class="flex items-center gap-2 rounded-xl border border-white/15 bg-white/8 px-4 py-3 text-xs font-semibold text-white shadow-lg backdrop-blur-md transition-all duration-300 hover:scale-[1.02] hover:border-white/25 hover:bg-white/15 sm:text-sm"
+                                class="flex items-center gap-2 rounded-xl border border-white/15 bg-white/8 px-3 py-2.5 text-xs font-semibold text-white shadow-lg backdrop-blur-md transition-all duration-300 hover:scale-[1.02] hover:border-white/25 hover:bg-white/15 sm:px-4 sm:py-3 sm:text-sm"
                             >
                                 <span class="text-sm text-amber-400">{{
                                     badge.icon
@@ -230,7 +230,7 @@ onUnmounted(() => {
                         </div>
 
                         <!-- Slideshow Navigation Controls (Arrows & Dots) -->
-                        <div class="mt-10 flex items-center gap-3.5">
+                        <div class="mt-8 flex items-center gap-3.5 sm:mt-10">
                             <!-- Prev button -->
                             <button
                                 @click="navHero('prev')"

@@ -142,7 +142,7 @@ function prev() {
                             </div>
 
                             <!-- Before/After -->
-                            <div class="grid grid-cols-2 gap-3">
+                            <div class="grid gap-3 sm:grid-cols-2">
                                 <div
                                     class="rounded-xl border border-destructive/20 bg-destructive/5 p-4"
                                 >
@@ -179,32 +179,42 @@ function prev() {
                         </div>
 
                         <!-- Right: Metrics -->
-                        <div class="flex flex-col justify-center space-y-4">
+                        <div
+                            class="flex flex-col justify-center gap-3 lg:space-y-4"
+                        >
                             <h4
                                 class="mb-2 text-sm font-semibold tracking-wider text-muted-foreground uppercase"
                             >
                                 Kết quả đo được
                             </h4>
                             <div
-                                v-for="metric in cases[activeCase].metrics"
-                                :key="metric.label"
-                                class="flex items-center gap-5 rounded-2xl border border-border bg-card p-5 shadow-sm transition-all hover:scale-[1.01] hover:border-primary/30 hover:shadow-md"
+                                class="grid grid-cols-3 gap-2 sm:gap-3 lg:block lg:space-y-4"
                             >
                                 <div
-                                    class="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-primary/20 bg-primary/10"
+                                    v-for="metric in cases[activeCase].metrics"
+                                    :key="metric.label"
+                                    class="flex min-w-0 flex-col items-start gap-2 rounded-2xl border border-border bg-card p-3 shadow-sm transition-all hover:scale-[1.01] hover:border-primary/30 hover:shadow-md sm:p-4 lg:flex-row lg:items-center lg:gap-5 lg:p-5"
                                 >
-                                    <component
-                                        :is="metric.icon"
-                                        class="h-6 w-6 text-primary"
-                                    />
-                                </div>
-                                <div>
-                                    <p class="text-3xl font-black text-primary">
-                                        {{ metric.value }}
-                                    </p>
-                                    <p class="text-sm text-muted-foreground">
-                                        {{ metric.label }}
-                                    </p>
+                                    <div
+                                        class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-primary/20 bg-primary/10 sm:h-10 sm:w-10 lg:h-12 lg:w-12"
+                                    >
+                                        <component
+                                            :is="metric.icon"
+                                            class="h-5 w-5 text-primary sm:h-6 sm:w-6"
+                                        />
+                                    </div>
+                                    <div class="min-w-0">
+                                        <p
+                                            class="text-2xl font-black text-primary sm:text-3xl"
+                                        >
+                                            {{ metric.value }}
+                                        </p>
+                                        <p
+                                            class="text-[10px] leading-tight text-muted-foreground sm:text-xs lg:text-sm"
+                                        >
+                                            {{ metric.label }}
+                                        </p>
+                                    </div>
                                 </div>
                             </div>
                         </div>

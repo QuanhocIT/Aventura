@@ -150,7 +150,7 @@ onUnmounted(() => {
 
                     <!-- Thẻ đánh giá tổng hợp (Social Proof) -->
                     <div
-                        class="flex w-fit items-center gap-5 rounded-3xl border border-white/20 bg-white/40 p-5 shadow-xl backdrop-blur-md transition-all duration-300 hover:shadow-2xl dark:border-zinc-800/40 dark:bg-zinc-950/40"
+                        class="flex w-full max-w-sm flex-col items-start gap-3 rounded-3xl border border-white/20 bg-white/40 p-4 shadow-xl backdrop-blur-md transition-all duration-300 hover:shadow-2xl sm:w-fit sm:flex-row sm:items-center sm:gap-5 sm:p-5 dark:border-zinc-800/40 dark:bg-zinc-950/40"
                     >
                         <div
                             class="flex min-w-[75px] flex-col items-center justify-center rounded-2xl bg-amber-500/10 p-3 text-amber-500 shadow-sm"
@@ -255,7 +255,7 @@ onUnmounted(() => {
                             :key="activeTestimonialIdx"
                             @mouseenter="stopTestimonialAutoplay"
                             @mouseleave="startTestimonialAutoplay"
-                            class="group relative w-full rounded-3xl border border-zinc-200/80 bg-white p-8 shadow-2xl transition-all duration-500 hover:border-amber-500/20 hover:shadow-amber-500/5 sm:p-10 dark:border-zinc-800/80 dark:bg-zinc-950"
+                            class="group relative w-full rounded-3xl border border-zinc-200/80 bg-white p-6 shadow-2xl transition-all duration-500 hover:border-amber-500/20 hover:shadow-amber-500/5 sm:p-10 dark:border-zinc-800/80 dark:bg-zinc-950"
                         >
                             <!-- Ký tự dấu nháy kép lớn ẩn phía sau -->
                             <span

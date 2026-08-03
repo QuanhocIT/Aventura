@@ -328,12 +328,12 @@ const displayPlans = computed(() => {
                 </div>
             </div>
             <div
-                class="reveal-on-scroll mt-8 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4"
+                class="reveal-on-scroll mt-8 grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4"
             >
                 <Card
-                    v-for="(plan, idx) in displayPlans"
+                    v-for="plan in displayPlans"
                     :key="plan.code"
-                    class="stagger-child flex flex-col justify-between transition-all duration-300 hover:-translate-y-1 hover:shadow-xl"
+                    class="stagger-child flex min-w-0 flex-col justify-between gap-4 transition-all duration-300 hover:-translate-y-1 hover:shadow-xl sm:gap-6"
                     :class="{
                         'border-primary/30 shadow-xl ring-2 shadow-primary/10 ring-primary/40':
                             plan.isRecommended,
@@ -341,10 +341,12 @@ const displayPlans = computed(() => {
                             plan.code === 'enterprise' || plan.code === 'ultra',
                     }"
                 >
-                    <CardHeader>
-                        <div class="mb-2 flex items-center justify-between">
+                    <CardHeader class="px-3 sm:px-6">
+                        <div
+                            class="mb-2 flex flex-wrap items-start justify-between gap-2"
+                        >
                             <CardTitle
-                                class="flex items-center gap-1.5 text-2xl font-bold"
+                                class="min-w-0 text-lg font-bold break-words sm:text-2xl"
                                 :class="{
                                     'text-primary': plan.isRecommended,
                                     'text-violet-500':
@@ -371,14 +373,14 @@ const displayPlans = computed(() => {
                                 >VIP</Badge
                             >
                         </div>
-                        <div class="mt-2 flex min-h-[40px] items-end gap-1.5">
+                        <div class="mt-2 flex min-h-[40px] items-end gap-1">
                             <Transition name="pricing-fade" mode="out-in">
                                 <div
                                     :key="plan.price"
-                                    class="flex flex-wrap items-end gap-1.5"
+                                    class="flex min-w-0 flex-wrap items-end gap-1"
                                 >
                                     <span
-                                        class="text-3xl font-extrabold text-foreground"
+                                        class="text-xl font-extrabold text-foreground sm:text-3xl"
                                         :class="{
                                             'text-primary': plan.isRecommended,
                                             'text-violet-500':
@@ -389,7 +391,7 @@ const displayPlans = computed(() => {
                                         {{ plan.price }}
                                     </span>
                                     <span
-                                        class="pb-1 text-xs text-muted-foreground"
+                                        class="pb-0.5 text-[10px] text-muted-foreground sm:pb-1 sm:text-xs"
                                         >{{ plan.cycle }}</span
                                     >
                                     <Badge
@@ -398,25 +400,29 @@ const displayPlans = computed(() => {
                                             plan.yearlyDiscountPercent > 0
                                         "
                                         variant="outline"
-                                        class="ml-1 self-center border-emerald-500/20 bg-emerald-500/10 text-[10px] font-bold text-emerald-600 dark:text-emerald-400"
+                                        class="ml-0 self-center border-emerald-500/20 bg-emerald-500/10 text-[9px] font-bold text-emerald-600 sm:ml-1 sm:text-[10px] dark:text-emerald-400"
                                     >
                                         Giảm {{ plan.yearlyDiscountPercent }}%
                                     </Badge>
                                 </div>
                             </Transition>
                         </div>
-                        <CardDescription class="mt-2 min-h-[40px] text-xs">
+                        <CardDescription
+                            class="mt-2 min-h-[52px] text-[11px] leading-tight sm:min-h-[40px] sm:text-xs"
+                        >
                             {{ plan.note }}
                         </CardDescription>
                     </CardHeader>
-                    <CardContent class="flex-grow text-xs">
+                    <CardContent
+                        class="flex-grow px-3 text-[11px] sm:px-6 sm:text-xs"
+                    >
                         <div
                             class="custom-scrollbar max-h-[180px] space-y-2 overflow-y-auto pr-1.5"
                         >
                             <p
                                 v-for="feat in plan.features"
                                 :key="feat"
-                                class="flex items-center gap-2"
+                                class="flex items-start gap-1.5 leading-tight"
                             >
                                 <Check
                                     class="size-4 flex-shrink-0 text-emerald-500"
@@ -427,19 +433,19 @@ const displayPlans = computed(() => {
                                             plan.code === 'ultra',
                                     }"
                                 />
-                                <span>{{ feat }}</span>
+                                <span class="min-w-0">{{ feat }}</span>
                             </p>
                             <p
                                 v-for="unfeat in plan.unsupportedFeatures"
                                 :key="unfeat"
-                                class="flex items-center gap-2 text-muted-foreground opacity-60"
+                                class="flex items-start gap-1.5 leading-tight text-muted-foreground opacity-60"
                             >
                                 <X class="size-4 flex-shrink-0" />
-                                <span>{{ unfeat }}</span>
+                                <span class="min-w-0">{{ unfeat }}</span>
                             </p>
                         </div>
                     </CardContent>
-                    <div class="mt-4 px-6 pb-6">
+                    <div class="mt-4 px-3 pb-4 sm:px-6 sm:pb-6">
                         <Button
                             v-if="canRegister"
                             as-child

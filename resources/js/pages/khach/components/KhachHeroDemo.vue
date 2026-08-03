@@ -10,7 +10,6 @@ import {
     TrendingUp,
     Zap,
     QrCode,
-    ChefHat,
     ArrowRight,
     Check,
     Bot,
@@ -144,7 +143,7 @@ onUnmounted(() => {
 <template>
     <!-- Right Column: Premium Interactive Live Demo Shell -->
     <div
-        class="demo-shell group relative mx-auto w-full max-w-lg rounded-2xl border border-amber-500/25 bg-gradient-to-b from-zinc-900/95 via-zinc-950/95 to-black/95 p-4 shadow-[0_0_50px_rgba(245,158,11,0.12),0_25px_60px_rgba(0,0,0,0.85)] backdrop-blur-2xl transition-all duration-500 hover:border-amber-500/40 hover:shadow-[0_0_60px_rgba(245,158,11,0.2),0_30px_70px_rgba(0,0,0,0.9)] sm:p-6 lg:ml-auto"
+        class="demo-shell group relative mx-auto w-full max-w-lg rounded-2xl border border-amber-500/25 bg-gradient-to-b from-zinc-900/95 via-zinc-950/95 to-black/95 p-3 shadow-[0_0_50px_rgba(245,158,11,0.12),0_25px_60px_rgba(0,0,0,0.85)] backdrop-blur-2xl transition-all duration-500 hover:border-amber-500/40 hover:shadow-[0_0_60px_rgba(245,158,11,0.2),0_30px_70px_rgba(0,0,0,0.9)] sm:p-6 lg:ml-auto"
     >
         <!-- Ambient Glowing Aura -->
         <div
@@ -156,10 +155,10 @@ onUnmounted(() => {
 
         <!-- Top macOS Window Controls Bar -->
         <div
-            class="mb-4 flex items-center justify-between border-b border-white/10 pb-3"
+            class="mb-3 flex items-center justify-between border-b border-white/10 pb-3 sm:mb-4"
         >
             <!-- Window Dots & Title -->
-            <div class="flex items-center gap-2">
+            <div class="flex min-w-0 items-center gap-2">
                 <div class="flex items-center gap-1.5">
                     <span
                         class="h-2.5 w-2.5 rounded-full bg-rose-500/80 shadow-[0_0_8px_rgba(244,63,94,0.5)]"
@@ -179,7 +178,7 @@ onUnmounted(() => {
             </div>
 
             <!-- Live Realtime Sync Indicator -->
-            <div class="flex items-center gap-2">
+            <div class="flex min-w-0 items-center gap-2">
                 <span
                     class="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-0.5 text-[10px] font-bold text-emerald-400 shadow-[0_0_10px_rgba(16,185,129,0.15)]"
                 >
@@ -223,7 +222,7 @@ onUnmounted(() => {
                         Trải nghiệm Live Demo
                     </span>
                 </div>
-                <h3 class="mt-0.5 text-xl font-black text-white sm:text-2xl">
+                <h3 class="mt-0.5 text-lg font-black text-white sm:text-2xl">
                     {{
                         activeDemo === 'pos'
                             ? 'POS Checkout & In Bill'
@@ -243,36 +242,39 @@ onUnmounted(() => {
 
         <!-- Segmented Tab Navigation Bar -->
         <div
-            class="grid grid-cols-3 gap-1.5 rounded-xl border border-white/10 bg-zinc-950/80 p-1.5 backdrop-blur-md"
+            class="grid grid-cols-3 gap-1 rounded-xl border border-white/10 bg-zinc-950/80 p-1 backdrop-blur-md sm:gap-1.5 sm:p-1.5"
         >
             <button
                 v-for="tab in demoTabs"
                 :key="tab.key"
                 @click="selectTab(tab.key)"
-                class="relative flex cursor-pointer items-center justify-center gap-1.5 rounded-lg py-2 text-xs font-bold transition-all duration-300"
+                class="relative flex min-w-0 cursor-pointer items-center justify-center gap-1 rounded-lg px-1 py-2 text-[11px] font-bold transition-all duration-300 sm:gap-1.5 sm:text-xs"
                 :class="
                     activeDemo === tab.key
                         ? 'scale-[1.02] bg-gradient-to-r from-amber-500 to-yellow-500 font-black text-zinc-950 shadow-md shadow-amber-500/20'
                         : 'text-zinc-400 hover:bg-white/5 hover:text-white'
                 "
             >
-                <component :is="tab.icon" class="h-3.5 w-3.5" />
+                <component
+                    :is="tab.icon"
+                    class="h-3 w-3 shrink-0 sm:h-3.5 sm:w-3.5"
+                />
                 <span class="truncate">{{ tab.label }}</span>
             </button>
         </div>
 
         <!-- Interactive Screen Panel Canvas -->
         <div
-            class="demo-screen relative mt-4 overflow-hidden rounded-xl border border-white/10 bg-zinc-900/60 p-4 shadow-inner"
+            class="demo-screen relative mt-3 overflow-hidden rounded-xl border border-white/10 bg-zinc-900/60 p-3 shadow-inner sm:mt-4 sm:p-4"
         >
             <Transition name="fade-slide-tab" mode="out-in">
                 <!-- 🛒 TAB 1: POS CHECKOUT & ORDER SIMULATION -->
                 <div v-if="activeDemo === 'pos'" key="pos" class="space-y-3">
                     <!-- POS Table Header bar -->
                     <div
-                        class="flex items-center justify-between rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-xs"
+                        class="flex min-w-0 items-center justify-between gap-2 rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-xs"
                     >
-                        <div class="flex items-center gap-2">
+                        <div class="flex min-w-0 items-center gap-2">
                             <span
                                 class="rounded border border-amber-500/30 bg-amber-500/20 px-2 py-0.5 text-[10px] font-extrabold text-amber-400"
                             >
@@ -284,7 +286,7 @@ onUnmounted(() => {
                             >
                         </div>
                         <div
-                            class="flex items-center gap-1.5 text-[11px] font-bold text-emerald-400"
+                            class="flex shrink-0 items-center gap-1.5 text-[11px] font-bold text-emerald-400"
                         >
                             <QrCode class="h-3.5 w-3.5" />
                             <span>QR Order tại bàn</span>
@@ -294,12 +296,12 @@ onUnmounted(() => {
                     <!-- Order items list grid -->
                     <div class="space-y-1.5">
                         <div
-                            class="flex items-center justify-between rounded-lg border border-white/5 bg-white/5 px-3 py-2 text-xs transition hover:bg-white/10"
+                            class="flex min-w-0 items-center justify-between gap-2 rounded-lg border border-white/5 bg-white/5 px-3 py-2 text-xs transition hover:bg-white/10"
                         >
-                            <div class="flex items-center gap-2">
+                            <div class="flex min-w-0 items-center gap-2">
                                 <span class="text-base">🍜</span>
                                 <div>
-                                    <div class="font-bold text-white">
+                                    <div class="truncate font-bold text-white">
                                         Phở bò tái nạm
                                     </div>
                                     <div class="text-[10px] text-zinc-400">
@@ -307,7 +309,7 @@ onUnmounted(() => {
                                     </div>
                                 </div>
                             </div>
-                            <div class="text-right">
+                            <div class="shrink-0 text-right">
                                 <div class="font-extrabold text-amber-400">
                                     138.000đ
                                 </div>
@@ -319,12 +321,12 @@ onUnmounted(() => {
                         </div>
 
                         <div
-                            class="flex items-center justify-between rounded-lg border border-white/5 bg-white/5 px-3 py-2 text-xs transition hover:bg-white/10"
+                            class="flex min-w-0 items-center justify-between gap-2 rounded-lg border border-white/5 bg-white/5 px-3 py-2 text-xs transition hover:bg-white/10"
                         >
-                            <div class="flex items-center gap-2">
+                            <div class="flex min-w-0 items-center gap-2">
                                 <span class="text-base">🥤</span>
                                 <div>
-                                    <div class="font-bold text-white">
+                                    <div class="truncate font-bold text-white">
                                         Trà chanh giã tay
                                     </div>
                                     <div class="text-[10px] text-zinc-400">
@@ -332,7 +334,7 @@ onUnmounted(() => {
                                     </div>
                                 </div>
                             </div>
-                            <div class="text-right">
+                            <div class="shrink-0 text-right">
                                 <div class="font-extrabold text-amber-400">
                                     40.000đ
                                 </div>
@@ -361,7 +363,9 @@ onUnmounted(() => {
                             <span>14.240đ</span>
                         </div>
 
-                        <div class="mt-2.5 flex items-center justify-between">
+                        <div
+                            class="mt-2.5 flex flex-wrap items-center justify-between gap-2"
+                        >
                             <div>
                                 <div
                                     class="text-[10px] font-bold tracking-wider text-zinc-400 uppercase"
@@ -452,18 +456,20 @@ onUnmounted(() => {
                             v-for="(ticket, idx) in kdsTickets"
                             :key="ticket.id"
                             @click="cycleKdsStatus(idx)"
-                            class="group/ticket flex cursor-pointer items-center justify-between rounded-xl border border-white/10 bg-white/5 p-2.5 transition hover:border-white/20 hover:bg-white/10"
+                            class="group/ticket flex min-w-0 cursor-pointer items-start justify-between gap-2 rounded-xl border border-white/10 bg-white/5 p-2.5 transition hover:border-white/20 hover:bg-white/10"
                         >
-                            <div class="flex items-center gap-2.5">
+                            <div
+                                class="flex min-w-0 flex-1 items-center gap-2.5"
+                            >
                                 <div
                                     class="flex h-8 w-8 items-center justify-center rounded-lg border border-white/10 bg-black/40 text-xs font-bold text-white"
                                 >
                                     {{ ticket.table.replace('Bàn ', 'B') }}
                                 </div>
-                                <div>
+                                <div class="min-w-0">
                                     <div class="flex items-center gap-1.5">
                                         <span
-                                            class="text-xs font-bold text-white"
+                                            class="block truncate text-xs font-bold text-white"
                                             >{{ ticket.item }}</span
                                         >
                                     </div>
@@ -473,7 +479,9 @@ onUnmounted(() => {
                                 </div>
                             </div>
 
-                            <div class="flex items-center gap-2">
+                            <div
+                                class="flex shrink-0 flex-col items-end gap-1 sm:flex-row sm:items-center sm:gap-2"
+                            >
                                 <span
                                     class="flex items-center gap-1 text-[10px] font-bold text-zinc-400"
                                 >
@@ -506,9 +514,9 @@ onUnmounted(() => {
                     class="space-y-3"
                 >
                     <!-- Revenue & KPI Grid -->
-                    <div class="grid grid-cols-2 gap-2.5">
+                    <div class="grid grid-cols-2 gap-2 sm:gap-2.5">
                         <div
-                            class="rounded-xl border border-white/10 bg-black/40 p-3"
+                            class="rounded-xl border border-white/10 bg-black/40 p-2.5 sm:p-3"
                         >
                             <div
                                 class="flex items-center justify-between text-[10px] font-bold text-zinc-400 uppercase"
@@ -518,7 +526,9 @@ onUnmounted(() => {
                                     class="h-3.5 w-3.5 text-emerald-400"
                                 />
                             </div>
-                            <div class="mt-1 text-lg font-black text-white">
+                            <div
+                                class="mt-1 text-base font-black text-white sm:text-lg"
+                            >
                                 28.650.000đ
                             </div>
                             <div
@@ -530,7 +540,7 @@ onUnmounted(() => {
                         </div>
 
                         <div
-                            class="rounded-xl border border-white/10 bg-black/40 p-3"
+                            class="rounded-xl border border-white/10 bg-black/40 p-2.5 sm:p-3"
                         >
                             <div
                                 class="flex items-center justify-between text-[10px] font-bold text-zinc-400 uppercase"
@@ -538,7 +548,9 @@ onUnmounted(() => {
                                 <span>Hóa đơn / SLA</span>
                                 <Zap class="h-3.5 w-3.5 text-amber-400" />
                             </div>
-                            <div class="mt-1 text-lg font-black text-amber-400">
+                            <div
+                                class="mt-1 text-base font-black text-amber-400 sm:text-lg"
+                            >
                                 142 đơn
                             </div>
                             <div
@@ -551,7 +563,7 @@ onUnmounted(() => {
 
                     <!-- AI Insights Recommendation Card -->
                     <div
-                        class="rounded-xl border border-indigo-500/30 bg-gradient-to-r from-indigo-950/40 via-purple-950/30 to-black/50 p-3 shadow-lg"
+                        class="rounded-xl border border-indigo-500/30 bg-gradient-to-r from-indigo-950/40 via-purple-950/30 to-black/50 p-2.5 shadow-lg sm:p-3"
                     >
                         <div
                             class="flex items-center justify-between border-b border-indigo-500/20 pb-2"
@@ -587,7 +599,7 @@ onUnmounted(() => {
         </div>
 
         <!-- CTA button at the bottom of the widget -->
-        <div class="mt-5 border-t border-white/10 pt-3">
+        <div class="mt-4 border-t border-white/10 pt-3 sm:mt-5">
             <Button
                 as-child
                 size="lg"
@@ -604,7 +616,7 @@ onUnmounted(() => {
                 </Link>
             </Button>
             <div
-                class="mt-2 flex items-center justify-center gap-4 text-[10px] font-medium text-zinc-400"
+                class="mt-2 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-[10px] font-medium text-zinc-400 sm:gap-4"
             >
                 <span class="flex items-center gap-1">
                     <ShieldCheck class="h-3 w-3 text-emerald-400" /> Dùng thử 14
@@ -627,12 +639,18 @@ onUnmounted(() => {
 
 .demo-screen {
     box-sizing: border-box;
-    height: 322px;
-    min-height: 322px;
-    max-height: 322px;
+    height: 340px;
+    min-height: 340px;
+    max-height: 340px;
 }
 
 @media (min-width: 640px) {
+    .demo-screen {
+        height: 322px;
+        min-height: 322px;
+        max-height: 322px;
+    }
+
     .demo-shell {
         height: 645px;
         min-height: 645px;
