@@ -765,7 +765,7 @@ function formatMins(mins: number): string {
 <template>
     <Head title="Hỗ trợ kỹ thuật" />
 
-    <div class="anim-fade-in space-y-6 px-6 py-5">
+    <div class="support-page anim-fade-in space-y-6 px-6 py-5">
         <!-- ============================================================ -->
         <!-- HEADER SECTION (Glassmorphism + Neon accents)               -->
         <!-- ============================================================ -->
@@ -3706,6 +3706,93 @@ function formatMins(mins: number): string {
 </template>
 
 <style scoped>
+/* Keep this legacy page on the same semantic palette as the other Super Admin pages. */
+.support-page :deep([class~='bg-white']),
+.support-page :deep([class~='bg-white/40']),
+.support-page :deep([class~='bg-white/50']),
+.support-page :deep([class~='bg-slate-50']),
+.support-page :deep([class~='bg-slate-50/20']),
+.support-page :deep([class~='bg-slate-50/50']),
+.support-page :deep([class~='bg-slate-100']) {
+    background-color: var(--card) !important;
+}
+
+.support-page :deep([class~='dark:bg-slate-900']),
+.support-page :deep([class~='dark:bg-slate-900/10']),
+.support-page :deep([class~='dark:bg-slate-900/40']),
+.support-page :deep([class~='dark:bg-slate-900/50']) {
+    background-color: color-mix(in srgb, var(--card) 92%, transparent) !important;
+}
+
+.support-page :deep([class~='dark:bg-slate-800']),
+.support-page :deep([class~='dark:bg-slate-800/40']),
+.support-page :deep([class~='dark:bg-slate-700']) {
+    background-color: color-mix(in srgb, var(--muted) 92%, transparent) !important;
+}
+
+.support-page :deep([class~='border-slate-100']),
+.support-page :deep([class~='border-slate-200']),
+.support-page :deep([class~='border-slate-200/50']),
+.support-page :deep([class~='border-slate-300']),
+.support-page :deep([class~='dark:border-slate-700']),
+.support-page :deep([class~='dark:border-slate-800']),
+.support-page :deep([class~='dark:border-slate-800/80']) {
+    border-color: color-mix(in srgb, var(--border) 70%, transparent) !important;
+}
+
+.support-page :deep([class~='text-slate-800']),
+.support-page :deep([class~='dark:text-white']),
+.support-page :deep([class~='dark:text-slate-200']) {
+    color: var(--foreground) !important;
+}
+
+.support-page :deep([class~='text-slate-400']),
+.support-page :deep([class~='text-slate-500']),
+.support-page :deep([class~='text-slate-600']),
+.support-page :deep([class~='text-slate-700']),
+.support-page :deep([class~='dark:text-slate-300']),
+.support-page :deep([class~='dark:text-slate-400']),
+.support-page :deep([class~='dark:text-slate-500']) {
+    color: var(--muted-foreground) !important;
+}
+
+/* The shared primary color is orange in this application; replace the old indigo actions. */
+.support-page :deep([class~='bg-indigo-500/5']),
+.support-page :deep([class~='bg-indigo-500/10']),
+.support-page :deep([class~='dark:bg-indigo-500/20']) {
+    background-color: color-mix(in srgb, var(--primary) 10%, transparent) !important;
+}
+
+.support-page :deep([class~='bg-indigo-600']) {
+    background-color: var(--primary) !important;
+    color: var(--primary-foreground) !important;
+}
+
+.support-page :deep([class~='hover:bg-indigo-700']):hover,
+.support-page :deep([class~='hover:bg-indigo-600']):hover {
+    background-color: color-mix(in srgb, var(--primary) 88%, black) !important;
+}
+
+.support-page :deep([class~='text-indigo-500']),
+.support-page :deep([class~='text-indigo-600']),
+.support-page :deep([class~='text-indigo-700']),
+.support-page :deep([class~='dark:text-indigo-300']),
+.support-page :deep([class~='dark:text-indigo-400']),
+.support-page :deep([class~='data-[state=active]:text-indigo-600']) {
+    color: var(--primary) !important;
+}
+
+.support-page :deep([class~='border-indigo-400']),
+.support-page :deep([class~='border-indigo-500/10']),
+.support-page :deep([class~='border-indigo-500/20']),
+.support-page :deep([class~='dark:border-indigo-600']) {
+    border-color: color-mix(in srgb, var(--primary) 25%, transparent) !important;
+}
+
+.support-page :deep([class~='focus-visible:ring-indigo-500/50']):focus-visible {
+    --tw-ring-color: color-mix(in srgb, var(--primary) 50%, transparent) !important;
+}
+
 /* Micro-animations and premium UI visual additions */
 .anim-fade-in {
     animation: fadeIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
