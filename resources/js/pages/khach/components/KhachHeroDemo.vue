@@ -144,7 +144,7 @@ onUnmounted(() => {
 <template>
     <!-- Right Column: Premium Interactive Live Demo Shell -->
     <div
-        class="group relative mx-auto w-full max-w-lg rounded-2xl border border-amber-500/25 bg-gradient-to-b from-zinc-900/95 via-zinc-950/95 to-black/95 p-4 shadow-[0_0_50px_rgba(245,158,11,0.12),0_25px_60px_rgba(0,0,0,0.85)] backdrop-blur-2xl transition-all duration-500 hover:border-amber-500/40 hover:shadow-[0_0_60px_rgba(245,158,11,0.2),0_30px_70px_rgba(0,0,0,0.9)] sm:p-6 lg:ml-auto"
+        class="demo-shell group relative mx-auto w-full max-w-lg rounded-2xl border border-amber-500/25 bg-gradient-to-b from-zinc-900/95 via-zinc-950/95 to-black/95 p-4 shadow-[0_0_50px_rgba(245,158,11,0.12),0_25px_60px_rgba(0,0,0,0.85)] backdrop-blur-2xl transition-all duration-500 hover:border-amber-500/40 hover:shadow-[0_0_60px_rgba(245,158,11,0.2),0_30px_70px_rgba(0,0,0,0.9)] sm:p-6 lg:ml-auto"
     >
         <!-- Ambient Glowing Aura -->
         <div
@@ -263,7 +263,7 @@ onUnmounted(() => {
 
         <!-- Interactive Screen Panel Canvas -->
         <div
-            class="relative mt-4 min-h-[265px] overflow-hidden rounded-xl border border-white/10 bg-zinc-900/60 p-4 shadow-inner sm:min-h-[275px]"
+            class="demo-screen relative mt-4 overflow-hidden rounded-xl border border-white/10 bg-zinc-900/60 p-4 shadow-inner"
         >
             <Transition name="fade-slide-tab" mode="out-in">
                 <!-- 🛒 TAB 1: POS CHECKOUT & ORDER SIMULATION -->
@@ -620,6 +620,26 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
+/* Keep the widget stable while each demo tab renders different content. */
+.demo-shell {
+    box-sizing: border-box;
+}
+
+.demo-screen {
+    box-sizing: border-box;
+    height: 322px;
+    min-height: 322px;
+    max-height: 322px;
+}
+
+@media (min-width: 640px) {
+    .demo-shell {
+        height: 645px;
+        min-height: 645px;
+        max-height: 645px;
+    }
+}
+
 /* Smooth cross-fade tab transition */
 .fade-slide-tab-enter-active,
 .fade-slide-tab-leave-active {
