@@ -173,7 +173,7 @@ const alignClass = (align?: string) =>
 </script>
 
 <template>
-    <div class="space-y-3">
+    <div class="space-y-3" data-pagination-controls="client">
         <!-- Thanh tìm kiếm -->
         <div v-if="searchKeys.length > 0" class="relative max-w-xs">
             <Search

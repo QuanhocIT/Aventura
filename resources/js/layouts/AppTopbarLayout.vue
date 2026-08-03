@@ -417,7 +417,7 @@ const handleLogout = () => {
     <Footer />
 
     <ChatbotWidget v-if="showChatbot" source="widget" />
-    <MobileBottomNav />
+    <MobileBottomNav v-if="user" />
     <FlashToast />
     <ConfirmDialog />
     <GlobalCampaignListener />

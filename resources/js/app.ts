@@ -14,6 +14,7 @@ import BareLayout from '@/layouts/BareLayout.vue';
 import GuestLayout from '@/layouts/GuestLayout.vue';
 import SettingsLayout from '@/layouts/settings/Layout.vue';
 import { initializeFlashToast } from '@/lib/flashToast';
+import { initializeAutoTablePagination } from '@/lib/autoTablePagination';
 
 router.on(
     'success',
@@ -74,6 +75,7 @@ createInertiaApp({
                         case name === 'auth/ChooseRestaurant':
                         case name === 'auth/TwoFactorChallenge':
                         case name === 'auth/ConfirmPassword':
+                        case name === 'super-admin/security/ConfirmTwoFactor':
                             page.layout = BareLayout;
                             break;
                         case name.startsWith('auth/'):
@@ -106,6 +108,7 @@ createInertiaApp({
 
 initializeTheme();
 initializeFlashToast();
+initializeAutoTablePagination();
 
 // PWA: cache asset tĩnh qua Service Worker (offline-first cho JS/CSS build)
 if ('serviceWorker' in navigator && import.meta.env.PROD) {
