@@ -20,6 +20,9 @@ class DatabaseSeeder extends Seeder
             TenantDemoSeeder::class,
             RestaurantDemoSeeder::class,
             SuperAdminSeeder::class,
+            SuperAdminReferralDemoSeeder::class,
+            SuperAdminCouponDemoSeeder::class,
+            SuperAdminDemoBookingSeeder::class,
             ChatbotKnowledgeSeeder::class,
         ]);
     }
