@@ -142,7 +142,7 @@ const passwordStrength = computed(
     >
         <!-- LEFT: Form with a rich subtle gradient and highly defined glassmorphic container -->
         <div
-            class="relative flex min-h-dvh flex-col overflow-hidden bg-gradient-to-b from-zinc-50 via-white to-zinc-50 px-6 py-10 sm:px-10 md:px-12 dark:from-zinc-950 dark:via-zinc-900 dark:to-zinc-950"
+            class="relative flex min-h-dvh flex-col overflow-hidden bg-gradient-to-b from-zinc-50 via-white to-zinc-50 px-4 py-6 sm:px-10 sm:py-10 md:px-12 dark:from-zinc-950 dark:via-zinc-900 dark:to-zinc-950"
         >
             <!-- Decorative dynamic glowing elements (clearly visible) -->
             <div
@@ -179,10 +179,10 @@ const passwordStrength = computed(
 
             <!-- Form (middle — brought up to eliminate whitespace) -->
             <div
-                class="relative z-10 flex flex-1 flex-col justify-start pt-6 sm:pt-8"
+                class="relative z-10 flex flex-1 flex-col justify-start pt-5 sm:pt-8"
             >
                 <div
-                    class="focus-glow-card mx-auto w-full max-w-md animate-in rounded-3xl border border-white/40 bg-white/75 p-8 shadow-[0_24px_64px_rgba(0,0,0,0.06),0_8px_20px_rgba(0,0,0,0.03)] backdrop-blur-2xl transition-all duration-500 fill-mode-both fade-in slide-in-from-bottom-6 sm:p-10 dark:border-white/[0.08] dark:bg-zinc-950/65 dark:shadow-[0_24px_64px_rgba(0,0,0,0.35)]"
+                    class="focus-glow-card mx-auto w-full max-w-md animate-in rounded-2xl border border-white/40 bg-white/75 p-5 shadow-[0_24px_64px_rgba(0,0,0,0.06),0_8px_20px_rgba(0,0,0,0.03)] backdrop-blur-2xl transition-all duration-500 fill-mode-both fade-in slide-in-from-bottom-6 sm:rounded-3xl sm:p-10 dark:border-white/[0.08] dark:bg-zinc-950/65 dark:shadow-[0_24px_64px_rgba(0,0,0,0.35)]"
                 >
                     <div
                         class="mb-4 inline-flex items-center gap-1.5 rounded-full border border-primary/20 bg-primary/5 px-3.5 py-1 text-xs font-bold text-primary"
@@ -193,7 +193,7 @@ const passwordStrength = computed(
                         Miễn phí 14 ngày
                     </div>
                     <h1
-                        class="bg-gradient-to-r from-zinc-950 via-zinc-800 to-primary bg-clip-text text-3xl leading-none font-black tracking-tight text-transparent dark:from-white dark:via-zinc-200 dark:to-primary"
+                        class="bg-gradient-to-r from-zinc-950 via-zinc-800 to-primary bg-clip-text text-2xl leading-tight font-black tracking-tight text-transparent sm:text-3xl sm:leading-none dark:from-white dark:via-zinc-200 dark:to-primary"
                     >
                         Tạo tài khoản doanh nghiệp
                     </h1>
@@ -201,6 +201,75 @@ const passwordStrength = computed(
                         Điền thông tin bên dưới — hệ thống sẵn sàng trong dưới 3
                         giây.
                     </p>
+
+                    <!-- Mobile plan selector: the desktop panel is hidden below lg -->
+                    <div v-if="plans?.length" class="mt-5 lg:hidden">
+                        <div
+                            class="mb-2.5 flex items-center justify-between gap-2"
+                        >
+                            <span
+                                class="text-xs font-bold tracking-wider text-muted-foreground uppercase"
+                            >
+                                Chọn gói dịch vụ
+                            </span>
+                            <span
+                                class="truncate text-xs font-semibold text-primary"
+                            >
+                                {{
+                                    plans.find((p) => p.code === selectedPlan)
+                                        ?.name ?? 'Free'
+                                }}
+                            </span>
+                        </div>
+
+                        <div
+                            class="mb-2 flex w-full rounded-xl border border-white/10 bg-white/5 p-1 text-xs backdrop-blur-md"
+                        >
+                            <button
+                                type="button"
+                                @click="selectedCycle = 'monthly'"
+                                class="flex-1 rounded-lg px-2 py-2 font-semibold transition-colors"
+                                :class="
+                                    selectedCycle === 'monthly'
+                                        ? 'bg-zinc-800 text-white shadow-sm'
+                                        : 'text-zinc-400 hover:text-white'
+                                "
+                            >
+                                Theo tháng
+                            </button>
+                            <button
+                                type="button"
+                                @click="selectedCycle = 'yearly'"
+                                class="flex-1 rounded-lg px-2 py-2 font-semibold transition-colors"
+                                :class="
+                                    selectedCycle === 'yearly'
+                                        ? 'bg-zinc-800 text-white shadow-sm'
+                                        : 'text-zinc-400 hover:text-white'
+                                "
+                            >
+                                Theo năm
+                                <span class="ml-0.5 text-primary"
+                                    >-{{ maxDiscountPercent }}%</span
+                                >
+                            </button>
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-2">
+                            <PlanCard
+                                v-for="plan in plans"
+                                :key="`mobile-${plan.code}`"
+                                :plan="plan"
+                                compact
+                                :selected="selectedPlan === plan.code"
+                                :billing-cycle="
+                                    selectedCycle === 'yearly'
+                                        ? 'yearly'
+                                        : 'monthly'
+                                "
+                                @select="selectedPlan = $event"
+                            />
+                        </div>
+                    </div>
 
                     <Form
                         v-bind="store.form()"
@@ -262,7 +331,7 @@ const passwordStrength = computed(
                         </div>
 
                         <div
-                            class="animate-enter stagger-3 grid grid-cols-2 gap-3.5"
+                            class="animate-enter stagger-3 grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-3.5"
                         >
                             <div class="grid gap-1.5">
                                 <Label
@@ -521,7 +590,11 @@ const passwordStrength = computed(
             >
                 Đã có tài khoản?
                 <TextLink
-                    :href="login()"
+                    :href="
+                        login.url({
+                            query: { plan: selectedPlan, cycle: selectedCycle },
+                        })
+                    "
                     :tabindex="8"
                     class="font-bold text-primary underline underline-offset-4 transition-colors hover:text-primary/80"
                 >
