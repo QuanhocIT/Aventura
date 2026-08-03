@@ -2,7 +2,7 @@ FROM php:8.3-fpm-alpine AS base
 
 RUN apk add --no-cache \
     nginx supervisor curl icu-dev oniguruma-dev libzip-dev libpng-dev \
-    && docker-php-ext-install pdo_mysql mbstring intl zip gd bcmath opcache
+    && docker-php-ext-install pdo_mysql mbstring intl zip gd bcmath opcache pcntl posix
 
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 
@@ -23,7 +23,7 @@ FROM node:20-alpine AS frontend
 # Cài PHP nhẹ để wayfinder có thể gọi `php artisan` trong lúc vite build
 RUN apk add --no-cache php83 php83-phar php83-mbstring php83-openssl \
     php83-tokenizer php83-xml php83-xmlwriter php83-dom php83-fileinfo \
-    php83-session php83-ctype php83-curl \
+    php83-session php83-ctype php83-curl php83-pcntl php83-posix \
     && ln -sf /usr/bin/php83 /usr/bin/php
 
 WORKDIR /app
@@ -64,4 +64,3 @@ RUN chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cac
 EXPOSE 80
 
 CMD ["/usr/bin/supervisord", "-c", "/etc/supervisord.conf"]
-
