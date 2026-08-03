@@ -22,6 +22,7 @@ FROM node:20-alpine AS frontend
 
 # Cài PHP nhẹ để wayfinder có thể gọi `php artisan` trong lúc vite build
 RUN apk add --no-cache php83 php83-phar php83-mbstring php83-openssl \
+    php83-pdo php83-pdo_mysql php83-pdo_sqlite php83-sqlite3 php83-intl \
     php83-tokenizer php83-xml php83-xmlwriter php83-dom php83-fileinfo \
     php83-session php83-ctype php83-curl php83-pcntl php83-posix \
     && ln -sf /usr/bin/php83 /usr/bin/php
@@ -37,6 +38,16 @@ RUN npm ci --ignore-scripts
 
 # Copy toàn bộ source
 COPY . .
+
+# Wayfinder boots Laravel during the Vite build. Keep this build-only
+# invocation on an in-memory SQLite/cache configuration.
+ENV APP_ENV=production \
+    APP_KEY=base64:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA= \
+    DB_CONNECTION=sqlite \
+    DB_DATABASE=:memory: \
+    CACHE_STORE=array \
+    SESSION_DRIVER=array \
+    QUEUE_CONNECTION=sync
 
 # Build frontend assets
 RUN npm run build
