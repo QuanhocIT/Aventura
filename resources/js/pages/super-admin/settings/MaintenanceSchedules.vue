@@ -23,6 +23,7 @@ import {
     StatusBadge,
     AlertBanner,
     EmptyState,
+    StatCard,
 } from '@/components/super-admin';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -203,6 +204,17 @@ const hasMaintenanceWarnings = computed(() => {
         bannerAdvice.value.status === 'caution'
     );
 });
+
+const scheduleStats = computed(() => ({
+    total: props.schedules.length,
+    scheduled: props.schedules.filter((schedule) => schedule.status === 'scheduled')
+        .length,
+    active: props.schedules.filter((schedule) => schedule.status === 'active')
+        .length,
+    completed: props.schedules.filter(
+        (schedule) => schedule.status === 'completed',
+    ).length,
+}));
 </script>
 
 <template>
@@ -216,7 +228,36 @@ const hasMaintenanceWarnings = computed(() => {
             :icon="Calendar"
         />
 
-        <div class="grid gap-6 lg:grid-cols-[1.2fr,0.8fr]">
+        <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <StatCard
+                label="Tổng lịch bảo trì"
+                :value="scheduleStats.total"
+                :icon="Calendar"
+                color="amber"
+            />
+            <StatCard
+                label="Đã lên lịch"
+                :value="scheduleStats.scheduled"
+                :icon="Clock"
+                color="sky"
+            />
+            <StatCard
+                label="Đang bảo trì"
+                :value="scheduleStats.active"
+                :icon="AlertTriangle"
+                color="rose"
+            />
+            <StatCard
+                label="Đã hoàn thành"
+                :value="scheduleStats.completed"
+                :icon="CheckCircle2"
+                color="emerald"
+            />
+        </div>
+
+        <div
+            class="grid items-start gap-6 lg:grid-cols-[minmax(0,1.2fr)_minmax(360px,0.8fr)]"
+        >
             <!-- Schedules List -->
             <div class="flex flex-col gap-6">
                 <Card
@@ -231,6 +272,9 @@ const hasMaintenanceWarnings = computed(() => {
                             <Clock class="size-4.5 text-orange-500" /> Danh sách
                             lịch bảo trì
                         </CardTitle>
+                        <p class="mt-1 text-xs text-muted-foreground">
+                            Theo dõi thời gian, dịch vụ ảnh hưởng và trạng thái thông báo.
+                        </p>
                     </CardHeader>
                     <CardContent class="space-y-4 p-5">
                         <div
@@ -360,6 +404,9 @@ const hasMaintenanceWarnings = computed(() => {
                             <Wrench class="size-5 text-orange-500" /> Lên lịch
                             bảo trì mới
                         </CardTitle>
+                        <p class="mt-1 text-xs text-muted-foreground">
+                            Tạo lịch, chọn dịch vụ cần khóa và gửi thông báo cho tenant.
+                        </p>
                     </CardHeader>
                     <CardContent class="p-5">
                         <form @submit.prevent="submit" class="space-y-4">
