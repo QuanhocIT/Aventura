@@ -68,6 +68,7 @@ RUN php artisan config:clear --no-interaction \
 
 COPY docker/nginx.conf /etc/nginx/http.d/default.conf
 COPY docker/supervisord.conf /etc/supervisord.conf
+COPY docker/start.sh /usr/local/bin/aventura-start.sh
 COPY docker/php.ini /usr/local/etc/php/conf.d/custom.ini
 
 RUN chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cache
