@@ -864,7 +864,7 @@ const hasFilters = computed(
                                     >{{ avgViewsPerPost }}
                                     <span
                                         class="block text-center text-[8px] font-bold text-muted-foreground"
-                                        >views/bài</span
+                                        >lượt xem/bài</span
                                     ></span
                                 >
                             </div>
@@ -918,9 +918,9 @@ const hasFilters = computed(
                                         Lượt xem trung bình đang ở mức thấp ({{
                                             avgViewsPerPost
                                         }}
-                                        views/bài). Hãy cải thiện tiêu đề với từ
-                                        khóa gây tò mò hoặc đính kèm tag chiến
-                                        dịch quảng bá.
+                                        lượt xem/bài). Hãy cải thiện tiêu đề với
+                                        từ khóa gây tò mò hoặc đính kèm tag
+                                        chiến dịch quảng bá.
                                     </p>
                                 </div>
                             </div>

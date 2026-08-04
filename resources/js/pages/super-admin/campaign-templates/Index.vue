@@ -263,7 +263,7 @@ async function deleteTemplate(id: number) {
     <div class="flex flex-col gap-5 px-6 py-5">
         <PageHeader
             title="Chiến dịch khuyến mãi theo mùa"
-            subtitle="Tạo mẫu chiến dịch cho các dịp lễ và sinh mã coupon hàng loạt."
+            subtitle="Tạo mẫu chiến dịch cho các dịp lễ và sinh mã giảm giá hàng loạt."
             :icon="Calendar"
         >
             <template #actions>
@@ -301,7 +301,7 @@ async function deleteTemplate(id: number) {
                 color="amber"
             />
             <StatCard
-                label="Mã coupon đã tạo"
+                label="Mã giảm giá đã tạo"
                 :value="templateSummary.codes"
                 :icon="Tag"
                 color="violet"
@@ -323,9 +323,7 @@ async function deleteTemplate(id: number) {
                         <Sparkles class="size-5 animate-pulse" />
                     </div>
                     <div class="space-y-1">
-                        <h4
-                            class="text-sm font-bold text-foreground"
-                        >
+                        <h4 class="text-sm font-bold text-foreground">
                             Trợ lý AI & gợi ý chiến dịch:
                             {{ aiRecommendation.title }}
                         </h4>

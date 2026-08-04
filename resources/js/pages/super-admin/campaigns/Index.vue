@@ -181,7 +181,7 @@ async function sendCampaign(campaign: Campaign) {
     if (
         await confirmDialog({
             title: 'Xác nhận thao tác',
-            description: `Bạn chắc chắn muốn gửi chiến dịch "${campaign.title}" ngay lập tức? Điều này sẽ phát sóng Websocket và bắt đầu chạy tác vụ hàng loạt.`,
+            description: `Bạn chắc chắn muốn gửi chiến dịch "${campaign.title}" ngay lập tức? Điều này sẽ phát sóng WebSocket và bắt đầu chạy tác vụ hàng loạt.`,
             variant: 'default',
         })
     ) {
@@ -234,7 +234,7 @@ function toggleMockDevice() {
         <!-- Header -->
         <PageHeader
             title="Chiến dịch Thông báo & Quảng bá"
-            subtitle="Gửi thông điệp khẩn cấp, cập nhật tính năng hoặc bảo trì qua Websocket, Email hoặc Push Notification."
+            subtitle="Gửi thông điệp khẩn cấp, cập nhật tính năng hoặc bảo trì qua WebSocket, thư điện tử hoặc thông báo đẩy."
             :icon="Megaphone"
         />
 
@@ -434,7 +434,7 @@ function toggleMockDevice() {
                                         "
                                     >
                                         <Award class="size-4" />
-                                        Đang Trial
+                                        Đang dùng thử
                                     </button>
                                 </div>
                             </div>
@@ -577,13 +577,13 @@ function toggleMockDevice() {
                                                 <p
                                                     class="text-xs font-bold text-foreground"
                                                 >
-                                                    Email Service
+                                                    Dịch vụ thư điện tử
                                                 </p>
                                                 <p
                                                     class="mt-0.5 text-[10px] leading-normal text-muted-foreground"
                                                 >
-                                                    Gửi email hàng loạt tới hòm
-                                                    thư đối tác
+                                                    Gửi thư điện tử hàng loạt
+                                                    tới hòm thư đối tác
                                                 </p>
                                             </div>
                                         </div>
@@ -691,8 +691,8 @@ function toggleMockDevice() {
                                     v-else
                                     class="font-mono text-xs font-black text-orange-500"
                                 >
-                                    {{ simulatedRestaurants }} Cửa hàng /
-                                    {{ simulatedUsers }} Users
+                                    {{ simulatedRestaurants }} cửa hàng /
+                                    {{ simulatedUsers }} người dùng
                                 </div>
                             </div>
                         </div>
@@ -745,7 +745,7 @@ function toggleMockDevice() {
                                 <p class="text-xs font-bold text-foreground">
                                     {{
                                         currentDeviceToken
-                                            ? 'Mock Token hoạt động'
+                                            ? 'Mã mô phỏng đang hoạt động'
                                             : 'Chưa bật token'
                                     }}
                                 </p>
@@ -860,7 +860,8 @@ function toggleMockDevice() {
                                                         c.target_type ===
                                                         'trial'
                                                     "
-                                                    >Nhà hàng đang Trial</span
+                                                    >Nhà hàng đang dùng
+                                                    thử</span
                                                 >
                                             </span>
                                             · Vai trò:
