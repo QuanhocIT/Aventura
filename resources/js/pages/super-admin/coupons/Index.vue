@@ -179,7 +179,7 @@ function submitForm() {
         router.patch(`/super-admin/coupons/${editingCoupon.value.id}`, data, {
             preserveScroll: true,
             onSuccess: () => {
-                toast.success('Đã cập nhật coupon!');
+                toast.success('Đã cập nhật mã giảm giá!');
                 closeForm();
             },
             onError: (e: any) => toast.error(Object.values(e)[0] as string),
@@ -188,7 +188,7 @@ function submitForm() {
         router.post('/super-admin/coupons', data, {
             preserveScroll: true,
             onSuccess: () => {
-                toast.success('Đã tạo coupon!');
+                toast.success('Đã tạo mã giảm giá!');
                 closeForm();
             },
             onError: (e: any) => toast.error(Object.values(e)[0] as string),
@@ -216,7 +216,7 @@ async function deleteCoupon(coupon: Coupon) {
     if (
         !(await confirmDialog({
             title: 'Xác nhận thao tác',
-            description: `Xóa coupon "${coupon.code}"? Nếu đã được dùng sẽ chỉ vô hiệu hoá.`,
+            description: `Xóa mã giảm giá "${coupon.code}"? Nếu đã được dùng sẽ chỉ vô hiệu hoá.`,
         }))
     ) {
         return;
@@ -224,7 +224,7 @@ async function deleteCoupon(coupon: Coupon) {
 
     router.delete(`/super-admin/coupons/${coupon.id}`, {
         preserveScroll: true,
-        onSuccess: () => toast.success('Đã xóa coupon!'),
+        onSuccess: () => toast.success('Đã xóa mã giảm giá!'),
     });
 }
 
@@ -581,7 +581,7 @@ const chartAreaPath = computed(() => {
                         class="flex items-center gap-1.5 text-sm font-bold"
                     >
                         <Brain class="size-4 text-indigo-500" />
-                        AI Advisor & Khuyến nghị
+                        Trợ lý AI & Khuyến nghị
                     </CardTitle>
                 </CardHeader>
                 <CardContent
