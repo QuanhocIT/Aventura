@@ -132,20 +132,14 @@ class DashboardController extends Controller
 
             // Today summary & Yesterday summary for active branch/consolidated
             $todaySummaryQuery = RestaurantRevenueSummary::where('restaurant_id', $rid)
+                ->where('scope_key', TenantContext::summaryScopeKey($branchId))
                 ->where('summary_date', today())
                 ->where('summary_type', 'daily');
 
             $yesterdaySummaryQuery = RestaurantRevenueSummary::where('restaurant_id', $rid)
+                ->where('scope_key', TenantContext::summaryScopeKey($branchId))
                 ->where('summary_date', today()->subDay())
                 ->where('summary_type', 'daily');
-
-            if ($branchId) {
-                $todaySummaryQuery->where('branch_id', $branchId);
-                $yesterdaySummaryQuery->where('branch_id', $branchId);
-            } else {
-                $todaySummaryQuery->whereNull('branch_id');
-                $yesterdaySummaryQuery->whereNull('branch_id');
-            }
 
             $todaySummary = $todaySummaryQuery->first();
             $yesterdaySummary = $yesterdaySummaryQuery->first();
@@ -184,8 +178,17 @@ class DashboardController extends Controller
             // Cache resource counts per branch or consolidated
             $cacheSuffix = $branchId ? ":{$branchId}" : '';
             $resourceCounts = Cache::remember("dashboard_counts:{$rid}{$cacheSuffix}", 300, function () use ($restaurant, $branchId) {
+                $productsQuery = $restaurant->products();
+                if ($branchId !== null) {
+                    $productsQuery->where(function ($q) use ($branchId) {
+                        $q->whereNull('branch_id')->orWhere('branch_id', $branchId);
+                    });
+                }
+
                 return [
-                    'products_count' => $restaurant->products()->when($branchId, fn ($q) => $q->where('branch_id', $branchId))->count(),
+                    // Products with NULL branch_id are chain-wide menu items
+                    // and are visible from every concrete branch.
+                    'products_count' => $productsQuery->count(),
                     'employees_count' => $restaurant->employees()->where('status', 'active')->when($branchId, fn ($q) => $q->where('branch_id', $branchId))->count(),
                     'branches_count' => $restaurant->branches()->count(),
                     'tables_count' => $restaurant->tables()->when($branchId, fn ($q) => $q->where('branch_id', $branchId))->count(),
@@ -207,15 +210,17 @@ class DashboardController extends Controller
             $alerts = [];
 
             // ── Recent orders ────────────────────────────────────────────────
-            $recentOrders = Order::with('table')
+            $recentOrders = Order::with(['table', 'branch:id,name'])
                 ->where('restaurant_id', $rid)
-                ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
+                ->when($branchId !== null, fn ($q) => $q->where('branch_id', $branchId))
                 ->latest()
                 ->take(5)
                 ->get()
                 ->map(fn (Order $o) => [
                     'id' => $o->id,
                     'order_number' => $o->order_number,
+                    'branch_id' => $o->branch_id,
+                    'branch_name' => $o->branch?->name ?? ($branchId === null ? 'Chưa xác định' : '—'),
                     'table_name' => $o->table?->name ?? null,
                     'total_amount' => (float) $o->total_amount,
                     'status' => $o->status,
@@ -464,7 +469,7 @@ class DashboardController extends Controller
     private function getForecastData(int $rid, ?int $branchId = null): ?array
     {
         $scopeKey = TenantContext::branchScopeKey($branchId);
-        $key = "dashboard:forecast:{$rid}:{$scopeKey}:".today()->toDateString();
+        $key = "dashboard:forecast:v2:{$rid}:{$scopeKey}:".today()->toDateString();
 
         return Cache::remember($key, 300, function () use ($rid, $branchId) {
             return $this->forecast->forecastTomorrow($rid, $branchId);

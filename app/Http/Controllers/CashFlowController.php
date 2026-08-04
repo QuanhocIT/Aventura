@@ -12,6 +12,7 @@ use App\Support\TenantRule;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -42,24 +43,33 @@ class CashFlowController extends Controller
 
         $restaurantId = $user->restaurant_id;
         $branchId = $this->tenantContext->activeBranchId();
+        $isAllBranches = $this->tenantContext->isAllBranches();
 
-        // Active registers for this restaurant & branch
-        $activeRegister = CashRegister::where('restaurant_id', $restaurantId)
-            ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
+        // Load every active register in the current scope. In the all-branch
+        // scope this must be aggregated instead of taking the first register.
+        $activeRegisters = CashRegister::where('restaurant_id', $restaurantId)
+            ->when($branchId !== null, fn ($q) => $q->where('branch_id', $branchId))
             ->where('status', 'open')
-            ->with(['openedBy', 'shift'])
-            ->first();
+            ->with(['openedBy', 'shift', 'branch:id,name'])
+            ->get();
+
+        $activeRegistersForView = $isAllBranches
+            ? $activeRegisters
+            : $activeRegisters->take(1);
+        $activeRegister = $this->serializeActiveRegister($activeRegistersForView, $isAllBranches);
 
         // Recent cash registers
         $registers = CashRegister::where('restaurant_id', $restaurantId)
-            ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
-            ->with(['openedBy', 'closedBy', 'shift'])
+            ->when($branchId !== null, fn ($q) => $q->where('branch_id', $branchId))
+            ->with(['openedBy', 'closedBy', 'shift', 'branch:id,name'])
             ->latest('id')
             ->take(100)
             ->get()
             ->map(fn ($r) => [
                 'id' => $r->id,
                 'closing_date' => $r->closing_date->format('d/m/Y'),
+                'branch_id' => $r->branch_id,
+                'branch_name' => $r->branch?->name ?? '—',
                 'shift_name' => $r->shift?->name ?? '—',
                 'opened_by_name' => $r->openedBy?->name ?? '—',
                 'closed_by_name' => $r->closedBy?->name ?? '—',
@@ -76,13 +86,16 @@ class CashFlowController extends Controller
 
         // Transactions for the active register
         $activeTransactions = [];
-        if ($activeRegister) {
-            $activeTransactions = CashTransaction::where('cash_register_id', $activeRegister->id)
-                ->with('createdBy')
+        $activeRegisterIds = $activeRegistersForView->pluck('id');
+        if ($activeRegisterIds->isNotEmpty()) {
+            $activeTransactions = CashTransaction::whereIn('cash_register_id', $activeRegisterIds)
+                ->with(['createdBy', 'branch:id,name'])
                 ->latest('id')
                 ->get()
                 ->map(fn ($t) => [
                     'id' => $t->id,
+                    'branch_id' => $t->branch_id,
+                    'branch_name' => $t->branch?->name ?? '—',
                     'type' => $t->type,
                     'amount' => (float) $t->amount,
                     'source' => $t->source,
@@ -104,19 +117,11 @@ class CashFlowController extends Controller
             ->get(['id', 'name', 'code']);
 
         // Cash Flow Forecast calculation
-        $forecast = $this->calculateCashForecast($restaurantId, $branchId, $activeRegister, $cashFlowRollup);
+        $forecast = $this->calculateCashForecast($restaurantId, $branchId, $activeRegistersForView, $cashFlowRollup);
 
         return Inertia::render('cash-flow/Index', [
-            'activeRegister' => $activeRegister ? [
-                'id' => $activeRegister->id,
-                'opening_balance' => (float) $activeRegister->opening_balance,
-                'expense_budget' => (float) $activeRegister->expense_budget,
-                'opened_at' => $activeRegister->opened_at->format('H:i d/m/Y'),
-                'opened_by_name' => $activeRegister->openedBy?->name ?? '—',
-                'shift_name' => $activeRegister->shift?->name ?? '—',
-                'closing_date' => $activeRegister->closing_date->toDateString(),
-                'expected_cash' => $this->calculateLiveExpectedCash($activeRegister->id),
-            ] : null,
+            'isAllBranches' => $isAllBranches,
+            'activeRegister' => $activeRegister,
             'activeTransactions' => $activeTransactions,
             'registers' => $registers,
             'chartData' => $chartData,
@@ -225,14 +230,66 @@ class CashFlowController extends Controller
         }
         $branchId = $this->tenantContext->activeBranchId();
 
-        $activeRegister = CashRegister::where('restaurant_id', $restaurantId)
-            ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
+        $activeRegisters = CashRegister::where('restaurant_id', $restaurantId)
+            ->when($branchId !== null, fn ($q) => $q->where('branch_id', $branchId))
             ->where('status', 'open')
-            ->first();
+            ->get();
 
         $cashFlowRollup = $this->mvReader->read('cash_flow_30d', $restaurantId, $branchId);
 
-        return response()->json($this->calculateCashForecast($restaurantId, $branchId, $activeRegister, $cashFlowRollup));
+        return response()->json($this->calculateCashForecast($restaurantId, $branchId, $activeRegisters, $cashFlowRollup));
+    }
+
+    private function serializeActiveRegister(Collection $registers, bool $isAllBranches): ?array
+    {
+        if ($registers->isEmpty()) {
+            return null;
+        }
+
+        if (! $isAllBranches) {
+            $register = $registers->first();
+
+            return [
+                'id' => $register->id,
+                'branch_id' => $register->branch_id,
+                'branch_name' => $register->branch?->name ?? '—',
+                'opening_balance' => (float) $register->opening_balance,
+                'expense_budget' => (float) $register->expense_budget,
+                'opened_at' => $register->opened_at->format('H:i d/m/Y'),
+                'opened_by_name' => $register->openedBy?->name ?? '—',
+                'shift_name' => $register->shift?->name ?? '—',
+                'closing_date' => $register->closing_date->toDateString(),
+                'expected_cash' => $this->calculateLiveExpectedCash($register->id),
+                'is_aggregate' => false,
+                'register_count' => 1,
+            ];
+        }
+
+        $firstRegister = $registers->sortBy('opened_at')->first();
+        $registerCount = $registers->count();
+
+        return [
+            'id' => null,
+            'branch_id' => null,
+            'branch_name' => 'Toàn chuỗi',
+            'opening_balance' => (float) $registers->sum('opening_balance'),
+            'expense_budget' => (float) $registers->sum('expense_budget'),
+            'opened_at' => $registerCount === 1
+                ? $firstRegister->opened_at->format('H:i d/m/Y')
+                : 'Nhiều thời điểm',
+            'opened_by_name' => $registerCount === 1
+                ? ($firstRegister->openedBy?->name ?? '—')
+                : "{$registerCount} két đang mở",
+            'shift_name' => $registerCount === 1
+                ? ($firstRegister->shift?->name ?? '—')
+                : 'Nhiều ca',
+            'closing_date' => today()->toDateString(),
+            'expected_cash' => (float) $registers->sum(
+                fn ($register) => $this->calculateLiveExpectedCash($register->id),
+            ),
+            'is_aggregate' => true,
+            'register_count' => $registerCount,
+        ];
     }
 
     private function calculateLiveExpectedCash(int $registerId): float
@@ -256,22 +313,46 @@ class CashFlowController extends Controller
      *                                                                            30 ngày, KHÔNG tính lại ở đây nữa. current_cash / projected values / status /
      *                                                                            message vẫn tính live vì phụ thuộc két tiền đang mở — xem CashFlowChartBuilder.
      */
-    private function calculateCashForecast(int $restaurantId, ?int $branchId, ?CashRegister $activeRegister, array $cashFlowRollup): array
+    private function calculateCashForecast(int $restaurantId, ?int $branchId, Collection $activeRegisters, array $cashFlowRollup): array
     {
         $avgDailyIn = (float) $cashFlowRollup['avg_daily_in'];
         $avgDailyOut = (float) $cashFlowRollup['avg_daily_out'];
 
-        // Get current active cash drawer cash or estimate
+        // In the all-branch scope, use the current value for every branch:
+        // active registers use their live balance; branches without an open
+        // register use their latest closed balance.
         $currentCash = 0;
-        if ($activeRegister) {
-            $currentCash = $this->calculateLiveExpectedCash($activeRegister->id);
+        if ($this->tenantContext->isAllBranches()) {
+            $currentCash = (float) $activeRegisters->sum(
+                fn ($register) => $this->calculateLiveExpectedCash($register->id),
+            );
+
+            $lastClosedRegisters = CashRegister::where('restaurant_id', $restaurantId)
+                ->where('status', 'closed')
+                ->latest('closed_at')
+                ->get();
+
+            $activeBranchIds = $activeRegisters->pluck('branch_id')
+                ->filter()
+                ->unique();
+
+            $currentCash += (float) $lastClosedRegisters
+                ->unique('branch_id')
+                ->reject(fn ($register) => $activeBranchIds->contains($register->branch_id))
+                ->sum('closing_balance');
+        } elseif ($activeRegisters->isNotEmpty()) {
+            $currentCash = (float) $activeRegisters->sum(
+                fn ($register) => $this->calculateLiveExpectedCash($register->id),
+            );
         } else {
-            // Check last closed register balance
+            // If no register is open, use the latest closed register. The
+            // branch scope has already limited this query to one branch.
             $lastClosed = CashRegister::where('restaurant_id', $restaurantId)
-                ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
+                ->when($branchId !== null, fn ($q) => $q->where('branch_id', $branchId))
                 ->where('status', 'closed')
                 ->latest('closed_at')
                 ->first();
+
             if ($lastClosed) {
                 $currentCash = (float) $lastClosed->closing_balance;
             }

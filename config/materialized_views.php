@@ -40,7 +40,7 @@ return [
             'cron' => env('MV_REVENUE_DAILY_CRON', '*/15 * * * *'),
             'between' => ['06:00', '23:59'],
             'stale_after' => 900,
-            'branch_scoped' => false, // xem ghi chú trong RevenueDailyBuilder — DailyReportService hiện chưa hỗ trợ lọc theo branch
+            'branch_scoped' => true,
             'enabled' => (bool) env('MV_REVENUE_DAILY_ENABLED', true),
         ],
 

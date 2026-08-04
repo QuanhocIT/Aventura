@@ -222,6 +222,8 @@ class OrdersController extends Controller
         $orders = $ordersQuery->get()->map(fn ($o) => [
             'id' => $o->id,
             'order_number' => $o->order_number,
+            'branch_id' => $o->branch_id,
+            'branch_name' => $o->branch?->name ?? 'Chưa xác định',
             'status' => $o->status,
             'payment_status' => $o->payment_status,
             'channel' => $o->channel,

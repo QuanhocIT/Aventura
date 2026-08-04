@@ -74,7 +74,7 @@ class InventoryManagementController extends Controller
 
         $ingredients = Ingredient::where('restaurant_id', $user->restaurant_id)
             ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
-            ->with(['unit'])
+            ->with(['unit', 'branch:id,name'])
             ->get()
             ->map(function ($ing) use ($inventoryMap) {
                 $inventory = $inventoryMap->get($ing->id);
@@ -84,6 +84,8 @@ class InventoryManagementController extends Controller
 
                 return [
                     'id' => $ing->id,
+                    'branch_id' => $ing->branch_id,
+                    'branch_name' => $ing->branch?->name ?? 'Toàn chuỗi',
                     'sku' => $ing->sku,
                     'name' => $ing->name,
                     'category_name' => $ing->category_name,
@@ -99,10 +101,12 @@ class InventoryManagementController extends Controller
 
         $products = Product::where('restaurant_id', $user->restaurant_id)
             ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
-            ->with(['recipes.ingredient.unit'])
+            ->with(['recipes.ingredient.unit', 'branch:id,name'])
             ->get()
             ->map(fn ($p) => [
                 'id' => $p->id,
+                'branch_id' => $p->branch_id,
+                'branch_name' => $p->branch?->name ?? 'Toàn chuỗi',
                 'name' => $p->name,
                 'code' => $p->code,
                 'price' => $p->price,

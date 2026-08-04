@@ -4,6 +4,7 @@ namespace App\Support\MaterializedViews\Builders;
 
 use App\Services\DailyReportService;
 use App\Support\MaterializedViews\Contracts\MaterializedViewBuilder;
+use App\Support\Tenant\TenantContext;
 use Carbon\CarbonInterface;
 
 /**
@@ -20,11 +21,8 @@ use Carbon\CarbonInterface;
  * nguyên tử) — đã bắt được lỗi này qua test tích hợp, xem
  * tests/Feature/MaterializedViewFrameworkTest.php.
  *
- * KHÔNG hỗ trợ branch_scoped: DailyReportService hiện tính doanh thu toàn nhà
- * hàng, chưa lọc theo branch_id (bug đã biết — DashboardController lọc dashboard
- * theo ?branch_id= nhưng dòng tổng hợp luôn ghi branch_id=null). Việc sửa bug đó
- * là thay đổi công thức tính doanh thu, nằm ngoài phạm vi khung MV này — không tự
- * ý sửa kèm theo ở đây.
+ * Hỗ trợ cả dòng tổng hợp toàn chuỗi và dòng theo từng chi nhánh. Null chỉ được
+ * dùng cho dòng tổng hợp toàn chuỗi; dòng chi nhánh dùng scope_key branch:{id}.
  */
 class RevenueDailyBuilder implements MaterializedViewBuilder
 {
@@ -34,11 +32,11 @@ class RevenueDailyBuilder implements MaterializedViewBuilder
 
     public function scopeKey(?int $branchId): string
     {
-        return 'restaurant';
+        return TenantContext::summaryScopeKey($branchId);
     }
 
     public function build(int $restaurantId, ?int $branchId, CarbonInterface $date): array
     {
-        return $this->dailyReportService->computeForRestaurant($restaurantId, $date->toDateString());
+        return $this->dailyReportService->computeForRestaurant($restaurantId, $date->toDateString(), $branchId);
     }
 }

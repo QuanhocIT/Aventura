@@ -65,6 +65,7 @@ class OrderStatsCacheService
             Cache::forget("dashboard:top_products:{$restaurantId}:{$scopeKey}:{$date}");
             Cache::forget("dashboard:peak_hours:{$restaurantId}:{$scopeKey}:{$date}");
             Cache::forget("dashboard:forecast:{$restaurantId}:{$scopeKey}:{$date}");
+            Cache::forget("dashboard:forecast:v2:{$restaurantId}:{$scopeKey}:{$date}");
             Cache::forget("dashboard:shift_revenue:{$restaurantId}:{$scopeKey}:{$date}");
             Cache::forget("dashboard:owner_summary:{$restaurantId}:{$scopeKey}:{$date}");
             Cache::forget("dashboard:cash_flow:{$restaurantId}:{$scopeKey}:{$date}");

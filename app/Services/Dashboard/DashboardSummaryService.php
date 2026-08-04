@@ -70,14 +70,12 @@ class DashboardSummaryService
                 'pending_over_20min' => $pendingOrders,
                 'revenue_this_week' => (float) RestaurantRevenueSummary::where('restaurant_id', $rid)
                     ->where('summary_type', 'daily')
-                    ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
-                    ->when(! $branchId, fn ($q) => $q->whereNull('branch_id'))
+                    ->where('scope_key', TenantContext::summaryScopeKey($branchId))
                     ->whereBetween('summary_date', [today()->startOfWeek(), today()])
                     ->sum('net_revenue'),
                 'revenue_last_week' => (float) RestaurantRevenueSummary::where('restaurant_id', $rid)
                     ->where('summary_type', 'daily')
-                    ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
-                    ->when(! $branchId, fn ($q) => $q->whereNull('branch_id'))
+                    ->where('scope_key', TenantContext::summaryScopeKey($branchId))
                     ->whereBetween('summary_date', [today()->subWeek()->startOfWeek(), today()->subWeek()->endOfWeek()])
                     ->sum('net_revenue'),
             ];
@@ -90,22 +88,22 @@ class DashboardSummaryService
         $key = "dashboard:cash_flow:{$rid}:{$scopeKey}:".today()->toDateString();
 
         return Cache::remember($key, 300, function () use ($rid, $branchId) {
-            $activeRegister = CashRegister::where('restaurant_id', $rid)
-                ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
+            $activeRegisters = CashRegister::where('restaurant_id', $rid)
+                ->when($branchId !== null, fn ($q) => $q->where('branch_id', $branchId))
                 ->where('status', 'open')
-                ->first();
+                ->get();
 
             $currentCash = 0.0;
-            if ($activeRegister) {
+            foreach ($activeRegisters as $activeRegister) {
                 $totals = CashTransaction::where('cash_register_id', $activeRegister->id)
                     ->selectRaw("SUM(CASE WHEN type = 'in' THEN amount ELSE 0 END) as total_in, SUM(CASE WHEN type = 'out' THEN amount ELSE 0 END) as total_out")
                     ->first();
-                $currentCash = (float) $activeRegister->opening_balance + (float) ($totals->total_in ?? 0) - (float) ($totals->total_out ?? 0);
+                $currentCash += (float) $activeRegister->opening_balance + (float) ($totals->total_in ?? 0) - (float) ($totals->total_out ?? 0);
             }
 
             $sevenDaysAgo = now()->subDays(6)->startOfDay();
             $recentTransactions = CashTransaction::where('restaurant_id', $rid)
-                ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
+                ->when($branchId !== null, fn ($q) => $q->where('branch_id', $branchId))
                 ->where('occurred_at', '>=', $sevenDaysAgo)
                 ->selectRaw('DATE(occurred_at) as date, type, SUM(amount) as total')
                 ->groupBy('date', 'type')
@@ -126,7 +124,7 @@ class DashboardSummaryService
             }
 
             return [
-                'active_register_status' => $activeRegister ? 'open' : 'closed',
+                'active_register_status' => $activeRegisters->isNotEmpty() ? 'open' : 'closed',
                 'current_cash' => $currentCash,
                 'seven_days_in' => (float) $recentTransactions->where('type', 'in')->sum('total'),
                 'seven_days_out' => (float) $recentTransactions->where('type', 'out')->sum('total'),

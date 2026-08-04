@@ -316,6 +316,75 @@ class CashFlowTest extends TestCase
         $this->assertEquals('warning', $overrunAlert['type']);
     }
 
+    public function test_all_branch_cash_flow_aggregates_and_identifies_branch(): void
+    {
+        $secondBranch = RestaurantBranch::factory()->create([
+            'restaurant_id' => $this->restaurant->id,
+        ]);
+        $secondShift = WorkShift::factory()->create([
+            'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $secondBranch->id,
+            'status' => 'active',
+        ]);
+
+        $activeRegister = CashRegister::create([
+            'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
+            'shift_id' => $this->shift->id,
+            'closing_date' => today(),
+            'opened_by' => $this->cashier->id,
+            'cashier_user_id' => $this->cashier->id,
+            'opening_balance' => 100000,
+            'expense_budget' => 50000,
+            'status' => 'open',
+            'opened_at' => now(),
+        ]);
+
+        CashTransaction::create([
+            'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
+            'cash_register_id' => $activeRegister->id,
+            'type' => 'in',
+            'amount' => 50000,
+            'source' => 'other',
+            'notes' => 'Thu tiền chi nhánh A',
+            'created_by' => $this->cashier->id,
+            'occurred_at' => now(),
+        ]);
+
+        CashRegister::create([
+            'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $secondBranch->id,
+            'shift_id' => $secondShift->id,
+            'closing_date' => today()->subDay(),
+            'opened_by' => $this->cashier->id,
+            'closed_by' => $this->cashier->id,
+            'opening_balance' => 200000,
+            'closing_balance' => 280000,
+            'expected_closing_balance' => 300000,
+            'difference' => -20000,
+            'status' => 'closed',
+            'opened_at' => now()->subDay()->subHours(8),
+            'closed_at' => now()->subDay(),
+        ]);
+
+        $this->actingAs($this->owner);
+        $response = $this->get(route('cash-flow.index'));
+        $response->assertOk();
+
+        $props = $response->original->getData()['page']['props'];
+
+        $this->assertTrue($props['isAllBranches']);
+        $this->assertSame('Toàn chuỗi', $props['activeRegister']['branch_name']);
+        $this->assertEquals(150000, $props['activeRegister']['expected_cash']);
+        $this->assertEquals(430000, $props['forecast']['current_cash']);
+        $this->assertSame($this->branch->name, $props['activeTransactions'][0]['branch_name']);
+        $this->assertSame(
+            $secondBranch->name,
+            collect($props['registers'])->firstWhere('branch_id', $secondBranch->id)['branch_name'],
+        );
+    }
+
     /**
      * Kiểm tra materialized view 'cash_flow_30d' (CashFlowChartBuilder) — trang
      * Cash Flow trước đây KHÔNG cache gì cả, giờ đọc qua MaterializedViewReader.

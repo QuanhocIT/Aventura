@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\Employee;
 use App\Models\Restaurant;
 use App\Models\RestaurantBranch;
+use App\Models\RestaurantRevenueSummary;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Spatie\Permission\Models\Role;
@@ -90,6 +91,72 @@ class MultiBranchDashboardTest extends TestCase
         $this->assertCount(2, $props['branches']);
         // Comparisons table should be empty when filtering by a specific branch
         $this->assertEmpty($props['branchComparisons']);
+    }
+
+    public function test_dashboard_switches_between_chain_summary_and_branch_summary(): void
+    {
+        $date = today()->toDateString();
+
+        RestaurantRevenueSummary::create([
+            'restaurant_id' => $this->restaurant->id,
+            'branch_id' => null,
+            'scope_key' => 'restaurant',
+            'summary_type' => 'daily',
+            'summary_date' => $date,
+            'net_revenue' => 300000,
+            'gross_profit' => 120000,
+            'completed_order_count' => 3,
+        ]);
+        RestaurantRevenueSummary::create([
+            'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch1->id,
+            'scope_key' => "branch:{$this->branch1->id}",
+            'summary_type' => 'daily',
+            'summary_date' => $date,
+            'net_revenue' => 100000,
+            'gross_profit' => 40000,
+            'completed_order_count' => 1,
+        ]);
+        RestaurantRevenueSummary::create([
+            'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch2->id,
+            'scope_key' => "branch:{$this->branch2->id}",
+            'summary_type' => 'daily',
+            'summary_date' => $date,
+            'net_revenue' => 200000,
+            'gross_profit' => 80000,
+            'completed_order_count' => 2,
+        ]);
+
+        $allBranches = $this->actingAs($this->owner)
+            ->get(route('dashboard'))
+            ->original
+            ->getData()['page']['props'];
+
+        $this->assertNull($allBranches['branchId']);
+        $this->assertSame(300000.0, $allBranches['stats']['revenue_today']);
+
+        $this->post(route('branch.switch'), ['branch_id' => $this->branch1->id])
+            ->assertRedirect();
+
+        $branch = $this->actingAs($this->owner)
+            ->get(route('dashboard'))
+            ->original
+            ->getData()['page']['props'];
+
+        $this->assertSame($this->branch1->id, $branch['branchId']);
+        $this->assertSame(100000.0, $branch['stats']['revenue_today']);
+
+        $this->post(route('branch.switch'), ['scope' => 'all'])
+            ->assertRedirect();
+
+        $allAgain = $this->actingAs($this->owner)
+            ->get(route('dashboard'))
+            ->original
+            ->getData()['page']['props'];
+
+        $this->assertNull($allAgain['branchId']);
+        $this->assertSame(300000.0, $allAgain['stats']['revenue_today']);
     }
 
     public function test_employee_restricted_to_assigned_branch(): void
