@@ -17,8 +17,18 @@ class RestaurantChooserController extends Controller
     public function chooseRestaurantPage(Request $request): Response|RedirectResponse
     {
         $user = $request->user();
+        $allowedUserIds = collect($request->session()->get('multi_tenant_users', []))
+            ->values()
+            ->map(fn ($id) => (int) $id)
+            ->filter()
+            ->all();
+
+        if ($allowedUserIds === []) {
+            return redirect()->intended('/dashboard');
+        }
 
         $activeUsers = User::where('email', $user->email)
+            ->whereIn('id', $allowedUserIds)
             ->where('status', 'active')
             ->with(['restaurant', 'roles'])
             ->get();
@@ -53,6 +63,14 @@ class RestaurantChooserController extends Controller
         ]);
 
         $currentUser = $request->user();
+        $allowedUserIds = collect($request->session()->get('multi_tenant_users', []))
+            ->values()
+            ->map(fn ($id) => (int) $id)
+            ->filter()
+            ->all();
+
+        abort_unless(in_array((int) $data['user_id'], $allowedUserIds, true), 403, 'Tài khoản nhà hàng không thuộc phiên đăng nhập hiện tại.');
+
         $targetUser = User::where('id', $data['user_id'])
             ->where('email', $currentUser->email)
             ->where('status', 'active')
@@ -62,6 +80,7 @@ class RestaurantChooserController extends Controller
         $request->session()->regenerate();
 
         $activeUsers = User::where('email', $targetUser->email)
+            ->whereIn('id', $allowedUserIds)
             ->where('status', 'active')
             ->get();
         session(['multi_tenant_users' => $activeUsers->pluck('id', 'restaurant_id')->toArray()]);

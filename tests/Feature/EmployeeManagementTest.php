@@ -209,4 +209,41 @@ class EmployeeManagementTest extends TestCase
         $employee->refresh();
         $this->assertSame('inactive', $employee->status);
     }
+
+    public function test_normal_staff_cannot_manage_employee_accounts_or_view_the_employee_page(): void
+    {
+        $staff = User::factory()->create([
+            'restaurant_id' => $this->restaurant->id,
+            'status' => 'active',
+        ]);
+        $staff->assignRole('cashier');
+
+        $employee = Employee::factory()->create([
+            'restaurant_id' => $this->restaurant->id,
+            'status' => 'active',
+        ]);
+
+        $this->actingAs($staff)->get('/employees')->assertForbidden();
+        $this->actingAs($staff)->post('/employees', [])->assertForbidden();
+        $this->actingAs($staff)->patch("/employees/{$employee->id}", [
+            'full_name' => 'Không được phép',
+        ])->assertForbidden();
+        $this->actingAs($staff)
+            ->patch("/employees/{$employee->id}/toggle-status")
+            ->assertForbidden();
+    }
+
+    public function test_normal_staff_cannot_change_restaurant_settings(): void
+    {
+        $staff = User::factory()->create([
+            'restaurant_id' => $this->restaurant->id,
+            'status' => 'active',
+        ]);
+        $staff->assignRole('cashier');
+
+        $this->actingAs($staff)->get('/settings/restaurant')->assertForbidden();
+        $this->actingAs($staff)->get('/online-store')->assertForbidden();
+        $this->actingAs($staff)->get('/settings/integrations')->assertForbidden();
+        $this->actingAs($staff)->get('/operation-policies')->assertForbidden();
+    }
 }

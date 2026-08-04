@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Concerns\AuthorizesRestaurantSettings;
 use App\Models\ApiKey;
 use App\Models\PlatformOrder;
 use App\Models\PosDevice;
@@ -19,8 +20,11 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class IntegrationSettingsController extends Controller
 {
+    use AuthorizesRestaurantSettings;
+
     public function index(Request $request): Response
     {
+        $this->authorizeRestaurantSettings($request);
         $restaurantId = $request->user()->restaurant_id;
 
         abort_unless($restaurantId, 403, 'Không tìm thấy nhà hàng.');
@@ -111,6 +115,7 @@ class IntegrationSettingsController extends Controller
 
     public function update(Request $request, string $provider): RedirectResponse
     {
+        $this->authorizeRestaurantSettings($request);
         $providers = IntegrationRegistry::providers();
 
         abort_unless(isset($providers[$provider]), 404);
@@ -155,6 +160,7 @@ class IntegrationSettingsController extends Controller
      */
     public function connectDemo(Request $request, string $provider): RedirectResponse
     {
+        $this->authorizeRestaurantSettings($request);
         $providers = IntegrationRegistry::providers();
 
         abort_unless(isset($providers[$provider]), 404);
@@ -182,6 +188,7 @@ class IntegrationSettingsController extends Controller
 
     public function toggle(Request $request, string $provider): RedirectResponse
     {
+        $this->authorizeRestaurantSettings($request);
         abort_unless(isset(IntegrationRegistry::providers()[$provider]), 404);
 
         $restaurantId = $request->user()->restaurant_id;
@@ -203,6 +210,7 @@ class IntegrationSettingsController extends Controller
     /** Nút "Kiểm tra kết nối" cho Zalo OA. */
     public function testZalo(Request $request, ZaloOaService $zalo): RedirectResponse
     {
+        $this->authorizeRestaurantSettings($request);
         $integration = RestaurantIntegration::withoutGlobalScopes()
             ->where('restaurant_id', $request->user()->restaurant_id)
             ->where('provider', 'zalo_oa')
@@ -220,6 +228,7 @@ class IntegrationSettingsController extends Controller
     /** Nút "Gửi đơn thử nghiệm" — mô phỏng webhook GrabFood/ShopeeFood. */
     public function simulateOrder(Request $request, DeliveryPlatformService $service): RedirectResponse
     {
+        $this->authorizeRestaurantSettings($request);
         $data = $request->validate([
             'provider' => ['required', 'in:grabfood,shopeefood'],
         ]);
@@ -239,6 +248,7 @@ class IntegrationSettingsController extends Controller
     /** Tải file CSV chứng từ bán hàng chuẩn MISA. */
     public function misaExport(Request $request, MisaExportService $misa): StreamedResponse
     {
+        $this->authorizeRestaurantSettings($request);
         $data = $request->validate([
             'from' => ['required', 'date'],
             'to' => ['required', 'date', 'after_or_equal:from'],

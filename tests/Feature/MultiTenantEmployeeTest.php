@@ -61,12 +61,23 @@ class MultiTenantEmployeeTest extends TestCase
 
         $response = $this->get($url);
 
+        $response->assertInertia(fn ($page) => $page
+            ->component('auth/EmployeeActivation')
+            ->where('email', 'employee@example.com')
+        );
+
+        $response = $this->post($url, [
+            'password' => 'NewPassword123!',
+            'password_confirmation' => 'NewPassword123!',
+        ]);
+
         $response->assertRedirect('/login');
         $response->assertSessionHas('success');
 
         $this->assertEquals('active', $user->fresh()->status);
         $this->assertEquals('active', $employee->fresh()->status);
         $this->assertNotNull($user->fresh()->email_verified_at);
+        $this->assertTrue(password_verify('NewPassword123!', $user->fresh()->password));
     }
 
     public function test_same_email_can_exist_in_multiple_restaurants_and_triggers_choice_screen(): void
@@ -155,5 +166,52 @@ class MultiTenantEmployeeTest extends TestCase
 
         // Verify current authenticated user is now User B
         $this->assertEquals($userB->id, auth()->id());
+    }
+
+    public function test_restaurant_chooser_cannot_switch_to_an_account_not_authenticated_by_the_password(): void
+    {
+        $restaurantA = Restaurant::factory()->create(['name' => 'Restaurant A']);
+        $restaurantB = Restaurant::factory()->create(['name' => 'Restaurant B']);
+        $restaurantC = Restaurant::factory()->create(['name' => 'Restaurant C']);
+        $ownerRole = Role::firstOrCreate(['name' => 'owner', 'guard_name' => 'web']);
+
+        $userA = User::factory()->create([
+            'email' => 'multi@example.com',
+            'password' => bcrypt('password-a'),
+            'restaurant_id' => $restaurantA->id,
+            'status' => 'active',
+        ]);
+        $userA->assignRole($ownerRole);
+
+        $userB = User::factory()->create([
+            'email' => 'multi@example.com',
+            'password' => bcrypt('password-b'),
+            'restaurant_id' => $restaurantB->id,
+            'status' => 'active',
+        ]);
+        $userB->assignRole($ownerRole);
+
+        $userC = User::factory()->create([
+            'email' => 'multi@example.com',
+            'password' => bcrypt('password-c'),
+            'restaurant_id' => $restaurantC->id,
+            'status' => 'active',
+        ]);
+        $userC->assignRole($ownerRole);
+
+        $this->post('/login', [
+            'email' => 'multi@example.com',
+            'password' => 'password-a',
+        ])->assertRedirect('/dashboard');
+
+        $this->assertSame($userA->id, auth()->id());
+        session(['multi_tenant_users' => [$restaurantA->id => $userA->id]]);
+
+        $this->post(route('choose-restaurant.select'), [
+            'user_id' => $userB->id,
+        ])->assertForbidden();
+
+        $this->assertSame($userA->id, auth()->id());
+        $this->assertNotContains($userC->id, session('multi_tenant_users', []));
     }
 }

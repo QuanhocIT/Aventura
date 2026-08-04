@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Concerns\PasswordValidationRules;
 use App\Mail\EmployeeInvitationMail;
 use App\Models\Employee;
 use App\Models\LeaveRequest;
@@ -24,17 +25,21 @@ use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
+use Illuminate\Validation\Rules\Password;
 use Spatie\Permission\Models\Role;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class EmployeeManagementController extends Controller
 {
+    use PasswordValidationRules;
+
     /**
      * Trang Nhân sự & Lịch biểu (Dành cho Day 3).
      */
     public function employeesPage(Request $request): Response
     {
         $user = $request->user();
+        $this->authorizeEmployeeManagement($user);
         $tenantContext = app(TenantContext::class);
         $branchId = $tenantContext->activeBranchId();
 
@@ -352,6 +357,7 @@ class EmployeeManagementController extends Controller
     public function storeEmployee(Request $request): RedirectResponse
     {
         $user = $request->user();
+        $this->authorizeEmployeeManagement($user);
 
         $data = $request->validate([
             'name' => ['required', 'string', 'max:255'],
@@ -407,55 +413,67 @@ class EmployeeManagementController extends Controller
             $backUrl = $request->file('citizen_id_back')->store('citizen_ids', 'local');
         }
 
-        // Tạo User mới cho nhân viên ở trạng thái Chờ xác nhận
-        $tempPassword = Str::random(10);
-        $newUser = User::create([
-            'name' => $data['name'],
-            'email' => $data['email'],
-            'password' => bcrypt($tempPassword),
-            'phone' => $data['phone'],
-            'restaurant_id' => $user->restaurant_id,
-            'branch_id' => $branchId ?: null,
-            'status' => 'inactive',
-            'email_verified_at' => null,
-        ]);
+        try {
+            [$newUser, $newEmployee] = DB::transaction(function () use ($data, $user, $branchId, $frontUrl, $backUrl): array {
+                // Chưa cấp mật khẩu dùng được. Nhân viên sẽ tự đặt mật khẩu trong link kích hoạt.
+                $newUser = User::create([
+                    'name' => $data['name'],
+                    'email' => $data['email'],
+                    'password' => bcrypt(Str::random(64)),
+                    'phone' => $data['phone'],
+                    'restaurant_id' => $user->restaurant_id,
+                    'branch_id' => $branchId ?: null,
+                    'status' => 'inactive',
+                    'email_verified_at' => null,
+                ]);
 
-        // Gán Role qua Spatie
-        $role = Role::firstOrCreate([
-            'name' => $data['role'],
-            'guard_name' => 'web',
-        ]);
-        $newUser->assignRole($role);
+                $role = Role::firstOrCreate([
+                    'name' => $data['role'],
+                    'guard_name' => 'web',
+                ]);
+                $newUser->assignRole($role);
 
-        // Tạo hồ sơ nhân viên Employee ở trạng thái Chờ xác nhận
-        $newEmployee = Employee::create([
-            'restaurant_id' => $user->restaurant_id,
-            'branch_id' => $branchId ?: null,
-            'user_id' => $newUser->id,
-            'employee_code' => 'EMP-'.Str::upper(Str::random(5)),
-            'full_name' => $data['name'],
-            'phone' => $data['phone'],
-            'email' => $data['email'],
-            'date_of_birth' => $data['date_of_birth'],
-            'citizen_id_number' => $data['citizen_id_number'],
-            'citizen_id_front_url' => $frontUrl,
-            'citizen_id_back_url' => $backUrl,
-            'address' => $data['address'],
-            'hire_date' => $data['hire_date'],
-            'compensation_type' => $data['compensation_type'] ?? 'fixed',
-            'pay_rate' => $data['pay_rate'] ?? 0,
-            'base_salary' => $data['base_salary'] ?? 0,
-            'job_title' => $data['job_title'],
-            'employment_type' => 'full_time',
-            'status' => 'inactive',
-            'role_id' => $role->id,
-        ]);
+                $newEmployee = Employee::create([
+                    'restaurant_id' => $user->restaurant_id,
+                    'branch_id' => $branchId ?: null,
+                    'user_id' => $newUser->id,
+                    'employee_code' => 'EMP-'.Str::upper(Str::random(5)),
+                    'full_name' => $data['name'],
+                    'phone' => $data['phone'],
+                    'email' => $data['email'],
+                    'date_of_birth' => $data['date_of_birth'],
+                    'citizen_id_number' => $data['citizen_id_number'],
+                    'citizen_id_front_url' => $frontUrl,
+                    'citizen_id_back_url' => $backUrl,
+                    'address' => $data['address'],
+                    'hire_date' => $data['hire_date'],
+                    'compensation_type' => $data['compensation_type'] ?? 'fixed',
+                    'pay_rate' => $data['pay_rate'] ?? 0,
+                    'base_salary' => $data['base_salary'] ?? 0,
+                    'job_title' => $data['job_title'],
+                    'employment_type' => 'full_time',
+                    'status' => 'inactive',
+                    'role_id' => $role->id,
+                ]);
 
-        if ($data['role'] === 'manager') {
-            DB::table('restaurant_branches')
-                ->where('id', $branchId)
-                ->where('restaurant_id', $user->restaurant_id)
-                ->update(['manager_user_id' => $newUser->id]);
+                if ($data['role'] === 'manager') {
+                    DB::table('restaurant_branches')
+                        ->where('id', $branchId)
+                        ->where('restaurant_id', $user->restaurant_id)
+                        ->update(['manager_user_id' => $newUser->id]);
+                }
+
+                return [$newUser, $newEmployee];
+            });
+        } catch (\Throwable $e) {
+            if ($frontUrl) {
+                Storage::disk('local')->delete($frontUrl);
+            }
+            if ($backUrl) {
+                Storage::disk('local')->delete($backUrl);
+            }
+
+            throw $e;
         }
 
         // Tạo signed URL hạn dùng 3 ngày để xác nhận lời mời nhận việc
@@ -476,26 +494,42 @@ class EmployeeManagementController extends Controller
                 )
             );
         } catch (\Exception $e) {
-            // Log error or silently fallback, but don't crash
             logger()->error('Failed to send employee invitation email: '.$e->getMessage());
+
+            return back()->with('error', 'Đã tạo hồ sơ nhưng không gửi được email kích hoạt. Vui lòng kiểm tra cấu hình mail và gửi lại lời mời.');
         }
 
-        return back()
-            ->with('success', "Đã gửi email xác thực lời mời nhận việc đến hộp thư {$data['email']}. Nhân viên cần bấm xác nhận qua Gmail để kích hoạt tài khoản đăng nhập.")
-            ->with('temp_password', "Mật khẩu tạm thời: {$tempPassword} — Mật khẩu này sẽ có hiệu lực ngay khi nhân viên hoàn tất xác nhận.");
+        return back()->with('success', "Đã gửi link kích hoạt tài khoản đến hộp thư {$data['email']}. Nhân viên sẽ tự đặt mật khẩu khi kích hoạt.");
     }
 
     /**
      * Xác thực và kích hoạt tài khoản nhân viên từ link Gmail.
      */
-    public function verifyEmployee(Request $request, User $user): RedirectResponse
+    public function verifyEmployee(Request $request, User $user): Response|RedirectResponse
     {
+        abort_unless($user->employee, 404);
+
         if ($user->status === 'active') {
             return redirect()->route('login')->with('success', 'Tài khoản của bạn đã được kích hoạt trước đó. Vui lòng đăng nhập.');
         }
 
-        DB::transaction(function () use ($user) {
+        if ($request->isMethod('get')) {
+            return Inertia::render('auth/EmployeeActivation', [
+                'employeeName' => $user->name,
+                'email' => $user->email,
+                'jobTitle' => $user->employee?->job_title,
+                'activationUrl' => $request->fullUrl(),
+                'passwordRules' => Password::defaults()->toPasswordRulesString(),
+            ]);
+        }
+
+        $data = $request->validate([
+            'password' => $this->passwordRules(),
+        ]);
+
+        DB::transaction(function () use ($user, $data) {
             $user->update([
+                'password' => $data['password'],
                 'status' => 'active',
                 'email_verified_at' => now(),
             ]);
@@ -516,14 +550,17 @@ class EmployeeManagementController extends Controller
      */
     public function toggleEmployeeStatus(Request $request, Employee $employee): RedirectResponse
     {
-        abort_unless($request->user()->can('manage_employees'), 403);
-        abort_if($employee->restaurant_id !== $request->user()->restaurant_id, 403);
+        $user = $request->user();
+        $this->authorizeEmployeeManagement($user);
+        abort_if($employee->restaurant_id !== $user->restaurant_id, 403);
+        abort_unless($user->isOwner() || $user->isSuperAdmin() || $user->canAccessBranch((int) $employee->branch_id), 403);
 
         $newStatus = $employee->status === 'active' ? 'inactive' : 'active';
         $employee->update(['status' => $newStatus]);
 
         if ($employee->user) {
             $employee->user->update(['status' => $newStatus]);
+            $employee->user->increment('security_session_version');
         }
 
         $msg = $newStatus === 'active' ? 'Đã kích hoạt tài khoản nhân viên.' : 'Đã vô hiệu hóa tài khoản nhân viên.';
@@ -541,6 +578,7 @@ class EmployeeManagementController extends Controller
         abort_unless(in_array($side, ['front', 'back'], true), 404);
         abort_unless($user->hasAnyRole(['owner', 'manager']) || $user->hasRole('super_admin'), 403, 'Chỉ Owner hoặc Manager mới có quyền xem ảnh CCCD nhân viên.');
         abort_if($employee->restaurant_id !== $user->restaurant_id && ! $user->hasRole('super_admin'), 403);
+        abort_unless($user->isOwner() || $user->isSuperAdmin() || $user->canAccessBranch((int) $employee->branch_id), 403);
 
         $value = $side === 'front' ? $employee->citizen_id_front_url : $employee->citizen_id_back_url;
         $resolved = $this->resolveCitizenIdFile($value);
@@ -592,6 +630,7 @@ class EmployeeManagementController extends Controller
         $user = $request->user();
         abort_unless($user->hasAnyRole(['owner', 'manager']) || $user->hasRole('super_admin'), 403, 'Chỉ Owner hoặc Manager mới có quyền xuất hồ sơ pháp lý & CCCD nhân viên.');
         abort_if($employee->restaurant_id !== $user->restaurant_id, 403, 'Không có quyền truy cập hồ sơ này.');
+        abort_unless($user->isOwner() || $user->isSuperAdmin() || $user->canAccessBranch((int) $employee->branch_id), 403);
 
         $restaurantName = e($user->restaurant?->name ?? 'Aventura Restaurant');
         $name = e($employee->full_name);
@@ -622,9 +661,8 @@ class EmployeeManagementController extends Controller
     <meta charset='UTF-8'>
     <title>Hồ sơ nhân viên - {$name}</title>
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;800&display=swap');
         body {
-            font-family: 'Inter', sans-serif;
+            font-family: 'Times New Roman', Times, serif;
             color: #1e293b;
             line-height: 1.5;
             background-color: #f8fafc;
@@ -942,6 +980,7 @@ class EmployeeManagementController extends Controller
     public function updateEmployee(Request $request, Employee $employee): RedirectResponse
     {
         $user = $request->user();
+        $this->authorizeEmployeeManagement($user);
         abort_if($employee->restaurant_id !== $user->restaurant_id, 403);
         abort_unless($user->canAccessBranch((int) $employee->branch_id), 403);
 
@@ -1017,6 +1056,11 @@ class EmployeeManagementController extends Controller
         $employee->update($employeeData);
         $employee->save();
 
+        if (array_key_exists('status', $data) && $employee->user) {
+            $employee->user->update(['status' => $data['status']]);
+            $employee->user->increment('security_session_version');
+        }
+
         $newRole = $data['role'] ?? $oldRole;
         if ($newRole === 'manager' && $newBranchId) {
             $this->assertManagerSlotAvailable($user->restaurant_id, $newBranchId, $employee->user_id);
@@ -1043,6 +1087,7 @@ class EmployeeManagementController extends Controller
     public function syncShifts(Request $request): RedirectResponse
     {
         $user = $request->user();
+        $this->authorizeEmployeeManagement($user);
         $tenantContext = app(TenantContext::class);
         $branchId = $tenantContext->activeBranchId();
         abort_if($branchId === null, 422, 'Hãy chọn chi nhánh hiện tại trước khi cấu hình ca làm.');
@@ -1116,5 +1161,10 @@ class EmployeeManagementController extends Controller
                 'role' => 'Chi nhánh này đã có quản lý. Vui lòng gỡ quản lý hiện tại trước khi gán người mới.',
             ]);
         }
+    }
+
+    private function authorizeEmployeeManagement(User $user): void
+    {
+        abort_unless($user->isSuperAdmin() || $user->can('manage_employees'), 403, 'Bạn không có quyền quản lý nhân viên.');
     }
 }

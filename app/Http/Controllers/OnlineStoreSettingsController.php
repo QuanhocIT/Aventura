@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Concerns\AuthorizesRestaurantSettings;
 use App\Models\OnlineStoreConfig;
 use App\Services\QuotaService;
 use Illuminate\Http\RedirectResponse;
@@ -12,8 +13,11 @@ use Inertia\Response;
 
 class OnlineStoreSettingsController extends Controller
 {
+    use AuthorizesRestaurantSettings;
+
     public function index(Request $request): Response
     {
+        $this->authorizeRestaurantSettings($request);
         $restaurant = $request->user()->restaurant;
         if (! $restaurant && ! $request->user()->hasRole('super_admin')) {
             abort(403, 'Không tìm thấy nhà hàng.');
@@ -61,6 +65,7 @@ class OnlineStoreSettingsController extends Controller
 
     public function update(Request $request): RedirectResponse
     {
+        $this->authorizeRestaurantSettings($request);
         $data = $request->validate([
             'is_active' => ['required', 'boolean'],
             'slug' => ['required', 'string', 'max:100', 'regex:/^[a-z0-9\-]+$/'],

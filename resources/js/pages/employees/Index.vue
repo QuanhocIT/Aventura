@@ -203,9 +203,7 @@ const submitEditEmployee = () => {
 };
 
 const toggleEmployeeStatus = (emp: Employee) => {
-    router.patch(`/employees/${emp.id}`, {
-        status: emp.status === 'active' ? 'inactive' : 'active',
-    });
+    router.patch(`/employees/${emp.id}/toggle-status`);
 };
 
 const handleRoleChange = (e: Event) => {
@@ -1380,13 +1378,8 @@ const submitSwapReject = () => {
                         >
                             <AlertCircle class="mt-0.5 size-4 shrink-0" />
                             <p>
-                                <strong>Bảo mật mật khẩu:</strong> Tài khoản mới
-                                sẽ có mật khẩu mặc định là
-                                <code
-                                    class="rounded bg-amber-100 px-1 py-0.5 font-mono font-bold dark:bg-amber-900"
-                                    >12345678</code
-                                >. Nhân viên dùng mật khẩu này đăng nhập và bắt
-                                buộc đổi mật khẩu riêng tư ngay sau đó.
+                                <strong>Bảo mật mật khẩu:</strong> Nhân viên sẽ nhận
+                                link kích hoạt qua email và tự đặt mật khẩu riêng.
                             </p>
                         </div>
 

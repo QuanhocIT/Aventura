@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Concerns\AuthorizesRestaurantSettings;
 use App\Models\PosDevice;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -9,8 +10,11 @@ use Illuminate\Http\Request;
 
 class PosDeviceController extends Controller
 {
+    use AuthorizesRestaurantSettings;
+
     public function store(Request $request): RedirectResponse
     {
+        $this->authorizeRestaurantSettings($request);
         $data = $request->validate([
             'name' => ['required', 'string', 'max:100'],
             'type' => ['required', 'in:pos,printer'],
@@ -45,6 +49,7 @@ class PosDeviceController extends Controller
 
     public function destroy(Request $request, PosDevice $device): RedirectResponse
     {
+        $this->authorizeRestaurantSettings($request);
         abort_unless($device->restaurant_id === $request->user()->restaurant_id, 403);
 
         $device->delete();

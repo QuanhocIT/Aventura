@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Concerns\AuthorizesRestaurantSettings;
 use App\Models\AuditLog;
 use App\Models\OperationPolicy;
 use App\Services\PolicyEnforcementService;
@@ -14,10 +15,13 @@ use Inertia\Response;
 
 class OperationPolicyController extends Controller
 {
+    use AuthorizesRestaurantSettings;
+
     public function __construct(private PolicyEnforcementService $policy) {}
 
     public function index(Request $request): Response
     {
+        $this->authorizeRestaurantSettings($request);
         $restaurantId = $request->user()->restaurant_id;
         $policy = $this->policy->getPolicy($restaurantId);
 
@@ -46,7 +50,7 @@ class OperationPolicyController extends Controller
 
     public function update(Request $request): RedirectResponse
     {
-        abort_unless($request->user()->hasRole('owner'), 403);
+        $this->authorizeRestaurantSettings($request);
 
         $data = $request->validate([
             'max_discount_percent_staff' => ['required', 'numeric', 'min:0', 'max:100'],

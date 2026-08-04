@@ -2,14 +2,18 @@
 
 namespace App\Http\Controllers;
 
+use App\Concerns\AuthorizesRestaurantSettings;
 use App\Models\ApiKey;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 
 class ApiKeyController extends Controller
 {
+    use AuthorizesRestaurantSettings;
+
     public function store(Request $request): RedirectResponse
     {
+        $this->authorizeRestaurantSettings($request);
         $data = $request->validate([
             'name' => ['required', 'string', 'max:100'],
         ]);
@@ -22,6 +26,7 @@ class ApiKeyController extends Controller
 
     public function toggle(Request $request, ApiKey $apiKey): RedirectResponse
     {
+        $this->authorizeRestaurantSettings($request);
         abort_unless($apiKey->restaurant_id === $request->user()->restaurant_id, 403);
 
         $apiKey->update(['is_active' => ! $apiKey->is_active]);
@@ -31,6 +36,7 @@ class ApiKeyController extends Controller
 
     public function rotate(Request $request, ApiKey $apiKey): RedirectResponse
     {
+        $this->authorizeRestaurantSettings($request);
         abort_unless($apiKey->restaurant_id === $request->user()->restaurant_id, 403);
 
         $plainKey = ApiKey::rotate($apiKey);
@@ -42,6 +48,7 @@ class ApiKeyController extends Controller
 
     public function destroy(Request $request, ApiKey $apiKey): RedirectResponse
     {
+        $this->authorizeRestaurantSettings($request);
         abort_unless($apiKey->restaurant_id === $request->user()->restaurant_id, 403);
 
         $apiKey->delete();

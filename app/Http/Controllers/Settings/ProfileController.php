@@ -154,6 +154,10 @@ class ProfileController extends Controller implements HasMiddleware
     {
         $user = $request->user();
 
+        if ($user->restaurant_id && ! $user->isOwner() && ! $user->isSuperAdmin()) {
+            return back()->with('error', 'Tài khoản nhân viên không thể tự xóa. Vui lòng liên hệ chủ nhà hàng để chấm dứt tài khoản đúng quy trình.');
+        }
+
         Auth::logout();
 
         $user->delete();

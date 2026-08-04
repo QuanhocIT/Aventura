@@ -249,9 +249,9 @@ Route::middleware('throttle:60,1')->group(function () {
 });
 
 // Xác thực lời mời nhận việc của nhân viên mới
-Route::get('employees/verify/{user}', [EmployeeManagementController::class, 'verifyEmployee'])
+Route::match(['get', 'post'], 'employees/verify/{user}', [EmployeeManagementController::class, 'verifyEmployee'])
     ->name('employees.verify')
-    ->middleware('signed');
+    ->middleware(['signed', 'throttle:6,1']);
 
 // Public System Status Page
 Route::get('status', [PublicStatusController::class, 'index'])->name('public.status');
