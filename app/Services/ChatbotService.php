@@ -41,6 +41,7 @@ class ChatbotService
         return app(CircuitBreaker::class)->for('chatbot_service')->attempt(
             function () use ($sessionId, $message, $source) {
                 $response = Http::timeout(3)
+                    ->withHeaders($this->authHeaders())
                     ->retry(1, 200)
                     ->post($this->baseUrl.'/chat', [
                         'session_id' => $sessionId,
@@ -88,7 +89,9 @@ class ChatbotService
                         $params['category'] = $category;
                     }
 
-                    $response = Http::timeout(2)->get($this->baseUrl.'/suggestions', $params);
+                    $response = Http::timeout(2)
+                        ->withHeaders($this->authHeaders())
+                        ->get($this->baseUrl.'/suggestions', $params);
 
                     if (! $response->successful()) {
                         throw new \RuntimeException("Chatbot suggestions trả lỗi HTTP {$response->status()}");
@@ -112,7 +115,9 @@ class ChatbotService
         }
 
         try {
-            Http::timeout(2)->post($this->baseUrl.'/feedback', [
+            Http::timeout(2)
+                ->withHeaders($this->authHeaders())
+                ->post($this->baseUrl.'/feedback', [
                 'knowledge_id' => $knowledgeId,
                 'helpful' => $helpful,
             ]);
@@ -146,6 +151,7 @@ class ChatbotService
         return app(CircuitBreaker::class)->for('chatbot_service')->attempt(
             function () use ($sessionId, $message, $restaurantId) {
                 $response = Http::timeout(10)
+                    ->withHeaders($this->authHeaders())
                     ->post($this->baseUrl.'/advisor-chat', [
                         'session_id' => $sessionId,
                         'message' => $message,
@@ -176,7 +182,9 @@ class ChatbotService
         }
 
         try {
-            $response = Http::timeout(10)->post($this->baseUrl.'/reload-cache');
+            $response = Http::timeout(10)
+                ->withHeaders($this->authHeaders())
+                ->post($this->baseUrl.'/reload-cache');
 
             return $response->successful();
         } catch (\Throwable $e) {
@@ -191,7 +199,9 @@ class ChatbotService
         }
 
         try {
-            $response = Http::timeout(5)->post($this->baseUrl.'/test-query', [
+            $response = Http::timeout(5)
+                ->withHeaders($this->authHeaders())
+                ->post($this->baseUrl.'/test-query', [
                 'query' => $query,
             ]);
 
@@ -221,6 +231,13 @@ class ChatbotService
         }
 
         return ['status' => 'error', 'knowledge_count' => 0, 'cache_age_seconds' => null];
+    }
+
+    private function authHeaders(): array
+    {
+        $key = (string) config('services.microservices.internal_api_key', '');
+
+        return $key !== '' ? ['X-Internal-API-Key' => $key] : [];
     }
 
     private function unavailableResponse(): array
