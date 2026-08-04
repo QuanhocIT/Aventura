@@ -463,39 +463,14 @@ const maxDiscountPercent = computed(() => {
         <div
             class="relative hidden flex-col justify-between overflow-hidden border-l border-zinc-900 bg-zinc-950 px-12 py-10 lg:flex lg:min-h-dvh"
         >
-            <!-- Dot-grid dynamic background -->
-            <svg
-                class="pointer-events-none absolute inset-0 size-full opacity-[0.06]"
-                xmlns="http://www.w3.org/2000/svg"
-            >
-                <defs>
-                    <pattern
-                        id="dots-login-panel"
-                        x="0"
-                        y="0"
-                        width="24"
-                        height="24"
-                        patternUnits="userSpaceOnUse"
-                    >
-                        <circle cx="1.5" cy="1.5" r="1.5" fill="white" />
-                    </pattern>
-                </defs>
-                <rect
-                    width="100%"
-                    height="100%"
-                    fill="url(#dots-login-panel)"
-                />
-            </svg>
-            <div
-                class="pointer-events-none absolute inset-x-0 top-0 h-72 bg-[radial-gradient(ellipse_80%_60%_at_50%_0%,rgba(255,255,255,0.08),transparent)]"
-            />
-
-            <!-- Ambient light blob that floats in the dark section (vividly visible) -->
-            <div
-                class="bg-primary/50/[0.12] pointer-events-none absolute top-1/4 left-1/3 z-0 h-[500px] w-[500px] rounded-full blur-[80px]"
+            <!-- Restaurant background image -->
+            <img
+                src="/restaurant-register-bg.png"
+                alt=""
+                class="pointer-events-none absolute inset-0 size-full object-cover opacity-75"
             />
             <div
-                class="pointer-events-none absolute right-1/4 bottom-1/4 z-0 h-[450px] w-[450px] rounded-full bg-violet-500/[0.10] blur-[80px]"
+                class="pointer-events-none absolute inset-0 bg-zinc-950/55"
             />
 
             <!-- Header (top) -->
