@@ -44,7 +44,8 @@ foreach ($svc in $services) {
 
     $python = Resolve-Python $dir
 
-    Start-Process powershell -WorkingDirectory $dir -ArgumentList @(
+    Start-Process powershell -WindowStyle Hidden -WorkingDirectory $dir -ArgumentList @(
+        '-NoProfile',
         '-NoExit',
         '-Command',
         "& '$python' -m uvicorn main:app --host 0.0.0.0 --port $port"
