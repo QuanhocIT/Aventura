@@ -68,11 +68,17 @@ return new class extends Migration
                 continue;
             }
 
-            Schema::table($tableName, function (Blueprint $table) use ($indexName): void {
-                $table->foreignId('branch_id')
-                    ->nullable()
-                    ->constrained('restaurant_branches')
-                    ->nullOnDelete();
+            $isPartitioned = $this->isPartitioned($tableName);
+            Schema::table($tableName, function (Blueprint $table) use ($indexName, $isPartitioned): void {
+                if ($isPartitioned) {
+                    // MySQL does not allow foreign keys on partitioned tables.
+                    $table->unsignedBigInteger('branch_id')->nullable();
+                } else {
+                    $table->foreignId('branch_id')
+                        ->nullable()
+                        ->constrained('restaurant_branches')
+                        ->nullOnDelete();
+                }
                 $table->index('branch_id', $indexName);
             });
         }
@@ -143,8 +149,11 @@ return new class extends Migration
                 continue;
             }
 
-            Schema::table($tableName, function (Blueprint $table): void {
-                $table->dropForeign(['branch_id']);
+            $isPartitioned = $this->isPartitioned($tableName);
+            Schema::table($tableName, function (Blueprint $table) use ($isPartitioned): void {
+                if (! $isPartitioned) {
+                    $table->dropForeign(['branch_id']);
+                }
                 $table->dropColumn('branch_id');
             });
         }
@@ -162,6 +171,17 @@ return new class extends Migration
     private function backfillFromParent(string $tableName, string $foreignKey, string $parentTable): void
     {
         if (! $this->canBackfill($tableName, $foreignKey, $parentTable)) {
+            return;
+        }
+
+        if (DB::connection()->getDriverName() === 'mysql') {
+            DB::statement(sprintf(
+                'UPDATE `%1$s` AS child INNER JOIN `%2$s` AS parent ON parent.id = child.`%3$s` SET child.branch_id = parent.branch_id WHERE child.branch_id IS NULL AND parent.branch_id IS NOT NULL',
+                $tableName,
+                $parentTable,
+                $foreignKey,
+            ));
+
             return;
         }
 
@@ -280,6 +300,19 @@ return new class extends Migration
             && Schema::hasColumn($tableName, $foreignKey)
             && Schema::hasTable($parentTable)
             && Schema::hasColumn($parentTable, 'branch_id');
+    }
+
+    private function isPartitioned(string $tableName): bool
+    {
+        if (DB::connection()->getDriverName() !== 'mysql') {
+            return false;
+        }
+
+        return DB::table('information_schema.PARTITIONS')
+            ->where('TABLE_SCHEMA', DB::connection()->getDatabaseName())
+            ->where('TABLE_NAME', $tableName)
+            ->whereNotNull('PARTITION_NAME')
+            ->exists();
     }
 
     private function addArchiveOrderItemBranchColumn(): void
