@@ -6,7 +6,7 @@
     <title>500 — Aventura</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { min-height: 100vh; display: flex; align-items: center; justify-content: center; font-family: 'Inter', system-ui, sans-serif; background: #0a0a0a; color: #fafafa; }
+        body { min-height: 100vh; display: flex; align-items: center; justify-content: center; font-family: 'Times New Roman', Times, serif; background: #0a0a0a; color: #fafafa; }
         .c { text-align: center; max-width: 480px; padding: 2rem; }
         .code { font-size: 6rem; font-weight: 900; background: linear-gradient(135deg, #ef4444, #f59e0b); -webkit-background-clip: text; -webkit-text-fill-color: transparent; line-height: 1; }
         h1 { font-size: 1.5rem; font-weight: 700; margin: 1rem 0 0.5rem; }

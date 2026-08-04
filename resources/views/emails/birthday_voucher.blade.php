@@ -1,4 +1,4 @@
-<div style='font-family:sans-serif;max-width:560px;margin:auto;padding:0'>
+<div style="font-family:'Times New Roman',Times,serif;max-width:560px;margin:auto;padding:0">
     <div style='background:linear-gradient(135deg,#ec4899,#8b5cf6);padding:40px;border-radius:12px 12px 0 0;text-align:center'>
         <div style='font-size:56px'>🎂</div>
         <h1 style='color:#fff;margin:12px 0;font-size:26px'>Chúc mừng sinh nhật!</h1>

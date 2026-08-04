@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <title>Thư mời nhận việc - Aventura</title>
 </head>
-<body style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f5f7; color: #334155; margin: 0; padding: 40px 20px;">
+<body style="font-family: 'Times New Roman', Times, serif; background-color: #f4f5f7; color: #334155; margin: 0; padding: 40px 20px;">
     <table align="center" width="100%" max-width="600px" style="background-color: #ffffff; border-radius: 20px; border: 1px solid #e2e8f0; padding: 40px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); margin: 0 auto;">
         <tr>
             <td>

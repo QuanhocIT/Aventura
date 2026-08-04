@@ -1,4 +1,4 @@
-<div style='font-family:sans-serif;max-width:560px;margin:auto;padding:32px;background:#fff;border-radius:12px;border:1px solid #e5e7eb'>
+<div style="font-family:'Times New Roman',Times,serif;max-width:560px;margin:auto;padding:32px;background:#fff;border-radius:12px;border:1px solid #e5e7eb">
     <div style='text-align:center;margin-bottom:24px'>
         <div style='font-size:48px'>⭐</div>
         <h2 style='color:#1f2937;margin:8px 0'>Bạn thấy trải nghiệm hôm nay thế nào?</h2>

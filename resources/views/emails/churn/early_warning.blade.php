@@ -5,7 +5,7 @@
     <title>Đồng Hành Cùng Phát Triển - Aventura POS</title>
     <style>
         body {
-            font-family: 'Segoe UI', Arial, sans-serif;
+            font-family: 'Times New Roman', Times, serif;
             background-color: #f8fafc;
             margin: 0;
             padding: 20px;

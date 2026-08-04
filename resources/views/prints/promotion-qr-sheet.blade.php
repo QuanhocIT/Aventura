@@ -5,13 +5,13 @@
     <title>QR Khuyến Mãi — {{ $restaurant }}</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: 'Segoe UI', Tahoma, sans-serif; padding: 20px; background: #fff; }
+        body { font-family: 'Times New Roman', Times, serif; padding: 20px; background: #fff; }
         h1 { text-align: center; font-size: 18px; margin-bottom: 20px; color: #333; }
         .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
         .card { border: 2px dashed #ddd; border-radius: 12px; padding: 16px; text-align: center; page-break-inside: avoid; }
         .card svg { width: 160px; height: 160px; margin: 0 auto 8px; display: block; }
         .card .name { font-size: 12px; font-weight: 700; color: #333; margin-bottom: 4px; }
-        .card .code { font-size: 14px; font-weight: 900; color: #e65100; letter-spacing: 2px; font-family: monospace; }
+        .card .code { font-size: 14px; font-weight: 900; color: #e65100; letter-spacing: 2px; font-family: 'Times New Roman', Times, serif; }
         .card .discount { font-size: 20px; font-weight: 900; color: #2e7d32; margin-top: 4px; }
         .card .hint { font-size: 9px; color: #999; margin-top: 6px; }
         @media print { body { padding: 10px; } .grid { gap: 12px; } }

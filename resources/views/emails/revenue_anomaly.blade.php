@@ -1,4 +1,4 @@
-<div style='font-family:sans-serif;max-width:540px;margin:auto;padding:32px;background:#fff;border-radius:12px;border:2px solid #fca5a5'>
+<div style="font-family:'Times New Roman',Times,serif;max-width:540px;margin:auto;padding:32px;background:#fff;border-radius:12px;border:2px solid #fca5a5">
     <h2 style='color:#dc2626'>📉 Cảnh báo doanh thu bất thường</h2>
     <p>Nhà hàng <strong>{{ $restaurant_name ?? 'Nhà hàng' }}</strong></p>
     <div style='background:#fef2f2;padding:20px;border-radius:8px;margin:16px 0'>

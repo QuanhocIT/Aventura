@@ -1,4 +1,4 @@
-<div style='font-family:sans-serif;max-width:560px;margin:auto;padding:32px;background:#fff;border-radius:12px;border:1px solid #fecaca'>
+<div style="font-family:'Times New Roman',Times,serif;max-width:560px;margin:auto;padding:32px;background:#fff;border-radius:12px;border:1px solid #fecaca">
     <h2 style='color:#dc2626'>❌ Đặt bàn đã bị hủy</h2>
     <p>Xin chào <strong>{{ $recipient_name ?? $name ?? $guest_name ?? 'Bạn' }}</strong>,</p>
     <p>Rất tiếc, đặt bàn của bạn tại <strong>{{ $restaurant_name ?? 'Nhà hàng' }}</strong> vào ngày <strong>{{ $reservation_date ?? '' }}</strong> lúc <strong>{{ $reservation_time ?? '' }}</strong> đã bị hủy.</p>

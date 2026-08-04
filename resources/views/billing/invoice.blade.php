@@ -5,7 +5,7 @@
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
-            font-family: DejaVu Sans, Arial, sans-serif;
+            font-family: 'Times New Roman', Times, serif;
             font-size: 12px;
             color: #1a1a2e;
             background: #fff;
