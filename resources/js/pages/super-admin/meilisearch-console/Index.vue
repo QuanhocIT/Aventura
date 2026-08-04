@@ -284,7 +284,7 @@ const searchHealthGrade = computed(() => {
             grade: 'C',
             color: 'text-amber-600 bg-amber-500/10 border-amber-500/20',
             label: 'Cấu hình sai Driver',
-            desc: 'Máy chủ Meilisearch online nhưng Laravel Scout driver không được thiết lập là meilisearch.',
+            desc: 'Máy chủ Meilisearch đang trực tuyến nhưng trình điều khiển Laravel Scout chưa được thiết lập là meilisearch.',
         };
     }
 
@@ -319,7 +319,7 @@ const searchHealthGrade = computed(() => {
         grade: 'A+',
         color: 'text-emerald-500 bg-emerald-500/10 border-emerald-500/20',
         label: 'Tối ưu hoàn hảo',
-        desc: 'Hệ thống tìm kiếm online, driver Scout chính xác và 100% chỉ mục đã khớp.',
+        desc: 'Hệ thống tìm kiếm đang trực tuyến, trình điều khiển Scout chính xác và 100% chỉ mục đã khớp.',
     };
 });
 
@@ -341,11 +341,14 @@ const driverAdvice = computed(() => {
     if (props.connection.driver !== 'meilisearch') {
         return {
             status: 'warning',
-            text: `Scout driver đang là '${props.connection.driver}'. Cần đổi SCOUT_DRIVER=meilisearch trong tệp .env.`,
+            text: `Trình điều khiển Scout đang là '${props.connection.driver}'. Cần đổi SCOUT_DRIVER=meilisearch trong tệp .env.`,
         };
     }
 
-    return { status: 'ok', text: 'Scout driver cấu hình chính xác.' };
+    return {
+        status: 'ok',
+        text: 'Trình điều khiển Scout được cấu hình chính xác.',
+    };
 });
 
 const indexSyncAdvice = computed(() => {
@@ -356,7 +359,7 @@ const indexSyncAdvice = computed(() => {
     if (outOfSyncCount > 0) {
         return {
             status: 'warning',
-            text: `Có ${outOfSyncCount} chỉ mục bị lệch. Hãy bấm nút "Đồng bộ (Import)" tương ứng để đồng bộ.`,
+            text: `Có ${outOfSyncCount} chỉ mục bị lệch. Hãy bấm nút "Đồng bộ" tương ứng để đồng bộ.`,
         };
     }
 
@@ -425,7 +428,11 @@ const latencyAdvice = computed(() => {
                         <span
                             class="mt-0.5 flex items-center gap-1.5 text-lg font-bold tracking-tight"
                         >
-                            {{ props.connection.online ? 'ONLINE' : 'OFFLINE' }}
+                            {{
+                                props.connection.online
+                                    ? 'TRỰC TUYẾN'
+                                    : 'NGOẠI TUYẾN'
+                            }}
                             <span
                                 :class="[
                                     'relative flex h-2 w-2',
@@ -608,7 +615,7 @@ const latencyAdvice = computed(() => {
                     {{
                         overallSyncPercentage === 100
                             ? '✅ Toàn bộ chỉ mục đã khớp dữ liệu.'
-                            : '⚠️ Có chỉ mục chưa đồng bộ, cần chạy tác vụ Import.'
+                            : '⚠️ Có chỉ mục chưa đồng bộ, cần chạy tác vụ đồng bộ.'
                     }}
                 </span>
                 <span>100%</span>
@@ -657,7 +664,7 @@ const latencyAdvice = computed(() => {
                                 class="flex items-center gap-2 text-xs font-black tracking-wider text-slate-800 uppercase dark:text-slate-200"
                             >
                                 <Sliders class="size-5 text-orange-500" />
-                                Danh sách và Đồng bộ chỉ mục (Index Sync Tool)
+                                Danh sách và đồng bộ chỉ mục
                             </CardTitle>
                             <CardDescription
                                 class="mt-1 text-xs font-semibold text-muted-foreground"
@@ -671,7 +678,7 @@ const latencyAdvice = computed(() => {
                         <div class="flex items-center gap-2">
                             <span
                                 class="text-[10px] font-black tracking-wider text-muted-foreground uppercase"
-                                >Driver Scout:</span
+                                >Trình điều khiển Scout:</span
                             >
                             <span
                                 class="rounded-lg border border-orange-500/15 bg-orange-500/10 px-2.5 py-0.5 font-mono text-[10px] font-black text-orange-600 uppercase dark:text-orange-400"
@@ -681,17 +688,26 @@ const latencyAdvice = computed(() => {
                         </div>
                     </CardHeader>
                     <CardContent class="p-0">
-                        <div class="overflow-x-auto">
+                        <div
+                            class="w-full overflow-x-auto lg:overflow-x-hidden"
+                        >
                             <table
-                                class="w-full border-collapse text-left text-xs"
+                                class="w-full table-fixed border-collapse text-left text-xs"
                             >
+                                <colgroup>
+                                    <col class="w-[20%]" />
+                                    <col class="w-[18%]" />
+                                    <col class="w-[8%]" />
+                                    <col class="w-[8%]" />
+                                    <col class="w-[11%]" />
+                                    <col class="w-[11%]" />
+                                    <col class="w-[24%]" />
+                                </colgroup>
                                 <thead>
                                     <tr
                                         class="border-b border-border/45 bg-muted/20 text-[10px] font-bold tracking-wider text-muted-foreground uppercase"
                                     >
-                                        <th class="px-5 py-3.5">
-                                            Chỉ mục (Index)
-                                        </th>
+                                        <th class="px-5 py-3.5">Chỉ mục</th>
                                         <th class="px-4 py-3.5">
                                             Model tương ứng
                                         </th>
@@ -699,7 +715,7 @@ const latencyAdvice = computed(() => {
                                             Bản ghi trong DB
                                         </th>
                                         <th class="px-4 py-3.5 text-center">
-                                            Bản ghi trong Index
+                                            Bản ghi trong chỉ mục
                                         </th>
                                         <th class="px-4 py-3.5 text-center">
                                             Tỷ lệ đồng bộ
@@ -718,20 +734,23 @@ const latencyAdvice = computed(() => {
                                         :key="idx.index_name"
                                         class="group transition-colors hover:bg-muted/15"
                                     >
-                                        <td class="px-5 py-3.5">
+                                        <td class="min-w-0 px-5 py-3.5">
                                             <div
-                                                class="flex items-center gap-2 font-bold text-slate-800 dark:text-slate-200"
+                                                class="flex min-w-0 flex-wrap items-center gap-2 font-bold text-slate-800 dark:text-slate-200"
                                             >
-                                                {{ idx.label }}
                                                 <span
-                                                    class="rounded border border-border/40 bg-background px-1.5 py-0.5 font-mono text-[9px] font-bold text-muted-foreground dark:bg-slate-900"
+                                                    class="max-w-full break-words"
+                                                    >{{ idx.label }}</span
+                                                >
+                                                <span
+                                                    class="max-w-full rounded border border-border/40 bg-background px-1.5 py-0.5 font-mono text-[9px] font-bold break-all text-muted-foreground dark:bg-slate-900"
                                                 >
                                                     {{ idx.index_name }}
                                                 </span>
                                             </div>
                                         </td>
                                         <td
-                                            class="px-4 py-3.5 font-mono text-[10px] font-semibold text-muted-foreground"
+                                            class="min-w-0 px-4 py-3.5 font-mono text-[10px] font-semibold break-all text-muted-foreground"
                                         >
                                             {{ idx.model }}
                                         </td>
@@ -755,7 +774,7 @@ const latencyAdvice = computed(() => {
                                         </td>
                                         <td class="px-4 py-3.5">
                                             <div
-                                                class="mx-auto flex max-w-[120px] flex-col items-center gap-1"
+                                                class="mx-auto flex max-w-[120px] min-w-0 flex-col items-center gap-1"
                                             >
                                                 <div
                                                     class="flex h-1.5 w-full overflow-hidden rounded-full border border-border/40 bg-muted"
@@ -784,7 +803,7 @@ const latencyAdvice = computed(() => {
                                         </td>
                                         <td class="px-4 py-3.5 text-center">
                                             <div
-                                                class="flex flex-col items-center gap-0.5"
+                                                class="flex min-w-0 flex-col items-center gap-0.5"
                                             >
                                                 <span
                                                     :class="[
@@ -824,7 +843,9 @@ const latencyAdvice = computed(() => {
                                             </div>
                                         </td>
                                         <td class="px-5 py-3.5 pr-6 text-right">
-                                            <div class="flex justify-end gap-2">
+                                            <div
+                                                class="flex flex-col justify-end gap-2 xl:flex-row"
+                                            >
                                                 <!-- Flush Button -->
                                                 <Button
                                                     @click="
@@ -845,10 +866,10 @@ const latencyAdvice = computed(() => {
                                                     "
                                                     variant="ghost"
                                                     size="sm"
-                                                    class="h-8 cursor-pointer rounded-xl border border-border text-xs font-bold text-rose-500 hover:bg-rose-500/10 hover:text-rose-600"
+                                                    class="h-8 w-full cursor-pointer rounded-xl border border-border text-xs font-bold text-rose-500 hover:bg-rose-500/10 hover:text-rose-600 xl:w-auto"
                                                 >
                                                     <Trash2 class="size-3.5" />
-                                                    Xóa (Flush)
+                                                    Xóa
                                                 </Button>
 
                                                 <!-- Import Button -->
@@ -870,10 +891,10 @@ const latencyAdvice = computed(() => {
                                                         !props.connection.online
                                                     "
                                                     size="sm"
-                                                    class="h-8 cursor-pointer gap-1 rounded-xl border-none bg-gradient-to-r from-orange-500 to-amber-500 text-xs font-bold text-white shadow-xs hover:from-orange-600 hover:to-amber-600"
+                                                    class="h-8 w-full cursor-pointer gap-1 rounded-xl border-none bg-gradient-to-r from-orange-500 to-amber-500 text-xs font-bold text-white shadow-xs hover:from-orange-600 hover:to-amber-600 xl:w-auto"
                                                 >
                                                     <Play class="size-3" />
-                                                    Đồng bộ (Import)
+                                                    Đồng bộ
                                                 </Button>
                                             </div>
                                         </td>
@@ -906,7 +927,7 @@ const latencyAdvice = computed(() => {
                                 class="flex items-center gap-1.5 text-[10px] font-black tracking-wider text-slate-800 uppercase dark:text-slate-200"
                             >
                                 <TrendingUp class="size-4 text-cyan-500" />
-                                Độ trễ trung bình của chỉ mục (Latency ms)
+                                Độ trễ trung bình của chỉ mục (ms)
                             </CardTitle>
                         </CardHeader>
                         <CardContent class="space-y-4 pt-5">
@@ -1072,7 +1093,7 @@ const latencyAdvice = computed(() => {
                             <Sparkles
                                 class="size-4 animate-pulse text-amber-500"
                             />
-                            AI Diagnostics Advisor
+                            Trợ lý chẩn đoán AI
                         </CardTitle>
                     </CardHeader>
                     <CardContent
@@ -1221,8 +1242,8 @@ const latencyAdvice = computed(() => {
                         <div
                             class="border-t border-border/20 pt-2 text-[9px] leading-normal font-semibold text-muted-foreground"
                         >
-                            📊 AI Diagnostics Advisor cập nhật trạng thái tự
-                            động theo thời gian thực.
+                            📊 Trợ lý chẩn đoán AI cập nhật trạng thái tự động
+                            theo thời gian thực.
                         </div>
                     </CardContent>
                 </Card>
@@ -1273,9 +1294,7 @@ const latencyAdvice = computed(() => {
                                             >
                                                 Hạng
                                             </th>
-                                            <th class="p-3">
-                                                Từ khóa (Keyword)
-                                            </th>
+                                            <th class="p-3">Từ khóa</th>
                                             <th class="p-3">Chỉ mục</th>
                                             <th class="p-3 text-center">
                                                 Số lượt

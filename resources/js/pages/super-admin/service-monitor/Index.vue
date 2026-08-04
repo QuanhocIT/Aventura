@@ -298,7 +298,9 @@ function formatTime(timeStr: string | null): string {
                     Kiểm tra trạng thái ngay
                 </Button>
                 <a href="/status" target="_blank">
-                    <Button variant="outline">Mở Status Page công khai</Button>
+                    <Button variant="outline"
+                        >Mở trang trạng thái công khai</Button
+                    >
                 </a>
             </template>
         </PageHeader>
@@ -333,7 +335,7 @@ function formatTime(timeStr: string | null): string {
                 class=""
             />
             <StatCard
-                label="Gặp sự cố (Offline)"
+                label="Gặp sự cố (Ngoại tuyến)"
                 :value="
                     localServices.filter(
                         (s) => s.last_status === 'offline' && !s.is_maintenance,
@@ -385,8 +387,8 @@ function formatTime(timeStr: string | null): string {
                                 service.is_maintenance
                                     ? 'Bảo trì'
                                     : service.last_status === 'online'
-                                      ? 'Online'
-                                      : 'Offline'
+                                      ? 'Trực tuyến'
+                                      : 'Ngoại tuyến'
                             "
                             size="md"
                         />

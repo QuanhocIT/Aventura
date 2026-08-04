@@ -369,7 +369,7 @@ function updateFeature(
                             >Lỗi cần xử lý</span
                         >
                         <span class="block truncate text-xs opacity-75"
-                            >Kiểm tra và sửa lỗi tenant/chi nhánh</span
+                            >Kiểm tra và sửa lỗi nhà hàng/chi nhánh</span
                         >
                     </span>
                 </span>

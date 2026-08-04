@@ -67,6 +67,11 @@ type Webhook = {
     created_at: string;
 };
 
+type ApiError = Error & {
+    code?: string;
+    redirect?: string;
+};
+
 const props = defineProps<{
     services: Service[];
     queue: {
@@ -160,7 +165,7 @@ const serviceLabels: Record<string, string> = {
     redis: 'Bộ nhớ đệm & hàng đợi Redis',
     reverb: 'WebSocket Laravel Reverb',
     meilisearch: 'Công cụ tìm kiếm Meilisearch',
-    email_service: 'Dịch vụ email',
+    email_service: 'Dịch vụ thư điện tử',
 };
 
 const csrf = () =>
@@ -180,10 +185,29 @@ async function postJson(url: string, body?: Record<string, unknown>) {
     const data = await response.json().catch(() => ({}));
 
     if (!response.ok) {
-        throw new Error(data.message || 'Yêu cầu không thành công.');
+        const error = new Error(
+            data.message || 'Yêu cầu không thành công.',
+        ) as ApiError;
+
+        error.code = data.code;
+        error.redirect = data.redirect;
+
+        throw error;
     }
 
     return data;
+}
+
+function redirectToTwoFactorConfirmation(error: unknown): boolean {
+    const apiError = error as ApiError;
+
+    if (apiError?.code !== 'superadmin_2fa_required' || !apiError.redirect) {
+        return false;
+    }
+
+    router.visit(apiError.redirect);
+
+    return true;
 }
 
 function refresh() {
@@ -198,6 +222,10 @@ async function retryJob(job: FailedJob) {
         );
         toast.success('Đã đưa công việc trở lại hàng đợi.');
     } catch (error) {
+        if (redirectToTwoFactorConfirmation(error)) {
+            return;
+        }
+
         toast.error(
             error instanceof Error
                 ? error.message
@@ -214,6 +242,10 @@ async function retryWebhook(webhook: Webhook) {
         );
         toast.success('Đã đưa webhook trở lại hàng đợi.');
     } catch (error) {
+        if (redirectToTwoFactorConfirmation(error)) {
+            return;
+        }
+
         toast.error(
             error instanceof Error
                 ? error.message
@@ -238,6 +270,10 @@ async function saveMaintenance() {
         );
         router.reload({ preserveScroll: true });
     } catch (error) {
+        if (redirectToTwoFactorConfirmation(error)) {
+            return;
+        }
+
         toast.error(
             error instanceof Error
                 ? error.message
@@ -303,7 +339,7 @@ function serviceEndpoint(service: Service) {
     <div class="space-y-6 px-6 py-5">
         <PageHeader
             title="Trung tâm vận hành"
-            subtitle="Theo dõi hàng đợi, bộ lập lịch, webhook, sức khỏe dịch vụ và chế độ bảo trì."
+            subtitle="Theo dõi hàng đợi, bộ lập lịch, sự kiện tích hợp, sức khỏe dịch vụ và chế độ bảo trì."
             :icon="Server"
         >
             <template #actions>
@@ -330,7 +366,7 @@ function serviceEndpoint(service: Service) {
                 change="Có thể thử lại từ danh sách"
             />
             <StatCard
-                label="Webhook lỗi / chờ"
+                label="Tích hợp lỗi / chờ"
                 :value="`${webhooks.failed} / ${webhooks.pending}`"
                 :icon="Webhook"
                 color="amber"
@@ -459,7 +495,7 @@ function serviceEndpoint(service: Service) {
                 <CardHeader>
                     <CardTitle class="flex items-center gap-2">
                         <Mail class="size-4 text-primary" />
-                        Email
+                        Thư điện tử
                     </CardTitle>
                 </CardHeader>
                 <CardContent>
@@ -526,7 +562,8 @@ function serviceEndpoint(service: Service) {
                         class="flex flex-wrap items-center justify-between gap-3 border-t border-border/60 pt-3"
                     >
                         <span class="text-[11px] text-muted-foreground">
-                            Trang {{ failedJobPage }} / {{ failedJobPageCount }} ·
+                            Trang {{ failedJobPage }} /
+                            {{ failedJobPageCount }} ·
                             {{ localFailedJobs.length }} dòng
                         </span>
                         <div class="flex flex-wrap items-center gap-1">
@@ -578,7 +615,7 @@ function serviceEndpoint(service: Service) {
                 <CardHeader>
                     <CardTitle class="flex items-center gap-2">
                         <Webhook class="size-4 text-amber-500" />
-                        Webhook cần xử lý
+                        Tích hợp cần xử lý
                     </CardTitle>
                     <CardDescription>
                         Thử lại các lần gửi đang chờ hoặc bị lỗi.
@@ -663,7 +700,7 @@ function serviceEndpoint(service: Service) {
                         v-if="!localWebhooks.length"
                         class="py-5 text-center text-sm text-muted-foreground"
                     >
-                        Không có webhook cần xử lý.
+                        Không có sự kiện tích hợp cần xử lý.
                     </p>
                 </CardContent>
             </Card>

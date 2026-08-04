@@ -173,11 +173,11 @@ function getActionLabel(actionsString: string) {
         .map((act) => {
             switch (act.trim()) {
                 case 'cleanup_queues':
-                    return 'Dọn dẹp Queue';
+                    return 'Dọn dẹp hàng đợi';
                 case 'clear_sessions':
-                    return 'Xóa Sessions';
+                    return 'Xóa phiên';
                 case 'archive_audit_logs':
-                    return 'Lưu trữ Audit Logs';
+                    return 'Lưu trữ nhật ký kiểm toán';
                 default:
                     return act;
             }
@@ -195,14 +195,14 @@ function formatDetails(details: any) {
     if (details.cleanup_queues) {
         const q = details.cleanup_queues;
         parts.push(
-            `Queue: đã xóa ${q.failed_jobs_deleted} lỗi, ${q.job_batches_deleted} lô`,
+            `Hàng đợi: đã xóa ${q.failed_jobs_deleted} lỗi, ${q.job_batches_deleted} lô`,
         );
     }
 
     if (details.clear_sessions) {
         const s = details.clear_sessions;
         parts.push(
-            `Session: ${s.db_sessions_deleted} DB, ${s.file_sessions_deleted} file, ${s.expired_tokens_deleted} token`,
+            `Phiên: ${s.db_sessions_deleted} CSDL, ${s.file_sessions_deleted} tệp, ${s.expired_tokens_deleted} mã thông báo`,
         );
     }
 
@@ -211,10 +211,10 @@ function formatDetails(details: any) {
 
         if (a.archived_count > 0) {
             parts.push(
-                `Audit Log: Đã lưu trữ ${a.archived_count} dòng sang ${a.disk.toUpperCase()} (${a.archive_file})`,
+                `Nhật ký kiểm toán: Đã lưu trữ ${a.archived_count} dòng sang ${a.disk.toUpperCase()} (${a.archive_file})`,
             );
         } else {
-            parts.push('Audit Log: Không có bản ghi > 6 tháng');
+            parts.push('Nhật ký kiểm toán: Không có bản ghi > 6 tháng');
         }
     }
 
@@ -276,7 +276,7 @@ const s3Advice = computed(() => {
 
     return {
         status: 'ok',
-        text: 'S3 Cloud Storage hoạt động tốt. Bản sao lưu được phân tán an toàn.',
+        text: 'Kho lưu trữ đám mây S3 hoạt động tốt. Bản sao lưu được phân tán an toàn.',
     };
 });
 
@@ -295,24 +295,24 @@ const sessionsAdvice = computed(() => {
     if (props.stats.expired_sessions_count > 100) {
         return {
             status: 'warning',
-            text: `Phát hiện ${props.stats.expired_sessions_count} session hết hạn. Kích hoạt xóa session để tăng tốc truy vấn đăng nhập.`,
+            text: `Phát hiện ${props.stats.expired_sessions_count} phiên hết hạn. Kích hoạt xóa phiên để tăng tốc truy vấn đăng nhập.`,
         };
     }
 
-    return { status: 'ok', text: 'Không có session hết hạn tích tụ.' };
+    return { status: 'ok', text: 'Không có phiên hết hạn tích tụ.' };
 });
 
 const auditLogsAdvice = computed(() => {
     if (props.stats.old_audit_logs_count > 0) {
         return {
             status: 'warning',
-            text: `Có ${props.stats.old_audit_logs_count} dòng Audit Logs cũ (> 6 tháng). Nên kích hoạt dọn dẹp & nén gửi lên S3.`,
+            text: `Có ${props.stats.old_audit_logs_count} dòng nhật ký kiểm toán cũ (> 6 tháng). Nên kích hoạt dọn dẹp & nén gửi lên S3.`,
         };
     }
 
     return {
         status: 'ok',
-        text: 'Các Audit Logs cũ đã được giải phóng sạch sẽ khỏi DB chính.',
+        text: 'Các nhật ký kiểm toán cũ đã được giải phóng sạch sẽ khỏi CSDL chính.',
     };
 });
 
@@ -343,16 +343,16 @@ const hasHealthWarnings = computed(() => {
         <!-- Header -->
         <PageHeader
             title="Sao lưu & Tối ưu hóa Cơ sở dữ liệu"
-            subtitle="Quản lý sao lưu dữ liệu, dọn dẹp tài nguyên thừa, và nén lưu trữ nhật ký Audit Logs cũ."
+            subtitle="Quản lý sao lưu dữ liệu, dọn dẹp tài nguyên thừa và nén lưu trữ nhật ký kiểm toán cũ."
             :icon="Database"
         >
             <template #actions>
                 <LedIndicator
                     v-if="stats.is_s3_configured"
                     status="online"
-                    label="Cloud S3 Active"
+                    label="Kho đám mây S3 đang hoạt động"
                 />
-                <LedIndicator v-else status="warning" label="Local Storage" />
+                <LedIndicator v-else status="warning" label="Lưu trữ cục bộ" />
             </template>
         </PageHeader>
 
@@ -445,7 +445,7 @@ const hasHealthWarnings = computed(() => {
                 <CardHeader class="pb-2">
                     <CardTitle
                         class="text-[10px] font-black tracking-wider text-muted-foreground uppercase"
-                        >Session hết hạn</CardTitle
+                        >Phiên hết hạn</CardTitle
                     >
                 </CardHeader>
                 <CardContent class="pb-6">
@@ -471,7 +471,7 @@ const hasHealthWarnings = computed(() => {
                 <CardHeader class="pb-2">
                     <CardTitle
                         class="text-[10px] font-black tracking-wider text-muted-foreground uppercase"
-                        >Audit Log cũ (>6 tháng)</CardTitle
+                        >Nhật ký kiểm toán cũ (>6 tháng)</CardTitle
                     >
                 </CardHeader>
                 <CardContent class="pb-6">
@@ -506,13 +506,13 @@ const hasHealthWarnings = computed(() => {
             <AlertCircle class="mt-0.5 size-5 shrink-0 text-amber-500" />
             <div>
                 <h4 class="text-xs font-bold tracking-wider uppercase">
-                    Cảnh báo: S3 Cloud Storage Chưa cấu hình
+                    Cảnh báo: Kho lưu trữ đám mây S3 chưa cấu hình
                 </h4>
                 <p class="mt-1 text-xs leading-relaxed font-medium">
                     Hệ thống sẽ lưu trữ tạm thời các tệp sao lưu `.sql.gz` và
-                    tệp lưu trữ `.json.gz` của Audit Logs vào ổ đĩa máy chủ cục
-                    bộ (`storage/app/private`). Để đảm bảo an toàn thảm họa, vui
-                    lòng thiết lập các tham số `AWS_ACCESS_KEY_ID`,
+                    tệp lưu trữ `.json.gz` của nhật ký kiểm toán vào ổ đĩa máy
+                    chủ cục bộ (`storage/app/private`). Để đảm bảo an toàn thảm
+                    họa, vui lòng thiết lập các tham số `AWS_ACCESS_KEY_ID`,
                     `AWS_SECRET_ACCESS_KEY`, và `AWS_BUCKET` trong cấu hình môi
                     trường (.env).
                 </p>
@@ -534,7 +534,7 @@ const hasHealthWarnings = computed(() => {
                             class="flex items-center gap-2 text-xs font-black tracking-wider text-slate-800 uppercase dark:text-slate-200"
                         >
                             <FileArchive class="size-5 text-orange-500" />
-                            Quản lý các bản Sao lưu (Database Backups)
+                            Quản lý các bản sao lưu CSDL
                         </CardTitle>
                         <CardDescription
                             class="mt-1 text-xs font-semibold text-muted-foreground"
@@ -657,7 +657,7 @@ const hasHealthWarnings = computed(() => {
                             class="flex items-center gap-2 text-xs font-black tracking-wider text-slate-800 uppercase dark:text-slate-200"
                         >
                             <Activity class="size-5 text-orange-500" />
-                            Kích hoạt Tối ưu hóa Định kỳ (DB Maintenance)
+                            Kích hoạt tối ưu hóa định kỳ (bảo trì CSDL)
                         </CardTitle>
                         <CardDescription
                             class="mt-1 text-xs font-semibold text-muted-foreground"
@@ -686,7 +686,7 @@ const hasHealthWarnings = computed(() => {
                                     <h4
                                         class="text-xs font-bold text-slate-800 dark:text-slate-200"
                                     >
-                                        Dọn dẹp hàng đợi cũ (Cleanup Queues)
+                                        Dọn dẹp hàng đợi cũ
                                     </h4>
                                     <p
                                         class="mt-0.5 text-[10px] leading-normal font-semibold text-muted-foreground"
@@ -717,16 +717,14 @@ const hasHealthWarnings = computed(() => {
                                     <h4
                                         class="text-xs font-bold text-slate-800 dark:text-slate-200"
                                     >
-                                        Xóa lịch sử đăng nhập/session hết hạn
-                                        (Clear Sessions)
+                                        Xóa lịch sử đăng nhập và phiên hết hạn
                                     </h4>
                                     <p
                                         class="mt-0.5 text-[10px] leading-normal font-semibold text-muted-foreground"
                                     >
-                                        Purge các phiên session hết hạn (hiện
-                                        tại có
+                                        Xóa các phiên hết hạn (hiện tại có
                                         {{ stats.expired_sessions_count }}
-                                        phiên) trong Database / Storage và các
+                                        phiên) trong CSDL / kho lưu trữ và các
                                         mã token cá nhân đã quá hạn.
                                     </p>
                                 </div>
@@ -750,8 +748,8 @@ const hasHealthWarnings = computed(() => {
                                     <h4
                                         class="flex flex-wrap items-center gap-1.5 text-xs font-bold text-slate-800 dark:text-slate-200"
                                     >
-                                        Lưu trữ & xóa Audit Logs cũ hơn 6 tháng
-                                        (Archive Audit Logs)
+                                        Lưu trữ & xóa nhật ký kiểm toán cũ hơn 6
+                                        tháng
                                         <span
                                             class="py-0.2 dark:text-rose-450 inline-flex rounded border border-rose-500/10 bg-rose-500/10 px-1.5 text-[9px] font-bold text-rose-600"
                                             >Tối ưu dung lượng</span
@@ -809,7 +807,7 @@ const hasHealthWarnings = computed(() => {
                             <h4
                                 class="text-xs font-black tracking-wider text-muted-foreground uppercase"
                             >
-                                AI Database Health Coach
+                                Trợ lý AI về sức khỏe CSDL
                             </h4>
                             <span
                                 class="animate-pulse rounded-full border px-2 py-0.5 text-[9px] font-black uppercase"
@@ -856,9 +854,9 @@ const hasHealthWarnings = computed(() => {
                             <div
                                 class="flex items-center justify-between text-[10px] font-bold text-muted-foreground"
                             >
-                                <span>Phân bổ lưu trữ Audit Logs</span>
+                                <span>Phân bổ lưu trữ nhật ký kiểm toán</span>
                                 <span
-                                    >{{ oldLogsPercentage }}% Logs Cũ
+                                    >{{ oldLogsPercentage }}% nhật ký cũ
                                     (>6th)</span
                                 >
                             </div>
@@ -1019,7 +1017,7 @@ const hasHealthWarnings = computed(() => {
                             class="flex items-center gap-2 text-xs font-black tracking-wider text-slate-800 uppercase dark:text-slate-200"
                         >
                             <History class="size-5 text-orange-500" />
-                            Lịch sử Tối ưu hóa (Maintenance Logs)
+                            Lịch sử tối ưu hóa (nhật ký bảo trì)
                         </CardTitle>
                         <CardDescription
                             class="mt-1 text-xs font-semibold text-muted-foreground"
