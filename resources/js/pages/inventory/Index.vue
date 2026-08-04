@@ -39,6 +39,8 @@ defineOptions({ layout: AppLayout });
 
 type Ingredient = {
     id: number;
+    branch_id?: number | null;
+    branch_name?: string;
     sku: string | null;
     name: string;
     category_name: string | null;
@@ -57,6 +59,8 @@ type RecipeItem = {
 };
 type Product = {
     id: number;
+    branch_id?: number | null;
+    branch_name?: string;
     name: string;
     code: string;
     price: number;
@@ -628,6 +632,9 @@ const submitWaste = () => {
                                                 ing.category_name ??
                                                 'Nguyên liệu'
                                             }}
+                                        </p>
+                                        <p class="mt-0.5 text-[10px] font-medium text-indigo-500">
+                                            {{ ing.branch_name ?? 'Chưa xác định' }}
                                         </p>
                                         <p
                                             v-if="ing.average_cost > 0"

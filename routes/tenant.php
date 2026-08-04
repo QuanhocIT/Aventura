@@ -534,6 +534,7 @@ Route::middleware(['auth', 'verified', 'tenant.subscription', 'tenant.ratelimit'
         ->name('employee-portal.')
         ->group(function () {
             Route::get('/', [EmployeePortalController::class, 'index'])->name('index');
+            Route::get('/profile', [EmployeePortalController::class, 'profile'])->name('profile');
             Route::get('/data', [EmployeePortalController::class, 'getDashboardData'])->name('data');
             Route::get('/salaries', [EmployeePortalController::class, 'getSalaries'])->name('salaries');
             Route::get('/leaves', [EmployeePortalController::class, 'getLeaves'])->name('leaves');

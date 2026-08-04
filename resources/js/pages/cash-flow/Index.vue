@@ -40,6 +40,8 @@ defineOptions({ layout: AppLayout });
 type Register = {
     id: number;
     closing_date: string;
+    branch_id: number | null;
+    branch_name: string;
     shift_name: string;
     opened_by_name: string;
     closed_by_name: string;
@@ -55,7 +57,9 @@ type Register = {
 };
 
 type ActiveRegister = {
-    id: number;
+    id: number | null;
+    branch_id: number | null;
+    branch_name: string;
     opening_balance: number;
     expense_budget: number;
     opened_at: string;
@@ -63,10 +67,14 @@ type ActiveRegister = {
     shift_name: string;
     closing_date: string;
     expected_cash: number;
+    is_aggregate: boolean;
+    register_count: number;
 };
 
 type Transaction = {
     id: number;
+    branch_id: number | null;
+    branch_name: string;
     type: 'in' | 'out';
     amount: number;
     source: string;
@@ -100,6 +108,7 @@ type Forecast = {
 };
 
 const props = defineProps<{
+    isAllBranches: boolean;
     activeRegister: ActiveRegister | null;
     activeTransactions: Transaction[];
     registers: Register[];
@@ -314,7 +323,7 @@ const chartMaxVal = computed(() => {
                 </div>
 
                 <!-- Open drawer button (only if no active drawer) -->
-                <div v-if="!activeRegister" class="shrink-0">
+                <div v-if="!activeRegister && !isAllBranches" class="shrink-0">
                     <Button
                         @click="showOpenModal = true"
                         class="h-10 cursor-pointer rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 px-5 text-xs font-bold text-white shadow-lg shadow-indigo-500/20 transition-all hover:from-indigo-700 hover:to-violet-700 hover:shadow-indigo-600/30 active:scale-95"
@@ -405,6 +414,18 @@ const chartMaxVal = computed(() => {
                         <CardContent
                             class="divide-y divide-slate-100 p-5 text-xs dark:divide-slate-800/80"
                         >
+                            <div
+                                class="flex items-center justify-between py-2.5"
+                            >
+                                <span class="font-semibold text-slate-400"
+                                    >Chi nhánh</span
+                                >
+                                <span
+                                    class="rounded-md bg-indigo-50 px-2 py-0.5 font-extrabold text-indigo-600 dark:bg-indigo-950/40 dark:text-indigo-400"
+                                >
+                                    {{ activeRegister.branch_name }}
+                                </span>
+                            </div>
                             <div
                                 class="flex items-center justify-between py-2.5"
                             >
@@ -659,7 +680,10 @@ const chartMaxVal = computed(() => {
                                     </p>
                                 </div>
 
-                                <div class="flex shrink-0 flex-wrap gap-2.5">
+                                <div
+                                    v-if="!isAllBranches"
+                                    class="flex shrink-0 flex-wrap gap-2.5"
+                                >
                                     <Button
                                         @click="openTxModal('out')"
                                         variant="outline"
@@ -677,6 +701,13 @@ const chartMaxVal = computed(() => {
                                         Thu tiền mặt khác
                                     </Button>
                                 </div>
+                                <p
+                                    v-else
+                                    class="max-w-xs text-right text-[10px] font-semibold text-amber-600 dark:text-amber-400"
+                                >
+                                    Chuyển sang một chi nhánh cụ thể để ghi nhận
+                                    giao dịch tiền mặt.
+                                </p>
                             </div>
 
                             <!-- Live transactions log list -->
@@ -742,7 +773,14 @@ const chartMaxVal = computed(() => {
                                                 <p
                                                     class="mt-1 text-[10px] font-semibold text-slate-400/90"
                                                 >
-                                                    Nhân viên:
+                                                    Chi nhánh:
+                                                    <strong
+                                                        class="text-slate-500"
+                                                        >{{
+                                                            tx.branch_name
+                                                        }}</strong
+                                                    >
+                                                    · Nhân viên:
                                                     <strong
                                                         class="text-slate-500"
                                                         >{{
@@ -795,14 +833,23 @@ const chartMaxVal = computed(() => {
                         Chưa mở két tiền mặt ca trực
                     </h2>
                     <p
+                        v-if="!isAllBranches"
                         class="mx-auto mt-1 max-w-sm text-xs font-semibold text-slate-400"
                     >
                         Để ghi nhận doanh thu tiền mặt tại quầy hoặc các khoản
                         chi lặt vặt phát sinh trong ca, vui lòng mở két tiền
                         mặt.
                     </p>
+                    <p
+                        v-else
+                        class="mx-auto mt-1 max-w-sm text-xs font-semibold text-slate-400"
+                    >
+                        Đang xem toàn chuỗi. Hãy chọn một chi nhánh cụ thể để mở
+                        két hoặc ghi nhận giao dịch tiền mặt.
+                    </p>
                 </div>
                 <Button
+                    v-if="!isAllBranches"
                     @click="showOpenModal = true"
                     class="mt-6 h-10 cursor-pointer rounded-xl bg-indigo-600 px-6 text-xs font-bold text-white shadow-lg shadow-indigo-500/15 hover:bg-indigo-700 active:scale-95 dark:bg-indigo-500"
                 >
@@ -837,14 +884,33 @@ const chartMaxVal = computed(() => {
                                 class="border-b border-slate-100 bg-slate-50/20 font-bold text-slate-500 dark:border-slate-800 dark:bg-slate-900/5"
                             >
                                 <th class="p-3.5 pl-6">Ngày chốt</th>
+                                <th class="p-3.5">Chi nhánh</th>
                                 <th class="p-3.5">Ca trực</th>
                                 <th class="p-3.5">Thủ quỹ mở / đóng</th>
-                                <th class="p-3.5 text-right">Số dư đầu ca</th>
-                                <th class="p-3.5 text-right">
-                                    Doanh số kì vọng
+                                <th
+                                    class="cursor-help p-3.5 text-right"
+                                    title="Số tiền có sẵn trong két trước khi bắt đầu ca."
+                                >
+                                    Số dư đầu ca
                                 </th>
-                                <th class="p-3.5 text-right">Thực tế đóng</th>
-                                <th class="p-3.5 text-right">Chênh lệch</th>
+                                <th
+                                    class="cursor-help p-3.5 text-right"
+                                    title="Công thức: Số dư đầu ca + Tổng tiền vào - Tổng tiền ra."
+                                >
+                                    Tiền chốt ca
+                                </th>
+                                <th
+                                    class="cursor-help p-3.5 text-right"
+                                    title="Số tiền mặt thực tế được kiểm đếm và nhập khi chốt ca."
+                                >
+                                    Thực tế đóng
+                                </th>
+                                <th
+                                    class="cursor-help p-3.5 text-right"
+                                    title="Công thức: Thực tế đóng - Tiền chốt ca. Số âm là thiếu, số dương là dư."
+                                >
+                                    Chênh lệch
+                                </th>
                                 <th class="p-3.5 text-center">Trạng thái</th>
                             </tr>
                         </thead>
@@ -853,7 +919,7 @@ const chartMaxVal = computed(() => {
                         >
                             <tr v-if="registers.length === 0">
                                 <td
-                                    colspan="8"
+                                    colspan="9"
                                     class="p-12 text-center text-slate-400"
                                 >
                                     <Info
@@ -869,6 +935,13 @@ const chartMaxVal = computed(() => {
                             >
                                 <td class="p-3.5 pl-6 font-black">
                                     {{ r.closing_date }}
+                                </td>
+                                <td class="p-3.5 font-bold">
+                                    <span
+                                        class="rounded bg-indigo-50 px-2 py-0.5 text-[10px] font-bold text-indigo-600 dark:bg-indigo-950/40 dark:text-indigo-400"
+                                    >
+                                        {{ r.branch_name }}
+                                    </span>
                                 </td>
                                 <td class="p-3.5">
                                     <span

@@ -113,6 +113,8 @@ interface OwnerSummary {
 interface RecentOrder {
     id: number;
     order_number: string;
+    branch_id: number | null;
+    branch_name: string;
     table_name: string | null;
     total_amount: number;
     status: string;
@@ -941,7 +943,10 @@ function getTableStatusInfo(status: string) {
                                     class="text-slate-700 transition duration-150 hover:bg-slate-50/40 dark:text-slate-300 dark:hover:bg-slate-900/20"
                                 >
                                     <td class="p-3.5 pl-6 font-mono font-bold">
-                                        #{{ order.order_number }}
+                                        <div>#{{ order.order_number }}</div>
+                                        <div class="font-sans text-[11px] font-medium text-muted-foreground">
+                                            {{ order.branch_name }}
+                                        </div>
                                     </td>
                                     <td class="p-3.5">
                                         {{ order.table_name ?? 'Mang về' }}
@@ -1388,7 +1393,10 @@ function getTableStatusInfo(status: string) {
                                 class="text-slate-700 hover:bg-slate-50/40 dark:text-slate-300 dark:hover:bg-slate-900/20"
                             >
                                 <td class="p-3 pl-5 font-mono font-bold">
-                                    #{{ order.order_number }}
+                                    <div>#{{ order.order_number }}</div>
+                                    <div class="font-sans text-[11px] font-medium text-muted-foreground">
+                                        {{ order.branch_name }}
+                                    </div>
                                 </td>
                                 <td class="p-3">
                                     {{ order.table_name ?? 'Mang về' }}
@@ -1763,7 +1771,10 @@ function getTableStatusInfo(status: string) {
                                         <td
                                             class="p-3 pl-5 font-mono font-bold"
                                         >
-                                            #{{ order.order_number }}
+                                            <div>#{{ order.order_number }}</div>
+                                            <div class="font-sans text-[11px] font-medium text-muted-foreground">
+                                                {{ order.branch_name }}
+                                            </div>
                                         </td>
                                         <td class="p-3">
                                             {{ order.table_name ?? 'Mang về' }}
@@ -2204,7 +2215,10 @@ function getTableStatusInfo(status: string) {
                                         <td
                                             class="p-3 pl-5 font-mono font-bold"
                                         >
-                                            #{{ order.order_number }}
+                                            <div>#{{ order.order_number }}</div>
+                                            <div class="font-sans text-[11px] font-medium text-muted-foreground">
+                                                {{ order.branch_name }}
+                                            </div>
                                         </td>
                                         <td class="p-3">
                                             {{ order.table_name ?? 'Mang về' }}

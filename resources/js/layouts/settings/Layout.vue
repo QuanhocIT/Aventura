@@ -8,6 +8,9 @@ import {
     Gift,
     Blocks,
     Landmark,
+    Settings2,
+    Palette,
+    FlaskConical,
 } from 'lucide-vue-next';
 import { computed } from 'vue';
 import { Button } from '@/components/ui/button';
@@ -58,6 +61,16 @@ const sidebarNavItems = computed(() => {
             href: '/settings/profile?tab=referrals',
             icon: Gift,
         },
+        {
+            title: 'Giao diện',
+            href: '/settings/appearance',
+            icon: Palette,
+        },
+        {
+            title: 'Sandbox & Demo',
+            href: '/settings/sandbox',
+            icon: FlaskConical,
+        },
     );
 
     return items;
@@ -86,25 +99,40 @@ const isItemActive = (href: string) => {
 </script>
 
 <template>
-    <div class="mx-auto max-w-7xl space-y-8 px-6 py-8">
-        <div class="space-y-1">
-            <h1
-                class="bg-gradient-to-r from-neutral-900 to-neutral-600 bg-clip-text text-3xl font-black tracking-tight text-neutral-900 text-transparent dark:from-neutral-50 dark:to-neutral-400 dark:text-neutral-50"
-            >
-                Thiết lập hệ thống
-            </h1>
-            <p class="text-sm text-neutral-500 dark:text-neutral-400">
-                Quản lý thông tin hồ sơ cá nhân, bảo mật tài khoản và cài đặt
-                cửa hàng của bạn.
-            </p>
+    <div
+        class="settings-shell mx-auto w-full max-w-[1600px] space-y-9 px-6 py-8 xl:px-8 2xl:px-10 2xl:py-10"
+    >
+        <div class="settings-hero flex items-start gap-4">
+            <div class="settings-hero-icon">
+                <Settings2 class="size-6" />
+            </div>
+            <div class="space-y-1.5">
+                <p class="settings-eyebrow">Không gian quản trị</p>
+                <h1
+                    class="bg-gradient-to-r from-neutral-950 via-neutral-800 to-neutral-500 bg-clip-text text-3xl font-black tracking-tight text-neutral-950 text-transparent sm:text-4xl dark:from-neutral-50 dark:via-neutral-200 dark:to-neutral-500 dark:text-neutral-50"
+                >
+                    Thiết lập hệ thống
+                </h1>
+                <p
+                    class="max-w-3xl text-base leading-7 text-neutral-500 dark:text-neutral-400"
+                >
+                    Quản lý thông tin hồ sơ cá nhân, bảo mật tài khoản và cài
+                    đặt cửa hàng của bạn.
+                </p>
+            </div>
         </div>
 
-        <Separator class="bg-neutral-200/60 dark:bg-neutral-800/60" />
+        <Separator
+            class="settings-divider bg-neutral-200/70 dark:bg-neutral-800/70"
+        />
 
-        <div class="flex flex-col gap-8 lg:flex-row lg:gap-12">
-            <aside class="w-full shrink-0 lg:w-64">
+        <div class="flex flex-col gap-8 lg:flex-row lg:items-start lg:gap-8">
+            <aside
+                class="order-2 w-full shrink-0 lg:sticky lg:top-24 lg:order-2 lg:w-64"
+            >
+                <div class="settings-nav-heading">Danh mục cài đặt</div>
                 <nav
-                    class="flex scrollbar-none flex-row gap-1 overflow-x-auto pb-2 lg:flex-col lg:pb-0"
+                    class="settings-nav flex scrollbar-none flex-row gap-1.5 overflow-x-auto pb-2 lg:flex-col lg:pb-0"
                     aria-label="Settings"
                 >
                     <Button
@@ -112,23 +140,26 @@ const isItemActive = (href: string) => {
                         :key="item.href"
                         variant="ghost"
                         :class="[
-                            'justify-start gap-3 rounded-xl px-4 py-2.5 text-xs font-bold tracking-wider uppercase transition-all duration-200 lg:w-full',
+                            'settings-nav-item group justify-start gap-2.5 rounded-xl px-4 py-2.5 text-[13px] font-bold tracking-wide transition-all duration-200 lg:w-full',
                             isItemActive(item.href)
-                                ? 'bg-neutral-900 text-white shadow-md shadow-neutral-900/10 dark:bg-neutral-100 dark:text-neutral-900 dark:shadow-none'
-                                : 'text-neutral-500 hover:bg-neutral-100 hover:text-neutral-900 dark:text-neutral-400 dark:hover:bg-neutral-800/60 dark:hover:text-neutral-200',
+                                ? 'bg-neutral-950 text-white shadow-lg shadow-neutral-950/10 dark:bg-neutral-100 dark:text-neutral-950 dark:shadow-none'
+                                : 'text-neutral-500 hover:bg-neutral-100 hover:text-neutral-950 dark:text-neutral-400 dark:hover:bg-neutral-800/60 dark:hover:text-neutral-100',
                         ]"
                         as-child
                     >
                         <Link :href="item.href">
-                            <component :is="item.icon" class="h-4 w-4" />
+                            <component
+                                :is="item.icon"
+                                class="size-[18px] shrink-0 transition-transform duration-200 group-hover:scale-105"
+                            />
                             {{ item.title }}
                         </Link>
                     </Button>
                 </nav>
             </aside>
 
-            <div class="w-full max-w-3xl flex-1">
-                <section class="w-full space-y-10">
+            <div class="order-1 w-full min-w-0 flex-1 lg:order-1">
+                <section class="w-full space-y-8">
                     <slot />
                 </section>
             </div>

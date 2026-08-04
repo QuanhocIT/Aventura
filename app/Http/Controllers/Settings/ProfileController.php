@@ -39,9 +39,13 @@ class ProfileController extends Controller implements HasMiddleware
     /**
      * Show the user's profile settings page.
      */
-    public function edit(Request $request): Response
+    public function edit(Request $request): Response|RedirectResponse
     {
         $user = $request->user();
+
+        if ($this->isEmployeeAccount($user)) {
+            return redirect()->route('employee-portal.profile');
+        }
 
         // 1. Profile data
         $mustVerifyEmail = $user instanceof MustVerifyEmail;
@@ -110,6 +114,19 @@ class ProfileController extends Controller implements HasMiddleware
         }
 
         return Inertia::render('settings/Profile', $props);
+    }
+
+    private function isEmployeeAccount(User $user): bool
+    {
+        return ! $user->isOwner()
+            && ! $user->isSuperAdmin()
+            && $user->hasAnyRole([
+                'cashier',
+                'waiter',
+                'kitchen',
+                'inventory_staff',
+                'shipper',
+            ]);
     }
 
     /**

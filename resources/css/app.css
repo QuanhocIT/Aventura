@@ -78,6 +78,108 @@
     }
 }
 
+/* Settings workspace: a denser, larger canvas shared by every settings page. */
+@layer components {
+    .settings-shell {
+        --settings-surface: hsl(0 0% 100% / 0.92);
+        --settings-border: hsl(0 0% 89% / 0.9);
+    }
+
+    .dark .settings-shell {
+        --settings-surface: hsl(0 0% 7% / 0.72);
+        --settings-border: hsl(0 0% 100% / 0.1);
+    }
+
+    .settings-hero-icon {
+        display: flex;
+        width: 3rem;
+        height: 3rem;
+        flex-shrink: 0;
+        align-items: center;
+        justify-content: center;
+        border-radius: 1rem;
+        background: linear-gradient(135deg, hsl(24 90% 50%), hsl(17 88% 48%));
+        color: white;
+        box-shadow: 0 10px 24px hsl(24 90% 50% / 0.2);
+    }
+
+    .settings-eyebrow,
+    .settings-nav-heading {
+        color: hsl(0 0% 48%);
+        font-size: 0.7rem;
+        font-weight: 800;
+        letter-spacing: 0.12em;
+        line-height: 1.2;
+        text-transform: uppercase;
+    }
+
+    .dark .settings-eyebrow,
+    .dark .settings-nav-heading {
+        color: hsl(0 0% 64%);
+    }
+
+    .settings-nav-heading {
+        margin: 0 0 0.6rem 1rem;
+    }
+
+    .settings-nav-item {
+        min-height: 2.75rem;
+    }
+
+    .settings-page-intro,
+    .settings-surface {
+        border: 1px solid var(--settings-border);
+        border-radius: 1.25rem;
+        background: var(--settings-surface);
+        box-shadow:
+            0 10px 32px hsl(0 0% 0% / 0.045),
+            0 1px 3px hsl(0 0% 0% / 0.035);
+    }
+
+    .settings-page-intro {
+        padding: 1.5rem;
+    }
+
+    .settings-shell [data-slot='card'] {
+        border-color: var(--settings-border);
+        background: var(--settings-surface);
+        box-shadow:
+            0 10px 32px hsl(0 0% 0% / 0.045),
+            0 1px 3px hsl(0 0% 0% / 0.035);
+    }
+
+    .settings-shell [data-slot='card']:hover {
+        border-color: hsl(24 90% 50% / 0.22);
+        box-shadow:
+            0 16px 40px hsl(0 0% 0% / 0.07),
+            0 3px 8px hsl(0 0% 0% / 0.04);
+    }
+
+    .settings-shell [data-slot='card-title'] {
+        font-size: 1.125rem;
+        line-height: 1.35;
+    }
+
+    .settings-shell [data-slot='card-description'] {
+        font-size: 0.875rem;
+        line-height: 1.5;
+    }
+
+    @media (min-width: 1024px) {
+        .settings-shell [data-slot='card'] > [data-slot='card-header'] {
+            padding-top: 1.75rem;
+            padding-bottom: 1.5rem;
+            padding-right: 2rem;
+            padding-left: 2rem;
+        }
+
+        .settings-shell [data-slot='card'] > [data-slot='card-content'] {
+            padding-right: 2rem;
+            padding-left: 2rem;
+        }
+    }
+}
+
 @layer base {
     html {
         scroll-behavior: smooth;
@@ -195,37 +297,43 @@
     /* Sidebar scrollbar style for light & dark mode */
     .Sidebar,
     .sidebar,
-    .sidebar-content {
+    .sidebar-content,
+    [data-slot='sidebar-content'] {
         scrollbar-width: thin;
-        scrollbar-color: var(--sidebar-border) var(--sidebar-background);
+        scrollbar-color: hsl(0 0% 50% / 0.45) transparent;
     }
 
     .Sidebar::-webkit-scrollbar,
     .sidebar::-webkit-scrollbar,
-    .sidebar-content::-webkit-scrollbar {
+    .sidebar-content::-webkit-scrollbar,
+    [data-slot='sidebar-content']::-webkit-scrollbar {
         width: 8px;
-        background: var(--sidebar-background);
+        background: transparent;
     }
     .Sidebar::-webkit-scrollbar-thumb,
     .sidebar::-webkit-scrollbar-thumb,
-    .sidebar-content::-webkit-scrollbar-thumb {
-        background: var(--sidebar-border);
+    .sidebar-content::-webkit-scrollbar-thumb,
+    [data-slot='sidebar-content']::-webkit-scrollbar-thumb {
+        background: hsl(0 0% 50% / 0.45);
         border-radius: 4px;
     }
     .dark .Sidebar,
     .dark .sidebar,
-    .dark .sidebar-content {
-        scrollbar-color: var(--sidebar-border) var(--sidebar-background);
+    .dark .sidebar-content,
+    .dark [data-slot='sidebar-content'] {
+        scrollbar-color: hsl(0 0% 100% / 0.3) transparent;
     }
     .dark .Sidebar::-webkit-scrollbar,
     .dark .sidebar::-webkit-scrollbar,
-    .dark .sidebar-content::-webkit-scrollbar {
-        background: var(--sidebar-background);
+    .dark .sidebar-content::-webkit-scrollbar,
+    .dark [data-slot='sidebar-content']::-webkit-scrollbar {
+        background: transparent;
     }
     .dark .Sidebar::-webkit-scrollbar-thumb,
     .dark .sidebar::-webkit-scrollbar-thumb,
-    .dark .sidebar-content::-webkit-scrollbar-thumb {
-        background: var(--sidebar-border);
+    .dark .sidebar-content::-webkit-scrollbar-thumb,
+    .dark [data-slot='sidebar-content']::-webkit-scrollbar-thumb {
+        background: hsl(0 0% 100% / 0.3);
     }
 }
 

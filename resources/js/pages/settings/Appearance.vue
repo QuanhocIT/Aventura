@@ -15,7 +15,7 @@ defineOptions({
     layout: {
         breadcrumbs: [
             {
-                title: 'Appearance settings',
+                title: 'Giao diện',
                 href: edit(),
             },
         ],
@@ -24,9 +24,9 @@ defineOptions({
 </script>
 
 <template>
-    <Head title="Appearance settings" />
+    <Head title="Giao diện" />
 
-    <h1 class="sr-only">Appearance settings</h1>
+    <h1 class="sr-only">Giao diện</h1>
 
     <div class="space-y-6">
         <Card
@@ -52,7 +52,7 @@ defineOptions({
                     >
                 </div>
             </CardHeader>
-            <CardContent class="p-6">
+            <CardContent class="p-6 lg:p-8">
                 <AppearanceTabs />
             </CardContent>
         </Card>

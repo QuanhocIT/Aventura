@@ -14,6 +14,7 @@ export function useCashierTables(
     const activeTable = ref<TableItem | null>(null);
     const drawerStep = ref<'select' | 'confirm'>('select');
     const selectedArea = ref('all');
+    const selectedStatus = ref<'all' | 'occupied' | 'available'>('all');
     const showSplitModal = ref(false);
     const splitTableId = ref<number | null>(null);
     const splitItems = ref<OrderItem[]>([]);
@@ -30,13 +31,18 @@ export function useCashierTables(
         return Array.from(areas);
     });
 
-    const filteredTables = computed(() => {
-        if (selectedArea.value === 'all') {
-            return tablesData();
-        }
+    const filteredTables = computed(() =>
+        tablesData().filter((table) => {
+            const matchesArea =
+                selectedArea.value === 'all' ||
+                table.area === selectedArea.value;
+            const matchesStatus =
+                selectedStatus.value === 'all' ||
+                table.status === selectedStatus.value;
 
-        return tablesData().filter((t) => t.area === selectedArea.value);
-    });
+            return matchesArea && matchesStatus;
+        }),
+    );
 
     const openTableOrder = (table: TableItem) => {
         activeTable.value = table;
@@ -153,6 +159,7 @@ export function useCashierTables(
         activeTable,
         drawerStep,
         selectedArea,
+        selectedStatus,
         areaList,
         filteredTables,
         openTableOrder,

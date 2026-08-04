@@ -9,6 +9,7 @@ const props = defineProps<{
     products: ProductItem[];
     categories: CategoryItem[];
     getCartItemQty: (productId: number) => number;
+    compact?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -43,7 +44,11 @@ const numberFormat = (val: number) =>
     <div class="flex flex-col gap-4">
         <!-- Thanh tìm kiếm & lọc danh mục -->
         <div
-            class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"
+            :class="
+                props.compact
+                    ? 'flex flex-col gap-3'
+                    : 'flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between'
+            "
         >
             <div class="relative flex-1">
                 <Search
@@ -90,7 +95,11 @@ const numberFormat = (val: number) =>
 
         <!-- Grid danh sách món ăn -->
         <div
-            class="grid grid-cols-2 gap-3.5 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5"
+            :class="
+                props.compact
+                    ? 'grid grid-cols-2 gap-3'
+                    : 'grid grid-cols-2 gap-3.5 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7'
+            "
         >
             <div
                 v-for="product in filteredProducts"

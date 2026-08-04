@@ -45,7 +45,7 @@ const handleChange = (event: Event) => {
             v-if="!compact"
             class="hidden font-medium tracking-wider text-muted-foreground uppercase sm:inline"
         >
-            Chi nhánh hiện tại:
+            Phạm vi dữ liệu:
         </span>
 
         <select

@@ -723,12 +723,6 @@ const cashierNav = computed<NavItem[]>(() => {
             feature: 'inventory_basic',
         },
         {
-            title: 'Dòng tiền',
-            href: '/cash-flow',
-            icon: Wallet,
-            feature: 'inventory_basic',
-        },
-        {
             title: 'Lịch làm việc',
             href: '/schedules',
             icon: CalendarDays,

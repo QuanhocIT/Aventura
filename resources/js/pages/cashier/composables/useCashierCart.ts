@@ -8,12 +8,16 @@ export function useCashierCart(
     products: () => ProductItem[],
     tablesData: () => TableItem[],
     toast: (msg: string, type?: 'success' | 'error') => void,
+    sharedCartItems?: Ref<OrderItem[]>,
+    sharedCartNote?: Ref<string>,
+    sharedIsNotified?: Ref<boolean>,
+    sharedIsCartOpen?: Ref<boolean>,
 ) {
-    const isCartOpen = ref(false);
-    const cartItems = ref<OrderItem[]>([]);
-    const cartNote = ref('');
+    const isCartOpen = sharedIsCartOpen ?? ref(false);
+    const cartItems = sharedCartItems ?? ref<OrderItem[]>([]);
+    const cartNote = sharedCartNote ?? ref('');
     const cartBounce = ref(false);
-    const isNotified = ref(false);
+    const isNotified = sharedIsNotified ?? ref(false);
     const isSubmitting = ref(false);
 
     const triggerCartBounce = () => {
@@ -179,6 +183,7 @@ export function useCashierCart(
                     preserveState: true,
                     onSuccess: () => {
                         isNotified.value = true;
+                        isCartOpen.value = false;
                         setTimeout(() => {
                             const updated = tablesData().find(
                                 (t) => t.id === activeTable.value!.id,
@@ -214,6 +219,7 @@ export function useCashierCart(
                     preserveState: true,
                     onSuccess: () => {
                         isNotified.value = true;
+                        isCartOpen.value = false;
                         setTimeout(() => {
                             const updated = tablesData().find(
                                 (t) => t.id === activeTable.value!.id,

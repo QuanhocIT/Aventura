@@ -3,17 +3,31 @@ import { Users, Utensils, AlertTriangle } from 'lucide-vue-next';
 import { Badge } from '@/components/ui/badge';
 import type { TableItem } from '../types';
 
-defineProps<{
+type TableStatusFilter = 'all' | 'occupied' | 'available';
+
+const props = defineProps<{
     tables: TableItem[];
     areaList: string[];
     selectedArea: string;
+    selectedStatus: TableStatusFilter;
     activeTableId?: number;
+    compact?: boolean;
 }>();
 
 const emit = defineEmits<{
     (e: 'update:selectedArea', area: string): void;
+    (e: 'update:selectedStatus', status: TableStatusFilter): void;
     (e: 'selectTable', table: TableItem): void;
 }>();
+
+const statusFilters: Array<{
+    value: TableStatusFilter;
+    label: string;
+}> = [
+    { value: 'all', label: 'Tất cả' },
+    { value: 'occupied', label: 'Có khách' },
+    { value: 'available', label: 'Bàn trống' },
+];
 
 const numberFormat = (val: number) =>
     new Intl.NumberFormat('vi-VN').format(val);
@@ -75,9 +89,32 @@ const getStatusBadge = (status: TableItem['status']) => {
             </button>
         </div>
 
+        <div
+            class="flex flex-wrap items-center gap-2 border-t border-slate-100 pt-3 dark:border-slate-800"
+        >
+            <button
+                v-for="filter in statusFilters"
+                :key="filter.value"
+                type="button"
+                @click="emit('update:selectedStatus', filter.value)"
+                class="rounded-xl px-4 py-2 text-xs font-bold transition-all"
+                :class="
+                    selectedStatus === filter.value
+                        ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/20'
+                        : 'bg-white text-slate-600 hover:bg-slate-100 dark:bg-slate-800 dark:text-slate-300'
+                "
+            >
+                {{ filter.label }}
+            </button>
+        </div>
+
         <!-- Grid sơ đồ bàn -->
         <div
-            class="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5"
+            :class="
+                props.compact
+                    ? 'grid grid-cols-2 gap-3 sm:grid-cols-3'
+                    : 'grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7'
+            "
         >
             <div
                 v-for="table in tables"

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Link, router, usePage } from '@inertiajs/vue3';
-import { LogOut, Settings, Star } from 'lucide-vue-next';
+import { LogOut, Settings, Star, UserRound } from 'lucide-vue-next';
 import { computed, ref } from 'vue';
 import PlatformFeedbackModal from '@/components/PlatformFeedbackModal.vue';
 import {
@@ -28,7 +28,14 @@ const roles = computed(() => {
         ? raw
         : Object.values(raw as Record<string, string>);
 });
-const isSuperAdmin = computed(() => roles.value.includes('super_admin'));
+const isOwner = computed(() => roles.value.includes('owner'));
+const isEmployee = computed(() =>
+    roles.value.some((role) =>
+        ['cashier', 'waiter', 'kitchen', 'inventory_staff', 'shipper'].includes(
+            role,
+        ),
+    ),
+);
 
 const showFeedbackModal = ref(false);
 
@@ -53,13 +60,18 @@ const handleLogout = () => {
     <DropdownMenuSeparator />
     <DropdownMenuGroup>
         <DropdownMenuItem :as-child="true">
-            <Link class="block w-full cursor-pointer" :href="edit()" prefetch>
-                <Settings class="mr-2 h-4 w-4" />
-                Cài đặt hệ thống
+            <Link
+                class="block w-full cursor-pointer"
+                :href="isEmployee ? '/employee-portal/profile' : edit()"
+                prefetch
+            >
+                <UserRound v-if="isEmployee" class="mr-2 h-4 w-4" />
+                <Settings v-else class="mr-2 h-4 w-4" />
+                {{ isEmployee ? 'Hồ sơ cá nhân' : 'Cài đặt hệ thống' }}
             </Link>
         </DropdownMenuItem>
         <DropdownMenuItem
-            v-if="!isSuperAdmin"
+            v-if="isOwner"
             class="cursor-pointer font-semibold text-amber-600 dark:text-amber-400"
             @click="showFeedbackModal = true"
         >
@@ -77,8 +89,5 @@ const handleLogout = () => {
         Log out
     </DropdownMenuItem>
 
-    <PlatformFeedbackModal
-        v-if="!isSuperAdmin"
-        v-model:open="showFeedbackModal"
-    />
+    <PlatformFeedbackModal v-if="isOwner" v-model:open="showFeedbackModal" />
 </template>

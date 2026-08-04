@@ -58,6 +58,8 @@ type DeliveryInfo = {
 type Order = {
     id: number;
     order_number: string;
+    branch_id: number | null;
+    branch_name: string;
     status: string;
     payment_status: string;
     channel: string;
@@ -1231,6 +1233,9 @@ onMounted(() => {
                                         class="font-mono text-sm font-bold text-slate-800 transition-colors group-hover:text-violet-600 dark:text-slate-200 dark:group-hover:text-violet-400"
                                         >{{ o.order_number }}</span
                                     >
+                                    <span class="text-[10px] font-medium text-muted-foreground">
+                                        {{ o.branch_name }}
+                                    </span>
                                     <span
                                         class="rounded-md border bg-slate-50 px-1.5 py-0.5 text-[9px] font-semibold text-slate-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-400"
                                     >

@@ -95,7 +95,7 @@ defineOptions({
     layout: {
         breadcrumbs: [
             {
-                title: 'Profile settings',
+                title: 'Hồ sơ cá nhân',
                 href: edit(),
             },
         ],
@@ -214,9 +214,9 @@ const updatePin = () => {
     <Head
         :title="
             activeTab === 'profile'
-                ? 'Profile settings'
+                ? 'Hồ sơ cá nhân'
                 : activeTab === 'security'
-                  ? 'Security settings'
+                  ? 'Bảo mật tài khoản'
                   : 'Giới thiệu & Hoa hồng'
         "
     />
@@ -224,9 +224,9 @@ const updatePin = () => {
     <h1 class="sr-only">
         {{
             activeTab === 'profile'
-                ? 'Profile settings'
+                ? 'Hồ sơ cá nhân'
                 : activeTab === 'security'
-                  ? 'Security settings'
+                  ? 'Bảo mật tài khoản'
                   : 'Giới thiệu & Hoa hồng'
         }}
     </h1>
@@ -257,7 +257,7 @@ const updatePin = () => {
                         >
                     </div>
                 </CardHeader>
-                <CardContent class="p-6">
+                <CardContent class="p-6 lg:p-8">
                     <Form
                         v-bind="ProfileController.update.form()"
                         class="space-y-6"
@@ -372,7 +372,7 @@ const updatePin = () => {
                         >
                     </div>
                 </CardHeader>
-                <CardContent class="p-6">
+                <CardContent class="p-6 lg:p-8">
                     <Form
                         v-bind="SecurityController.update.form()"
                         :options="{
@@ -477,7 +477,7 @@ const updatePin = () => {
                         >
                     </div>
                 </CardHeader>
-                <CardContent class="p-6">
+                <CardContent class="p-6 lg:p-8">
                     <div
                         v-if="!twoFactorEnabled"
                         class="flex flex-col items-start justify-start space-y-4"
@@ -590,7 +590,7 @@ const updatePin = () => {
                         >
                     </div>
                 </CardHeader>
-                <CardContent class="p-6">
+                <CardContent class="p-6 lg:p-8">
                     <form @submit.prevent="updatePin" class="space-y-6">
                         <div class="grid gap-2">
                             <Label

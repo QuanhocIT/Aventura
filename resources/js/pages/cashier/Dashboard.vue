@@ -15,8 +15,8 @@ import {
 // Composables
 
 // Components
-import CartDrawer from './components/CartDrawer.vue';
 import CashierHeader from './components/CashierHeader.vue';
+import OrderReviewPanel from './components/OrderReviewPanel.vue';
 import PaymentModal from './components/PaymentModal.vue';
 import ProductGrid from './components/ProductGrid.vue';
 import QrOrdersPanel from './components/QrOrdersPanel.vue';
@@ -31,6 +31,7 @@ import type {
     TableItem,
     ProductItem,
     CategoryItem,
+    OrderItem,
     ToastType,
     ToastItem,
 } from './types';
@@ -100,7 +101,7 @@ const mainTabs = [
 ];
 
 // Tables & Cart Composables
-const cartItems = ref([]);
+const cartItems = ref<OrderItem[]>([]);
 const cartNote = ref('');
 const isCartOpen = ref(false);
 const isNotified = ref(false);
@@ -118,6 +119,7 @@ const {
     activeTable,
     drawerStep,
     selectedArea,
+    selectedStatus,
     areaList,
     filteredTables,
     openTableOrder,
@@ -135,6 +137,10 @@ const cartComposable = useCashierCart(
     () => props.products,
     () => props.tablesData,
     toast,
+    cartItems,
+    cartNote,
+    isNotified,
+    isCartOpen,
 );
 
 const {
@@ -362,7 +368,7 @@ onUnmounted(() => {
     <Head title="BepsoViet Operational POS" />
 
     <div
-        class="mx-auto flex min-h-screen w-full max-w-7xl flex-col gap-6 bg-slate-50/50 p-6 dark:bg-slate-900/40"
+        class="mx-auto flex min-h-screen w-full max-w-none flex-col gap-6 bg-slate-50/50 p-5 xl:p-6 dark:bg-slate-900/40"
     >
         <!-- ── HEADER ────────────────────────────────────────────────── -->
         <CashierHeader
@@ -401,29 +407,103 @@ onUnmounted(() => {
         <!-- ── TAB CONTENT ────────────────────────────────────────────── -->
         <main class="flex-1">
             <!-- TAB 1: SƠ ĐỒ BÀN & THỰC ĐƠN MÓN -->
-            <div
-                v-if="activeTab === 'tables'"
-                class="grid grid-cols-1 gap-6 lg:grid-cols-12"
-            >
-                <div class="flex flex-col gap-6 lg:col-span-7">
+            <template v-if="activeTab === 'tables'">
+                <div v-if="!isCartOpen" class="grid grid-cols-1 gap-6">
                     <TableGrid
                         :tables="filteredTables"
                         :area-list="areaList"
                         v-model:selected-area="selectedArea"
+                        v-model:selected-status="selectedStatus"
                         :active-table-id="activeTable?.id"
+                        :compact="false"
                         @select-table="openTableOrder"
                     />
+                </div>
+
+                <div v-else-if="drawerStep === 'select'" class="space-y-6">
+                    <div
+                        class="flex flex-wrap items-center justify-between gap-4 rounded-3xl border border-indigo-500/30 bg-indigo-950/20 p-5"
+                    >
+                        <div class="flex items-center gap-3 text-left">
+                            <div
+                                class="flex size-11 items-center justify-center rounded-2xl bg-indigo-600/20 text-indigo-300"
+                            >
+                                <Utensils class="size-5" />
+                            </div>
+                            <div>
+                                <p class="text-sm font-black text-slate-100">
+                                    Lên món cho Bàn
+                                    {{ activeTable?.name || '' }}
+                                </p>
+                                <p class="text-xs text-slate-400">
+                                    Chọn món trong thực đơn, sau đó xác nhận để
+                                    xem lại đơn.
+                                </p>
+                            </div>
+                        </div>
+
+                        <button
+                            type="button"
+                            class="rounded-xl px-3 py-2 text-xs font-bold text-slate-400 transition-colors hover:bg-slate-800 hover:text-slate-100"
+                            @click="isCartOpen = false"
+                        >
+                            Quay lại chọn bàn
+                        </button>
+                    </div>
 
                     <ProductGrid
                         :products="props.products"
                         :categories="props.categories"
                         :get-cart-item-qty="getCartItemQty"
+                        :compact="false"
                         @click-product="handleProductCardClick"
                         @increase-qty="increaseProductQty"
                         @decrease-qty="decreaseProductQty"
                     />
+
+                    <div
+                        class="sticky bottom-4 z-10 flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-indigo-500/30 bg-slate-950/95 p-4 shadow-2xl backdrop-blur"
+                    >
+                        <div class="text-left">
+                            <p class="text-sm font-black text-slate-100">
+                                Đã chọn {{ totalCartQty }} món
+                            </p>
+                            <p class="text-xs text-slate-400">
+                                {{ totalCartAmount.toLocaleString('vi-VN') }}đ
+                            </p>
+                        </div>
+                        <button
+                            type="button"
+                            class="rounded-xl bg-indigo-600 px-5 py-3 text-xs font-black text-white shadow-lg shadow-indigo-600/20 transition-colors hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-50"
+                            :disabled="cartItems.length === 0"
+                            @click="drawerStep = 'confirm'"
+                        >
+                            Xác nhận và xem món đã chọn
+                        </button>
+                    </div>
                 </div>
-            </div>
+
+                <OrderReviewPanel
+                    v-if="isCartOpen && drawerStep === 'confirm'"
+                    :active-table="activeTable"
+                    :cart-items="cartItems"
+                    v-model:cart-note="cartNote"
+                    :total-cart-amount="totalCartAmount"
+                    :total-cart-qty="totalCartQty"
+                    :is-notified="isNotified"
+                    :is-submitting="isSubmitting"
+                    :can-process-payments="can('process_payments')"
+                    :can-split-orders="can('split_orders')"
+                    @update:drawer-step="drawerStep = $event"
+                    @increase-qty="increaseQty"
+                    @decrease-qty="decreaseQty"
+                    @remove-item="removeItem"
+                    @submit-order="submitOrder"
+                    @open-payment="openPayment"
+                    @send-to-kitchen="sendToKitchen"
+                    @open-split-order="openSplitOrder"
+                />
+            </template>
 
             <!-- TAB 2: ĐƠN HÀNG QR & NGOẠI SÀN -->
             <div v-else-if="activeTab === 'qr'">
@@ -474,27 +554,6 @@ onUnmounted(() => {
         </main>
 
         <!-- ── SIDE DRAWER GIỎ HÀNG BÊN PHẢI ──────────────────────────── -->
-        <CartDrawer
-            v-model:is-cart-open="isCartOpen"
-            :active-table="activeTable"
-            v-model:drawer-step="drawerStep"
-            :cart-items="cartItems"
-            v-model:cart-note="cartNote"
-            :total-cart-amount="totalCartAmount"
-            :total-cart-qty="totalCartQty"
-            :is-notified="isNotified"
-            :is-submitting="isSubmitting"
-            :can-process-payments="can('process_payments')"
-            :can-split-orders="can('split_orders')"
-            @increase-qty="increaseQty"
-            @decrease-qty="decreaseQty"
-            @remove-item="removeItem"
-            @submit-order="submitOrder"
-            @open-payment="openPayment"
-            @send-to-kitchen="sendToKitchen"
-            @open-split-order="openSplitOrder"
-        />
-
         <!-- ── MODAL THANH TOÁN ────────────────────────────────────────── -->
         <PaymentModal
             v-model:show-payment-modal="showPaymentModal"

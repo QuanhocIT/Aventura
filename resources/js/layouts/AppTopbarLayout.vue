@@ -1,6 +1,13 @@
 <script setup lang="ts">
 import { Link, router, usePage } from '@inertiajs/vue3';
-import { LogOut, Menu, Monitor, Settings, X } from 'lucide-vue-next';
+import {
+    LogOut,
+    Menu,
+    Monitor,
+    Settings,
+    UserRound,
+    X,
+} from 'lucide-vue-next';
 
 import { computed, ref, onMounted, onUnmounted } from 'vue';
 import AppearanceToggleInline from '@/components/AppearanceToggleInline.vue';
@@ -46,6 +53,9 @@ const isSuperAdmin = computed(() =>
     ),
 );
 const isOwner = computed(() => hasRole('owner'));
+const isEmployee = computed(() =>
+    hasRole('cashier', 'waiter', 'kitchen', 'inventory_staff', 'shipper'),
+);
 
 const showChatbot = computed(
     () => !user.value || isOwner.value || isSuperAdmin.value,
@@ -306,11 +316,26 @@ const handleLogout = () => {
                             </DropdownMenuItem>
                             <DropdownMenuItem as-child>
                                 <Link
-                                    href="/settings/profile"
+                                    :href="
+                                        isEmployee
+                                            ? '/employee-portal/profile'
+                                            : '/settings/profile'
+                                    "
                                     class="flex cursor-pointer items-center"
                                 >
-                                    <Settings class="mr-2 h-4 w-4" />
-                                    Cài đặt tài khoản
+                                    <UserRound
+                                        v-if="isEmployee"
+                                        class="mr-2 h-4 w-4"
+                                    />
+                                    <Settings
+                                        v-else
+                                        class="mr-2 h-4 w-4"
+                                    />
+                                    {{
+                                        isEmployee
+                                            ? 'Hồ sơ cá nhân'
+                                            : 'Cài đặt tài khoản'
+                                    }}
                                 </Link>
                             </DropdownMenuItem>
                             <DropdownMenuSeparator />

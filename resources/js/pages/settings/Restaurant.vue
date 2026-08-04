@@ -245,7 +245,7 @@ defineOptions({
                     >
                 </div>
             </CardHeader>
-            <CardContent class="p-6">
+            <CardContent class="p-6 lg:p-8">
                 <div
                     v-if="status"
                     class="mb-5 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-xs font-semibold text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-400"
