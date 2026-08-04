@@ -771,7 +771,7 @@ function formatMins(mins: number): string {
         <!-- ============================================================ -->
         <PageHeader
             title="Hỗ trợ kỹ thuật"
-            subtitle="Giám sát hạ tầng, ticket hỗ trợ, thông báo hệ thống và kho tài liệu."
+            subtitle="Giám sát hạ tầng, phiếu hỗ trợ, thông báo hệ thống và kho tài liệu."
             :icon="Headset"
         >
             <template #actions>
@@ -1506,7 +1506,7 @@ function formatMins(mins: number): string {
                                                 bại</SelectItem
                                             >
                                             <SelectItem value="billing"
-                                                >Billing / Hóa đơn &amp; Gói
+                                                >Thanh toán / Hóa đơn &amp; Gói
                                                 dịch vụ</SelectItem
                                             >
                                             <SelectItem value="ui"
@@ -1883,7 +1883,7 @@ function formatMins(mins: number): string {
                                                     )
                                                 "
                                             >
-                                                Đóng Ticket
+                                                Đóng phiếu hỗ trợ
                                             </Button>
 
                                             <Select
@@ -1956,14 +1956,14 @@ function formatMins(mins: number): string {
                                             <!-- Edit + Delete ticket -->
                                             <button
                                                 class="rounded-lg p-1.5 text-slate-400 transition hover:bg-indigo-500/10 hover:text-indigo-600"
-                                                title="Sửa ticket"
+                                                title="Sửa phiếu hỗ trợ"
                                                 @click="openEditTicket(ticket)"
                                             >
                                                 <Pencil class="size-3.5" />
                                             </button>
                                             <button
                                                 class="rounded-lg p-1.5 text-slate-400 transition hover:bg-rose-500/10 hover:text-rose-600"
-                                                title="Xóa ticket"
+                                                title="Xóa phiếu hỗ trợ"
                                                 @click="deleteTicket(ticket)"
                                             >
                                                 <Trash2 class="size-3.5" />
@@ -2237,7 +2237,7 @@ function formatMins(mins: number): string {
                                 <p
                                     class="text-xs font-bold tracking-wider text-rose-600 uppercase dark:text-rose-400"
                                 >
-                                    Ticket Trễ Hạn (SLA Breach)
+                                    Phiếu hỗ trợ trễ hạn (vi phạm SLA)
                                 </p>
                                 <p
                                     class="mt-2 text-3xl font-black text-rose-600 dark:text-rose-400"
@@ -3552,7 +3552,9 @@ function formatMins(mins: number): string {
     >
         <DialogContent class="sm:max-w-md">
             <DialogHeader>
-                <DialogTitle>Sửa Ticket {{ editingTicket?.code }}</DialogTitle>
+                <DialogTitle
+                    >Sửa phiếu hỗ trợ {{ editingTicket?.code }}</DialogTitle
+                >
             </DialogHeader>
             <div class="space-y-3 py-2">
                 <div>
@@ -3721,13 +3723,21 @@ function formatMins(mins: number): string {
 .support-page :deep([class~='dark:bg-slate-900/10']),
 .support-page :deep([class~='dark:bg-slate-900/40']),
 .support-page :deep([class~='dark:bg-slate-900/50']) {
-    background-color: color-mix(in srgb, var(--card) 92%, transparent) !important;
+    background-color: color-mix(
+        in srgb,
+        var(--card) 92%,
+        transparent
+    ) !important;
 }
 
 .support-page :deep([class~='dark:bg-slate-800']),
 .support-page :deep([class~='dark:bg-slate-800/40']),
 .support-page :deep([class~='dark:bg-slate-700']) {
-    background-color: color-mix(in srgb, var(--muted) 92%, transparent) !important;
+    background-color: color-mix(
+        in srgb,
+        var(--muted) 92%,
+        transparent
+    ) !important;
 }
 
 .support-page :deep([class~='border-slate-100']),
@@ -3760,7 +3770,11 @@ function formatMins(mins: number): string {
 .support-page :deep([class~='bg-indigo-500/5']),
 .support-page :deep([class~='bg-indigo-500/10']),
 .support-page :deep([class~='dark:bg-indigo-500/20']) {
-    background-color: color-mix(in srgb, var(--primary) 10%, transparent) !important;
+    background-color: color-mix(
+        in srgb,
+        var(--primary) 10%,
+        transparent
+    ) !important;
 }
 
 .support-page :deep([class~='bg-indigo-600']) {
@@ -3786,11 +3800,19 @@ function formatMins(mins: number): string {
 .support-page :deep([class~='border-indigo-500/10']),
 .support-page :deep([class~='border-indigo-500/20']),
 .support-page :deep([class~='dark:border-indigo-600']) {
-    border-color: color-mix(in srgb, var(--primary) 25%, transparent) !important;
+    border-color: color-mix(
+        in srgb,
+        var(--primary) 25%,
+        transparent
+    ) !important;
 }
 
 .support-page :deep([class~='focus-visible:ring-indigo-500/50']):focus-visible {
-    --tw-ring-color: color-mix(in srgb, var(--primary) 50%, transparent) !important;
+    --tw-ring-color: color-mix(
+        in srgb,
+        var(--primary) 50%,
+        transparent
+    ) !important;
 }
 
 /* Micro-animations and premium UI visual additions */
