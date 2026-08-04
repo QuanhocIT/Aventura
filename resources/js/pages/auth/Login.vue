@@ -96,6 +96,14 @@ const maxDiscountPercent = computed(() => {
     <div
         class="flex min-h-dvh grid-cols-1 flex-col lg:grid lg:grid-cols-[1.1fr_2fr]"
     >
+        <Link
+            :href="home()"
+            class="fixed top-4 right-4 z-50 inline-flex items-center gap-1.5 rounded-full border border-white/25 bg-zinc-950/35 px-3.5 py-2 text-xs font-semibold text-white shadow-lg backdrop-blur-md transition-all hover:-translate-y-0.5 hover:bg-zinc-950/55 sm:top-6 sm:right-6"
+        >
+            <span aria-hidden="true">←</span>
+            Về trang chủ
+        </Link>
+
         <!-- LEFT: Form with a rich subtle gradient and highly defined glassmorphic container -->
         <div
             class="relative flex min-h-dvh flex-col overflow-hidden bg-gradient-to-b from-zinc-50 via-white to-zinc-50 px-4 py-6 sm:px-10 sm:py-10 md:px-12 dark:from-zinc-950 dark:via-zinc-900 dark:to-zinc-950"
@@ -440,10 +448,10 @@ const maxDiscountPercent = computed(() => {
             </div>
 
             <!-- Footer (bottom) -->
-            <p
-                v-if="canRegister"
-                class="relative z-10 mt-6 text-center text-sm text-muted-foreground"
+            <div
+                class="relative z-10 mt-6 flex flex-col items-center gap-2 text-center text-sm text-muted-foreground"
             >
+                <p v-if="canRegister">
                 Chưa có tài khoản?
                 <TextLink
                     :href="
@@ -456,7 +464,8 @@ const maxDiscountPercent = computed(() => {
                 >
                     Đăng ký miễn phí
                 </TextLink>
-            </p>
+                </p>
+            </div>
         </div>
 
         <!-- RIGHT: Plans panel (desktop only) -->
