@@ -10,7 +10,11 @@ use App\Models\ScheduleAssignment;
 use App\Models\ShiftSwap;
 use App\Models\User;
 use App\Models\WorkShift;
+use App\Jobs\RefreshMaterializedViewJob;
+use App\Services\MaterializedViewRefresher;
+use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Artisan;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
@@ -183,6 +187,81 @@ class EmployeePortalTest extends TestCase
         $data = $response->json();
         $this->assertEquals(1, $data['summary']['shifts_completed']);
         $this->assertEquals(4.0, (float) $data['summary']['hours_worked']);
+    }
+
+    /**
+     * The stable dashboard payload is served from the materialized snapshot.
+     */
+    public function test_dashboard_uses_materialized_snapshot_until_refresh(): void
+    {
+        app(MaterializedViewRefresher::class)->refresh('employee_portal', $this->restaurant->id);
+
+        $shift = WorkShift::create([
+            'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
+            'name' => 'Ca Snapshot',
+            'code' => 'CA-SNAPSHOT',
+            'start_time' => '08:00:00',
+            'end_time' => '12:00:00',
+            'status' => 'active',
+        ]);
+
+        ScheduleAssignment::create([
+            'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
+            'employee_id' => $this->employee->id,
+            'shift_id' => $shift->id,
+            'scheduled_date' => now()->toDateString(),
+            'status' => 'completed',
+        ]);
+
+        $response = $this->actingAs($this->employeeUser)->get(route('employee-portal.data'));
+
+        $response->assertOk();
+        $this->assertSame(0, $response->json('summary.shifts_completed'));
+    }
+
+    /**
+     * A stale snapshot must not block the request while its refresh is queued.
+     */
+    public function test_stale_dashboard_snapshot_is_served_while_refresh_is_queued(): void
+    {
+        app(MaterializedViewRefresher::class)->refresh('employee_portal', $this->restaurant->id);
+
+        $shift = WorkShift::create([
+            'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
+            'name' => 'Ca Stale Snapshot',
+            'code' => 'CA-STALE-SNAPSHOT',
+            'start_time' => '08:00:00',
+            'end_time' => '12:00:00',
+            'status' => 'active',
+        ]);
+
+        ScheduleAssignment::create([
+            'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
+            'employee_id' => $this->employee->id,
+            'shift_id' => $shift->id,
+            'scheduled_date' => now()->toDateString(),
+            'status' => 'completed',
+        ]);
+
+        Queue::fake();
+        Carbon::setTestNow(now()->addMinutes(31));
+
+        try {
+            $response = $this->actingAs($this->employeeUser)->get(route('employee-portal.data'));
+
+            $response->assertOk();
+            $this->assertSame(0, $response->json('summary.shifts_completed'));
+            Queue::assertPushed(RefreshMaterializedViewJob::class, function (RefreshMaterializedViewJob $job): bool {
+                return $job->view === 'employee_portal'
+                    && $job->restaurantId === $this->restaurant->id;
+            });
+        } finally {
+            Carbon::setTestNow();
+        }
     }
 
     /**

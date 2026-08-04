@@ -715,6 +715,7 @@ const managerNav = computed<NavItem[]>(() => {
 const cashierNav = computed<NavItem[]>(() => {
     const nav = [
         { title: 'Trang chủ', href: '/dashboard', icon: LayoutGrid },
+        { title: 'Cổng nhân sự', href: '/employee-portal', icon: UserCheck },
         { title: 'Lịch sử đơn', href: '/orders', icon: ScrollText },
         {
             title: 'Doanh thu ca',
@@ -837,7 +838,10 @@ const mainNavItems = computed<NavItem[]>(() => {
     }
 
     const showPortalLink =
-        !isSuperAdmin.value && !isSupplier.value && !isOwner.value;
+        !isSuperAdmin.value &&
+        !isSupplier.value &&
+        !isOwner.value &&
+        !isCashier.value;
 
     if (showPortalLink && items.length > 0) {
         if (
