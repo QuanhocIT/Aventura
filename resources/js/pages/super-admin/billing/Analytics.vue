@@ -270,7 +270,7 @@ function getInitials(name: string) {
 // Quick interactive actions
 function sendReminderEmail(restaurantName: string) {
     toast.success(
-        `Đã gửi email nhắc gia hạn tới đại diện nhà hàng: ${restaurantName}!`,
+        `Đã gửi thư điện tử nhắc gia hạn tới đại diện nhà hàng: ${restaurantName}!`,
     );
 }
 
@@ -280,12 +280,12 @@ function quickRenew(restaurantName: string) {
 </script>
 
 <template>
-    <Head title="Analytics — Billing" />
+    <Head title="Phân tích thanh toán" />
 
     <div class="flex flex-col gap-5 px-6 py-5">
         <!-- Header -->
         <PageHeader
-            title="Revenue Analytics"
+            title="Phân tích doanh thu"
             subtitle="Tổng quan doanh thu và sức khoẻ tài chính hệ thống."
             :icon="Activity"
         >
@@ -296,7 +296,8 @@ function quickRenew(restaurantName: string) {
                             variant="outline"
                             size="sm"
                             class="transition-all hover:bg-muted/80"
-                            ><ArrowLeft class="mr-1.5 size-4" /> Billing</Button
+                            ><ArrowLeft class="mr-1.5 size-4" /> Trung tâm thanh
+                            toán</Button
                         >
                     </Link>
                     <Link href="/super-admin/billing/ledger">
@@ -320,8 +321,8 @@ function quickRenew(restaurantName: string) {
                             variant="outline"
                             size="sm"
                             class="transition-all hover:bg-amber-500/[0.05] hover:text-amber-500"
-                            ><RefreshCcw class="mr-1.5 size-4" />
-                            Dunning</Button
+                            ><RefreshCcw class="mr-1.5 size-4" /> Nhắc
+                            nợ</Button
                         >
                     </Link>
                     <Link href="/super-admin/billing/lifecycle">
@@ -329,8 +330,8 @@ function quickRenew(restaurantName: string) {
                             variant="outline"
                             size="sm"
                             class="transition-all hover:bg-violet-500/[0.05] hover:text-violet-500"
-                            ><LayoutGrid class="mr-1.5 size-4" />
-                            Lifecycle</Button
+                            ><LayoutGrid class="mr-1.5 size-4" /> Vòng
+                            đời</Button
                         >
                     </Link>
                 </div>
@@ -397,7 +398,7 @@ function quickRenew(restaurantName: string) {
                 class="cursor-default transition-all duration-300 hover:scale-[1.01] hover:shadow-md"
             />
             <StatCard
-                label="Churn Rate (30d)"
+                label="Tỷ lệ rời bỏ (30 ngày)"
                 :value="`${kpis.churn_rate}%`"
                 :icon="TrendingDown"
                 :color="kpis.churn_rate > 5 ? 'rose' : 'sky'"
@@ -532,7 +533,7 @@ function quickRenew(restaurantName: string) {
                             <p
                                 class="mt-1.5 text-[10px] font-black tracking-wider text-muted-foreground uppercase"
                             >
-                                Đồng bộ Webhook
+                                Đồng bộ tích hợp
                             </p>
                         </div>
                     </div>
@@ -763,7 +764,7 @@ function quickRenew(restaurantName: string) {
                 <CardHeader class="pb-3">
                     <CardTitle class="flex items-center gap-2 text-base">
                         <CreditCard class="size-4 text-amber-500" />
-                        <span>Invoice Aging Report (Phân loại tuổi nợ)</span>
+                        <span>Báo cáo tuổi hóa đơn (phân loại tuổi nợ)</span>
                     </CardTitle>
                 </CardHeader>
                 <CardContent class="space-y-3.5">
@@ -1051,7 +1052,7 @@ function quickRenew(restaurantName: string) {
                                             size="sm"
                                             @click="sendReminderEmail(r.name)"
                                             class="h-7 gap-1 rounded-md px-2 text-[10px] font-semibold text-sky-500 hover:bg-sky-500/10 hover:text-sky-600"
-                                            title="Gửi email nhắc nhở"
+                                            title="Gửi thư điện tử nhắc nhở"
                                         >
                                             <Mail class="size-3" />
                                             <span>Nhắc nợ</span>

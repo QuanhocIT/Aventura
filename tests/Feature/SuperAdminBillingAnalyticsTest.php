@@ -120,6 +120,34 @@ class SuperAdminBillingAnalyticsTest extends TestCase
         );
     }
 
+    public function test_billing_index_shows_five_invoices_per_page(): void
+    {
+        $subscription = $this->restaurant->subscriptions()->firstOrFail();
+
+        foreach (range(3, 6) as $sequence) {
+            BillingInvoice::create([
+                'restaurant_id' => $this->restaurant->id,
+                'restaurant_subscription_id' => $subscription->id,
+                'invoice_number' => "INV-TEST-000{$sequence}",
+                'type' => 'payment_success',
+                'status' => 'processed',
+                'currency' => 'VND',
+                'total' => 500000,
+                'issued_on' => now()->subDays($sequence)->toDateString(),
+                'due_on' => now()->toDateString(),
+            ]);
+        }
+
+        $response = $this->actingAs($this->billingAdmin)->get(route('superadmin.billing.index'));
+
+        $response->assertOk();
+        $response->assertInertia(fn (Assert $page) => $page
+            ->component('super-admin/billing/Index')
+            ->where('invoices.per_page', 5)
+            ->has('invoices.data', 5)
+        );
+    }
+
     public function test_ledger_page_lists_invoice_adjustment_and_commission_entries(): void
     {
         $response = $this->actingAs($this->billingAdmin)->get(route('superadmin.billing.ledger'));

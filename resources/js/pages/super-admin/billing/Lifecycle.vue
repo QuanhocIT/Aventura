@@ -142,11 +142,11 @@ function formatVnd(val: number): string {
 </script>
 
 <template>
-    <Head title="Subscription Lifecycle" />
+    <Head title="Vòng đời gói dịch vụ" />
 
     <div class="flex flex-col gap-5 px-6 py-5">
         <PageHeader
-            title="Subscription Lifecycle"
+            title="Vòng đời gói dịch vụ"
             subtitle="Phân tích vòng đời, LTV và tỷ lệ gia hạn."
             :icon="LayoutGrid"
         >
@@ -157,7 +157,7 @@ function formatVnd(val: number): string {
                         size="sm"
                         class="shadow-3xs h-9 cursor-pointer rounded-xl border-border/80 px-4 text-xs font-bold"
                     >
-                        <ArrowLeft class="mr-1.5 size-4" /> Billing Analytics
+                        <ArrowLeft class="mr-1.5 size-4" /> Phân tích thanh toán
                     </Button>
                 </Link>
             </template>
@@ -183,7 +183,7 @@ function formatVnd(val: number): string {
                             <Sparkles
                                 class="size-3.5 animate-pulse text-indigo-500"
                             />
-                            AI Subscription Advisor
+                            Trợ lý AI về gói dịch vụ
                         </h4>
                         <p
                             class="mt-1 text-[11px] leading-relaxed font-semibold text-muted-foreground"

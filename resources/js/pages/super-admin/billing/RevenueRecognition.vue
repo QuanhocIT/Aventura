@@ -49,18 +49,19 @@ const barWidth = computed(() => {
 </script>
 
 <template>
-    <Head title="Revenue Recognition" />
+    <Head title="Ghi nhận doanh thu" />
 
     <div class="flex flex-col gap-5 px-6 py-5">
         <PageHeader
-            title="Revenue Recognition"
-            subtitle="Phân biệt doanh thu đã ghi nhận (earned) vs chưa ghi nhận (deferred)."
+            title="Ghi nhận doanh thu"
+            subtitle="Phân biệt doanh thu đã ghi nhận và doanh thu chưa ghi nhận."
             :icon="Wallet"
         >
             <template #actions>
                 <Link href="/super-admin/billing/analytics">
                     <Button variant="outline" size="sm"
-                        ><ArrowLeft class="mr-1.5 size-4" /> Analytics</Button
+                        ><ArrowLeft class="mr-1.5 size-4" /> Phân tích thanh
+                        toán</Button
                     >
                 </Link>
             </template>
@@ -69,7 +70,7 @@ const barWidth = computed(() => {
         <!-- Summary Cards -->
         <div class="grid gap-4 md:grid-cols-4">
             <StatCard
-                label="Tổng đã thu (Cash)"
+                label="Tổng đã thu"
                 :value="`${summary.total_cash}₫`"
                 :icon="TrendingUp"
                 color="sky"
@@ -77,7 +78,7 @@ const barWidth = computed(() => {
                 class=""
             />
             <StatCard
-                label="Đã ghi nhận (Earned)"
+                label="Đã ghi nhận"
                 :value="`${summary.total_earned}₫`"
                 :icon="TrendingUp"
                 color="emerald"
@@ -85,7 +86,7 @@ const barWidth = computed(() => {
                 class=""
             />
             <StatCard
-                label="Chưa ghi nhận (Deferred)"
+                label="Chưa ghi nhận"
                 :value="`${summary.total_deferred}₫`"
                 :icon="Clock"
                 color="amber"
@@ -126,13 +127,13 @@ const barWidth = computed(() => {
                             ><span
                                 class="inline-block size-2.5 rounded-full bg-emerald-500"
                             />
-                            Earned</span
+                            Đã ghi nhận</span
                         >
                         <span class="flex items-center gap-1"
                             ><span
                                 class="inline-block size-2.5 rounded-full bg-amber-400"
                             />
-                            Deferred</span
+                            Chưa ghi nhận</span
                         >
                     </div>
                 </CardContent>
@@ -143,9 +144,9 @@ const barWidth = computed(() => {
         <Card>
             <CardHeader class="pb-3">
                 <CardTitle class="text-base">
-                    Chi tiết theo Subscription
+                    Chi tiết theo gói dịch vụ
                     <span class="text-sm font-normal text-muted-foreground"
-                        >({{ details.length }} subscriptions active)</span
+                        >({{ details.length }} gói dịch vụ đang hoạt động)</span
                     >
                 </CardTitle>
             </CardHeader>
@@ -154,7 +155,7 @@ const barWidth = computed(() => {
                     v-if="details.length === 0"
                     class="py-16 text-center text-sm text-muted-foreground"
                 >
-                    Không có subscription đang active.
+                    Không có gói dịch vụ đang hoạt động.
                 </div>
                 <div v-else class="overflow-x-auto">
                     <table class="w-full text-sm">
