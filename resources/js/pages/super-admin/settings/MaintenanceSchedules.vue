@@ -207,8 +207,9 @@ const hasMaintenanceWarnings = computed(() => {
 
 const scheduleStats = computed(() => ({
     total: props.schedules.length,
-    scheduled: props.schedules.filter((schedule) => schedule.status === 'scheduled')
-        .length,
+    scheduled: props.schedules.filter(
+        (schedule) => schedule.status === 'scheduled',
+    ).length,
     active: props.schedules.filter((schedule) => schedule.status === 'active')
         .length,
     completed: props.schedules.filter(
@@ -224,7 +225,7 @@ const scheduleStats = computed(() => ({
         <!-- Header -->
         <PageHeader
             title="Lịch bảo trì hệ thống"
-            subtitle="Lên lịch nâng cấp dịch vụ và tự động cảnh báo các tenant"
+            subtitle="Lên lịch nâng cấp dịch vụ và tự động cảnh báo các nhà hàng"
             :icon="Calendar"
         />
 
@@ -273,7 +274,8 @@ const scheduleStats = computed(() => ({
                             lịch bảo trì
                         </CardTitle>
                         <p class="mt-1 text-xs text-muted-foreground">
-                            Theo dõi thời gian, dịch vụ ảnh hưởng và trạng thái thông báo.
+                            Theo dõi thời gian, dịch vụ ảnh hưởng và trạng thái
+                            thông báo.
                         </p>
                     </CardHeader>
                     <CardContent class="space-y-4 p-5">
@@ -405,7 +407,8 @@ const scheduleStats = computed(() => ({
                             bảo trì mới
                         </CardTitle>
                         <p class="mt-1 text-xs text-muted-foreground">
-                            Tạo lịch, chọn dịch vụ cần khóa và gửi thông báo cho tenant.
+                            Tạo lịch, chọn dịch vụ cần khóa và gửi thông báo cho
+                            tenant.
                         </p>
                     </CardHeader>
                     <CardContent class="p-5">
@@ -612,7 +615,7 @@ const scheduleStats = computed(() => ({
                             <h4
                                 class="text-xs font-black tracking-wider text-muted-foreground uppercase"
                             >
-                                AI Cảnh báo & Advisor
+                                AI Cảnh báo & Trợ lý
                             </h4>
                             <span
                                 class="animate-pulse rounded-full border px-2 py-0.5 text-[9px] font-black uppercase"
