@@ -150,7 +150,7 @@ function updateRetention() {
 function pruneRetention() {
     if (
         !window.confirm(
-            `Xóa vĩnh viễn Audit Log cũ hơn ${retentionMonths.value} tháng? Hành động này không thể hoàn tác.`,
+            `Xóa vĩnh viễn nhật ký kiểm toán cũ hơn ${retentionMonths.value} tháng? Hành động này không thể hoàn tác.`,
         )
     ) {
         return;
@@ -175,10 +175,21 @@ const eventLabel: Record<string, string> = {
 };
 
 const actionLabel: Record<string, string> = {
-    reset_password: 'Reset mật khẩu',
+    reset_password: 'Đặt lại mật khẩu',
     disable_2fa: 'Tắt 2FA',
     toggle_account_status: 'Đổi trạng thái TK',
-    seed_demo_order: 'Seed đơn demo',
+    seed_demo_order: 'Tạo đơn mẫu',
+    price_modified: 'Cập nhật giá',
+    impersonate_start: 'Bắt đầu mạo danh',
+    order_created: 'Tạo đơn hàng',
+    order_split: 'Tách đơn hàng',
+    create_admin_account: 'Tạo tài khoản quản trị',
+    update_admin_role: 'Cập nhật vai trò quản trị',
+    'update_admin_role.before': 'Kiểm tra thay đổi vai trò quản trị',
+    'update_admin_role.after': 'Cập nhật vai trò quản trị',
+    export_audit_logs: 'Xuất nhật ký kiểm toán',
+    audit_retention_update: 'Cập nhật thời hạn lưu nhật ký',
+    audit_retention_prune: 'Xóa nhật ký quá hạn lưu trữ',
 };
 
 function formatAction(action: string): string {
@@ -294,12 +305,12 @@ const securityInsights = computed(() => {
 </script>
 
 <template>
-    <Head title="Audit Log hệ thống" />
+    <Head title="Nhật ký kiểm toán hệ thống" />
 
     <div class="flex flex-col gap-5 px-6 py-5">
         <!-- Header -->
         <PageHeader
-            title="Audit Log hệ thống"
+            title="Nhật ký kiểm toán hệ thống"
             :subtitle="`Nhật ký thao tác cấp hệ thống · Tổng số ${total.toLocaleString()} bản ghi`"
             :icon="FileSearch2"
         >
@@ -373,7 +384,7 @@ const securityInsights = computed(() => {
                     <p
                         class="text-[10px] font-black tracking-wider text-rose-600 uppercase dark:text-rose-400"
                     >
-                        Hành động xóa (Deleted)
+                        Hành động xóa
                     </p>
                     <div
                         class="flex items-center justify-center gap-1 font-mono text-2xl font-black text-rose-600 dark:text-rose-400"
@@ -519,7 +530,7 @@ const securityInsights = computed(() => {
                                 </span>
                                 <span
                                     class="text-[7px] font-bold text-slate-400 uppercase"
-                                    >Checked</span
+                                    >Đã kiểm tra</span
                                 >
                             </div>
                         </div>
@@ -536,7 +547,7 @@ const securityInsights = computed(() => {
                         class="flex items-center gap-1 text-xs font-bold tracking-wider text-slate-700 uppercase dark:text-slate-200"
                     >
                         <Activity class="size-4 text-blue-500" />
-                        Top 5 Thao tác Phổ biến
+                        5 thao tác phổ biến nhất
                     </h3>
                     <div class="space-y-2.5 pt-1">
                         <div
@@ -638,7 +649,7 @@ const securityInsights = computed(() => {
                 <div>
                     <p class="flex items-center gap-2 text-sm font-bold">
                         <ArchiveRestore class="size-4 text-amber-600" />
-                        Retention & thao tác nguy hiểm
+                        Thời hạn lưu trữ & thao tác nguy hiểm
                     </p>
                     <p class="text-xs text-muted-foreground">
                         {{ stats.dangerous_count ?? 0 }} thao tác nhạy cảm · dữ
@@ -655,13 +666,13 @@ const securityInsights = computed(() => {
                     />
                     <span class="text-xs text-muted-foreground">tháng</span>
                     <Button size="sm" variant="outline" @click="updateRetention"
-                        >Lưu retention</Button
+                        >Lưu thời hạn</Button
                     >
                     <Button
                         size="sm"
                         variant="destructive"
                         @click="pruneRetention"
-                        >Prune log cũ</Button
+                        >Xóa nhật ký cũ</Button
                     >
                 </div>
             </CardContent>
@@ -917,7 +928,8 @@ const securityInsights = computed(() => {
                                                             class="size-3"
                                                         />
                                                         Trình xem thay đổi thuộc
-                                                        tính (Diff Viewer)
+                                                        tính (Trình xem thay
+                                                        đổi)
                                                     </span>
                                                 </div>
                                                 <div
@@ -941,7 +953,6 @@ const securityInsights = computed(() => {
                                                     >
                                                         <Flame class="size-3" />
                                                         Dữ liệu trước thay đổi
-                                                        (Old Values)
                                                     </p>
                                                     <pre
                                                         class="max-h-56 overflow-auto rounded-lg border border-rose-500/10 bg-rose-950/20 p-3.5 font-mono text-[11px] leading-relaxed text-rose-300"
@@ -962,7 +973,6 @@ const securityInsights = computed(() => {
                                                             class="size-3"
                                                         />
                                                         Dữ liệu sau thay đổi
-                                                        (New Values)
                                                     </p>
                                                     <pre
                                                         class="max-h-56 overflow-auto rounded-lg border border-emerald-500/10 bg-emerald-950/20 p-3.5 font-mono text-[11px] leading-relaxed text-emerald-300"
@@ -1008,8 +1018,7 @@ const securityInsights = computed(() => {
                                                     class="mb-2 flex items-center gap-1 text-[10px] font-bold tracking-widest text-rose-400 uppercase"
                                                 >
                                                     <Trash2 class="size-3" /> Dữ
-                                                    liệu đã xóa bỏ (Deleted
-                                                    Values)
+                                                    liệu đã xóa bỏ
                                                 </p>
                                                 <pre
                                                     class="max-h-56 overflow-auto rounded-lg border border-rose-500/10 bg-rose-950/20 p-3.5 font-mono text-[11px] leading-relaxed text-rose-300"
@@ -1028,8 +1037,8 @@ const securityInsights = computed(() => {
                                                 class="py-6 text-center font-mono text-xs text-slate-500 italic"
                                             >
                                                 Không ghi nhận dữ liệu thuộc
-                                                tính thay đổi chi tiết (Metadata
-                                                logs).
+                                                tính thay đổi chi tiết (nhật ký
+                                                siêu dữ liệu).
                                             </div>
                                         </div>
                                     </td>

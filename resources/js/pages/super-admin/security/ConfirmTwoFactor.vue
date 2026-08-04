@@ -37,7 +37,7 @@ const submit = (): void => {
 </script>
 
 <template>
-    <Head title="Xác nhận 2FA · Super Admin" />
+    <Head title="Xác nhận 2FA · Quản trị cấp cao" />
 
     <div
         class="flex min-h-dvh grid-cols-1 flex-col lg:grid lg:grid-cols-[1.1fr_2fr]"
@@ -102,8 +102,8 @@ const submit = (): void => {
                             <p
                                 class="mt-2.5 text-sm leading-relaxed text-muted-foreground"
                             >
-                                Nhập mã 6 chữ số từ ứng dụng Authenticator. Phiên
-                                xác nhận có hiệu lực
+                                Nhập mã 6 chữ số từ ứng dụng Authenticator.
+                                Phiên xác nhận có hiệu lực
                                 {{ validityMinutes }} phút.
                             </p>
                         </div>
@@ -195,7 +195,9 @@ const submit = (): void => {
                 <div
                     class="mb-3.5 inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/5 px-3.5 py-1 text-xs text-zinc-400 shadow-sm backdrop-blur-md"
                 >
-                    <ShieldCheck class="size-3 animate-pulse text-emerald-400" />
+                    <ShieldCheck
+                        class="size-3 animate-pulse text-emerald-400"
+                    />
                     Xác minh bảo vệ kép
                 </div>
                 <h2
@@ -221,12 +223,17 @@ const submit = (): void => {
                     />
                     <div
                         class="absolute h-36 w-36 animate-spin rounded-full border border-dashed border-blue-500/30"
-                        style="animation-duration: 12s; animation-direction: reverse"
+                        style="
+                            animation-duration: 12s;
+                            animation-direction: reverse;
+                        "
                     />
                     <div
                         class="flex h-28 w-28 items-center justify-center rounded-full border border-emerald-500/20 bg-emerald-500/5 shadow-lg backdrop-blur-md dark:bg-emerald-500/10"
                     >
-                        <Fingerprint class="size-12 animate-pulse text-emerald-400" />
+                        <Fingerprint
+                            class="size-12 animate-pulse text-emerald-400"
+                        />
                     </div>
                 </div>
 
@@ -240,12 +247,16 @@ const submit = (): void => {
                             <LockKeyhole class="size-4" />
                         </div>
                         <div>
-                            <h4 class="text-sm leading-tight font-bold text-zinc-100">
+                            <h4
+                                class="text-sm leading-tight font-bold text-zinc-100"
+                            >
                                 Xác minh danh tính tức thời
                             </h4>
-                            <p class="mt-1 text-xs leading-relaxed text-zinc-500">
-                                Chỉ quản trị viên đã xác thực mới có thể tiếp tục
-                                các thao tác nhạy cảm.
+                            <p
+                                class="mt-1 text-xs leading-relaxed text-zinc-500"
+                            >
+                                Chỉ quản trị viên đã xác thực mới có thể tiếp
+                                tục các thao tác nhạy cảm.
                             </p>
                         </div>
                     </div>
@@ -258,12 +269,16 @@ const submit = (): void => {
                             <FileCheck2 class="size-4" />
                         </div>
                         <div>
-                            <h4 class="text-sm leading-tight font-bold text-zinc-100">
+                            <h4
+                                class="text-sm leading-tight font-bold text-zinc-100"
+                            >
                                 Ghi nhật ký kiểm toán chặt chẽ
                             </h4>
-                            <p class="mt-1 text-xs leading-relaxed text-zinc-500">
-                                Mỗi lần xác nhận đều được ghi nhận để phục vụ truy
-                                vết và bảo mật hệ thống.
+                            <p
+                                class="mt-1 text-xs leading-relaxed text-zinc-500"
+                            >
+                                Mỗi lần xác nhận đều được ghi nhận để phục vụ
+                                truy vết và bảo mật hệ thống.
                             </p>
                         </div>
                     </div>
