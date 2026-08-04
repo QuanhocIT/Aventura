@@ -174,7 +174,10 @@ class OrderService
                         'merged_items_count' => count($data['items']),
                     ]);
 
-                    event(new KitchenUpdated($restaurantId));
+                    $this->broadcastSafely(
+                        new KitchenUpdated($restaurantId),
+                        'kitchen.updated',
+                    );
 
                     return $existingActiveOrder;
                 }
@@ -273,7 +276,10 @@ class OrderService
                 'items_count' => count($itemsToCreate),
             ]);
 
-            event(new KitchenUpdated($restaurantId));
+            $this->broadcastSafely(
+                new KitchenUpdated($restaurantId),
+                'kitchen.updated',
+            );
 
             return $order;
         });
@@ -333,7 +339,10 @@ class OrderService
                     ->update(['status' => 'available']);
             }
 
-            event(new KitchenUpdated($order->restaurant_id));
+            $this->broadcastSafely(
+                new KitchenUpdated($order->restaurant_id),
+                'kitchen.updated',
+            );
         });
     }
 
@@ -590,7 +599,10 @@ class OrderService
                 AuditLog::log('order_updated', 'updated', $order, $oldValues, $newValues);
             }
 
-            event(new KitchenUpdated($order->restaurant_id));
+            $this->broadcastSafely(
+                new KitchenUpdated($order->restaurant_id),
+                'kitchen.updated',
+            );
         });
     }
 
@@ -823,7 +835,25 @@ class OrderService
         // Cache::add() chỉ set nếu key chưa tồn tại → atomic, thread-safe trên Redis.
         // Nếu key đã tồn tại (đã fire gần đây) → skip broadcast.
         if (Cache::add($key, 1, $ttl)) {
-            event(new ProductStockUpdated($restaurantId));
+            $this->broadcastSafely(
+                new ProductStockUpdated($restaurantId),
+                'product.stock_updated',
+            );
+        }
+    }
+
+    /**
+     * Broadcast realtime không được làm hỏng giao dịch lưu đơn khi Reverb tạm dừng.
+     */
+    private function broadcastSafely(object $event, string $eventName): void
+    {
+        try {
+            event($event);
+        } catch (\Throwable $exception) {
+            Log::warning('Realtime broadcast skipped.', [
+                'event' => $eventName,
+                'error' => $exception->getMessage(),
+            ]);
         }
     }
 }
