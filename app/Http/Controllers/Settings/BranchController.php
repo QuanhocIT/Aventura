@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Settings;
 use App\Http\Controllers\Controller;
 use App\Models\RestaurantBranch;
 use App\Models\User;
+use App\Services\BranchDataAssignmentService;
 use App\Services\QuotaService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -68,7 +69,7 @@ class BranchController extends Controller
         ]);
     }
 
-    public function store(Request $request): RedirectResponse
+    public function store(Request $request, BranchDataAssignmentService $branchDataAssignment): RedirectResponse
     {
         $restaurant = $request->user()->restaurant;
         abort_unless($restaurant, 403, 'Không tìm thấy nhà hàng.');
@@ -96,9 +97,10 @@ class BranchController extends Controller
         $manager = $this->resolveManager($restaurant->id, $data['manager_user_id'] ?? null);
         unset($data['manager_user_id']);
 
-        DB::transaction(function () use ($restaurant, $data, $manager): void {
+        DB::transaction(function () use ($restaurant, $data, $manager, $branchDataAssignment): void {
             $branch = $restaurant->branches()->create($data + ['status' => 'active']);
             $this->syncManagerAssignment($branch, $manager, null);
+            $branchDataAssignment->assignLegacyRowsToSoleBranch($branch);
         });
 
         return back()->with('success', "Đã tạo chi nhánh \"{$data['name']}\" thành công.");

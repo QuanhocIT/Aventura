@@ -124,15 +124,15 @@ class DemoDataSeederService
     // ─────────────────────────────────────────
     private function seedBBQ(Restaurant $restaurant): array
     {
-        $branchId = null;
+        $branchId = $this->activeBranchId($restaurant);
         $rid = $restaurant->id;
         $units = $this->ensureUnits($restaurant);
 
         // Khu vực + bàn
-        $areaIn = $this->ensureArea($restaurant, 'IN', 'Phòng trong', 1);
-        $areaOut = $this->ensureArea($restaurant, 'OUT', 'Sân ngoài trời', 2);
-        $this->ensureTablesForArea($restaurant, $areaIn, ['B01', 'B02', 'B03', 'B04', 'B05'], 4);
-        $this->ensureTablesForArea($restaurant, $areaOut, ['S01', 'S02', 'S03', 'S04'], 6);
+        $areaIn = $this->ensureArea($restaurant, $branchId, 'IN', 'Phòng trong', 1);
+        $areaOut = $this->ensureArea($restaurant, $branchId, 'OUT', 'Sân ngoài trời', 2);
+        $this->ensureTablesForArea($restaurant, $branchId, $areaIn, ['B01', 'B02', 'B03', 'B04', 'B05'], 4);
+        $this->ensureTablesForArea($restaurant, $branchId, $areaOut, ['S01', 'S02', 'S03', 'S04'], 6);
 
         // Categories
         $catCombo = $this->cat($rid, $branchId, 'combo-nuong', 'Combo Nướng', 1);
@@ -191,14 +191,14 @@ class DemoDataSeederService
     // ─────────────────────────────────────────
     private function seedCafe(Restaurant $restaurant): array
     {
-        $branchId = null;
+        $branchId = $this->activeBranchId($restaurant);
         $rid = $restaurant->id;
         $units = $this->ensureUnits($restaurant);
 
-        $areaMain = $this->ensureArea($restaurant, 'CAFE-IN', 'Phòng máy lạnh', 1);
-        $areaBal = $this->ensureArea($restaurant, 'CAFE-OUT', 'Ban công', 2);
-        $this->ensureTablesForArea($restaurant, $areaMain, ['C01', 'C02', 'C03', 'C04', 'C05', 'C06'], 2);
-        $this->ensureTablesForArea($restaurant, $areaBal, ['BC01', 'BC02', 'BC03'], 2);
+        $areaMain = $this->ensureArea($restaurant, $branchId, 'CAFE-IN', 'Phòng máy lạnh', 1);
+        $areaBal = $this->ensureArea($restaurant, $branchId, 'CAFE-OUT', 'Ban công', 2);
+        $this->ensureTablesForArea($restaurant, $branchId, $areaMain, ['C01', 'C02', 'C03', 'C04', 'C05', 'C06'], 2);
+        $this->ensureTablesForArea($restaurant, $branchId, $areaBal, ['BC01', 'BC02', 'BC03'], 2);
 
         $catCoffee = $this->cat($rid, $branchId, 'ca-phe', 'Cà Phê', 1);
         $catMilk = $this->cat($rid, $branchId, 'sua-tua', 'Sữa Tươi & Matcha', 2);
@@ -255,12 +255,12 @@ class DemoDataSeederService
     // ─────────────────────────────────────────
     private function seedBubbleTea(Restaurant $restaurant): array
     {
-        $branchId = null;
+        $branchId = $this->activeBranchId($restaurant);
         $rid = $restaurant->id;
         $units = $this->ensureUnits($restaurant);
 
-        $areaMain = $this->ensureArea($restaurant, 'TS-MAIN', 'Khu ngồi chính', 1);
-        $this->ensureTablesForArea($restaurant, $areaMain, ['A01', 'A02', 'A03', 'A04', 'A05', 'A06', 'A07', 'A08'], 2);
+        $areaMain = $this->ensureArea($restaurant, $branchId, 'TS-MAIN', 'Khu ngồi chính', 1);
+        $this->ensureTablesForArea($restaurant, $branchId, $areaMain, ['A01', 'A02', 'A03', 'A04', 'A05', 'A06', 'A07', 'A08'], 2);
 
         $catTra = $this->cat($rid, $branchId, 'tra-sua', 'Trà Sữa', 1);
         $catFruTea = $this->cat($rid, $branchId, 'tra-trai-cay', 'Trà Trái Cây', 2);
@@ -594,20 +594,28 @@ class DemoDataSeederService
         ];
     }
 
-    private function ensureArea(Restaurant $restaurant, string $code, string $name, int $order): Area
+    private function activeBranchId(Restaurant $restaurant): ?int
+    {
+        return $restaurant->branches()
+            ->where('status', 'active')
+            ->orderBy('id')
+            ->value('id');
+    }
+
+    private function ensureArea(Restaurant $restaurant, ?int $branchId, string $code, string $name, int $order): Area
     {
         return Area::updateOrCreate(
             ['restaurant_id' => $restaurant->id, 'code' => $code],
-            ['branch_id' => null, 'name' => $name, 'display_order' => $order, 'status' => 'active']
+            ['branch_id' => $branchId, 'name' => $name, 'display_order' => $order, 'status' => 'active']
         );
     }
 
-    private function ensureTablesForArea(Restaurant $restaurant, Area $area, array $names, int $capacity): void
+    private function ensureTablesForArea(Restaurant $restaurant, ?int $branchId, Area $area, array $names, int $capacity): void
     {
         foreach ($names as $name) {
             $table = RestaurantTable::updateOrCreate(
                 ['restaurant_id' => $restaurant->id, 'area_id' => $area->id, 'name' => $name],
-                ['branch_id' => null, 'capacity' => $capacity, 'status' => 'available']
+                ['branch_id' => $branchId, 'capacity' => $capacity, 'status' => 'available']
             );
 
             // Nếu chưa có QR token, gán luôn

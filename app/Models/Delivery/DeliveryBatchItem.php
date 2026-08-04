@@ -2,6 +2,7 @@
 
 namespace App\Models\Delivery;
 
+use App\Models\Concerns\HasBranch;
 use App\Models\Order;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -9,6 +10,7 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class DeliveryBatchItem extends Model
 {
+    use HasBranch;
     protected $guarded = [];
 
     protected function casts(): array

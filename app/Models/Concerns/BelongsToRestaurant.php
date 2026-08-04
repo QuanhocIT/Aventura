@@ -2,9 +2,12 @@
 
 namespace App\Models\Concerns;
 
+use App\Models\RestaurantBranch;
 use App\Support\Tenant\TenantContext;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Facades\Schema;
 
 trait BelongsToRestaurant
 {
@@ -34,7 +37,27 @@ trait BelongsToRestaurant
             if ($restaurantId !== null && empty($model->restaurant_id)) {
                 $model->restaurant_id = $restaurantId;
             }
+
+            // Every operational model that owns a branch_id receives the
+            // active branch automatically. Controllers can still override it
+            // explicitly for cross-branch operations such as transfers.
+            if (
+                Schema::hasColumn($model->getTable(), 'branch_id')
+                && empty($model->branch_id)
+                && app(TenantContext::class)->isBranchScoped()
+            ) {
+                $model->branch_id = app(TenantContext::class)->activeBranchId();
+            }
         });
+    }
+
+    /**
+     * Shared relation for branch-aware tenant models. Models that already
+     * define a more specific branch relation keep their own implementation.
+     */
+    public function branch(): BelongsTo
+    {
+        return $this->belongsTo(RestaurantBranch::class, 'branch_id');
     }
 
     /**

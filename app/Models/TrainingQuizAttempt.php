@@ -2,11 +2,13 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\HasBranch;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class TrainingQuizAttempt extends Model
 {
+    use HasBranch;
     protected $guarded = [];
 
     protected function casts(): array
