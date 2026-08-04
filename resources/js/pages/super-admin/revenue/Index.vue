@@ -176,7 +176,7 @@ const totalPaymentsSum =
 
         <PageHeader
             title="Doanh thu toàn hệ thống"
-            subtitle="Phân tích doanh thu cross-restaurant, top performers và xu hướng."
+            subtitle="Phân tích doanh thu toàn hệ thống, nhà hàng nổi bật và xu hướng."
             :icon="DollarSign"
         >
             <template #actions>

@@ -390,14 +390,14 @@ const statusColor: Record<string, string> = {
     orphaned: 'bg-rose-100 text-rose-800',
 };
 const statusLabel: Record<string, string> = {
-    active: 'Hoat dong',
-    suspended: 'Tam ngung',
-    expired: 'Het han',
-    generated: 'Da sinh file',
-    sent: 'Da gui',
-    pending: 'Dang cho',
-    processed: 'Da xu ly',
-    orphaned: 'Khong khop',
+    active: 'Hoạt động',
+    suspended: 'Tạm ngừng',
+    expired: 'Hết hạn',
+    generated: 'Đã tạo tệp',
+    sent: 'Đã gửi',
+    pending: 'Đang chờ',
+    processed: 'Đã xử lý',
+    orphaned: 'Không khớp',
 };
 
 const resourceIcons: Record<string, any> = {
@@ -435,7 +435,7 @@ function typeLabel(type: string) {
         upcoming_renewal: 'Sap den han',
         extend: 'Gia han tay',
         discount: 'Giam gia',
-        trial: 'Tang trial',
+        trial: 'Dùng thử miễn phí',
     };
 
     return labels[type] ?? type;
@@ -572,7 +572,7 @@ const tagBgColors: Record<string, string> = {
 </script>
 
 <template>
-    <Head :title="`${restaurant.name} - Billing Center`" />
+    <Head :title="`${restaurant.name} - Trung tâm thanh toán`" />
 
     <div class="flex flex-col gap-5 px-6 py-5">
         <!-- Header -->
@@ -617,7 +617,7 @@ const tagBgColors: Record<string, string> = {
                         </StatusBadge>
                     </h1>
                     <p class="font-mono text-sm text-muted-foreground">
-                        {{ restaurant.code }} · Billing Center
+                        {{ restaurant.code }} · Trung tâm thanh toán
                     </p>
                     <div class="flex flex-wrap items-center gap-2">
                         <span
@@ -700,7 +700,9 @@ const tagBgColors: Record<string, string> = {
                             </p>
                         </div>
                         <div>
-                            <p class="text-muted-foreground">Email chu</p>
+                            <p class="text-muted-foreground">
+                                Thư điện tử chủ sở hữu
+                            </p>
                             <p class="font-medium">
                                 {{ restaurant.owner.email || '—' }}
                             </p>
@@ -718,7 +720,7 @@ const tagBgColors: Record<string, string> = {
                             </p>
                         </div>
                         <div>
-                            <p class="text-muted-foreground">Het han trial</p>
+                            <p class="text-muted-foreground">Hạn dùng thử</p>
                             <p class="font-medium">
                                 {{ restaurant.trial_ends_at || '—' }}
                             </p>
@@ -1366,7 +1368,7 @@ const tagBgColors: Record<string, string> = {
                                                 for="add-support"
                                                 class="cursor-pointer text-xs font-semibold"
                                             >
-                                                Ưu tiên xử lý ticket hỗ trợ (SLA
+                                                Ưu tiên xử lý phiếu hỗ trợ (SLA
                                                 VIP)
                                                 <span
                                                     class="block text-[10px] font-normal text-muted-foreground"
@@ -1548,7 +1550,7 @@ const tagBgColors: Record<string, string> = {
                                     <Label
                                         for="cp-pwd"
                                         class="font-semibold text-rose-600 dark:text-rose-400"
-                                        >Xác nhận mật khẩu Super Admin của
+                                        >Xác nhận mật khẩu quản trị cấp cao của
                                         bạn</Label
                                     >
                                     <Input
@@ -1666,7 +1668,7 @@ const tagBgColors: Record<string, string> = {
                                     ><RefreshCcw
                                         class="size-4 text-violet-600"
                                     />
-                                    Webhook log</span
+                                    Nhật ký tích hợp</span
                                 >
                                 <a
                                     :href="`/super-admin/billing?restaurant_id=${restaurant.id}`"
@@ -1706,21 +1708,24 @@ const tagBgColors: Record<string, string> = {
                                 >
                                     {{
                                         webhook.transaction_code ||
-                                        'No transaction code'
+                                        'Chưa có mã giao dịch'
                                     }}
                                 </p>
                                 <p class="mt-1 text-xs text-muted-foreground">
-                                    {{ webhook.event_type || 'No event type' }}
+                                    {{
+                                        webhook.event_type ||
+                                        'Chưa có loại sự kiện'
+                                    }}
                                 </p>
                                 <p class="mt-1 text-xs text-muted-foreground">
-                                    {{ webhook.processed_at || 'Chua xu ly' }}
+                                    {{ webhook.processed_at || 'Chưa xử lý' }}
                                 </p>
                             </div>
                             <p
                                 v-if="!webhooks.length"
                                 class="py-6 text-center text-sm text-muted-foreground"
                             >
-                                Chua co webhook nao.
+                                Chưa có sự kiện tích hợp nào.
                             </p>
                         </CardContent>
                     </Card>
@@ -1837,7 +1842,7 @@ const tagBgColors: Record<string, string> = {
                                 </div>
 
                                 <div class="grid gap-1.5">
-                                    <Label>Ma coupon</Label>
+                                    <Label>Mã giảm giá</Label>
                                     <Input
                                         v-model="overrideForm.coupon_code"
                                         placeholder="PARTNER-VIP-2026"
@@ -1897,7 +1902,7 @@ const tagBgColors: Record<string, string> = {
                                     ><WalletCards
                                         class="size-4 text-emerald-600"
                                     />
-                                    Lich su dieu chinh</span
+                                    Lịch sử điều chỉnh</span
                                 >
                                 <a
                                     :href="`/super-admin/billing?restaurant_id=${restaurant.id}`"
@@ -2191,7 +2196,7 @@ const tagBgColors: Record<string, string> = {
                         <CardTitle
                             class="flex items-center justify-between gap-2 text-base"
                         >
-                            <span>Lich su subscription</span>
+                            <span>Lịch sử gói dịch vụ</span>
                             <button
                                 class="flex items-center gap-1 text-xs font-normal text-amber-600 hover:underline dark:text-amber-400"
                                 @click="openSubsDialog"
@@ -2231,7 +2236,7 @@ const tagBgColors: Record<string, string> = {
                             v-if="!subscriptions.length"
                             class="py-6 text-center text-sm text-muted-foreground"
                         >
-                            Chua co lich su subscription.
+                            Chưa có lịch sử gói dịch vụ.
                         </p>
                     </CardContent>
                 </Card>
@@ -2290,7 +2295,7 @@ const tagBgColors: Record<string, string> = {
         <DialogContent class="sm:max-w-lg">
             <DialogHeader>
                 <DialogTitle
-                    >Lịch sử Subscription · {{ restaurant.name }}</DialogTitle
+                    >Lịch sử gói dịch vụ · {{ restaurant.name }}</DialogTitle
                 >
             </DialogHeader>
 

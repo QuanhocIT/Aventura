@@ -396,7 +396,7 @@ const ALL_FEATURES: { key: string; label: string }[] = [
     { key: 'advanced_analytics', label: 'Báo cáo Nâng cao' },
     { key: 'realtime', label: 'Cập nhật thời gian thực' },
     { key: 'fraud_detection', label: 'Phát hiện Gian lận' },
-    { key: 'email_reports', label: 'Email Báo cáo tự động' },
+    { key: 'email_reports', label: 'Thư điện tử báo cáo tự động' },
 
     // 5. Trí tuệ Nhân tạo AI
     { key: 'ai_advisor', label: 'AI Tư vấn chiến lược' },
@@ -475,11 +475,11 @@ const FEATURE_DESCRIPTIONS: Record<string, string> = {
     shift_management: 'Chốt ca làm việc, đối soát tiền mặt và bàn giao ca.',
     crm_loyalty: 'Tích điểm đổi quà, quản lý hạng khách hàng VIP & Birthday.',
     marketing_campaign: 'Tạo mã giảm giá, khuyến mãi combo theo khung giờ.',
-    custom_domain: 'Gán tên miền thương hiệu riêng cho trang Menu Online.',
+    custom_domain: 'Gán tên miền thương hiệu riêng cho trang menu trực tuyến.',
     advanced_analytics: 'Báo cáo doanh thu, chi phí, lợi nhuận chuyên sâu.',
     realtime: 'Đồng bộ hóa tức thì mọi dữ liệu trên toàn hệ thống.',
     fraud_detection: 'Cảnh báo gian lận, hủy món hoặc sai lệch hóa đơn từ AI.',
-    email_reports: 'Báo cáo tự động gửi trực tiếp đến email của quản lý.',
+    email_reports: 'Báo cáo tự động gửi trực tiếp đến thư điện tử của quản lý.',
     ai_advisor: 'AI phân tích và gợi ý tối ưu giá, thực đơn kinh doanh.',
     ai_forecasting: 'AI phân tích dữ liệu cũ để dự đoán lượng hàng cần nhập.',
     delivery_integration:
