@@ -20,7 +20,6 @@ import {
     Award,
     Crown,
     Mail,
-    ChevronRight,
     BarChart3,
     ShieldAlert,
 } from 'lucide-vue-next';
@@ -29,9 +28,6 @@ import { toast } from 'vue-sonner';
 import {
     PageHeader,
     StatCard,
-    StatusBadge,
-    ProgressBar,
-    SectionCard,
     LedIndicator,
 } from '@/components/super-admin';
 import { Badge } from '@/components/ui/badge';

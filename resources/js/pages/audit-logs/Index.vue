@@ -16,9 +16,8 @@ import {
     AlertTriangle,
     ArrowRight,
     Activity,
-    Inbox,
 } from 'lucide-vue-next';
-import { ref, watch } from 'vue';
+import { ref } from 'vue';
 import { Pagination } from '@/components/super-admin';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';

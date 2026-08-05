@@ -13,8 +13,8 @@ import AuthLayout from '@/layouts/AuthLayout.vue';
 import BareLayout from '@/layouts/BareLayout.vue';
 import GuestLayout from '@/layouts/GuestLayout.vue';
 import SettingsLayout from '@/layouts/settings/Layout.vue';
-import { initializeFlashToast } from '@/lib/flashToast';
 import { initializeAutoTablePagination } from '@/lib/autoTablePagination';
+import { initializeFlashToast } from '@/lib/flashToast';
 
 router.on(
     'success',

@@ -9,7 +9,6 @@ import {
     Search,
     Brain,
     Sparkles,
-    DollarSign,
     Wallet,
     AlertTriangle,
     Calendar,
@@ -17,9 +16,7 @@ import {
 import { ref, watch, computed } from 'vue';
 import {
     PageHeader,
-    StatusBadge,
     Pagination,
-    FilterBar,
 } from '@/components/super-admin';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -155,6 +152,7 @@ const typeBadgeClass: Record<string, string> = {
     adjustment: 'bg-amber-100 text-amber-800',
     commission: 'bg-sky-100 text-sky-800',
 };
+void typeBadgeClass;
 
 const ledgerTrends = computed(() => {
     return [

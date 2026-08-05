@@ -1,33 +1,6 @@
 <script setup lang="ts">
 import { Head, router, useForm, usePage } from '@inertiajs/vue3';
-import {
-    Wallet,
-    Users,
-    TrendingDown,
-    TrendingUp,
-    Check,
-    ChevronDown,
-    ChevronUp,
-    Plus,
-    BadgeDollarSign,
-    AlertCircle,
-    Clock,
-    X,
-    Sparkles,
-    Search,
-    Download,
-    Building2,
-    UserCog,
-    ShieldAlert,
-    AlertTriangle,
-    ChevronLeft,
-    ChevronRight,
-    Calculator,
-    Printer,
-    Layers,
-    CalendarCheck,
-    Clock3,
-} from 'lucide-vue-next';
+import { Wallet, Users, TrendingDown, TrendingUp, Check, ChevronDown, ChevronUp, Plus, BadgeDollarSign, AlertCircle, Clock, X, Sparkles, Search, Download, Building2, UserCog, AlertTriangle, ChevronLeft, ChevronRight, Calculator, Printer } from 'lucide-vue-next';
 import { ref, computed, watch } from 'vue';
 import { toast } from 'vue-sonner';
 import TrustScoreBadge from '@/components/employees/TrustScoreBadge.vue';
@@ -171,6 +144,7 @@ const adjStatusConfig = {
         cls: 'text-emerald-600 bg-emerald-50 border border-emerald-200',
     },
 };
+void adjStatusConfig;
 
 // ── Search, Advanced Filters & Pagination ────────────────────────────────────
 

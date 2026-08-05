@@ -48,6 +48,7 @@ function formatPrice(price: number) {
 
     return price.toLocaleString('vi-VN') + 'đ/tháng';
 }
+void formatPrice;
 
 function getPlanFeatures(plan: AvailablePlan): string[] {
     const lim = (v: number | null, unit: string) =>

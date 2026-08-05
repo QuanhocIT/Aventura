@@ -55,7 +55,7 @@ const handleVerify = async () => {
         } else {
             errorMessage.value = data.message || 'Mã PIN không chính xác';
         }
-    } catch (e) {
+    } catch {
         errorMessage.value = 'Không thể kết nối đến máy chủ xác thực';
     } finally {
         isSubmitting.value = false;

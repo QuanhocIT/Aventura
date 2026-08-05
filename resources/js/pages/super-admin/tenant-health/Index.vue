@@ -161,6 +161,7 @@ const issueLabel: Record<string, string> = {
     inactive_branch_active_user:
         'Chi nhánh ngừng hoạt động còn tài khoản đang dùng',
 };
+void issueLabel;
 
 const severityLabel: Record<string, string> = {
     critical: 'Nghiêm trọng',

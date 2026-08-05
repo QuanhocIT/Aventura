@@ -10,12 +10,7 @@ import {
 } from 'lucide-vue-next';
 import { ref } from 'vue';
 import { toast } from 'vue-sonner';
-import {
-    PageHeader,
-    StatusBadge,
-    AlertBanner,
-    SectionCard,
-} from '@/components/super-admin';
+import { PageHeader } from '@/components/super-admin';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';

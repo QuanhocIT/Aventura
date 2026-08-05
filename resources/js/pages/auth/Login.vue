@@ -1,14 +1,9 @@
 <script setup lang="ts">
 import { Form, Head, Link } from '@inertiajs/vue3';
 import { computed, ref, onMounted } from 'vue';
-// @ts-ignore
 import AppLogoIcon from '@/components/AppLogoIcon.vue';
-// @ts-ignore
 import InputError from '@/components/InputError.vue';
-// @ts-ignore
 import PasswordInput from '@/components/PasswordInput.vue';
-// @ts-ignore
-// @ts-ignore
 import PlanCard from '@/components/PlanCard.vue';
 import type { Plan } from '@/components/PlanCard.vue';
 import TextLink from '@/components/TextLink.vue';
@@ -42,7 +37,6 @@ const turnstileToken = ref('');
 
 onMounted(() => {
     if (props.failedAttemptsCount >= 3 && props.turnstileSiteKey) {
-        // @ts-ignore
         if (!window.turnstile) {
             const script = document.createElement('script');
             script.src =
@@ -50,10 +44,7 @@ onMounted(() => {
             script.async = true;
             script.defer = true;
             document.head.appendChild(script);
-
-            // @ts-ignore
             window.onloadTurnstileCallback = () => {
-                // @ts-ignore
                 window.turnstile.render('#turnstile-container', {
                     sitekey: props.turnstileSiteKey,
                     callback: (token: string) => {
@@ -63,7 +54,6 @@ onMounted(() => {
             };
         } else {
             setTimeout(() => {
-                // @ts-ignore
                 window.turnstile.render('#turnstile-container', {
                     sitekey: props.turnstileSiteKey,
                     callback: (token: string) => {

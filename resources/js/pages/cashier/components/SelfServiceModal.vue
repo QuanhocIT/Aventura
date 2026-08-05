@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { X, Calendar, User, AlertTriangle } from 'lucide-vue-next';
+import { X, User } from 'lucide-vue-next';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 

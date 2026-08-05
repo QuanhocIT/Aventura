@@ -3,26 +3,18 @@ import { Head, router, useForm, Deferred } from '@inertiajs/vue3';
 import {
     Receipt,
     PlusCircle,
-    Calendar,
-    User,
-    AlertTriangle,
     Clock,
     TrendingUp,
     TrendingDown,
-    CheckCircle2,
     Trash2,
     Edit2,
-    Eye,
     Download,
-    RefreshCw,
     FileText,
     LayoutDashboard,
-    Settings,
     Layers,
     ListFilter,
     X,
     FileUp,
-    Check,
 } from 'lucide-vue-next';
 import { ref, computed } from 'vue';
 import { toast } from 'vue-sonner';

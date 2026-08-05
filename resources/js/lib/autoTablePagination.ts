@@ -66,6 +66,7 @@ function updateNavigation(state: TableState) {
 
     const renderedPage = state.navigation.dataset.renderedPage;
     const renderedTotalPages = state.navigation.dataset.renderedTotalPages;
+
     if (
         renderedPage === String(state.page) &&
         renderedTotalPages === String(state.totalPages)
@@ -79,6 +80,7 @@ function updateNavigation(state: TableState) {
     );
 
     let previous = 0;
+
     for (const page of pageNumbers(state.page, state.totalPages)) {
         if (previous && page - previous > 1) {
             const ellipsis = document.createElement('span');
@@ -88,10 +90,12 @@ function updateNavigation(state: TableState) {
         }
 
         const button = createButton(String(page), page);
+
         if (page === state.page) {
             button.className =
                 'inline-flex min-w-7 items-center justify-center rounded-lg border border-primary bg-primary px-2 py-1.5 text-xs font-semibold text-primary-foreground';
         }
+
         state.navigation.appendChild(button);
         previous = page;
     }
@@ -109,6 +113,7 @@ function ensureControls(table: HTMLTableElement, state: TableState) {
         state.controls = null;
         state.summary = null;
         state.navigation = null;
+
         return;
     }
 
@@ -133,6 +138,7 @@ function ensureControls(table: HTMLTableElement, state: TableState) {
             }
 
             const latest = states.get(table);
+
             if (!latest) {
                 return;
             }
@@ -151,9 +157,11 @@ function ensureControls(table: HTMLTableElement, state: TableState) {
     const first = (state.page - 1) * PAGE_SIZE + 1;
     const last = Math.min(state.page * PAGE_SIZE, state.totalRows);
     const summaryText = `Hiển thị ${first}–${last} / ${state.totalRows} dòng`;
+
     if (state.summary!.textContent !== summaryText) {
         state.summary!.textContent = summaryText;
     }
+
     updateNavigation(state);
 }
 
@@ -178,6 +186,7 @@ function applyTable(table: HTMLTableElement) {
         state.controls?.remove();
         state.controls = null;
         states.set(table, state);
+
         return;
     }
 

@@ -73,7 +73,6 @@ onMounted(() => {
     }
 
     if (props.turnstileSiteKey) {
-        // @ts-ignore
         if (!window.turnstile) {
             const script = document.createElement('script');
             script.src =
@@ -81,10 +80,7 @@ onMounted(() => {
             script.async = true;
             script.defer = true;
             document.head.appendChild(script);
-
-            // @ts-ignore
             window.onloadTurnstileCallbackFeedback = () => {
-                // @ts-ignore
                 window.turnstile.render('#turnstile-container-feedback', {
                     sitekey: props.turnstileSiteKey,
                     callback: (token: string) => {
@@ -94,7 +90,6 @@ onMounted(() => {
             };
         } else {
             setTimeout(() => {
-                // @ts-ignore
                 window.turnstile.render('#turnstile-container-feedback', {
                     sitekey: props.turnstileSiteKey,
                     callback: (token: string) => {
@@ -186,7 +181,7 @@ const handleSubmit = async () => {
             errorMessage.value =
                 result.message || 'Đã xảy ra lỗi, vui lòng thử lại sau.';
         }
-    } catch (e) {
+    } catch {
         errorMessage.value = 'Lỗi kết nối hệ thống. Vui lòng thử lại.';
     } finally {
         isSubmitting.value = false;

@@ -2,27 +2,15 @@
 import { Head, router, useForm } from '@inertiajs/vue3';
 import {
     BadgeDollarSign,
-    PlusCircle,
-    Calendar,
-    User,
-    AlertTriangle,
-    Clock,
-    TrendingUp,
-    TrendingDown,
-    CheckCircle2,
-    Edit2,
-    FileText,
     LayoutDashboard,
     ListFilter,
     X,
     Users,
-    Receipt,
     Settings,
     ArrowUpRight,
     ArrowDownLeft,
-    Check,
 } from 'lucide-vue-next';
-import { ref, computed } from 'vue';
+import { ref } from 'vue';
 import { toast } from 'vue-sonner';
 import { Pagination } from '@/components/super-admin';
 import { Button } from '@/components/ui/button';

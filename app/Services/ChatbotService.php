@@ -118,9 +118,9 @@ class ChatbotService
             Http::timeout(2)
                 ->withHeaders($this->authHeaders())
                 ->post($this->baseUrl.'/feedback', [
-                'knowledge_id' => $knowledgeId,
-                'helpful' => $helpful,
-            ]);
+                    'knowledge_id' => $knowledgeId,
+                    'helpful' => $helpful,
+                ]);
         } catch (\Throwable $e) {
             Log::warning('ChatbotService: lỗi ghi feedback', ['error' => $e->getMessage()]);
         }
@@ -202,8 +202,8 @@ class ChatbotService
             $response = Http::timeout(5)
                 ->withHeaders($this->authHeaders())
                 ->post($this->baseUrl.'/test-query', [
-                'query' => $query,
-            ]);
+                    'query' => $query,
+                ]);
 
             if ($response->successful()) {
                 return $response->json();

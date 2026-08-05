@@ -3,7 +3,6 @@ import { Head, router } from '@inertiajs/vue3';
 import {
     Activity,
     AlertTriangle,
-    Bot,
     Brain,
     CheckCircle2,
     ChevronRight,
@@ -24,12 +23,7 @@ import {
     Zap,
 } from 'lucide-vue-next';
 import { computed, ref } from 'vue';
-import {
-    PageHeader,
-    TerminalCard,
-    LedIndicator,
-    StatusBadge,
-} from '@/components/super-admin';
+import { PageHeader } from '@/components/super-admin';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -253,7 +247,7 @@ async function runTestQuery() {
             body: JSON.stringify({ query: playgroundQuery.value.trim() }),
         });
         playgroundResult.value = await res.json();
-    } catch (e: any) {
+    } catch {
         playgroundResult.value = {
             error: 'Không thể kết nối server.',
             found: false,

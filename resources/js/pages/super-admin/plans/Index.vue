@@ -31,12 +31,7 @@ import {
     Trash2,
 } from 'lucide-vue-next';
 import { ref, computed } from 'vue';
-import {
-    PageHeader,
-    StatusBadge,
-    ProgressBar,
-    DataTable,
-} from '@/components/super-admin';
+import { PageHeader, StatusBadge } from '@/components/super-admin';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -526,12 +521,14 @@ function planFeatures(plan: Plan): string[] {
 
     return list;
 }
+void planFeatures;
 
 function planUnsupported(plan: Plan): string[] {
     return ALL_FEATURES.filter((f) => !plan.features?.[f.key]).map(
         (f) => f.label,
     );
 }
+void planUnsupported;
 
 function formatVnd(v: number) {
     return v === 0 ? '0đ' : new Intl.NumberFormat('vi-VN').format(v) + 'đ';

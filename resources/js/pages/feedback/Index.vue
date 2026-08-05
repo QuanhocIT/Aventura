@@ -1,24 +1,13 @@
 <script setup lang="ts">
-import { Head, useForm, router } from '@inertiajs/vue3';
+import { Head, useForm } from '@inertiajs/vue3';
 import {
-    Heart,
     Star,
-    AlertTriangle,
-    ShieldCheck,
     CheckCircle2,
-    Calendar,
-    RefreshCw,
-    Filter,
     Search,
     ShieldAlert,
-    ChevronRight,
-    ArrowUpRight,
     Award,
     MessageSquare,
     Coffee,
-    UserX,
-    Clock,
-    Users,
     Flame,
     Percent,
     Utensils,

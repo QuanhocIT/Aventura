@@ -88,6 +88,7 @@ function goToPage(url: string | null) {
 
     router.get(url, {}, { preserveState: true, preserveScroll: true });
 }
+void goToPage;
 
 const showForm = ref(false);
 

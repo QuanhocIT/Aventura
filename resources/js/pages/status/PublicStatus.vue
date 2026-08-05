@@ -1,7 +1,6 @@
 <script setup lang="ts">
-import { Head, Link } from '@inertiajs/vue3';
+import { Head } from '@inertiajs/vue3';
 import {
-    Activity,
     CheckCircle,
     AlertTriangle,
     XCircle,
@@ -11,7 +10,7 @@ import {
     ShieldAlert,
 } from 'lucide-vue-next';
 import { onMounted, ref } from 'vue';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import GuestLayout from '@/layouts/GuestLayout.vue';
 

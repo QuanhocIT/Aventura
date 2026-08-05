@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class TrainingLesson extends Model
 {
     use HasBranch;
+
     protected $guarded = [];
 
     public function course(): BelongsTo

@@ -2,11 +2,9 @@
 import { Form, Head, Link, router, usePage } from '@inertiajs/vue3';
 import { QrCode, Copy, Check, ChevronDown } from 'lucide-vue-next';
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment
-// @ts-ignore Vue SFC module declaration is provided by the project shim.
+
 import AppLogoIcon from '@/components/AppLogoIcon.vue';
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment
-// @ts-ignore Vue SFC module declaration is provided by the project shim.
+
 import InputError from '@/components/InputError.vue';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';

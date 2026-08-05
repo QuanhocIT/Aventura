@@ -5,12 +5,9 @@ import {
     Plus,
     Minus,
     Trash2,
-    CheckCircle2 as CheckIcon,
 } from 'lucide-vue-next';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Separator } from '@/components/ui/separator';
-import type { OrderItem, TableItem } from '../types';
+import { Input } from '@/components/ui/input';import type { OrderItem, TableItem } from '../types';
 
 const props = defineProps<{
     isCartOpen: boolean;

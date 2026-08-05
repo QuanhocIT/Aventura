@@ -27,8 +27,7 @@ class MaterializedViewReader
         ?int $branchId = null,
         ?CarbonInterface $date = null,
         bool $allowStale = false,
-    ): array
-    {
+    ): array {
         $view = $this->registry->get($viewName);
         $date ??= Carbon::today();
         $builder = $view->builder();

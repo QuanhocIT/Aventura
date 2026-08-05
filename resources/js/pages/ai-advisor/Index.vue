@@ -5,7 +5,6 @@ import {
     Send,
     Loader2,
     Sparkles,
-    AlertCircle,
     TrendingUp,
     BarChart3,
     ShieldAlert,

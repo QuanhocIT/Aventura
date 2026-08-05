@@ -3,7 +3,6 @@ import { Head, router, usePage } from '@inertiajs/vue3';
 import {
     ChefHat,
     Clock,
-    User,
     Check,
     Bell,
     RefreshCw,
@@ -688,6 +687,7 @@ onMounted(() => {
             }, delay - timeSinceLastReload);
         }
     };
+void throttledReload;
 
     const kitchenEventBatcher = createEventBatcher((events) => {
         console.log(

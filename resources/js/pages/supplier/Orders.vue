@@ -1,10 +1,6 @@
 <script setup lang="ts">
 import { Head, router, useForm, usePage } from '@inertiajs/vue3';
 import {
-    Clock,
-    Truck,
-    CheckCircle,
-    AlertTriangle,
     X,
     Eye,
     Upload,
@@ -145,13 +141,13 @@ const printOrderSlip = () => {
                 <h2>PHIẾU BÀN GIAO & ĐÓNG GÓI VẬT TƯ</h2>
                 <p>Số đơn hàng: <strong>${selectedOrder.value.po_number}</strong></p>
             </div>
-            
+
             <div class="details">
                 <p><strong>Ngày đặt hàng:</strong> ${selectedOrder.value.created_at}</p>
                 <p><strong>Trạng thái vận đơn:</strong> ${selectedOrder.value.status.toUpperCase()}</p>
                 <p><strong>Trạng thái thanh toán:</strong> ${selectedOrder.value.payment_status.toUpperCase()}</p>
             </div>
-            
+
             <table>
                 <thead>
                     <tr>
@@ -165,14 +161,14 @@ const printOrderSlip = () => {
                     ${itemsHtml}
                 </tbody>
             </table>
-            
+
             <h3 style="text-align: right; margin-top: 20px;">Tổng tiền thanh toán: ${selectedOrder.value.total_amount.toLocaleString('vi-VN')}đ</h3>
-            
+
             <div class="signature-section">
                 <div class="signature-box">Nhân viên kho giao hàng<br><small>(Ký và ghi rõ họ tên)</small></div>
                 <div class="signature-box">Thủ kho tiếp nhận<br><small>(Ký và ghi rõ họ tên)</small></div>
             </div>
-            
+
             <div class="footer">
                 <p>Cổng chuỗi cung ứng tự động Aventura SaaS — Giải pháp quản trị nhà hàng chuyên sâu</p>
             </div>

@@ -9,25 +9,15 @@ import {
     Trash2,
     Clock,
     AlertCircle,
-    CheckCircle,
     CheckCircle2,
-    XCircle,
     Sliders,
     Sparkles,
     TrendingUp,
-    ExternalLink,
-    Grid,
-    HelpCircle,
     AlertTriangle,
 } from 'lucide-vue-next';
 import { ref, computed } from 'vue';
 import { toast } from 'vue-sonner';
-import {
-    PageHeader,
-    TerminalCard,
-    StatusBadge,
-    LedIndicator,
-} from '@/components/super-admin';
+import { PageHeader } from '@/components/super-admin';
 import { Button } from '@/components/ui/button';
 import {
     Card,

@@ -1,39 +1,7 @@
 <script setup lang="ts">
 import { Head, useForm, router } from '@inertiajs/vue3';
-import {
-    UtensilsCrossed,
-    Plus,
-    FolderPlus,
-    Search,
-    CheckCircle2,
-    AlertCircle,
-    Pencil,
-    Trash2,
-    X,
-    ChevronDown,
-    ChevronUp,
-    ToggleLeft,
-    ToggleRight,
-    Brain,
-    Sparkles,
-    AlertTriangle,
-    RefreshCw,
-    Coffee,
-    Dessert,
-    Beef,
-    Grid,
-    LayoutGrid,
-    Check,
-    Store,
-    HelpCircle,
-    ArrowRight,
-    Download,
-    Clock,
-    User,
-    Shield,
-    Star,
-} from 'lucide-vue-next';
-import { computed, ref, onMounted, watch } from 'vue';
+import { UtensilsCrossed, Plus, FolderPlus, Search, CheckCircle2, AlertCircle, Pencil, Trash2, X, ChevronDown, ChevronUp, ToggleLeft, ToggleRight, Brain, Sparkles, AlertTriangle, RefreshCw, Coffee, Dessert, Beef } from 'lucide-vue-next';
+import { computed, ref, watch } from 'vue';
 import { toast } from 'vue-sonner';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -133,7 +101,7 @@ async function loadInsights() {
         }
 
         insightsLoaded.value = true;
-    } catch (e) {
+    } catch {
         insights.value = [];
         bcgData.value = [];
     } finally {

@@ -1,8 +1,6 @@
 <script setup lang="ts">
 import { Search, Plus, Minus, Lock } from 'lucide-vue-next';
-import { ref, computed } from 'vue';
-import { Badge } from '@/components/ui/badge';
-import { Input } from '@/components/ui/input';
+import { ref, computed } from 'vue';import { Input } from '@/components/ui/input';
 import type { ProductItem, CategoryItem } from '../types';
 
 const props = defineProps<{

@@ -10,7 +10,6 @@ import {
     Building2,
     ShieldCheck,
     FileText,
-    ExternalLink,
     ChevronRight,
 } from 'lucide-vue-next';
 </script>

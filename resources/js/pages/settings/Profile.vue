@@ -2,7 +2,6 @@
 import { Form, Head, Link, usePage, useForm, router } from '@inertiajs/vue3';
 import {
     User as UserIcon,
-    Mail,
     ShieldCheck,
     Lock,
     Check,
@@ -14,7 +13,6 @@ import {
     Coins,
     CreditCard,
     Wallet,
-    ChevronRight,
     KeyRound,
 } from 'lucide-vue-next';
 import { computed, ref, onUnmounted } from 'vue';

@@ -1,23 +1,6 @@
 <script setup lang="ts">
 import { Head, useForm, router, usePage } from '@inertiajs/vue3';
-import {
-    LayoutGrid,
-    Plus,
-    Pencil,
-    Trash2,
-    X,
-    QrCode,
-    Users,
-    MapPin,
-    CheckCircle2,
-    Clock,
-    AlertCircle,
-    Move,
-    Eye,
-    Settings2,
-    Sparkles,
-    RefreshCw,
-} from 'lucide-vue-next';
+import { LayoutGrid, Plus, Pencil, Trash2, X, QrCode, Users, MapPin, Clock, AlertCircle, Move } from 'lucide-vue-next';
 import { computed, ref, watch, onUnmounted } from 'vue';
 import { toast } from 'vue-sonner';
 import { Button } from '@/components/ui/button';
@@ -455,6 +438,7 @@ const onDragStart = (table: Table, event: MouseEvent) => {
     const cardEl = event.currentTarget as HTMLElement;
     const parentEl = cardEl.parentElement as HTMLElement;
     const parentRect = parentEl.getBoundingClientRect();
+void parentRect;
 
     // Drag offsets relative to percentage
     dragOffset.value = {

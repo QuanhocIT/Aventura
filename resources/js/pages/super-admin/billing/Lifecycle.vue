@@ -15,12 +15,7 @@ import {
     ArrowRight,
 } from 'lucide-vue-next';
 import { computed } from 'vue';
-import {
-    PageHeader,
-    StatCard,
-    StatusBadge,
-    LedIndicator,
-} from '@/components/super-admin';
+import { PageHeader } from '@/components/super-admin';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import AppLayout from '@/layouts/AppLayout.vue';

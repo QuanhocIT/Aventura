@@ -2,10 +2,8 @@
 import { Head } from '@inertiajs/vue3';
 import {
     Activity,
-    Settings,
     MessageSquare,
     RefreshCw,
-    AlertTriangle,
     CheckCircle,
     XCircle,
     Server,
@@ -23,7 +21,7 @@ import {
     ProgressBar,
 } from '@/components/super-admin';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card } from '@/components/ui/card';
 import {
     Dialog,
     DialogContent,

@@ -5,12 +5,9 @@ import {
     Clock,
     Trash2,
     ShieldAlert,
-    ArrowLeft,
     Wrench,
     CheckCircle2,
     AlertTriangle,
-    AlertCircle,
-    PlayCircle,
     Bell,
     Server,
     Check,
@@ -19,10 +16,6 @@ import { computed } from 'vue';
 import { toast } from 'vue-sonner';
 import {
     PageHeader,
-    DataTable,
-    StatusBadge,
-    AlertBanner,
-    EmptyState,
     StatCard,
 } from '@/components/super-admin';
 import { Button } from '@/components/ui/button';
@@ -108,6 +101,7 @@ const statusColors: Record<string, string> = {
     cancelled:
         'bg-slate-100 text-slate-800 border-slate-200 dark:bg-slate-950/40 dark:text-slate-300',
 };
+void statusColors;
 
 const statusLabels: Record<string, string> = {
     scheduled: 'Đã lên lịch',

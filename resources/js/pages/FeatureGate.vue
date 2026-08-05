@@ -1,11 +1,10 @@
 <script setup lang="ts">
-import { Head, Link, router } from '@inertiajs/vue3';
+import { Head, Link } from '@inertiajs/vue3';
 import {
     Lock,
     Zap,
     Check,
     ArrowRight,
-    ChevronRight,
     Crown,
     Star,
     Shield,

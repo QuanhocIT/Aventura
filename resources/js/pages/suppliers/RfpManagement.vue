@@ -12,17 +12,13 @@ import {
     Award,
     Building2,
     Clock,
-    ShieldAlert,
     AlertCircle,
-    ShoppingCart,
     Sparkles,
 } from 'lucide-vue-next';
 import { computed, ref, watch } from 'vue';
 import { Button } from '@/components/ui/button';
 import {
     Card,
-    CardContent,
-    CardDescription,
     CardHeader,
     CardTitle,
 } from '@/components/ui/card';

@@ -6,7 +6,6 @@ import {
     Plus,
     Sparkles,
     Trash2,
-    Pencil,
     Zap,
     Tag,
     Link as LinkIcon,

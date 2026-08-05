@@ -294,7 +294,7 @@ onUnmounted(() => {
                         Lệnh nhanh SuperAdmin
                     </p>
                     <div
-                        v-for="(act, idx) in quickActions"
+                        v-for="act in quickActions"
                         :key="act.cmd"
                         @click="query = act.cmd + ' '"
                         class="flex cursor-pointer items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-foreground transition-all hover:bg-muted"

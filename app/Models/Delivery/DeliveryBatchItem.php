@@ -11,6 +11,7 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 class DeliveryBatchItem extends Model
 {
     use HasBranch;
+
     protected $guarded = [];
 
     protected function casts(): array

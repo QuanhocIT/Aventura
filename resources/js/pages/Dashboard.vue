@@ -3,7 +3,6 @@ import { Head, Link, usePage, Deferred } from '@inertiajs/vue3';
 import {
     Building2,
     ArrowRight,
-    Activity,
     TrendingUp,
     ShieldAlert,
     Zap,
@@ -14,7 +13,6 @@ import {
     PlusCircle,
     Layers,
     CheckCircle2,
-    XCircle,
     Package,
     ChevronRight,
     ShoppingCart,

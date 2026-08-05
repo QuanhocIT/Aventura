@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { AlertTriangle, CheckCircle, Trash2, X } from 'lucide-vue-next';
+import { AlertTriangle, Trash2, X } from 'lucide-vue-next';
 import { toast } from 'vue-sonner';
 import { useOfflineQueue } from '@/composables/useOfflineQueue';
 import type { ConflictResponse } from '@/composables/useOfflineQueue';

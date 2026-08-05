@@ -59,7 +59,7 @@ const startWebcam = async () => {
         if (videoRef.value) {
             videoRef.value.srcObject = stream;
         }
-    } catch (err: any) {
+    } catch (err) {
         console.error(err);
         webcamError.value =
             'Không thể truy cập camera. Vui lòng cấp quyền hoặc kiểm tra thiết bị.';

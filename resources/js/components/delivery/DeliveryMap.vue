@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted, watch, ref, nextTick } from 'vue';
+import { onMounted, onUnmounted, watch, ref } from 'vue';
 
 export interface ShipperMapData {
     id: number;

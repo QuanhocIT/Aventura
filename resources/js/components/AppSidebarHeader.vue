@@ -60,6 +60,7 @@ const isSuperAdmin = computed(() =>
         ].includes(role),
     ),
 );
+void isSuperAdmin.value;
 const isOwner = computed(() => roles.value.includes('owner'));
 const isEmployee = computed(() =>
     roles.value.some((role) =>

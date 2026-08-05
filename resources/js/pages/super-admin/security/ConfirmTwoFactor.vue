@@ -6,7 +6,6 @@ import {
     LockKeyhole,
     ShieldCheck,
 } from 'lucide-vue-next';
-// @ts-ignore Vue SFC module declaration is provided by the project shim.
 import AppLogoIcon from '@/components/AppLogoIcon.vue';
 import InputError from '@/components/InputError.vue';
 import { Button } from '@/components/ui/button';

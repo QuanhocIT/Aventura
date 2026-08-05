@@ -13,7 +13,6 @@ import {
     CreditCard,
     Ban,
     TrendingUp,
-    AlertTriangle,
     Activity,
     Sparkles,
     ThumbsUp,
@@ -27,10 +26,7 @@ import {
     Phone,
     MapPin,
     Hash,
-    Tag,
-    X,
     Check,
-    Globe,
 } from 'lucide-vue-next';
 import { ref, watch, computed } from 'vue';
 import { toast } from 'vue-sonner';
@@ -232,6 +228,7 @@ function quotaPercent(used: number, limit: number | null) {
 
     return Math.round((used / limit) * 100);
 }
+void quotaPercent;
 
 function getChurnRisk(restaurantId: number) {
     return props.aiInsights?.churn_risks?.find(

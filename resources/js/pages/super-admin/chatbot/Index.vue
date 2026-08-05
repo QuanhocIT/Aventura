@@ -17,13 +17,6 @@ import {
     X,
 } from 'lucide-vue-next';
 import { computed, ref, watch } from 'vue';
-import {
-    PageHeader,
-    DataTable,
-    StatusBadge,
-    EmptyState,
-} from '@/components/super-admin';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';

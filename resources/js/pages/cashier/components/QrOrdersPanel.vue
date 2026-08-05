@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Sparkles, Clock, CheckCircle2 as CheckIcon } from 'lucide-vue-next';
+import { Sparkles, Clock } from 'lucide-vue-next';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {

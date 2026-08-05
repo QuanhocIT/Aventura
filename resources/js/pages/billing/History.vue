@@ -10,9 +10,6 @@ import {
     CreditCard,
     Crown,
     Clock,
-    CheckCircle2,
-    ShieldAlert,
-    AlertTriangle,
     Zap,
 } from 'lucide-vue-next';
 import { computed } from 'vue';

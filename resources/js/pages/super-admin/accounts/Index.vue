@@ -16,7 +16,6 @@ import {
     ShieldAlert,
     CheckCircle2,
     AlertTriangle,
-    AlertCircle,
     Shield,
     CheckCircle,
     User,

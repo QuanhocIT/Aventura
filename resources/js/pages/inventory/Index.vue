@@ -13,12 +13,9 @@ import {
     AlertTriangle,
     Trash2,
     ArrowDownToLine,
-    ChevronDown,
-    ChevronUp,
     ChevronLeft,
     ChevronRight,
     Sparkles,
-    Upload,
     Search,
 } from 'lucide-vue-next';
 import { computed, ref, onMounted, watch } from 'vue';
@@ -334,6 +331,7 @@ const activeProductRecipes = computed(() => {
 
     return updatedProduct ? updatedProduct.recipes : [];
 });
+void activeProductRecipes.value;
 
 const deleteRecipe = (recipeId: number) => {
     if (confirm('Bạn có chắc chắn muốn xóa nguyên liệu này khỏi công thức?')) {
@@ -348,6 +346,7 @@ const deleteRecipe = (recipeId: number) => {
         });
     }
 };
+void deleteRecipe;
 
 const addRecipeRow = () => {
     recipeForm.items.push({

@@ -32,14 +32,7 @@ import {
     Zap,
 } from 'lucide-vue-next';
 import { computed, ref, onMounted, onUnmounted } from 'vue';
-import {
-    PageHeader,
-    StatusBadge,
-    StatCard,
-    Pagination,
-    LedIndicator,
-    ProgressBar,
-} from '@/components/super-admin';
+import { PageHeader, StatCard, Pagination } from '@/components/super-admin';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {

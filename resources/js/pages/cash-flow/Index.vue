@@ -1,13 +1,11 @@
 <script setup lang="ts">
-import { Head, router, useForm } from '@inertiajs/vue3';
+import { Head, useForm } from '@inertiajs/vue3';
 import {
     Wallet,
     ArrowUpRight,
     ArrowDownRight,
     PlusCircle,
     MinusCircle,
-    Calendar,
-    User,
     AlertTriangle,
     Clock,
     TrendingUp,
@@ -18,7 +16,6 @@ import {
     ArrowRightLeft,
     Loader2,
     CheckCircle2,
-    HelpCircle,
     Info,
 } from 'lucide-vue-next';
 import { ref, computed } from 'vue';

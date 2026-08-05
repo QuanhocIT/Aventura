@@ -14,11 +14,8 @@ import {
     X,
     Plus,
     TrendingDown,
-    Calendar,
-    Users,
     List,
     Globe,
-    Eye,
     CheckCircle,
 } from 'lucide-vue-next';
 import { computed, ref, defineAsyncComponent } from 'vue';
@@ -29,6 +26,7 @@ import AppLayout from '@/layouts/AppLayout.vue';
 const ManagerPinModal = defineAsyncComponent(
     () => import('@/components/ManagerPinModal.vue'),
 );
+void ManagerPinModal;
 
 defineOptions({ layout: AppLayout });
 
@@ -237,6 +235,7 @@ const props = defineProps<{
 // narrow the union type correctly. This avoids the need to cast in the template.
 
 const data = computed(() => props.data);
+void data.value;
 
 /** Tab 'ai' */
 const aiAlerts = computed((): AiFraudAlert[] =>

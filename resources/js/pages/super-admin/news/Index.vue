@@ -6,7 +6,6 @@ import {
     Eye,
     Newspaper,
     Plus,
-    RefreshCcw,
     Star,
     StarOff,
     Trash2,
@@ -16,14 +15,8 @@ import {
 import { computed, ref } from 'vue';
 import {
     PageHeader,
-    StatCard,
-    StatusBadge,
-    FilterBar,
     Pagination,
-    EmptyState,
-} from '@/components/super-admin';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
+} from '@/components/super-admin';import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -239,6 +232,7 @@ const categoryColors: Record<string, string> = {
     'cap-nhat': 'bg-amber-100 text-amber-700',
     'thong-bao': 'bg-red-100 text-red-700',
 };
+void categoryColors;
 function catLabel(val: string) {
     return categoryOptions.find((o) => o.value === val)?.label ?? val;
 }

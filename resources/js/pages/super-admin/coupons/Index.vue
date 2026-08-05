@@ -25,14 +25,7 @@ import {
 } from 'lucide-vue-next';
 import { computed, ref, watch } from 'vue';
 import { toast } from 'vue-sonner';
-import {
-    PageHeader,
-    StatCard,
-    StatusBadge,
-    Pagination,
-    ProgressBar,
-    EmptyState,
-} from '@/components/super-admin';
+import { PageHeader, Pagination } from '@/components/super-admin';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';

@@ -84,7 +84,6 @@ onMounted(() => {
     analytics.init();
 
     if (props.turnstileSiteKey) {
-        // @ts-expect-error Cloudflare Turnstile not in window type definitions
         if (!window.turnstile) {
             const script = document.createElement('script');
             script.src =
@@ -92,10 +91,7 @@ onMounted(() => {
             script.async = true;
             script.defer = true;
             document.head.appendChild(script);
-
-            // @ts-expect-error Cloudflare Turnstile callback not in window type definitions
             window.onloadTurnstileCallbackStorefront = () => {
-                // @ts-expect-error Cloudflare Turnstile render not in window type definitions
                 window.turnstile.render('#turnstile-container-storefront', {
                     sitekey: props.turnstileSiteKey,
                     callback: (token: string) => {
@@ -105,7 +101,6 @@ onMounted(() => {
             };
         } else {
             setTimeout(() => {
-                // @ts-expect-error Cloudflare Turnstile render not in window type definitions
                 window.turnstile.render('#turnstile-container-storefront', {
                     sitekey: props.turnstileSiteKey,
                     callback: (token: string) => {

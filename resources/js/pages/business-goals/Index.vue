@@ -16,9 +16,6 @@ import {
     Calendar,
     Activity,
     Inbox,
-    AlertTriangle,
-    ArrowUpRight,
-    ArrowRight,
     Trash,
 } from 'lucide-vue-next';
 import { ref, computed, watch } from 'vue';

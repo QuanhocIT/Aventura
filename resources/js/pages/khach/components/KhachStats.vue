@@ -81,7 +81,7 @@ onUnmounted(() => {
                         {{ countRestaurants }}+
                     </p>
                     <p
-                        class="mt-1.5 text-[10px] leading-tight text-muted-foreground sm:text-sm"
+                        class="mt-1.5 text-[10px] leading-tight text-amber-200/70 sm:text-sm"
                     >
                         Nhà hàng đang vận hành
                     </p>
@@ -93,7 +93,7 @@ onUnmounted(() => {
                         {{ (countOrders / 1000).toFixed(1) }}K+
                     </p>
                     <p
-                        class="mt-1.5 text-[10px] leading-tight text-muted-foreground sm:text-sm"
+                        class="mt-1.5 text-[10px] leading-tight text-amber-200/70 sm:text-sm"
                     >
                         Đơn hàng đã xử lý
                     </p>
@@ -105,7 +105,7 @@ onUnmounted(() => {
                         {{ (countUptime / 10).toFixed(1) }}%
                     </p>
                     <p
-                        class="mt-1.5 text-[10px] leading-tight text-muted-foreground sm:text-sm"
+                        class="mt-1.5 text-[10px] leading-tight text-amber-200/70 sm:text-sm"
                     >
                         Uptime cam kết SLA
                     </p>
@@ -124,7 +124,7 @@ onUnmounted(() => {
                         >
                             <Building2 class="size-5" />
                         </div>
-                        <CardTitle class="mt-3 text-base"
+                        <CardTitle class="mt-3 text-base text-amber-100/90"
                             >Quản lý chuỗi quy mô lớn</CardTitle
                         >
                         <CardDescription>
@@ -144,7 +144,7 @@ onUnmounted(() => {
                         >
                             <LineChart class="size-5" />
                         </div>
-                        <CardTitle class="mt-3 text-base"
+                        <CardTitle class="mt-3 text-base text-amber-100/90"
                             >Minh bạch từng thao tác</CardTitle
                         >
                         <CardDescription>
@@ -164,7 +164,7 @@ onUnmounted(() => {
                         >
                             <Rocket class="size-5" />
                         </div>
-                        <CardTitle class="mt-3 text-base"
+                        <CardTitle class="mt-3 text-base text-amber-100/90"
                             >Onboarding không cần giải thích</CardTitle
                         >
                         <CardDescription>

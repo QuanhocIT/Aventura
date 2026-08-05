@@ -3,7 +3,6 @@ import { Head, router } from '@inertiajs/vue3';
 import {
     Users,
     UserCheck,
-    Star,
     ShoppingCart,
     Search,
     Crown,
@@ -11,15 +10,12 @@ import {
     Sparkles,
     AlertTriangle,
     TrendingUp,
-    Calendar,
 } from 'lucide-vue-next';
 import { ref, watch, computed } from 'vue';
 import {
     PageHeader,
-    StatCard,
     FilterBar,
     DataTable,
-    StatusBadge,
     Pagination,
 } from '@/components/super-admin';
 import type { Column } from '@/components/super-admin';

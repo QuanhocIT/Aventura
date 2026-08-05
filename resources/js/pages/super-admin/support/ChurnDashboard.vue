@@ -11,11 +11,7 @@ import {
     Phone,
     User,
     TrendingDown,
-    Calendar,
     HelpCircle,
-    ChevronRight,
-    ArrowUpDown,
-    TicketCheck,
     Sparkles,
     Tag,
     Plus,
@@ -29,14 +25,10 @@ import { ref, computed } from 'vue';
 import { toast } from 'vue-sonner';
 import {
     PageHeader,
-    StatCard,
-    StatusBadge,
-    ProgressBar,
-    SectionCard,
     Pagination,
 } from '@/components/super-admin';
 import { Badge } from '@/components/ui/badge';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import {
     Dialog,
     DialogContent,

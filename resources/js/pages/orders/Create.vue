@@ -1,37 +1,16 @@
 <script setup lang="ts">
-import { Head, useForm, router } from '@inertiajs/vue3';
-import {
-    Search,
-    Sparkles,
-    ShoppingBag,
-    Plus,
-    Minus,
-    Trash2,
-    ChefHat,
-    HelpCircle,
-    UtensilsCrossed,
-    CalendarDays,
-    RefreshCw,
-    AlertCircle,
-    Lightbulb,
-    Check,
-    ChevronRight,
-    User,
-    AlertTriangle,
-} from 'lucide-vue-next';
+import { Head, router } from '@inertiajs/vue3';
+import { Search, Sparkles, ShoppingBag, Plus, Minus, Trash2, ChefHat, RefreshCw, AlertCircle, Lightbulb } from 'lucide-vue-next';
 import { ref, computed, watch, onMounted } from 'vue';
 import { toast } from 'vue-sonner';
 import { Button } from '@/components/ui/button';
 import {
     Card,
     CardContent,
-    CardDescription,
     CardHeader,
     CardTitle,
 } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import AppLayout from '@/layouts/AppLayout.vue';
+import { Input } from '@/components/ui/input';import AppLayout from '@/layouts/AppLayout.vue';
 
 defineOptions({ layout: AppLayout });
 

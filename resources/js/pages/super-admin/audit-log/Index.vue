@@ -16,10 +16,7 @@ import {
     UserCheck,
     BarChart2,
     Trash2,
-    Calendar,
-    X,
     Flame,
-    Eye,
     ArchiveRestore,
 } from 'lucide-vue-next';
 import { ref, watch, computed } from 'vue';
@@ -31,7 +28,7 @@ import {
     EmptyState,
 } from '@/components/super-admin';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import {
     Select,

@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Jobs\RefreshMaterializedViewJob;
 use App\Models\Employee;
 use App\Models\Restaurant;
 use App\Models\RestaurantBranch;
@@ -10,12 +11,11 @@ use App\Models\ScheduleAssignment;
 use App\Models\ShiftSwap;
 use App\Models\User;
 use App\Models\WorkShift;
-use App\Jobs\RefreshMaterializedViewJob;
 use App\Services\MaterializedViewRefresher;
 use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\Queue;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 

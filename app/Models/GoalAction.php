@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class GoalAction extends Model
 {
     use HasBranch;
+
     protected $guarded = [];
 
     protected function casts(): array

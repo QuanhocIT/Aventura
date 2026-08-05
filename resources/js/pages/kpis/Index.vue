@@ -6,22 +6,17 @@ import {
     UserCheck,
     MessageSquare,
     Settings,
-    ChevronRight,
     RefreshCw,
-    CheckCircle2,
     Calendar,
     Users,
     AlertCircle,
     Star,
     Plus,
     X,
-    TrendingUp,
-    TrendingDown,
     DollarSign,
-    Lock,
     ChefHat,
 } from 'lucide-vue-next';
-import { ref, computed } from 'vue';
+import { ref } from 'vue';
 import { toast } from 'vue-sonner';
 import { Button } from '@/components/ui/button';
 import {

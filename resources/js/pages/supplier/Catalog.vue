@@ -6,12 +6,10 @@ import {
     Edit2,
     Package,
     Tag,
-    ShieldCheck,
     X,
     Clock,
-    Loader2,
 } from 'lucide-vue-next';
-import { ref, computed } from 'vue';
+import { ref } from 'vue';
 
 const props = defineProps<{
     supplier: any;

@@ -1,8 +1,6 @@
 <script setup lang="ts">
 import { Form, Head } from '@inertiajs/vue3';
-// @ts-ignore Vue SFC module declaration is provided by the project shim.
 import InputError from '@/components/InputError.vue';
-// @ts-ignore Vue SFC module declaration is provided by the project shim.
 import PasswordInput from '@/components/PasswordInput.vue';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';

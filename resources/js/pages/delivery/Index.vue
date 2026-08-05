@@ -9,20 +9,16 @@ import {
     RefreshCw,
     Navigation,
     Users,
-    Clock,
     AlertTriangle,
     LayoutGrid,
     X,
-    Plus,
     Send,
     Phone,
     Eye,
     Route,
-    Timer,
     PackageCheck,
     PackageX,
     Search,
-    ChevronDown,
     ArrowUpDown,
     Zap,
     Activity,
@@ -30,15 +26,10 @@ import {
     CheckCheck,
     TrendingUp,
     TrendingDown,
-    Minus,
-    HelpCircle,
     BookOpen,
-    ArrowRight,
     Sparkles,
 } from 'lucide-vue-next';
-import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
-import type { Component } from 'vue';
-import { toast } from 'vue-sonner';
+import { ref, computed, onMounted, onUnmounted } from 'vue';import { toast } from 'vue-sonner';
 import DeliveryMap from '@/components/delivery/DeliveryMap.vue';
 import ShipperMiniMap from '@/components/delivery/ShipperMiniMap.vue';
 import { Badge } from '@/components/ui/badge';
@@ -173,6 +164,7 @@ const selectedOrders = ref<Set<number>>(new Set());
 const showDeliveryAnalytics = ref(true);
 const showSopModal = ref(false);
 const showSopBanner = ref(true);
+void showSopBanner.value;
 
 const totalDeliveredToday = computed(
     () => stats.value.delivered_today + stats.value.failed_today,
@@ -310,6 +302,7 @@ function trendFailed(): number {
         (stats.value.failed_today ?? 0) - (stats.value.failed_yesterday ?? 0)
     );
 }
+void trendFailed;
 
 // ─── Filtered / sorted orders ─────────────────────────────────────────────────
 const filteredOrders = computed(() => {
@@ -1046,6 +1039,7 @@ function statusVariant(
 
     return 'secondary';
 }
+void statusVariant;
 function scoreColor(score: number): string {
     if (score < 0.33) {
         return 'bg-emerald-500';
@@ -1077,6 +1071,7 @@ function activityColor(type: ActivityEvent['type']): string {
         gps: 'text-muted-foreground',
     }[type];
 }
+void activityColor;
 function activityTimeLabel(time: Date): string {
     const secs = Math.round((Date.now() - time.getTime()) / 1000);
 

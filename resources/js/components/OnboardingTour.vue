@@ -1,10 +1,8 @@
 <script setup lang="ts">
 import { usePage, router } from '@inertiajs/vue3';
 import {
-    Play,
     X,
     ArrowRight,
-    CheckCircle2,
     ChevronRight,
     Award,
     Compass,
@@ -28,6 +26,7 @@ const isSuperAdmin = computed(() => {
         ? roles.includes('super_admin') || roles.includes('admin')
         : false;
 });
+void isSuperAdmin.value;
 
 const isOwner = computed(() => {
     const roles = page.props.roles ?? [];

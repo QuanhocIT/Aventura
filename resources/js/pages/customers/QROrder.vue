@@ -13,14 +13,8 @@ import {
     Loader2,
     X,
     Clock,
-    ChevronDown,
-    MessageSquare,
-    AlertTriangle,
-    ThumbsUp,
-    Store,
     HeartHandshake,
     Award,
-    Sparkles,
 } from 'lucide-vue-next';
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
 import { toast } from 'vue-sonner';
@@ -171,7 +165,7 @@ const callStaffWithMessage = async (message: string) => {
         toast.success(response.data.message);
         isCallStaffHubOpen.value = false;
         trackBehavior('call_staff');
-    } catch (err) {
+    } catch {
         toast.error('Có lỗi xảy ra. Vui lòng gọi trực tiếp nhân viên.');
     } finally {
         isCallingStaffCustom.value = false;
@@ -217,7 +211,7 @@ const lookupCustomerLoyalty = async () => {
         } else {
             customerLoyalty.value = null;
         }
-    } catch (e) {
+    } catch {
         customerLoyalty.value = null;
     } finally {
         isSearchingLoyalty.value = false;
@@ -292,7 +286,7 @@ function getOrGenerateSessionToken() {
                 Date.now();
             sessionStorage.setItem('cdp_session_token', token);
         }
-    } catch (e) {
+    } catch {
         // Fallback for Safari private mode or if storage is blocked
         token =
             'sess_fallback_' +
@@ -324,7 +318,7 @@ async function trackBehavior(
             },
             customer_phone: customerPhone.value.trim() || null,
         });
-    } catch (err) {
+    } catch (err: any) {
         console.error('Tracking failed:', err);
     }
 }
@@ -362,7 +356,7 @@ const openQrPaymentModal = async (order: any) => {
         } else {
             toast.error('Không thể tạo mã QR thanh toán.');
         }
-    } catch (e) {
+    } catch {
         toast.error('Lỗi kết nối khi sinh mã QR.');
     }
 };
@@ -398,7 +392,7 @@ const startPaymentPolling = (orderId: number) => {
                     refetchActiveOrders();
                 }, 2000);
             }
-        } catch (e) {
+        } catch (e: any) {
             console.error('Error polling status:', e);
         }
     }, 3000);
@@ -421,7 +415,7 @@ const simulatePaymentSuccess = async () => {
         } else {
             toast.error(res.data.message || 'Lỗi giả lập thanh toán.');
         }
-    } catch (e) {
+    } catch {
         toast.error('Lỗi khi gọi API webhook giả lập.');
     } finally {
         isSimulatingPayment.value = false;
@@ -656,12 +650,13 @@ async function callStaff() {
         );
         toast.success(response.data.message);
         trackBehavior('call_staff');
-    } catch (err) {
+    } catch {
         toast.error('Có lỗi xảy ra. Vui lòng gọi trực tiếp nhân viên.');
     } finally {
         isCallingStaff.value = false;
     }
 }
+void callStaff;
 
 async function requestPayment() {
     if (isRequestingPayment.value) {
@@ -762,7 +757,7 @@ async function submitFeedback() {
         setTimeout(() => {
             showFeedbackSection.value = false;
         }, 2500);
-    } catch (err) {
+    } catch {
         toast.error('Có lỗi xảy ra khi gửi đánh giá.');
     } finally {
         isSubmittingFeedback.value = false;

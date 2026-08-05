@@ -1,26 +1,6 @@
 <script setup lang="ts">
 import { Head, router, useForm } from '@inertiajs/vue3';
-import {
-    Users,
-    Plus,
-    Search,
-    Printer,
-    Trash2,
-    Pencil,
-    Calendar,
-    Mail,
-    Phone,
-    Clock,
-    X,
-    Sparkles,
-    UserCheck,
-    ShieldCheck,
-    AlertCircle,
-    Gift,
-    ArrowUpDown,
-    ChevronDown,
-    Check,
-} from 'lucide-vue-next';
+import { Users, Plus, Search, Printer, Pencil, Mail, Phone, Clock, X, UserCheck, AlertCircle, Gift, ArrowUpDown } from 'lucide-vue-next';
 import { ref } from 'vue';
 import { toast } from 'vue-sonner';
 import { Pagination } from '@/components/super-admin';

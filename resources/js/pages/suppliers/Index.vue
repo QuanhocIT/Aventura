@@ -20,7 +20,6 @@ import {
     Gauge,
     BarChart3,
     Package,
-    Star,
     Award,
     ShieldCheck,
     Search,
@@ -29,7 +28,6 @@ import {
     MapPin,
     User,
     Users,
-    Truck,
     Info,
     ClipboardList,
     Building,
@@ -569,10 +567,12 @@ const addPoItem = () => {
         poForm.items.push({ ingredient_id: available[0].id, quantity: 1 });
     }
 };
+void addPoItem;
 
 const removePoItem = (index: number | string) => {
     poForm.items.splice(Number(index), 1);
 };
+void removePoItem;
 
 const submitPo = () => {
     poForm.post(route('suppliers.place-order', selectedSupplier.value.id), {

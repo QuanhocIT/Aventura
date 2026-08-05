@@ -5,7 +5,6 @@ import {
     Lock,
     Unlock,
     CheckCircle2,
-    AlertTriangle,
     Globe,
     Send,
     Settings,
@@ -15,7 +14,7 @@ import {
     Plus,
     Loader2,
 } from 'lucide-vue-next';
-import { ref, watch, computed } from 'vue';
+import { ref, watch } from 'vue';
 import { toast } from 'vue-sonner';
 import { PageHeader } from '@/components/super-admin';
 import { Button } from '@/components/ui/button';

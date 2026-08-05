@@ -12,7 +12,6 @@ import {
     Truck,
     Calendar,
     DollarSign,
-    MapPin,
     Store,
     FileText,
     AlertTriangle,

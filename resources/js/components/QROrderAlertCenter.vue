@@ -4,12 +4,10 @@ import axios from 'axios';
 import {
     Bell,
     CreditCard,
-    MessageSquare,
     AlertTriangle,
     X,
     Check,
     Bot,
-    ChevronRight,
     Utensils,
     Sparkles,
     Trash2,
@@ -112,7 +110,7 @@ function playAlarm(type = 'normal') {
             osc.start();
             osc.stop(audioCtx.currentTime + 0.35);
         }
-    } catch (e) {
+    } catch (e: any) {
         console.error('AudioContext error', e);
     }
 }
@@ -182,7 +180,7 @@ async function submitCancel() {
             // Reload parent Inertia pages
             window.location.reload();
         }
-    } catch (err) {
+    } catch {
         toast.error('Có lỗi xảy ra khi hủy yêu cầu.');
     }
 }
@@ -200,7 +198,8 @@ async function addUpsellItem() {
         // Or we can let the cashier update it on their screen.
         // Let's implement an API call to the existing order update:
         // First, let's fetch the products list to find the ID matching recommended_item.
-        const res = await axios.get('/orders/create'); // This returns Inertia, but wait, we can search in products list
+        const res = await axios.get('/orders/create');
+void res; // This returns Inertia, but wait, we can search in products list
         // Let's call the orders update patch endpoint
         const orderRes = await axios.patch(`/orders/${currentOrderId.value}`, {
             items: [
@@ -211,11 +210,12 @@ async function addUpsellItem() {
                 },
             ],
         });
+void orderRes;
         toast.success(
             `Đã thêm món đề xuất '${upsellData.value.recommended_item}' vào đơn hàng!`,
         );
         showUpsellModal.value = false;
-    } catch (e) {
+    } catch {
         // If product ID resolution fails or validation rejects, notify staff to append manually.
         toast.info(
             `Vui lòng thêm thủ công món '${upsellData.value.recommended_item}' từ màn hình POS.`,

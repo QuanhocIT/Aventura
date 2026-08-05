@@ -438,7 +438,7 @@ const fetchPendingQr = async () => {
     try {
         const res = await axios.get('/api/temporary-orders');
         pendingQrOrders.value = res.data.temporary_orders;
-    } catch (e) {
+    } catch (e: any) {
         console.error(e);
     } finally {
         isLoadingQr.value = false;
@@ -451,7 +451,7 @@ const fetchRejectedQr = async () => {
     try {
         const res = await axios.get('/api/temporary-orders/rejected-logs');
         rejectedQrLogs.value = res.data.rejected_logs;
-    } catch (e) {
+    } catch (e: any) {
         console.error(e);
     } finally {
         isLoadingQr.value = false;
@@ -601,6 +601,7 @@ const aiEvaluation = computed(() => {
         props.summary.total > 0
             ? (props.summary.completed / props.summary.total) * 100
             : 0;
+void completionRate;
     const cancelRate =
         props.summary.total > 0
             ? (props.summary.cancelled / props.summary.total) * 100

@@ -1,28 +1,8 @@
 <script setup lang="ts">
-import { Head, Link, router } from '@inertiajs/vue3';
-import {
-    Database,
-    HardDrive,
-    Trash2,
-    FileQuestion,
-    ChevronLeft,
-    ChevronRight,
-    RefreshCw,
-    Search,
-    AlertCircle,
-    CheckCircle2,
-    AlertTriangle,
-    FileImage,
-    FileText,
-} from 'lucide-vue-next';
+import { Head, router } from '@inertiajs/vue3';
+import { Database, HardDrive, Trash2, FileQuestion, ChevronLeft, ChevronRight, RefreshCw, AlertCircle, CheckCircle2, AlertTriangle } from 'lucide-vue-next';
 import { ref, computed } from 'vue';
-import {
-    PageHeader,
-    TerminalCard,
-    StatCard,
-    LedIndicator,
-    EmptyState,
-} from '@/components/super-admin';
+import { PageHeader } from '@/components/super-admin';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { confirmDialog } from '@/composables/useConfirm';

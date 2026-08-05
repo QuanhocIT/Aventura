@@ -90,7 +90,7 @@ export function getCachedMenuCatalog(): any[] | null {
         const parsed = JSON.parse(raw);
 
         return parsed.data || null;
-    } catch (e) {
+    } catch {
         return null;
     }
 }
@@ -159,7 +159,7 @@ export async function syncOfflineOrders(): Promise<{
                 order.status = 'failed';
                 failed++;
             }
-        } catch (e) {
+        } catch {
             order.status = 'failed';
             failed++;
         }

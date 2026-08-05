@@ -7,8 +7,6 @@ import {
     Banknote,
     BarChart3,
     CheckCircle2,
-    ChevronDown,
-    ChevronUp,
     Clock,
     CreditCard,
     Download,
@@ -24,7 +22,7 @@ import {
 } from 'lucide-vue-next';
 import { computed, ref, watch } from 'vue';
 import { toast } from 'vue-sonner';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import AppLayout from '@/layouts/AppLayout.vue';
 
 defineOptions({ layout: AppLayout });
@@ -261,6 +259,7 @@ const profitMargin = computed(() =>
           ).toFixed(1)
         : '0',
 );
+void profitMargin.value;
 
 const hasData = computed(() => props.summaries.length > 0);
 
@@ -567,6 +566,7 @@ function deltaBadge(pct: number | null) {
 
     return { positive: pct >= 0, text: (pct >= 0 ? '+' : '') + pct + '%' };
 }
+void deltaBadge;
 </script>
 
 <template>

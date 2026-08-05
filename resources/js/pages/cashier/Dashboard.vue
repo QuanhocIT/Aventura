@@ -7,7 +7,6 @@ import {
     computed,
     onMounted,
     onUnmounted,
-    defineAsyncComponent,
 } from 'vue';
 
 // TypeScript Types
@@ -159,6 +158,8 @@ const {
     submitOrder,
     sendToKitchen,
 } = cartComposable;
+void addToCart;
+void cartBounce;
 
 // Payment Composable
 const paymentComposable = useCashierPayment(activeTable, isCartOpen, toast);

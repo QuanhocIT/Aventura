@@ -1,26 +1,17 @@
 <script setup lang="ts">
-import { Head, router, useForm } from '@inertiajs/vue3';
+import { Head, router } from '@inertiajs/vue3';
 import axios from 'axios';
 import {
     Sparkles,
-    ArrowUpDown,
-    ChevronDown,
     Clock,
     Search,
-    Mail,
-    Phone,
-    Plus,
     Users,
     Trash2,
-    Pencil,
-    Calendar,
-    AlertCircle,
     RefreshCw,
     TrendingUp,
     Award,
     Zap,
     HelpCircle,
-    Gift,
     Send,
     Play,
     CheckCircle2,
