@@ -344,8 +344,9 @@ class PromotionAndComboTest extends TestCase
         }
 
         // 2. Mock HTTP để giả định FastAPI microservice đang offline
+        $analyticsUrl = rtrim((string) config('services.analytics.url'), '/');
         Http::fake([
-            'http://localhost:8003/*' => Http::response(null, 500),
+            $analyticsUrl.'/*' => Http::response(null, 500),
         ]);
 
         // 3. Gọi API phân tích và kiểm tra xem có tự động kích hoạt Fallback không
@@ -371,8 +372,9 @@ class PromotionAndComboTest extends TestCase
     public function test_upsell_suggestion_via_fastapi(): void
     {
         // 1. Mock HTTP cho FastAPI hoạt động thành công
+        $analyticsUrl = rtrim((string) config('services.analytics.url'), '/');
         Http::fake([
-            'http://localhost:8003/api/analytics/upsell-suggestion' => Http::response([
+            $analyticsUrl.'/api/analytics/upsell-suggestion' => Http::response([
                 'suggestion' => 'AI đề xuất: Khách đang gọi Lẩu gà Hỏa Đứng, mời dùng thêm Nước Cốt Sấu Hạt Chia để được áp dụng combo giảm giá.',
                 'recommended_item' => 'Nước Cốt Sấu Hạt Chia',
                 'confidence' => 0.85,
@@ -435,8 +437,9 @@ class PromotionAndComboTest extends TestCase
         }
 
         // 1. Mock HTTP cho FastAPI bị lỗi 500
+        $analyticsUrl = rtrim((string) config('services.analytics.url'), '/');
         Http::fake([
-            'http://localhost:8003/*' => Http::response(null, 500),
+            $analyticsUrl.'/*' => Http::response(null, 500),
         ]);
 
         // 2. Gọi API gợi ý từ Laravel và kiểm tra xem có chạy Fallback không
