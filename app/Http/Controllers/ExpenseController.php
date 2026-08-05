@@ -236,6 +236,8 @@ class ExpenseController extends Controller
             $data['invoice_path'] = '/storage/'.$path;
         }
 
+        unset($data['invoice']);
+
         $expense->update($data);
 
         return back()->with('success', 'Đã cập nhật thông tin chi phí.');

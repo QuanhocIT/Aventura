@@ -29,6 +29,30 @@ const emit = defineEmits<{
     (e: 'check-in'): void;
 }>();
 
+const isRequestingCheckIn = ref(false);
+
+const handleRequestCheckIn = () => {
+    isRequestingCheckIn.value = true;
+    router.post(
+        '/schedules/request-check-in',
+        {},
+        {
+            onSuccess: () => {
+                import('vue-sonner').then((m) =>
+                    m.toast.success('🚀 Đã gửi yêu cầu xác nhận vào ca tới Chủ doanh nghiệp! Vui lòng chờ Chủ quán phê duyệt trong ngày.'),
+                );
+            },
+            onError: (errors: any) => {
+                const msg = Object.values(errors)[0] || 'Lỗi khi gửi yêu cầu vào ca.';
+                import('vue-sonner').then((m) => m.toast.error(String(msg)));
+            },
+            onFinish: () => {
+                isRequestingCheckIn.value = false;
+            },
+        },
+    );
+};
+
 const liveDuration = ref('00:00:00');
 let durationInterval: any = null;
 
@@ -180,6 +204,14 @@ onUnmounted(() => {
                         Đã hoàn thành ca
                     </span>
                     <span
+                        v-else-if="
+                            todayActiveAssignment?.status === 'pending_checkin'
+                        "
+                        class="animate-pulse rounded-full bg-amber-500 px-2 py-0.5 text-[9px] font-extrabold text-white uppercase"
+                    >
+                        Chờ Chủ quán duyệt ca
+                    </span>
+                    <span
                         v-else
                         class="rounded-full bg-slate-300 px-2 py-0.5 text-[9px] font-extrabold text-slate-600 uppercase dark:bg-slate-800 dark:text-slate-400"
                     >
@@ -258,16 +290,28 @@ onUnmounted(() => {
 
         <!-- Interactive Buttons Block -->
         <CardContent
-            class="rounded-b-2xl border-t border-indigo-50/60 bg-slate-50/50 p-6 pt-0 pb-6 dark:bg-slate-950/20"
+            class="space-y-2 rounded-b-2xl border-t border-indigo-50/60 bg-slate-50/50 p-6 pt-0 pb-6 dark:bg-slate-950/20"
         >
-            <!-- Check In Action Button -->
+            <!-- Check In Request Button (Gửi Chủ Doanh Nghiệp Duyệt) -->
+            <Button
+                v-if="todayActiveAssignment && ['scheduled', 'pending_checkin'].includes(todayActiveAssignment?.status) && todayActiveAssignment?.status !== 'checked_in'"
+                @click="handleRequestCheckIn"
+                :disabled="isRequestingCheckIn || todayActiveAssignment?.status === 'pending_checkin'"
+                class="flex h-12 w-full cursor-pointer items-center justify-center gap-1.5 bg-amber-600 text-xs font-black text-white shadow-md hover:bg-amber-700 active:scale-98"
+            >
+                <LogIn class="size-4" />
+                {{ todayActiveAssignment?.status === 'pending_checkin' ? '⏳ ĐANG CHỜ CHỦ QUÁN XÁC NHẬN VÀO CA...' : '📩 GỬI YÊU CẦU XÁC NHẬN VÀO CA (GỬI CHỦ QUÁN)' }}
+            </Button>
+
+            <!-- Check In Action Button (Cách GPS/QR cũ) -->
             <Button
                 v-if="todayActiveAssignment?.can_check_in"
                 @click="emit('check-in')"
-                class="flex h-12 w-full animate-pulse cursor-pointer items-center justify-center gap-1.5 bg-indigo-600 text-sm font-black text-white shadow-md hover:bg-indigo-700 active:scale-98"
+                variant="outline"
+                class="flex h-10 w-full cursor-pointer items-center justify-center gap-1.5 border-indigo-300 text-xs font-bold text-indigo-700 hover:bg-indigo-50 dark:border-indigo-800 dark:text-indigo-400 dark:hover:bg-indigo-950/30"
             >
-                <LogIn class="size-4" />
-                BẤM GIỜ VÀO CA (CHECK IN)
+                <LogIn class="size-3.5" />
+                Tự Chấm Công Bằng GPS / Ảnh Selfie
             </Button>
 
             <!-- Check Out Action Button -->

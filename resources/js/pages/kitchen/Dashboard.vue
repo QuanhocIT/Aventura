@@ -59,10 +59,17 @@ interface Product {
     is_out_of_stock: boolean;
 }
 
+interface IngredientOption {
+    id: number;
+    name: string;
+    unit_symbol: string;
+}
+
 const props = defineProps<{
     pendingItems: PendingItem[];
     completedItems: CompletedItem[];
     products: Product[];
+    ingredients?: IngredientOption[];
     kitchenStats: {
         done_today: number;
         avg_prep_minutes: number | null;
@@ -75,6 +82,60 @@ const activeTab = ref<'orders' | 'menu'>('orders');
 
 // Search query for products
 const searchQuery = ref('');
+
+// Kitchen Waste Report state
+const showWasteModal = ref(false);
+const isSubmittingWaste = ref(false);
+const wasteForm = ref({
+    ingredient_id: '',
+    quantity: '',
+    waste_category: 'spoilage',
+    notes: '',
+});
+
+const submitKitchenWaste = () => {
+    if (!wasteForm.value.ingredient_id) {
+        toast.error('Vui lòng chọn nguyên liệu hỏng/thất thoát.');
+
+        return;
+    }
+
+    if (!wasteForm.value.quantity || Number(wasteForm.value.quantity) <= 0) {
+        toast.error('Vui lòng nhập số lượng thất thoát hợp lệ.');
+
+        return;
+    }
+
+    isSubmittingWaste.value = true;
+    router.post(
+        '/inventory/waste',
+        {
+            ingredient_id: wasteForm.value.ingredient_id,
+            quantity: wasteForm.value.quantity,
+            waste_category: wasteForm.value.waste_category,
+            notes: wasteForm.value.notes ? `[Báo cáo từ Bếp] ${wasteForm.value.notes}` : '[Báo cáo từ Bếp]',
+        },
+        {
+            onSuccess: () => {
+                toast.success('Đã gửi báo cáo nguyên liệu hỏng tới Chủ nhà hàng thành công! Sau khi Chủ quán phê duyệt, hệ thống sẽ tự động tính toán trừ kho và chi phí.');
+                showWasteModal.value = false;
+                wasteForm.value = {
+                    ingredient_id: '',
+                    quantity: '',
+                    waste_category: 'spoilage',
+                    notes: '',
+                };
+            },
+            onError: (errors: Record<string, any>) => {
+                const msg = Object.values(errors)[0] || 'Lỗi khi gửi báo cáo nguyên liệu hỏng.';
+                toast.error(String(msg));
+            },
+            onFinish: () => {
+                isSubmittingWaste.value = false;
+            },
+        },
+    );
+};
 
 // Product status actions
 const handlePauseProduct = (productId: number, minutes: number) => {
@@ -867,6 +928,14 @@ onUnmounted(() => {
             </div>
 
             <div class="flex items-center gap-3">
+                <Button
+                    @click="showWasteModal = true"
+                    class="h-10 gap-1.5 rounded-xl bg-rose-600 px-4 text-xs font-bold text-white shadow-sm hover:bg-rose-700 dark:bg-rose-700 dark:hover:bg-rose-800"
+                >
+                    <AlertTriangle class="size-4" />
+                    Báo Hỏng / Thất Thoát Nguyên Liệu
+                </Button>
+
                 <Button
                     variant="outline"
                     size="sm"
@@ -1880,6 +1949,128 @@ onUnmounted(() => {
             </div>
         </div>
     </div>
+
+    <!-- ══ Modal: Báo Cáo Nguyên Liệu Hỏng (Bếp) ════════════════════════════════ -->
+    <Transition
+        enter-active-class="transition duration-150 ease-out"
+        enter-from-class="opacity-0"
+        enter-to-class="opacity-100"
+        leave-active-class="transition duration-100 ease-in"
+        leave-from-class="opacity-100"
+        leave-to-class="opacity-0"
+    >
+        <div
+            v-if="showWasteModal"
+            class="fixed inset-0 z-50 overflow-y-auto bg-black/60 p-4 backdrop-blur-sm"
+            @click.self="showWasteModal = false"
+        >
+            <div class="flex min-h-full items-center justify-center">
+                <div class="w-full max-w-lg rounded-2xl border border-border bg-card p-6 shadow-2xl">
+                    <div class="flex items-center justify-between border-b border-border pb-4">
+                        <div class="flex items-center gap-2.5">
+                            <div class="flex size-10 items-center justify-center rounded-xl bg-rose-500/10 text-rose-500">
+                                <AlertTriangle class="size-5" />
+                            </div>
+                            <div>
+                                <h3 class="text-base font-bold text-foreground">Báo Cáo Nguyên Liệu Hỏng / Thất Thoát</h3>
+                                <p class="text-xs text-muted-foreground">Gửi chủ nhà hàng phê duyệt để trừ kho và tính toán lãng phí</p>
+                            </div>
+                        </div>
+                        <button
+                            @click="showWasteModal = false"
+                            class="rounded-lg p-1 text-muted-foreground hover:bg-muted"
+                        >
+                            ✕
+                        </button>
+                    </div>
+
+                    <div class="mt-4 space-y-4">
+                        <div>
+                            <label class="block text-xs font-bold text-foreground mb-1.5">
+                                Nguyên liệu gặp sự cố <span class="text-rose-500">*</span>
+                            </label>
+                            <select
+                                v-model="wasteForm.ingredient_id"
+                                class="w-full h-10 rounded-xl border border-border bg-background px-3 text-xs font-medium text-foreground focus:ring-2 focus:ring-rose-500/20 focus:outline-none"
+                            >
+                                <option value="" disabled>-- Chọn nguyên liệu từ danh sách kho --</option>
+                                <option
+                                    v-for="ing in (ingredients || [])"
+                                    :key="ing.id"
+                                    :value="ing.id"
+                                >
+                                    {{ ing.name }} {{ ing.unit_symbol ? '(' + ing.unit_symbol + ')' : '' }}
+                                </option>
+                            </select>
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label class="block text-xs font-bold text-foreground mb-1.5">
+                                    Số lượng bị hỏng/thất thoát <span class="text-rose-500">*</span>
+                                </label>
+                                <input
+                                    type="number"
+                                    step="any"
+                                    min="0.001"
+                                    v-model="wasteForm.quantity"
+                                    placeholder="Ví dụ: 0.5"
+                                    class="w-full h-10 rounded-xl border border-border bg-background px-3 text-xs font-medium text-foreground focus:ring-2 focus:ring-rose-500/20 focus:outline-none"
+                                />
+                            </div>
+
+                            <div>
+                                <label class="block text-xs font-bold text-foreground mb-1.5">
+                                    Loại sự cố / Nguyên nhân
+                                </label>
+                                <select
+                                    v-model="wasteForm.waste_category"
+                                    class="w-full h-10 rounded-xl border border-border bg-background px-3 text-xs font-medium text-foreground focus:ring-2 focus:ring-rose-500/20 focus:outline-none"
+                                >
+                                    <option value="spoilage">🥬 Nguyên liệu hỏng / Ôi thiu</option>
+                                    <option value="cooking_loss">🍳 Hao hụt / Vỡ đổ chế biến</option>
+                                    <option value="expired">⏳ Hết hạn sử dụng</option>
+                                    <option value="damaged">📦 Hư hỏng / Dụng cụ vỡ</option>
+                                    <option value="other">❓ Khác</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-bold text-foreground mb-1.5">
+                                Mô tả sự cố chi tiết cho Chủ quán
+                            </label>
+                            <textarea
+                                v-model="wasteForm.notes"
+                                rows="3"
+                                placeholder="Ví dụ: Sơ chế thái thịt bị rơi xuống đất 500g, nguyên liệu hỏng không thể dùng..."
+                                class="w-full rounded-xl border border-border bg-background p-3 text-xs text-foreground focus:ring-2 focus:ring-rose-500/20 focus:outline-none"
+                            ></textarea>
+                        </div>
+                    </div>
+
+                    <div class="mt-6 flex items-center justify-end gap-2 border-t border-border pt-4">
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            class="h-9 rounded-xl text-xs font-bold"
+                            @click="showWasteModal = false"
+                        >
+                            Hủy bỏ
+                        </Button>
+                        <Button
+                            size="sm"
+                            class="h-9 rounded-xl bg-rose-600 font-bold text-white hover:bg-rose-700"
+                            :disabled="isSubmittingWaste"
+                            @click="submitKitchenWaste"
+                        >
+                            {{ isSubmittingWaste ? 'Đang gửi...' : 'Gửi Báo Cáo Cho Chủ Quán' }}
+                        </Button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </Transition>
 </template>
 
 <style scoped>

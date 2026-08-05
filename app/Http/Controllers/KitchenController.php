@@ -4,9 +4,11 @@ namespace App\Http\Controllers;
 
 use App\Events\Customer\ProductStockUpdated;
 use App\Events\Kitchen\KitchenUpdated;
+use App\Models\Ingredient;
 use App\Models\OrderItem;
 use App\Models\Product;
 use App\Services\QuotaService;
+use App\Support\Tenant\TenantContext;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -96,10 +98,23 @@ class KitchenController extends Controller
                 'is_out_of_stock' => (bool) ($p->out_of_stock_until && $p->out_of_stock_until->isFuture()),
             ])->all();
 
+        $branchId = app(TenantContext::class)->activeBranchId();
+        $ingredients = Ingredient::where('restaurant_id', $restaurantId)
+            ->when($branchId !== null, fn ($q) => $q->where('branch_id', $branchId))
+            ->with('unit')
+            ->orderBy('name')
+            ->get()
+            ->map(fn ($ing) => [
+                'id' => $ing->id,
+                'name' => $ing->name,
+                'unit_symbol' => $ing->unit?->symbol ?? '',
+            ])->all();
+
         return Inertia::render('kitchen/Dashboard', [
             'pendingItems' => $pendingItems,
             'completedItems' => $completedItems,
             'products' => $products,
+            'ingredients' => $ingredients,
             'kitchenStats' => $this->buildKitchenStats($restaurantId),
         ]);
     }

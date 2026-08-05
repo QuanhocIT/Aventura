@@ -204,6 +204,7 @@ class ProductManagementController extends Controller
             $path = $request->file('image')->store('products', 'public');
             $data['image_url'] = '/storage/'.$path;
         }
+        unset($data['image']);
 
         $product->update($data);
 

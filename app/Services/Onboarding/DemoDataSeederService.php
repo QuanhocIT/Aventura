@@ -16,6 +16,10 @@ use App\Models\Restaurant;
 use App\Models\RestaurantRevenueSummary;
 use App\Models\RestaurantTable;
 use App\Models\ScheduleAssignment;
+use App\Models\TrainingCourse;
+use App\Models\TrainingEnrollment;
+use App\Models\TrainingLesson;
+use App\Models\TrainingQuiz;
 use App\Models\Unit;
 use App\Models\User;
 use App\Models\WorkShift;
@@ -51,6 +55,7 @@ class DemoDataSeederService
             $shifts = $this->seedWorkShifts($restaurant);
             $this->seedScheduleAssignments($restaurant, $employees, $shifts);
             $this->seedHistoricalOrders($restaurant, $products, $employees);
+            $this->seedTrainingCourses($restaurant, $employees);
 
             $restaurant->forceFill([
                 'sandbox_mode' => true,
@@ -109,6 +114,13 @@ class DemoDataSeederService
             // Xóa tables → areas
             RestaurantTable::withTrashed()->where('restaurant_id', $rid)->forceDelete();
             Area::withTrashed()->where('restaurant_id', $rid)->forceDelete();
+
+            // Xóa training data
+            $courseIds = TrainingCourse::where('restaurant_id', $rid)->pluck('id');
+            TrainingEnrollment::where('restaurant_id', $rid)->delete();
+            TrainingQuiz::whereIn('course_id', $courseIds)->delete();
+            TrainingLesson::whereIn('course_id', $courseIds)->delete();
+            TrainingCourse::where('restaurant_id', $rid)->delete();
 
             // Reset sandbox flags
             $restaurant->forceFill([
@@ -680,5 +692,99 @@ class DemoDataSeederService
                 'track_inventory' => true,
             ]
         );
+    }
+
+    /**
+     * Nạp dữ liệu mẫu Đào tạo & Onboarding nhân viên.
+     */
+    private function seedTrainingCourses(Restaurant $restaurant, Collection $employees): void
+    {
+        $rid = $restaurant->id;
+        $branchId = $restaurant->branches()->first()?->id;
+
+        // Course 1: Quy trình Vận hành & Phục vụ Bàn chuẩn F&B
+        $course1 = TrainingCourse::create([
+            'restaurant_id' => $rid,
+            'title' => 'Quy trình Vận hành & Phục vụ Bàn chuẩn F&B',
+            'description' => 'Khóa học bắt buộc dành cho nhân viên Phục vụ và Thu ngân mới gia nhập nhà hàng.',
+            'category' => 'service',
+            'is_required' => true,
+            'is_active' => true,
+            'created_by' => $restaurant->owner_user_id,
+        ]);
+
+        TrainingLesson::create([
+            'course_id' => $course1->id,
+            'branch_id' => $branchId,
+            'title' => 'Bài 1: Nụ cười & Quy chuẩn Đón tiếp Khách hàng',
+            'content_type' => 'text',
+            'content' => 'Quy tắc 5s khi chào đón khách: Nụ cười thân thiện, Giới thiệu vị trí ngồi, Trao menu và tư vấn món ăn phù hợp với khẩu vị khách.',
+            'duration_minutes' => 15,
+            'sort_order' => 1,
+        ]);
+
+        TrainingLesson::create([
+            'course_id' => $course1->id,
+            'branch_id' => $branchId,
+            'title' => 'Bài 2: Quy trình Order trên Tablet/POS & Báo Bếp',
+            'content_type' => 'text',
+            'content' => 'Hướng dẫn thao tác tạo đơn trên màn hình POS, ghi chú đặc biệt (ít đường, không cay) và gửi đơn trực tiếp sang màn hình Bếp (Kitchen Display).',
+            'duration_minutes' => 20,
+            'sort_order' => 2,
+        ]);
+
+        TrainingQuiz::create([
+            'course_id' => $course1->id,
+            'title' => 'Bài kiểm tra Quy trình Phục vụ Bàn',
+            'pass_score' => 80,
+            'max_attempts' => 3,
+            'questions' => [
+                [
+                    'question' => 'Thời gian tối đa để nhân viên ra đón tiếp khi khách vừa vào nhà hàng là bao nhiêu?',
+                    'options' => ['10 giây', '30 giây', '1 phút', '2 phút'],
+                    'answer' => '30 giây',
+                ],
+                [
+                    'question' => 'Khi khách yêu cầu không cay, nhân viên thao tác như thế nào?',
+                    'options' => ['Nhớ trong đầu', 'Nhập ghi chú "Không cay" trực tiếp trên POS khi tạo đơn', 'Nói thầm với bếp', 'Bỏ qua'],
+                    'answer' => 'Nhập ghi chú "Không cay" trực tiếp trên POS khi tạo đơn',
+                ],
+            ],
+        ]);
+
+        // Course 2: An toàn Vệ sinh Thực phẩm & Bảo quản Kho Bếp
+        $course2 = TrainingCourse::create([
+            'restaurant_id' => $rid,
+            'title' => 'An toàn Vệ sinh Thực phẩm & Bảo quản Kho Bếp',
+            'description' => 'Quy định về vệ sinh an toàn thực phẩm, phân loại nguyên liệu và bảo quản lạnh chuẩn HACCP.',
+            'category' => 'food_safety',
+            'is_required' => true,
+            'is_active' => true,
+            'created_by' => $restaurant->owner_user_id,
+        ]);
+
+        TrainingLesson::create([
+            'course_id' => $course2->id,
+            'branch_id' => $branchId,
+            'title' => 'Bài 1: Nguyên tắc FIFO trong Nhập xuất kho Bếp',
+            'content_type' => 'text',
+            'content' => 'First-In, First-Out: Nguyên liệu nhập trước phải được sắp xếp ở vị trí dễ lấy để xuất dùng trước. Kiểm tra hạn sử dụng hàng ngày.',
+            'duration_minutes' => 15,
+            'sort_order' => 1,
+        ]);
+
+        // Ghi danh nhân viên mẫu
+        foreach ($employees->take(3) as $idx => $emp) {
+            TrainingEnrollment::create([
+                'restaurant_id' => $rid,
+                'course_id' => $course1->id,
+                'employee_id' => $emp->id,
+                'completed_lessons' => [1],
+                'status' => $idx === 0 ? 'completed' : 'in_progress',
+                'progress_percent' => $idx === 0 ? 100 : 50,
+                'started_at' => now()->subDays(3),
+                'completed_at' => $idx === 0 ? now()->subDay() : null,
+            ]);
+        }
     }
 }

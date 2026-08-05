@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Models\ApprovalRequest;
 use App\Models\AuditLog;
 use App\Models\Employee;
 use App\Models\Order;
@@ -150,6 +151,21 @@ class AutoCloseExpiredShifts extends Command
                 $this->error("Error auto-closing shift ID {$shift->id}: ".$e->getMessage());
             }
         }
+
+        // Clean up unapproved shift_checkin requests and mark past unapproved shifts as absent (coi như nghỉ)
+        ApprovalRequest::withoutGlobalScopes()
+            ->where('operation_type', 'shift_checkin')
+            ->where('status', 'pending')
+            ->whereDate('created_at', '<', $todayStr)
+            ->update([
+                'status' => 'rejected',
+                'rejection_reason' => 'Yêu cầu vào ca đã hết hạn do Chủ doanh nghiệp không xác nhận trong ngày (Coi như nghỉ).',
+            ]);
+
+        ScheduleAssignment::withoutGlobalScopes()
+            ->whereIn('status', ['scheduled', 'pending_checkin'])
+            ->whereDate('scheduled_date', '<', $todayStr)
+            ->update(['status' => 'absent']);
 
         $this->info("Completed auto-closing {$closedCount} shifts.");
 

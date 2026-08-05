@@ -7,6 +7,7 @@ use App\Models\AuditLog;
 use App\Models\Employee;
 use App\Models\Ingredient;
 use App\Models\Inventory;
+use App\Models\InventoryBatch;
 use App\Models\InventoryTransaction;
 use App\Models\Product;
 use App\Models\ProductRecipe;
@@ -500,6 +501,21 @@ class InventoryManagementController extends Controller
                 ]);
 
                 $ingredient->update(['average_cost' => round($newAvg, 2)]);
+
+                if (! empty($data['expiry_date'])) {
+                    InventoryBatch::create([
+                        'restaurant_id' => $user->restaurant_id,
+                        'branch_id' => $data['branch_id'],
+                        'ingredient_id' => $ingredient->id,
+                        'batch_number' => 'LOT-'.now()->format('YmdHis'),
+                        'quantity_remaining' => $newQty,
+                        'unit_cost' => $newCost,
+                        'purchased_at' => $data['occurred_at'] ?? now(),
+                        'expiry_date' => $data['expiry_date'],
+                        'supplier_id' => $data['supplier_id'] ?? null,
+                        'status' => 'active',
+                    ]);
+                }
             });
         } catch (\Exception $e) {
             return back()->withErrors(['unit_cost' => $e->getMessage()]);
@@ -677,7 +693,7 @@ class InventoryManagementController extends Controller
      */
     public function storeWaste(Request $request): RedirectResponse
     {
-        abort_unless($request->user()->hasAnyRole(['owner', 'manager', 'inventory_staff']), 403);
+        abort_unless($request->user()->hasAnyRole(['owner', 'manager', 'inventory_staff', 'kitchen', 'waiter', 'cashier']), 403);
 
         $data = $request->validate([
             'ingredient_id' => ['required', TenantRule::exists('ingredients')],

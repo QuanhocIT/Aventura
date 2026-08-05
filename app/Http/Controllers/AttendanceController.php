@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\ScheduleAssignment;
 use App\Models\ViolationReport;
+use App\Services\ApprovalService;
 use App\Services\QuotaService;
 use App\Support\TenantRule;
 use Carbon\Carbon;
@@ -482,5 +483,50 @@ class AttendanceController extends Controller
             'status' => 'resolved', // Đã phê duyệt và áp dụng trực tiếp lên bảng lương nháp
             'is_anonymous' => false,
         ]);
+    }
+
+    /**
+     * Nhân viên (trừ Quản lý) gửi yêu cầu xác nhận vào ca tới Chủ doanh nghiệp (thay cho checkin GPS/QR cũ).
+     */
+    public function requestCheckIn(Request $request): RedirectResponse
+    {
+        $user = $request->user();
+        if ($user->hasAnyRole(['owner', 'manager'])) {
+            return back()->withErrors(['email' => 'Tài khoản Chủ quán / Quản lý không cần gửi yêu cầu xác nhận vào ca.']);
+        }
+
+        $employee = $user->employee;
+        if (! $employee) {
+            return back()->withErrors(['email' => 'Bạn không phải là nhân viên hợp lệ trên hệ thống.']);
+        }
+
+        // Tìm ca trực hôm nay của nhân viên
+        $todayStr = today()->toDateString();
+        $assignment = ScheduleAssignment::where('employee_id', $employee->id)
+            ->whereIn('status', ['scheduled', 'pending_checkin'])
+            ->whereDate('scheduled_date', $todayStr)
+            ->with('shift')
+            ->first();
+
+        if (! $assignment) {
+            return back()->withErrors(['email' => 'Hôm nay bạn không có ca trực nào được xếp để gửi yêu cầu vào ca.']);
+        }
+
+        if ($assignment->status === 'checked_in') {
+            return back()->with('success', 'Bạn đã được xác nhận vào ca trực này trước đó.');
+        }
+
+        // Gửi yêu cầu phê duyệt cho Chủ doanh nghiệp
+        app(ApprovalService::class)->submitRequest('shift_checkin', [
+            'assignment_id' => $assignment->id,
+            'employee_id' => $employee->id,
+            'shift_name' => $assignment->shift?->name ?? 'Ca trực',
+            'requested_at' => now()->toIso8601String(),
+            'notes' => 'Yêu cầu xác nhận vào ca từ nhân viên '.$user->name.' ('.($employee->job_title ?? 'Nhân viên').')',
+        ], $user);
+
+        $assignment->update(['status' => 'pending_checkin']);
+
+        return back()->with('success', '🚀 Đã gửi yêu cầu xác nhận vào ca tới Chủ doanh nghiệp! Vui lòng chờ Chủ quán phê duyệt trong ngày.');
     }
 }

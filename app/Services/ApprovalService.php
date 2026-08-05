@@ -8,6 +8,7 @@ use App\Models\Ingredient;
 use App\Models\InventoryTransaction;
 use App\Models\Salary;
 use App\Models\SalaryAdjustment;
+use App\Models\ScheduleAssignment;
 use App\Models\User;
 use App\Notifications\ApprovalDecisionNotification;
 use App\Notifications\ApprovalRequestedNotification;
@@ -89,6 +90,13 @@ class ApprovalService
                 'reviewed_at' => now(),
                 'rejection_reason' => $reason,
             ]);
+
+            if ($approval->operation_type === 'shift_checkin' && ! empty($approval->operation_data['assignment_id'])) {
+                $assignment = ScheduleAssignment::withoutGlobalScopes()->find($approval->operation_data['assignment_id']);
+                if ($assignment && in_array($assignment->status, ['scheduled', 'pending_checkin'])) {
+                    $assignment->update(['status' => 'absent']);
+                }
+            }
         });
 
         $approval->requester?->notify(new ApprovalDecisionNotification($approval, 'rejected'));
@@ -105,8 +113,25 @@ class ApprovalService
             'inventory_purchase' => $this->executePurchase($data, $approval->restaurant_id, $approval->requester_id),
             'inventory_waste' => $this->executeWaste($data, $approval->restaurant_id, $approval->requester_id),
             'salary_adjustment' => $this->executeSalaryAdjustment($data, $approval->restaurant_id),
+            'shift_checkin' => $this->executeShiftCheckin($data, $approval->restaurant_id),
             default => null,
         };
+    }
+
+    private function executeShiftCheckin(array $data, int $restaurantId): void
+    {
+        $assignment = ScheduleAssignment::withoutGlobalScopes()
+            ->where('restaurant_id', $restaurantId)
+            ->find($data['assignment_id']);
+
+        if ($assignment && in_array($assignment->status, ['scheduled', 'pending_checkin'])) {
+            $checkInTime = ! empty($data['requested_at']) ? Carbon::parse($data['requested_at']) : now();
+            $assignment->update([
+                'check_in_at' => $checkInTime,
+                'status' => 'checked_in',
+            ]);
+            $assignment->employee?->flushShiftAccessCache();
+        }
     }
 
     private function executePurchase(array $data, int $restaurantId, int $performedBy): void
