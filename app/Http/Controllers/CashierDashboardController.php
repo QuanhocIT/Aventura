@@ -43,48 +43,55 @@ class CashierDashboardController extends Controller
             // Ensure default 20 tables exist (A1-A10, B1-B10) — chỉ chạy 1 lần
             $cacheKey = "restaurant_{$restaurant->id}_tables_initialized:branch:{$branchId}";
             if (! Cache::has($cacheKey)) {
-                // The unique index also covers soft-deleted rows. Include them
-                // here so a previously removed default area is restored instead
-                // of being inserted again and causing a duplicate-key error.
-                $areaA = Area::withTrashed()->firstOrCreate(
-                    ['restaurant_id' => $restaurant->id, 'branch_id' => $branchId, 'code' => 'SANH-A'],
-                    ['name' => 'Khu Vực Sảnh A', 'display_order' => 1, 'status' => 'active']
-                );
-                if ($areaA->trashed()) {
-                    $areaA->restore();
-                }
+                Cache::lock("{$cacheKey}:lock", 15)->get(function () use ($cacheKey, $restaurant, $branchId): void {
+                    if (Cache::has($cacheKey)) {
+                        return;
+                    }
 
-                $areaB = Area::withTrashed()->firstOrCreate(
-                    ['restaurant_id' => $restaurant->id, 'branch_id' => $branchId, 'code' => 'SANH-B'],
-                    ['name' => 'Khu Vực Sảnh B', 'display_order' => 2, 'status' => 'active']
-                );
-                if ($areaB->trashed()) {
-                    $areaB->restore();
-                }
+                    // The unique index also covers soft-deleted rows. Include them
+                    // here so a previously removed default area is restored instead
+                    // of being inserted again and causing a duplicate-key error.
+                    $areaA = Area::withTrashed()->firstOrCreate(
+                        ['restaurant_id' => $restaurant->id, 'branch_id' => $branchId, 'code' => 'SANH-A'],
+                        ['name' => 'Khu Vực Sảnh A', 'display_order' => 1, 'status' => 'active']
+                    );
+                    if ($areaA->trashed()) {
+                        $areaA->restore();
+                    }
 
-                $tableCount = RestaurantTable::where('restaurant_id', $restaurant->id)
-                    ->where('branch_id', $branchId)
-                    ->count();
-                if ($tableCount < 20) {
-                    for ($i = 1; $i <= 10; $i++) {
-                        $tableA = RestaurantTable::withTrashed()->firstOrCreate(
-                            ['restaurant_id' => $restaurant->id, 'branch_id' => $branchId, 'name' => "A{$i}"],
-                            ['area_id' => $areaA->id, 'capacity' => 4, 'status' => 'available', 'qr_code' => "QR-A{$i}-{$restaurant->id}"]
-                        );
-                        if ($tableA->trashed()) {
-                            $tableA->restore();
-                        }
+                    $areaB = Area::withTrashed()->firstOrCreate(
+                        ['restaurant_id' => $restaurant->id, 'branch_id' => $branchId, 'code' => 'SANH-B'],
+                        ['name' => 'Khu Vực Sảnh B', 'display_order' => 2, 'status' => 'active']
+                    );
+                    if ($areaB->trashed()) {
+                        $areaB->restore();
+                    }
 
-                        $tableB = RestaurantTable::withTrashed()->firstOrCreate(
-                            ['restaurant_id' => $restaurant->id, 'branch_id' => $branchId, 'name' => "B{$i}"],
-                            ['area_id' => $areaB->id, 'capacity' => 4, 'status' => 'available', 'qr_code' => "QR-B{$i}-{$restaurant->id}"]
-                        );
-                        if ($tableB->trashed()) {
-                            $tableB->restore();
+                    $tableCount = RestaurantTable::where('restaurant_id', $restaurant->id)
+                        ->where('branch_id', $branchId)
+                        ->count();
+                    if ($tableCount < 20) {
+                        for ($i = 1; $i <= 10; $i++) {
+                            $tableA = RestaurantTable::withTrashed()->firstOrCreate(
+                                ['restaurant_id' => $restaurant->id, 'branch_id' => $branchId, 'name' => "A{$i}"],
+                                ['area_id' => $areaA->id, 'capacity' => 4, 'status' => 'available', 'qr_code' => "QR-A{$i}-{$restaurant->id}"]
+                            );
+                            if ($tableA->trashed()) {
+                                $tableA->restore();
+                            }
+
+                            $tableB = RestaurantTable::withTrashed()->firstOrCreate(
+                                ['restaurant_id' => $restaurant->id, 'branch_id' => $branchId, 'name' => "B{$i}"],
+                                ['area_id' => $areaB->id, 'capacity' => 4, 'status' => 'available', 'qr_code' => "QR-B{$i}-{$restaurant->id}"]
+                            );
+                            if ($tableB->trashed()) {
+                                $tableB->restore();
+                            }
                         }
                     }
-                }
-                Cache::put($cacheKey, true, 86400); // 24 giờ
+
+                    Cache::put($cacheKey, true, 86400); // 24 giờ
+                });
             }
 
             // Query tables along with their active unpaid orders (eager load activeOrder relationship)
