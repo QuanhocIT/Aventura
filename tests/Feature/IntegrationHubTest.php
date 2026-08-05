@@ -19,6 +19,7 @@ use App\Services\Printing\EscPosBuilder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
+use Spatie\Permission\Models\Permission;
 use Tests\TestCase;
 
 class IntegrationHubTest extends TestCase
@@ -315,6 +316,10 @@ class IntegrationHubTest extends TestCase
             'status' => 'active',
             'email_verified_at' => now(),
         ]);
+        $user->givePermissionTo(Permission::firstOrCreate([
+            'name' => 'manage_restaurant_settings',
+            'guard_name' => 'web',
+        ]));
 
         $this->actingAs($user)
             ->get('/settings/integrations')
