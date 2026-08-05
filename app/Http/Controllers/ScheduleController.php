@@ -21,6 +21,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -144,16 +145,18 @@ class ScheduleController extends Controller
 
             // ── AI Staffing Suggestions dựa trên peak hours ──────────────────
             $staffingTips = Inertia::defer(function () use ($restaurantId, $shifts, $assignments, $branchId, $scopeKey) {
-                return Cache::remember("schedule_staffing_tips:{$restaurantId}:{$scopeKey}", 300, function () use ($restaurantId, $shifts, $assignments, $branchId) {
+                return Cache::remember("schedule_staffing_tips:{$restaurantId}:{$scopeKey}", 300, function () use ($restaurantId, $shifts, $assignments, $branchId, $scopeKey) {
                     $isSqlite = DB::connection()->getDriverName() === 'sqlite';
                     $hourExpr = $isSqlite ? "CAST(strftime('%H', completed_at) AS INTEGER)" : 'HOUR(completed_at)';
+                    $ordersTable = Schema::hasTable('orders_unified') ? 'orders_unified' : 'orders';
 
-                    $peakHoursData = Cache::remember("schedule_peak_hours:{$restaurantId}:{$scopeKey}", 3600, function () use ($restaurantId, $hourExpr, $branchId) {
-                        return DB::table('orders_unified')
+                    $peakHoursData = Cache::remember("schedule_peak_hours:{$restaurantId}:{$scopeKey}", 3600, function () use ($restaurantId, $hourExpr, $branchId, $ordersTable) {
+                        return DB::table($ordersTable)
                             ->where('restaurant_id', $restaurantId)
                             ->when($branchId, fn ($query) => $query->where('branch_id', $branchId))
                             ->where('status', 'completed')
                             ->where('completed_at', '>=', now()->subDays(30))
+                            ->when($ordersTable === 'orders', fn ($query) => $query->whereNull('deleted_at'))
                             ->selectRaw("{$hourExpr} as hour, COUNT(*) as order_count, SUM(total_amount) as revenue")
                             ->groupBy(DB::raw($hourExpr))
                             ->orderByDesc('revenue')

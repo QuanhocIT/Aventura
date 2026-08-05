@@ -53,7 +53,7 @@ return new class extends Migration
             ->whereNull('branch_id')
             ->orderBy('id')
             ->get(['id', 'table_id', 'created_by', 'cashier_user_id'])
-            ->each(function ($order) use ($restaurantId, $branchIds): void {
+            ->each(function ($order) use ($branchIds): void {
                 $branchId = null;
 
                 if ($order->table_id && Schema::hasTable('restaurant_tables')) {
