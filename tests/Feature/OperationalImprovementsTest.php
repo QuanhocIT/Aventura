@@ -210,9 +210,9 @@ class OperationalImprovementsTest extends TestCase
     }
 
     /**
-     * Test 3: Bypass luật nghỉ 11h
+     * Test 3: Xếp ca không bắt buộc đủ 11 giờ nghỉ
      */
-    public function test_schedule_rest_rule_requires_bypass_when_violated()
+    public function test_schedule_allows_assignment_without_rest_bypass()
     {
         $this->actingAs($this->owner);
 
@@ -264,27 +264,15 @@ class OperationalImprovementsTest extends TestCase
             'status' => 'scheduled',
         ]);
 
-        // Cố gắng gán ca sáng cho ngày hôm nay (Wednesday - 2026-06-10)
+        // Gán ca sáng cho ngày hôm nay dù thời gian nghỉ chỉ còn 1 giờ.
         $response = $this->post(route('employees.schedules.store'), [
             'day' => 'Wednesday',
             'employee_name' => $employee->full_name,
             'shift_name' => $shiftMorning->name,
         ]);
 
-        // Phải báo lỗi vi phạm luật 11h
-        $response->assertSessionHasErrors(['shift_name']);
-
-        // Thử lại với mã bypass đúng MANAGER123 và lý do
-        $responseWithBypass = $this->post(route('employees.schedules.store'), [
-            'day' => 'Wednesday',
-            'employee_name' => $employee->full_name,
-            'shift_name' => $shiftMorning->name,
-            'bypass_code' => 'MANAGER123',
-            'bypass_reason' => 'Thiếu nhân viên ca sáng đột xuất',
-        ]);
-
-        $responseWithBypass->assertRedirect();
-        $responseWithBypass->assertSessionHasNoErrors();
+        $response->assertRedirect();
+        $response->assertSessionHasNoErrors();
 
         // Đã phân ca thành công
         $assignment = ScheduleAssignment::where('employee_id', $employee->id)
@@ -293,11 +281,9 @@ class OperationalImprovementsTest extends TestCase
         $this->assertNotNull($assignment);
         $this->assertEquals('2026-06-10', Carbon::parse($assignment->scheduled_date)->toDateString());
 
-        // Đã ghi nhận log bypass
-        $this->assertTrue(AuditLog::where('restaurant_id', $this->restaurant->id)
+        $this->assertFalse(AuditLog::where('restaurant_id', $this->restaurant->id)
             ->where('action', 'schedule_rest_rule_bypass')
-            ->exists()
-        );
+            ->exists());
     }
 
     /**

@@ -59,10 +59,6 @@ class LeaveScheduleController extends Controller
         $result = $this->assignments->storeAssignment(
             $request->user(),
             $data,
-            $request->input('bypass_code'),
-            $request->input('bypass_reason'),
-            $request->ip(),
-            $request->userAgent() ?? '',
         );
 
         if (! $result['success']) {

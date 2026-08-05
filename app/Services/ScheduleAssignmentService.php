@@ -2,7 +2,6 @@
 
 namespace App\Services;
 
-use App\Models\AuditLog;
 use App\Models\Employee;
 use App\Models\EmployeeKpi;
 use App\Models\EmployeeTrustScore;
@@ -19,7 +18,7 @@ use Carbon\Carbon;
 /**
  * Nghiệp vụ xếp ca trực: bật/tắt xếp lịch tự động bằng AI (chấm điểm ứng viên
  * theo đăng ký rảnh + rating + KPI/trust score + cân bằng khối lượng ca),
- * xếp/hủy ca thủ công (kèm luật nghỉ 11h + cơ chế bypass có kiểm toán), sao
+ * xếp/hủy ca thủ công (kiểm tra trùng thời gian), sao
  * chép lịch tuần trước — tách khỏi LeaveScheduleController theo đúng khuôn
  * "chia để trị" đã áp dụng cho các controller lớn khác.
  *
@@ -219,12 +218,11 @@ class ScheduleAssignmentService
     }
 
     /**
-     * Xếp ca thủ công cho nhân sự — kiểm tra trùng ca + luật nghỉ 11h (có thể
-     * ghi đè bằng mã phê duyệt quản lý, có kiểm toán qua AuditLog).
+     * Xếp ca thủ công cho nhân sự — chỉ chặn các ca bị trùng thời gian.
      *
      * @return array{success: bool, field?: string, message: string}
      */
-    public function storeAssignment(User $actingUser, array $data, ?string $bypassCode, ?string $bypassReason, string $ip, string $userAgent): array
+    public function storeAssignment(User $actingUser, array $data): array
     {
         $employee = Employee::where('restaurant_id', $actingUser->restaurant_id)
             ->when(app(TenantContext::class)->isBranchScoped(), fn ($q) => $q->where('branch_id', app(TenantContext::class)->activeBranchId()))
@@ -257,7 +255,6 @@ class ScheduleAssignmentService
         $offset = self::DAY_OFFSETS[$data['day']] ?? 0;
         $scheduledDate = $startOfWeek->copy()->addDays($offset)->toDateString();
 
-        // 11-hour rest rule check
         $startProposed = Carbon::parse($scheduledDate.' '.$shift->start_time);
         $endProposed = $shift->is_overnight
             ? Carbon::parse($scheduledDate.' '.$shift->end_time)->addDay()
@@ -273,7 +270,6 @@ class ScheduleAssignmentService
             ->with('shift')
             ->get();
 
-        $hasRestViolation = false;
         foreach ($adjacentAssignments as $aa) {
             $aaShift = $aa->shift;
             if (! $aaShift) {
@@ -291,56 +287,6 @@ class ScheduleAssignmentService
                 return ['success' => false, 'field' => 'shift_name', 'message' => "Nhân viên {$employee->full_name} đã có ca làm việc trùng lặp trong thời gian này."];
             }
 
-            // 2. Rest hour check (11 hours)
-            if ($endProposed->lte($startExist)) {
-                $restHours = $endProposed->diffInSeconds($startExist) / 3600.0;
-                if ($restHours < 11.0) {
-                    $hasRestViolation = true;
-                }
-            } elseif ($endExist->lte($startProposed)) {
-                $restHours = $endExist->diffInSeconds($startProposed) / 3600.0;
-                if ($restHours < 11.0) {
-                    $hasRestViolation = true;
-                }
-            }
-        }
-
-        if ($hasRestViolation) {
-            $hasBypass = false;
-
-            if ($bypassCode) {
-                try {
-                    $approvingUser = User::validateManagerBypass($bypassCode, $actingUser->restaurant_id);
-                    if ($approvingUser && ! empty($bypassReason)) {
-                        $hasBypass = true;
-
-                        AuditLog::create([
-                            'restaurant_id' => $actingUser->restaurant_id,
-                            'user_id' => $actingUser->id,
-                            'event' => 'updated',
-                            'action' => 'schedule_rest_rule_bypass',
-                            'ip_address' => $ip,
-                            'user_agent' => $userAgent,
-                            'old_values' => [
-                                'employee_id' => $employee->id,
-                                'scheduled_date' => $scheduledDate,
-                                'shift_id' => $shift->id,
-                            ],
-                            'new_values' => [
-                                'bypass_code_used' => true,
-                                'bypass_approver_id' => $approvingUser->id,
-                                'bypass_reason' => $bypassReason,
-                            ],
-                        ]);
-                    }
-                } catch (\Exception $e) {
-                    return ['success' => false, 'field' => 'bypass_code', 'message' => $e->getMessage()];
-                }
-            }
-
-            if (! $hasBypass) {
-                return ['success' => false, 'field' => 'shift_name', 'message' => "[⚠️ Vi phạm nghỉ 11h] Nhân viên {$employee->full_name} không có đủ 11 tiếng nghỉ ngơi giữa các ca làm việc. Vui lòng nhập mã phê duyệt và lý do để ghi đè đặc cách."];
-            }
         }
 
         // Save schedule
