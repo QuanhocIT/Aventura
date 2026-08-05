@@ -283,10 +283,12 @@ class FortifyServiceProvider extends ServiceProvider
         });
 
         RateLimiter::for('login', function (Request $request) {
-            // Giới hạn tối đa 5 lần thử trong 15 phút (900s) cho login để chống brute-force
+            // Keep the Fortify limiter aligned with the global auth login limiter.
             $throttleKey = Str::transliterate(Str::lower($request->input(Fortify::username())).'|'.$request->ip());
+            $maxAttempts = (int) config('firewall.rate_limit.auth.max_attempts', 20);
+            $decaySeconds = (int) config('firewall.rate_limit.auth.decay_seconds', 900);
 
-            return Limit::perMinutes(15, 5)->by($throttleKey);
+            return Limit::perSecond($maxAttempts, $decaySeconds)->by($throttleKey);
         });
     }
 

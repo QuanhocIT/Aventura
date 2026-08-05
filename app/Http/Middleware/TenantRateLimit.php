@@ -39,17 +39,26 @@ class TenantRateLimit
 
         if ($this->limiter->tooManyAttempts($key, $maxAttempts)) {
             $retryAfter = $this->limiter->availableIn($key);
-
-            return response()->json([
-                'message' => 'Vượt quá giới hạn request. Vui lòng thử lại sau.',
-                'retry_after' => $retryAfter,
-                'plan' => $restaurant->plan?->name,
-                'limit' => $maxAttempts.' requests/phút',
-            ], 429)->withHeaders([
+            $message = 'Vượt quá giới hạn request. Vui lòng thử lại sau.';
+            $headers = [
                 'X-RateLimit-Limit' => $maxAttempts,
                 'X-RateLimit-Remaining' => 0,
                 'Retry-After' => $retryAfter,
-            ]);
+            ];
+
+            if ($request->header('X-Inertia') || (! $request->expectsJson() && ! $request->is('api/*'))) {
+                return redirect()->back(303)
+                    ->withErrors(['request' => $message])
+                    ->with('rate_limit_retry_after', $retryAfter)
+                    ->withHeaders($headers);
+            }
+
+            return response()->json([
+                'message' => $message,
+                'retry_after' => $retryAfter,
+                'plan' => $restaurant->plan?->name,
+                'limit' => $maxAttempts.' requests/phút',
+            ], 429)->withHeaders($headers);
         }
 
         $this->limiter->hit($key, 60); // decay 60 giây
