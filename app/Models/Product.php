@@ -53,6 +53,7 @@ class Product extends Model
             'out_of_stock_until' => 'datetime',
             'is_active' => 'boolean',
             'is_available' => 'boolean',
+            'is_processed' => 'boolean',
             'earn_points' => 'integer',
             'redeem_points' => 'integer',
         ];

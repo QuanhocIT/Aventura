@@ -35,6 +35,9 @@ type Product = {
     description: string | null;
     category: Category | null;
     is_available: boolean;
+    is_processed?: boolean;
+    has_recipes?: boolean;
+    recipes_count?: number;
     image_url: string | null;
     branch_id?: number | null;
     branch_name?: string | null;
@@ -254,6 +257,7 @@ const productForm = useForm({
     category_id: props.categories[0]?.id ? String(props.categories[0].id) : '',
     name: '',
     price: '',
+    is_processed: true,
     earn_points: 0,
     redeem_points: 0,
     description: '',
@@ -265,6 +269,7 @@ const productForm = useForm({
 const editForm = useForm({
     name: '',
     price: '',
+    is_processed: true,
     earn_points: 0,
     redeem_points: 0,
     category_id: '',
@@ -390,10 +395,29 @@ const submitCategory = () => {
 };
 
 const submitProduct = () => {
+    const isProcessed = productForm.is_processed;
+
     productForm.post('/products', {
         onSuccess: () => {
-            productForm.reset();
             showAddProduct.value = false;
+
+            if (isProcessed) {
+                toast.success(
+                    'Đã thêm món cần chế biến! Vui lòng cài đặt công thức định lượng nguyên liệu tại trang Kho.',
+                    {
+                        action: {
+                            label: 'Cài định lượng',
+                            onClick: () => router.visit('/inventory'),
+                        },
+                    },
+                );
+            } else {
+                toast.success(
+                    'Đã thêm món không cần chế biến vào thực đơn bán ngay!',
+                );
+            }
+
+            productForm.reset();
         },
     });
 };
@@ -402,6 +426,7 @@ const openEditModal = (p: Product) => {
     editingProduct.value = p;
     editForm.name = p.name;
     editForm.price = String(p.price);
+    editForm.is_processed = p.is_processed ?? true;
     editForm.earn_points = p.earn_points ?? 0;
     editForm.redeem_points = p.redeem_points ?? 0;
     editForm.category_id = p.category ? String(p.category.id) : '';
@@ -419,6 +444,7 @@ const submitEdit = () => {
             _method: 'PATCH',
             name: editForm.name,
             price: editForm.price,
+            is_processed: editForm.is_processed,
             category_id: editForm.category_id,
             description: editForm.description,
             image: editForm.image,
@@ -2020,6 +2046,60 @@ const toggleAvailability = (p: Product) => {
                             </div>
                         </div>
                         <div class="grid gap-1.5">
+                            <Label class="text-xs font-bold text-foreground"
+                                >Phân loại Món & Công thức
+                                <span class="font-bold text-rose-500"
+                                    >*</span
+                                ></Label
+                            >
+                            <div class="grid grid-cols-2 gap-3">
+                                <div
+                                    @click="productForm.is_processed = false"
+                                    :class="[
+                                        'cursor-pointer rounded-xl border p-3 transition-all',
+                                        !productForm.is_processed
+                                            ? 'border-blue-500 bg-blue-50/70 text-blue-900 ring-2 ring-blue-500/20 dark:bg-blue-950/40 dark:text-blue-200'
+                                            : 'border-border bg-card hover:bg-muted/50',
+                                    ]"
+                                >
+                                    <div
+                                        class="flex items-center gap-1.5 text-xs font-bold"
+                                    >
+                                        <span>🥤 Bán sẵn (Không chế biến)</span>
+                                    </div>
+                                    <p
+                                        class="mt-1 text-[10px] text-muted-foreground"
+                                    >
+                                        Đưa trực tiếp vào thực đơn bán ngay.
+                                        Không bắt buộc cài công thức.
+                                    </p>
+                                </div>
+
+                                <div
+                                    @click="productForm.is_processed = true"
+                                    :class="[
+                                        'cursor-pointer rounded-xl border p-3 transition-all',
+                                        productForm.is_processed
+                                            ? 'border-amber-500 bg-amber-50/70 text-amber-900 ring-2 ring-amber-500/20 dark:bg-amber-950/40 dark:text-amber-200'
+                                            : 'border-border bg-card hover:bg-muted/50',
+                                    ]"
+                                >
+                                    <div
+                                        class="flex items-center gap-1.5 text-xs font-bold"
+                                    >
+                                        <span>🍲 Cần chế biến & Định lượng</span>
+                                    </div>
+                                    <p
+                                        class="mt-1 text-[10px] text-muted-foreground"
+                                    >
+                                        Yêu cầu tạo công thức nguyên liệu thô để
+                                        tự động trừ kho & tính COGS.
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="grid gap-1.5">
                             <Label
                                 for="prod-name"
                                 class="text-xs font-bold text-foreground"
@@ -2189,6 +2269,60 @@ const toggleAvailability = (p: Product) => {
                 </CardHeader>
                 <CardContent class="p-5">
                     <form @submit.prevent="submitEdit" class="space-y-4">
+                        <div class="grid gap-1.5">
+                            <Label class="text-xs font-bold text-foreground"
+                                >Phân loại Món & Công thức
+                                <span class="font-bold text-rose-500"
+                                    >*</span
+                                ></Label
+                            >
+                            <div class="grid grid-cols-2 gap-3">
+                                <div
+                                    @click="editForm.is_processed = false"
+                                    :class="[
+                                        'cursor-pointer rounded-xl border p-3 transition-all',
+                                        !editForm.is_processed
+                                            ? 'border-blue-500 bg-blue-50/70 text-blue-900 ring-2 ring-blue-500/20 dark:bg-blue-950/40 dark:text-blue-200'
+                                            : 'border-border bg-card hover:bg-muted/50',
+                                    ]"
+                                >
+                                    <div
+                                        class="flex items-center gap-1.5 text-xs font-bold"
+                                    >
+                                        <span>🥤 Bán sẵn (Không chế biến)</span>
+                                    </div>
+                                    <p
+                                        class="mt-1 text-[10px] text-muted-foreground"
+                                    >
+                                        Đưa trực tiếp vào thực đơn bán ngay.
+                                        Không bắt buộc cài công thức.
+                                    </p>
+                                </div>
+
+                                <div
+                                    @click="editForm.is_processed = true"
+                                    :class="[
+                                        'cursor-pointer rounded-xl border p-3 transition-all',
+                                        editForm.is_processed
+                                            ? 'border-amber-500 bg-amber-50/70 text-amber-900 ring-2 ring-amber-500/20 dark:bg-amber-950/40 dark:text-amber-200'
+                                            : 'border-border bg-card hover:bg-muted/50',
+                                    ]"
+                                >
+                                    <div
+                                        class="flex items-center gap-1.5 text-xs font-bold"
+                                    >
+                                        <span>🍲 Cần chế biến & Định lượng</span>
+                                    </div>
+                                    <p
+                                        class="mt-1 text-[10px] text-muted-foreground"
+                                    >
+                                        Yêu cầu tạo công thức nguyên liệu thô để
+                                        tự động trừ kho & tính COGS.
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+
                         <div class="grid gap-1.5">
                             <Label class="text-xs font-bold text-foreground"
                                 >Nhóm món</Label

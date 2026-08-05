@@ -100,7 +100,8 @@ class InventoryManagementController extends Controller
             });
 
         $products = Product::where('restaurant_id', $user->restaurant_id)
-            ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
+            ->when($branchId, fn ($q) => $q->where(fn ($sub) => $sub->whereNull('branch_id')->orWhere('branch_id', $branchId)))
+            ->where('is_processed', true)
             ->with(['recipes.ingredient.unit', 'branch:id,name'])
             ->get()
             ->map(fn ($p) => [
@@ -110,8 +111,10 @@ class InventoryManagementController extends Controller
                 'name' => $p->name,
                 'code' => $p->code,
                 'price' => $p->price,
+                'is_processed' => (bool) $p->is_processed,
                 'recipes' => $p->recipes->map(fn ($r) => [
                     'id' => $r->id,
+                    'ingredient_id' => $r->ingredient_id,
                     'ingredient_name' => $r->ingredient?->name,
                     'quantity' => $r->quantity,
                     'unit_symbol' => $r->ingredient?->unit?->symbol,
@@ -775,6 +778,7 @@ class InventoryManagementController extends Controller
             'reconcile_items' => ['required', 'array'],
             'reconcile_items.*.ingredient_id' => ['required', TenantRule::exists('ingredients')],
             'reconcile_items.*.physical_qty' => ['required', 'numeric', 'min:0'],
+            'employee_id' => ['nullable', 'integer'],
             'notes' => ['nullable', 'string', 'max:500'],
         ]);
 
@@ -782,6 +786,8 @@ class InventoryManagementController extends Controller
 
         try {
             DB::transaction(function () use ($user, $data, $branchId) {
+                $totalNetDeficitCost = 0.0;
+
                 foreach ($data['reconcile_items'] as $item) {
                     $ingredientId = $item['ingredient_id'];
                     $physicalQty = (float) $item['physical_qty'];
@@ -818,6 +824,11 @@ class InventoryManagementController extends Controller
                     if ($discrepancy != 0) {
                         $direction = $discrepancy > 0 ? 'in' : 'out';
                         $absQty = abs($discrepancy);
+                        $lossCost = $absQty * (float) $ingredient->average_cost;
+
+                        if ($discrepancy < 0) {
+                            $totalNetDeficitCost += $lossCost;
+                        }
 
                         InventoryTransaction::create([
                             'restaurant_id' => $user->restaurant_id,
@@ -829,7 +840,7 @@ class InventoryManagementController extends Controller
                             'direction' => $direction,
                             'quantity' => $absQty,
                             'unit_cost' => (float) $ingredient->average_cost,
-                            'total_cost' => $absQty * (float) $ingredient->average_cost,
+                            'total_cost' => $lossCost,
                             'notes' => ($data['notes'] ?? 'Kiểm kho định kỳ')." (Lý thuyết: {$theoreticalQty}, Thực tế: {$physicalQty})",
                             'occurred_at' => now(),
                         ]);
@@ -838,8 +849,6 @@ class InventoryManagementController extends Controller
                     // Tự động kiểm tra cờ đỏ cảnh báo thất thoát cao (> 5%)
                     $variancePct = $theoreticalQty > 0 ? round(($variance / $theoreticalQty) * 100, 2) : 0.0;
                     if ($variancePct > 5.0) {
-                        // Cột đúng là subject_type/subject_id và 'event' là NOT NULL —
-                        // dùng sai tên cột làm INSERT ném lỗi, rollback cả lần kiểm kê.
                         AuditLog::log(
                             'inventory_high_variance_alert',
                             'updated',
@@ -860,6 +869,24 @@ class InventoryManagementController extends Controller
                         'last_counted_at' => now(),
                         'updated_by' => $user->id,
                     ]);
+                }
+
+                // Nếu chọn quy trách nhiệm cho nhân viên và có tổng thất thoát âm
+                if (! empty($data['employee_id']) && $totalNetDeficitCost > 0) {
+                    $employee = Employee::where('restaurant_id', $user->restaurant_id)
+                        ->where('branch_id', $branchId)
+                        ->find($data['employee_id']);
+
+                    if ($employee) {
+                        $salaryService = app(SalaryService::class);
+                        $salary = $salaryService->getOrCreateDraft($user->restaurant_id, $employee, now()->toDateString());
+                        $salaryService->addAdjustment($salary, [
+                            'employee_id' => $employee->id,
+                            'type' => 'inventory_loss',
+                            'amount' => $totalNetDeficitCost,
+                            'reason' => 'Khấu trừ chênh lệch âm kiểm kê kho ngày '.now()->format('d/m/Y').' — '.number_format($totalNetDeficitCost).'đ',
+                        ]);
+                    }
                 }
             });
         } catch (\Exception $e) {

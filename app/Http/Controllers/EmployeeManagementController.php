@@ -100,12 +100,22 @@ class EmployeeManagementController extends Controller
             : collect();
         if ($shiftsQuery->isEmpty() && $user->restaurant_id) {
             $defaultShifts = [
-                ['name' => 'Ca Sáng (06:00 - 14:00)', 'code' => 'CA_SANG', 'start_time' => '06:00', 'end_time' => '14:00'],
-                ['name' => 'Ca Chiều (14:00 - 22:00)', 'code' => 'CA_CHIEU', 'start_time' => '14:00', 'end_time' => '22:00'],
-                ['name' => 'Ca Tối (18:00 - 23:00)', 'code' => 'CA_TOI', 'start_time' => '18:00', 'end_time' => '23:00'],
+                ['name' => 'Ca Sáng', 'code' => 'CA_SANG', 'start_time' => '06:00', 'end_time' => '14:00'],
+                ['name' => 'Ca Chiều', 'code' => 'CA_CHIEU', 'start_time' => '14:00', 'end_time' => '22:00'],
+                ['name' => 'Ca Tối', 'code' => 'CA_TOI', 'start_time' => '18:00', 'end_time' => '23:00'],
             ];
             foreach ($defaultShifts as $ds) {
-                WorkShift::create(array_merge($ds, ['restaurant_id' => $user->restaurant_id]));
+                $code = $ds['code'];
+                $counter = 1;
+                while (WorkShift::withTrashed()->where('restaurant_id', $user->restaurant_id)->where('code', $code)->exists()) {
+                    $code = $ds['code'].'_'.$counter;
+                    $counter++;
+                }
+                WorkShift::create(array_merge($ds, [
+                    'code' => $code,
+                    'restaurant_id' => $user->restaurant_id,
+                    'branch_id' => $branchId,
+                ]));
             }
             $shiftsQuery = WorkShift::where('restaurant_id', $user->restaurant_id)
                 ->when($tenantContext->isBranchScoped(), fn ($q) => $q->where(function ($q) use ($branchId) {
@@ -125,6 +135,9 @@ class EmployeeManagementController extends Controller
         $startOfWeek = Carbon::now()->startOfWeek(Carbon::MONDAY)->toDateString();
         $endOfWeek = Carbon::now()->endOfWeek(Carbon::SUNDAY)->toDateString();
 
+        // Clean up un-checked-in past shifts automatically
+        app(\App\Services\ScheduleAssignmentService::class)->cleanupUncheckedInPastShifts($user->restaurant_id, $branchId);
+
         $assignmentsQuery = ScheduleAssignment::where('restaurant_id', $user->restaurant_id)
             ->when($tenantContext->isBranchScoped(), fn ($q) => $q->where('branch_id', $branchId))
             ->whereBetween('scheduled_date', [$startOfWeek, $endOfWeek])
@@ -132,9 +145,13 @@ class EmployeeManagementController extends Controller
             ->get();
 
         $schedules = $assignmentsQuery->map(fn ($a) => [
+            'id' => $a->id,
             'day' => Carbon::parse($a->scheduled_date)->format('l'), // 'Monday', 'Tuesday', etc.
             'employee_name' => $a->employee?->full_name ?? 'Không rõ',
             'shift_name' => $a->shift?->name ? explode(' (', $a->shift->name)[0] : 'Ca Mới',
+            'shift_id' => $a->shift_id,
+            'start_time' => $a->shift?->start_time ? substr($a->shift->start_time, 0, 5) : '',
+            'end_time' => $a->shift?->end_time ? substr($a->shift->end_time, 0, 5) : '',
         ]);
 
         $leaveRequests = LeaveRequest::where('restaurant_id', $user->restaurant_id)
@@ -586,7 +603,10 @@ class EmployeeManagementController extends Controller
 
         [$disk, $path] = $resolved;
 
-        return Storage::disk($disk)->response($path);
+        /** @var \Illuminate\Filesystem\FilesystemAdapter $storage */
+        $storage = Storage::disk($disk);
+
+        return $storage->response($path);
     }
 
     /**
@@ -617,9 +637,12 @@ class EmployeeManagementController extends Controller
         }
 
         [$disk, $path] = $resolved;
-        $mime = Storage::disk($disk)->mimeType($path) ?: 'image/jpeg';
 
-        return "data:{$mime};base64,".base64_encode(Storage::disk($disk)->get($path));
+        /** @var \Illuminate\Filesystem\FilesystemAdapter $storage */
+        $storage = Storage::disk($disk);
+        $mime = $storage->mimeType($path) ?: 'image/jpeg';
+
+        return "data:{$mime};base64,".base64_encode($storage->get($path));
     }
 
     /**
@@ -1090,8 +1113,16 @@ class EmployeeManagementController extends Controller
         $this->authorizeEmployeeManagement($user);
         $tenantContext = app(TenantContext::class);
         $branchId = $tenantContext->activeBranchId();
-        abort_if($branchId === null, 422, 'Hãy chọn chi nhánh hiện tại trước khi cấu hình ca làm.');
-        abort_unless($user->canAccessBranch($branchId), 403);
+        if ($branchId === null) {
+            throw ValidationException::withMessages([
+                'branch_id' => 'Hãy chọn chi nhánh hiện tại trước khi cấu hình ca làm.',
+            ]);
+        }
+        if (! $user->canAccessBranch($branchId)) {
+            throw ValidationException::withMessages([
+                'branch_id' => 'Bạn không có quyền truy cập chi nhánh này.',
+            ]);
+        }
         $data = $request->validate([
             'shifts' => ['required', 'array'],
             'shifts.*.name' => ['required', 'string', 'max:100'],
@@ -1100,8 +1131,9 @@ class EmployeeManagementController extends Controller
         ]);
 
         $existingIds = [];
-        $shiftIds = collect($data['shifts'])->pluck('id')->filter()->toArray();
-        $existingShifts = WorkShift::where('restaurant_id', $user->restaurant_id)
+        $shiftIds = collect($data['shifts'])->pluck('id')->filter(fn ($id) => is_numeric($id) && $id < 1000000000)->toArray();
+        $existingShifts = WorkShift::withTrashed()
+            ->where('restaurant_id', $user->restaurant_id)
             ->where(function ($q) use ($branchId) {
                 $q->whereNull('branch_id')->orWhere('branch_id', $branchId);
             })
@@ -1110,21 +1142,33 @@ class EmployeeManagementController extends Controller
             ->keyBy('id');
 
         foreach ($data['shifts'] as $index => $s) {
-            $code = 'SHIFT_'.Str::upper(Str::slug($s['name'], '_')).'_'.($index + 1);
-
             $shift = null;
-            if (isset($s['id']) && is_numeric($s['id']) && $s['id'] < 1000000) {
+            if (isset($s['id']) && is_numeric($s['id']) && $s['id'] < 1000000000) {
                 $shift = $existingShifts->get($s['id']);
             }
 
             if ($shift) {
+                if ($shift->trashed()) {
+                    $shift->restore();
+                }
                 $shift->update([
                     'branch_id' => $branchId,
                     'name' => $s['name'],
                     'start_time' => $s['start'],
                     'end_time' => $s['end'],
+                    'status' => 'active',
                 ]);
             } else {
+                $slug = Str::upper(Str::slug($s['name'], '_'));
+                $baseCode = 'SHIFT_'.($slug ?: 'WORK');
+                $code = $baseCode.'_'.($index + 1);
+                $counter = 1;
+
+                while (WorkShift::withTrashed()->where('restaurant_id', $user->restaurant_id)->where('code', $code)->exists()) {
+                    $code = $baseCode.'_'.($index + 1).'_'.$counter;
+                    $counter++;
+                }
+
                 $shift = WorkShift::create([
                     'restaurant_id' => $user->restaurant_id,
                     'branch_id' => $branchId,
@@ -1140,7 +1184,9 @@ class EmployeeManagementController extends Controller
 
         // Delete shifts that are not in the payload
         WorkShift::where('restaurant_id', $user->restaurant_id)
-            ->where('branch_id', $branchId)
+            ->where(function ($q) use ($branchId) {
+                $q->whereNull('branch_id')->orWhere('branch_id', $branchId);
+            })
             ->whereNotIn('id', $existingIds)
             ->delete();
 

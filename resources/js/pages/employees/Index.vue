@@ -5,7 +5,6 @@ import {
     Users,
     Plus,
     Calendar,
-    Clock,
     CheckCircle2,
     AlertCircle,
     Sparkles,
@@ -34,7 +33,7 @@ import { Label } from '@/components/ui/label';
 import { confirmDialog } from '@/composables/useConfirm';
 import AppLayout from '@/layouts/AppLayout.vue';
 
-defineOptions({ layout: AppLayout });
+defineOptions({ layout: AppLayout, inheritAttrs: false });
 
 type Employee = {
     id: number;
@@ -59,7 +58,15 @@ type Employee = {
     branch_name?: string | null;
 };
 type Shift = { id: number; name: string; start: string; end: string };
-type Assignment = { day: string; employee_name: string; shift_name: string };
+type Assignment = {
+    id?: number;
+    day: string;
+    employee_name: string;
+    shift_name: string;
+    shift_id?: number;
+    start_time?: string;
+    end_time?: string;
+};
 type Swap = {
     id: number;
     notes: string | null;
@@ -306,8 +313,40 @@ const weekDaysWithDates = computed(() => {
     });
 });
 
+// Helper function to clean shift names (remove trailing time string like " (06:00 - 14:00)")
+function cleanShiftName(name: string): string {
+    if (!name) {
+        return '';
+    }
+
+    return name.split(' (')[0].trim();
+}
+
+function isShiftEnded(dateStr?: string, endTimeStr?: string): boolean {
+    if (!dateStr || !endTimeStr) {
+        return false;
+    }
+
+    const parts = endTimeStr.split(':').map(Number);
+    const hours = parts[0];
+    const minutes = parts[1];
+
+    if (isNaN(hours) || isNaN(minutes)) {
+        return false;
+    }
+
+    const endDateTime = new Date(dateStr);
+    endDateTime.setHours(hours, minutes, 0, 0);
+
+    return new Date() > endDateTime;
+}
+
 // ── LOCAL DYNAMIC SHIFT & SCHEDULE STATE (DATABASE DRIVEN) ──
-const shiftsState = ref<Shift[]>(props.shifts ? [...props.shifts] : []);
+const shiftsState = ref<Shift[]>(
+    props.shifts
+        ? props.shifts.map((s) => ({ ...s, name: cleanShiftName(s.name) }))
+        : [],
+);
 const schedulesState = ref<Assignment[]>(
     props.schedules ? [...props.schedules] : [],
 );
@@ -316,7 +355,9 @@ const schedulesState = ref<Assignment[]>(
 watch(
     () => props.shifts,
     (newShifts) => {
-        shiftsState.value = newShifts ? [...newShifts] : [];
+        shiftsState.value = newShifts
+            ? newShifts.map((s) => ({ ...s, name: cleanShiftName(s.name) }))
+            : [];
     },
     { deep: true },
 );
@@ -641,16 +682,16 @@ const availableEmployeesList = computed(() => {
 const assignForm = ref({
     employee_name: '',
     shift_name: '',
+    shift_id: null as number | null,
 });
 
 // Shift Config Operations
 const addShift = () => {
-    const nextId = shiftsState.value.length
-        ? Math.max(...shiftsState.value.map((s) => s.id)) + 1
-        : 1;
+    const tempId = Date.now();
+    const count = shiftsState.value.length + 1;
     shiftsState.value.push({
-        id: nextId,
-        name: `Ca Mới ${nextId}`,
+        id: tempId,
+        name: `Ca Mới ${count}`,
         start: '09:00',
         end: '17:00',
     });
@@ -686,8 +727,10 @@ const openAssignModal = (dayKey: string) => {
 
     currentAssignDay.value = dayKey;
     assignForm.value.employee_name = availableEmployeesList.value[0] ?? '';
-    assignForm.value.shift_name = shiftsState.value[0]?.name
-        ? shiftsState.value[0].name.split(' (')[0]
+    const firstShift = shiftsState.value[0];
+    assignForm.value.shift_id = firstShift?.id ?? null;
+    assignForm.value.shift_name = firstShift?.name
+        ? firstShift.name.split(' (')[0]
         : 'Ca Mới';
     showAssignModal.value = true;
 };
@@ -758,6 +801,7 @@ const submitAssignment = async () => {
             day: currentAssignDay.value,
             employee_name: assignForm.value.employee_name,
             shift_name: assignForm.value.shift_name,
+            shift_id: assignForm.value.shift_id,
         },
         {
             onSuccess: () => {
@@ -771,12 +815,26 @@ const removeAssignment = (
     dayKey: string,
     empName: string,
     shiftName: string,
+    shiftId?: number,
 ) => {
-    router.post('/employees/schedules/delete', {
-        day: dayKey,
-        employee_name: empName,
-        shift_name: shiftName,
-    });
+    router.post(
+        '/employees/schedules/delete',
+        {
+            day: dayKey,
+            employee_name: empName,
+            shift_name: shiftName,
+            shift_id: shiftId ?? null,
+        },
+        {
+            onError: (errors: any) => {
+                const msg =
+                    errors.shift_name ||
+                    errors.employee_name ||
+                    'Không thể xóa ca làm việc.';
+                import('vue-sonner').then((m) => m.toast.error(msg));
+            },
+        },
+    );
 };
 
 const expandedEmployeeId = ref<number | null>(null);
@@ -1032,10 +1090,11 @@ const submitSwapReject = () => {
         </div>
 
         <!-- Add Employee Form Modal Overlay -->
-        <div
-            v-if="showAddEmployee"
-            class="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 p-4 pt-16 backdrop-blur-xs"
-        >
+        <Teleport to="body">
+            <div
+                v-if="showAddEmployee"
+                class="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 p-4 pt-16 backdrop-blur-xs md:pt-24"
+            >
             <Card
                 class="w-full max-w-2xl animate-in shadow-2xl duration-150 zoom-in-95 fade-in"
             >
@@ -1402,12 +1461,14 @@ const submitSwapReject = () => {
                 </CardContent>
             </Card>
         </div>
+        </Teleport>
 
         <!-- Edit Employee Modal -->
-        <div
-            v-if="editingEmployee"
-            class="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 p-4 pt-16 backdrop-blur-xs"
-        >
+        <Teleport to="body">
+            <div
+                v-if="editingEmployee"
+                class="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 p-4 pt-16 backdrop-blur-xs md:pt-24"
+            >
             <Card
                 class="w-full max-w-2xl animate-in shadow-2xl duration-150 zoom-in-95 fade-in"
             >
@@ -1743,6 +1804,7 @@ const submitSwapReject = () => {
                 </CardContent>
             </Card>
         </div>
+        </Teleport>
 
         <div class="grid grid-cols-1 gap-6 lg:grid-cols-3">
             <!-- Left content: Employee roster -->
@@ -2129,38 +2191,6 @@ const submitSwapReject = () => {
                         </div>
                     </CardHeader>
                     <CardContent class="p-4">
-                        <!-- Shifts listing brief -->
-                        <div class="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-3">
-                            <div
-                                v-for="s in shiftsState"
-                                :key="s.id"
-                                draggable="true"
-                                @dragstart="
-                                    (e) => {
-                                        if (e.dataTransfer) {
-                                            e.dataTransfer.setData(
-                                                'text/plain',
-                                                s.name.split(' (')[0],
-                                            );
-                                            e.dataTransfer.effectAllowed =
-                                                'copy';
-                                        }
-                                    }
-                                "
-                                class="group relative flex cursor-grab flex-col items-center justify-center rounded-xl border bg-white p-3 text-center shadow-sm transition-all duration-150 hover:border-indigo-400 hover:shadow-md active:cursor-grabbing dark:bg-slate-950"
-                            >
-                                <Clock class="mb-1 size-4 text-indigo-600" />
-                                <span
-                                    class="max-w-full truncate text-[10px] font-bold text-slate-800 dark:text-slate-200"
-                                    >{{ s.name }}</span
-                                >
-                                <span
-                                    class="mt-0.5 font-mono text-[9px] text-slate-400"
-                                    >{{ s.start }} - {{ s.end }}</span
-                                >
-                            </div>
-                        </div>
-
                         <!-- Time Grid Table -->
                         <div
                             class="overflow-hidden rounded-2xl border bg-white dark:bg-slate-950"
@@ -2176,8 +2206,7 @@ const submitSwapReject = () => {
                                             Thứ trong tuần
                                         </th>
                                         <th class="p-3.5">
-                                            Lịch xếp ca nhân sự hôm nay (Kéo thả
-                                            ca trực từ trên vào đây để xếp ca)
+                                            Lịch xếp ca nhân sự trong tuần
                                         </th>
                                     </tr>
                                 </thead>
@@ -2312,13 +2341,19 @@ const submitSwapReject = () => {
                                         >
                                             <!-- Load assigned schedules -->
                                             <div
-                                                v-for="(
-                                                    s, idx
-                                                ) in schedulesState.filter(
-                                                    (sc) => sc.day === day.key,
+                                                v-for="s in schedulesState.filter(
+                                                    (sc) =>
+                                                        sc.day === day.key,
                                                 )"
-                                                :key="'s-' + idx"
-                                                class="group/assign relative flex items-center gap-1.5 rounded-lg border border-indigo-100 bg-indigo-50/30 px-2.5 py-1.5 dark:border-indigo-900/40 dark:bg-indigo-950/20"
+                                                :key="
+                                                    s.employee_name +
+                                                    '-' +
+                                                    s.shift_name +
+                                                    '-' +
+                                                    (s.shift_id ?? '')
+                                                "
+                                                class="group/assign relative flex items-center gap-1 rounded-md border border-indigo-100 bg-indigo-50/70 px-2 py-1 transition-all hover:bg-indigo-100 hover:shadow-xs dark:border-indigo-900/40 dark:bg-indigo-950/40 dark:hover:bg-indigo-900/60"
+                                                :title="`${s.employee_name} — ${s.shift_name}${s.start_time ? ' (' + s.start_time + ' - ' + s.end_time + ')' : ''}`"
                                             >
                                                 <span
                                                     class="size-1.5 rounded-full bg-indigo-600 dark:bg-indigo-400"
@@ -2329,16 +2364,17 @@ const submitSwapReject = () => {
                                                 >
                                                 <span
                                                     class="font-mono text-[9px] text-slate-400"
-                                                    >({{ s.shift_name }})</span
+                                                    >({{ s.shift_name }}<template v-if="s.start_time">: {{ s.start_time }}-{{ s.end_time }}</template>)</span
                                                 >
-                                                <!-- Delete button -->
+                                                <!-- Delete button (Only available before shift end time) -->
                                                 <button
-                                                    v-if="!isAutoSchedule"
+                                                    v-if="!isAutoSchedule && !isShiftEnded(day.dateStr, s.end_time)"
                                                     @click="
                                                         removeAssignment(
                                                             day.key,
                                                             s.employee_name,
                                                             s.shift_name,
+                                                            s.shift_id,
                                                         )
                                                     "
                                                     class="ml-1 rounded p-0.5 text-rose-500 opacity-0 transition-opacity group-hover/assign:opacity-100 hover:bg-rose-100 dark:hover:bg-rose-950/40"
@@ -2346,6 +2382,13 @@ const submitSwapReject = () => {
                                                 >
                                                     <X class="size-3" />
                                                 </button>
+                                                <span
+                                                    v-else-if="isShiftEnded(day.dateStr, s.end_time)"
+                                                    class="ml-1 text-[9px] text-slate-400 opacity-60"
+                                                    title="Ca làm việc đã kết thúc (không thể xóa)"
+                                                >
+                                                    🔒
+                                                </span>
                                             </div>
 
                                             <!-- Add dynamic assign button -->
@@ -2705,136 +2748,138 @@ const submitSwapReject = () => {
         </Card>
 
         <!-- Modal: Thiết lập Ca làm việc (showShiftConfigModal) -->
-        <div
-            v-if="showShiftConfigModal"
-            class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-xs"
-        >
-            <Card
-                class="w-full max-w-lg animate-in shadow-2xl duration-150 zoom-in-95 fade-in"
+        <Teleport to="body">
+            <div
+                v-if="showShiftConfigModal"
+                class="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 p-4 pt-16 backdrop-blur-xs md:pt-24"
             >
-                <CardHeader
-                    class="flex flex-row items-center justify-between gap-4 border-b pb-3"
+                <Card
+                    class="w-full max-w-lg animate-in shadow-2xl duration-150 zoom-in-95 fade-in"
                 >
-                    <div>
-                        <CardTitle
-                            class="flex items-center gap-1.5 text-base text-indigo-600"
-                        >
-                            <Settings class="size-5" />
-                            Thiết lập Ca làm việc trong ngày
-                        </CardTitle>
-                        <CardDescription
-                            >Cấu hình thời gian và số ca hoạt động của nhà hàng
-                            hàng ngày.</CardDescription
-                        >
-                    </div>
-                    <button
-                        @click="showShiftConfigModal = false"
-                        class="rounded-lg p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+                    <CardHeader
+                        class="flex flex-row items-center justify-between gap-4 border-b pb-3"
                     >
-                        <X class="size-4" />
-                    </button>
-                </CardHeader>
-                <CardContent class="space-y-4 pt-4">
-                    <div
-                        v-if="shiftsState.length > 0"
-                        class="max-h-[300px] space-y-3 overflow-y-auto pr-1"
-                    >
-                        <div
-                            v-for="s in shiftsState"
-                            :key="s.id"
-                            class="flex items-center gap-3 rounded-xl border border-border bg-muted/20 p-3"
-                        >
-                            <!-- Name input -->
-                            <div class="min-w-0 flex-1">
-                                <Label
-                                    class="text-[10px] font-semibold text-muted-foreground uppercase"
-                                    >Tên ca</Label
-                                >
-                                <Input
-                                    v-model="s.name"
-                                    class="h-8 text-xs font-semibold"
-                                    placeholder="Ví dụ: Ca Sáng"
-                                />
-                            </div>
-
-                            <!-- Start time input -->
-                            <div class="w-24 shrink-0">
-                                <Label
-                                    class="text-[10px] font-semibold text-muted-foreground uppercase"
-                                    >Bắt đầu</Label
-                                >
-                                <Input
-                                    type="time"
-                                    v-model="s.start"
-                                    class="h-8 font-mono text-xs"
-                                />
-                            </div>
-
-                            <!-- End time input -->
-                            <div class="w-24 shrink-0">
-                                <Label
-                                    class="text-[10px] font-semibold text-muted-foreground uppercase"
-                                    >Kết thúc</Label
-                                >
-                                <Input
-                                    type="time"
-                                    v-model="s.end"
-                                    class="h-8 font-mono text-xs"
-                                />
-                            </div>
-
-                            <!-- Delete shift button -->
-                            <button
-                                @click="deleteShift(s.id)"
-                                class="mb-0.5 shrink-0 self-end rounded-lg p-1.5 text-rose-500 transition-colors hover:bg-rose-100 dark:hover:bg-rose-950/40"
-                                title="Xóa ca này"
+                        <div>
+                            <CardTitle
+                                class="flex items-center gap-1.5 text-base text-indigo-600"
                             >
-                                <Trash2 class="size-4" />
-                            </button>
+                                <Settings class="size-5" />
+                                Thiết lập Ca làm việc trong ngày
+                            </CardTitle>
+                            <CardDescription
+                                >Cấu hình thời gian và số ca hoạt động của nhà hàng
+                                hàng ngày.</CardDescription
+                            >
                         </div>
-                    </div>
-
-                    <div
-                        v-else
-                        class="py-8 text-center text-xs text-muted-foreground italic"
-                    >
-                        Chưa có ca làm việc nào. Vui lòng bấm thêm ca bên dưới.
-                    </div>
-
-                    <div
-                        class="flex items-center justify-between border-t border-border/60 pt-2"
-                    >
-                        <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            @click="addShift"
-                            class="border-indigo-200 font-semibold text-indigo-600 hover:bg-indigo-50"
+                        <button
+                            @click="showShiftConfigModal = false"
+                            class="rounded-lg p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
                         >
-                            <Plus class="mr-1.5 size-4" /> Thêm ca mới
-                        </Button>
+                            <X class="size-4" />
+                        </button>
+                    </CardHeader>
+                    <CardContent class="space-y-4 pt-4">
+                        <div
+                            v-if="shiftsState.length > 0"
+                            class="max-h-[300px] space-y-3 overflow-y-auto pr-1"
+                        >
+                            <div
+                                v-for="s in shiftsState"
+                                :key="s.id"
+                                class="flex items-center gap-3 rounded-xl border border-border bg-muted/20 p-3"
+                            >
+                                <!-- Name input -->
+                                <div class="min-w-0 flex-1">
+                                    <Label
+                                        class="text-[10px] font-semibold text-muted-foreground uppercase"
+                                        >Tên ca</Label
+                                    >
+                                    <Input
+                                        v-model="s.name"
+                                        class="h-8 text-xs font-semibold"
+                                        placeholder="Ví dụ: Ca Sáng"
+                                    />
+                                </div>
 
-                        <div class="flex gap-2">
+                                <!-- Start time input -->
+                                <div class="w-24 shrink-0">
+                                    <Label
+                                        class="text-[10px] font-semibold text-muted-foreground uppercase"
+                                        >Bắt đầu</Label
+                                    >
+                                    <Input
+                                        type="time"
+                                        v-model="s.start"
+                                        class="h-8 font-mono text-xs"
+                                    />
+                                </div>
+
+                                <!-- End time input -->
+                                <div class="w-24 shrink-0">
+                                    <Label
+                                        class="text-[10px] font-semibold text-muted-foreground uppercase"
+                                        >Kết thúc</Label
+                                    >
+                                    <Input
+                                        type="time"
+                                        v-model="s.end"
+                                        class="h-8 font-mono text-xs"
+                                    />
+                                </div>
+
+                                <!-- Delete shift button -->
+                                <button
+                                    @click="deleteShift(s.id)"
+                                    class="mb-0.5 shrink-0 self-end rounded-lg p-1.5 text-rose-500 transition-colors hover:bg-rose-100 dark:hover:bg-rose-950/40"
+                                    title="Xóa ca này"
+                                >
+                                    <Trash2 class="size-4" />
+                                </button>
+                            </div>
+                        </div>
+
+                        <div
+                            v-else
+                            class="py-8 text-center text-xs text-muted-foreground italic"
+                        >
+                            Chưa có ca làm việc nào. Vui lòng bấm thêm ca bên dưới.
+                        </div>
+
+                        <div
+                            class="flex items-center justify-between border-t border-border/60 pt-2"
+                        >
                             <Button
                                 type="button"
                                 variant="outline"
                                 size="sm"
-                                @click="showShiftConfigModal = false"
-                                >Hủy</Button
+                                @click="addShift"
+                                class="border-indigo-200 font-semibold text-indigo-600 hover:bg-indigo-50"
                             >
-                            <Button
-                                type="button"
-                                size="sm"
-                                @click="saveShiftsConfig"
-                                class="bg-indigo-600 font-semibold text-white shadow"
-                            >
-                                Lưu cấu hình
+                                <Plus class="mr-1.5 size-4" /> Thêm ca mới
                             </Button>
+
+                            <div class="flex gap-2">
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    @click="showShiftConfigModal = false"
+                                    >Hủy</Button
+                                >
+                                <Button
+                                    type="button"
+                                    size="sm"
+                                    @click="saveShiftsConfig"
+                                    class="bg-indigo-600 font-semibold text-white shadow"
+                                >
+                                    Lưu cấu hình
+                                </Button>
+                            </div>
                         </div>
-                    </div>
-                </CardContent>
-            </Card>
-        </div>
+                    </CardContent>
+                </Card>
+            </div>
+        </Teleport>
 
         <!-- Modal: Phân Ca Lịch làm việc (showAssignModal) -->
         <Teleport to="body">
@@ -2900,14 +2945,29 @@ const submitSwapReject = () => {
                                 >
                                 <select
                                     id="assign-shift"
-                                    v-model="assignForm.shift_name"
+                                    v-model="assignForm.shift_id"
+                                    @change="
+                                        (e) => {
+                                            const targetId = Number(
+                                                (
+                                                    e.target as HTMLSelectElement
+                                                ).value,
+                                            );
+                                            const s = shiftsState.find(
+                                                (x) => x.id === targetId,
+                                            );
+                                            if (s)
+                                                assignForm.shift_name =
+                                                    s.name.split(' (')[0];
+                                        }
+                                    "
                                     required
                                     class="w-full rounded-md border border-slate-200 bg-background px-3 py-2 text-sm focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:outline-none"
                                 >
                                     <option
                                         v-for="s in shiftsState"
                                         :key="s.id"
-                                        :value="s.name.split(' (')[0]"
+                                        :value="s.id"
                                     >
                                         {{ s.name }} ({{ s.start }} -
                                         {{ s.end }})
@@ -2976,10 +3036,11 @@ const submitSwapReject = () => {
         </Teleport>
 
         <!-- Modal: Tạo đơn xin nghỉ phép / thôi việc (showLeaveModal) -->
-        <div
-            v-if="showLeaveModal"
-            class="fixed inset-0 z-50 flex animate-in items-center justify-center bg-black/50 p-4 backdrop-blur-xs duration-200 fade-in"
-        >
+        <Teleport to="body">
+            <div
+                v-if="showLeaveModal"
+                class="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 p-4 pt-16 backdrop-blur-xs md:pt-24"
+            >
             <Card class="w-full max-w-md shadow-2xl">
                 <CardHeader
                     class="flex flex-row items-center justify-between gap-4 border-b pb-3"
@@ -3120,12 +3181,14 @@ const submitSwapReject = () => {
                 </CardContent>
             </Card>
         </div>
+        </Teleport>
 
         <!-- Modal: Duyệt đơn & Gợi ý thế chỗ nhân sự (showApproveReplacementModal) -->
-        <div
-            v-if="showApproveReplacementModal && replacementLeaveData"
-            class="fixed inset-0 z-50 flex animate-in items-center justify-center bg-black/50 p-4 backdrop-blur-xs duration-200 fade-in"
-        >
+        <Teleport to="body">
+            <div
+                v-if="showApproveReplacementModal && replacementLeaveData"
+                class="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 p-4 pt-16 backdrop-blur-xs md:pt-24"
+            >
             <Card
                 class="w-full max-w-md animate-in shadow-2xl duration-150 zoom-in-95"
             >
@@ -3286,12 +3349,14 @@ const submitSwapReject = () => {
                 </CardContent>
             </Card>
         </div>
+        </Teleport>
 
         <!-- Modal: Nhập lý do từ chối (showRejectModal) -->
-        <div
-            v-if="showRejectModal !== null"
-            class="fixed inset-0 z-50 flex animate-in items-center justify-center bg-black/50 p-4 backdrop-blur-xs duration-200 fade-in"
-        >
+        <Teleport to="body">
+            <div
+                v-if="showRejectModal !== null"
+                class="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 p-4 pt-16 backdrop-blur-xs md:pt-24"
+            >
             <Card class="w-full max-w-sm shadow-2xl">
                 <CardHeader
                     class="flex flex-row items-center justify-between gap-4 border-b pb-3"
@@ -3353,12 +3418,14 @@ const submitSwapReject = () => {
                 </CardContent>
             </Card>
         </div>
+        </Teleport>
 
         <!-- Modal: Nhập lý do từ chối đổi ca trực (showSwapRejectModal) -->
-        <div
-            v-if="showSwapRejectModal !== null"
-            class="fixed inset-0 z-50 flex animate-in items-center justify-center bg-black/50 p-4 backdrop-blur-xs duration-200 fade-in"
-        >
+        <Teleport to="body">
+            <div
+                v-if="showSwapRejectModal !== null"
+                class="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 p-4 pt-16 backdrop-blur-xs md:pt-24"
+            >
             <Card class="w-full max-w-sm shadow-2xl">
                 <CardHeader
                     class="flex flex-row items-center justify-between gap-4 border-b pb-3"
@@ -3420,5 +3487,6 @@ const submitSwapReject = () => {
                 </CardContent>
             </Card>
         </div>
+        </Teleport>
     </div>
 </template>

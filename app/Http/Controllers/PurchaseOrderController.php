@@ -10,6 +10,7 @@ use App\Support\Tenant\TenantContext;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\ValidationException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
@@ -123,8 +124,16 @@ class PurchaseOrderController extends Controller
         $branchId = $this->tenantContext->activeBranchId()
             ?? ($user->isOwner() ? $user->assignedBranchId() : null);
 
-        abort_if($branchId === null, 422, 'Hãy chọn chi nhánh hiện tại trước khi tạo đơn mua hàng.');
-        abort_unless($user->canAccessBranch($branchId), 403);
+        if ($branchId === null) {
+            throw ValidationException::withMessages([
+                'branch_id' => 'Hãy chọn chi nhánh hiện tại trước khi tạo đơn mua hàng.',
+            ]);
+        }
+        if (! $user->canAccessBranch($branchId)) {
+            throw ValidationException::withMessages([
+                'branch_id' => 'Bạn không có quyền truy cập chi nhánh này.',
+            ]);
+        }
 
         return $branchId;
     }

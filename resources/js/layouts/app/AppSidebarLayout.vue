@@ -27,6 +27,8 @@ const LazyCommandPalette = defineAsyncComponent(
     () => import('@/components/CommandPalette.vue'),
 );
 
+defineOptions({ inheritAttrs: false });
+
 type Props = {
     breadcrumbs?: BreadcrumbItem[];
 };

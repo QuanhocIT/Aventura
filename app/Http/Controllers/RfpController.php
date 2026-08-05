@@ -14,6 +14,7 @@ use App\Support\Tenant\TenantContext;
 use Carbon\Carbon;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\ValidationException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Inertia\Inertia;
@@ -391,8 +392,16 @@ class RfpController extends Controller
     {
         $branchId = $this->tenantContext->activeBranchId()
             ?? ($request->user()->isOwner() ? $request->user()->assignedBranchId() : null);
-        abort_if($branchId === null, 422, 'Hãy chọn chi nhánh hiện tại trước khi tạo yêu cầu nhập hàng.');
-        abort_unless($request->user()->canAccessBranch($branchId), 403);
+        if ($branchId === null) {
+            throw ValidationException::withMessages([
+                'branch_id' => 'Hãy chọn chi nhánh hiện tại trước khi tạo yêu cầu nhập hàng.',
+            ]);
+        }
+        if (! $request->user()->canAccessBranch($branchId)) {
+            throw ValidationException::withMessages([
+                'branch_id' => 'Bạn không có quyền truy cập chi nhánh này.',
+            ]);
+        }
 
         return $branchId;
     }

@@ -239,13 +239,31 @@ class ScheduleAssignmentService
             return ['success' => false, 'field' => 'employee_name', 'message' => 'NhÃ¢n viÃªn khÃ´ng thuá»™c chi nhÃ¡nh hiá»‡n táº¡i.'];
         }
 
-        $shift = WorkShift::where('restaurant_id', $actingUser->restaurant_id)
-            ->where(function ($q) {
-                $branchId = app(TenantContext::class)->activeBranchId();
-                $q->whereNull('branch_id')->orWhere('branch_id', $branchId);
-            })
-            ->where('name', 'like', $data['shift_name'].'%')
-            ->first();
+        $shift = null;
+        if (! empty($data['shift_id'])) {
+            $shift = WorkShift::where('restaurant_id', $actingUser->restaurant_id)
+                ->where(function ($q) {
+                    $branchId = app(TenantContext::class)->activeBranchId();
+                    $q->whereNull('branch_id')->orWhere('branch_id', $branchId);
+                })
+                ->find($data['shift_id']);
+        }
+
+        if (! $shift && ! empty($data['shift_name'])) {
+            $shiftName = $data['shift_name'];
+            $shift = WorkShift::where('restaurant_id', $actingUser->restaurant_id)
+                ->where(function ($q) {
+                    $branchId = app(TenantContext::class)->activeBranchId();
+                    $q->whereNull('branch_id')->orWhere('branch_id', $branchId);
+                })
+                ->where(function ($q) use ($shiftName) {
+                    $q->where('name', $shiftName)
+                      ->orWhere('name', 'like', $shiftName.'%');
+                })
+                ->orderByRaw('CASE WHEN name = ? THEN 0 ELSE 1 END', [$shiftName])
+                ->orderBy('id', 'desc')
+                ->first();
+        }
 
         if (! $shift) {
             return ['success' => false, 'field' => 'shift_name', 'message' => 'Ca làm việc không tồn tại.'];
@@ -300,6 +318,8 @@ class ScheduleAssignmentService
             'status' => 'scheduled',
         ]);
 
+        $employee->flushShiftAccessCache();
+
         $employeeUser = $employee->user;
         if ($employeeUser) {
             $dateFormatted = Carbon::parse($scheduledDate)->format('d/m/Y');
@@ -316,7 +336,7 @@ class ScheduleAssignmentService
      * Hủy xếp ca thủ công — luôn "thành công" kể cả khi không tìm thấy bản ghi
      * (giữ đúng hành vi cũ: không lộ thông tin tồn tại/không tồn tại của ca).
      */
-    public function destroyAssignment(User $actingUser, array $data): void
+    public function destroyAssignment(User $actingUser, array $data): array
     {
         $employee = Employee::where('restaurant_id', $actingUser->restaurant_id)
             ->when(app(TenantContext::class)->isBranchScoped(), fn ($q) => $q->where('branch_id', app(TenantContext::class)->activeBranchId()))
@@ -324,31 +344,93 @@ class ScheduleAssignmentService
             ->first();
 
         if (! $employee) {
-            return;
-        }
-
-        $shift = WorkShift::where('restaurant_id', $actingUser->restaurant_id)
-            ->where(function ($q) {
-                $branchId = app(TenantContext::class)->activeBranchId();
-                $q->whereNull('branch_id')->orWhere('branch_id', $branchId);
-            })
-            ->where('name', 'like', $data['shift_name'].'%')
-            ->first();
-
-        if (! $shift) {
-            return;
+            return ['success' => false, 'field' => 'employee_name', 'message' => 'Nhân viên không tồn tại.'];
         }
 
         $startOfWeek = Carbon::now()->startOfWeek(Carbon::MONDAY);
         $offset = self::DAY_OFFSETS[$data['day']] ?? 0;
         $scheduledDate = $startOfWeek->copy()->addDays($offset)->toDateString();
 
-        ScheduleAssignment::where('restaurant_id', $actingUser->restaurant_id)
+        $query = ScheduleAssignment::where('restaurant_id', $actingUser->restaurant_id)
             ->when(app(TenantContext::class)->isBranchScoped(), fn ($q) => $q->where('branch_id', app(TenantContext::class)->activeBranchId()))
             ->where('employee_id', $employee->id)
-            ->where('shift_id', $shift->id)
-            ->where('scheduled_date', $scheduledDate)
-            ->delete();
+            ->where('scheduled_date', $scheduledDate);
+
+        if (! empty($data['shift_id'])) {
+            $query->where('shift_id', $data['shift_id']);
+        } elseif (! empty($data['shift_name'])) {
+            $shift = WorkShift::where('restaurant_id', $actingUser->restaurant_id)
+                ->where(function ($q) {
+                    $branchId = app(TenantContext::class)->activeBranchId();
+                    $q->whereNull('branch_id')->orWhere('branch_id', $branchId);
+                })
+                ->where(function ($q) use ($data) {
+                    $q->where('name', $data['shift_name'])
+                      ->orWhere('name', 'like', $data['shift_name'].'%');
+                })
+                ->orderByRaw('CASE WHEN name = ? THEN 0 ELSE 1 END', [$data['shift_name']])
+                ->orderBy('id', 'desc')
+                ->first();
+
+            if ($shift) {
+                $query->where('shift_id', $shift->id);
+            }
+        }
+
+        $assignment = $query->with('shift')->first();
+        if (! $assignment) {
+            return ['success' => true, 'message' => 'Hủy xếp ca thành công.'];
+        }
+
+        $shift = $assignment->shift;
+        if ($shift) {
+            $dateStr = Carbon::parse($assignment->scheduled_date)->toDateString();
+            $shiftEnd = ($shift->is_overnight || $shift->end_time < $shift->start_time)
+                ? Carbon::parse($dateStr.' '.$shift->end_time)->addDay()
+                : Carbon::parse($dateStr.' '.$shift->end_time);
+
+            if (now()->greaterThan($shiftEnd)) {
+                return ['success' => false, 'field' => 'shift_name', 'message' => 'Không thể xóa ca làm việc đã kết thúc.'];
+            }
+        }
+
+        $assignment->delete();
+
+        $employee->flushShiftAccessCache();
+
+        return ['success' => true, 'message' => 'Hủy xếp ca thành công.'];
+    }
+
+    /**
+     * Tự động xóa các ca làm việc quá giờ mà nhân sự không thực hiện check-in.
+     */
+    public function cleanupUncheckedInPastShifts(int $restaurantId, ?int $branchId = null): void
+    {
+        $now = now();
+        $startOfWeek = $now->copy()->startOfWeek(Carbon::MONDAY)->toDateString();
+
+        $assignments = ScheduleAssignment::where('restaurant_id', $restaurantId)
+            ->when($branchId, fn ($q) => $q->where(fn ($b) => $b->where('branch_id', $branchId)->orWhereNull('branch_id')))
+            ->where('status', 'scheduled')
+            ->whereBetween('scheduled_date', [$startOfWeek, $now->toDateString()])
+            ->with('shift')
+            ->get();
+
+        foreach ($assignments as $assignment) {
+            $shift = $assignment->shift;
+            if (! $shift) {
+                continue;
+            }
+
+            $dateStr = Carbon::parse($assignment->scheduled_date)->toDateString();
+            $shiftEnd = ($shift->is_overnight || $shift->end_time < $shift->start_time)
+                ? Carbon::parse($dateStr.' '.$shift->end_time)->addDay()
+                : Carbon::parse($dateStr.' '.$shift->end_time);
+
+            if ($now->greaterThan($shiftEnd)) {
+                $assignment->delete();
+            }
+        }
     }
 
     /**

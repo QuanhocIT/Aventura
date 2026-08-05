@@ -10,6 +10,7 @@ use App\Support\Tenant\TenantContext;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
@@ -50,7 +51,7 @@ class ProductManagementController extends Controller
                 ->when($context->isBranchScoped(), fn ($q) => $q->where(function ($q) use ($context) {
                     $q->whereNull('branch_id')->orWhere('branch_id', $context->activeBranchId());
                 }))
-                ->with('category')
+                ->with(['category', 'recipes'])
                 ->latest()
                 ->get()
                 ->map(fn ($p) => [
@@ -63,6 +64,9 @@ class ProductManagementController extends Controller
                     'description' => $p->description,
                     'is_available' => (bool) $p->is_available,
                     'is_active' => (bool) $p->is_active,
+                    'is_processed' => (bool) ($p->is_processed ?? true),
+                    'has_recipes' => $p->recipes->isNotEmpty(),
+                    'recipes_count' => $p->recipes->count(),
                     'branch_id' => $p->branch_id,
                     'branch_name' => $p->branch?->name,
                     'category' => $p->category ? ['id' => $p->category->id, 'name' => $p->category->name, 'description' => $p->category->description] : null,
@@ -125,8 +129,7 @@ class ProductManagementController extends Controller
             'category_id' => ['required', "exists:product_categories,id,restaurant_id,{$user->restaurant_id}"],
             'name' => ['required', 'string', 'max:255'],
             'price' => ['required', 'numeric', 'min:0'],
-            'earn_points' => ['nullable', 'integer', 'min:0'],
-            'redeem_points' => ['nullable', 'integer', 'min:0'],
+            'is_processed' => ['nullable', 'boolean'],
             'description' => ['required', 'string', 'min:5'],
             'image' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:'.$maxSize],
             'scope' => ['required', 'in:shared,branch'],
@@ -162,6 +165,7 @@ class ProductManagementController extends Controller
             'image_url' => $imageUrl,
             'is_active' => true,
             'is_available' => true,
+            'is_processed' => (bool) ($data['is_processed'] ?? true),
             'track_inventory' => true,
         ]);
 
@@ -189,12 +193,13 @@ class ProductManagementController extends Controller
             'description' => ['sometimes', 'required', 'string', 'min:5'],
             'is_available' => ['sometimes', 'boolean'],
             'is_active' => ['sometimes', 'boolean'],
+            'is_processed' => ['sometimes', 'boolean'],
             'image' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:'.$maxSize],
         ]);
 
         if ($request->hasFile('image')) {
             if ($product->image_url && str_starts_with($product->image_url, '/storage/')) {
-                \Storage::disk('public')->delete(str_replace('/storage/', '', $product->image_url));
+                Storage::disk('public')->delete(str_replace('/storage/', '', $product->image_url));
             }
             $path = $request->file('image')->store('products', 'public');
             $data['image_url'] = '/storage/'.$path;

@@ -17,6 +17,7 @@ import {
     ChevronRight,
     Sparkles,
     Search,
+    ClipboardCheck,
 } from 'lucide-vue-next';
 import { computed, ref, onMounted, watch } from 'vue';
 import { toast } from 'vue-sonner';
@@ -102,23 +103,38 @@ const props = defineProps<{
 }>();
 
 // ── Tabs ──────────────────────────────────────────────────────────────────────
-const activeTab = ref<'stock' | 'purchase' | 'waste'>('stock');
+const activeTab = ref<'stock' | 'purchase' | 'waste' | 'reconcile'>('stock');
 
-// ── Pagination (công thức định lượng) ──────────────────────────────────────────
+// ── Pagination & Search (công thức định lượng) ─────────────────────────
+const recipeSearch = ref('');
 const recipeCurrentPage = ref(1);
 const recipePerPage = 5;
+
+const filteredRecipeProducts = computed(() => {
+    if (!props.products) {
+        return [];
+    }
+
+    const q = recipeSearch.value.trim().toLowerCase();
+
+    if (!q) {
+        return props.products;
+    }
+
+    return props.products.filter(
+        (p) => p.name.toLowerCase().includes(q) || p.code.toLowerCase().includes(q),
+    );
+});
 
 const paginatedProducts = computed(() => {
     const start = (recipeCurrentPage.value - 1) * recipePerPage;
     const end = start + recipePerPage;
 
-    return props.products ? props.products.slice(start, end) : [];
+    return filteredRecipeProducts.value.slice(start, end);
 });
 
 const totalRecipePages = computed(() => {
-    return props.products
-        ? Math.ceil(props.products.length / recipePerPage)
-        : 0;
+    return Math.ceil(filteredRecipeProducts.value.length / recipePerPage) || 0;
 });
 
 const visibleRecipePages = computed(() => {
@@ -240,18 +256,107 @@ const handleAutoPo = () => {
     );
 };
 
-watch(activeTab, (newTab) => {
-    if (newTab === 'purchase') {
-        fetchAiForecast();
-    }
-});
-
 const wasteForm = useForm({
     ingredient_id: '',
     quantity: '',
     employee_id: '',
     notes: '',
 });
+
+// ── Reconcile State ────────────────────────────────────────────────────────────
+const reconcileSearch = ref('');
+const reconcileNotes = ref('');
+const reconcileEmployeeId = ref('');
+const physicalStockMap = ref<Record<number, string>>({});
+const isReconciling = ref(false);
+
+const initPhysicalStockMap = () => {
+    props.ingredients.forEach((ing) => {
+        if (physicalStockMap.value[ing.id] === undefined) {
+            physicalStockMap.value[ing.id] = String(ing.stock ?? 0);
+        }
+    });
+};
+
+watch(
+    activeTab,
+    (newTab) => {
+        if (newTab === 'purchase') {
+            fetchAiForecast();
+        } else if (newTab === 'reconcile') {
+            initPhysicalStockMap();
+        }
+    },
+    { immediate: true },
+);
+
+const getDiff = (ing: Ingredient) =>
+    Number(physicalStockMap.value[ing.id] ?? ing.stock ?? 0) - Number(ing.stock ?? 0);
+
+const reconcileStats = computed(() => {
+    let matched = 0;
+    let deficitCount = 0;
+    let surplusCount = 0;
+    let totalDeficitCost = 0;
+
+    props.ingredients.forEach((ing) => {
+        const diff = getDiff(ing);
+
+        if (diff === 0) {
+            matched++;
+        } else if (diff < 0) {
+            deficitCount++;
+            totalDeficitCost += Math.abs(diff) * (ing.average_cost ?? 0);
+        } else {
+            surplusCount++;
+        }
+    });
+
+    return { matched, deficitCount, surplusCount, totalDeficitCost };
+});
+
+const filteredReconcileIngredients = computed(() => {
+    const q = reconcileSearch.value.trim().toLowerCase();
+
+    if (!q) {
+        return props.ingredients;
+    }
+
+    return props.ingredients.filter(
+        (i) =>
+            i.name.toLowerCase().includes(q) ||
+            (i.category_name ?? '').toLowerCase().includes(q) ||
+            (i.sku ?? '').toLowerCase().includes(q),
+    );
+});
+
+const submitReconcile = () => {
+    isReconciling.value = true;
+    const items = props.ingredients.map((ing) => ({
+        ingredient_id: ing.id,
+        physical_qty: Number(physicalStockMap.value[ing.id] ?? ing.stock ?? 0),
+    }));
+
+    router.post(
+        '/inventory/reconcile',
+        {
+            reconcile_items: items,
+            employee_id: reconcileEmployeeId.value || null,
+            notes: reconcileNotes.value || 'Kiểm kê & Cân bằng tồn kho định kỳ',
+        },
+        {
+            onSuccess: () => {
+                toast.success('Đã hoàn tất kiểm kê & cân bằng tồn kho thành công!');
+            },
+            onError: () => {
+                toast.error('Có lỗi xảy ra khi cân bằng tồn kho.');
+            },
+            onFinish: () => {
+                isReconciling.value = false;
+            },
+        },
+    );
+};
 
 // ── Search & low-stock ────────────────────────────────────────────────────────
 const ingredientSearch = ref('');
@@ -547,6 +652,17 @@ const submitWaste = () => {
             >
                 <Trash2 class="size-3.5" />Hao hụt ngoài ý muốn
             </button>
+            <button
+                @click="activeTab = 'reconcile'"
+                class="flex cursor-pointer items-center gap-1.5 rounded-lg px-4 py-1.5 text-xs font-semibold transition-all"
+                :class="
+                    activeTab === 'reconcile'
+                        ? 'bg-background text-foreground shadow-sm'
+                        : 'text-muted-foreground hover:text-foreground'
+                "
+            >
+                <ClipboardCheck class="size-3.5 text-emerald-500" />Kiểm kê & Đối soát kho
+            </button>
         </div>
 
         <!-- ══ TAB: TỒN KHO & CÔNG THỨC ══════════════════════════════════════ -->
@@ -693,16 +809,28 @@ const submitWaste = () => {
                 <div class="lg:col-span-2">
                     <Card class="shadow-sm">
                         <CardHeader class="border-b border-border pb-3">
-                            <CardTitle
-                                class="flex items-center gap-1.5 text-base"
-                            >
-                                <Scale class="size-5 text-indigo-500" />Công
-                                Thức Định Lượng
-                            </CardTitle>
-                            <CardDescription
-                                >Thiết lập nguyên liệu cho từng món để hệ thống
-                                tự tính COGS.</CardDescription
-                            >
+                            <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                                <div>
+                                    <CardTitle
+                                        class="flex items-center gap-1.5 text-base"
+                                    >
+                                        <Scale class="size-5 text-indigo-500" />Công
+                                        Thức Định Lượng Món Ăn
+                                    </CardTitle>
+                                    <CardDescription class="text-xs">
+                                        Hiển thị danh sách các món <strong>cần chế biến (🍲)</strong> để chủ quán khai báo định lượng nguyên liệu.
+                                    </CardDescription>
+                                </div>
+                                <div class="relative w-full sm:w-56">
+                                    <Search class="absolute top-2 left-2.5 size-3.5 text-slate-400" />
+                                    <input
+                                        v-model="recipeSearch"
+                                        type="text"
+                                        placeholder="Tìm món ăn..."
+                                        class="w-full rounded-lg border border-slate-200 bg-white py-1.5 pr-3 pl-7 text-xs focus:ring-1 focus:ring-indigo-400 focus:outline-none dark:border-slate-700 dark:bg-slate-800"
+                                    />
+                                </div>
+                            </div>
                         </CardHeader>
                         <CardContent class="p-0">
                             <div
@@ -1645,6 +1773,196 @@ const submitWaste = () => {
                 </div>
             </div>
         </template>
+
+        <!-- ══ TAB: KIỂM KÊ & ĐỐI SOÁT KHO ══════════════════════════════════════ -->
+        <template v-if="activeTab === 'reconcile'">
+            <div class="space-y-6">
+                <!-- Top Stats Cards -->
+                <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                    <Card class="shadow-sm">
+                        <CardContent class="p-4">
+                            <p class="text-xs font-semibold text-muted-foreground">
+                                Tổng mặt hàng kiểm kê
+                            </p>
+                            <p class="mt-1 text-2xl font-black text-foreground">
+                                {{ ingredients.length }}
+                                <span class="text-xs font-normal text-muted-foreground">nguyên liệu</span>
+                            </p>
+                        </CardContent>
+                    </Card>
+
+                    <Card class="shadow-sm">
+                        <CardContent class="p-4">
+                            <p class="text-xs font-semibold text-muted-foreground">
+                                Khớp tuyệt đối (0 chênh lệch)
+                            </p>
+                            <p class="mt-1 text-2xl font-black text-emerald-600 dark:text-emerald-400">
+                                {{ reconcileStats.matched }}
+                                <span class="text-xs font-normal text-muted-foreground">nguyên liệu</span>
+                            </p>
+                        </CardContent>
+                    </Card>
+
+                    <Card class="shadow-sm">
+                        <CardContent class="p-4">
+                            <p class="text-xs font-semibold text-muted-foreground">
+                                Hàng chênh lệch thiếu (Lệch -)
+                            </p>
+                            <p class="mt-1 text-2xl font-black text-amber-600 dark:text-amber-400">
+                                {{ reconcileStats.deficitCount }}
+                                <span class="text-xs font-normal text-muted-foreground">nguyên liệu</span>
+                            </p>
+                        </CardContent>
+                    </Card>
+
+                    <Card class="shadow-sm">
+                        <CardContent class="p-4">
+                            <p class="text-xs font-semibold text-muted-foreground">
+                                Tổng giá trị tổn thất thiếu kho
+                            </p>
+                            <p class="mt-1 text-2xl font-black text-rose-600 dark:text-rose-400">
+                                {{ vnd(reconcileStats.totalDeficitCost) }}
+                            </p>
+                        </CardContent>
+                    </Card>
+                </div>
+
+                <!-- Audit Table Card -->
+                <Card class="shadow-sm">
+                    <CardHeader class="border-b border-border pb-3">
+                        <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                            <div>
+                                <CardTitle class="flex items-center gap-2 text-base font-extrabold">
+                                    <ClipboardCheck class="size-5 text-emerald-600" />
+                                    Bảng Đối Soát Tồn Kho Lý Thuyết vs Tồn Thực Tế
+                                </CardTitle>
+                                <CardDescription class="text-xs">
+                                    Nhập số lượng đếm được thực tế tại kho. Hệ thống tự động đối chiếu với số lượng tồn tính toán từ hóa đơn bán hàng POS.
+                                </CardDescription>
+                            </div>
+
+                            <div class="relative w-full sm:w-64">
+                                <Search class="absolute top-2.5 left-2.5 size-4 text-slate-400" />
+                                <input
+                                    v-model="reconcileSearch"
+                                    type="text"
+                                    placeholder="Lọc nguyên liệu đối soát..."
+                                    class="w-full rounded-xl border border-border bg-card py-1.5 pr-3 pl-8 text-xs focus:ring-2 focus:ring-emerald-500/20 focus:outline-none"
+                                />
+                            </div>
+                        </div>
+                    </CardHeader>
+                    <CardContent class="p-0">
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-left text-xs">
+                                <thead class="border-b border-border bg-muted/40 font-bold uppercase text-[10px] text-muted-foreground">
+                                    <tr>
+                                        <th class="p-3">Nguyên liệu</th>
+                                        <th class="p-3 text-right">Tồn Lý Thuyết (Hệ thống)</th>
+                                        <th class="p-3 text-center">Tồn Thực Tế (Đếm tại kho)</th>
+                                        <th class="p-3 text-right">Chênh lệch (+/-)</th>
+                                        <th class="p-3 text-right">Thành tiền chênh lệch</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-border">
+                                    <tr v-for="ing in filteredReconcileIngredients" :key="ing.id" class="hover:bg-muted/20">
+                                        <td class="p-3">
+                                            <p class="font-bold text-foreground">{{ ing.name }}</p>
+                                            <p class="text-[10px] text-muted-foreground">
+                                                {{ ing.sku ?? 'SKU-NONE' }} · Giá vốn: {{ vnd(ing.average_cost) }}/{{ ing.unit?.symbol ?? 'đv' }}
+                                            </p>
+                                        </td>
+                                        <td class="p-3 text-right font-mono font-bold text-foreground">
+                                            {{ ing.stock ?? 0 }} {{ ing.unit?.symbol ?? 'đv' }}
+                                        </td>
+                                        <td class="p-3 text-center">
+                                            <div class="inline-flex items-center gap-1.5">
+                                                <Input
+                                                    type="number"
+                                                    step="0.001"
+                                                    min="0"
+                                                    v-model="physicalStockMap[ing.id]"
+                                                    class="h-8 w-28 text-center font-mono font-bold"
+                                                />
+                                                <span class="text-[11px] font-medium text-muted-foreground">{{ ing.unit?.symbol ?? 'đv' }}</span>
+                                            </div>
+                                        </td>
+                                        <td class="p-3 text-right font-mono font-bold">
+                                            <span
+                                                :class="[
+                                                    'inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-xs font-bold',
+                                                    getDiff(ing) === 0
+                                                        ? 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300'
+                                                        : getDiff(ing) < 0
+                                                        ? 'bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300'
+                                                        : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300',
+                                                ]"
+                                            >
+                                                {{ getDiff(ing) > 0 ? '+' : '' }}{{ getDiff(ing) }} {{ ing.unit?.symbol ?? 'đv' }}
+                                            </span>
+                                        </td>
+                                        <td class="p-3 text-right font-mono font-bold">
+                                            <span
+                                                :class="
+                                                    getDiff(ing) < 0
+                                                        ? 'text-rose-600 dark:text-rose-400'
+                                                        : getDiff(ing) > 0
+                                                        ? 'text-emerald-600 dark:text-emerald-400'
+                                                        : 'text-muted-foreground'
+                                                "
+                                            >
+                                                {{ vnd(getDiff(ing) * ing.average_cost) }}
+                                            </span>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <!-- Footer Audit Action Bar -->
+                        <div class="flex flex-col gap-3 border-t border-border bg-muted/20 p-4 sm:flex-row sm:items-center sm:justify-between">
+                            <div class="flex flex-1 flex-col gap-3 sm:flex-row sm:items-center">
+                                <div class="flex items-center gap-2">
+                                    <Label class="shrink-0 text-xs font-bold">Ghi chú đối soát:</Label>
+                                    <Input
+                                        v-model="reconcileNotes"
+                                        placeholder="Ví dụ: Kiểm kê định kỳ cuối ca..."
+                                        class="h-9 text-xs sm:w-64"
+                                    />
+                                </div>
+
+                                <div v-if="reconcileStats.deficitCount > 0" class="flex items-center gap-2">
+                                    <Label class="shrink-0 text-xs font-bold text-rose-600 dark:text-rose-400">
+                                        Quy trách nhiệm thất thoát ({{ vnd(reconcileStats.totalDeficitCost) }}):
+                                    </Label>
+                                    <select
+                                        v-model="reconcileEmployeeId"
+                                        class="h-9 rounded-xl border border-rose-300 bg-card px-3 text-xs font-medium text-foreground focus:ring-2 focus:ring-rose-500/20 focus:outline-none dark:border-rose-800"
+                                    >
+                                        <option value="">Không khấu trừ lương (Hao hụt quán tự chịu)</option>
+                                        <option
+                                            v-for="emp in employees"
+                                            :key="emp.id"
+                                            :value="emp.id"
+                                        >
+                                            Khấu trừ lương: {{ emp.full_name }}{{ emp.job_title ? ' (' + emp.job_title + ')' : '' }}
+                                        </option>
+                                    </select>
+                                </div>
+                            </div>
+                            <Button
+                                @click="submitReconcile"
+                                class="h-9 cursor-pointer rounded-xl bg-emerald-600 font-bold text-white shadow-sm hover:bg-emerald-700"
+                                :disabled="isReconciling"
+                            >
+                                <ClipboardCheck class="mr-1.5 size-4" />
+                                {{ isReconciling ? 'Đang cân bằng kho...' : 'Xác nhận & Cân bằng tồn kho' }}
+                            </Button>
+                        </div>
+                    </CardContent>
+                </Card>
+            </div>
+        </template>                
     </div>
 
     <!-- ══ Modal: Thêm nguyên liệu ══════════════════════════════════════════════ -->

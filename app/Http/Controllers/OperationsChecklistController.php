@@ -9,6 +9,7 @@ use App\Support\Tenant\TenantContext;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\ValidationException;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Inertia\Inertia;
@@ -80,7 +81,11 @@ class OperationsChecklistController extends Controller
 
         $user = $request->user();
         $branchId = app(TenantContext::class)->activeBranchId();
-        abort_if($branchId === null, 422, 'Hãy chọn một chi nhánh cụ thể trước khi hoàn thành checklist.');
+        if ($branchId === null) {
+            throw ValidationException::withMessages([
+                'branch_id' => 'Hãy chọn một chi nhánh cụ thể trước khi hoàn thành checklist.',
+            ]);
+        }
         $item = ChecklistItem::with('template')->findOrFail($data['item_id']);
 
         abort_unless($item->template && $item->template->restaurant_id === $user->restaurant_id, 403);
@@ -137,7 +142,11 @@ class OperationsChecklistController extends Controller
         ]);
 
         $branchId = app(TenantContext::class)->activeBranchId();
-        abort_if($branchId === null, 422, 'Hãy chọn một chi nhánh cụ thể trước khi bỏ đánh dấu checklist.');
+        if ($branchId === null) {
+            throw ValidationException::withMessages([
+                'branch_id' => 'Hãy chọn một chi nhánh cụ thể trước khi bỏ đánh dấu checklist.',
+            ]);
+        }
 
         ChecklistCompletion::where('item_id', $data['item_id'])
             ->where('checked_date', $data['date'])

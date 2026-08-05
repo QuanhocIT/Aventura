@@ -53,7 +53,8 @@ class LeaveScheduleController extends Controller
         $data = $request->validate([
             'day' => ['required', 'string', 'in:Monday,Tuesday,Wednesday,Thursday,Friday,Saturday,Sunday'],
             'employee_name' => ['required', 'string'],
-            'shift_name' => ['required', 'string'],
+            'shift_name' => ['nullable', 'string'],
+            'shift_id' => ['nullable', 'integer'],
         ]);
 
         $result = $this->assignments->storeAssignment(
@@ -76,7 +77,8 @@ class LeaveScheduleController extends Controller
         $data = $request->validate([
             'day' => ['required', 'string', 'in:Monday,Tuesday,Wednesday,Thursday,Friday,Saturday,Sunday'],
             'employee_name' => ['required', 'string'],
-            'shift_name' => ['required', 'string'],
+            'shift_name' => ['nullable', 'string'],
+            'shift_id' => ['nullable', 'integer'],
         ]);
 
         $this->assignments->destroyAssignment($request->user(), $data);

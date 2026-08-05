@@ -288,12 +288,50 @@ class ScheduleController extends Controller
                                 'base_salary' => (float) ($a->employee?->base_salary ?? 0),
                                 'scheduled_date' => $a->scheduled_date instanceof Carbon ? $a->scheduled_date->toDateString() : Carbon::parse($a->scheduled_date)->toDateString(),
                                 'status' => $a->status,
+                                'check_in_at' => $a->check_in_at ? Carbon::parse($a->check_in_at)->format('H:i:s d/m/Y') : null,
+                                'check_out_at' => $a->check_out_at ? Carbon::parse($a->check_out_at)->format('H:i:s d/m/Y') : null,
+                                'check_in_time' => $a->check_in_at ? Carbon::parse($a->check_in_at)->format('H:i') : null,
+                                'check_out_time' => $a->check_out_at ? Carbon::parse($a->check_out_at)->format('H:i') : null,
                                 'duration_hours' => $durationHours,
                                 'late_minutes' => $lateMin,
                                 'shift_id' => $a->shift_id,
                                 'shift_name' => $a->shift?->name ?? '—',
+                                'shift_start' => $a->shift ? substr($a->shift->start_time, 0, 5) : '',
+                                'shift_end' => $a->shift ? substr($a->shift->end_time, 0, 5) : '',
+                                'check_in_photo_path' => $a->check_in_photo_path ? asset('storage/'.$a->check_in_photo_path) : null,
+                                'is_shift_leader' => (bool) $a->is_shift_leader,
+                                'notes' => $a->notes,
                             ];
                         })->all();
+                });
+            });
+
+            $monthlyShiftClosings = Inertia::defer(function () use ($restaurantId, $startOfMonth, $endOfMonth, $branchId, $scopeKey) {
+                return Cache::remember("schedule_monthly_closings:{$restaurantId}:{$scopeKey}:{$startOfMonth}:{$endOfMonth}", 300, function () use ($restaurantId, $startOfMonth, $endOfMonth, $branchId) {
+                    if (! \Illuminate\Support\Facades\Schema::hasTable('shift_closings')) {
+                        return [];
+                    }
+
+                    return \App\Models\ShiftClosing::where('restaurant_id', $restaurantId)
+                        ->whereBetween('closing_date', [$startOfMonth, $endOfMonth])
+                        ->when($branchId, fn ($query) => $query->where('branch_id', $branchId))
+                        ->with(['cashier:id,name,email', 'shift:id,name'])
+                        ->get()
+                        ->map(fn ($c) => [
+                            'id' => $c->id,
+                            'shift_id' => $c->shift_id,
+                            'shift_name' => $c->shift?->name ?? '—',
+                            'closing_date' => $c->closing_date instanceof Carbon ? $c->closing_date->toDateString() : Carbon::parse($c->closing_date)->toDateString(),
+                            'cashier_name' => $c->cashier?->name ?? '—',
+                            'expected_cash' => (float) ($c->expected_cash ?? 0),
+                            'actual_cash' => (float) ($c->actual_cash ?? 0),
+                            'cash_difference' => (float) ($c->cash_difference ?? 0),
+                            'transfer_amount' => (float) ($c->transfer_amount ?? 0),
+                            'other_expense_amount' => (float) ($c->other_expense_amount ?? 0),
+                            'closed_at' => $c->closed_at ? Carbon::parse($c->closed_at)->format('H:i d/m/Y') : null,
+                            'notes' => $c->notes,
+                        ])
+                        ->all();
                 });
             });
 
@@ -309,6 +347,7 @@ class ScheduleController extends Controller
                 'registrations' => $registrations,
                 'allPendingSwaps' => $allPendingSwaps,
                 'monthlyAssignments' => $monthlyAssignments,
+                'monthlyShiftClosings' => $monthlyShiftClosings,
                 'gpsSettings' => [
                     'latitude' => $restaurant?->latitude,
                     'longitude' => $restaurant?->longitude,
