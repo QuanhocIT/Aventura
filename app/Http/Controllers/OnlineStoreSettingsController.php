@@ -4,10 +4,12 @@ namespace App\Http\Controllers;
 
 use App\Concerns\AuthorizesRestaurantSettings;
 use App\Models\OnlineStoreConfig;
+use App\Services\PaymentGatewayService;
 use App\Services\QuotaService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -33,6 +35,10 @@ class OnlineStoreSettingsController extends Controller
         }
 
         $restaurantId = $request->user()->restaurant_id;
+        $branches = $restaurant?->branches()
+            ->where('status', 'active')
+            ->orderBy('name')
+            ->get(['id', 'name', 'code']) ?? collect();
 
         $config = OnlineStoreConfig::withoutGlobalScopes()
             ->where('restaurant_id', $restaurantId)
@@ -52,6 +58,7 @@ class OnlineStoreSettingsController extends Controller
                 'delivery_base_fee' => 15000,
                 'max_delivery_km' => 10,
                 'accepted_payments' => ['bank_transfer'],
+                'branch_id' => $branches->first()?->id,
             ]);
         }
 
@@ -60,6 +67,10 @@ class OnlineStoreSettingsController extends Controller
         return Inertia::render('online-store/Index', [
             'config' => $config,
             'storeUrl' => $storeUrl,
+            'branches' => $branches,
+            'paymentMethods' => collect([['key' => 'cod', 'name' => 'Thanh toán khi nhận hàng']])
+                ->merge(app(PaymentGatewayService::class)->getConfiguredGateways())
+                ->values(),
         ]);
     }
 
@@ -79,10 +90,29 @@ class OnlineStoreSettingsController extends Controller
             'enable_delivery' => ['required', 'boolean'],
             'enable_preorder' => ['required', 'boolean'],
             'accepted_payments' => ['required', 'array', 'min:1'],
+            'accepted_payments.*' => [
+                'string',
+                Rule::in(array_merge(['cod'], array_column(app(PaymentGatewayService::class)->getConfiguredGateways(), 'key'))),
+            ],
             'operating_hours' => ['nullable', 'array'],
+            'branch_id' => ['nullable', 'integer'],
         ]);
 
         $restaurantId = $request->user()->restaurant_id;
+
+        $branch = null;
+        if ($data['branch_id'] ?? null) {
+            $branch = $request->user()->restaurant?->branches()
+                ->where('status', 'active')
+                ->whereKey($data['branch_id'])
+                ->first();
+
+            if (! $branch) {
+                return back()->withErrors(['branch_id' => 'Chi nhánh không thuộc nhà hàng hoặc đang ngừng hoạt động.']);
+            }
+        } elseif (($request->user()->restaurant?->branches()->where('status', 'active')->count() ?? 0) > 1) {
+            return back()->withErrors(['branch_id' => 'Vui lòng chọn chi nhánh phục vụ cửa hàng online.']);
+        }
 
         $existing = OnlineStoreConfig::withoutGlobalScopes()
             ->where('slug', $data['slug'])

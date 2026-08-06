@@ -33,6 +33,11 @@ class OnlineStoreConfig extends Model
         return $this->belongsTo(Restaurant::class);
     }
 
+    public function branch(): BelongsTo
+    {
+        return $this->belongsTo(RestaurantBranch::class);
+    }
+
     public function isOpen(): bool
     {
         if (! $this->operating_hours) {

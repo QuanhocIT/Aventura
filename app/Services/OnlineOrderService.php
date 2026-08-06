@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Customer;
 use App\Models\Delivery\DeliveryDetail;
+use App\Models\InventoryReservation;
 use App\Models\OnlineStoreConfig;
 use App\Models\Order;
 use App\Models\OrderItem;
@@ -12,6 +13,7 @@ use App\Models\ProductCategory;
 use App\Models\Restaurant;
 use App\Services\Integrations\WebhookDispatchService;
 use App\Services\Integrations\ZaloOaService;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
@@ -19,7 +21,7 @@ use Illuminate\Validation\ValidationException;
 
 class OnlineOrderService
 {
-    public function getPublicMenu(Restaurant $restaurant): array
+    public function getPublicMenu(Restaurant $restaurant, ?int $branchId = null): array
     {
         $categories = ProductCategory::withoutGlobalScopes()
             ->where('restaurant_id', $restaurant->id)
@@ -31,6 +33,11 @@ class OnlineOrderService
             ->where('restaurant_id', $restaurant->id)
             ->where('is_active', true)
             ->where('is_available', true)
+            ->where(function ($q) use ($branchId): void {
+                if ($branchId !== null) {
+                    $q->whereNull('branch_id')->orWhere('branch_id', $branchId);
+                }
+            })
             ->where(function ($q) {
                 $q->whereNull('paused_until')->orWhere('paused_until', '<', now());
             })
@@ -48,142 +55,209 @@ class OnlineOrderService
 
     public function createOnlineOrder(array $data, OnlineStoreConfig $config): Order
     {
-        $restaurant = Restaurant::find($config->restaurant_id);
+        $restaurant = Restaurant::findOrFail($config->restaurant_id);
 
         if (! $config->is_active) {
             throw ValidationException::withMessages(['store' => 'Cửa hàng online hiện đang tạm ngừng.']);
         }
 
-        $order = DB::transaction(function () use ($data, $config, $restaurant) {
-            $channel = $data['channel'] ?? 'takeaway';
-            $items = $data['items'] ?? [];
+        $branchId = $config->branch_id
+            ? (int) $config->branch_id
+            : $restaurant->branches()
+                ->where('status', 'active')
+                ->orderBy('id')
+                ->value('id');
 
-            $subtotal = 0;
-            $orderItems = [];
+        if ($branchId !== null && ! $restaurant->branches()->where('id', $branchId)->where('status', 'active')->exists()) {
+            throw ValidationException::withMessages(['branch_id' => 'Chi nhánh của cửa hàng online không còn hoạt động.']);
+        }
 
-            foreach ($items as $item) {
-                $product = Product::withoutGlobalScopes()
-                    ->where('restaurant_id', $config->restaurant_id)
-                    ->where('id', $item['product_id'])
-                    ->where('is_active', true)
-                    ->where('is_available', true)
-                    ->first();
+        $clientRequestId = trim((string) ($data['client_request_id'] ?? ''));
 
-                if (! $product) {
-                    throw ValidationException::withMessages(['items' => "Sản phẩm #{$item['product_id']} không khả dụng."]);
+        $createOrder = function () use ($data, $config, $restaurant, $branchId, $clientRequestId): Order {
+            return DB::transaction(function () use ($data, $config, $restaurant, $branchId, $clientRequestId): Order {
+                if ($clientRequestId !== '') {
+                    $existing = Order::withoutGlobalScopes()
+                        ->where('restaurant_id', $config->restaurant_id)
+                        ->where('client_request_id', $clientRequestId)
+                        ->first();
+
+                    if ($existing) {
+                        return $existing;
+                    }
                 }
 
-                $lineTotal = (float) $product->price * (int) $item['quantity'];
-                $subtotal += $lineTotal;
+                $channel = $data['channel'] ?? 'takeaway';
+                $items = $data['items'] ?? [];
 
-                $orderItems[] = [
-                    'product_id' => $product->id,
-                    'quantity' => (int) $item['quantity'],
-                    'unit_price' => (float) $product->price,
-                    'line_total' => $lineTotal,
-                    'notes' => $item['notes'] ?? null,
-                ];
-            }
+                $subtotal = 0;
+                $orderItems = [];
+                $products = [];
 
-            $deliveryFee = 0;
-            if ($channel === 'delivery' && isset($data['latitude'], $data['longitude'])) {
-                $feeResult = $this->calculateDeliveryFee(
-                    (float) $data['latitude'],
-                    (float) $data['longitude'],
-                    $restaurant
-                );
-
-                if (! $feeResult['deliverable']) {
-                    throw ValidationException::withMessages(['address' => $feeResult['reason']]);
+                if ($branchId !== null) {
+                    app(InventoryAvailabilityService::class)->assertItemsAvailable(
+                        (int) $config->restaurant_id,
+                        $branchId,
+                        $items,
+                    );
                 }
 
-                $deliveryFee = $feeResult['fee'];
-            }
+                foreach ($items as $item) {
+                    $product = Product::withoutGlobalScopes()
+                        ->where('restaurant_id', $config->restaurant_id)
+                        ->where(function ($q) use ($branchId): void {
+                            if ($branchId !== null) {
+                                $q->whereNull('branch_id')->orWhere('branch_id', $branchId);
+                            }
+                        })
+                        ->where('id', $item['product_id'])
+                        ->where('is_active', true)
+                        ->where('is_available', true)
+                        ->first();
 
-            $totalAmount = $subtotal + $deliveryFee;
+                    if (! $product) {
+                        throw ValidationException::withMessages(['items' => "Sản phẩm #{$item['product_id']} không khả dụng."]);
+                    }
 
-            if ($config->min_order_amount > 0 && $subtotal < (float) $config->min_order_amount) {
-                throw ValidationException::withMessages([
-                    'total' => 'Đơn hàng tối thiểu '.number_format($config->min_order_amount).'đ.',
-                ]);
-            }
+                    $products[$product->id] = $product;
 
-            $customer = null;
-            if (! empty($data['phone'])) {
-                $customer = Customer::withoutGlobalScopes()->firstOrCreate(
-                    ['restaurant_id' => $config->restaurant_id, 'phone' => $data['phone']],
-                    ['full_name' => $data['customer_name'] ?? 'Khách online']
-                );
-            }
+                    $lineTotal = (float) $product->price * (int) $item['quantity'];
+                    $subtotal += $lineTotal;
 
-            $order = Order::create([
-                'restaurant_id' => $config->restaurant_id,
-                'branch_id' => $restaurant->branches()->first()?->id,
-                'customer_id' => $customer?->id,
-                'order_number' => 'ON'.strtoupper(Str::random(8)),
-                'channel' => $channel === 'delivery' ? 'delivery' : 'takeaway',
-                'status' => 'pending',
-                'payment_status' => 'unpaid',
-                'subtotal' => $subtotal,
-                'discount_amount' => 0,
-                'service_charge' => $deliveryFee,
-                'total_amount' => $totalAmount,
-                'note' => $data['note'] ?? null,
-                'online_notes' => $data['address'] ?? null,
-                'scheduled_at' => $data['scheduled_at'] ?? null,
-            ]);
+                    $orderItems[] = [
+                        'product_id' => $product->id,
+                        'quantity' => (int) $item['quantity'],
+                        'unit_price' => (float) $product->price,
+                        'line_total' => $lineTotal,
+                        'notes' => $item['notes'] ?? null,
+                    ];
+                }
 
-            foreach ($orderItems as $item) {
-                OrderItem::create([
+                $deliveryFee = 0;
+                if ($channel === 'delivery' && isset($data['latitude'], $data['longitude'])) {
+                    $feeResult = $this->calculateDeliveryFee(
+                        (float) $data['latitude'],
+                        (float) $data['longitude'],
+                        $restaurant
+                    );
+
+                    if (! $feeResult['deliverable']) {
+                        throw ValidationException::withMessages(['address' => $feeResult['reason']]);
+                    }
+
+                    $deliveryFee = $feeResult['fee'];
+                }
+
+                $totalAmount = $subtotal + $deliveryFee;
+
+                if ($config->min_order_amount > 0 && $subtotal < (float) $config->min_order_amount) {
+                    throw ValidationException::withMessages([
+                        'total' => 'Đơn hàng tối thiểu '.number_format($config->min_order_amount).'đ.',
+                    ]);
+                }
+
+                $customer = null;
+                if (! empty($data['phone'])) {
+                    $customer = Customer::withoutGlobalScopes()->firstOrCreate(
+                        ['restaurant_id' => $config->restaurant_id, 'phone' => $data['phone']],
+                        ['full_name' => $data['customer_name'] ?? 'Khách online']
+                    );
+                }
+
+                $order = Order::create([
                     'restaurant_id' => $config->restaurant_id,
-                    'order_id' => $order->id,
-                    'product_id' => $item['product_id'],
-                    'quantity' => $item['quantity'],
-                    'unit_price' => $item['unit_price'],
-                    'line_total' => $item['line_total'],
-                    'notes' => $item['notes'],
+                    'branch_id' => $branchId,
+                    'customer_id' => $customer?->id,
+                    'order_number' => 'ON'.strtoupper(Str::random(8)),
+                    'client_request_id' => $clientRequestId !== '' ? $clientRequestId : null,
+                    'channel' => $channel === 'delivery' ? 'delivery' : 'takeaway',
                     'status' => 'pending',
+                    'payment_status' => 'unpaid',
+                    'subtotal' => $subtotal,
+                    'discount_amount' => 0,
+                    'service_charge' => $deliveryFee,
+                    'total_amount' => $totalAmount,
+                    'note' => $data['note'] ?? null,
+                    'online_notes' => $data['address'] ?? null,
+                    'scheduled_at' => $data['scheduled_at'] ?? null,
                 ]);
-            }
 
-            if ($channel === 'delivery') {
-                DeliveryDetail::create([
-                    'order_id' => $order->id,
-                    'restaurant_id' => $config->restaurant_id,
-                    'customer_name' => $data['customer_name'] ?? 'Khách',
-                    'phone' => $data['phone'] ?? '',
-                    'address' => $data['address'] ?? '',
-                    'latitude' => $data['latitude'] ?? null,
-                    'longitude' => $data['longitude'] ?? null,
-                    'delivery_fee' => $deliveryFee,
-                    'cod_amount' => ($data['payment_method'] ?? '') === 'cod' ? $totalAmount : 0,
-                    'delivery_status' => 'pending',
-                ]);
-            }
+                foreach ($orderItems as $item) {
+                    OrderItem::create([
+                        'restaurant_id' => $config->restaurant_id,
+                        'order_id' => $order->id,
+                        'product_id' => $item['product_id'],
+                        'quantity' => $item['quantity'],
+                        'unit_price' => $item['unit_price'],
+                        'line_total' => $item['line_total'],
+                        'notes' => $item['notes'],
+                        'status' => 'pending',
+                    ]);
 
-            return $order;
-        });
+                    $product = $products[$item['product_id']] ?? null;
+                    if ($branchId !== null && $product?->track_inventory) {
+                        $product->loadMissing('recipes');
+                        foreach ($product->recipes as $recipe) {
+                            InventoryReservation::create([
+                                'restaurant_id' => $config->restaurant_id,
+                                'branch_id' => $branchId,
+                                'order_id' => $order->id,
+                                'ingredient_id' => $recipe->ingredient_id,
+                                'reserved_quantity' => (float) $recipe->quantity * (float) $item['quantity'] * (1 + ((float) $recipe->waste_rate / 100)),
+                                'status' => 'holding',
+                                'expires_at' => now()->addHours(4),
+                            ]);
+                        }
+                    }
+                }
+
+                if ($channel === 'delivery') {
+                    DeliveryDetail::create([
+                        'order_id' => $order->id,
+                        'restaurant_id' => $config->restaurant_id,
+                        'branch_id' => $branchId,
+                        'customer_name' => $data['customer_name'] ?? 'Khách',
+                        'phone' => $data['phone'] ?? '',
+                        'address' => $data['address'] ?? '',
+                        'latitude' => $data['latitude'] ?? null,
+                        'longitude' => $data['longitude'] ?? null,
+                        'delivery_fee' => $deliveryFee,
+                        'cod_amount' => ($data['payment_method'] ?? '') === 'cod' ? $totalAmount : 0,
+                        'delivery_status' => 'pending',
+                    ]);
+                }
+
+                return $order;
+            });
+        };
+
+        $order = $clientRequestId === ''
+            ? $createOrder()
+            : Cache::lock('online-order:'.$config->restaurant_id.':'.hash('sha256', $clientRequestId), 30)
+                ->block(5, $createOrder);
 
         // Sau khi commit: webhook developer + tin xác nhận Zalo OA.
         // Lỗi tích hợp không được phép làm hỏng luồng đặt hàng của khách.
-        try {
-            app(WebhookDispatchService::class)->dispatch(
-                $order->restaurant_id,
-                'order.created',
-                [
-                    'order_id' => $order->id,
-                    'order_number' => $order->order_number,
-                    'channel' => $order->channel,
-                    'total_amount' => (float) $order->total_amount,
-                ]
-            );
+        if ($order->wasRecentlyCreated) {
+            try {
+                app(WebhookDispatchService::class)->dispatch(
+                    $order->restaurant_id,
+                    'order.created',
+                    [
+                        'order_id' => $order->id,
+                        'order_number' => $order->order_number,
+                        'channel' => $order->channel,
+                        'total_amount' => (float) $order->total_amount,
+                    ]
+                );
 
-            app(ZaloOaService::class)->sendOrderConfirmation($order);
-        } catch (\Throwable $e) {
-            Log::warning('createOnlineOrder: lỗi post-order integrations', [
-                'order_id' => $order->id,
-                'error' => $e->getMessage(),
-            ]);
+                app(ZaloOaService::class)->sendOrderConfirmation($order);
+            } catch (\Throwable $e) {
+                Log::warning('createOnlineOrder: lỗi post-order integrations', [
+                    'order_id' => $order->id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
         }
 
         return $order;

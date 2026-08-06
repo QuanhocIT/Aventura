@@ -15,6 +15,8 @@ import {
     Store,
     FileText,
     AlertTriangle,
+    Building2,
+    CreditCard,
 } from 'lucide-vue-next';
 import { ref, watch } from 'vue';
 import { toast } from 'vue-sonner';
@@ -29,7 +31,16 @@ defineOptions({ layout: AppLayout });
 const props = defineProps<{
     config: any;
     storeUrl: string | null;
+    branches: { id: number; name: string; code: string | null }[];
+    paymentMethods: { key: string; name: string }[];
 }>();
+
+const branches = props.branches ?? [];
+const paymentMethods = props.paymentMethods ?? [];
+const paymentMethodKeys = paymentMethods.map((method) => method.key);
+const acceptedPayments = (props.config.accepted_payments ?? []).filter((key: string) =>
+    paymentMethodKeys.includes(key),
+);
 
 const page = usePage();
 
@@ -58,8 +69,12 @@ const form = useForm({
     enable_takeaway: props.config.enable_takeaway ?? true,
     enable_delivery: props.config.enable_delivery ?? true,
     enable_preorder: props.config.enable_preorder ?? false,
-    accepted_payments: props.config.accepted_payments ?? ['bank_transfer'],
+    accepted_payments:
+        acceptedPayments.length > 0
+            ? acceptedPayments
+            : [paymentMethods[0]?.key ?? 'cod'],
     operating_hours: props.config.operating_hours ?? null,
+    branch_id: props.config.branch_id ?? props.branches[0]?.id ?? null,
 });
 
 const isCopied = ref(false);
@@ -427,6 +442,71 @@ function submit() {
 
                 <!-- ── Right Column: Status Toggle & Shipping Rules (1/3 width) ── -->
                 <div class="space-y-6 lg:col-span-1">
+                    <!-- Chi nhánh phục vụ -->
+                    <Card v-if="branches.length" class="overflow-hidden shadow-sm">
+                        <div
+                            class="border-b border-border bg-slate-50/50 p-5 dark:bg-slate-900/20"
+                        >
+                            <h3 class="flex items-center gap-2 text-sm font-bold text-foreground">
+                                <Building2 class="size-4.5 text-blue-500" />
+                                Chi nhánh phục vụ
+                            </h3>
+                            <p class="mt-0.5 text-xs text-muted-foreground">
+                                Đơn online sẽ trừ tồn kho và chuyển về chi nhánh này.
+                            </p>
+                        </div>
+                        <CardContent class="p-6">
+                            <select
+                                v-model="form.branch_id"
+                                class="h-10 w-full rounded-xl border border-border bg-background px-3 text-xs font-semibold outline-none focus:ring-2 focus:ring-blue-500/30"
+                            >
+                                <option
+                                    v-for="branch in branches"
+                                    :key="branch.id"
+                                    :value="branch.id"
+                                >
+                                    {{ branch.name }}{{ branch.code ? ` (${branch.code})` : '' }}
+                                </option>
+                            </select>
+                            <p v-if="form.errors.branch_id" class="mt-2 text-xs text-rose-500">
+                                {{ form.errors.branch_id }}
+                            </p>
+                        </CardContent>
+                    </Card>
+
+                    <!-- Phương thức thanh toán -->
+                    <Card class="overflow-hidden shadow-sm">
+                        <div
+                            class="border-b border-border bg-slate-50/50 p-5 dark:bg-slate-900/20"
+                        >
+                            <h3 class="flex items-center gap-2 text-sm font-bold text-foreground">
+                                <CreditCard class="size-4.5 text-violet-500" />
+                                Phương thức thanh toán
+                            </h3>
+                            <p class="mt-0.5 text-xs text-muted-foreground">
+                                Chỉ các phương thức được chọn mới xuất hiện khi khách đặt hàng.
+                            </p>
+                        </div>
+                        <CardContent class="space-y-2 p-6">
+                            <label
+                                v-for="method in paymentMethods"
+                                :key="method.key"
+                                class="flex cursor-pointer items-center gap-3 rounded-xl border border-border px-3 py-2.5 text-xs font-semibold transition hover:bg-muted/40"
+                            >
+                                <input
+                                    v-model="form.accepted_payments"
+                                    type="checkbox"
+                                    :value="method.key"
+                                    class="size-4 rounded border-border accent-blue-600"
+                                />
+                                {{ method.name }}
+                            </label>
+                            <p v-if="form.errors.accepted_payments" class="text-xs text-rose-500">
+                                {{ form.errors.accepted_payments }}
+                            </p>
+                        </CardContent>
+                    </Card>
+
                     <!-- Hoạt động Switch -->
                     <Card class="overflow-hidden shadow-sm">
                         <div

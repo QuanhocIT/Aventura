@@ -9,9 +9,9 @@ use App\Support\Tenant\TenantContext;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Validation\ValidationException;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -136,8 +136,10 @@ class OperationsChecklistController extends Controller
 
     public function uncompleteItem(Request $request): JsonResponse
     {
+        $this->authorizeTemplateManagement($request);
+
         $data = $request->validate([
-            'item_id' => ['required', 'integer'],
+            'item_id' => ['required', 'exists:checklist_items,id'],
             'date' => ['required', 'date'],
         ]);
 
@@ -148,7 +150,10 @@ class OperationsChecklistController extends Controller
             ]);
         }
 
-        ChecklistCompletion::where('item_id', $data['item_id'])
+        $item = ChecklistItem::with('template')->findOrFail($data['item_id']);
+        abort_unless($item->template && $item->template->restaurant_id === $request->user()->restaurant_id, 403);
+
+        ChecklistCompletion::where('item_id', $item->id)
             ->where('checked_date', $data['date'])
             ->where('restaurant_id', $request->user()->restaurant_id)
             ->where('branch_id', $branchId)
@@ -160,6 +165,8 @@ class OperationsChecklistController extends Controller
     // Template CRUD (owner/manager)
     public function storeTemplate(Request $request): RedirectResponse
     {
+        $this->authorizeTemplateManagement($request);
+
         $data = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'type' => ['required', 'in:opening,closing,attp,custom'],
@@ -190,6 +197,9 @@ class OperationsChecklistController extends Controller
 
     public function destroyTemplate(ChecklistTemplate $template): RedirectResponse
     {
+        $this->authorizeTemplateManagement(request());
+        abort_unless($template->restaurant_id === request()->user()->restaurant_id, 403);
+
         $template->delete();
 
         return back()->with('success', 'Đã xóa checklist.');
@@ -234,5 +244,16 @@ class OperationsChecklistController extends Controller
         }
 
         return response()->json($report);
+    }
+
+    private function authorizeTemplateManagement(Request $request): void
+    {
+        $user = $request->user();
+
+        abort_unless(
+            $user->isSuperAdmin() || $user->hasAnyRole(['owner', 'manager']),
+            403,
+            'Chỉ Owner hoặc Manager mới được quản lý mẫu checklist.',
+        );
     }
 }

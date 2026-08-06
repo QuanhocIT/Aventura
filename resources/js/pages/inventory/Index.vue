@@ -449,6 +449,71 @@ const filteredIngredientsByStorage = computed(() => {
     );
 });
 
+const ingredientCurrentPage = ref(1);
+const ingredientPerPage = 4;
+
+const totalIngredientPages = computed(() =>
+    Math.ceil(filteredIngredientsByStorage.value.length / ingredientPerPage),
+);
+
+const paginatedIngredients = computed(() => {
+    const start = (ingredientCurrentPage.value - 1) * ingredientPerPage;
+
+    return filteredIngredientsByStorage.value.slice(
+        start,
+        start + ingredientPerPage,
+    );
+});
+
+const visibleIngredientPages = computed(() => {
+    const total = totalIngredientPages.value;
+    const current = ingredientCurrentPage.value;
+    const pages: Array<number | string> = [];
+
+    if (total <= 5) {
+        for (let page = 1; page <= total; page++) {
+            pages.push(page);
+        }
+
+        return pages;
+    }
+
+    pages.push(1);
+    if (current > 3) {
+        pages.push('...');
+    }
+
+    for (
+        let page = Math.max(2, current - 1);
+        page <= Math.min(total - 1, current + 1);
+        page++
+    ) {
+        pages.push(page);
+    }
+
+    if (current < total - 2) {
+        pages.push('...');
+    }
+    pages.push(total);
+
+    return pages;
+});
+
+watch(
+    [ingredientSearch, selectedStorageTypeFilter],
+    () => {
+        ingredientCurrentPage.value = 1;
+    },
+);
+
+watch(totalIngredientPages, (total) => {
+    if (total === 0) {
+        ingredientCurrentPage.value = 1;
+    } else if (ingredientCurrentPage.value > total) {
+        ingredientCurrentPage.value = total;
+    }
+});
+
 const lowStockIngredients = computed(() =>
     props.ingredients.filter((i) => i.stock !== null && i.stock < 5),
 );
@@ -836,7 +901,7 @@ const submitWaste = () => {
                         <CardContent class="divide-y divide-border p-0">
                             <div v-if="filteredIngredientsByStorage.length">
                                 <div
-                                    v-for="ing in filteredIngredientsByStorage"
+                                    v-for="ing in paginatedIngredients"
                                     :key="ing.id"
                                     class="p-3 text-xs transition-colors hover:bg-muted/30"
                                 >
@@ -959,7 +1024,64 @@ const submitWaste = () => {
                                 </div>
                             </div>
                             <div
-                                v-else
+                                v-if="totalIngredientPages > 1"
+                                class="flex items-center justify-between border-t border-border bg-slate-50/50 p-3 dark:bg-slate-900/10"
+                            >
+                                <span class="text-[11px] font-medium text-muted-foreground">
+                                    Trang {{ ingredientCurrentPage }} /
+                                    {{ totalIngredientPages }} · tổng
+                                    {{ filteredIngredientsByStorage.length }} nguyên liệu
+                                </span>
+                                <div class="flex items-center gap-1">
+                                    <Button
+                                        size="sm"
+                                        variant="outline"
+                                        :disabled="ingredientCurrentPage === 1"
+                                        @click="ingredientCurrentPage--"
+                                        class="flex h-7 w-7 items-center justify-center rounded-lg p-0"
+                                    >
+                                        <ChevronLeft class="size-3.5" />
+                                    </Button>
+
+                                    <template
+                                        v-for="(page, idx) in visibleIngredientPages"
+                                        :key="idx"
+                                    >
+                                        <span
+                                            v-if="page === '...'"
+                                            class="px-1 text-xs font-bold text-muted-foreground select-none"
+                                        >...</span>
+                                        <Button
+                                            v-else
+                                            size="sm"
+                                            :variant="
+                                                ingredientCurrentPage === page
+                                                    ? 'default'
+                                                    : 'outline'
+                                            "
+                                            @click="ingredientCurrentPage = Number(page)"
+                                            class="h-7 min-w-[28px] rounded-lg px-1 text-xs font-bold"
+                                        >
+                                            {{ page }}
+                                        </Button>
+                                    </template>
+
+                                    <Button
+                                        size="sm"
+                                        variant="outline"
+                                        :disabled="
+                                            ingredientCurrentPage ===
+                                            totalIngredientPages
+                                        "
+                                        @click="ingredientCurrentPage++"
+                                        class="flex h-7 w-7 items-center justify-center rounded-lg p-0"
+                                    >
+                                        <ChevronRight class="size-3.5" />
+                                    </Button>
+                                </div>
+                            </div>
+                            <div
+                                v-if="!filteredIngredientsByStorage.length"
                                 class="py-12 text-center text-xs text-muted-foreground"
                             >
                                 Chưa có nguyên liệu. Nhấn "Thêm nguyên liệu" để

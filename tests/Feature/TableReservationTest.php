@@ -161,6 +161,7 @@ class TableReservationTest extends TestCase
         $this->assertSame($table->id, (int) $reservation->table_id);
         $this->assertNotNull($reservation->confirmed_at);
         $this->assertSame($this->owner->id, (int) $reservation->confirmed_by);
+        $this->assertSame('reserved', $table->refresh()->status);
     }
 
     public function test_cannot_assign_same_table_twice_in_overlapping_window(): void

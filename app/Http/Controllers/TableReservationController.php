@@ -9,6 +9,7 @@ use App\Models\RestaurantTable;
 use App\Models\TableReservation;
 use App\Services\Integrations\WebhookDispatchService;
 use App\Services\PaymentGatewayService;
+use App\Support\Tenant\TenantContext;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -30,13 +31,17 @@ class TableReservationController extends Controller
         abort_unless($user->can('manage_orders') || $user->can('approve_requests'), 403);
 
         $rid = $user->restaurant_id;
+        $branchId = app(TenantContext::class)->activeBranchId();
 
         $dateFilter = $request->get('date', today()->toDateString());
         $statusFilter = $request->get('status', 'all');
 
         $query = TableReservation::with(['table', 'customer', 'confirmedBy'])
             ->where('restaurant_id', $rid)
-            ->where('reservation_date', $dateFilter);
+            ->where('reservation_date', $dateFilter)
+            ->when($branchId !== null, fn ($query) => $query->where(function ($q) use ($branchId) {
+                $q->whereNull('branch_id')->orWhere('branch_id', $branchId);
+            }));
 
         if ($statusFilter !== 'all') {
             $query->where('status', $statusFilter);
@@ -65,12 +70,16 @@ class TableReservationController extends Controller
         // Thống kê hôm nay
         $todayStats = TableReservation::where('restaurant_id', $rid)
             ->where('reservation_date', today())
+            ->when($branchId !== null, fn ($query) => $query->where(function ($q) use ($branchId) {
+                $q->whereNull('branch_id')->orWhere('branch_id', $branchId);
+            }))
             ->selectRaw('status, COUNT(*) as count')
             ->groupBy('status')
             ->pluck('count', 'status');
 
         $availableTables = RestaurantTable::where('restaurant_id', $rid)
             ->where('status', 'available')
+            ->when($branchId !== null, fn ($query) => $query->where('branch_id', $branchId))
             ->get(['id', 'name', 'capacity']);
 
         return Inertia::render('reservations/Index', [
@@ -97,17 +106,28 @@ class TableReservationController extends Controller
 
         try {
             DB::transaction(function () use ($reservation, $data, $user) {
-                $lockedReservation = TableReservation::where('id', $reservation->id)->lockForUpdate()->firstOrFail();
+                $lockedReservation = TableReservation::where('id', $reservation->id)
+                    ->where('restaurant_id', $user->restaurant_id)
+                    ->lockForUpdate()
+                    ->firstOrFail();
                 if ($lockedReservation->status !== 'pending') {
                     throw new \Exception('Chỉ xác nhận được đặt bàn đang chờ.');
                 }
 
+                $assignedTableBranchId = $lockedReservation->branch_id;
+
                 if (! empty($data['table_id'])) {
                     // Kiểm tra bàn có bị chiếm không
                     $table = RestaurantTable::where('id', $data['table_id'])->lockForUpdate()->firstOrFail();
-                    if ($table->status === 'occupied') {
-                        throw new \Exception('Bàn này hiện tại đang có khách ngồi.');
+                    if ($table->restaurant_id !== $user->restaurant_id || $table->status !== 'available') {
+                        throw new \Exception('Bàn này không còn ở trạng thái trống để giữ chỗ.');
                     }
+
+                    if ($lockedReservation->branch_id !== null && $table->branch_id !== $lockedReservation->branch_id) {
+                        throw new \Exception('Bàn phải thuộc cùng chi nhánh với đặt bàn.');
+                    }
+
+                    $assignedTableBranchId = $table->branch_id ?? $assignedTableBranchId;
 
                     // Kiểm tra bàn có bị trùng trong khoảng ±90 phút không
                     // (không chỉ check chính xác cùng giờ — bàn cần ~90 phút phục vụ)
@@ -119,6 +139,9 @@ class TableReservationController extends Controller
 
                     $conflict = TableReservation::where('restaurant_id', $user->restaurant_id)
                         ->where('table_id', $data['table_id'])
+                        ->when($assignedTableBranchId !== null, fn ($query) => $query->where(function ($q) use ($assignedTableBranchId) {
+                            $q->whereNull('branch_id')->orWhere('branch_id', $assignedTableBranchId);
+                        }))
                         ->where('reservation_date', $lockedReservation->reservation_date)
                         ->whereBetween('reservation_time', [$windowStart, $windowEnd])
                         ->whereIn('status', ['confirmed', 'seated'])
@@ -133,10 +156,15 @@ class TableReservationController extends Controller
                 $lockedReservation->update([
                     'status' => 'confirmed',
                     'table_id' => $data['table_id'] ?? null,
+                    'branch_id' => $assignedTableBranchId,
                     'internal_notes' => $data['internal_notes'] ?? $lockedReservation->internal_notes,
                     'confirmed_by' => $user->id,
                     'confirmed_at' => now(),
                 ]);
+
+                if (! empty($data['table_id'])) {
+                    RestaurantTable::whereKey($data['table_id'])->update(['status' => 'reserved']);
+                }
 
                 // TRƯỚC ĐÂY dùng cột auditable_type/auditable_id (không tồn tại —
                 // bảng dùng subject_type/subject_id) và thiếu cột 'event' NOT NULL,
@@ -180,7 +208,9 @@ class TableReservationController extends Controller
 
                 // Cập nhật trạng thái bàn thành 'occupied' nếu có assign bàn
                 if ($lockedReservation->table_id) {
-                    RestaurantTable::where('id', $lockedReservation->table_id)->update(['status' => 'occupied']);
+                    RestaurantTable::where('id', $lockedReservation->table_id)
+                        ->where('restaurant_id', $lockedReservation->restaurant_id)
+                        ->update(['status' => 'occupied']);
                 }
             });
         } catch (\Exception $e) {
@@ -215,6 +245,12 @@ class TableReservationController extends Controller
                     'cancellation_reason' => $data['reason'],
                     'cancelled_at' => now(),
                 ]);
+
+                if ($lockedReservation->table_id) {
+                    RestaurantTable::whereKey($lockedReservation->table_id)
+                        ->where('status', 'reserved')
+                        ->update(['status' => 'available']);
+                }
             });
         } catch (\Exception $e) {
             return back()->withErrors(['error' => $e->getMessage()]);
@@ -280,17 +316,40 @@ class TableReservationController extends Controller
             'party_size' => ['required', 'integer', 'min:1', 'max:50'],
             'special_requests' => ['nullable', 'string', 'max:500'],
             'source' => ['nullable', 'in:qr,website,phone'],
+            'branch_id' => ['nullable', 'integer'],
         ]);
 
         // Kiểm tra nhà hàng tồn tại và đang hoạt động
         $restaurant = Restaurant::findOrFail($restaurantId);
+        $activeBranches = $restaurant->branches()->where('status', 'active')->orderBy('id')->get(['id']);
+        $branchId = $data['branch_id'] ?? null;
+
+        if ($branchId !== null && ! $activeBranches->contains('id', (int) $branchId)) {
+            $message = 'Chi nhánh không thuộc nhà hàng hoặc đang ngừng hoạt động.';
+
+            return $request->wantsJson()
+                ? response()->json(['success' => false, 'message' => $message], 422)
+                : back()->withErrors(['branch_id' => $message]);
+        }
+
+        if ($branchId === null && $activeBranches->count() === 1) {
+            $branchId = (int) $activeBranches->first()->id;
+        }
+
+        if ($branchId === null && $activeBranches->count() > 1) {
+            $message = 'Vui lòng chọn chi nhánh trước khi đặt bàn.';
+
+            return $request->wantsJson()
+                ? response()->json(['success' => false, 'message' => $message], 422)
+                : back()->withErrors(['branch_id' => $message]);
+        }
 
         // Chuẩn hoá 'H:i' → 'H:i:s' để giá trị ghi xuống và giá trị so sánh luôn
         // cùng một dạng, không phụ thuộc engine tự ép kiểu cột TIME.
         $normalizedTime = $data['reservation_time'].':00';
 
         try {
-            $reservation = DB::transaction(function () use ($restaurantId, $data, $normalizedTime) {
+            $reservation = DB::transaction(function () use ($restaurantId, $data, $normalizedTime, $branchId) {
                 // Khóa dòng restaurant để tuần tự hóa việc tạo đặt bàn đồng thời cho nhà hàng đó
                 Restaurant::where('id', $restaurantId)->lockForUpdate()->firstOrFail();
 
@@ -301,19 +360,26 @@ class TableReservationController extends Controller
                 // Giờ được chuẩn hoá về 'H:i:s' ngay khi ghi (xem create bên dưới)
                 // nên so sánh bằng luôn đúng trên mọi engine.
                 $existingCount = TableReservation::where('restaurant_id', $restaurantId)
+                    ->when($branchId !== null, fn ($query) => $query->where(function ($q) use ($branchId) {
+                        $q->whereNull('branch_id')->orWhere('branch_id', $branchId);
+                    }))
                     ->whereDate('reservation_date', $data['reservation_date'])
                     ->where('reservation_time', $normalizedTime)
                     ->whereIn('status', ['pending', 'confirmed', 'seated'])
                     ->lockForUpdate()
                     ->count();
 
-                $totalTables = RestaurantTable::where('restaurant_id', $restaurantId)->count();
+                $totalTables = RestaurantTable::where('restaurant_id', $restaurantId)
+                    ->when($branchId !== null, fn ($query) => $query->where('branch_id', $branchId))
+                    ->where('status', '!=', 'inactive')
+                    ->count();
                 if ($existingCount >= $totalTables) {
                     throw new \Exception('Khung giờ này đã hết bàn trống. Vui lòng chọn giờ khác.');
                 }
 
                 return TableReservation::create([
                     'restaurant_id' => $restaurantId,
+                    'branch_id' => $branchId,
                     'guest_name' => $data['guest_name'],
                     'guest_phone' => $data['guest_phone'],
                     'guest_email' => $data['guest_email'] ?? null,
@@ -398,7 +464,8 @@ class TableReservationController extends Controller
 
             $order = Order::create([
                 'restaurant_id' => $restaurant->id,
-                'branch_id' => $restaurant->branches()->first()?->id,
+                'branch_id' => $reservation->branch_id
+                    ?? $restaurant->branches()->where('status', 'active')->orderBy('id')->value('id'),
                 'order_number' => 'COC'.strtoupper(Str::random(8)),
                 'channel' => 'reservation_deposit',
                 'status' => 'pending',

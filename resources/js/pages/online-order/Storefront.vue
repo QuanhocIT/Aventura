@@ -53,6 +53,7 @@ const props = defineProps<{
         enable_preorder: boolean;
         is_open: boolean;
         operating_hours: any;
+        accepted_payments: string[] | null;
     };
     categories: { id: number; name: string; slug: string }[];
     products: Record<
@@ -116,6 +117,12 @@ const allCategories = computed(() => {
     return [{ id: 0, name: 'Tất cả', slug: 'all' }, ...props.categories];
 });
 
+const codEnabled = computed(() => {
+    const accepted = props.config.accepted_payments;
+
+    return !accepted || accepted.length === 0 || accepted.includes('cod');
+});
+
 const allProducts = computed(() => {
     const list: any[] = [];
     Object.values(props.products).forEach((prodList) => {
@@ -157,7 +164,7 @@ const latitude = ref<number | null>(null);
 const longitude = ref<number | null>(null);
 const deliveryFee = ref(0);
 const deliveryError = ref('');
-const paymentMethod = ref(props.gateways[0]?.key ?? 'bank_transfer');
+const paymentMethod = ref(props.gateways[0]?.key ?? 'cod');
 const note = ref('');
 const scheduledAt = ref('');
 const submitting = ref(false);
@@ -363,6 +370,13 @@ const { postWithQueue, pendingCount, isOnline } = useOfflineQueue(
                 `Đã gửi đơn offline thành công! Mã đơn: ${response.order_number}`,
             );
         }
+    },
+    undefined,
+    (rejection) => {
+        toast.error(
+            rejection.message ??
+                'Đơn offline không thể đồng bộ và đã được đưa ra khỏi hàng đợi.',
+        );
     },
 );
 
@@ -1563,7 +1577,7 @@ async function submitOrder() {
                                             >
                                         </label>
                                         <label
-                                            v-if="channel === 'delivery'"
+                                            v-if="codEnabled"
                                             class="flex cursor-pointer items-center gap-3 rounded-2xl border-2 p-3.5 transition-all"
                                             :style="
                                                 paymentMethod === 'cod'

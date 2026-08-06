@@ -3,6 +3,7 @@
 namespace App\Console\Commands;
 
 use App\Models\AuditLog;
+use App\Models\RestaurantTable;
 use App\Models\TableReservation;
 use Carbon\Carbon;
 use Illuminate\Console\Command;
@@ -42,6 +43,12 @@ class MarkNoShowReservations extends Command
                 $res->update([
                     'status' => 'no_show',
                 ]);
+
+                if ($res->table_id) {
+                    RestaurantTable::whereKey($res->table_id)
+                        ->where('status', 'reserved')
+                        ->update(['status' => 'available']);
+                }
 
                 // Record in audit log
                 AuditLog::create([

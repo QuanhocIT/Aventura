@@ -161,6 +161,10 @@ return function (Schedule $schedule): void {
         ->everyFifteenMinutes()
         ->skip($restoreGuard('SCHEDULER_RESTORE_RESERVATIONS_NO_SHOWS'));
 
+    $schedule->command('reservations:expire-pending')
+        ->everyFifteenMinutes()
+        ->skip($restoreGuard('SCHEDULER_RESTORE_RESERVATIONS_EXPIRE_PENDING'));
+
     $schedule->command('promotions:expire-outdated')
         ->dailyAt('00:01')
         ->skip($restoreGuard('SCHEDULER_RESTORE_PROMOTIONS_EXPIRE'));
