@@ -148,7 +148,10 @@ class ApprovalService
             ->when(! empty($data['branch_id']), fn ($q) => $q->where('branch_id', $data['branch_id']));
         $ingredient = $ingredientQuery->findOrFail($data['ingredient_id']);
         $wasteQty = (float) $data['quantity'];
-        $wasteCost = $wasteQty * (float) $ingredient->average_cost;
+        // Khớp khoản khấu trừ (nếu có) với giá vốn thực tế của lô đã trừ.
+        $wasteCost = $transaction
+            ? (float) $transaction->total_cost
+            : $wasteQty * (float) $ingredient->average_cost;
 
         if ($transaction && ! empty($data['employee_id']) && $wasteCost > 0) {
             $employee = Employee::withoutGlobalScopes()

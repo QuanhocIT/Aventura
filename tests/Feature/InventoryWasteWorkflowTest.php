@@ -13,6 +13,7 @@ use App\Models\Unit;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Inertia\Testing\AssertableInertia as Assert;
+use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
@@ -170,5 +171,60 @@ class InventoryWasteWorkflowTest extends TestCase
             ->where('recentWastes.1.status', 'pending')
             ->where('recentWastes.2.status', 'approved')
         );
+    }
+
+    public function test_kitchen_waste_report_waits_for_owner_confirmation_before_changing_stock(): void
+    {
+        $kitchenRole = Role::firstOrCreate(['name' => 'kitchen', 'guard_name' => 'web']);
+        $kitchen = User::factory()->create([
+            'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
+        ]);
+        $kitchen->assignRole($kitchenRole);
+
+        $approvePermission = Permission::firstOrCreate([
+            'name' => 'approve_requests',
+            'guard_name' => 'web',
+        ]);
+        $this->owner->givePermissionTo($approvePermission);
+
+        // Even if a staff member is accidentally included in the request,
+        // a kitchen report is still a report without salary responsibility.
+        $response = $this->actingAs($kitchen)->post(route('inventory.waste.store'), [
+            'ingredient_id' => $this->ingredient->id,
+            'quantity' => 2,
+            'employee_id' => $this->employee->id,
+            'waste_category' => 'expired',
+            'notes' => 'Lô đã quá hạn, không quy trách nhiệm',
+        ]);
+
+        $response->assertSessionHasNoErrors();
+
+        $approval = ApprovalRequest::query()->latest('id')->firstOrFail();
+        $this->assertSame('inventory_waste', $approval->operation_type);
+        $this->assertSame('pending', $approval->status);
+        $this->assertSame($this->ingredient->name, $approval->operation_data['ingredient_name']);
+        $this->assertNull($approval->operation_data['employee_id']);
+        $this->assertSame('expired', $approval->operation_data['waste_category']);
+        $this->assertDatabaseMissing('inventory_transactions', [
+            'ingredient_id' => $this->ingredient->id,
+            'type' => 'waste',
+        ]);
+        $this->assertEquals(0, \DB::table('salary_adjustments')->count());
+        $inventory = Inventory::where('ingredient_id', $this->ingredient->id)->firstOrFail();
+        $this->assertEquals(10.0, (float) $inventory->quantity_on_hand);
+
+        $response = $this->actingAs($this->owner)->patch(route('approvals.approve', $approval));
+
+        $response->assertSessionHasNoErrors();
+        $this->assertDatabaseHas('inventory_transactions', [
+            'ingredient_id' => $this->ingredient->id,
+            'type' => 'waste',
+            'waste_category' => 'expired',
+            'performed_by' => $kitchen->id,
+            'quantity' => 2,
+        ]);
+        $this->assertEquals(8.0, (float) $inventory->fresh()->quantity_on_hand);
+        $this->assertEquals(0, \DB::table('salary_adjustments')->count());
     }
 }

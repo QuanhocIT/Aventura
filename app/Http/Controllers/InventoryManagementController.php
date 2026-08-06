@@ -812,7 +812,21 @@ class InventoryManagementController extends Controller
         $branchId = $this->requireActiveBranch($request);
         $data['branch_id'] = $branchId;
 
-        if (! $user->can('approve_requests')) {
+        // Gửi kèm thông tin dễ đọc để chủ/quản lý có thể xác nhận mà không
+        // phải tra ngược ingredient_id trong màn hình Phê duyệt.
+        $ingredient = Ingredient::where('restaurant_id', $user->restaurant_id)
+            ->where('branch_id', $branchId)
+            ->with('unit')
+            ->findOrFail($data['ingredient_id']);
+        $data['ingredient_name'] = $ingredient->name;
+        $data['unit_symbol'] = $ingredient->unit?->symbol;
+        $data['estimated_cost'] = round((float) $data['quantity'] * (float) $ingredient->average_cost, 2);
+
+        // Bếp là người báo cáo sự cố, không phải người tự xác nhận.
+        // Kể cả khi permission bị gán nhầm, báo cáo của Bếp vẫn phải chờ
+        // Chủ/Quản lý được ủy quyền duyệt.
+        if ($user->hasRole('kitchen') || ! $user->can('approve_requests')) {
+            $data['employee_id'] = null;
             $this->approvalService->submitRequest('inventory_waste', $data, $user);
 
             return back()->with('success', 'Yêu cầu ghi hao hụt đã gửi Chủ nhà hàng để phê duyệt.');

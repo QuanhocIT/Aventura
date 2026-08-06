@@ -301,6 +301,7 @@ class InventoryService
             'inventory_id' => $inventory->id,
             'performed_by' => $performedBy,
             'type' => 'waste',
+            'waste_category' => $data['waste_category'] ?? null,
             'direction' => 'out',
             'quantity' => $wasteQty,
             'unit_cost' => $wasteUnitCost,

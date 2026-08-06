@@ -225,6 +225,9 @@ const dataLabels: Record<string, string> = {
     ingredient_id: 'ID nguyên liệu',
     ingredient_name: 'Nguyên liệu',
     quantity: 'Số lượng',
+    unit_symbol: 'Đơn vị',
+    waste_category: 'Nguyên nhân hao hụt',
+    estimated_cost: 'Chi phí ước tính',
     unit_cost: 'Đơn giá',
     supplier_id: 'Nhà cung cấp ID',
     notes: 'Ghi chú',
@@ -242,6 +245,15 @@ const typeAdjLabels: Record<string, string> = {
     cash_shortage: 'Hụt két',
     inventory_loss: 'Hao hụt kho',
     violation: 'Vi phạm',
+};
+
+const wasteCategoryLabels: Record<string, string> = {
+    spoilage: 'Hư hỏng / xuống chất lượng',
+    expired: 'Hết hạn sử dụng',
+    damaged: 'Hư hỏng bao bì',
+    cooking_loss: 'Hao hụt chế biến',
+    theft: 'Thất thoát',
+    other: 'Khác',
 };
 
 function formatDataEntry(
@@ -278,6 +290,14 @@ function formatDataEntry(
         return {
             label,
             display: typeAdjLabels[String(value)] ?? String(value),
+            highlight: false,
+        };
+    }
+
+    if (key === 'waste_category') {
+        return {
+            label,
+            display: wasteCategoryLabels[String(value)] ?? String(value),
             highlight: false,
         };
     }

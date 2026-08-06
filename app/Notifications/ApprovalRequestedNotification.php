@@ -23,12 +23,21 @@ class ApprovalRequestedNotification extends Notification
 
     public function toArray(object $notifiable): array
     {
+        $operationData = $this->approval->operation_data ?? [];
+        $message = "{$this->requester->name} yêu cầu {$this->approval->operationLabel()} — cần phê duyệt.";
+
+        if ($this->approval->operation_type === 'inventory_waste' && ! empty($operationData['ingredient_name'])) {
+            $quantity = $operationData['quantity'] ?? 0;
+            $unit = $operationData['unit_symbol'] ?? '';
+            $message = "{$this->requester->name} báo hao hụt {$operationData['ingredient_name']} ({$quantity} {$unit}) — cần phê duyệt.";
+        }
+
         return [
             'approval_id' => $this->approval->id,
             'operation_type' => $this->approval->operation_type,
             'operation_label' => $this->approval->operationLabel(),
             'requester_name' => $this->requester->name,
-            'message' => "{$this->requester->name} yêu cầu {$this->approval->operationLabel()} — cần phê duyệt.",
+            'message' => $message,
             'url' => '/approvals',
         ];
     }
