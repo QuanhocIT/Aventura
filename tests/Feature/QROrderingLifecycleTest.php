@@ -265,6 +265,7 @@ class QROrderingLifecycleTest extends TestCase
         $response->assertOk();
         $response->assertInertia(fn (Assert $page) => $page
             ->component('customers/QROrder')
+            ->where('table.qr_token', $this->table->qr_token)
             ->has('products', 2)
             ->where('products.0.name', 'Lẩu Tôm Sú')
             ->where('products.0.in_stock', false)

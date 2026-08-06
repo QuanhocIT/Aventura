@@ -36,7 +36,8 @@ class QROrderController extends Controller
      */
     public function showMenu($restaurantId, $qrToken): Response
     {
-        $table = RestaurantTable::where('restaurant_id', $restaurantId)
+        $table = RestaurantTable::withoutGlobalScopes()
+            ->where('restaurant_id', $restaurantId)
             ->where('qr_token', $qrToken)
             ->with(['area', 'branch'])
             ->firstOrFail();
@@ -44,7 +45,8 @@ class QROrderController extends Controller
         $restaurant = Restaurant::findOrFail($restaurantId);
 
         // 1. Lấy danh mục sản phẩm hoạt động
-        $categories = ProductCategory::where('restaurant_id', $restaurantId)
+        $categories = ProductCategory::withoutGlobalScopes()
+            ->where('restaurant_id', $restaurantId)
             ->where('status', 'active')
             ->orderBy('display_order')
             ->get()
@@ -55,14 +57,16 @@ class QROrderController extends Controller
             ])->toArray();
 
         // 2. Lấy danh sách sản phẩm hoạt động kèm công thức định lượng
-        $productsRaw = Product::where('restaurant_id', $restaurantId)
+        $productsRaw = Product::withoutGlobalScopes()
+            ->where('restaurant_id', $restaurantId)
             ->where('is_active', true)
             ->where('is_available', true)
             ->with(['category', 'recipes.ingredient'])
             ->get();
 
         // 3. Lấy kho vật lý hiện tại của chi nhánh để tính toán "Hết hàng"
-        $inventories = Inventory::where('restaurant_id', $restaurantId)
+        $inventories = Inventory::withoutGlobalScopes()
+            ->where('restaurant_id', $restaurantId)
             ->where('branch_id', $table->branch_id)
             ->get()
             ->keyBy('ingredient_id');
@@ -169,7 +173,8 @@ class QROrderController extends Controller
         }
 
         // 4. Lấy các đơn hàng tạm thời hoặc đơn hàng chính thức đang active tại bàn này
-        $activeTempOrders = TemporaryOrder::where('table_id', $table->id)
+        $activeTempOrders = TemporaryOrder::withoutGlobalScopes()
+            ->where('table_id', $table->id)
             ->whereIn('status', ['waiting_verification', 'escalated', 'confirmed'])
             ->with(['order.items.product'])
             ->latest()
@@ -235,6 +240,7 @@ class QROrderController extends Controller
                 'capacity' => $table->capacity,
                 'area_id' => $table->area_id,
                 'area_name' => $table->area?->name,
+                'qr_token' => $table->qr_token,
             ],
             'categories' => $categories,
             'products' => $products,
@@ -248,7 +254,8 @@ class QROrderController extends Controller
      */
     public function submitOrder(Request $request, $restaurantId, $qrToken): JsonResponse
     {
-        $table = RestaurantTable::where('restaurant_id', $restaurantId)
+        $table = RestaurantTable::withoutGlobalScopes()
+            ->where('restaurant_id', $restaurantId)
             ->where('qr_token', $qrToken)
             ->firstOrFail();
 
@@ -269,12 +276,14 @@ class QROrderController extends Controller
 
         // Load sản phẩm để đối chiếu giá và tên
         $productIds = collect($data['items'])->pluck('product_id')->toArray();
-        $products = Product::where('restaurant_id', $restaurantId)
+        $products = Product::withoutGlobalScopes()
+            ->where('restaurant_id', $restaurantId)
             ->whereIn('id', $productIds)
             ->get()
             ->keyBy('id');
 
-        $inventories = Inventory::where('restaurant_id', $restaurantId)
+        $inventories = Inventory::withoutGlobalScopes()
+            ->where('restaurant_id', $restaurantId)
             ->where('branch_id', $table->branch_id)
             ->get()
             ->keyBy('ingredient_id');
@@ -416,7 +425,8 @@ class QROrderController extends Controller
             'message' => ['nullable', 'string', 'max:100'],
         ]);
 
-        $table = RestaurantTable::where('restaurant_id', $restaurantId)
+        $table = RestaurantTable::withoutGlobalScopes()
+            ->where('restaurant_id', $restaurantId)
             ->where('id', $data['table_id'])
             ->with(['area'])
             ->firstOrFail();
@@ -440,13 +450,15 @@ class QROrderController extends Controller
             'table_id' => ['required', TenantRule::exists('restaurant_tables', restaurantId: (int) $restaurantId)],
         ]);
 
-        $table = RestaurantTable::where('restaurant_id', $restaurantId)
+        $table = RestaurantTable::withoutGlobalScopes()
+            ->where('restaurant_id', $restaurantId)
             ->where('id', $data['table_id'])
             ->with(['area'])
             ->firstOrFail();
 
         // Kiểm tra xem bàn có hóa đơn chưa thanh toán nào không
-        $hasUnpaidOrder = Order::where('table_id', $table->id)
+        $hasUnpaidOrder = Order::withoutGlobalScopes()
+            ->where('table_id', $table->id)
             ->where('payment_status', 'unpaid')
             ->whereIn('status', ['pending', 'confirmed', 'preparing'])
             ->exists();
@@ -483,7 +495,8 @@ class QROrderController extends Controller
             'staff_rating' => ['nullable', 'array'], // [ ['employee_id' => X, 'rating' => Y, 'comment' => Z], ... ]
         ]);
 
-        $table = RestaurantTable::where('restaurant_id', $restaurantId)
+        $table = RestaurantTable::withoutGlobalScopes()
+            ->where('restaurant_id', $restaurantId)
             ->where('id', $data['table_id'])
             ->firstOrFail();
 
@@ -519,7 +532,8 @@ class QROrderController extends Controller
         $currentDateStr = $now->toDateString();
 
         // 1. Tìm ca trực hiện tại
-        $shifts = WorkShift::where('restaurant_id', $restaurantId)
+        $shifts = WorkShift::withoutGlobalScopes()
+            ->where('restaurant_id', $restaurantId)
             ->where('status', 'active')
             ->get();
 
@@ -549,7 +563,8 @@ class QROrderController extends Controller
         }
 
         // 2. Tìm danh sách phân công cho ca trực và ngày hôm nay
-        return ScheduleAssignment::where('restaurant_id', $restaurantId)
+        return ScheduleAssignment::withoutGlobalScopes()
+            ->where('restaurant_id', $restaurantId)
             ->whereDate('scheduled_date', $currentDateStr)
             ->where('shift_id', $matchedShiftId)
             ->with(['employee.user'])

@@ -51,6 +51,12 @@ class RestaurantTable extends Model
 
     protected static function booted(): void
     {
+        static::creating(function ($table) {
+            if (empty($table->qr_token)) {
+                $table->qr_token = \Illuminate\Support\Str::random(32);
+            }
+        });
+
         static::saved(function ($table) {
             self::forgetScopedCaches($table);
             Cache::forget("quota_summary:{$table->restaurant_id}");
