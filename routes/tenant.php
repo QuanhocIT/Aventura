@@ -28,6 +28,7 @@ use App\Http\Controllers\IntegrationSettingsController;
 use App\Http\Controllers\InternalTransferController;
 use App\Http\Controllers\InventoryManagementController;
 use App\Http\Controllers\KitchenController;
+use App\Http\Controllers\KitchenMenuControlController;
 use App\Http\Controllers\KpiController;
 use App\Http\Controllers\LeaveScheduleController;
 use App\Http\Controllers\LoyaltyController;
@@ -91,6 +92,7 @@ Route::middleware(['auth', 'verified', 'tenant.subscription', 'tenant.ratelimit'
     Route::get('inventory', [InventoryManagementController::class, 'inventoryPage'])->name('inventory.index');
     Route::get('api/inventory/ai-forecast', [InventoryManagementController::class, 'aiForecast'])->name('inventory.ai-forecast');
     Route::post('inventory/ingredients', [InventoryManagementController::class, 'storeIngredient'])->name('inventory.ingredients.store');
+    Route::put('inventory/ingredients/{id}', [InventoryManagementController::class, 'updateIngredient'])->name('inventory.ingredients.update');
     Route::post('inventory/recipes', [InventoryManagementController::class, 'storeRecipe'])->name('inventory.recipes.store');
     Route::delete('inventory/recipes/{id}', [InventoryManagementController::class, 'deleteRecipe'])->name('inventory.recipes.delete');
     Route::post('inventory/purchases', [InventoryManagementController::class, 'storePurchase'])->name('inventory.purchases.store');
@@ -321,8 +323,11 @@ Route::middleware(['auth', 'verified', 'tenant.subscription', 'tenant.ratelimit'
 
     // Kitchen management
     Route::get('kitchen', [KitchenController::class, 'index'])->name('kitchen.index');
+    Route::get('kitchen/menu-control', [KitchenMenuControlController::class, 'index'])->name('kitchen.menu-control.index');
+    Route::post('kitchen/menu-control/activate', [KitchenMenuControlController::class, 'activate'])->name('kitchen.menu-control.activate');
     Route::post('kitchen/items/prepare-bulk', [KitchenController::class, 'prepareBulk'])->name('kitchen.prepare-bulk');
     Route::post('kitchen/items/{item}/prepare', [KitchenController::class, 'prepare'])->name('kitchen.prepare');
+    Route::post('kitchen/items/{item}/cancel', [KitchenController::class, 'cancelItem'])->name('kitchen.cancel-item');
     Route::post('kitchen/items/{item}/serve', [KitchenController::class, 'serve'])->name('kitchen.serve');
     Route::post('kitchen/products/{product}/pause', [KitchenController::class, 'pause'])->name('kitchen.products.pause');
     Route::post('kitchen/products/{product}/out-of-stock', [KitchenController::class, 'markOutOfStock'])->name('kitchen.products.out-of-stock');
