@@ -11,6 +11,7 @@ use App\Models\Product;
 use App\Models\ProductCategory;
 use App\Models\RestaurantTable;
 use App\Models\ScheduleAssignment;
+use App\Models\TemporaryOrder;
 use App\Models\WorkShift;
 use App\Support\Tenant\TenantContext;
 use Carbon\Carbon;
@@ -225,16 +226,45 @@ class CashierDashboardController extends Controller
                     ])->all();
             }
 
-            // Query pending QR orders
-            $qrOrders = Order::where('restaurant_id', $restaurant->id)
-                ->where('branch_id', $branchId)
+            // Query pending QR orders (includes customer temporary orders waiting for cashier confirmation)
+            $tempQrOrders = TemporaryOrder::where('restaurant_id', $restaurant->id)
+                ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
+                ->whereIn('status', ['waiting_verification', 'escalated'])
+                ->with(['table'])
+                ->latest()
+                ->get()
+                ->map(fn ($to) => [
+                    'id' => $to->id,
+                    'is_temporary' => true,
+                    'order_number' => 'QR-'.$to->id,
+                    'table' => $to->table ? ['id' => $to->table->id, 'name' => $to->table->name] : null,
+                    'table_name' => $to->table?->name ?? 'Bàn trống',
+                    'customer_name' => $to->customer_name,
+                    'customer_phone' => $to->customer_phone,
+                    'total_amount' => (float) $to->total_amount,
+                    'status' => $to->status,
+                    'created_at' => $to->created_at->format('H:i'),
+                    'created_date' => $to->created_at->format('d/m/Y'),
+                    'items' => collect($to->cart_data)->map(fn ($item) => [
+                        'product_name' => $item['name'] ?? 'Món ăn',
+                        'quantity' => (float) ($item['quantity'] ?? 1),
+                        'unit_price' => (float) ($item['unit_price'] ?? 0),
+                        'line_total' => (float) ($item['line_total'] ?? 0),
+                        'notes' => $item['notes'] ?? null,
+                    ])->all(),
+                ])->all();
+
+            $formalQrOrders = Order::where('restaurant_id', $restaurant->id)
+                ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
                 ->where('channel', 'qr')
                 ->where('status', 'pending')
                 ->with(['table', 'items.product'])
                 ->get()
                 ->map(fn ($o) => [
                     'id' => $o->id,
+                    'is_temporary' => false,
                     'order_number' => $o->order_number,
+                    'table' => $o->table ? ['id' => $o->table->id, 'name' => $o->table->name] : null,
                     'table_name' => $o->table?->name ?? 'Không xác định',
                     'total_amount' => (float) $o->total_amount,
                     'created_at' => $o->created_at->format('H:i'),
@@ -242,8 +272,10 @@ class CashierDashboardController extends Controller
                     'items' => $o->items->map(fn ($item) => [
                         'product_name' => $item->product?->name,
                         'quantity' => (float) $item->quantity,
-                    ]),
+                    ])->all(),
                 ])->all();
+
+            $qrOrders = array_merge($tempQrOrders, $formalQrOrders);
 
             // Delivery & takeaway orders (external/third-party channels)
             $externalOrders = Order::where('restaurant_id', $restaurant->id)

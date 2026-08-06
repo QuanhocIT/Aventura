@@ -1,5 +1,7 @@
 <script setup lang="ts">
+import { usePage } from '@inertiajs/vue3';
 import { Coffee, User, Clock } from 'lucide-vue-next';
+import { computed } from 'vue';
 import BranchContextSelector from '@/components/BranchContextSelector.vue';
 import { Button } from '@/components/ui/button';
 
@@ -18,6 +20,11 @@ const emit = defineEmits<{
     (e: 'openSelfService', tab: 'schedule' | 'leave' | 'complaint'): void;
 }>();
 
+const page = usePage();
+const restaurantName = computed(
+    () => (page.props.auth?.user as any)?.restaurant?.name || 'Aventura POS',
+);
+
 const numberFormat = (val: number) =>
     new Intl.NumberFormat('vi-VN').format(val);
 </script>
@@ -31,7 +38,7 @@ const numberFormat = (val: number) =>
                 class="flex items-center gap-2.5 text-2xl font-black text-slate-800 dark:text-slate-100"
             >
                 <Coffee class="size-6 text-indigo-600" />
-                BepsoViet Operational POS
+                {{ restaurantName }} POS
                 <span
                     class="ml-2 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[9px] font-bold transition-all duration-300"
                     :class="

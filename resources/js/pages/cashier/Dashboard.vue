@@ -186,10 +186,29 @@ const {
 const confirmingOrderId = ref<number | null>(null);
 const updatingExternalId = ref<number | null>(null);
 
-const confirmQrOrder = (orderId: number) => {
+const confirmQrOrder = (orderInput: number | any) => {
+    let orderId: number;
+    let isTemporary = true;
+
+    if (typeof orderInput === 'object' && orderInput !== null) {
+        orderId = orderInput.id;
+        isTemporary = orderInput.is_temporary !== false;
+    } else {
+        orderId = Number(orderInput);
+        const found = props.qrOrders?.find((o) => o.id === orderId);
+        if (found && found.is_temporary === false) {
+            isTemporary = false;
+        }
+    }
+
     confirmingOrderId.value = orderId;
+
+    const endpoint = isTemporary
+        ? `/api/temporary-orders/${orderId}/confirm`
+        : `/orders/${orderId}/confirm-qr`;
+
     axios
-        .post(`/orders/${orderId}/confirm-qr`)
+        .post(endpoint)
         .then((res) => {
             if (res.data.success) {
                 toast('Đã duyệt đơn QR thành công!');
