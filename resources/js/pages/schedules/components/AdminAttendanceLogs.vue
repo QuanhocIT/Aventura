@@ -30,7 +30,11 @@ type Assignment = {
     shift_id: number;
     shift_name: string;
     shift_time: string;
+    shift_start?: string | null;
+    shift_end?: string | null;
     scheduled_date: string;
+    requested_time?: string | null;
+    requested_at?: string | null;
     check_in_at: string | null;
     check_out_at: string | null;
     status:
