@@ -127,6 +127,51 @@ class TimeClockService
             return ['success' => false, 'message' => 'Hiện tại bạn không có ca trực nào được xếp hoặc chưa đến giờ check-in cho phép.'];
         }
 
+        $shift = $sa->shift;
+        $dateStr = $sa->scheduled_date instanceof Carbon ? $sa->scheduled_date->toDateString() : Carbon::parse($sa->scheduled_date)->toDateString();
+        $start = Carbon::parse($dateStr.' '.$shift->start_time);
+
+        $isLate = $now->greaterThan($start);
+        $lateMinutes = $isLate ? $now->diffInMinutes($start) : 0;
+        $maxLateMinutes = $restaurant?->max_late_checkin_minutes ?? null;
+
+        if ($maxLateMinutes !== null && $maxLateMinutes > 0 && $lateMinutes > $maxLateMinutes) {
+            return ['success' => false, 'message' => "Check-in thất bại: Bạn đã đi muộn {$lateMinutes} phút, vượt quá thời gian cho phép check-in ({$maxLateMinutes} phút). Vui lòng liên hệ Quản lý."];
+        }
+
+        $gracePeriod = $restaurant?->grace_period_minutes ?? 0;
+        $isLateAndViolating = $isLate && $lateMinutes > $gracePeriod;
+
+        if ($isLateAndViolating) {
+            $excessMinutes = max(0, $lateMinutes - $gracePeriod);
+            $penaltyType = $restaurant?->late_penalty_type ?? 'none';
+            $penaltyConfigAmount = (float) ($restaurant?->late_penalty_amount ?? 0);
+            $penaltyAmount = 0;
+
+            if ($penaltyType === 'per_minute') {
+                $penaltyAmount = round($excessMinutes * $penaltyConfigAmount, 2);
+            } elseif ($penaltyType === 'fixed_per_occurrence') {
+                $penaltyAmount = round($penaltyConfigAmount, 2);
+            } elseif ($penaltyType === 'deduct_minute_salary') {
+                $hourlyRate = (float) ($employee->pay_rate ?? 0);
+                $penaltyAmount = round(($hourlyRate / 60) * $excessMinutes, 2);
+            }
+
+            ViolationReport::create([
+                'restaurant_id' => $sa->restaurant_id,
+                'branch_id' => $sa->branch_id,
+                'employee_id' => $sa->employee_id,
+                'reported_by' => $employee->id,
+                'violation_type' => 'Đi trễ / Vấn đề vào ca',
+                'severity' => 'low',
+                'description' => 'Đi trễ tự động: Check-in lúc '.$now->format('H:i').' (Trễ '.$lateMinutes.' phút, ca bắt đầu lúc '.$start->format('H:i').', thời gian ân hạn '.$gracePeriod.' phút)',
+                'penalty_amount' => $penaltyAmount,
+                'occurred_at' => $now,
+                'status' => 'open',
+                'is_anonymous' => false,
+            ]);
+        }
+
         $photo = $input['check_in_photo'] ?? null;
         $photoPath = null;
         if ($photo && preg_match('/^data:image\/(\w+);base64,/', $photo, $matches)) {
@@ -159,14 +204,70 @@ class TimeClockService
     {
         $sa = ScheduleAssignment::where('employee_id', $employee->id)
             ->where('status', 'checked_in')
+            ->with('shift')
             ->first();
 
         if (! $sa) {
             return ['success' => false, 'message' => 'Không tìm thấy ca trực nào đang hoạt động để check-out.'];
         }
 
+        $restaurant = $employee->restaurant;
+        $now = now();
+        $shift = $sa->shift;
+
+        if ($shift) {
+            $dateStr = $sa->scheduled_date instanceof Carbon ? $sa->scheduled_date->toDateString() : Carbon::parse($sa->scheduled_date)->toDateString();
+
+            if ($shift->is_overnight || $shift->end_time < $shift->start_time) {
+                $end = Carbon::parse($dateStr.' '.$shift->end_time)->addDay();
+            } else {
+                $end = Carbon::parse($dateStr.' '.$shift->end_time);
+            }
+
+            $isEarly = $now->lessThan($end);
+            $earlyMinutes = $isEarly ? $now->diffInMinutes($end) : 0;
+            $maxEarlyMinutes = $restaurant?->max_early_checkout_minutes ?? null;
+
+            if ($maxEarlyMinutes !== null && $maxEarlyMinutes > 0 && $earlyMinutes > $maxEarlyMinutes) {
+                return ['success' => false, 'message' => "Check-out thất bại: Bạn đang xin ra ca sớm {$earlyMinutes} phút, vượt quá thời gian cho phép về sớm ({$maxEarlyMinutes} phút). Vui lòng liên hệ Quản lý để được duyệt ra ca."];
+            }
+
+            $gracePeriod = $restaurant?->early_checkout_grace_minutes ?? 5;
+            $isEarlyAndViolating = $isEarly && $earlyMinutes > $gracePeriod;
+
+            if ($isEarlyAndViolating) {
+                $excessMinutes = max(0, $earlyMinutes - $gracePeriod);
+                $penaltyType = $restaurant?->early_checkout_penalty_type ?? 'none';
+                $penaltyConfigAmount = (float) ($restaurant?->early_checkout_penalty_amount ?? 0);
+                $penaltyAmount = 0;
+
+                if ($penaltyType === 'per_minute') {
+                    $penaltyAmount = round($excessMinutes * $penaltyConfigAmount, 2);
+                } elseif ($penaltyType === 'fixed_per_occurrence') {
+                    $penaltyAmount = round($penaltyConfigAmount, 2);
+                } elseif ($penaltyType === 'deduct_minute_salary') {
+                    $hourlyRate = (float) ($employee->pay_rate ?? 0);
+                    $penaltyAmount = round(($hourlyRate / 60) * $excessMinutes, 2);
+                }
+
+                ViolationReport::create([
+                    'restaurant_id' => $sa->restaurant_id,
+                    'branch_id' => $sa->branch_id,
+                    'employee_id' => $sa->employee_id,
+                    'reported_by' => $employee->id,
+                    'violation_type' => 'Về sớm / Vấn đề ra ca',
+                    'severity' => 'low',
+                    'description' => 'Về sớm tự động: Check-out lúc '.$now->format('H:i').' (Về sớm '.$earlyMinutes.' phút, ca kết thúc lúc '.$end->format('H:i').', thời gian ân hạn '.$gracePeriod.' phút)',
+                    'penalty_amount' => $penaltyAmount,
+                    'occurred_at' => $now,
+                    'status' => 'open',
+                    'is_anonymous' => false,
+                ]);
+            }
+        }
+
         $sa->update([
-            'check_out_at' => now(),
+            'check_out_at' => $now,
             'status' => 'completed',
         ]);
 
@@ -181,23 +282,50 @@ class TimeClockService
      */
     public function checkInEmployee(User $actingUser, array $data): array
     {
-        $sa = ScheduleAssignment::findOrFail($data['assignment_id']);
+        $sa = ScheduleAssignment::with(['shift', 'employee.user'])->findOrFail($data['assignment_id']);
+        $shift = $sa->shift;
+        $dateStr = $sa->scheduled_date instanceof Carbon ? $sa->scheduled_date->toDateString() : Carbon::parse($sa->scheduled_date)->toDateString();
+
+        $isOnTime = isset($data['is_on_time']) ? (bool) $data['is_on_time'] : true;
+        $checkInAt = now();
+
+        if ($isOnTime && $shift) {
+            // Nếu đúng giờ: Ghi nhận giờ bắt đầu ca chuẩn (không bị tính trễ)
+            $checkInAt = Carbon::parse($dateStr . ' ' . $shift->start_time);
+        } elseif (! empty($data['actual_check_in_time'])) {
+            if (preg_match('/^\d{2}:\d{2}$/', $data['actual_check_in_time'])) {
+                $checkInAt = Carbon::parse($dateStr . ' ' . $data['actual_check_in_time']);
+            } else {
+                $checkInAt = Carbon::parse($data['actual_check_in_time']);
+            }
+        }
 
         $sa->update([
-            'check_in_at' => now(),
+            'check_in_at' => $checkInAt,
             'status' => 'checked_in',
             'approved_by' => $actingUser->id,
-            'notes' => $data['notes'] ?? 'Check-in hộ bởi Quản lý/Chủ nhà hàng',
+            'notes' => $data['notes'] ?? ($isOnTime ? 'Chủ quán xác nhận nhân viên vào ca đúng giờ' : 'Xác nhận vào ca thời gian thực tế'),
         ]);
 
         // Flush cached shift-access for the affected employee
         $sa->employee?->flushShiftAccessCache();
 
         if (! empty($data['apply_violation'])) {
-            $this->createAutoViolation($actingUser, $sa, 'Đi trễ / Vấn đề vào ca', $data['violation_notes'] ?? $data['notes'] ?? 'Check-in hộ kèm vi phạm vào ca', (float) ($data['penalty_amount'] ?? 0));
+            $this->createAutoViolation($actingUser, $sa, 'Đi trễ / Vấn đề vào ca', $data['violation_notes'] ?? $data['notes'] ?? 'Xác nhận check-in kèm vi phạm vào ca', (float) ($data['penalty_amount'] ?? 0));
         }
 
-        return ['success' => true, 'message' => 'Đã ghi nhận Check-in hộ thành công cho nhân viên.'];
+        // Gửi thông báo tới tài khoản Nhân viên
+        $employeeUser = $sa->employee?->user;
+        if ($employeeUser) {
+            $checkInFormatted = $checkInAt->format('H:i d/m/Y');
+            $shiftName = $shift?->name ?? 'ca trực';
+            $employeeUser->notify(new \App\Notifications\CheckInConfirmedNotification(
+                "Chủ nhà hàng đã xác nhận ca trực \"{$shiftName}\". Giờ vào ca được ghi nhận: {$checkInFormatted}.",
+                $dateStr
+            ));
+        }
+
+        return ['success' => true, 'message' => 'Đã xác nhận Check-in thành công cho nhân viên.'];
     }
 
     /**

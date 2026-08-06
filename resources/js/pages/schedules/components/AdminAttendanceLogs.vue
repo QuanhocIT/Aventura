@@ -238,7 +238,7 @@ const statusColors: Record<string, string> = {
                         >
                             <th class="p-3.5">Nhân viên</th>
                             <th class="p-3.5">Ca trực xếp lịch</th>
-                            <th class="p-3.5">Giờ hành chính</th>
+                            <th class="p-3.5">Thời gian gửi yêu cầu</th>
                             <th class="p-3.5">Thực tế Vào Ca</th>
                             <th class="p-3.5">Thực tế Ra Ca</th>
                             <th class="p-3.5">Số giờ làm</th>
@@ -293,11 +293,22 @@ const statusColors: Record<string, string> = {
                             <td class="p-3.5">
                                 <span
                                     class="rounded bg-indigo-50 px-2 py-0.5 font-mono font-semibold text-indigo-700 dark:bg-indigo-950/30 dark:text-indigo-400"
-                                    >{{ a.shift_name }}</span
                                 >
+                                    {{ a.shift_name }} {{ a.shift_start ? `(${a.shift_start} - ${a.shift_end})` : '' }}
+                                </span>
                             </td>
-                            <td class="p-3.5 font-mono text-slate-500">
-                                {{ a.shift_time }}
+                            <td class="p-3.5 font-mono text-slate-600 dark:text-slate-300">
+                                <div v-if="a.requested_time || a.requested_at" class="flex flex-col gap-0.5">
+                                    <span class="font-mono font-bold text-indigo-600 dark:text-indigo-400">
+                                        {{ a.requested_time || a.requested_at?.split(' ')[0] }}
+                                    </span>
+                                    <span v-if="a.requested_at?.split(' ')[1]" class="text-[10px] text-slate-400">
+                                        {{ a.requested_at?.split(' ')[1] }}
+                                    </span>
+                                </div>
+                                <div v-else class="text-slate-300 dark:text-slate-700">
+                                    —
+                                </div>
                             </td>
                             <td
                                 class="text-slate-665 p-3.5 font-mono dark:text-slate-300"
@@ -394,15 +405,15 @@ const statusColors: Record<string, string> = {
                                 </button>
 
                                 <!-- Actions based on status -->
-                                <template v-if="a.status === 'scheduled'">
+                                <template v-if="['scheduled', 'pending_checkin'].includes(a.status)">
                                     <button
                                         @click="
                                             emit('open-override', a, 'check_in')
                                         "
                                         class="inline-flex cursor-pointer items-center justify-center rounded bg-emerald-600 px-2.5 py-1 text-[10px] font-bold text-white shadow-xs transition hover:bg-emerald-700 active:scale-95"
-                                        title="Check-in hộ nhân sự"
+                                        title="Xác nhận check-in cho nhân sự"
                                     >
-                                        Check-in hộ
+                                        Xác nhận check-in
                                     </button>
                                     <button
                                         @click="

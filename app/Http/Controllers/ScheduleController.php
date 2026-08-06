@@ -255,12 +255,19 @@ class ScheduleController extends Controller
 
             $monthlyAssignments = Inertia::defer(function () use ($restaurantId, $startOfMonth, $endOfMonth, $restaurant, $branchId, $scopeKey) {
                 return Cache::remember("schedule_monthly_assignments:{$restaurantId}:{$scopeKey}:{$startOfMonth}:{$endOfMonth}", 300, function () use ($restaurantId, $startOfMonth, $endOfMonth, $restaurant, $branchId) {
+                    $checkinRequests = \App\Models\ApprovalRequest::where('restaurant_id', $restaurantId)
+                        ->where('operation_type', 'shift_checkin')
+                        ->get()
+                        ->keyBy(function ($req) {
+                            return $req->operation_data['assignment_id'] ?? null;
+                        });
+
                     return ScheduleAssignment::where('restaurant_id', $restaurantId)
                         ->whereBetween('scheduled_date', [$startOfMonth, $endOfMonth])
                         ->when($branchId, fn ($query) => $query->where('branch_id', $branchId))
                         ->with(['employee:id,full_name,employee_code,job_title,pay_rate,compensation_type,base_salary', 'shift'])
                         ->get()
-                        ->map(function ($a) use ($restaurant) {
+                        ->map(function ($a) use ($restaurant, $checkinRequests) {
                             $durationHours = 0;
                             if ($a->check_in_at && $a->check_out_at) {
                                 $diffInSeconds = Carbon::parse($a->check_in_at)->diffInSeconds(Carbon::parse($a->check_out_at));
@@ -275,6 +282,14 @@ class ScheduleController extends Controller
                                 if ($checkIn->greaterThan($graceEnd)) {
                                     $lateMin = round($checkIn->diffInMinutes($graceEnd));
                                 }
+                            }
+
+                            $req = $checkinRequests->get($a->id);
+                            $requestedAtStr = null;
+                            if ($req) {
+                                $requestedAtStr = Carbon::parse($req->created_at)->format('H:i:s d/m/Y');
+                            } elseif ($a->status === 'pending_checkin') {
+                                $requestedAtStr = Carbon::parse($a->updated_at)->format('H:i:s d/m/Y');
                             }
 
                             return [
@@ -292,6 +307,8 @@ class ScheduleController extends Controller
                                 'check_out_at' => $a->check_out_at ? Carbon::parse($a->check_out_at)->format('H:i:s d/m/Y') : null,
                                 'check_in_time' => $a->check_in_at ? Carbon::parse($a->check_in_at)->format('H:i') : null,
                                 'check_out_time' => $a->check_out_at ? Carbon::parse($a->check_out_at)->format('H:i') : null,
+                                'requested_at' => $requestedAtStr,
+                                'requested_time' => $requestedAtStr ? explode(' ', $requestedAtStr)[0] : null,
                                 'duration_hours' => $durationHours,
                                 'late_minutes' => $lateMin,
                                 'shift_id' => $a->shift_id,
@@ -360,6 +377,13 @@ class ScheduleController extends Controller
                 ],
                 'restaurantSettings' => [
                     'grace_period_minutes' => $restaurant?->grace_period_minutes ?? 10,
+                    'max_late_checkin_minutes' => $restaurant?->max_late_checkin_minutes ?? 60,
+                    'late_penalty_type' => $restaurant?->late_penalty_type ?? 'none',
+                    'late_penalty_amount' => (float) ($restaurant?->late_penalty_amount ?? 0),
+                    'early_checkout_grace_minutes' => $restaurant?->early_checkout_grace_minutes ?? 5,
+                    'max_early_checkout_minutes' => $restaurant?->max_early_checkout_minutes ?? 60,
+                    'early_checkout_penalty_type' => $restaurant?->early_checkout_penalty_type ?? 'none',
+                    'early_checkout_penalty_amount' => (float) ($restaurant?->early_checkout_penalty_amount ?? 0),
                     'ot_multiplier' => (float) ($restaurant?->ot_multiplier ?? 1.50),
                 ],
             ]);
@@ -598,6 +622,8 @@ class ScheduleController extends Controller
 
         $data = $request->validate([
             'assignment_id' => ['required', TenantRule::exists('schedule_assignments')],
+            'is_on_time' => ['nullable', 'boolean'],
+            'actual_check_in_time' => ['nullable', 'string'],
             'notes' => ['nullable', 'string', 'max:250'],
             'apply_violation' => ['nullable', 'boolean'],
             'penalty_amount' => ['nullable', 'numeric', 'min:0'],
@@ -721,6 +747,13 @@ class ScheduleController extends Controller
 
         $data = $request->validate([
             'grace_period_minutes' => ['required', 'integer', 'min:0', 'max:120'],
+            'max_late_checkin_minutes' => ['nullable', 'integer', 'min:0', 'max:480'],
+            'late_penalty_type' => ['required', 'string', 'in:none,per_minute,fixed_per_occurrence,deduct_minute_salary'],
+            'late_penalty_amount' => ['nullable', 'numeric', 'min:0'],
+            'early_checkout_grace_minutes' => ['required', 'integer', 'min:0', 'max:120'],
+            'max_early_checkout_minutes' => ['nullable', 'integer', 'min:0', 'max:480'],
+            'early_checkout_penalty_type' => ['required', 'string', 'in:none,per_minute,fixed_per_occurrence,deduct_minute_salary'],
+            'early_checkout_penalty_amount' => ['nullable', 'numeric', 'min:0'],
             'ot_multiplier' => ['required', 'numeric', 'min:1.0', 'max:5.0'],
             'latitude' => ['nullable', 'numeric', 'between:-90,90'],
             'longitude' => ['nullable', 'numeric', 'between:-180,180'],
@@ -731,6 +764,13 @@ class ScheduleController extends Controller
         if ($restaurant) {
             $restaurant->update([
                 'grace_period_minutes' => $data['grace_period_minutes'],
+                'max_late_checkin_minutes' => isset($data['max_late_checkin_minutes']) ? (int) $data['max_late_checkin_minutes'] : null,
+                'late_penalty_type' => $data['late_penalty_type'],
+                'late_penalty_amount' => isset($data['late_penalty_amount']) ? (float) $data['late_penalty_amount'] : 0,
+                'early_checkout_grace_minutes' => $data['early_checkout_grace_minutes'],
+                'max_early_checkout_minutes' => isset($data['max_early_checkout_minutes']) ? (int) $data['max_early_checkout_minutes'] : null,
+                'early_checkout_penalty_type' => $data['early_checkout_penalty_type'],
+                'early_checkout_penalty_amount' => isset($data['early_checkout_penalty_amount']) ? (float) $data['early_checkout_penalty_amount'] : 0,
                 'ot_multiplier' => (float) $data['ot_multiplier'],
                 'latitude' => $data['latitude'] ? (float) $data['latitude'] : null,
                 'longitude' => $data['longitude'] ? (float) $data['longitude'] : null,

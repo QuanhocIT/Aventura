@@ -6,15 +6,14 @@ use App\Models\AuditLog;
 use App\Models\CashRegister;
 use App\Models\CashTransaction;
 use App\Models\Employee;
-use App\Models\Inventory;
-use App\Models\InventoryReservation;
-use App\Models\InventoryTransaction;
 use App\Models\Order;
 use App\Models\Payment;
 use App\Models\RestaurantTable;
 use App\Models\SalaryAdjustment;
 use App\Models\ShiftClosing;
+use App\Models\User;
 use App\Models\WorkShift;
+use App\Services\InventoryService;
 use App\Services\QuotaService;
 use App\Services\SalaryService;
 use App\Support\Tenant\TenantContext;
@@ -31,7 +30,10 @@ use Inertia\Response;
 
 class ShiftClosingController extends Controller
 {
-    public function __construct(private TenantContext $tenantContext) {}
+    public function __construct(
+        private TenantContext $tenantContext,
+        private InventoryService $inventoryService,
+    ) {}
 
     public function index(Request $request): Response
     {
@@ -370,7 +372,7 @@ class ShiftClosingController extends Controller
                     $this->saveBeforeAutoPaySnapshot($restaurantId, $branchId, $data['shift_id'], $data['closing_date'], $unpaidOrders);
 
                     foreach ($unpaidOrders as $order) {
-                        $this->processAutoPay($order, $user->id, $endDt);
+                        $this->processAutoPay($order, $user, $endDt);
                     }
                 }
 
@@ -641,9 +643,9 @@ class ShiftClosingController extends Controller
         return $latestShift && $latestShift->id == $shiftId;
     }
 
-    private function processAutoPay(Order $order, int $userId, Carbon $completedAt): void
+    private function processAutoPay(Order $order, User $user, Carbon $completedAt): void
     {
-        DB::transaction(function () use ($order, $userId, $completedAt) {
+        DB::transaction(function () use ($order, $user, $completedAt) {
             // Khoá row và đọc lại trạng thái mới nhất để tránh thanh toán trùng
             // khi cashier bấm thanh toán thủ công đồng thời với auto-pay lúc chốt ca.
             $order = Order::where('id', $order->id)->lockForUpdate()->first();
@@ -657,7 +659,7 @@ class ShiftClosingController extends Controller
                 'restaurant_id' => $order->restaurant_id,
                 'branch_id' => $order->branch_id,
                 'order_id' => $order->id,
-                'processed_by' => $userId,
+                'processed_by' => $user->id,
                 'payment_method' => 'cash',
                 'status' => 'paid',
                 'amount' => $order->total_amount,
@@ -666,75 +668,15 @@ class ShiftClosingController extends Controller
                 'paid_at' => $completedAt,
             ]);
 
-            // 2. Trừ kho nguyên liệu
-            $order->load(['items.product.recipes.ingredient.unit']);
-            foreach ($order->items as $item) {
-                $product = $item->product;
-                if ($product && $product->track_inventory) {
-                    foreach ($product->recipes as $recipe) {
-                        $recipeQuantity = (float) $recipe->quantity;
-                        $itemQuantity = (float) $item->quantity;
-                        $wasteRate = (float) $recipe->waste_rate;
-
-                        $totalUsed = ($recipeQuantity * $itemQuantity) * (1 + ($wasteRate / 100));
-
-                        // Lock the inventory record using lockForUpdate() to prevent concurrent lost updates
-                        $inventory = Inventory::where([
-                            'restaurant_id' => $order->restaurant_id,
-                            'branch_id' => $order->branch_id,
-                            'ingredient_id' => $recipe->ingredient_id,
-                        ])->lockForUpdate()->first();
-
-                        if (! $inventory) {
-                            $inventory = Inventory::create([
-                                'restaurant_id' => $order->restaurant_id,
-                                'branch_id' => $order->branch_id,
-                                'ingredient_id' => $recipe->ingredient_id,
-                                'quantity_on_hand' => 0,
-                                'theoretical_quantity' => 0,
-                                'last_cost' => $recipe->ingredient->average_cost ?? 0,
-                            ]);
-                            $inventory = Inventory::where('id', $inventory->id)->lockForUpdate()->first();
-                        }
-
-                        $oldQty = (float) $inventory->quantity_on_hand;
-                        $oldTheoretical = (float) $inventory->theoretical_quantity;
-
-                        $inventory->update([
-                            'quantity_on_hand' => max(0.0, $oldQty - $totalUsed),
-                            'theoretical_quantity' => max(0.0, $oldTheoretical - $totalUsed),
-                        ]);
-
-                        InventoryTransaction::create([
-                            'restaurant_id' => $order->restaurant_id,
-                            'branch_id' => $order->branch_id,
-                            'ingredient_id' => $recipe->ingredient_id,
-                            'inventory_id' => $inventory->id,
-                            'order_id' => $order->id,
-                            'performed_by' => $userId,
-                            'type' => 'usage',
-                            'direction' => 'out',
-                            'quantity' => $totalUsed,
-                            'unit_cost' => $recipe->ingredient->average_cost ?? 0,
-                            'total_cost' => $totalUsed * ($recipe->ingredient->average_cost ?? 0),
-                            'notes' => "Khấu hao nguyên vật liệu cho đơn hàng tự động thanh toán {$order->order_number} (Món: {$product->name})",
-                            'occurred_at' => $completedAt,
-                        ]);
-
-                        InventoryReservation::where('order_id', $order->id)
-                            ->where('ingredient_id', $recipe->ingredient_id)
-                            ->where('status', 'holding')
-                            ->update(['status' => 'committed']);
-                    }
-                }
-            }
+            // 2. Trừ kho theo cùng BOM/FEFO/strict-stock policy như POS.
+            $this->inventoryService->deductInventoryForOrder($order, $user);
 
             // 3. Cập nhật Order status thành completed & payment_status paid
             $order->update([
                 'status' => 'completed',
                 'payment_status' => 'paid',
                 'completed_at' => $completedAt,
-                'cashier_user_id' => $userId,
+                'cashier_user_id' => $user->id,
             ]);
 
             // 4. Giải phóng bàn

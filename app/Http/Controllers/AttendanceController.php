@@ -127,7 +127,10 @@ class AttendanceController extends Controller
             }
         }
 
-        DB::transaction(function () use (&$sa, &$alreadyCheckedIn, &$isLateAndViolating, &$lateMinutes, $employee, $now, $restaurant, $photoPath) {
+        $exceededMaxLate = false;
+        $exceededMaxMinutes = 0;
+
+        DB::transaction(function () use (&$sa, &$alreadyCheckedIn, &$exceededMaxLate, &$exceededMaxMinutes, &$isLateAndViolating, &$lateMinutes, $employee, $now, $restaurant, $photoPath) {
             $scheduledAssignments = ScheduleAssignment::where('employee_id', $employee->id)
                 ->where('status', 'scheduled')
                 ->lockForUpdate()
@@ -179,10 +182,33 @@ class AttendanceController extends Controller
 
             $isLate = $now->greaterThan($start);
             $lateMinutes = $isLate ? $now->diffInMinutes($start) : 0;
+            $maxLateMinutes = $restaurant->max_late_checkin_minutes ?? null;
+
+            if ($maxLateMinutes !== null && $maxLateMinutes > 0 && $lateMinutes > $maxLateMinutes) {
+                $exceededMaxLate = true;
+                $exceededMaxMinutes = $lateMinutes;
+
+                return;
+            }
+
             $gracePeriod = $restaurant->grace_period_minutes ?? 0;
             $isLateAndViolating = $isLate && $lateMinutes > $gracePeriod;
 
             if ($isLateAndViolating) {
+                $excessMinutes = max(0, $lateMinutes - $gracePeriod);
+                $penaltyType = $restaurant->late_penalty_type ?? 'none';
+                $penaltyConfigAmount = (float) ($restaurant->late_penalty_amount ?? 0);
+                $penaltyAmount = 0;
+
+                if ($penaltyType === 'per_minute') {
+                    $penaltyAmount = round($excessMinutes * $penaltyConfigAmount, 2);
+                } elseif ($penaltyType === 'fixed_per_occurrence') {
+                    $penaltyAmount = round($penaltyConfigAmount, 2);
+                } elseif ($penaltyType === 'deduct_minute_salary') {
+                    $hourlyRate = (float) ($employee->pay_rate ?? 0);
+                    $penaltyAmount = round(($hourlyRate / 60) * $excessMinutes, 2);
+                }
+
                 ViolationReport::create([
                     'restaurant_id' => $sa->restaurant_id,
                     'branch_id' => $sa->branch_id,
@@ -191,7 +217,7 @@ class AttendanceController extends Controller
                     'violation_type' => 'Đi trễ / Vấn đề vào ca',
                     'severity' => 'low',
                     'description' => 'Đi trễ tự động: Check-in lúc '.$now->format('H:i').' (Trễ '.$lateMinutes.' phút, ca bắt đầu lúc '.$start->format('H:i').', thời gian ân hạn '.$gracePeriod.' phút)',
-                    'penalty_amount' => 0,
+                    'penalty_amount' => $penaltyAmount,
                     'occurred_at' => $now,
                     'status' => 'open',
                     'is_anonymous' => false,
@@ -204,6 +230,10 @@ class AttendanceController extends Controller
                 'check_in_photo_path' => $photoPath,
             ]);
         });
+
+        if ($exceededMaxLate) {
+            return back()->withErrors(['email' => "Check-in thất bại: Bạn đã đi muộn {$exceededMaxMinutes} phút, vượt quá thời gian cho phép check-in ({$restaurant->max_late_checkin_minutes} phút). Vui lòng liên hệ Quản lý."]);
+        }
 
         if ($alreadyCheckedIn) {
             return back()->with('success', 'Bạn đã CHECK-IN thành công trước đó.');
@@ -282,7 +312,10 @@ class AttendanceController extends Controller
         $earlyMinutes = 0;
         $alreadyCheckedOut = false;
 
-        DB::transaction(function () use (&$sa, &$alreadyCheckedOut, &$isEarlyAndViolating, &$earlyMinutes, $employee, $now) {
+        $exceededMaxEarly = false;
+        $exceededEarlyMinutes = 0;
+
+        DB::transaction(function () use (&$sa, &$alreadyCheckedOut, &$exceededMaxEarly, &$exceededEarlyMinutes, &$isEarlyAndViolating, &$earlyMinutes, $employee, $now, $restaurant) {
             $sa = ScheduleAssignment::where('employee_id', $employee->id)
                 ->where('status', 'checked_in')
                 ->lockForUpdate()
@@ -317,10 +350,33 @@ class AttendanceController extends Controller
 
                 $isEarly = $now->lessThan($end);
                 $earlyMinutes = $isEarly ? $now->diffInMinutes($end) : 0;
-                // Cho phép về sớm tối đa 5 phút không bị phạt
-                $isEarlyAndViolating = $isEarly && $earlyMinutes > 5;
+                $maxEarlyMinutes = $restaurant->max_early_checkout_minutes ?? null;
+
+                if ($maxEarlyMinutes !== null && $maxEarlyMinutes > 0 && $earlyMinutes > $maxEarlyMinutes) {
+                    $exceededMaxEarly = true;
+                    $exceededEarlyMinutes = $earlyMinutes;
+
+                    return;
+                }
+
+                $gracePeriod = $restaurant->early_checkout_grace_minutes ?? 5;
+                $isEarlyAndViolating = $isEarly && $earlyMinutes > $gracePeriod;
 
                 if ($isEarlyAndViolating) {
+                    $excessMinutes = max(0, $earlyMinutes - $gracePeriod);
+                    $penaltyType = $restaurant->early_checkout_penalty_type ?? 'none';
+                    $penaltyConfigAmount = (float) ($restaurant->early_checkout_penalty_amount ?? 0);
+                    $penaltyAmount = 0;
+
+                    if ($penaltyType === 'per_minute') {
+                        $penaltyAmount = round($excessMinutes * $penaltyConfigAmount, 2);
+                    } elseif ($penaltyType === 'fixed_per_occurrence') {
+                        $penaltyAmount = round($penaltyConfigAmount, 2);
+                    } elseif ($penaltyType === 'deduct_minute_salary') {
+                        $hourlyRate = (float) ($employee->pay_rate ?? 0);
+                        $penaltyAmount = round(($hourlyRate / 60) * $excessMinutes, 2);
+                    }
+
                     ViolationReport::create([
                         'restaurant_id' => $sa->restaurant_id,
                         'branch_id' => $sa->branch_id,
@@ -328,8 +384,8 @@ class AttendanceController extends Controller
                         'reported_by' => $employee->id,
                         'violation_type' => 'Về sớm / Vấn đề ra ca',
                         'severity' => 'low',
-                        'description' => 'Về sớm tự động: Check-out lúc '.$now->format('H:i').' (Về sớm '.$earlyMinutes.' phút, ca kết thúc lúc '.$end->format('H:i').')',
-                        'penalty_amount' => 0,
+                        'description' => 'Về sớm tự động: Check-out lúc '.$now->format('H:i').' (Về sớm '.$earlyMinutes.' phút, ca kết thúc lúc '.$end->format('H:i').', thời gian ân hạn '.$gracePeriod.' phút)',
+                        'penalty_amount' => $penaltyAmount,
                         'occurred_at' => $now,
                         'status' => 'open',
                         'is_anonymous' => false,
@@ -342,6 +398,10 @@ class AttendanceController extends Controller
                 'status' => 'completed',
             ]);
         });
+
+        if ($exceededMaxEarly) {
+            return back()->withErrors(['email' => "Check-out thất bại: Bạn đang xin ra ca sớm {$exceededEarlyMinutes} phút, vượt quá thời gian cho phép về sớm ({$restaurant->max_early_checkout_minutes} phút). Vui lòng liên hệ Quản lý để được duyệt ra ca."]);
+        }
 
         if ($alreadyCheckedOut) {
             return back()->with('success', 'Bạn đã CHECK-OUT thành công trước đó.');
@@ -373,6 +433,8 @@ class AttendanceController extends Controller
 
         $data = $request->validate([
             'assignment_id' => ['required', TenantRule::exists('schedule_assignments')],
+            'is_on_time' => ['nullable', 'boolean'],
+            'actual_check_in_time' => ['nullable', 'string'],
             'notes' => ['nullable', 'string', 'max:250'],
             'apply_violation' => ['nullable', 'boolean'],
             'penalty_amount' => ['nullable', 'numeric', 'min:0'],
@@ -380,21 +442,48 @@ class AttendanceController extends Controller
         ]);
 
         DB::transaction(function () use ($data, $request) {
-            $sa = ScheduleAssignment::lockForUpdate()->findOrFail($data['assignment_id']);
+            $sa = ScheduleAssignment::lockForUpdate()->with(['shift', 'employee.user'])->findOrFail($data['assignment_id']);
+            $shift = $sa->shift;
+            $dateStr = $sa->scheduled_date instanceof Carbon ? $sa->scheduled_date->toDateString() : Carbon::parse($sa->scheduled_date)->toDateString();
+
+            $isOnTime = $request->boolean('is_on_time', true);
+            $checkInAt = now();
+
+            if ($isOnTime && $shift) {
+                // Nếu đúng giờ: Ghi nhận giờ bắt đầu ca chuẩn (không tính trễ)
+                $checkInAt = Carbon::parse($dateStr . ' ' . $shift->start_time);
+            } elseif (! empty($data['actual_check_in_time'])) {
+                if (preg_match('/^\d{2}:\d{2}$/', $data['actual_check_in_time'])) {
+                    $checkInAt = Carbon::parse($dateStr . ' ' . $data['actual_check_in_time']);
+                } else {
+                    $checkInAt = Carbon::parse($data['actual_check_in_time']);
+                }
+            }
 
             $sa->update([
-                'check_in_at' => now(),
+                'check_in_at' => $checkInAt,
                 'status' => 'checked_in',
                 'approved_by' => $request->user()->id,
-                'notes' => $data['notes'] ?? 'Check-in hộ bởi Quản lý/Chủ nhà hàng',
+                'notes' => $data['notes'] ?? ($isOnTime ? 'Chủ quán xác nhận nhân viên vào ca đúng giờ' : 'Xác nhận vào ca thời gian thực tế'),
             ]);
 
             if ($request->boolean('apply_violation')) {
-                $this->createAutoViolation($request, $sa, 'Đi trễ / Vấn đề vào ca', $data['violation_notes'] ?? $data['notes'] ?? 'Check-in hộ kèm vi phạm vào ca');
+                $this->createAutoViolation($request, $sa, 'Đi trễ / Vấn đề vào ca', $data['violation_notes'] ?? $data['notes'] ?? 'Xác nhận check-in kèm vi phạm vào ca');
+            }
+
+            // Gửi thông báo tới tài khoản Nhân viên
+            $employeeUser = $sa->employee?->user;
+            if ($employeeUser) {
+                $checkInFormatted = $checkInAt->format('H:i d/m/Y');
+                $shiftName = $shift?->name ?? 'ca trực';
+                $employeeUser->notify(new \App\Notifications\CheckInConfirmedNotification(
+                    "Chủ nhà hàng đã xác nhận ca trực \"{$shiftName}\". Giờ vào ca được ghi nhận: {$checkInFormatted}.",
+                    $dateStr
+                ));
             }
         });
 
-        return back()->with('success', 'Đã ghi nhận Check-in hộ thành công cho nhân viên.');
+        return back()->with('success', 'Đã xác nhận Check-in thành công cho nhân viên.');
     }
 
     /**

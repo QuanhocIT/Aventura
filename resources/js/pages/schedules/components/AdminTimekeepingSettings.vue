@@ -20,6 +20,15 @@ const props = defineProps<{
 }>();
 
 const gracePeriod = ref(props.restaurantSettings?.grace_period_minutes ?? 10);
+const maxLateCheckin = ref(props.restaurantSettings?.max_late_checkin_minutes ?? 60);
+const latePenaltyType = ref(props.restaurantSettings?.late_penalty_type ?? 'none');
+const latePenaltyAmount = ref(props.restaurantSettings?.late_penalty_amount ?? 0);
+
+const earlyCheckoutGrace = ref(props.restaurantSettings?.early_checkout_grace_minutes ?? 5);
+const maxEarlyCheckout = ref(props.restaurantSettings?.max_early_checkout_minutes ?? 60);
+const earlyCheckoutPenaltyType = ref(props.restaurantSettings?.early_checkout_penalty_type ?? 'none');
+const earlyCheckoutPenaltyAmount = ref(props.restaurantSettings?.early_checkout_penalty_amount ?? 0);
+
 const otMultiplier = ref(props.restaurantSettings?.ot_multiplier ?? 1.5);
 const latitude = ref(props.gpsSettings?.latitude ?? '');
 const longitude = ref(props.gpsSettings?.longitude ?? '');
@@ -34,6 +43,13 @@ const saveSettings = () => {
         '/schedules/settings',
         {
             grace_period_minutes: gracePeriod.value,
+            max_late_checkin_minutes: maxLateCheckin.value,
+            late_penalty_type: latePenaltyType.value,
+            late_penalty_amount: latePenaltyAmount.value,
+            early_checkout_grace_minutes: earlyCheckoutGrace.value,
+            max_early_checkout_minutes: maxEarlyCheckout.value,
+            early_checkout_penalty_type: earlyCheckoutPenaltyType.value,
+            early_checkout_penalty_amount: earlyCheckoutPenaltyAmount.value,
             ot_multiplier: otMultiplier.value,
             latitude: latitude.value === '' ? null : Number(latitude.value),
             longitude: longitude.value === '' ? null : Number(longitude.value),
@@ -142,11 +158,11 @@ onUnmounted(() => {
                         for="grace-period-input"
                         class="dark:text-slate-350 text-xs font-bold text-slate-700"
                     >
-                        Thời gian đi trễ cho phép (Phút)
+                        Thời gian ân hạn đi trễ cho phép (Phút)
                     </Label>
                     <span class="text-[11px] text-muted-foreground">
                         Nhân viên check-in trễ trong khoảng thời gian này so với
-                        giờ bắt đầu ca vẫn được tính là đi đúng giờ.
+                        giờ bắt đầu ca vẫn được tính là đi đúng giờ (không tính trễ/phạt).
                     </span>
                     <Input
                         id="grace-period-input"
@@ -155,6 +171,174 @@ onUnmounted(() => {
                         min="0"
                         max="120"
                         required
+                        class="h-10 w-full text-sm md:w-2/3"
+                    />
+                </div>
+
+                <!-- Max Late Checkin -->
+                <div class="grid gap-2">
+                    <Label
+                        for="max-late-input"
+                        class="dark:text-slate-350 text-xs font-bold text-slate-700"
+                    >
+                        Thời gian cho phép check-in muộn tối đa (Phút)
+                    </Label>
+                    <span class="text-[11px] text-muted-foreground">
+                        Thời gian đi trễ tối đa so với giờ ca bắt đầu mà nhân viên vẫn được phép bấm Check-in (ví dụ: 60 phút). Nếu trễ quá khoảng thời gian này, hệ thống sẽ từ chối check-in và yêu cầu liên hệ Quản lý.
+                    </span>
+                    <Input
+                        id="max-late-input"
+                        type="number"
+                        v-model.number="maxLateCheckin"
+                        min="0"
+                        max="480"
+                        placeholder="Ví dụ: 60"
+                        class="h-10 w-full text-sm md:w-2/3"
+                    />
+                </div>
+
+                <!-- Late Penalty Type -->
+                <div class="grid gap-2">
+                    <Label
+                        for="late-penalty-type-select"
+                        class="dark:text-slate-350 text-xs font-bold text-slate-700"
+                    >
+                        Quy định hình thức phạt tiền khi đi muộn
+                    </Label>
+                    <span class="text-[11px] text-muted-foreground">
+                        Cách thức hệ thống tự động tính tiền phạt khấu trừ lương khi nhân viên đi trễ vượt quá thời gian ân hạn.
+                    </span>
+                    <select
+                        id="late-penalty-type-select"
+                        v-model="latePenaltyType"
+                        class="h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm md:w-2/3 focus:outline-none focus:ring-2 focus:ring-ring dark:bg-slate-900 dark:text-slate-100"
+                    >
+                        <option value="none">🟢 Không phạt tiền (Chỉ tạo biên bản nhắc nhở đi trễ)</option>
+                        <option value="per_minute">⏱ Phạt cố định theo mỗi phút đi muộn (VNĐ/Phút)</option>
+                        <option value="fixed_per_occurrence">💵 Phạt số tiền cố định cho mỗi lần đi muộn (VNĐ/Lần)</option>
+                        <option value="deduct_minute_salary">📉 Trừ tiền theo mức lương giờ thực tế cho số phút đi muộn</option>
+                    </select>
+                </div>
+
+                <!-- Late Penalty Amount -->
+                <div
+                    v-if="latePenaltyType === 'per_minute' || latePenaltyType === 'fixed_per_occurrence'"
+                    class="grid gap-2"
+                >
+                    <Label
+                        for="late-penalty-amount-input"
+                        class="dark:text-slate-350 text-xs font-bold text-slate-700"
+                    >
+                        Mức tiền phạt đi muộn (VNĐ)
+                    </Label>
+                    <span class="text-[11px] text-muted-foreground">
+                        {{ latePenaltyType === 'per_minute' ? 'Số tiền phạt trừ vào lương cho mỗi 1 phút đi trễ (ví dụ: 2000đ/phút).' : 'Số tiền phạt trừ vào lương cho 1 lần đi trễ (ví dụ: 50.000đ/lần).' }}
+                    </span>
+                    <Input
+                        id="late-penalty-amount-input"
+                        type="number"
+                        v-model.number="latePenaltyAmount"
+                        min="0"
+                        step="500"
+                        placeholder="Ví dụ: 5000"
+                        class="h-10 w-full text-sm md:w-2/3"
+                    />
+                </div>
+
+                <div class="my-4 border-t pt-4">
+                    <h3 class="text-sm font-bold text-slate-800 dark:text-slate-200">
+                        🚪 Tham Số Ra Ca & Check-out Sớm (Về Sớm)
+                    </h3>
+                </div>
+
+                <!-- Early Checkout Grace -->
+                <div class="grid gap-2">
+                    <Label
+                        for="early-checkout-grace-input"
+                        class="dark:text-slate-350 text-xs font-bold text-slate-700"
+                    >
+                        Thời gian ân hạn về sớm cho phép (Phút)
+                    </Label>
+                    <span class="text-[11px] text-muted-foreground">
+                        Nhân viên check-out sớm trong khoảng thời gian này trước khi ca kết thúc vẫn được tính là hoàn thành ca đúng giờ (không tính phạt về sớm).
+                    </span>
+                    <Input
+                        id="early-checkout-grace-input"
+                        type="number"
+                        v-model.number="earlyCheckoutGrace"
+                        min="0"
+                        max="120"
+                        required
+                        class="h-10 w-full text-sm md:w-2/3"
+                    />
+                </div>
+
+                <!-- Max Early Checkout -->
+                <div class="grid gap-2">
+                    <Label
+                        for="max-early-checkout-input"
+                        class="dark:text-slate-350 text-xs font-bold text-slate-700"
+                    >
+                        Thời gian cho phép check-out sớm tối đa (Phút)
+                    </Label>
+                    <span class="text-[11px] text-muted-foreground">
+                        Thời gian về sớm tối đa so với giờ ca kết thúc mà nhân viên vẫn được phép bấm Check-out (ví dụ: 60 phút). Nếu về sớm quá thời gian này, hệ thống sẽ từ chối check-out và yêu cầu Quản lý duyệt.
+                    </span>
+                    <Input
+                        id="max-early-checkout-input"
+                        type="number"
+                        v-model.number="maxEarlyCheckout"
+                        min="0"
+                        max="480"
+                        placeholder="Ví dụ: 60"
+                        class="h-10 w-full text-sm md:w-2/3"
+                    />
+                </div>
+
+                <!-- Early Checkout Penalty Type -->
+                <div class="grid gap-2">
+                    <Label
+                        for="early-checkout-penalty-type-select"
+                        class="dark:text-slate-350 text-xs font-bold text-slate-700"
+                    >
+                        Quy định hình thức phạt tiền khi về sớm
+                    </Label>
+                    <span class="text-[11px] text-muted-foreground">
+                        Cách thức hệ thống tự động tính tiền phạt khấu trừ lương khi nhân viên check-out sớm vượt quá thời gian ân hạn.
+                    </span>
+                    <select
+                        id="early-checkout-penalty-type-select"
+                        v-model="earlyCheckoutPenaltyType"
+                        class="h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm md:w-2/3 focus:outline-none focus:ring-2 focus:ring-ring dark:bg-slate-900 dark:text-slate-100"
+                    >
+                        <option value="none">🟢 Không phạt tiền (Chỉ tạo biên bản nhắc nhở về sớm)</option>
+                        <option value="per_minute">⏱ Phạt cố định theo mỗi phút về sớm (VNĐ/Phút)</option>
+                        <option value="fixed_per_occurrence">💵 Phạt số tiền cố định cho mỗi lần về sớm (VNĐ/Lần)</option>
+                        <option value="deduct_minute_salary">📉 Trừ tiền theo mức lương giờ thực tế cho số phút về sớm</option>
+                    </select>
+                </div>
+
+                <!-- Early Checkout Penalty Amount -->
+                <div
+                    v-if="earlyCheckoutPenaltyType === 'per_minute' || earlyCheckoutPenaltyType === 'fixed_per_occurrence'"
+                    class="grid gap-2"
+                >
+                    <Label
+                        for="early-checkout-penalty-amount-input"
+                        class="dark:text-slate-350 text-xs font-bold text-slate-700"
+                    >
+                        Mức tiền phạt về sớm (VNĐ)
+                    </Label>
+                    <span class="text-[11px] text-muted-foreground">
+                        {{ earlyCheckoutPenaltyType === 'per_minute' ? 'Số tiền phạt trừ vào lương cho mỗi 1 phút về sớm (ví dụ: 2000đ/phút).' : 'Số tiền phạt trừ vào lương cho 1 lần về sớm (ví dụ: 50.000đ/lần).' }}
+                    </span>
+                    <Input
+                        id="early-checkout-penalty-amount-input"
+                        type="number"
+                        v-model.number="earlyCheckoutPenaltyAmount"
+                        min="0"
+                        step="500"
+                        placeholder="Ví dụ: 5000"
                         class="h-10 w-full text-sm md:w-2/3"
                     />
                 </div>
