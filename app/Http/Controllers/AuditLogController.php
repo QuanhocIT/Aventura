@@ -47,7 +47,7 @@ class AuditLogController extends Controller
             $query->where('created_at', '<=', $request->to.' 23:59:59');
         }
 
-        $logs = $query->paginate(30)->withQueryString();
+        $logs = $query->paginate(10)->withQueryString();
 
         // Map system violations to corresponding audit logs to show AI flags
         $systemViolations = collect();
