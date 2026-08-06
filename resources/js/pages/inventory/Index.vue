@@ -18,6 +18,12 @@ import {
     Sparkles,
     Search,
     ClipboardCheck,
+    Edit,
+    Clock,
+    Calendar,
+    MapPin,
+    Layers,
+    CalendarCheck,
 } from 'lucide-vue-next';
 import { computed, ref, onMounted, watch } from 'vue';
 import { toast } from 'vue-sonner';
@@ -32,6 +38,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import AppLayout from '@/layouts/AppLayout.vue';
+import IngredientModal from './components/IngredientModal.vue';
 
 defineOptions({ layout: AppLayout });
 
@@ -42,10 +49,31 @@ type Ingredient = {
     sku: string | null;
     name: string;
     category_name: string | null;
+    storage_type?: string;
+    storage_type_label?: string;
+    default_shelf_life_days?: number | null;
+    storage_location?: string | null;
+    expiry_warning_days?: number;
+    auto_waste_end_of_day?: boolean;
+    min_stock_level?: number;
+    reorder_level?: number;
     average_cost: number;
     unit: { id: number; symbol: string } | null;
     stock: number | null;
     last_cost: number | null;
+    batches?: Array<{
+        id: number;
+        batch_number: string;
+        quantity_remaining: number;
+        unit_cost: number;
+        purchased_at: string | null;
+        expiry_date: string | null;
+        raw_expiry: string | null;
+        status?: 'active' | 'expired' | 'depleted';
+        days_remaining: number | null;
+        is_expiring_soon: boolean;
+        is_expired: boolean;
+    }>;
 };
 type RecipeItem = {
     id: number;
@@ -73,6 +101,7 @@ type Purchase = {
     unit_cost: number;
     total_cost: number;
     supplier_name: string;
+    batch_number?: string | null;
     occurred_at: string | null;
     notes: string | null;
 };
@@ -103,7 +132,37 @@ const props = defineProps<{
 }>();
 
 // ── Tabs ──────────────────────────────────────────────────────────────────────
-const activeTab = ref<'stock' | 'purchase' | 'waste' | 'reconcile'>('stock');
+const activeTab = ref<'stock' | 'purchase' | 'waste' | 'reconcile' | 'planning'>('stock');
+
+// ── Storage Type Filter & Ingredient Modal ──────────────────────────────────
+const selectedStorageTypeFilter = ref<string>('all');
+const showIngredientModal = ref(false);
+const editingIngredient = ref<any | null>(null);
+
+const openAddIngredientModal = () => {
+    editingIngredient.value = null;
+    showIngredientModal.value = true;
+};
+
+const openEditIngredientModal = (ing: any) => {
+    editingIngredient.value = ing;
+    showIngredientModal.value = true;
+};
+
+const getStorageBadgeClass = (type?: string) => {
+    switch (type) {
+        case 'fresh':
+            return 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300';
+        case 'daily':
+            return 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300';
+        case 'short_shelf':
+            return 'bg-indigo-50 text-indigo-700 border-indigo-200 dark:bg-indigo-950/40 dark:text-indigo-300';
+        case 'canned_packaged':
+            return 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/40 dark:text-blue-300';
+        default:
+            return 'bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-800 dark:text-slate-300';
+    }
+};
 
 // ── Pagination & Search (công thức định lượng) ─────────────────────────
 const recipeSearch = ref('');
@@ -196,8 +255,10 @@ const purchaseForm = useForm({
     quantity: '',
     unit_cost: '',
     supplier_id: '',
+    batch_number: '',
     notes: '',
     occurred_at: new Date().toISOString().slice(0, 10),
+    expiry_date: '',
     invoice_file: null as File | null,
 });
 
@@ -259,6 +320,7 @@ const handleAutoPo = () => {
 const wasteForm = useForm({
     ingredient_id: '',
     quantity: '',
+    waste_category: 'spoilage',
     employee_id: '',
     notes: '',
 });
@@ -372,6 +434,18 @@ const filteredIngredients = computed(() => {
         (i) =>
             i.name.toLowerCase().includes(q) ||
             (i.category_name ?? '').toLowerCase().includes(q),
+    );
+});
+
+const filteredIngredientsByStorage = computed(() => {
+    const storageType = selectedStorageTypeFilter.value;
+
+    if (storageType === 'all') {
+        return filteredIngredients.value;
+    }
+
+    return filteredIngredients.value.filter(
+        (ingredient) => (ingredient.storage_type ?? 'dry') === storageType,
     );
 });
 
@@ -552,11 +626,11 @@ const submitWaste = () => {
             </div>
             <Button
                 v-if="activeTab === 'stock'"
-                @click="showAddIngredient = true"
+                @click="openAddIngredientModal()"
                 variant="outline"
-                class="h-9 border-indigo-200 text-xs text-indigo-700 dark:border-indigo-800 dark:text-indigo-400"
+                class="h-9 border-indigo-200 text-xs font-bold text-indigo-700 hover:bg-indigo-50 dark:border-indigo-800 dark:text-indigo-400"
             >
-                <Plus class="mr-1.5 size-4" />Thêm nguyên liệu
+                <Plus class="mr-1.5 size-4" />Thêm nguyên liệu & Phân loại
             </Button>
         </div>
 
@@ -663,6 +737,17 @@ const submitWaste = () => {
             >
                 <ClipboardCheck class="size-3.5 text-emerald-500" />Kiểm kê & Đối soát kho
             </button>
+            <button
+                @click="activeTab = 'planning'"
+                class="flex cursor-pointer items-center gap-1.5 rounded-lg px-4 py-1.5 text-xs font-semibold transition-all"
+                :class="
+                    activeTab === 'planning'
+                        ? 'bg-background text-foreground shadow-sm'
+                        : 'text-muted-foreground hover:text-foreground'
+                "
+            >
+                <CalendarCheck class="size-3.5 text-indigo-500" />Kế hoạch & Dự báo nhập
+            </button>
         </div>
 
         <!-- ══ TAB: TỒN KHO & CÔNG THỨC ══════════════════════════════════════ -->
@@ -703,6 +788,14 @@ const submitWaste = () => {
                                         cần nhập thêm
                                     </CardDescription>
                                 </div>
+                                <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    class="h-7 px-2 text-[11px] font-semibold text-indigo-600 hover:bg-indigo-50"
+                                    @click="openAddIngredientModal()"
+                                >
+                                    <Plus class="mr-1 size-3.5" /> Thêm
+                                </Button>
                             </div>
                             <!-- Search -->
                             <div class="relative mt-2">
@@ -716,79 +809,150 @@ const submitWaste = () => {
                                     class="w-full rounded-lg border border-slate-200 bg-white py-1.5 pr-3 pl-7 text-xs focus:ring-1 focus:ring-indigo-400 focus:outline-none dark:border-slate-700 dark:bg-slate-800"
                                 />
                             </div>
+                            <!-- Storage Filter Pills -->
+                            <div class="flex flex-wrap items-center gap-1 pt-2">
+                                <button
+                                    v-for="st in [
+                                        { key: 'all', label: 'Tất cả' },
+                                        { key: 'fresh', label: '🥬 Tươi' },
+                                        { key: 'daily', label: '🥖 Trong ngày' },
+                                        { key: 'canned_packaged', label: '🥫 Đóng hộp' },
+                                        { key: 'dry', label: '🌾 Đồ khô' },
+                                    ]"
+                                    :key="st.key"
+                                    type="button"
+                                    @click="selectedStorageTypeFilter = st.key"
+                                    :class="[
+                                        'rounded-md px-2 py-0.5 text-[10px] font-bold transition-all cursor-pointer',
+                                        selectedStorageTypeFilter === st.key
+                                            ? 'bg-indigo-600 text-white shadow-xs'
+                                            : 'bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-400'
+                                    ]"
+                                >
+                                    {{ st.label }}
+                                </button>
+                            </div>
                         </CardHeader>
                         <CardContent class="divide-y divide-border p-0">
-                            <div v-if="filteredIngredients.length">
+                            <div v-if="filteredIngredientsByStorage.length">
                                 <div
-                                    v-for="ing in filteredIngredients"
+                                    v-for="ing in filteredIngredientsByStorage"
                                     :key="ing.id"
-                                    class="flex items-center justify-between p-3 text-xs transition-colors hover:bg-muted/30"
+                                    class="p-3 text-xs transition-colors hover:bg-muted/30"
                                 >
-                                    <div class="mr-2 min-w-0 flex-1">
-                                        <div class="flex items-center gap-1.5">
-                                            <p class="truncate font-bold">
-                                                {{ ing.name }}
+                                    <div class="flex items-start justify-between">
+                                        <div class="mr-2 min-w-0 flex-1">
+                                            <div class="flex items-center gap-1.5 flex-wrap">
+                                                <p class="truncate font-bold text-slate-900 dark:text-slate-100">
+                                                    {{ ing.name }}
+                                                </p>
+                                                <button
+                                                    type="button"
+                                                    @click="openEditIngredientModal(ing)"
+                                                    class="text-slate-400 hover:text-indigo-600 p-0.5 rounded cursor-pointer"
+                                                    title="Chỉnh sửa thông tin"
+                                                >
+                                                    <Edit class="size-3" />
+                                                </button>
+                                                <span
+                                                    v-if="(ing.average_cost ?? 0) === 0"
+                                                    class="shrink-0 rounded bg-amber-100 px-1 text-[9px] text-amber-700 dark:bg-amber-900/40 dark:text-amber-400"
+                                                >
+                                                    0đ
+                                                </span>
+                                            </div>
+
+                                            <div class="mt-1 flex items-center gap-1.5 flex-wrap text-[10px]">
+                                                <span
+                                                    :class="[
+                                                        'rounded-md border px-1.5 py-0.5 font-bold text-[9px]',
+                                                        getStorageBadgeClass(ing.storage_type)
+                                                    ]"
+                                                >
+                                                    {{ ing.storage_type_label || '🌾 Đồ khô' }}
+                                                </span>
+
+                                                <span
+                                                    v-if="ing.storage_location"
+                                                    class="flex items-center gap-0.5 text-slate-500 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded text-[9px]"
+                                                >
+                                                    <MapPin class="size-2.5" />
+                                                    {{ ing.storage_location }}
+                                                </span>
+                                            </div>
+
+                                            <p class="mt-1 text-[10px] text-muted-foreground">
+                                                {{ ing.sku ?? 'SKU-NONE' }} · {{ ing.category_name ?? 'Nguyên liệu' }} · {{ ing.branch_name ?? 'Chưa xác định' }}
                                             </p>
-                                            <span
-                                                v-if="
-                                                    (ing.average_cost ?? 0) ===
-                                                    0
-                                                "
-                                                class="shrink-0 rounded bg-amber-100 px-1 text-[9px] text-amber-700 dark:bg-amber-900/40 dark:text-amber-400"
+                                            <p
+                                                v-if="ing.average_cost > 0"
+                                                class="mt-0.5 text-[10px] font-semibold text-indigo-600 dark:text-indigo-400"
                                             >
-                                                0đ
-                                            </span>
+                                                TB: {{ vnd(ing.average_cost) }}/{{ ing.unit?.symbol ?? 'đv' }}
+                                            </p>
                                         </div>
-                                        <p
-                                            class="mt-0.5 text-[10px] text-muted-foreground"
-                                        >
-                                            {{ ing.sku ?? 'SKU-NONE' }} ·
-                                            {{
-                                                ing.category_name ??
-                                                'Nguyên liệu'
-                                            }}
-                                        </p>
-                                        <p class="mt-0.5 text-[10px] font-medium text-indigo-500">
-                                            {{ ing.branch_name ?? 'Chưa xác định' }}
-                                        </p>
-                                        <p
-                                            v-if="ing.average_cost > 0"
-                                            class="mt-0.5 text-[10px] font-semibold text-indigo-500"
-                                        >
-                                            TB: {{ vnd(ing.average_cost) }}/{{
-                                                ing.unit?.symbol ?? 'đv'
-                                            }}
-                                        </p>
+
+                                        <div class="shrink-0 text-right">
+                                            <div class="flex items-center justify-end gap-1.5">
+                                                <TrendingDown
+                                                    v-if="ing.stock !== null && ing.stock < (ing.min_stock_level || 5)"
+                                                    class="size-3 text-rose-500 animate-pulse"
+                                                />
+                                                <span
+                                                    class="rounded-full px-2 py-0.5 font-mono text-[10px] font-bold"
+                                                    :class="
+                                                        ing.stock === null
+                                                            ? 'bg-muted text-muted-foreground'
+                                                            : ing.stock < (ing.min_stock_level || 5)
+                                                              ? 'bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-400'
+                                                              : ing.stock < (ing.reorder_level || 20)
+                                                                ? 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-400'
+                                                                : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400'
+                                                    "
+                                                >
+                                                    {{ ing.stock !== null ? ing.stock.toFixed(1) : '—' }} {{ ing.unit?.symbol ?? '' }}
+                                                </span>
+                                            </div>
+                                        </div>
                                     </div>
-                                    <div class="shrink-0 text-right">
+
+                                    <!-- Active Batches (FEFO Breakdown) -->
+                                    <div
+                                        v-if="ing.batches && ing.batches.length > 0"
+                                        class="mt-2 space-y-1 rounded-lg border border-slate-200/60 bg-slate-50/70 p-2 dark:border-slate-800 dark:bg-slate-900/40"
+                                    >
+                                        <div class="flex items-center justify-between text-[10px] font-bold text-slate-500">
+                                            <span class="flex items-center gap-1">
+                                                <Layers class="size-3 text-indigo-500" />
+                                                Lô HSD (FEFO): {{ ing.batches.length }} lô
+                                            </span>
+                                            <span>Số lượng</span>
+                                        </div>
+
                                         <div
-                                            class="flex items-center justify-end gap-1.5"
+                                            v-for="b in ing.batches"
+                                            :key="b.id"
+                                            class="flex items-center justify-between text-[10px] font-mono border-t border-slate-200/40 dark:border-slate-800/40 pt-1"
                                         >
-                                            <TrendingDown
-                                                v-if="
-                                                    ing.stock !== null &&
-                                                    ing.stock < 5
-                                                "
-                                                class="size-3 text-rose-500"
-                                            />
-                                            <span
-                                                class="rounded-full px-2 py-0.5 font-mono text-[10px] font-bold"
-                                                :class="
-                                                    ing.stock === null
-                                                        ? 'bg-muted text-muted-foreground'
-                                                        : ing.stock < 5
-                                                          ? 'bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-400'
-                                                          : ing.stock < 20
-                                                            ? 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-400'
-                                                            : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400'
-                                                "
-                                            >
-                                                {{
-                                                    ing.stock !== null
-                                                        ? ing.stock.toFixed(1)
-                                                        : '—'
-                                                }}
-                                                {{ ing.unit?.symbol ?? '' }}
+                                            <div class="flex items-center gap-1.5">
+                                                <span class="text-slate-600 dark:text-slate-400 font-semibold">{{ b.batch_number }}</span>
+                                                <span class="text-slate-400">· nhập {{ b.purchased_at || '—' }}</span>
+                                                <span
+                                                    v-if="b.expiry_date"
+                                                    :class="[
+                                                        'rounded px-1 text-[9px] font-bold',
+                                                        b.is_expired
+                                                            ? 'bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300'
+                                                            : b.is_expiring_soon
+                                                              ? 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300'
+                                                              : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300'
+                                                    ]"
+                                                >
+                                                    {{ b.is_expired ? '🔴 Hết hạn (' + b.expiry_date + ')' : (b.is_expiring_soon ? '🟡 Sắp hết hạn (' + b.expiry_date + ')' : '🟢 HSD: ' + b.expiry_date) }}
+                                                </span>
+                                            </div>
+                                            <span class="font-bold text-slate-700 dark:text-slate-300">
+                                                {{ b.quantity_remaining }} {{ ing.unit?.symbol ?? '' }}
                                             </span>
                                         </div>
                                     </div>
@@ -1160,13 +1324,37 @@ const submitWaste = () => {
                                 </select>
                             </div>
 
-                            <!-- Ngày nhập -->
+                            <!-- Mã lô nhà cung cấp -->
                             <div class="space-y-1.5">
-                                <Label class="text-xs">Ngày nhập</Label>
+                                <Label class="text-xs">Mã lô / Batch No.</Label>
                                 <Input
-                                    v-model="purchaseForm.occurred_at"
-                                    type="date"
+                                    v-model="purchaseForm.batch_number"
+                                    maxlength="50"
+                                    placeholder="VD: LOT-20260806-A01 (để trống sẽ tự tạo)"
                                 />
+                                <p class="text-[10px] text-muted-foreground">
+                                    Mỗi lần nhập là một lô riêng, không gộp với lô cũ.
+                                </p>
+                            </div>
+
+                            <!-- Ngày nhập & Hạn sử dụng -->
+                            <div class="grid grid-cols-2 gap-3">
+                                <div class="space-y-1.5">
+                                    <Label class="text-xs">Ngày nhập</Label>
+                                    <Input
+                                        v-model="purchaseForm.occurred_at"
+                                        type="date"
+                                    />
+                                </div>
+                                <div class="space-y-1.5">
+                                    <Label class="text-xs font-semibold text-amber-700 dark:text-amber-400">
+                                        Hạn sử dụng (HSD)
+                                    </Label>
+                                    <Input
+                                        v-model="purchaseForm.expiry_date"
+                                        type="date"
+                                    />
+                                </div>
                             </div>
 
                             <!-- Ghi chú -->
@@ -1401,6 +1589,9 @@ const submitWaste = () => {
                                         <span v-if="p.occurred_at">
                                             · {{ p.occurred_at }}</span
                                         >
+                                        <span v-if="p.batch_number" class="font-semibold text-indigo-500">
+                                            · Lô {{ p.batch_number }}</span
+                                        >
                                         <span v-if="p.notes" class="italic">
                                             · {{ p.notes }}</span
                                         >
@@ -1470,6 +1661,25 @@ const submitWaste = () => {
                                         {{ ing.unit?.symbol ?? '' }})
                                     </option>
                                 </select>
+                            </div>
+
+                            <!-- Nguyên nhân hao hụt -->
+                            <div class="space-y-1.5">
+                                <Label class="text-xs">Nguyên nhân</Label>
+                                <select
+                                    v-model="wasteForm.waste_category"
+                                    class="w-full rounded-xl border border-border bg-background px-3 py-2.5 text-sm focus:border-rose-400 focus:ring-2 focus:ring-rose-500/20 focus:outline-none"
+                                >
+                                    <option value="spoilage">Hư hỏng / xuống chất lượng</option>
+                                    <option value="expired">Hết hạn sử dụng</option>
+                                    <option value="damaged">Hư hỏng bao bì</option>
+                                    <option value="cooking_loss">Hao hụt chế biến</option>
+                                    <option value="theft">Thất thoát</option>
+                                    <option value="other">Khác</option>
+                                </select>
+                                <p class="text-[10px] text-muted-foreground">
+                                    Chọn “Hết hạn” để hệ thống ưu tiên loại bỏ các lô đã quá HSD.
+                                </p>
                             </div>
 
                             <!-- Số lượng -->
@@ -1962,7 +2172,186 @@ const submitWaste = () => {
                     </CardContent>
                 </Card>
             </div>
-        </template>                
+        </template>
+
+        <!-- ══ TAB: KẾ HOẠCH & DỰ BÁO NHẬP ══════════════════════════════════════ -->
+        <template v-if="activeTab === 'planning'">
+            <div class="space-y-6 animate-in fade-in duration-200">
+                <!-- Header Summary Banner -->
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <Card class="border-emerald-200 bg-emerald-50/40 dark:border-emerald-900/50 dark:bg-emerald-950/20">
+                        <CardContent class="p-4 flex items-center justify-between">
+                            <div>
+                                <p class="text-xs font-bold text-emerald-800 dark:text-emerald-300">🥬 Hàng Tươi Sống</p>
+                                <h3 class="text-xl font-black text-emerald-700 dark:text-emerald-400">
+                                    {{ ingredients.filter(i => i.storage_type === 'fresh').length }} loại
+                                </h3>
+                                <p class="text-[10px] text-emerald-600">HSD 1-3 ngày · Tiêu thụ ưu tiên FEFO</p>
+                            </div>
+                            <span class="p-2.5 rounded-xl bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700">🥬</span>
+                        </CardContent>
+                    </Card>
+
+                    <Card class="border-amber-200 bg-amber-50/40 dark:border-amber-900/50 dark:bg-amber-950/20">
+                        <CardContent class="p-4 flex items-center justify-between">
+                            <div>
+                                <p class="text-xs font-bold text-amber-800 dark:text-amber-300">🥖 Bán Trong Ngày</p>
+                                <h3 class="text-xl font-black text-amber-700 dark:text-amber-400">
+                                    {{ ingredients.filter(i => i.storage_type === 'daily').length }} loại
+                                </h3>
+                                <p class="text-[10px] text-amber-600">Kiểm soát dùng hết cuối ca / Cuối ngày</p>
+                            </div>
+                            <span class="p-2.5 rounded-xl bg-amber-100 dark:bg-amber-900/40 text-amber-700">🥖</span>
+                        </CardContent>
+                    </Card>
+
+                    <Card class="border-blue-200 bg-blue-50/40 dark:border-blue-900/50 dark:bg-blue-950/20">
+                        <CardContent class="p-4 flex items-center justify-between">
+                            <div>
+                                <p class="text-xs font-bold text-blue-800 dark:text-blue-300">🥫 Đóng Hộp / Đóng Gói</p>
+                                <h3 class="text-xl font-black text-blue-700 dark:text-blue-400">
+                                    {{ ingredients.filter(i => i.storage_type === 'canned_packaged').length }} loại
+                                </h3>
+                                <p class="text-[10px] text-blue-600">Hạn trung & dài · Quản lý mở nắp</p>
+                            </div>
+                            <span class="p-2.5 rounded-xl bg-blue-100 dark:bg-blue-900/40 text-blue-700">🥫</span>
+                        </CardContent>
+                    </Card>
+
+                    <Card class="border-slate-200 bg-slate-50/40 dark:border-slate-800 dark:bg-slate-900/20">
+                        <CardContent class="p-4 flex items-center justify-between">
+                            <div>
+                                <p class="text-xs font-bold text-slate-800 dark:text-slate-300">🌾 Đồ Khô & Gia Vị</p>
+                                <h3 class="text-xl font-black text-slate-700 dark:text-slate-400">
+                                    {{ ingredients.filter(i => (!i.storage_type || i.storage_type === 'dry')).length }} loại
+                                </h3>
+                                <p class="text-[10px] text-slate-500">Bảo quản kho khô · Mua gom định kỳ</p>
+                            </div>
+                            <span class="p-2.5 rounded-xl bg-slate-200 dark:bg-slate-800 text-slate-700">🌾</span>
+                        </CardContent>
+                    </Card>
+                </div>
+
+                <!-- Planning Table: Master Matrix & Reorder Recommendations -->
+                <Card class="shadow-sm">
+                    <CardHeader class="border-b border-border pb-3 flex flex-row items-center justify-between">
+                        <div>
+                            <CardTitle class="text-base font-bold text-slate-900 dark:text-slate-100">
+                                📋 Kế Hoạch Đặt Hàng & Kiểm Soát Tồn Kho Chuẩn
+                            </CardTitle>
+                            <CardDescription class="text-xs">
+                                Tính toán nhu cầu dựa trên Tồn thực tế, Tồn tối thiểu (Min Stock), Điểm đặt hàng lại (Reorder Level) và Hạn sử dụng.
+                            </CardDescription>
+                        </div>
+                        <Button
+                            size="sm"
+                            class="bg-indigo-600 text-white rounded-xl text-xs"
+                            @click="openAddIngredientModal()"
+                        >
+                            <Plus class="mr-1 size-3.5" /> Thêm nguyên liệu mới
+                        </Button>
+                    </CardHeader>
+                    <CardContent class="p-0 overflow-x-auto">
+                        <table class="w-full text-left text-xs border-collapse">
+                            <thead>
+                                <tr class="border-b bg-slate-100 text-[10px] font-bold text-slate-500 uppercase dark:bg-slate-950">
+                                    <th class="p-3">Nguyên liệu</th>
+                                    <th class="p-3">Loại bảo quản</th>
+                                    <th class="p-3">Vị trí kho</th>
+                                    <th class="p-3 text-right">Tồn hiện tại</th>
+                                    <th class="p-3 text-right">Mức tối thiểu (Min)</th>
+                                    <th class="p-3 text-right">Định mức đặt (Reorder)</th>
+                                    <th class="p-3 text-center">HSD Tiêu chuẩn</th>
+                                    <th class="p-3 text-center">Trạng thái đặt hàng</th>
+                                    <th class="p-3 text-right">Thao tác</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
+                                <tr
+                                    v-for="ing in ingredients"
+                                    :key="ing.id"
+                                    class="hover:bg-slate-50/50 dark:hover:bg-slate-900/30 transition"
+                                >
+                                    <td class="p-3 font-bold text-slate-800 dark:text-slate-200">
+                                        {{ ing.name }}
+                                        <span class="block text-[10px] font-normal text-slate-400">
+                                            {{ ing.sku }} · {{ ing.unit?.symbol }}
+                                        </span>
+                                    </td>
+                                    <td class="p-3">
+                                        <span :class="['rounded px-1.5 py-0.5 text-[10px] font-bold border', getStorageBadgeClass(ing.storage_type)]">
+                                            {{ ing.storage_type_label || '🌾 Đồ khô' }}
+                                        </span>
+                                    </td>
+                                    <td class="p-3 text-slate-500">
+                                        {{ ing.storage_location || '—' }}
+                                    </td>
+                                    <td class="p-3 text-right font-mono font-bold">
+                                        <span :class="[
+                                            (ing.stock ?? 0) < (ing.min_stock_level || 5)
+                                                ? 'text-rose-600 dark:text-rose-400'
+                                                : 'text-slate-700 dark:text-slate-300'
+                                        ]">
+                                            {{ (ing.stock ?? 0).toFixed(1) }} {{ ing.unit?.symbol }}
+                                        </span>
+                                    </td>
+                                    <td class="p-3 text-right font-mono text-slate-500">
+                                        {{ (ing.min_stock_level || 0).toFixed(1) }}
+                                    </td>
+                                    <td class="p-3 text-right font-mono text-slate-500">
+                                        {{ (ing.reorder_level || 0).toFixed(1) }}
+                                    </td>
+                                    <td class="p-3 text-center font-mono text-slate-600 dark:text-slate-400">
+                                        {{ ing.default_shelf_life_days ? ing.default_shelf_life_days + ' ngày' : 'Chưa cài' }}
+                                    </td>
+                                    <td class="p-3 text-center">
+                                        <span
+                                            v-if="(ing.stock ?? 0) < (ing.min_stock_level || 5)"
+                                            class="rounded-full bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300 px-2 py-0.5 text-[10px] font-bold border border-rose-200"
+                                        >
+                                            🔴 Cần nhập ngay
+                                        </span>
+                                        <span
+                                            v-else-if="(ing.stock ?? 0) < (ing.reorder_level || 20)"
+                                            class="rounded-full bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300 px-2 py-0.5 text-[10px] font-bold border border-amber-200"
+                                        >
+                                            🟡 Gom đơn đặt
+                                        </span>
+                                        <span
+                                            v-else
+                                            class="rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300 px-2 py-0.5 text-[10px] font-bold border border-emerald-200"
+                                        >
+                                            🟢 Đủ cơ số
+                                        </span>
+                                    </td>
+                                    <td class="p-3 text-right space-x-1">
+                                        <Button
+                                            size="sm"
+                                            variant="outline"
+                                            class="h-7 px-2 text-[10px] font-semibold"
+                                            @click="openEditIngredientModal(ing)"
+                                        >
+                                            <Edit class="mr-1 size-3" /> Cấu hình
+                                        </Button>
+                                        <Button
+                                            size="sm"
+                                            class="h-7 px-2 text-[10px] font-semibold bg-indigo-600 text-white"
+                                            @click="
+                                                activeTab = 'purchase';
+                                                purchaseForm.ingredient_id = String(ing.id);
+                                                purchaseForm.quantity = String(Math.max(1, (ing.reorder_level || 10) - (ing.stock ?? 0)));
+                                            "
+                                        >
+                                            <ShoppingCart class="mr-1 size-3" /> Nhập hàng
+                                        </Button>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </CardContent>
+                </Card>
+            </div>
+        </template>
     </div>
 
     <!-- ══ Modal: Thêm nguyên liệu ══════════════════════════════════════════════ -->
@@ -2306,4 +2695,12 @@ const submitWaste = () => {
             </div>
         </div>
     </Transition>
+
+    <!-- Ingredient Creation & Edit Modal -->
+    <IngredientModal
+        :is-open="showIngredientModal"
+        :ingredient="editingIngredient"
+        :units="units"
+        @close="showIngredientModal = false"
+    />
 </template>

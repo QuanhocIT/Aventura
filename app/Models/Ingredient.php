@@ -44,13 +44,37 @@ class Ingredient extends Model
         return $this->hasMany(SubRecipe::class, 'parent_ingredient_id');
     }
 
+    public function batches(): HasMany
+    {
+        return $this->hasMany(InventoryBatch::class);
+    }
+
+    public function activeBatches(): HasMany
+    {
+        return $this->hasMany(InventoryBatch::class)->where('status', 'active')->where('quantity_remaining', '>', 0)->orderBy('expiry_date', 'asc');
+    }
+
     protected function casts(): array
     {
         return [
             'is_semi_finished' => 'boolean',
             'allowed_waste_ratio' => 'decimal:2',
             'average_cost' => 'decimal:2',
+            'default_shelf_life_days' => 'integer',
+            'expiry_warning_days' => 'integer',
+            'auto_waste_end_of_day' => 'boolean',
         ];
+    }
+
+    public function getStorageTypeLabelAttribute(): string
+    {
+        return match ($this->storage_type) {
+            'fresh' => '🥬 Hàng tươi sống',
+            'daily' => '🥖 Bán trong ngày',
+            'canned_packaged' => '🥫 Đồ đóng hộp / Đóng gói',
+            'short_shelf' => '🥛 Hạn ngắn (5-15 ngày)',
+            default => '🌾 Đồ khô & Gia vị',
+        };
     }
 
     protected static function newFactory(): Factory

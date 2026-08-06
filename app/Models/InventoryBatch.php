@@ -6,6 +6,7 @@ use App\Models\Concerns\BelongsToRestaurant;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class InventoryBatch extends Model
 {
@@ -33,6 +34,11 @@ class InventoryBatch extends Model
         return $this->belongsTo(Supplier::class);
     }
 
+    public function allocations(): HasMany
+    {
+        return $this->hasMany(InventoryBatchAllocation::class, 'inventory_batch_id');
+    }
+
     public function scopeExpiringSoon(Builder $query, int $days = 3): Builder
     {
         return $query->where('status', 'active')
@@ -49,6 +55,6 @@ class InventoryBatch extends Model
 
     public function isExpired(): bool
     {
-        return $this->expiry_date && $this->expiry_date->isPast();
+        return $this->expiry_date && $this->expiry_date->lt(now()->startOfDay());
     }
 }

@@ -6,6 +6,7 @@ use App\Models\Concerns\BelongsToRestaurant;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class InventoryTransaction extends Model
 {
@@ -57,5 +58,10 @@ class InventoryTransaction extends Model
     public function performedBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'performed_by');
+    }
+
+    public function batchAllocations(): HasMany
+    {
+        return $this->hasMany(InventoryBatchAllocation::class, 'inventory_transaction_id');
     }
 }

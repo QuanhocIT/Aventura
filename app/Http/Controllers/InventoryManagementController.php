@@ -8,6 +8,7 @@ use App\Models\Employee;
 use App\Models\Ingredient;
 use App\Models\Inventory;
 use App\Models\InventoryBatch;
+use App\Models\InventoryBatchAllocation;
 use App\Models\InventoryTransaction;
 use App\Models\Product;
 use App\Models\ProductRecipe;
@@ -18,6 +19,7 @@ use App\Models\Unit;
 use App\Services\AnalyticsServiceClient;
 use App\Services\ApprovalService;
 use App\Services\CircuitBreaker;
+use App\Services\InventoryService;
 use App\Services\ProductCostService;
 use App\Services\QuotaService;
 use App\Services\SalaryService;
@@ -73,15 +75,42 @@ class InventoryManagementController extends Controller
             ->get()
             ->keyBy('ingredient_id');
 
+        $activeBatchesMap = InventoryBatch::where('restaurant_id', $user->restaurant_id)
+            ->whereIn('status', ['active', 'expired'])
+            ->where('quantity_remaining', '>', 0)
+            ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
+            ->orderBy('expiry_date', 'asc')
+            ->get()
+            ->groupBy('ingredient_id');
+
         $ingredients = Ingredient::where('restaurant_id', $user->restaurant_id)
             ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
             ->with(['unit', 'branch:id,name'])
             ->get()
-            ->map(function ($ing) use ($inventoryMap) {
+            ->map(function ($ing) use ($inventoryMap, $activeBatchesMap) {
                 $inventory = $inventoryMap->get($ing->id);
                 $onHand = $inventory ? (float) $inventory->quantity_on_hand : 0.0;
                 $theoretical = $inventory ? (float) ($inventory->theoretical_quantity ?? $onHand) : 0.0;
                 $variance = round($theoretical - $onHand, 2);
+
+                $batches = $activeBatchesMap->get($ing->id, collect())->map(function ($b) {
+                    $rawExpiry = $b->expiry_date ? $b->expiry_date->toDateString() : null;
+                    $diffDays = $b->expiry_date ? round(now()->startOfDay()->diffInDays($b->expiry_date->startOfDay(), false)) : null;
+
+                    return [
+                        'id' => $b->id,
+                        'batch_number' => $b->batch_number,
+                        'quantity_remaining' => (float) $b->quantity_remaining,
+                        'unit_cost' => (float) $b->unit_cost,
+                        'purchased_at' => $b->purchased_at ? $b->purchased_at->format('d/m/Y') : null,
+                        'expiry_date' => $b->expiry_date ? $b->expiry_date->format('d/m/Y') : null,
+                        'raw_expiry' => $rawExpiry,
+                        'days_remaining' => $diffDays,
+                        'status' => $b->status,
+                        'is_expiring_soon' => $b->status === 'active' && $diffDays !== null && $diffDays >= 0 && $diffDays <= 3,
+                        'is_expired' => $b->status === 'expired' || ($diffDays !== null && $diffDays < 0),
+                    ];
+                })->values();
 
                 return [
                     'id' => $ing->id,
@@ -90,13 +119,22 @@ class InventoryManagementController extends Controller
                     'sku' => $ing->sku,
                     'name' => $ing->name,
                     'category_name' => $ing->category_name,
-                    'average_cost' => $ing->average_cost,
+                    'storage_type' => $ing->storage_type ?? 'dry',
+                    'storage_type_label' => $ing->storage_type_label,
+                    'default_shelf_life_days' => $ing->default_shelf_life_days,
+                    'storage_location' => $ing->storage_location,
+                    'expiry_warning_days' => $ing->expiry_warning_days ?? 3,
+                    'auto_waste_end_of_day' => (bool) $ing->auto_waste_end_of_day,
+                    'min_stock_level' => (float) ($ing->min_stock_level ?? 0),
+                    'reorder_level' => (float) ($ing->reorder_level ?? 0),
+                    'average_cost' => (float) $ing->average_cost,
                     'is_semi_finished' => (bool) $ing->is_semi_finished,
                     'unit' => $ing->unit ? ['id' => $ing->unit->id, 'symbol' => $ing->unit->symbol] : null,
                     'stock' => $onHand,
                     'theoretical_stock' => $theoretical,
                     'variance' => $variance,
                     'last_cost' => $inventory ? (float) $inventory->last_cost : null,
+                    'batches' => $batches,
                 ];
             });
 
@@ -136,7 +174,7 @@ class InventoryManagementController extends Controller
         $recentPurchases = InventoryTransaction::where('restaurant_id', $user->restaurant_id)
             ->where('type', 'purchase')
             ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
-            ->with(['ingredient:id,name', 'supplier:id,name'])
+            ->with(['ingredient:id,name', 'supplier:id,name', 'batchAllocations.batch:id,batch_number'])
             ->latest('occurred_at')
             ->take(20)
             ->get()
@@ -145,6 +183,7 @@ class InventoryManagementController extends Controller
                 'ingredient_name' => $t->ingredient?->name ?? '—',
                 'quantity' => (float) $t->quantity,
                 'unit_cost' => (float) $t->unit_cost,
+                'batch_number' => $t->batchAllocations->first()?->batch?->batch_number,
                 'total_cost' => (float) $t->total_cost,
                 'supplier_name' => $t->supplier?->name ?? '—',
                 'occurred_at' => $t->occurred_at?->format('d/m/Y H:i'),
@@ -345,6 +384,13 @@ class InventoryManagementController extends Controller
             'name' => ['required', 'string', 'max:255'],
             'unit_id' => ['required', TenantRule::exists('units')],
             'category' => ['nullable', 'string', 'max:100'],
+            'storage_type' => ['nullable', 'string', 'in:fresh,daily,dry,canned_packaged,short_shelf'],
+            'default_shelf_life_days' => ['nullable', 'integer', 'min:1'],
+            'storage_location' => ['nullable', 'string', 'max:100'],
+            'expiry_warning_days' => ['nullable', 'integer', 'min:1'],
+            'min_stock_level' => ['nullable', 'numeric', 'min:0'],
+            'reorder_level' => ['nullable', 'numeric', 'min:0'],
+            'auto_waste_end_of_day' => ['nullable', 'boolean'],
         ]);
 
         Ingredient::create([
@@ -354,10 +400,60 @@ class InventoryManagementController extends Controller
             'sku' => 'ING-'.strtoupper(Str::random(6)),
             'unit_id' => $data['unit_id'],
             'category_name' => $data['category'] ?? null,
+            'storage_type' => $data['storage_type'] ?? 'dry',
+            'default_shelf_life_days' => $data['default_shelf_life_days'] ?? null,
+            'storage_location' => $data['storage_location'] ?? null,
+            'expiry_warning_days' => $data['expiry_warning_days'] ?? 3,
+            'min_stock_level' => $data['min_stock_level'] ?? 0,
+            'reorder_level' => $data['reorder_level'] ?? 0,
+            'auto_waste_end_of_day' => $data['auto_waste_end_of_day'] ?? false,
             'status' => 'active',
         ]);
 
         return back()->with('success', 'Đã thêm nguyên liệu mới vào kho.');
+    }
+
+    /**
+     * Cập nhật thông tin nguyên liệu.
+     */
+    public function updateIngredient(Request $request, $id): RedirectResponse
+    {
+        abort_unless($request->user()->hasAnyRole(['owner', 'manager']), 403);
+
+        $user = $request->user();
+        $branchId = $this->requireActiveBranch($request);
+
+        $ingredient = Ingredient::where('restaurant_id', $user->restaurant_id)
+            ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
+            ->findOrFail($id);
+
+        $data = $request->validate([
+            'name' => ['required', 'string', 'max:255'],
+            'unit_id' => ['required', TenantRule::exists('units')],
+            'category' => ['nullable', 'string', 'max:100'],
+            'storage_type' => ['nullable', 'string', 'in:fresh,daily,dry,canned_packaged,short_shelf'],
+            'default_shelf_life_days' => ['nullable', 'integer', 'min:1'],
+            'storage_location' => ['nullable', 'string', 'max:100'],
+            'expiry_warning_days' => ['nullable', 'integer', 'min:1'],
+            'min_stock_level' => ['nullable', 'numeric', 'min:0'],
+            'reorder_level' => ['nullable', 'numeric', 'min:0'],
+            'auto_waste_end_of_day' => ['nullable', 'boolean'],
+        ]);
+
+        $ingredient->update([
+            'name' => $data['name'],
+            'unit_id' => $data['unit_id'],
+            'category_name' => $data['category'] ?? null,
+            'storage_type' => $data['storage_type'] ?? 'dry',
+            'default_shelf_life_days' => $data['default_shelf_life_days'] ?? null,
+            'storage_location' => $data['storage_location'] ?? null,
+            'expiry_warning_days' => $data['expiry_warning_days'] ?? 3,
+            'min_stock_level' => $data['min_stock_level'] ?? 0,
+            'reorder_level' => $data['reorder_level'] ?? 0,
+            'auto_waste_end_of_day' => $data['auto_waste_end_of_day'] ?? false,
+        ]);
+
+        return back()->with('success', 'Đã cập nhật thông tin nguyên liệu.');
     }
 
     /**
@@ -372,6 +468,7 @@ class InventoryManagementController extends Controller
         $maxSize = SystemSetting::get('upload_invoice_image_max', 4096);
         $data = $request->validate([
             'ingredient_id' => ['required', TenantRule::exists('ingredients')],
+            'batch_number' => ['nullable', 'string', 'max:50'],
             'quantity' => ['required', 'numeric', 'min:0.001'],
             'unit_cost' => ['required', 'numeric', 'min:0'],
             'supplier_id' => ['nullable', TenantRule::exists('suppliers')],
@@ -469,13 +566,14 @@ class InventoryManagementController extends Controller
 
                 $oldQty = (float) $inventory->quantity_on_hand;
                 $oldAvg = (float) $ingredient->average_cost;
+                app(InventoryService::class)->ensureLegacyBatchForInventory($inventory);
 
                 // Weighted average cost
                 $newAvg = ($oldQty + $newQty) > 0
                     ? (($oldQty * $oldAvg) + ($newQty * $newCost)) / ($oldQty + $newQty)
                     : $newCost;
 
-                InventoryTransaction::create([
+                $transaction = InventoryTransaction::create([
                     'restaurant_id' => $user->restaurant_id,
                     // TRƯỚC ĐÂY KHÔNG GHI branch_id — cùng bug class với Salary,
                     // khiến lọc lịch sử nhập/xuất kho theo chi nhánh luôn rỗng.
@@ -502,20 +600,27 @@ class InventoryManagementController extends Controller
 
                 $ingredient->update(['average_cost' => round($newAvg, 2)]);
 
-                if (! empty($data['expiry_date'])) {
-                    InventoryBatch::create([
-                        'restaurant_id' => $user->restaurant_id,
-                        'branch_id' => $data['branch_id'],
-                        'ingredient_id' => $ingredient->id,
-                        'batch_number' => 'LOT-'.now()->format('YmdHis'),
-                        'quantity_remaining' => $newQty,
-                        'unit_cost' => $newCost,
-                        'purchased_at' => $data['occurred_at'] ?? now(),
-                        'expiry_date' => $data['expiry_date'],
-                        'supplier_id' => $data['supplier_id'] ?? null,
-                        'status' => 'active',
-                    ]);
-                }
+                $batch = InventoryBatch::create([
+                    'restaurant_id' => $user->restaurant_id,
+                    'branch_id' => $data['branch_id'],
+                    'ingredient_id' => $ingredient->id,
+                    'batch_number' => $this->resolveBatchNumber($data),
+                    'quantity_remaining' => $newQty,
+                    'unit_cost' => $newCost,
+                    'purchased_at' => $data['occurred_at'] ?? now(),
+                    'expiry_date' => $data['expiry_date'] ?? null,
+                    'supplier_id' => $data['supplier_id'] ?? null,
+                    'status' => 'active',
+                ]);
+                InventoryBatchAllocation::create([
+                    'restaurant_id' => $user->restaurant_id,
+                    'branch_id' => $data['branch_id'],
+                    'inventory_batch_id' => $batch->id,
+                    'inventory_transaction_id' => $transaction->id,
+                    'direction' => 'in',
+                    'quantity' => $newQty,
+                    'unit_cost' => $newCost,
+                ]);
             });
         } catch (\Exception $e) {
             return back()->withErrors(['unit_cost' => $e->getMessage()]);
@@ -713,47 +818,22 @@ class InventoryManagementController extends Controller
             return back()->with('success', 'Yêu cầu ghi hao hụt đã gửi Chủ nhà hàng để phê duyệt.');
         }
 
-        $ingredientId = $data['ingredient_id'];
-        $wasteQty = (float) $data['quantity'];
-
         try {
-            DB::transaction(function () use ($user, $ingredientId, $wasteQty, $data) {
-                // Lock ingredient and inventory records
+            DB::transaction(function () use ($user, $data) {
+                $transaction = app(InventoryService::class)->executeWaste(
+                    $data,
+                    $user->restaurant_id,
+                    $user->id,
+                );
+                if (! $transaction) {
+                    return;
+                }
+
                 $ingredient = Ingredient::where('restaurant_id', $user->restaurant_id)
                     ->where('branch_id', $data['branch_id'])
-                    ->where('id', $ingredientId)
-                    ->lockForUpdate()
-                    ->firstOrFail();
-
-                $inventory = Inventory::where('restaurant_id', $user->restaurant_id)
-                    ->where('ingredient_id', $ingredientId)
-                    ->where('branch_id', $data['branch_id'])
-                    ->lockForUpdate()
-                    ->first();
-
-                $wasteCost = $wasteQty * (float) $ingredient->average_cost;
-
-                $transaction = InventoryTransaction::create([
-                    'restaurant_id' => $user->restaurant_id,
-                    'branch_id' => $data['branch_id'],
-                    'ingredient_id' => $ingredient->id,
-                    'inventory_id' => $inventory?->id,
-                    'performed_by' => $user->id,
-                    'type' => 'waste',
-                    'waste_category' => $data['waste_category'] ?? null,
-                    'direction' => 'out',
-                    'quantity' => $wasteQty,
-                    'unit_cost' => (float) $ingredient->average_cost,
-                    'total_cost' => $wasteCost,
-                    'notes' => $data['notes'] ?? null,
-                    'occurred_at' => now(),
-                ]);
-
-                if ($inventory) {
-                    $inventory->update([
-                        'quantity_on_hand' => max(0, (float) $inventory->quantity_on_hand - $wasteQty),
-                    ]);
-                }
+                    ->findOrFail($data['ingredient_id']);
+                $wasteQty = (float) $transaction->quantity;
+                $wasteCost = (float) $transaction->total_cost;
 
                 // Nếu có nhân viên chịu trách nhiệm → tạo salary deduction
                 if (! empty($data['employee_id']) && $wasteCost > 0) {
@@ -910,6 +990,15 @@ class InventoryManagementController extends Controller
         }
 
         return back()->with('success', 'Đã hoàn thành kiểm kho và đối chiếu lệch.');
+    }
+
+    private function resolveBatchNumber(array $data): string
+    {
+        $provided = trim((string) ($data['batch_number'] ?? ''));
+
+        return $provided !== ''
+            ? $provided
+            : 'LOT-'.now()->format('YmdHisv').'-'.Str::upper(Str::random(4));
     }
 
     private function requireActiveBranch(Request $request): int

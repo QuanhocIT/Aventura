@@ -15,6 +15,8 @@ import {
     Search,
     Volume2,
     VolumeX,
+    XCircle,
+    X,
 } from 'lucide-vue-next';
 import { computed, ref, onMounted, onUnmounted, watch } from 'vue';
 import { toast } from 'vue-sonner';
@@ -132,6 +134,64 @@ const submitKitchenWaste = () => {
             },
             onFinish: () => {
                 isSubmittingWaste.value = false;
+            },
+        },
+    );
+};
+
+// Cancel Item Modal state & handlers
+const showCancelItemModal = ref(false);
+const selectedCancelItem = ref<PendingItem | null>(null);
+const cancelScope = ref<'single' | 'all_pending'>('single');
+const cancelReason = ref('');
+const isSubmittingCancel = ref(false);
+
+const openCancelModal = (item: PendingItem) => {
+    selectedCancelItem.value = item;
+    cancelScope.value = 'single';
+    cancelReason.value = '';
+    showCancelItemModal.value = true;
+};
+
+const countPendingItemsForSelected = computed(() => {
+    if (!selectedCancelItem.value) {
+        return 0;
+    }
+
+    const name = selectedCancelItem.value.product_name;
+
+    return activePendingItems.value.filter((i) => i.product_name === name).length;
+});
+
+const submitCancelItem = () => {
+    if (!selectedCancelItem.value) {
+        return;
+    }
+
+    isSubmittingCancel.value = true;
+    router.post(
+        `/kitchen/items/${selectedCancelItem.value.id}/cancel`,
+        {
+            scope: cancelScope.value,
+            reason: cancelReason.value,
+        },
+        {
+            preserveScroll: true,
+            onSuccess: () => {
+                toast.success(
+                    'Đã hủy món và gửi thông báo tới Thu ngân, Order và Chủ cửa hàng!',
+                );
+                showCancelItemModal.value = false;
+                selectedCancelItem.value = null;
+                cancelReason.value = '';
+            },
+            onError: (errors: Record<string, any>) => {
+                const msg =
+                    Object.values(errors)[0] || 'Lỗi khi thực hiện hủy món.';
+                toast.error(String(msg));
+            },
+            onFinish: () => {
+                isSubmittingCancel.value = false;
             },
         },
     );
@@ -1368,22 +1428,34 @@ onUnmounted(() => {
                                         </div>
                                     </div>
 
-                                    <!-- Nút hoàn thành chuẩn bị -->
-                                    <Button
-                                        class="h-10 w-10 shrink-0 rounded-xl text-white shadow-sm transition-all"
-                                        :class="
-                                            slaLevel(item) === 'late'
-                                                ? 'bg-red-600 hover:bg-red-700'
-                                                : slaLevel(item) === 'warn'
-                                                  ? 'bg-amber-500 hover:bg-amber-600'
-                                                  : 'bg-indigo-600 hover:bg-indigo-700'
-                                        "
-                                        :disabled="isUpdating[item.id]"
-                                        @click="handlePrepare(item.id)"
-                                        title="Hoàn thành món"
-                                    >
-                                        <Check class="size-5" />
-                                    </Button>
+                                    <!-- Nút thao tác món: Hủy món & Hoàn thành chuẩn bị -->
+                                    <div class="flex items-center gap-2 shrink-0">
+                                        <Button
+                                            type="button"
+                                            variant="outline"
+                                            class="h-10 w-10 shrink-0 rounded-xl border-rose-200 bg-rose-50 text-rose-600 hover:bg-rose-100 hover:text-rose-700 dark:border-rose-900/40 dark:bg-rose-950/30 dark:text-rose-400"
+                                            :disabled="isUpdating[item.id]"
+                                            @click="openCancelModal(item)"
+                                            title="Hủy món này"
+                                        >
+                                            <XCircle class="size-5" />
+                                        </Button>
+                                        <Button
+                                            class="h-10 w-10 shrink-0 rounded-xl text-white shadow-sm transition-all"
+                                            :class="
+                                                slaLevel(item) === 'late'
+                                                    ? 'bg-red-600 hover:bg-red-700'
+                                                    : slaLevel(item) === 'warn'
+                                                      ? 'bg-amber-500 hover:bg-amber-600'
+                                                      : 'bg-indigo-600 hover:bg-indigo-700'
+                                            "
+                                            :disabled="isUpdating[item.id]"
+                                            @click="handlePrepare(item.id)"
+                                            title="Hoàn thành món"
+                                        >
+                                            <Check class="size-5" />
+                                        </Button>
+                                    </div>
                                 </div>
                             </CardContent>
                         </Card>
@@ -1549,22 +1621,34 @@ onUnmounted(() => {
                                         </div>
                                     </div>
 
-                                    <!-- Nút hoàn thành chuẩn bị -->
-                                    <Button
-                                        class="h-9 w-9 shrink-0 rounded-xl text-white shadow-sm transition-all"
-                                        :class="
-                                            slaLevel(item) === 'late'
-                                                ? 'bg-red-600 hover:bg-red-700'
-                                                : slaLevel(item) === 'warn'
-                                                  ? 'bg-amber-500 hover:bg-amber-600'
-                                                  : 'bg-indigo-600 hover:bg-indigo-700'
-                                        "
-                                        :disabled="isUpdating[item.id]"
-                                        @click="handlePrepare(item.id)"
-                                        title="Hoàn thành món này"
-                                    >
-                                        <Check class="size-4.5" />
-                                    </Button>
+                                    <!-- Nút thao tác món: Hủy món & Hoàn thành chuẩn bị -->
+                                    <div class="flex items-center gap-2 shrink-0">
+                                        <Button
+                                            type="button"
+                                            variant="outline"
+                                            class="h-9 w-9 shrink-0 rounded-xl border-rose-200 bg-rose-50 text-rose-600 hover:bg-rose-100 hover:text-rose-700 dark:border-rose-900/40 dark:bg-rose-950/30 dark:text-rose-400"
+                                            :disabled="isUpdating[item.id]"
+                                            @click="openCancelModal(item)"
+                                            title="Hủy món này"
+                                        >
+                                            <XCircle class="size-4.5" />
+                                        </Button>
+                                        <Button
+                                            class="h-9 w-9 shrink-0 rounded-xl text-white shadow-sm transition-all"
+                                            :class="
+                                                slaLevel(item) === 'late'
+                                                    ? 'bg-red-600 hover:bg-red-700'
+                                                    : slaLevel(item) === 'warn'
+                                                      ? 'bg-amber-500 hover:bg-amber-600'
+                                                      : 'bg-indigo-600 hover:bg-indigo-700'
+                                            "
+                                            :disabled="isUpdating[item.id]"
+                                            @click="handlePrepare(item.id)"
+                                            title="Hoàn thành món này"
+                                        >
+                                            <Check class="size-4.5" />
+                                        </Button>
+                                    </div>
                                 </div>
                             </CardContent>
                         </Card>
@@ -1951,14 +2035,15 @@ onUnmounted(() => {
     </div>
 
     <!-- ══ Modal: Báo Cáo Nguyên Liệu Hỏng (Bếp) ════════════════════════════════ -->
-    <Transition
-        enter-active-class="transition duration-150 ease-out"
-        enter-from-class="opacity-0"
-        enter-to-class="opacity-100"
-        leave-active-class="transition duration-100 ease-in"
-        leave-from-class="opacity-100"
-        leave-to-class="opacity-0"
-    >
+    <Teleport to="body">
+        <Transition
+            enter-active-class="transition duration-150 ease-out"
+            enter-from-class="opacity-0"
+            enter-to-class="opacity-100"
+            leave-active-class="transition duration-100 ease-in"
+            leave-from-class="opacity-100"
+            leave-to-class="opacity-0"
+        >
         <div
             v-if="showWasteModal"
             class="fixed inset-0 z-50 overflow-y-auto bg-black/60 p-4 backdrop-blur-sm"
@@ -2070,7 +2155,151 @@ onUnmounted(() => {
                 </div>
             </div>
         </div>
-    </Transition>
+        </Transition>
+
+    <!-- ── MODAL HỦY MÓN BẾP CHÍNH GIỮA MÀN HÌNH ── -->
+        <Transition
+            enter-active-class="transition duration-200 ease-out"
+            enter-from-class="opacity-0 scale-95"
+            enter-to-class="opacity-100 scale-100"
+            leave-active-class="transition duration-150 ease-in"
+            leave-from-class="opacity-100 scale-100"
+            leave-to-class="opacity-0 scale-95"
+        >
+        <div
+            v-if="showCancelItemModal && selectedCancelItem"
+            class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm"
+        >
+            <div
+                class="w-full max-w-lg overflow-hidden rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl dark:border-slate-800 dark:bg-slate-900"
+            >
+                <!-- Modal Header -->
+                <div class="flex items-start justify-between border-b border-slate-100 pb-4 dark:border-slate-800">
+                    <div class="flex items-center gap-3">
+                        <div class="flex h-11 w-11 items-center justify-center rounded-2xl bg-rose-100 text-rose-600 dark:bg-rose-950/40 dark:text-rose-400">
+                            <XCircle class="size-6" />
+                        </div>
+                        <div>
+                            <h3 class="text-base font-black text-slate-900 dark:text-white">
+                                Xác Nhận Hủy Món Chế Biến
+                            </h3>
+                            <p class="text-xs font-semibold text-rose-600 dark:text-rose-400 mt-0.5">
+                                {{ selectedCancelItem.product_name }} • Bàn: {{ selectedCancelItem.table_name }}
+                            </p>
+                        </div>
+                    </div>
+                    <button
+                        type="button"
+                        class="rounded-xl p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800"
+                        @click="showCancelItemModal = false"
+                    >
+                        <X class="size-5" />
+                    </button>
+                </div>
+
+                <!-- Modal Body -->
+                <div class="mt-4 space-y-4">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-2">
+                            Phạm vi hủy món:
+                        </label>
+                        <div class="space-y-2.5">
+                            <!-- Option 1: Single item -->
+                            <label
+                                class="flex items-start gap-3 rounded-2xl border p-3.5 cursor-pointer transition-all"
+                                :class="
+                                    cancelScope === 'single'
+                                        ? 'border-rose-500 bg-rose-50/50 ring-2 ring-rose-500/20 dark:border-rose-700 dark:bg-rose-950/20'
+                                        : 'border-slate-200 bg-slate-50/40 hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-800/20'
+                                "
+                            >
+                                <input
+                                    type="radio"
+                                    name="cancel_scope"
+                                    value="single"
+                                    v-model="cancelScope"
+                                    class="mt-1 size-4 accent-rose-600"
+                                />
+                                <div>
+                                    <p class="text-xs font-bold text-slate-900 dark:text-white">
+                                        Chỉ hủy món này ở Bàn {{ selectedCancelItem.table_name }}
+                                    </p>
+                                    <p class="text-[11px] text-muted-foreground mt-0.5">
+                                        Hủy {{ Math.round(selectedCancelItem.quantity) }} phần "{{ selectedCancelItem.product_name }}" của đơn hiện tại.
+                                    </p>
+                                </div>
+                            </label>
+
+                            <!-- Option 2: All pending items -->
+                            <label
+                                class="flex items-start gap-3 rounded-2xl border p-3.5 cursor-pointer transition-all"
+                                :class="
+                                    cancelScope === 'all_pending'
+                                        ? 'border-rose-500 bg-rose-50/50 ring-2 ring-rose-500/20 dark:border-rose-700 dark:bg-rose-950/20'
+                                        : 'border-slate-200 bg-slate-50/40 hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-800/20'
+                                "
+                            >
+                                <input
+                                    type="radio"
+                                    name="cancel_scope"
+                                    value="all_pending"
+                                    v-model="cancelScope"
+                                    class="mt-1 size-4 accent-rose-600"
+                                />
+                                <div>
+                                    <p class="text-xs font-bold text-rose-600 dark:text-rose-400">
+                                        Hủy TOÀN BỘ món "{{ selectedCancelItem.product_name }}" ở tất cả đơn chờ
+                                    </p>
+                                    <p class="text-[11px] text-muted-foreground mt-0.5">
+                                        Hủy tất cả {{ countPendingItemsForSelected }} phần món này trên toàn bộ màn hình điều phối bếp.
+                                    </p>
+                                </div>
+                            </label>
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
+                            Lý do hủy món <span class="text-xs text-muted-foreground font-normal">(Ghi rõ để báo Thu ngân & Order)</span>:
+                        </label>
+                        <textarea
+                            v-model="cancelReason"
+                            rows="3"
+                            placeholder="Ví dụ: Hết nguyên liệu, món bị hỏng, bếp quá tải không kịp chế biến, khách báo đổi món..."
+                            class="w-full rounded-2xl border border-slate-200 bg-white p-3 text-xs text-slate-900 focus:border-rose-500 focus:ring-2 focus:ring-rose-500/20 focus:outline-none dark:border-slate-800 dark:bg-slate-950 dark:text-slate-100"
+                        ></textarea>
+                    </div>
+
+                    <div class="rounded-xl border border-amber-200 bg-amber-50/60 p-3 text-[11px] font-medium text-amber-800 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-300">
+                        🔔 <strong>Lưu ý:</strong> Khi bạn bấm xác nhận, hệ thống sẽ lập tức phát <strong>chuông báo động & thông báo khẩn cấp</strong> đến Thu ngân, Nhân viên Order và Chủ cửa hàng để báo khách đổi món.
+                    </div>
+                </div>
+
+                <!-- Modal Footer -->
+                <div class="mt-6 flex items-center justify-end gap-2 border-t border-slate-100 pt-4 dark:border-slate-800">
+                    <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        class="h-10 rounded-xl px-4 text-xs font-bold"
+                        @click="showCancelItemModal = false"
+                    >
+                        Trở lại / Hủy
+                    </Button>
+                    <Button
+                        type="button"
+                        size="sm"
+                        class="h-10 rounded-xl bg-rose-600 px-4 font-bold text-white shadow-sm hover:bg-rose-700 dark:bg-rose-700 dark:hover:bg-rose-800"
+                        :disabled="isSubmittingCancel"
+                        @click="submitCancelItem"
+                    >
+                        {{ isSubmittingCancel ? 'Đang xử lý...' : 'Xác Nhận Hủy Món' }}
+                    </Button>
+                </div>
+            </div>
+        </div>
+        </Transition>
+    </Teleport>
 </template>
 
 <style scoped>

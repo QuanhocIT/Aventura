@@ -126,6 +126,73 @@ class KitchenMenuAvailabilityTest extends TestCase
         $this->assertNull($this->product->out_of_stock_until);
     }
 
+    public function test_kitchen_staff_can_activate_multiple_products_until_end_of_day_with_reason(): void
+    {
+        $secondProduct = Product::create([
+            'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
+            'category_id' => $this->category->id,
+            'code' => 'TEST-02',
+            'name' => 'Món ăn thứ hai',
+            'slug' => 'mon-an-thu-hai',
+            'description' => 'Món thứ hai',
+            'price' => 60000,
+            'cost_price' => 15000,
+            'is_active' => true,
+            'is_available' => true,
+            'track_inventory' => false,
+        ]);
+
+        $response = $this->actingAs($this->kitchenStaff)->post(route('kitchen.menu-control.activate'), [
+            'product_ids' => [$this->product->id, $secondProduct->id],
+            'reason' => 'Thiết bị bếp gặp sự cố, không thể phục vụ trong hôm nay.',
+        ]);
+
+        $response->assertRedirect();
+
+        $this->product->refresh();
+        $secondProduct->refresh();
+        $this->assertTrue($this->product->out_of_stock_until?->isToday());
+        $this->assertTrue($secondProduct->out_of_stock_until?->isToday());
+        $this->assertSame(
+            'Thiết bị bếp gặp sự cố, không thể phục vụ trong hôm nay.',
+            $this->product->out_of_stock_reason,
+        );
+        $this->assertNull($this->product->paused_until);
+        $this->assertDatabaseHas('audit_logs', [
+            'action' => 'kitchen_menu_unavailable',
+            'subject_id' => $this->product->id,
+            'branch_id' => $this->branch->id,
+        ]);
+        $notification = $this->owner->notifications()->latest()->first();
+        $this->assertNotNull($notification);
+        $this->assertSame('kitchen_menu_unavailable', $notification->data['type']);
+        $this->assertSame('/audit-logs', $notification->data['url']);
+    }
+
+    public function test_cashier_cannot_order_a_kitchen_disabled_product_via_pos(): void
+    {
+        $this->product->update([
+            'out_of_stock_until' => now()->endOfDay(),
+            'out_of_stock_reason' => 'Hết nguyên liệu trong ngày.',
+        ]);
+
+        $response = $this->actingAs($this->cashier)->post(route('orders.store'), [
+            'table_id' => $this->table->id,
+            'items' => [
+                [
+                    'product_id' => $this->product->id,
+                    'quantity' => 1,
+                ],
+            ],
+        ]);
+
+        $response->assertSessionHasErrors(['items']);
+        $this->assertDatabaseMissing('orders', [
+            'restaurant_id' => $this->restaurant->id,
+        ]);
+    }
+
     public function test_cashier_cannot_order_paused_product_via_pos(): void
     {
         $this->product->update([

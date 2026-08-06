@@ -3,10 +3,13 @@
 namespace App\Http\Controllers;
 
 use App\Events\Customer\ProductStockUpdated;
+use App\Events\Kitchen\KitchenItemCancelled;
 use App\Events\Kitchen\KitchenUpdated;
+use App\Models\AuditLog;
 use App\Models\Ingredient;
 use App\Models\OrderItem;
 use App\Models\Product;
+use App\Services\InventoryAvailabilityService;
 use App\Services\QuotaService;
 use App\Support\Tenant\TenantContext;
 use Illuminate\Http\RedirectResponse;
@@ -36,6 +39,7 @@ class KitchenController extends Controller
         }
 
         $restaurantId = $user->restaurant_id;
+        $branchId = app(TenantContext::class)->activeBranchId();
 
         // 1. Nhận đơn (Pending/Preparing items in active orders)
         // Grouped by table in frontend, so we just return the flat list ordered by time
@@ -84,21 +88,30 @@ class KitchenController extends Controller
             ]);
 
         $products = Product::where('restaurant_id', $restaurantId)
+            ->where(function ($query) use ($branchId): void {
+                $query->whereNull('branch_id')->orWhere('branch_id', $branchId);
+            })
             ->where('is_active', true)
-            ->with('category')
-            ->get()
-            ->map(fn ($p) => [
+            ->with(['category', 'recipes.ingredient.unit'])
+            ->get();
+
+        $availabilityService = app(InventoryAvailabilityService::class);
+        $availabilityService->refreshBranch($restaurantId, (int) $branchId, false);
+        $availability = $availabilityService->forProducts($products, $restaurantId, (int) $branchId);
+
+        $products = $products->map(fn ($p) => [
                 'id' => $p->id,
                 'name' => $p->name,
                 'price' => (float) $p->price,
                 'category_name' => $p->category?->name ?? 'Món khác',
+                'available_portions' => $availability->get($p->id)['available_portions'] ?? null,
                 'paused_until' => $p->paused_until ? $p->paused_until->toIso8601String() : null,
                 'out_of_stock_until' => $p->out_of_stock_until ? $p->out_of_stock_until->toIso8601String() : null,
                 'is_paused' => (bool) ($p->paused_until && $p->paused_until->isFuture()),
-                'is_out_of_stock' => (bool) ($p->out_of_stock_until && $p->out_of_stock_until->isFuture()),
+                'is_out_of_stock' => (bool) (($availability->get($p->id)['is_sold_out'] ?? false)
+                    || ($p->out_of_stock_until && $p->out_of_stock_until->isFuture())),
             ])->all();
 
-        $branchId = app(TenantContext::class)->activeBranchId();
         $ingredients = Ingredient::where('restaurant_id', $restaurantId)
             ->when($branchId !== null, fn ($q) => $q->where('branch_id', $branchId))
             ->with('unit')
@@ -224,6 +237,7 @@ class KitchenController extends Controller
         $product->update([
             'paused_until' => now()->addMinutes($validated['minutes']),
             'out_of_stock_until' => null,
+            'out_of_stock_reason' => null,
         ]);
 
         event(new ProductStockUpdated($user->restaurant_id));
@@ -243,6 +257,7 @@ class KitchenController extends Controller
 
         $product->update([
             'out_of_stock_until' => now()->addMinutes($validated['minutes']),
+            'out_of_stock_reason' => null,
             'paused_until' => null,
         ]);
 
@@ -260,10 +275,109 @@ class KitchenController extends Controller
         $product->update([
             'paused_until' => null,
             'out_of_stock_until' => null,
+            'out_of_stock_reason' => null,
         ]);
 
         event(new ProductStockUpdated($user->restaurant_id));
 
         return back()->with('success', "Đã mở lại bán món {$product->name}!");
+    }
+
+    public function cancelItem(Request $request, OrderItem $item): RedirectResponse
+    {
+        $user = $request->user();
+        abort_unless($user->can('manage_kitchen'), 403);
+        abort_if($item->restaurant_id !== $user->restaurant_id, 403);
+
+        $validated = $request->validate([
+            'scope' => ['required', 'string', 'in:single,all_pending'],
+            'reason' => ['nullable', 'string', 'max:500'],
+        ]);
+
+        $scope = $validated['scope'];
+        $reason = trim($validated['reason'] ?? '');
+        $noteAppend = $reason !== '' ? "[Hủy bởi bếp: {$reason}]" : '[Hủy bởi bếp]';
+
+        $productName = $item->product?->name ?? 'Món ăn';
+        $tableName = $item->order?->table?->name ?? 'Mang về';
+        $cancelledCount = 0;
+
+        if ($scope === 'all_pending') {
+            $pendingItemsToCancel = OrderItem::where('restaurant_id', $user->restaurant_id)
+                ->where('product_id', $item->product_id)
+                ->whereNull('prepared_at')
+                ->where('status', '!=', 'cancelled')
+                ->whereHas('order', function ($q) {
+                    $q->whereNotIn('status', ['completed', 'cancelled']);
+                })
+                ->with('order')
+                ->get();
+
+            $cancelledCount = $pendingItemsToCancel->count();
+
+            foreach ($pendingItemsToCancel as $pendingItem) {
+                $pendingItem->update([
+                    'status' => 'cancelled',
+                    'notes' => $pendingItem->notes ? $pendingItem->notes . ' ' . $noteAppend : $noteAppend,
+                ]);
+
+                if ($pendingItem->order) {
+                    $activeSubtotal = OrderItem::where('order_id', $pendingItem->order_id)
+                        ->where('status', '!=', 'cancelled')
+                        ->sum('line_total');
+
+                    $pendingItem->order->update([
+                        'subtotal' => $activeSubtotal,
+                        'total_amount' => max(0, $activeSubtotal - $pendingItem->order->discount_amount),
+                    ]);
+                }
+            }
+        } else {
+            $item->loadMissing(['order.table', 'product']);
+            $item->update([
+                'status' => 'cancelled',
+                'notes' => $item->notes ? $item->notes . ' ' . $noteAppend : $noteAppend,
+            ]);
+            $cancelledCount = 1;
+
+            if ($item->order) {
+                $activeSubtotal = OrderItem::where('order_id', $item->order_id)
+                    ->where('status', '!=', 'cancelled')
+                    ->sum('line_total');
+
+                $item->order->update([
+                    'subtotal' => $activeSubtotal,
+                    'total_amount' => max(0, $activeSubtotal - $item->order->discount_amount),
+                ]);
+            }
+        }
+
+        AuditLog::log('kitchen_item_cancelled', 'updated', $item, null, [
+            'product_name' => $productName,
+            'table_name' => $tableName,
+            'scope' => $scope,
+            'reason' => $reason,
+            'cancelled_count' => $cancelledCount,
+            'cancelled_by' => $user->name,
+        ]);
+
+        event(new KitchenUpdated($user->restaurant_id));
+        event(new KitchenItemCancelled(
+            restaurantId: $user->restaurant_id,
+            productName: $productName,
+            tableName: $tableName,
+            quantity: (float) $item->quantity,
+            scope: $scope,
+            reason: $reason !== '' ? $reason : null,
+            cancelledByName: $user->name,
+            cancelledCount: $cancelledCount,
+            orderId: $item->order_id,
+        ));
+
+        $msg = $scope === 'all_pending'
+            ? "Đã hủy toàn bộ {$cancelledCount} phần món {$productName} trên các đơn chờ chế biến!"
+            : "Đã hủy món {$productName} (Bàn {$tableName}) thành công!";
+
+        return back()->with('success', $msg);
     }
 }
