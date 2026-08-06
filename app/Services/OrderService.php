@@ -28,7 +28,8 @@ class OrderService
 {
     public function __construct(
         private OrderRepositoryInterface $orderRepository,
-        private InventoryService $inventoryService
+        private InventoryService $inventoryService,
+        private InventoryAvailabilityService $inventoryAvailabilityService,
     ) {}
 
     /**
@@ -74,6 +75,29 @@ class OrderService
                     ->first();
 
                 if ($existingActiveOrder) {
+                    $reservationItems = collect($data['items'])
+                        ->map(function (array $item) use ($existingActiveOrder): array {
+                            if (! empty($item['client_item_id'])) {
+                                $existingItem = OrderItem::where('order_id', $existingActiveOrder->id)
+                                    ->where('client_item_id', $item['client_item_id'])
+                                    ->first();
+                                if ($existingItem && $existingItem->status === 'pending') {
+                                    $item['quantity'] = max(0.0, (float) $item['quantity'] - (float) $existingItem->quantity);
+                                }
+                            }
+
+                            return $item;
+                        })
+                        ->filter(fn (array $item): bool => (float) ($item['quantity'] ?? 0) > 0)
+                        ->values()
+                        ->all();
+                    $this->inventoryAvailabilityService->assertItemsAvailable(
+                        $restaurantId,
+                        $branchId,
+                        $reservationItems,
+                        $existingActiveOrder->id,
+                    );
+
                     foreach ($data['items'] as $itemData) {
                         $product = $products->get($itemData['product_id'])
                             ?? abort(422, 'Sản phẩm không tìm thấy: '.$itemData['product_id']);
@@ -159,6 +183,9 @@ class OrderService
                         }
                     }
 
+                    $this->syncHoldingReservations($existingActiveOrder);
+                    $this->inventoryAvailabilityService->refreshBranch($restaurantId, $branchId);
+
                     // Recalculate totals
                     $newSubtotal = OrderItem::where('order_id', $existingActiveOrder->id)->sum('line_total');
                     $existingActiveOrder->update([
@@ -205,6 +232,8 @@ class OrderService
                     'client_item_id' => $itemData['client_item_id'] ?? null,
                 ];
             }
+
+            $this->inventoryAvailabilityService->assertItemsAvailable($restaurantId, $branchId, $data['items']);
 
             $discountAmount = 0;
             $note = $data['note'] ?? null;
@@ -259,6 +288,7 @@ class OrderService
                     }
                 }
             }
+            $this->inventoryAvailabilityService->refreshBranch($restaurantId, $branchId);
             // P1: Debounce broadcast — chỉ fire ProductStockUpdated tối đa 1 lần
             // mỗi 3 giây/nhà hàng. Tránh flood Reverb khi nhiều items trong cùng
             // 1 đơn, hoặc nhiều đơn tạo liên tiếp (giờ cao điểm nhiều nhà hàng).
@@ -478,6 +508,12 @@ class OrderService
             ];
 
             if (isset($data['items'])) {
+                $this->inventoryAvailabilityService->assertItemsAvailable(
+                    $restaurantId,
+                    (int) $order->branch_id,
+                    $data['items'],
+                    $order->id,
+                );
                 $payloadItemIds = collect($data['items'])->pluck('id')->filter()->toArray();
 
                 // Mark omitted items as cancelled and release reservations
@@ -540,6 +576,8 @@ class OrderService
                         ]);
                     }
                 }
+
+                $this->syncHoldingReservations($order);
             }
 
             $subtotal = $order->items()->where('status', '!=', 'cancelled')->sum('line_total');
@@ -812,6 +850,37 @@ class OrderService
         ], [
             'is_override_split_penalty' => true,
         ]);
+    }
+
+    private function syncHoldingReservations(Order $order): void
+    {
+        InventoryReservation::where('order_id', $order->id)
+            ->where('branch_id', $order->branch_id)
+            ->where('status', 'holding')
+            ->update(['status' => 'released']);
+
+        $items = OrderItem::where('order_id', $order->id)
+            ->where('status', '!=', 'cancelled')
+            ->with('product.recipes')
+            ->get();
+
+        foreach ($items as $item) {
+            if (! $item->product?->track_inventory) {
+                continue;
+            }
+
+            foreach ($item->product->recipes as $recipe) {
+                InventoryReservation::create([
+                    'restaurant_id' => $order->restaurant_id,
+                    'branch_id' => $order->branch_id,
+                    'order_id' => $order->id,
+                    'ingredient_id' => $recipe->ingredient_id,
+                    'reserved_quantity' => (float) $recipe->quantity * (float) $item->quantity * (1 + ((float) $recipe->waste_rate / 100)),
+                    'status' => 'holding',
+                    'expires_at' => now()->addHours(4),
+                ]);
+            }
+        }
     }
 
     /**

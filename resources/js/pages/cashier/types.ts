@@ -33,6 +33,7 @@ export interface ProductItem {
     name: string;
     price: number;
     category_id: number;
+    available_portions?: number | null;
     paused_until?: string | null;
     out_of_stock_until?: string | null;
     is_paused?: boolean;

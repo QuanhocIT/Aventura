@@ -741,6 +741,7 @@ const cashierNav = computed<NavItem[]>(() => {
 const kitchenNav = computed<NavItem[]>(() => {
     const nav = [
         { title: 'Trang chủ', href: '/dashboard', icon: LayoutGrid },
+        { title: 'Quản lý món', href: '/kitchen/menu-control', icon: UtensilsCrossed },
         {
             title: 'Lịch làm việc',
             href: '/schedules',

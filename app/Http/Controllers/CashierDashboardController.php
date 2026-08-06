@@ -6,6 +6,7 @@ use App\Models\Area;
 use App\Models\Employee;
 use App\Models\LeaveRequest;
 use App\Models\Order;
+use App\Models\OrderItem;
 use App\Models\Payment;
 use App\Models\Product;
 use App\Models\ProductCategory;
@@ -13,6 +14,7 @@ use App\Models\RestaurantTable;
 use App\Models\ScheduleAssignment;
 use App\Models\TemporaryOrder;
 use App\Models\WorkShift;
+use App\Services\InventoryAvailabilityService;
 use App\Support\Tenant\TenantContext;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Cache;
@@ -146,16 +148,24 @@ class CashierDashboardController extends Controller
                 })
                 ->where('is_active', true)
                 ->where('is_available', true)
-                ->get()
-                ->map(fn ($p) => [
+                ->with('recipes.ingredient.unit')
+                ->get();
+
+            $availabilityService = app(InventoryAvailabilityService::class);
+            $availabilityService->refreshBranch($restaurant->id, (int) $branchId, false);
+            $availability = $availabilityService->forProducts($products, $restaurant->id, (int) $branchId);
+
+            $products = $products->map(fn ($p) => [
                     'id' => $p->id,
                     'name' => $p->name,
                     'price' => (float) $p->price,
                     'category_id' => $p->category_id,
+                    'available_portions' => $availability->get($p->id)['available_portions'] ?? null,
                     'paused_until' => $p->paused_until ? $p->paused_until->toIso8601String() : null,
                     'out_of_stock_until' => $p->out_of_stock_until ? $p->out_of_stock_until->toIso8601String() : null,
                     'is_paused' => $p->paused_until && $p->paused_until->isFuture(),
-                    'is_out_of_stock' => $p->out_of_stock_until && $p->out_of_stock_until->isFuture(),
+                    'is_out_of_stock' => ($availability->get($p->id)['is_sold_out'] ?? false)
+                        || ($p->out_of_stock_until && $p->out_of_stock_until->isFuture()),
                 ])->all();
 
             // Load active categories
@@ -175,10 +185,12 @@ class CashierDashboardController extends Controller
             $employee = $user->employee;
             if ($employee) {
                 $assignment = ScheduleAssignment::where('employee_id', $employee->id)
-                    ->where('status', 'checked_in')
                     ->where('scheduled_date', today())
+                    ->whereIn('status', ['checked_in', 'scheduled', 'completed'])
                     ->with('shift')
                     ->first();
+
+                $startTime = $assignment?->check_in_at ?? now()->startOfDay();
 
                 if ($assignment) {
                     $shiftInfo['active_shift'] = [
@@ -186,26 +198,24 @@ class CashierDashboardController extends Controller
                         'shift_name' => $assignment->shift?->name ?? 'Ca làm việc',
                         'check_in_at' => $assignment->check_in_at ? $assignment->check_in_at->format('H:i d/m/Y') : null,
                     ];
-
-                    $shiftInfo['shift_revenue'] = (float) Payment::where('processed_by', $user->id)
-                        ->where('branch_id', $branchId)
-                        ->where('status', 'paid')
-                        ->where('paid_at', '>=', $assignment->check_in_at)
-                        ->sum('amount');
-
-                    $shiftOrdersQuery = Order::where('restaurant_id', $restaurant->id)
-                        ->where('branch_id', $branchId)
-                        ->where('cashier_user_id', $user->id)
-                        ->where('status', 'completed')
-                        ->where('completed_at', '>=', $assignment->check_in_at);
-
-                    $shiftInfo['total_orders'] = $shiftOrdersQuery->count();
-                    $shiftInfo['channel_breakdown'] = (clone $shiftOrdersQuery)
-                        ->get(['channel', 'total_amount'])
-                        ->groupBy('channel')
-                        ->map(fn ($g) => ['count' => $g->count(), 'revenue' => (float) $g->sum('total_amount')])
-                        ->toArray();
                 }
+
+                $shiftInfo['shift_revenue'] = (float) Payment::where('processed_by', $user->id)
+                    ->where('status', 'paid')
+                    ->where('paid_at', '>=', $startTime)
+                    ->sum('amount');
+
+                $shiftOrdersQuery = Order::where('restaurant_id', $restaurant->id)
+                    ->where('cashier_user_id', $user->id)
+                    ->where('status', 'completed')
+                    ->where('completed_at', '>=', $startTime);
+
+                $shiftInfo['total_orders'] = $shiftOrdersQuery->count();
+                $shiftInfo['channel_breakdown'] = (clone $shiftOrdersQuery)
+                    ->get(['channel', 'total_amount'])
+                    ->groupBy('channel')
+                    ->map(fn ($g) => ['count' => $g->count(), 'revenue' => (float) $g->sum('total_amount')])
+                    ->toArray();
 
                 // Load weekly schedules
                 $startOfWeek = now()->startOfWeek(Carbon::MONDAY)->toDateString();
@@ -318,6 +328,30 @@ class CashierDashboardController extends Controller
                     'completed_at' => $o->completed_at ? $o->completed_at->format('H:i d/m') : null,
                 ])->all();
 
+            // Load items prepared by kitchen awaiting serving
+            $kitchenReadyItems = OrderItem::where('restaurant_id', $restaurant->id)
+                ->whereNotNull('prepared_at')
+                ->whereNull('served_at')
+                ->where('status', '!=', 'cancelled')
+                ->whereHas('order', function ($q) use ($restaurant, $branchId) {
+                    $q->where('restaurant_id', $restaurant->id)
+                        ->when($branchId, fn ($b) => $b->where('branch_id', $branchId))
+                        ->whereNotIn('status', ['completed', 'cancelled']);
+                })
+                ->with(['order.table', 'product', 'preparedBy'])
+                ->latest('prepared_at')
+                ->get()
+                ->map(fn ($item) => [
+                    'id' => $item->id,
+                    'product_name' => $item->product?->name ?? 'Món ăn',
+                    'quantity' => (float) $item->quantity,
+                    'notes' => $item->notes,
+                    'prepared_at' => $item->prepared_at ? $item->prepared_at->format('H:i') : null,
+                    'prepared_by_name' => $item->preparedBy?->name ?? 'Bếp',
+                    'table_name' => $item->order->table?->name ?? 'Mang về',
+                    'order_number' => $item->order?->order_number,
+                ])->all();
+
             // Active shifts list for registration
             $activeShifts = WorkShift::where('restaurant_id', $restaurant->id)
                 ->where(function ($query) use ($branchId) {
@@ -368,6 +402,7 @@ class CashierDashboardController extends Controller
             'shiftInfo' => $shiftInfo,
             'qrOrders' => $qrOrders,
             'externalOrders' => $externalOrders,
+            'kitchenReadyItems' => $kitchenReadyItems,
             'completedHistory' => $completedHistory,
             'weeklySchedules' => $weeklySchedules,
             'activeShifts' => $activeShifts,

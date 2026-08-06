@@ -14,6 +14,7 @@ use App\Models\RestaurantTable;
 use App\Models\User;
 use App\Repositories\OrderRepositoryInterface;
 use App\Services\CdpService;
+use App\Services\InventoryAvailabilityService;
 use App\Services\InventoryService;
 use App\Services\LoyaltyService;
 use App\Services\OrderService;
@@ -59,19 +60,26 @@ class OrdersController extends Controller
             })
             ->where('is_active', true)
             ->where('is_available', true)
-            ->with(['category'])
-            ->get()
-            ->map(fn ($p) => [
+            ->with(['category', 'recipes.ingredient.unit'])
+            ->get();
+
+        $availabilityService = app(InventoryAvailabilityService::class);
+        $availabilityService->refreshBranch($restaurantId, (int) $branchId, false);
+        $availability = $availabilityService->forProducts($products, $restaurantId, (int) $branchId);
+
+        $products = $products->map(fn ($p) => [
                 'id' => $p->id,
                 'name' => $p->name,
                 'price' => (float) $p->price,
                 'sku' => $p->sku ?? '—',
                 'category_id' => $p->category_id,
                 'category_name' => $p->category?->name,
+                'available_portions' => $availability->get($p->id)['available_portions'] ?? null,
                 'paused_until' => $p->paused_until ? $p->paused_until->toIso8601String() : null,
                 'out_of_stock_until' => $p->out_of_stock_until ? $p->out_of_stock_until->toIso8601String() : null,
                 'is_paused' => $p->paused_until && $p->paused_until->isFuture(),
-                'is_out_of_stock' => $p->out_of_stock_until && $p->out_of_stock_until->isFuture(),
+                'is_out_of_stock' => ($availability->get($p->id)['is_sold_out'] ?? false)
+                    || ($p->out_of_stock_until && $p->out_of_stock_until->isFuture()),
             ]);
 
         $tables = RestaurantTable::where('restaurant_id', $restaurantId)
@@ -163,27 +171,31 @@ class OrdersController extends Controller
             }
         }
 
-        $order = DB::transaction(function () use ($data, $user) {
-            $order = $this->orderService->createOrder($data, $user);
+        try {
+            $order = DB::transaction(function () use ($data, $user) {
+                $order = $this->orderService->createOrder($data, $user);
 
-            if (($data['channel'] ?? '') === 'delivery') {
-                DeliveryDetail::create([
-                    'restaurant_id' => $user->restaurant_id,
-                    'order_id' => $order->id,
-                    'customer_name' => $data['delivery_customer_name'],
-                    'phone' => $data['delivery_phone'],
-                    'address' => $data['delivery_address'],
-                    'latitude' => $data['delivery_lat'] ?? null,
-                    'longitude' => $data['delivery_lng'] ?? null,
-                    'delivery_fee' => $data['delivery_fee'] ?? 0,
-                    'cod_amount' => $data['cod_amount'] ?? 0,
-                    'notes' => $data['delivery_notes'] ?? null,
-                    'delivery_status' => 'pending',
-                ]);
-            }
+                if (($data['channel'] ?? '') === 'delivery') {
+                    DeliveryDetail::create([
+                        'restaurant_id' => $user->restaurant_id,
+                        'order_id' => $order->id,
+                        'customer_name' => $data['delivery_customer_name'],
+                        'phone' => $data['delivery_phone'],
+                        'address' => $data['delivery_address'],
+                        'latitude' => $data['delivery_lat'] ?? null,
+                        'longitude' => $data['delivery_lng'] ?? null,
+                        'delivery_fee' => $data['delivery_fee'] ?? 0,
+                        'cod_amount' => $data['cod_amount'] ?? 0,
+                        'notes' => $data['delivery_notes'] ?? null,
+                        'delivery_status' => 'pending',
+                    ]);
+                }
 
-            return $order;
-        });
+                return $order;
+            });
+        } catch (\RuntimeException $exception) {
+            return back()->withErrors(['items' => $exception->getMessage()]);
+        }
 
         if ($user->can('create_orders') || url()->previous() === route('dashboard')) {
             return redirect()->back()->with('success', 'Đã gửi đơn hàng mới xuống nhà bếp thành công!');
@@ -271,7 +283,7 @@ class OrdersController extends Controller
         ]);
     }
 
-    public function updateStatus(Request $request, Order $order): RedirectResponse
+    public function updateStatus(Request $request, Order $order): RedirectResponse|JsonResponse
     {
         abort_if($order->restaurant_id !== $request->user()->restaurant_id, 403);
         abort_unless($request->user()->canAccessBranch((int) $order->branch_id), 403);
@@ -298,7 +310,15 @@ class OrdersController extends Controller
             ]);
         }
 
-        $this->orderService->updateOrderStatus($order, $data['status'], $user);
+        try {
+            $this->orderService->updateOrderStatus($order, $data['status'], $user);
+        } catch (\Throwable $e) {
+            if ($request->wantsJson()) {
+                return response()->json(['error' => $e->getMessage()], 422);
+            }
+
+            return back()->withErrors(['status' => $e->getMessage()]);
+        }
 
         return back()->with('success', 'Đã cập nhật trạng thái đơn hàng.');
     }

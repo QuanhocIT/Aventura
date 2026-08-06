@@ -21,6 +21,8 @@ interface Product {
     sku: string;
     category_id: number;
     category_name: string | null;
+    available_portions?: number | null;
+    is_out_of_stock?: boolean;
 }
 
 interface Category {
@@ -86,6 +88,10 @@ const selectCategory = (id: number | null) => {
 
 // Add product to cart
 const addToCart = (product: Product) => {
+    if (product.is_out_of_stock || product.available_portions === 0) {
+        return;
+    }
+
     const existing = cartItems.value.find(
         (item) => item.product.id === product.id,
     );
@@ -367,7 +373,12 @@ onMounted(() => {
                             v-for="product in filteredProducts"
                             :key="product.id"
                             @click="addToCart(product)"
-                            class="group relative flex cursor-pointer flex-col justify-between overflow-hidden rounded-xl border border-slate-200 bg-card transition-all duration-300 select-none hover:-translate-y-0.5 hover:shadow-md active:translate-y-0 dark:border-slate-800"
+                            :class="[
+                                'group relative flex flex-col justify-between overflow-hidden rounded-xl border border-slate-200 bg-card transition-all duration-300 select-none dark:border-slate-800',
+                                product.is_out_of_stock || product.available_portions === 0
+                                    ? 'cursor-not-allowed opacity-50'
+                                    : 'cursor-pointer hover:-translate-y-0.5 hover:shadow-md active:translate-y-0',
+                            ]"
                         >
                             <CardHeader class="p-3.5 pb-2">
                                 <div
@@ -397,6 +408,12 @@ onMounted(() => {
                                     class="text-sm font-bold text-violet-600 dark:text-violet-400"
                                 >
                                     {{ formatCurrency(product.price) }}
+                                </span>
+                                <span
+                                    v-if="product.available_portions !== null && product.available_portions !== undefined"
+                                    class="text-[10px] font-semibold text-emerald-600"
+                                >
+                                    {{ product.available_portions > 0 ? `Còn ${product.available_portions} suất` : 'Hết món' }}
                                 </span>
                                 <div
                                     class="flex h-7 w-7 items-center justify-center rounded-lg bg-violet-50 text-violet-600 transition-colors group-hover:bg-violet-600 group-hover:text-white dark:bg-violet-950/50 dark:text-violet-400 dark:group-hover:bg-violet-500"

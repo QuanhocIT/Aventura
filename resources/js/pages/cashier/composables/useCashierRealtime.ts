@@ -15,9 +15,9 @@ export function useCashierRealtime(restaurantId: () => number | undefined) {
         pollingActive.value = true;
         fallbackPollInterval = setInterval(() => {
             router.reload({
-                only: ['qrOrders', 'tablesData', 'externalOrders'],
+                only: ['qrOrders', 'tablesData', 'externalOrders', 'kitchenReadyItems'],
             });
-        }, 8000);
+        }, 6000);
     };
 
     const stopPollingFallback = () => {
@@ -64,7 +64,7 @@ export function useCashierRealtime(restaurantId: () => number | undefined) {
             window.Echo.private(`restaurant.${restId}`)
                 .listen('.OrderCreated', () => {
                     router.reload({
-                        only: ['qrOrders', 'tablesData', 'externalOrders'],
+                        only: ['qrOrders', 'tablesData', 'externalOrders', 'kitchenReadyItems'],
                     });
                 })
                 .listen('.OrderStatusUpdated', () => {
@@ -73,7 +73,15 @@ export function useCashierRealtime(restaurantId: () => number | undefined) {
                             'tablesData',
                             'completedHistory',
                             'externalOrders',
+                            'kitchenReadyItems',
                         ],
+                    });
+                });
+
+            window.Echo.channel(`kitchen.${restId}`)
+                .listen('.kitchen.updated', () => {
+                    router.reload({
+                        only: ['kitchenReadyItems', 'tablesData'],
                     });
                 });
         }
@@ -89,6 +97,7 @@ export function useCashierRealtime(restaurantId: () => number | undefined) {
 
         if (window.Echo && restId) {
             window.Echo.leave(`restaurant.${restId}`);
+            window.Echo.leave(`kitchen.${restId}`);
         }
     });
 

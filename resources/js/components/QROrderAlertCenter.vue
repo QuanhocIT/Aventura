@@ -329,6 +329,34 @@ onMounted(() => {
                         { duration: 15000 },
                     );
                 }
+            })
+
+            // 6. Listening to Kitchen Item Cancelled Alerts (Cashier, Order/Waiter, Owner)
+            .listen('.kitchen.item_cancelled', (e: any) => {
+                playAlarm('escalated');
+                const isAll = e.scope === 'all_pending';
+                const alertTitle = isAll
+                    ? `🚨 CẢNH BÁO: BẾP HỦY TOÀN BỘ MÓN "${e.product_name.toUpperCase()}"`
+                    : `🚨 CẢNH BÁO: BẾP HỦY MÓN BÀN ${e.table_name}`;
+
+                const detailsMsg = isAll
+                    ? `Bếp (${e.cancelled_by_name}) đã hủy toàn bộ ${e.cancelled_count} phần món "${e.product_name}" ở tất cả đơn chờ. Lý do: ${e.reason || 'Không ghi lý do'}. Thu ngân & Order vui lòng báo ngay cho khách đổi/hủy món!`
+                    : `Bếp (${e.cancelled_by_name}) đã hủy món "${e.product_name}" (x${e.quantity}) tại Bàn ${e.table_name}. Lý do: ${e.reason || 'Không ghi lý do'}. Thu ngân & Order vui lòng báo ngay cho khách!`;
+
+                activeNotifications.value.unshift({
+                    uid: `cancel-item-${Date.now()}`,
+                    type: 'kitchen_item_cancelled',
+                    title: alertTitle,
+                    subtitle: isAll ? `Áp dụng toàn bộ đơn chờ` : `Bàn ${e.table_name}`,
+                    details: detailsMsg,
+                    time: e.timestamp,
+                    urgency: 'critical',
+                });
+
+                toast.error(
+                    `⚠️ Bếp báo hủy món: ${e.product_name} (${isAll ? 'Tất cả đơn chờ' : 'Bàn ' + e.table_name}). Vui lòng báo khách!`,
+                    { duration: 15000 }
+                );
             });
     }
 });

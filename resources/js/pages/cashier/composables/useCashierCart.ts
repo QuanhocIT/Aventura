@@ -28,6 +28,15 @@ export function useCashierCart(
     };
 
     const addToCart = (product: ProductItem) => {
+        const currentQty = cartItems.value
+            .filter((item) => item.product_id === product.id && !item.id)
+            .reduce((sum, item) => sum + item.quantity, 0);
+        if (product.available_portions !== null && product.available_portions !== undefined && currentQty >= product.available_portions) {
+            toast(`Món ${product.name} chỉ còn ${product.available_portions} suất có thể phục vụ.`, 'error');
+
+            return;
+        }
+
         isNotified.value = false;
         triggerCartBounce();
         const existing = cartItems.value.find(
@@ -72,6 +81,13 @@ export function useCashierCart(
         );
 
         if (item) {
+            const product = products().find((p) => p.id === productId);
+            if (product?.available_portions !== null && product?.available_portions !== undefined && item.quantity >= product.available_portions) {
+                toast(`Món ${product.name} đã đạt số suất còn lại trong kho.`, 'error');
+
+                return;
+            }
+
             item.quantity += 1;
         } else {
             const product = products().find((p) => p.id === productId);
@@ -100,6 +116,15 @@ export function useCashierCart(
     };
 
     const increaseQty = (item: OrderItem) => {
+        if (! item.id) {
+            const product = products().find((p) => p.id === item.product_id);
+            if (product?.available_portions !== null && product?.available_portions !== undefined && item.quantity >= product.available_portions) {
+                toast(`Món ${product.name} đã đạt số suất còn lại trong kho.`, 'error');
+
+                return;
+            }
+        }
+
         isNotified.value = false;
         item.quantity += 1;
         triggerCartBounce();

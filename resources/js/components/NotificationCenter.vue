@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { usePage } from '@inertiajs/vue3';
+import { router, usePage } from '@inertiajs/vue3';
+import axios from 'axios';
 import {
     Bell,
     X,
@@ -27,6 +28,7 @@ type NotifType =
 
 interface Notification {
     id: number;
+    serverId?: string;
     type: NotifType;
     title: string;
     message: string;
@@ -45,6 +47,7 @@ let nextId = 0;
 
 const unread = computed(() => items.value.filter((n) => !n.read).length);
 const hasUnread = computed(() => unread.value > 0);
+let notificationPollTimer: ReturnType<typeof setInterval> | null = null;
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Helpers
@@ -95,11 +98,46 @@ function markRead(id: number) {
 
     if (notif) {
         notif.read = true;
+        if (notif.serverId) {
+            void axios.post(`/notifications/${notif.serverId}/read`).catch(() => undefined);
+        }
     }
 }
 
+function openNotification(id: number) {
+    const notif = items.value.find((n) => n.id === id);
+    markRead(id);
+
+    if (notif?.href) {
+        isOpen.value = false;
+        router.visit(notif.href);
+    }
+}
+
+function handleBellClick() {
+    const auditIssue = items.value.find(
+        (notification) =>
+            !notification.read && notification.href === '/audit-logs',
+    );
+
+    if (auditIssue) {
+        openNotification(auditIssue.id);
+
+        return;
+    }
+
+    isOpen.value = !isOpen.value;
+}
+
 function markAllRead() {
+    const serverIds = items.value
+        .filter((notification) => notification.serverId && !notification.read)
+        .map((notification) => notification.serverId as string);
+
     items.value.forEach((n) => (n.read = true));
+    serverIds.forEach((serverId) => {
+        void axios.post(`/notifications/${serverId}/read`).catch(() => undefined);
+    });
 }
 
 function removeNotif(id: number) {
@@ -107,7 +145,35 @@ function removeNotif(id: number) {
 }
 
 function clearAll() {
+    markAllRead();
     items.value = [];
+}
+
+async function loadDatabaseNotifications() {
+    try {
+        const response = await axios.get('/notifications');
+        const notifications = response.data?.notifications ?? [];
+
+        notifications.reverse().forEach((notification: any) => {
+            if (items.value.some((item) => item.serverId === String(notification.id))) {
+                return;
+            }
+
+            addNotification(
+                notification.type === 'inventory_product_sold_out' || notification.type === 'kitchen_menu_unavailable' ? 'stock' : 'info',
+                notification.title || (notification.type === 'inventory_product_sold_out' ? 'Món đã hết' : 'Thông báo'),
+                notification.message || '',
+                notification.url || '/notifications',
+            );
+            const created = items.value[0];
+            if (created) {
+                created.serverId = notification.id;
+                created.time = notification.created_at || created.time;
+            }
+        });
+    } catch {
+        // Keep the bell usable when the endpoint is temporarily unavailable.
+    }
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
@@ -150,8 +216,13 @@ function onClickOutside(e: MouseEvent) {
 
 onMounted(() => {
     document.addEventListener('mousedown', onClickOutside);
+    void loadDatabaseNotifications();
+    notificationPollTimer = setInterval(() => {
+        void loadDatabaseNotifications();
+    }, 30000);
 
-    if (items.value.length === 0) {
+    // Chỉ hiển thị thông báo thật từ server, không tạo dữ liệu mẫu.
+    if (false && items.value.length === 0) {
         addNotification(
             'stock',
             'Cảnh báo Tồn kho',
@@ -172,7 +243,12 @@ onMounted(() => {
         );
     }
 });
-onUnmounted(() => document.removeEventListener('mousedown', onClickOutside));
+onUnmounted(() => {
+    document.removeEventListener('mousedown', onClickOutside);
+    if (notificationPollTimer) {
+        clearInterval(notificationPollTimer);
+    }
+});
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Icon mapping
@@ -209,7 +285,7 @@ defineExpose({ addNotification });
             class="relative rounded-md p-2 transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
             :class="isOpen ? 'bg-muted' : ''"
             aria-label="Thông báo"
-            @click="isOpen = !isOpen"
+            @click="handleBellClick"
         >
             <Bell class="size-4 text-muted-foreground" />
 
@@ -306,7 +382,7 @@ defineExpose({ addNotification });
                                 :key="notif.id"
                                 class="group relative flex cursor-pointer items-start gap-3 border-b border-border/50 px-4 py-3 transition-colors last:border-0 hover:bg-muted/50"
                                 :class="notif.read ? 'opacity-70' : ''"
-                                @click="markRead(notif.id)"
+                                @click="openNotification(notif.id)"
                             >
                                 <!-- Icon -->
                                 <div

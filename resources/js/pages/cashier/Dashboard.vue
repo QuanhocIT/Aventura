@@ -51,6 +51,16 @@ const props = defineProps<{
     };
     qrOrders: any[];
     externalOrders: any[];
+    kitchenReadyItems: Array<{
+        id: number;
+        product_name: string;
+        quantity: number;
+        notes?: string | null;
+        prepared_at?: string | null;
+        prepared_by_name?: string | null;
+        table_name?: string | null;
+        order_number?: string | null;
+    }>;
     completedHistory: any[];
     weeklySchedules: any[];
     activeShifts: any[];
@@ -223,6 +233,30 @@ const confirmQrOrder = (orderInput: number | any) => {
         })
         .finally(() => {
             confirmingOrderId.value = null;
+        });
+};
+
+const servingItemId = ref<number | null>(null);
+const markItemServed = (itemId: number) => {
+    servingItemId.value = itemId;
+    axios
+        .post(`/kitchen/items/${itemId}/serve`)
+        .then((res) => {
+            if (res.data?.success) {
+                toast(res.data.message || 'Đã đánh dấu phục vụ món!');
+            } else {
+                toast('Đã đánh dấu phục vụ món!');
+            }
+            router.reload({ only: ['kitchenReadyItems', 'tablesData'] });
+        })
+        .catch((err) => {
+            toast(
+                err.response?.data?.message || 'Có lỗi khi đánh dấu phục vụ món.',
+                'error',
+            );
+        })
+        .finally(() => {
+            servingItemId.value = null;
         });
 };
 
@@ -540,34 +574,103 @@ onUnmounted(() => {
             <!-- TAB 3: LỊCH SỬ BẾP & HOÀN TẤT -->
             <div
                 v-else-if="activeTab === 'history'"
-                class="rounded-3xl border bg-white p-6 shadow-sm dark:bg-slate-900"
+                class="flex flex-col gap-6 text-left"
             >
-                <h3
-                    class="mb-4 text-base font-black text-slate-800 dark:text-slate-100"
-                >
-                    Lịch sử đơn hàng hoàn tất trong ca
-                </h3>
-                <div
-                    v-if="props.completedHistory?.length === 0"
-                    class="py-12 text-center text-xs font-bold text-slate-400"
-                >
-                    Chưa có đơn hàng nào hoàn tất trong ca này.
-                </div>
-                <div v-else class="flex flex-col gap-2">
+                <!-- Thống báo Món Bếp đã làm xong (Chờ phục vụ) -->
+                <div class="rounded-3xl border border-indigo-100 bg-white p-6 shadow-sm dark:border-indigo-900/40 dark:bg-slate-900">
+                    <div class="mb-4 flex items-center justify-between border-b border-slate-100 pb-4 dark:border-slate-800">
+                        <div class="flex items-center gap-2">
+                            <Utensils class="size-5 animate-bounce text-emerald-500" />
+                            <div>
+                                <h3 class="text-base font-black text-slate-800 dark:text-slate-100">
+                                    Thông báo món Bếp vừa chế biến xong
+                                </h3>
+                                <p class="text-xs text-muted-foreground">
+                                    Danh sách món đã nấu xong, chờ nhân viên bưng lên bàn cho khách
+                                </p>
+                            </div>
+                        </div>
+                        <span class="rounded-xl bg-emerald-50 px-3 py-1 font-mono text-xs font-bold text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-400">
+                            {{ props.kitchenReadyItems?.length || 0 }} món sẵn sàng
+                        </span>
+                    </div>
+
                     <div
-                        v-for="order in props.completedHistory"
-                        :key="order.id"
-                        class="flex items-center justify-between border-b pb-2 text-xs"
+                        v-if="!props.kitchenReadyItems || props.kitchenReadyItems.length === 0"
+                        class="py-8 text-center text-xs font-bold text-slate-400"
                     >
-                        <span class="font-bold"
-                            >#{{ order.order_number }} - Bàn
-                            {{ order.table_name || 'Mang về' }}</span
+                        🍳 Hiện không có món nào đang chờ bưng lên bàn.
+                    </div>
+
+                    <div v-else class="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
+                        <div
+                            v-for="item in props.kitchenReadyItems"
+                            :key="item.id"
+                            class="flex flex-col justify-between rounded-2xl border border-emerald-200 bg-emerald-50/40 p-4 text-left dark:border-emerald-900/40 dark:bg-emerald-950/20"
                         >
-                        <span class="font-mono font-bold text-emerald-600"
-                            >{{
-                                order.total_amount?.toLocaleString('vi-VN')
-                            }}đ</span
+                            <div>
+                                <div class="flex items-center justify-between">
+                                    <span class="rounded-lg bg-emerald-500 px-2 py-0.5 text-[10px] font-extrabold text-white">
+                                        ĐÃ NẤU XONG
+                                    </span>
+                                    <span class="font-mono text-xs font-bold text-slate-500">
+                                        {{ item.prepared_at || '' }}
+                                    </span>
+                                </div>
+
+                                <div class="mt-2 text-sm font-black text-slate-900 dark:text-slate-100">
+                                    Bàn {{ item.table_name || 'Mang về' }}
+                                </div>
+
+                                <div class="mt-1 text-xs font-extrabold text-emerald-700 dark:text-emerald-300">
+                                    {{ item.quantity }}x {{ item.product_name }}
+                                </div>
+
+                                <p v-if="item.notes" class="mt-1 text-[11px] italic text-amber-600 dark:text-amber-400">
+                                    Ghi chú: {{ item.notes }}
+                                </p>
+
+                                <div class="mt-2 text-[10px] text-muted-foreground">
+                                    Bếp: {{ item.prepared_by_name || 'Bếp' }}
+                                </div>
+                            </div>
+
+                            <Button
+                                size="sm"
+                                class="mt-3 w-full rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs"
+                                :disabled="servingItemId === item.id"
+                                @click="markItemServed(item.id)"
+                            >
+                                {{ servingItemId === item.id ? 'Đang cập nhật...' : '✓ Đã bưng lên bàn' }}
+                            </Button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Lịch sử đơn hàng hoàn tất -->
+                <div class="rounded-3xl border bg-white p-6 shadow-sm dark:bg-slate-900">
+                    <h3 class="mb-4 text-base font-black text-slate-800 dark:text-slate-100">
+                        Lịch sử đơn hàng hoàn tất trong ca
+                    </h3>
+                    <div
+                        v-if="!props.completedHistory || props.completedHistory.length === 0"
+                        class="py-8 text-center text-xs font-bold text-slate-400"
+                    >
+                        Chưa có đơn hàng nào hoàn tất trong ca này.
+                    </div>
+                    <div v-else class="flex flex-col gap-2">
+                        <div
+                            v-for="order in props.completedHistory"
+                            :key="order.id"
+                            class="flex items-center justify-between border-b pb-2 text-xs"
                         >
+                            <span class="font-bold">
+                                #{{ order.order_number }} - Bàn {{ order.table_name || 'Mang về' }}
+                            </span>
+                            <span class="font-mono font-bold text-emerald-600">
+                                {{ order.total_amount?.toLocaleString('vi-VN') }}đ
+                            </span>
+                        </div>
                     </div>
                 </div>
             </div>

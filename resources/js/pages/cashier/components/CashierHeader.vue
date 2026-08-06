@@ -38,7 +38,7 @@ const numberFormat = (val: number) =>
                 class="flex items-center gap-2.5 text-2xl font-black text-slate-800 dark:text-slate-100"
             >
                 <Coffee class="size-6 text-indigo-600" />
-                {{ restaurantName }} POS
+                {{ restaurantName.toLowerCase().includes('pos') ? restaurantName : restaurantName + ' POS' }}
                 <span
                     class="ml-2 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[9px] font-bold transition-all duration-300"
                     :class="

@@ -28,6 +28,9 @@ interface Product {
     sku: string;
     category_id: number;
     in_stock: boolean;
+    available_portions: number | null;
+    is_inventory_sold_out: boolean;
+    inventory_bottleneck_ingredient: string | null;
     paused_until: string | null;
     out_of_stock_until: string | null;
     is_kitchen_paused: boolean;
@@ -536,6 +539,17 @@ function addToCart() {
         return;
     }
 
+    if (
+        modalProduct.value.available_portions !== null &&
+        modalQuantity.value > modalProduct.value.available_portions
+    ) {
+        toast.error(
+            `Món này chỉ còn ${modalProduct.value.available_portions} suất có thể phục vụ.`,
+        );
+
+        return;
+    }
+
     const existingIndex = cart.value.findIndex(
         (item) => item.product.id === modalProduct.value!.id,
     );
@@ -561,6 +575,18 @@ function updateCartQuantity(productId: number, delta: number) {
 
     if (idx > -1) {
         const newQty = cart.value[idx].quantity + delta;
+
+        if (
+            delta > 0 &&
+            cart.value[idx].product.available_portions !== null &&
+            newQty > cart.value[idx].product.available_portions
+        ) {
+            toast.error(
+                `Món này chỉ còn ${cart.value[idx].product.available_portions} suất có thể phục vụ.`,
+            );
+
+            return;
+        }
 
         if (newQty <= 0) {
             cart.value.splice(idx, 1);
@@ -1464,6 +1490,11 @@ onUnmounted(() => {
                                     >Tạm Dừng</span
                                 >
                                 <span
+                                    v-else-if="product.is_inventory_sold_out"
+                                    class="rounded border border-red-200 bg-red-50/50 px-1.5 py-0.5 text-[9px] leading-tight font-black text-red-600 uppercase"
+                                    >Hết suất</span
+                                >
+                                <span
                                     v-else-if="product.is_kitchen_out_of_stock"
                                     class="rounded border border-orange-200 bg-orange-50/50 px-1 text-[9px] leading-tight font-black text-orange-600 uppercase"
                                     >Hết Món</span
@@ -1526,6 +1557,12 @@ onUnmounted(() => {
                                     class="text-xs font-black tracking-wide text-amber-600"
                                     >{{ formatCurrency(product.price) }}</span
                                 >
+                                <span
+                                    v-if="product.available_portions !== null"
+                                    class="text-[10px] font-bold text-emerald-600"
+                                >
+                                    {{ product.available_portions > 0 ? `Còn ${product.available_portions} suất` : 'Hết món' }}
+                                </span>
 
                                 <button
                                     @click="openItemModal(product)"
@@ -2133,8 +2170,9 @@ onUnmounted(() => {
                                     >{{ modalQuantity }}</span
                                 >
                                 <button
-                                    @click="modalQuantity = modalQuantity + 1"
-                                    class="cursor-pointer p-1 text-slate-400 hover:text-amber-500"
+                                    @click="modalQuantity = Math.min(modalQuantity + 1, modalProduct?.available_portions ?? modalQuantity + 1)"
+                                    :disabled="modalProduct?.available_portions !== null && modalProduct?.available_portions !== undefined && modalQuantity >= modalProduct.available_portions"
+                                    class="cursor-pointer p-1 text-slate-400 hover:text-amber-500 disabled:cursor-not-allowed disabled:opacity-40"
                                 >
                                     <Plus class="size-3.5" />
                                 </button>

@@ -36,6 +36,16 @@ const filteredProducts = computed(() => {
 
 const numberFormat = (val: number) =>
     new Intl.NumberFormat('vi-VN').format(val);
+
+const portionLabel = (product: ProductItem) => {
+    if (product.available_portions === null || product.available_portions === undefined) {
+        return null;
+    }
+
+    return product.available_portions > 0
+        ? `Còn ${product.available_portions} suất`
+        : 'Hết suất';
+};
 </script>
 
 <template>
@@ -125,6 +135,12 @@ const numberFormat = (val: number) =>
                         class="mt-1 font-mono text-sm font-black text-indigo-600 dark:text-indigo-400"
                     >
                         {{ numberFormat(product.price) }}đ
+                    </span>
+                    <span
+                        v-if="portionLabel(product)"
+                        class="mt-1 text-[10px] font-semibold text-emerald-600 dark:text-emerald-400"
+                    >
+                        {{ portionLabel(product) }}
                     </span>
                 </div>
 

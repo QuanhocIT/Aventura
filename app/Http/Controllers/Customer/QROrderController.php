@@ -10,7 +10,6 @@ use App\Http\Controllers\Controller;
 use App\Jobs\VerifyTemporaryOrderDelayJob;
 use App\Models\Customer;
 use App\Models\CustomerFeedback;
-use App\Models\Inventory;
 use App\Models\Order;
 use App\Models\Product;
 use App\Models\ProductCategory;
@@ -20,6 +19,7 @@ use App\Models\ScheduleAssignment;
 use App\Models\TemporaryOrder;
 use App\Models\WorkShift;
 use App\Services\CdpService;
+use App\Services\InventoryAvailabilityService;
 use App\Support\TenantRule;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\JsonResponse;
@@ -64,29 +64,14 @@ class QROrderController extends Controller
             ->with(['category', 'recipes.ingredient'])
             ->get();
 
-        // 3. Lấy kho vật lý hiện tại của chi nhánh để tính toán "Hết hàng"
-        $inventories = Inventory::withoutGlobalScopes()
-            ->where('restaurant_id', $restaurantId)
-            ->where('branch_id', $table->branch_id)
-            ->get()
-            ->keyBy('ingredient_id');
+        // 3. Tính số suất có thể phục vụ từ các lô còn hạn, sau khi trừ phần đã giữ.
+        $availabilityService = app(InventoryAvailabilityService::class);
+        $availabilityService->refreshBranch((int) $restaurantId, (int) $table->branch_id, false);
+        $availability = $availabilityService->forProducts($productsRaw, (int) $restaurantId, (int) $table->branch_id);
 
-        $products = $productsRaw->map(function ($p) use ($inventories) {
-            $inStock = true;
-
-            if ($p->track_inventory && $p->recipes->isNotEmpty()) {
-                foreach ($p->recipes as $recipe) {
-                    $required = (float) $recipe->quantity * (1 + ((float) $recipe->waste_rate / 100));
-                    $inv = $inventories->get($recipe->ingredient_id);
-                    $available = $inv ? (float) $inv->quantity_on_hand : 0.0;
-
-                    if ($available < $required) {
-                        $inStock = false;
-                        break;
-                    }
-                }
-            }
-
+        $products = $productsRaw->map(function ($p) use ($availability) {
+            $stock = $availability->get($p->id, []);
+            $isInventorySoldOut = (bool) ($stock['is_sold_out'] ?? false);
             $isKitchenPaused = $p->paused_until && $p->paused_until->isFuture();
             $isKitchenOutOfStock = $p->out_of_stock_until && $p->out_of_stock_until->isFuture();
 
@@ -100,7 +85,10 @@ class QROrderController extends Controller
                 'image_url' => $p->image_url,
                 'sku' => $p->sku,
                 'category_id' => $p->category_id,
-                'in_stock' => $inStock && $p->is_available && ! $isKitchenPaused && ! $isKitchenOutOfStock,
+                'in_stock' => ! $isInventorySoldOut && $p->is_available && ! $isKitchenPaused && ! $isKitchenOutOfStock,
+                'available_portions' => $stock['available_portions'] ?? null,
+                'is_inventory_sold_out' => $isInventorySoldOut,
+                'inventory_bottleneck_ingredient' => $stock['bottleneck_ingredient_name'] ?? null,
                 'paused_until' => $p->paused_until ? $p->paused_until->toIso8601String() : null,
                 'out_of_stock_until' => $p->out_of_stock_until ? $p->out_of_stock_until->toIso8601String() : null,
                 'is_kitchen_paused' => $isKitchenPaused,
@@ -279,14 +267,19 @@ class QROrderController extends Controller
         $products = Product::withoutGlobalScopes()
             ->where('restaurant_id', $restaurantId)
             ->whereIn('id', $productIds)
+            ->with('recipes.ingredient.unit')
             ->get()
             ->keyBy('id');
 
-        $inventories = Inventory::withoutGlobalScopes()
-            ->where('restaurant_id', $restaurantId)
-            ->where('branch_id', $table->branch_id)
-            ->get()
-            ->keyBy('ingredient_id');
+        try {
+            app(InventoryAvailabilityService::class)->assertItemsAvailable(
+                (int) $restaurantId,
+                (int) $table->branch_id,
+                $data['items'],
+            );
+        } catch (\RuntimeException $exception) {
+            return response()->json(['message' => $exception->getMessage()], 422);
+        }
 
         foreach ($data['items'] as $item) {
             $product = $products->get($item['product_id']);
@@ -299,19 +292,6 @@ class QROrderController extends Controller
 
             if ($isKitchenPaused || $isKitchenOutOfStock) {
                 return response()->json(['message' => "Món ăn {$product->name} tạm thời ngừng phục vụ."], 422);
-            }
-
-            // Kiểm tra tồn kho của nguyên liệu
-            if ($product->track_inventory && $product->recipes->isNotEmpty()) {
-                foreach ($product->recipes as $recipe) {
-                    $required = (float) $recipe->quantity * (1 + ((float) $recipe->waste_rate / 100)) * (float) $item['quantity'];
-                    $inv = $inventories->get($recipe->ingredient_id);
-                    $available = $inv ? (float) $inv->quantity_on_hand : 0.0;
-
-                    if ($available < $required) {
-                        return response()->json(['message' => "Món '{$product->name}' đã hết nguyên liệu chế biến."], 422);
-                    }
-                }
             }
 
             $lineTotal = (float) $product->price * (float) $item['quantity'];
