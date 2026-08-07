@@ -6,6 +6,7 @@ use App\Models\Product;
 use App\Models\ProductCategory;
 use App\Models\RestaurantBranch;
 use App\Models\SystemSetting;
+use App\Notifications\ProductRecipeRequiredNotification;
 use App\Support\Tenant\TenantContext;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -98,6 +99,8 @@ class ProductManagementController extends Controller
             'description' => ['nullable', 'string'],
             'scope' => ['required', 'in:shared,branch'],
             'branch_id' => ['nullable', 'integer', Rule::exists('restaurant_branches', 'id')->where('restaurant_id', $user->restaurant_id)],
+            'earn_points' => ['nullable', 'integer', 'min:0'],
+            'redeem_points' => ['nullable', 'integer', 'min:0'],
         ]);
         $branchId = $this->resolveCatalogBranch($user, app(TenantContext::class), $data);
 
@@ -134,6 +137,8 @@ class ProductManagementController extends Controller
             'image' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:'.$maxSize],
             'scope' => ['required', 'in:shared,branch'],
             'branch_id' => ['nullable', 'integer', Rule::exists('restaurant_branches', 'id')->where('restaurant_id', $user->restaurant_id)],
+            'earn_points' => ['nullable', 'integer', 'min:0'],
+            'redeem_points' => ['nullable', 'integer', 'min:0'],
         ]);
         $context = app(TenantContext::class);
         $branchId = $this->resolveCatalogBranch($user, $context, $data);
@@ -151,7 +156,7 @@ class ProductManagementController extends Controller
             $imageUrl = '/storage/'.$path;
         }
 
-        Product::create([
+        $product = Product::create([
             'restaurant_id' => $user->restaurant_id,
             'branch_id' => $branchId,
             'category_id' => $data['category_id'],
@@ -164,10 +169,14 @@ class ProductManagementController extends Controller
             'description' => $data['description'] ?? null,
             'image_url' => $imageUrl,
             'is_active' => true,
-            'is_available' => true,
+            // A tracked product stays hidden from selling menus until its
+            // first BOM row is saved in Inventory.
+            'is_available' => false,
             'is_processed' => (bool) ($data['is_processed'] ?? true),
             'track_inventory' => true,
         ]);
+
+        ($user->restaurant?->owner ?? $user)->notify(new ProductRecipeRequiredNotification($product));
 
         $this->forgetCatalogCaches($user->restaurant_id, $context, $branchId);
 

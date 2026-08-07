@@ -57,7 +57,9 @@ class InventoryReplenishService
                 $recipes = $product->recipes;
                 foreach ($recipes as $recipe) {
                     $ingId = $recipe->ingredient_id;
-                    $qtyUsed = $item->quantity * $recipe->quantity * (1 + ($recipe->waste_rate ?? 0) / 100);
+                    $qtyUsed = app(UnitConversionService::class)->recipeQuantityInIngredientUnit($recipe)
+                        * $item->quantity
+                        * (1 + ($recipe->waste_rate ?? 0) / 100);
 
                     if (! isset($dailyUsage[$ingId])) {
                         $dailyUsage[$ingId] = [];

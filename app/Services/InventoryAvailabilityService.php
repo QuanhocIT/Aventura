@@ -15,6 +15,8 @@ use Illuminate\Support\Facades\DB;
 
 class InventoryAvailabilityService
 {
+    public function __construct(private UnitConversionService $unitConversion) {}
+
     /**
      * Return the number of complete portions that can be produced now.
      * Stock is limited to non-expired lots and excludes active reservations.
@@ -38,7 +40,7 @@ class InventoryAvailabilityService
         $reservations = $this->holdingReservations($restaurantId, $branchId, $ingredientIds->all());
 
         return $products->mapWithKeys(function (Product $product) use ($stock, $reservations): array {
-            if (! $product->track_inventory || $product->recipes->isEmpty()) {
+            if (! $product->track_inventory) {
                 return [$product->id => [
                     'available_portions' => null,
                     'is_sold_out' => false,
@@ -47,10 +49,24 @@ class InventoryAvailabilityService
                 ]];
             }
 
+            // A tracked/sellable item without a BOM must never be presented as
+            // available. It would otherwise create revenue with zero COGS and
+            // silently skip inventory deduction.
+            if ($product->recipes->isEmpty()) {
+                return [$product->id => [
+                    'available_portions' => 0,
+                    'is_sold_out' => true,
+                    'bottleneck_ingredient_id' => null,
+                    'bottleneck_ingredient_name' => null,
+                    'missing_recipe' => true,
+                ]];
+            }
+
             $requirements = $product->recipes
                 ->groupBy('ingredient_id')
                 ->map(fn (Collection $recipes): float => $recipes->sum(
-                    fn ($recipe): float => (float) $recipe->quantity * (1 + ((float) $recipe->waste_rate / 100))
+                    fn ($recipe): float => $this->unitConversion->recipeQuantityInIngredientUnit($recipe)
+                        * (1 + ((float) $recipe->waste_rate / 100))
                 ));
 
             $availablePortions = null;
@@ -97,6 +113,7 @@ class InventoryAvailabilityService
         int $branchId,
         array $items,
         ?int $ignoreOrderId = null,
+        bool $enforceRecipes = false,
     ): void {
         $productIds = collect($items)->pluck('product_id')->filter()->unique()->values();
         if ($productIds->isEmpty()) {
@@ -133,9 +150,24 @@ class InventoryAvailabilityService
                 continue;
             }
 
+            if ($product->recipes->isEmpty()) {
+                // Pending/offline orders may be created before the recipe is
+                // completed. InventoryService enforces this at payment so
+                // revenue can never be recorded without a BOM.
+                if (! $enforceRecipes) {
+                    continue;
+                }
+
+                throw new \RuntimeException(
+                    'Món "'.$product->name.'" chưa có công thức định lượng. Không thể bán cho đến khi thiết lập đầy đủ BOM.'
+                );
+            }
+
             $quantity = (float) ($item['quantity'] ?? 0);
             foreach ($product->recipes as $recipe) {
-                $required = (float) $recipe->quantity * $quantity * (1 + ((float) $recipe->waste_rate / 100));
+                $required = $this->unitConversion->recipeQuantityInIngredientUnit($recipe)
+                    * $quantity
+                    * (1 + ((float) $recipe->waste_rate / 100));
                 $requirements[$recipe->ingredient_id] = ($requirements[$recipe->ingredient_id] ?? 0.0) + $required;
                 $ingredientNames[$recipe->ingredient_id] = $recipe->ingredient?->name ?? 'nguyên liệu';
             }

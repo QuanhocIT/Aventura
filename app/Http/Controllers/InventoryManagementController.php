@@ -16,13 +16,16 @@ use App\Models\SalaryAdjustment;
 use App\Models\Supplier;
 use App\Models\SystemSetting;
 use App\Models\Unit;
+use App\Notifications\ProductRecipeRequiredNotification;
 use App\Services\AnalyticsServiceClient;
 use App\Services\ApprovalService;
 use App\Services\CircuitBreaker;
+use App\Services\InventoryReadinessService;
 use App\Services\InventoryService;
 use App\Services\ProductCostService;
 use App\Services\QuotaService;
 use App\Services\SalaryService;
+use App\Services\UnitConversionService;
 use App\Support\Tenant\TenantContext;
 use App\Support\TenantRule;
 use Carbon\Carbon;
@@ -32,6 +35,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -141,7 +145,7 @@ class InventoryManagementController extends Controller
         $products = Product::where('restaurant_id', $user->restaurant_id)
             ->when($branchId, fn ($q) => $q->where(fn ($sub) => $sub->whereNull('branch_id')->orWhere('branch_id', $branchId)))
             ->where('is_processed', true)
-            ->with(['recipes.ingredient.unit', 'branch:id,name'])
+            ->with(['recipes.unit', 'recipes.ingredient.unit', 'branch:id,name'])
             ->get()
             ->map(fn ($p) => [
                 'id' => $p->id,
@@ -155,11 +159,24 @@ class InventoryManagementController extends Controller
                     'id' => $r->id,
                     'ingredient_id' => $r->ingredient_id,
                     'ingredient_name' => $r->ingredient?->name,
-                    'quantity' => $r->quantity,
-                    'unit_symbol' => $r->ingredient?->unit?->symbol,
+                    'quantity' => strtolower((string) ($r->unit?->symbol ?? $r->ingredient?->unit?->symbol)) === 'g'
+                        ? (int) $r->quantity
+                        : (float) $r->quantity,
+                    'unit_id' => $r->unit_id,
+                    'unit_symbol' => $r->unit?->symbol ?? $r->ingredient?->unit?->symbol,
                     'waste_rate' => $r->waste_rate,
                 ]),
             ]);
+
+        $safety = $branchId
+            ? app(InventoryReadinessService::class)->forBranch((int) $user->restaurant_id, (int) $branchId)
+            : [
+                'ready' => false,
+                'products_without_recipes' => 0,
+                'negative_stocks' => 0,
+                'opening_balance_pending' => 0,
+                'legacy_batches_pending' => 0,
+            ];
 
         $units = Unit::where('restaurant_id', $user->restaurant_id)
             ->orWhereNull('restaurant_id')
@@ -284,6 +301,7 @@ class InventoryManagementController extends Controller
             'recentPurchases' => $recentPurchases,
             'employees' => $employees,
             'recentWastes' => $recentWastes,
+            'safety' => $safety,
         ]);
     }
 
@@ -301,12 +319,13 @@ class InventoryManagementController extends Controller
             'product_id' => ['required', TenantRule::exists('products')],
             'items' => ['nullable', 'array'],
             'items.*.ingredient_id' => ['required', TenantRule::exists('ingredients')],
+            'items.*.unit_id' => ['nullable', 'integer'],
             'items.*.quantity' => ['required', 'numeric', 'min:0.001'],
             'items.*.waste_rate' => ['nullable', 'numeric', 'min:0', 'max:100'],
         ]);
 
         $productId = $data['product_id'];
-        Product::where('restaurant_id', $user->restaurant_id)
+        $product = Product::where('restaurant_id', $user->restaurant_id)
             ->whereKey($productId)
             ->where(function ($q) use ($branchId) {
                 $q->whereNull('branch_id')->orWhere('branch_id', $branchId);
@@ -315,18 +334,37 @@ class InventoryManagementController extends Controller
         $submittedIngredientIds = [];
 
         if (! empty($data['items'])) {
-            foreach ($data['items'] as $item) {
+            foreach ($data['items'] as $index => $item) {
                 $ingredient = Ingredient::where('restaurant_id', $user->restaurant_id)
                     ->where('branch_id', $branchId)
                     ->findOrFail($item['ingredient_id']);
+
+                $unitId = (int) ($item['unit_id'] ?? $ingredient->unit_id);
+                $recipeUnit = Unit::where(function ($query) use ($user): void {
+                    $query->where('restaurant_id', $user->restaurant_id)->orWhereNull('restaurant_id');
+                })->findOrFail($unitId);
+                if ($recipeUnit->type !== $ingredient->unit?->type) {
+                    throw ValidationException::withMessages([
+                        'items' => "Đơn vị {$recipeUnit->symbol} không cùng loại với nguyên liệu {$ingredient->name}.",
+                    ]);
+                }
+
+                $quantity = (float) $item['quantity'];
+                if (strtolower((string) $recipeUnit->symbol) === 'g' && abs($quantity - round($quantity)) > 0.0000001) {
+                    throw ValidationException::withMessages([
+                        "items.{$index}.quantity" => 'Định lượng theo gram phải là số nguyên vì g là đơn vị nhỏ nhất.',
+                    ]);
+                }
 
                 ProductRecipe::updateOrCreate([
                     'product_id' => $productId,
                     'ingredient_id' => $item['ingredient_id'],
                 ], [
                     'restaurant_id' => $user->restaurant_id,
-                    'unit_id' => $ingredient->unit_id,
-                    'quantity' => $item['quantity'],
+                    'unit_id' => $unitId,
+                    'quantity' => strtolower((string) $recipeUnit->symbol) === 'g'
+                        ? (int) $quantity
+                        : $item['quantity'],
                     'waste_rate' => $item['waste_rate'] ?? 0,
                 ]);
 
@@ -343,6 +381,14 @@ class InventoryManagementController extends Controller
         // Công thức đổi → giá vốn món đổi theo. Thiếu bước này thì mọi phân tích
         // biên lợi nhuận (Menu Engineering/BCG) chạy trên cost_price cũ.
         app(ProductCostService::class)->recalculateForProducts([$productId]);
+
+        $hasRecipes = ProductRecipe::where('restaurant_id', $user->restaurant_id)
+            ->where('product_id', $productId)
+            ->exists();
+        $product->update(['is_available' => $hasRecipes]);
+        if (! $hasRecipes) {
+            ($user->restaurant?->owner ?? $user)->notify(new ProductRecipeRequiredNotification($product));
+        }
 
         return back()->with('success', 'Đã lưu công thức định lượng thành công.');
     }
@@ -366,6 +412,14 @@ class InventoryManagementController extends Controller
         $recipe->delete();
 
         app(ProductCostService::class)->recalculateForProducts([$productId]);
+
+        $product = Product::where('restaurant_id', $request->user()->restaurant_id)
+            ->find($productId);
+        if ($product && ! ProductRecipe::where('product_id', $productId)->exists()) {
+            $product->update(['is_available' => false]);
+            ($request->user()->restaurant?->owner ?? $request->user())
+                ->notify(new ProductRecipeRequiredNotification($product));
+        }
 
         return back()->with('success', 'Đã xóa nguyên liệu khỏi công thức định lượng.');
     }
@@ -490,7 +544,9 @@ class InventoryManagementController extends Controller
         foreach ($recipes as $recipe) {
             $product = $recipe->product;
             if ($product) {
-                $ingredientUsageQty = (float) $recipe->quantity * (1 + ((float) ($recipe->waste_rate ?? 0) / 100));
+                $ingredientUsageQty = app(UnitConversionService::class)
+                    ->recipeQuantityInIngredientUnit($recipe)
+                    * (1 + ((float) ($recipe->waste_rate ?? 0) / 100));
                 $costForThisIngredient = $unitCost * $ingredientUsageQty;
 
                 if ($costForThisIngredient >= (float) $product->price) {
@@ -880,7 +936,12 @@ class InventoryManagementController extends Controller
      */
     public function reconcile(Request $request): RedirectResponse
     {
-        abort_unless($request->user()->hasAnyRole(['owner', 'manager', 'inventory_staff']), 403);
+        abort_unless(
+            $request->user()->hasAnyRole(['owner', 'manager'])
+                || $request->user()->can('adjust_inventory'),
+            403,
+            'Bạn không có quyền điều chỉnh tồn kho.'
+        );
 
         $branchId = $this->requireActiveBranch($request);
 
@@ -888,8 +949,9 @@ class InventoryManagementController extends Controller
             'reconcile_items' => ['required', 'array'],
             'reconcile_items.*.ingredient_id' => ['required', TenantRule::exists('ingredients')],
             'reconcile_items.*.physical_qty' => ['required', 'numeric', 'min:0'],
-            'employee_id' => ['nullable', 'integer'],
+            'employee_id' => ['nullable', TenantRule::exists('employees')],
             'notes' => ['nullable', 'string', 'max:500'],
+            'is_opening_balance' => ['nullable', 'boolean'],
         ]);
 
         $user = $request->user();
@@ -940,7 +1002,7 @@ class InventoryManagementController extends Controller
                             $totalNetDeficitCost += $lossCost;
                         }
 
-                        InventoryTransaction::create([
+                        $stocktake = InventoryTransaction::create([
                             'restaurant_id' => $user->restaurant_id,
                             'branch_id' => $branchId,
                             'ingredient_id' => $ingredientId,
@@ -954,6 +1016,14 @@ class InventoryManagementController extends Controller
                             'notes' => ($data['notes'] ?? 'Kiểm kho định kỳ')." (Lý thuyết: {$theoreticalQty}, Thực tế: {$physicalQty})",
                             'occurred_at' => now(),
                         ]);
+
+                        app(InventoryService::class)->reconcileBatchesForStocktake(
+                            $inventory,
+                            $currentQty,
+                            $physicalQty,
+                            $stocktake,
+                            $user->id,
+                        );
                     }
 
                     // Tự động kiểm tra cờ đỏ cảnh báo thất thoát cao (> 5%)
@@ -978,7 +1048,39 @@ class InventoryManagementController extends Controller
                         'theoretical_quantity' => $physicalQty,
                         'last_counted_at' => now(),
                         'updated_by' => $user->id,
+                        'opening_balance_reconciled_at' => ! empty($data['is_opening_balance'])
+                            ? now()
+                            : $inventory->opening_balance_reconciled_at,
+                        'opening_balance_reconciled_by' => ! empty($data['is_opening_balance'])
+                            ? $user->id
+                            : $inventory->opening_balance_reconciled_by,
                     ]);
+
+                    if (! empty($data['is_opening_balance'])) {
+                        InventoryBatch::where('restaurant_id', $user->restaurant_id)
+                            ->where('branch_id', $branchId)
+                            ->where('ingredient_id', $ingredientId)
+                            ->where('batch_number', 'like', 'LEGACY-%')
+                            ->update([
+                                'reconciled_at' => now(),
+                                'reconciled_by' => $user->id,
+                            ]);
+                    }
+
+                    AuditLog::log(
+                        'inventory_stocktake',
+                        'updated',
+                        $inventory,
+                        [
+                            'quantity_on_hand' => $currentQty,
+                            'theoretical_quantity' => $theoreticalQty,
+                        ],
+                        [
+                            'quantity_on_hand' => $physicalQty,
+                            'theoretical_quantity' => $physicalQty,
+                            'is_opening_balance' => ! empty($data['is_opening_balance']),
+                        ],
+                    );
                 }
 
                 // Nếu chọn quy trách nhiệm cho nhân viên và có tổng thất thoát âm

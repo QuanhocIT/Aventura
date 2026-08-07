@@ -32,6 +32,7 @@ class PermissionsSeeder extends Seeder
             'view_violations',
             'report_violations',
             'manage_restaurant_settings',
+            'adjust_inventory',
         ];
 
         // Tạo các permissions nếu chưa tồn tại
@@ -100,6 +101,7 @@ class PermissionsSeeder extends Seeder
         $inventoryRole->syncPermissions([
             'view_violations',
             'report_violations',
+            'adjust_inventory',
         ]);
 
         // 7. Lấy hoặc tạo role waiter (Nhân viên order)

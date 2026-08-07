@@ -56,6 +56,7 @@ class Order extends Model
             'completed_at' => 'datetime',
             'cancelled_at' => 'datetime',
             'refunded_at' => 'datetime',
+            'inventory_restored_at' => 'datetime',
             'scheduled_at' => 'datetime',
         ];
     }

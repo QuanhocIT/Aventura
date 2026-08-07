@@ -19,6 +19,7 @@ class InventoryBatch extends Model
         return [
             'purchased_at' => 'date',
             'expiry_date' => 'date',
+            'reconciled_at' => 'datetime',
             'quantity_remaining' => 'decimal:3',
             'unit_cost' => 'decimal:2',
         ];

@@ -24,12 +24,35 @@ class InventoryService
      */
     public function deductInventoryForOrder(Order $order, User $user): void
     {
-        $order->load(['items.product.recipes.ingredient.unit']);
+        // Queue retries and webhook retries must be idempotent. A committed
+        // usage ledger means this order has already consumed its BOM.
+        if (InventoryTransaction::withoutGlobalScopes()
+            ->where('restaurant_id', $order->restaurant_id)
+            ->where('order_id', $order->id)
+            ->where('type', 'usage')
+            ->where('direction', 'out')
+            ->exists()) {
+            return;
+        }
+
+        $order->load(['items.product.recipes.unit', 'items.product.recipes.ingredient.unit']);
+
+        foreach ($order->items as $item) {
+            $product = $item->product;
+            if ($item->status === 'cancelled' || ! $product?->track_inventory) {
+                continue;
+            }
+            if ($product->recipes->isEmpty()) {
+                throw new \RuntimeException(
+                    'Món "'.$product->name.'" chưa có công thức định lượng. Không thể ghi nhận bán hàng.'
+                );
+            }
+        }
 
         $ingredientIds = [];
         foreach ($order->items as $item) {
             $product = $item->product;
-            if ($product && $product->track_inventory) {
+            if ($item->status !== 'cancelled' && $product && $product->track_inventory) {
                 foreach ($product->recipes as $recipe) {
                     $ingredientIds[] = $recipe->ingredient_id;
                 }
@@ -50,9 +73,10 @@ class InventoryService
 
         foreach ($order->items as $item) {
             $product = $item->product;
-            if ($product && $product->track_inventory) {
+            if ($item->status !== 'cancelled' && $product && $product->track_inventory) {
                 foreach ($product->recipes as $recipe) {
-                    $recipeQuantity = (float) $recipe->quantity;
+                    $recipeQuantity = app(UnitConversionService::class)
+                        ->recipeQuantityInIngredientUnit($recipe);
                     $itemQuantity = (float) $item->quantity;
                     $wasteRate = (float) $recipe->waste_rate;
 
@@ -314,12 +338,72 @@ class InventoryService
         // Cập nhật tồn kho (không cho xuống âm)
         $inventory->update([
             'quantity_on_hand' => max(0, (float) $inventory->quantity_on_hand - $wasteQty),
+            'theoretical_quantity' => max(0, (float) $inventory->theoretical_quantity - $wasteQty),
         ]);
 
         event(new ProductStockUpdated($restaurantId));
         app(InventoryAvailabilityService::class)->refreshBranch($restaurantId, $branchId);
 
         return $transaction;
+    }
+
+    /**
+     * Keep the lot ledger aligned with a physical stocktake adjustment.
+     * Without this, the aggregate inventory and FEFO lots could disagree
+     * after an inventory count.
+     */
+    public function reconcileBatchesForStocktake(
+        Inventory $inventory,
+        float $currentQuantity,
+        float $physicalQuantity,
+        InventoryTransaction $transaction,
+        int $performedBy,
+    ): void {
+        $difference = round($physicalQuantity - $currentQuantity, 3);
+        if (abs($difference) <= 0.0005) {
+            return;
+        }
+
+        $this->ensureLegacyBatchForInventory($inventory);
+
+        if ($difference < 0) {
+            $consumed = $this->consumeBatches(
+                (int) $inventory->restaurant_id,
+                (int) $inventory->branch_id,
+                (int) $inventory->ingredient_id,
+                abs($difference),
+                true,
+                $inventory->ingredient?->name,
+            );
+            $this->recordBatchAllocations($transaction, $consumed['allocations'], 'out');
+            $quantity = abs($difference);
+            $transaction->update([
+                'unit_cost' => $quantity > 0 ? $consumed['total_cost'] / $quantity : 0,
+                'total_cost' => $consumed['total_cost'],
+            ]);
+
+            return;
+        }
+
+        $batch = InventoryBatch::create([
+            'restaurant_id' => $inventory->restaurant_id,
+            'branch_id' => $inventory->branch_id,
+            'ingredient_id' => $inventory->ingredient_id,
+            'batch_number' => 'ADJ-'.$transaction->id,
+            'quantity_remaining' => $difference,
+            'unit_cost' => (float) $inventory->last_cost,
+            'purchased_at' => now()->toDateString(),
+            'expiry_date' => null,
+            'status' => 'active',
+            'reconciled_at' => now(),
+            'reconciled_by' => $performedBy,
+        ]);
+
+        $this->recordBatchAllocations($transaction, [[
+            'batch_id' => $batch->id,
+            'quantity' => $difference,
+            'unit_cost' => (float) $inventory->last_cost,
+        ]], 'in');
     }
 
     /**
@@ -616,12 +700,22 @@ class InventoryService
 
     public function restoreStockForOrder(Order $order): void
     {
-        $order->load(['items.product.recipes.ingredient.unit']);
+        $order->load(['items.product.recipes.unit', 'items.product.recipes.ingredient.unit']);
+
+        if (InventoryTransaction::withoutGlobalScopes()
+            ->where('restaurant_id', $order->restaurant_id)
+            ->where('order_id', $order->id)
+            ->where('type', 'adjustment')
+            ->where('direction', 'in')
+            ->where('notes', 'like', 'Hoàn kho nguyên vật liệu%')
+            ->exists()) {
+            return;
+        }
 
         $ingredientIds = [];
         foreach ($order->items as $item) {
             $product = $item->product;
-            if ($product && $product->track_inventory) {
+            if ($item->status !== 'cancelled' && $product && $product->track_inventory) {
                 foreach ($product->recipes as $recipe) {
                     $ingredientIds[] = $recipe->ingredient_id;
                 }
@@ -653,9 +747,10 @@ class InventoryService
 
         foreach ($order->items as $item) {
             $product = $item->product;
-            if ($product && $product->track_inventory) {
+            if ($item->status !== 'cancelled' && $product && $product->track_inventory) {
                 foreach ($product->recipes as $recipe) {
-                    $recipeQuantity = (float) $recipe->quantity;
+                    $recipeQuantity = app(UnitConversionService::class)
+                        ->recipeQuantityInIngredientUnit($recipe);
                     $itemQuantity = (float) $item->quantity;
                     $wasteRate = (float) $recipe->waste_rate;
 

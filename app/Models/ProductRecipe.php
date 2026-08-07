@@ -23,4 +23,9 @@ class ProductRecipe extends Model
     {
         return $this->belongsTo(Ingredient::class);
     }
+
+    public function unit(): BelongsTo
+    {
+        return $this->belongsTo(Unit::class);
+    }
 }

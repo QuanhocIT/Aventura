@@ -60,6 +60,7 @@ class OrdersController extends Controller
             })
             ->where('is_active', true)
             ->where('is_available', true)
+            ->sellableMenu()
             ->with(['category', 'recipes.ingredient.unit'])
             ->get();
 
@@ -68,19 +69,19 @@ class OrdersController extends Controller
         $availability = $availabilityService->forProducts($products, $restaurantId, (int) $branchId);
 
         $products = $products->map(fn ($p) => [
-                'id' => $p->id,
-                'name' => $p->name,
-                'price' => (float) $p->price,
-                'sku' => $p->sku ?? '—',
-                'category_id' => $p->category_id,
-                'category_name' => $p->category?->name,
-                'available_portions' => $availability->get($p->id)['available_portions'] ?? null,
-                'paused_until' => $p->paused_until ? $p->paused_until->toIso8601String() : null,
-                'out_of_stock_until' => $p->out_of_stock_until ? $p->out_of_stock_until->toIso8601String() : null,
-                'is_paused' => $p->paused_until && $p->paused_until->isFuture(),
-                'is_out_of_stock' => ($availability->get($p->id)['is_sold_out'] ?? false)
-                    || ($p->out_of_stock_until && $p->out_of_stock_until->isFuture()),
-            ]);
+            'id' => $p->id,
+            'name' => $p->name,
+            'price' => (float) $p->price,
+            'sku' => $p->sku ?? '—',
+            'category_id' => $p->category_id,
+            'category_name' => $p->category?->name,
+            'available_portions' => $availability->get($p->id)['available_portions'] ?? null,
+            'paused_until' => $p->paused_until ? $p->paused_until->toIso8601String() : null,
+            'out_of_stock_until' => $p->out_of_stock_until ? $p->out_of_stock_until->toIso8601String() : null,
+            'is_paused' => $p->paused_until && $p->paused_until->isFuture(),
+            'is_out_of_stock' => ($availability->get($p->id)['is_sold_out'] ?? false)
+                || ($p->out_of_stock_until && $p->out_of_stock_until->isFuture()),
+        ]);
 
         $tables = RestaurantTable::where('restaurant_id', $restaurantId)
             ->where('branch_id', $branchId)
@@ -141,6 +142,7 @@ class OrdersController extends Controller
                 $query->whereNull('branch_id')->orWhere('branch_id', $branchId);
             })
             ->whereIn('id', $productIds)
+            ->sellableMenu()
             ->count();
         if ($validProductCount !== $productIds->count()) {
             return back()->withErrors(['items' => 'Có món không thuộc thực đơn của chi nhánh hiện tại.']);
@@ -161,6 +163,7 @@ class OrdersController extends Controller
                 ->where(function ($query) use ($branchId) {
                     $query->whereNull('branch_id')->orWhere('branch_id', $branchId);
                 })
+                ->sellableMenu()
                 ->get();
             foreach ($products as $product) {
                 $isKitchenPaused = $product->paused_until && $product->paused_until->isFuture();
@@ -649,7 +652,18 @@ class OrdersController extends Controller
 
         // P1: Luôn queue các tác vụ nặng sau thanh toán (inventory deduction,
         // loyalty points, RFM recalculation) để response về POS ngay lập tức.
-        $this->orderService->payOrder($order, $data, $user, queuePostPayment: true);
+        try {
+            // Khấu trừ BOM phải nằm trong cùng transaction với payment. Nếu
+            // queue sau khi ghi paid, job có thể thất bại vì hết kho và để lại
+            // doanh thu không có tồn/COGS tương ứng.
+            $this->orderService->payOrder($order, $data, $user, queuePostPayment: true);
+        } catch (\Throwable $e) {
+            if ($request->wantsJson()) {
+                return response()->json(['error' => $e->getMessage()], 422);
+            }
+
+            return back()->withErrors(['items' => $e->getMessage()]);
+        }
 
         if ($request->wantsJson()) {
             return response()->json([
@@ -707,7 +721,7 @@ class OrdersController extends Controller
         abort_unless($user->can('process_payments') || $user->can('approve_requests'), 403);
         abort_if($order->restaurant_id !== $user->restaurant_id, 403);
         abort_unless($user->canAccessBranch((int) $order->branch_id), 403);
-        abort_unless($order->payment_status === 'paid', 422, 'Chỉ có thể hoàn tiền đơn đã thanh toán.');
+        abort_unless(in_array($order->payment_status, ['paid', 'partial_refund'], true), 422, 'Chỉ có thể hoàn tiền đơn đã thanh toán.');
 
         $data = $request->validate([
             'reason' => ['required', 'string', 'min:10', 'max:500'],
@@ -715,6 +729,15 @@ class OrdersController extends Controller
             'bypass_code' => ['nullable', 'string'],
             'refund_type' => ['required', 'in:full,partial'],
         ]);
+
+        $alreadyRefunded = (float) ($order->refund_amount ?? 0);
+        $remainingRefundable = max(0.0, (float) $order->total_amount - $alreadyRefunded);
+        if ((float) $data['refund_amount'] > $remainingRefundable + 0.01) {
+            return back()->withErrors(['refund_amount' => 'Số tiền hoàn vượt quá số tiền còn được hoàn của đơn hàng.']);
+        }
+        if ($data['refund_type'] === 'full' && abs((float) $data['refund_amount'] - $remainingRefundable) > 0.01) {
+            return back()->withErrors(['refund_amount' => 'Hoàn toàn phần phải bằng đúng số tiền còn được hoàn.']);
+        }
 
         // Nếu không phải Owner/Manager → phải có bypass code
         if (! $user->can('approve_requests')) {
@@ -732,20 +755,44 @@ class OrdersController extends Controller
         }
 
         DB::transaction(function () use ($order, $data, $user) {
+            $order = Order::whereKey($order->id)->lockForUpdate()->firstOrFail();
             $oldPaymentStatus = $order->payment_status;
+            $oldRefundAmount = (float) ($order->refund_amount ?? 0);
+            $refundAmount = (float) $data['refund_amount'];
+
+            if (! in_array($oldPaymentStatus, ['paid', 'partial_refund'], true)
+                || $oldRefundAmount + $refundAmount > (float) $order->total_amount + 0.01) {
+                throw new \RuntimeException('Đơn hàng đã được hoàn tiền hoặc không còn số dư để hoàn.');
+            }
 
             $order->update([
                 'payment_status' => $data['refund_type'] === 'full' ? 'refunded' : 'partial_refund',
-                'refund_amount' => $data['refund_amount'],
-                'refund_reason' => $data['reason'],
+                'refund_amount' => $oldRefundAmount + $refundAmount,
+                'refund_reason' => trim(($order->refund_reason ? $order->refund_reason."\n" : '').$data['reason']),
                 'refunded_at' => now(),
                 'refunded_by' => $user->id,
             ]);
 
+            Payment::create([
+                'restaurant_id' => $order->restaurant_id,
+                'branch_id' => $order->branch_id,
+                'order_id' => $order->id,
+                'processed_by' => $user->id,
+                'payment_method' => $order->payments()->where('status', 'paid')->value('payment_method') ?? 'mixed',
+                'status' => 'refunded',
+                'amount' => $refundAmount,
+                'cash_received' => 0,
+                'change_amount' => 0,
+                'paid_at' => now(),
+            ]);
+
             // Hoàn tồn kho nếu refund toàn bộ
-            if ($data['refund_type'] === 'full') {
+            if ($data['refund_type'] === 'full' && ! $order->inventory_restored_at) {
                 app(InventoryService::class)->restoreStockForOrder($order);
-                $order->update(['status' => 'cancelled']);
+                $order->update([
+                    'status' => 'cancelled',
+                    'inventory_restored_at' => now(),
+                ]);
             }
 
             // Ghi audit log — TRƯỚC ĐÂY dùng cột auditable_type/auditable_id (bảng

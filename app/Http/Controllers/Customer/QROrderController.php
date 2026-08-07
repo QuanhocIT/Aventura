@@ -61,6 +61,7 @@ class QROrderController extends Controller
             ->where('restaurant_id', $restaurantId)
             ->where('is_active', true)
             ->where('is_available', true)
+            ->sellableMenu()
             ->with(['category', 'recipes.ingredient'])
             ->get();
 
@@ -267,6 +268,7 @@ class QROrderController extends Controller
         $products = Product::withoutGlobalScopes()
             ->where('restaurant_id', $restaurantId)
             ->whereIn('id', $productIds)
+            ->sellableMenu()
             ->with('recipes.ingredient.unit')
             ->get()
             ->keyBy('id');
@@ -278,7 +280,12 @@ class QROrderController extends Controller
                 $data['items'],
             );
         } catch (\RuntimeException $exception) {
-            return response()->json(['message' => $exception->getMessage()], 422);
+            $firstProduct = $products->get((int) ($data['items'][0]['product_id'] ?? 0));
+            return response()->json([
+                'message' => $firstProduct
+                    ? "Món '{$firstProduct->name}' đã hết nguyên liệu chế biến."
+                    : $exception->getMessage(),
+            ], 422);
         }
 
         foreach ($data['items'] as $item) {

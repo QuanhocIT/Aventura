@@ -92,6 +92,7 @@ class KitchenController extends Controller
                 $query->whereNull('branch_id')->orWhere('branch_id', $branchId);
             })
             ->where('is_active', true)
+            ->sellableMenu()
             ->with(['category', 'recipes.ingredient.unit'])
             ->get();
 
@@ -100,17 +101,17 @@ class KitchenController extends Controller
         $availability = $availabilityService->forProducts($products, $restaurantId, (int) $branchId);
 
         $products = $products->map(fn ($p) => [
-                'id' => $p->id,
-                'name' => $p->name,
-                'price' => (float) $p->price,
-                'category_name' => $p->category?->name ?? 'Món khác',
-                'available_portions' => $availability->get($p->id)['available_portions'] ?? null,
-                'paused_until' => $p->paused_until ? $p->paused_until->toIso8601String() : null,
-                'out_of_stock_until' => $p->out_of_stock_until ? $p->out_of_stock_until->toIso8601String() : null,
-                'is_paused' => (bool) ($p->paused_until && $p->paused_until->isFuture()),
-                'is_out_of_stock' => (bool) (($availability->get($p->id)['is_sold_out'] ?? false)
-                    || ($p->out_of_stock_until && $p->out_of_stock_until->isFuture())),
-            ])->all();
+            'id' => $p->id,
+            'name' => $p->name,
+            'price' => (float) $p->price,
+            'category_name' => $p->category?->name ?? 'Món khác',
+            'available_portions' => $availability->get($p->id)['available_portions'] ?? null,
+            'paused_until' => $p->paused_until ? $p->paused_until->toIso8601String() : null,
+            'out_of_stock_until' => $p->out_of_stock_until ? $p->out_of_stock_until->toIso8601String() : null,
+            'is_paused' => (bool) ($p->paused_until && $p->paused_until->isFuture()),
+            'is_out_of_stock' => (bool) (($availability->get($p->id)['is_sold_out'] ?? false)
+                || ($p->out_of_stock_until && $p->out_of_stock_until->isFuture())),
+        ])->all();
 
         $ingredients = Ingredient::where('restaurant_id', $restaurantId)
             ->when($branchId !== null, fn ($q) => $q->where('branch_id', $branchId))
@@ -318,7 +319,7 @@ class KitchenController extends Controller
             foreach ($pendingItemsToCancel as $pendingItem) {
                 $pendingItem->update([
                     'status' => 'cancelled',
-                    'notes' => $pendingItem->notes ? $pendingItem->notes . ' ' . $noteAppend : $noteAppend,
+                    'notes' => $pendingItem->notes ? $pendingItem->notes.' '.$noteAppend : $noteAppend,
                 ]);
 
                 if ($pendingItem->order) {
@@ -336,7 +337,7 @@ class KitchenController extends Controller
             $item->loadMissing(['order.table', 'product']);
             $item->update([
                 'status' => 'cancelled',
-                'notes' => $item->notes ? $item->notes . ' ' . $noteAppend : $noteAppend,
+                'notes' => $item->notes ? $item->notes.' '.$noteAppend : $noteAppend,
             ]);
             $cancelledCount = 1;
 

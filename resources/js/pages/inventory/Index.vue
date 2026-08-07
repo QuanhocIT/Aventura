@@ -25,7 +25,14 @@ import {
     Layers,
     CalendarCheck,
 } from 'lucide-vue-next';
-import { computed, ref, onMounted, watch } from 'vue';
+import {
+    computed,
+    ref,
+    onBeforeUnmount,
+    onMounted,
+    watch,
+    nextTick,
+} from 'vue';
 import { toast } from 'vue-sonner';
 import { Button } from '@/components/ui/button';
 import {
@@ -80,6 +87,7 @@ type RecipeItem = {
     ingredient_id: number;
     ingredient_name: string;
     quantity: number;
+    unit_id?: number;
     unit_symbol: string;
     waste_rate: number;
 };
@@ -92,7 +100,13 @@ type Product = {
     price: number;
     recipes: RecipeItem[];
 };
-type Unit = { id: number; name: string; symbol: string };
+type Unit = {
+    id: number;
+    name: string;
+    symbol: string;
+    type?: string;
+    conversion_factor_to_base?: number;
+};
 type Supplier = { id: number; name: string };
 type Purchase = {
     id: number;
@@ -129,10 +143,19 @@ const props = defineProps<{
     recentPurchases: Purchase[];
     employees: Employee[];
     recentWastes: WasteRecord[];
+    safety: {
+        ready: boolean;
+        products_without_recipes: number;
+        negative_stocks: number;
+        opening_balance_pending: number;
+        legacy_batches_pending: number;
+    };
 }>();
 
 // ── Tabs ──────────────────────────────────────────────────────────────────────
-const activeTab = ref<'stock' | 'purchase' | 'waste' | 'reconcile' | 'planning'>('stock');
+const activeTab = ref<
+    'stock' | 'purchase' | 'waste' | 'reconcile' | 'planning'
+>('stock');
 
 // ── Storage Type Filter & Ingredient Modal ──────────────────────────────────
 const selectedStorageTypeFilter = ref<string>('all');
@@ -181,7 +204,9 @@ const filteredRecipeProducts = computed(() => {
     }
 
     return props.products.filter(
-        (p) => p.name.toLowerCase().includes(q) || p.code.toLowerCase().includes(q),
+        (p) =>
+            p.name.toLowerCase().includes(q) ||
+            p.code.toLowerCase().includes(q),
     );
 });
 
@@ -245,6 +270,7 @@ const recipeForm = useForm({
     product_id: '',
     items: [] as Array<{
         ingredient_id: string;
+        unit_id: string;
         quantity: string;
         waste_rate: string;
     }>,
@@ -261,6 +287,31 @@ const purchaseForm = useForm({
     expiry_date: '',
     invoice_file: null as File | null,
 });
+
+const purchaseFormCard = ref<HTMLElement | null>(null);
+const aiForecastCardHeight = ref<number | null>(null);
+let purchaseCardResizeObserver: ResizeObserver | null = null;
+
+const syncAiForecastCardHeight = () => {
+    const height = purchaseFormCard.value?.getBoundingClientRect().height;
+    if (height) {
+        aiForecastCardHeight.value = Math.round(height);
+    }
+};
+
+const observePurchaseFormCard = () => {
+    purchaseCardResizeObserver?.disconnect();
+    purchaseCardResizeObserver = null;
+
+    if (!purchaseFormCard.value) {
+        aiForecastCardHeight.value = null;
+        return;
+    }
+
+    syncAiForecastCardHeight();
+    purchaseCardResizeObserver = new ResizeObserver(syncAiForecastCardHeight);
+    purchaseCardResizeObserver.observe(purchaseFormCard.value);
+};
 
 // ── AI Forecast ──────────────────────────────────────────────────────────────
 const aiForecasts = ref<any[]>([]);
@@ -293,6 +344,23 @@ const applyForecast = (item: any) => {
 
 onMounted(() => {
     fetchAiForecast();
+    if (activeTab.value === 'purchase') {
+        void nextTick(observePurchaseFormCard);
+    }
+});
+
+onBeforeUnmount(() => {
+    purchaseCardResizeObserver?.disconnect();
+});
+
+watch(activeTab, (tab) => {
+    if (tab === 'purchase') {
+        void nextTick(observePurchaseFormCard);
+    } else {
+        purchaseCardResizeObserver?.disconnect();
+        purchaseCardResizeObserver = null;
+        aiForecastCardHeight.value = null;
+    }
 });
 
 const isGeneratingAutoPo = ref(false);
@@ -331,6 +399,7 @@ const reconcileNotes = ref('');
 const reconcileEmployeeId = ref('');
 const physicalStockMap = ref<Record<number, string>>({});
 const isReconciling = ref(false);
+const reconcileOpeningBalance = ref(false);
 
 const initPhysicalStockMap = () => {
     props.ingredients.forEach((ing) => {
@@ -353,7 +422,8 @@ watch(
 );
 
 const getDiff = (ing: Ingredient) =>
-    Number(physicalStockMap.value[ing.id] ?? ing.stock ?? 0) - Number(ing.stock ?? 0);
+    Number(physicalStockMap.value[ing.id] ?? ing.stock ?? 0) -
+    Number(ing.stock ?? 0);
 
 const reconcileStats = computed(() => {
     let matched = 0;
@@ -404,11 +474,14 @@ const submitReconcile = () => {
         {
             reconcile_items: items,
             employee_id: reconcileEmployeeId.value || null,
+            is_opening_balance: reconcileOpeningBalance.value,
             notes: reconcileNotes.value || 'Kiểm kê & Cân bằng tồn kho định kỳ',
         },
         {
             onSuccess: () => {
-                toast.success('Đã hoàn tất kiểm kê & cân bằng tồn kho thành công!');
+                toast.success(
+                    'Đã hoàn tất kiểm kê & cân bằng tồn kho thành công!',
+                );
             },
             onError: () => {
                 toast.error('Có lỗi xảy ra khi cân bằng tồn kho.');
@@ -450,7 +523,7 @@ const filteredIngredientsByStorage = computed(() => {
 });
 
 const ingredientCurrentPage = ref(1);
-const ingredientPerPage = 4;
+const ingredientPerPage = 5;
 
 const totalIngredientPages = computed(() =>
     Math.ceil(filteredIngredientsByStorage.value.length / ingredientPerPage),
@@ -499,12 +572,9 @@ const visibleIngredientPages = computed(() => {
     return pages;
 });
 
-watch(
-    [ingredientSearch, selectedStorageTypeFilter],
-    () => {
-        ingredientCurrentPage.value = 1;
-    },
-);
+watch([ingredientSearch, selectedStorageTypeFilter], () => {
+    ingredientCurrentPage.value = 1;
+});
 
 watch(totalIngredientPages, (total) => {
     if (total === 0) {
@@ -595,9 +665,59 @@ void deleteRecipe;
 const addRecipeRow = () => {
     recipeForm.items.push({
         ingredient_id: '',
+        unit_id: '',
         quantity: '',
         waste_rate: '0',
     });
+};
+
+const recipeUnitsFor = (ingredientId: string) => {
+    const ingredient = props.ingredients.find(
+        (item) => String(item.id) === ingredientId,
+    );
+    if (!ingredient?.unit) {
+        return props.units;
+    }
+
+    const ingredientUnit = props.units.find(
+        (unit) => unit.id === ingredient.unit?.id,
+    );
+    return ingredientUnit?.type
+        ? props.units.filter(
+              (unit) => !unit.type || unit.type === ingredientUnit.type,
+          )
+        : props.units;
+};
+
+const recipeUnitFor = (unitId: string) =>
+    props.units.find((unit) => String(unit.id) === String(unitId));
+
+const recipeQuantityIsInteger = (unitId: string) =>
+    recipeUnitFor(unitId)?.symbol.toLowerCase() === 'g';
+
+const recipeQuantityStep = (unitId: string) =>
+    recipeQuantityIsInteger(unitId) ? '1' : '0.001';
+
+const normalizeRecipeQuantity = (item: {
+    unit_id: string;
+    quantity: string;
+}) => {
+    if (!recipeQuantityIsInteger(item.unit_id)) {
+        return;
+    }
+
+    const wholeNumber = String(item.quantity ?? '').match(/^\d+/)?.[0] ?? '';
+    item.quantity = wholeNumber;
+};
+
+const syncRecipeUnit = (item: { ingredient_id: string; unit_id: string }) => {
+    if (!item.unit_id) {
+        item.unit_id = String(
+            props.ingredients.find(
+                (ingredient) => String(ingredient.id) === item.ingredient_id,
+            )?.unit?.id ?? '',
+        );
+    }
 };
 
 const removeRecipeRow = (index: number) => {
@@ -611,6 +731,7 @@ const openAddRecipeModal = (prod: Product) => {
     if (prod.recipes && prod.recipes.length > 0) {
         recipeForm.items = prod.recipes.map((r) => ({
             ingredient_id: String(r.ingredient_id),
+            unit_id: String(r.unit_id ?? ''),
             quantity: String(r.quantity),
             waste_rate: String(r.waste_rate ?? 0),
         }));
@@ -618,6 +739,7 @@ const openAddRecipeModal = (prod: Product) => {
         recipeForm.items = [
             {
                 ingredient_id: '',
+                unit_id: '',
                 quantity: '',
                 waste_rate: '0',
             },
@@ -737,6 +859,34 @@ const submitWaste = () => {
             </Button>
         </div>
 
+        <!-- Operational safety gate -->
+        <div
+            v-if="!safety.ready"
+            class="flex items-start gap-3 rounded-xl border border-rose-300 bg-rose-50 px-4 py-3 text-sm text-rose-800 dark:border-rose-900 dark:bg-rose-950/30 dark:text-rose-300"
+        >
+            <AlertTriangle class="mt-0.5 size-4 shrink-0" />
+            <div>
+                <p class="font-bold">CHƯA ĐỦ CHỐT AN TOÀN — chưa nên mở bán</p>
+                <p class="mt-1 text-xs">
+                    <span v-if="safety.products_without_recipes > 0"
+                        >{{ safety.products_without_recipes }} món chưa có công
+                        thức;
+                    </span>
+                    <span v-if="safety.negative_stocks > 0"
+                        >{{ safety.negative_stocks }} nguyên liệu đang âm tồn;
+                    </span>
+                    <span v-if="safety.opening_balance_pending > 0"
+                        >{{ safety.opening_balance_pending }} nguyên liệu chưa
+                        đối soát số dư đầu kỳ;
+                    </span>
+                    <span v-if="safety.legacy_batches_pending > 0"
+                        >{{ safety.legacy_batches_pending }} lô LEGACY-* chưa
+                        được đối soát.</span
+                    >
+                </p>
+            </div>
+        </div>
+
         <!-- Zero-cost warning -->
         <div
             v-if="zeroCostIngredients.length > 0"
@@ -800,7 +950,8 @@ const submitWaste = () => {
                         : 'text-muted-foreground hover:text-foreground'
                 "
             >
-                <ClipboardCheck class="size-3.5 text-emerald-500" />Kiểm kê & Đối soát kho
+                <ClipboardCheck class="size-3.5 text-emerald-500" />Kiểm kê &
+                Đối soát kho
             </button>
             <button
                 @click="activeTab = 'planning'"
@@ -811,7 +962,8 @@ const submitWaste = () => {
                         : 'text-muted-foreground hover:text-foreground'
                 "
             >
-                <CalendarCheck class="size-3.5 text-indigo-500" />Kế hoạch & Dự báo nhập
+                <CalendarCheck class="size-3.5 text-indigo-500" />Kế hoạch & Dự
+                báo nhập
             </button>
         </div>
 
@@ -880,18 +1032,24 @@ const submitWaste = () => {
                                     v-for="st in [
                                         { key: 'all', label: 'Tất cả' },
                                         { key: 'fresh', label: '🥬 Tươi' },
-                                        { key: 'daily', label: '🥖 Trong ngày' },
-                                        { key: 'canned_packaged', label: '🥫 Đóng hộp' },
+                                        {
+                                            key: 'daily',
+                                            label: '🥖 Trong ngày',
+                                        },
+                                        {
+                                            key: 'canned_packaged',
+                                            label: '🥫 Đóng hộp',
+                                        },
                                         { key: 'dry', label: '🌾 Đồ khô' },
                                     ]"
                                     :key="st.key"
                                     type="button"
                                     @click="selectedStorageTypeFilter = st.key"
                                     :class="[
-                                        'rounded-md px-2 py-0.5 text-[10px] font-bold transition-all cursor-pointer',
+                                        'cursor-pointer rounded-md px-2 py-0.5 text-[10px] font-bold transition-all',
                                         selectedStorageTypeFilter === st.key
                                             ? 'bg-indigo-600 text-white shadow-xs'
-                                            : 'bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-400'
+                                            : 'bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-400',
                                     ]"
                                 >
                                     {{ st.label }}
@@ -905,77 +1063,129 @@ const submitWaste = () => {
                                     :key="ing.id"
                                     class="p-3 text-xs transition-colors hover:bg-muted/30"
                                 >
-                                    <div class="flex items-start justify-between">
+                                    <div
+                                        class="flex items-start justify-between"
+                                    >
                                         <div class="mr-2 min-w-0 flex-1">
-                                            <div class="flex items-center gap-1.5 flex-wrap">
-                                                <p class="truncate font-bold text-slate-900 dark:text-slate-100">
+                                            <div
+                                                class="flex flex-wrap items-center gap-1.5"
+                                            >
+                                                <p
+                                                    class="truncate font-bold text-slate-900 dark:text-slate-100"
+                                                >
                                                     {{ ing.name }}
                                                 </p>
                                                 <button
                                                     type="button"
-                                                    @click="openEditIngredientModal(ing)"
-                                                    class="text-slate-400 hover:text-indigo-600 p-0.5 rounded cursor-pointer"
+                                                    @click="
+                                                        openEditIngredientModal(
+                                                            ing,
+                                                        )
+                                                    "
+                                                    class="cursor-pointer rounded p-0.5 text-slate-400 hover:text-indigo-600"
                                                     title="Chỉnh sửa thông tin"
                                                 >
                                                     <Edit class="size-3" />
                                                 </button>
                                                 <span
-                                                    v-if="(ing.average_cost ?? 0) === 0"
+                                                    v-if="
+                                                        (ing.average_cost ??
+                                                            0) === 0
+                                                    "
                                                     class="shrink-0 rounded bg-amber-100 px-1 text-[9px] text-amber-700 dark:bg-amber-900/40 dark:text-amber-400"
                                                 >
                                                     0đ
                                                 </span>
                                             </div>
 
-                                            <div class="mt-1 flex items-center gap-1.5 flex-wrap text-[10px]">
+                                            <div
+                                                class="mt-1 flex flex-wrap items-center gap-1.5 text-[10px]"
+                                            >
                                                 <span
                                                     :class="[
-                                                        'rounded-md border px-1.5 py-0.5 font-bold text-[9px]',
-                                                        getStorageBadgeClass(ing.storage_type)
+                                                        'rounded-md border px-1.5 py-0.5 text-[9px] font-bold',
+                                                        getStorageBadgeClass(
+                                                            ing.storage_type,
+                                                        ),
                                                     ]"
                                                 >
-                                                    {{ ing.storage_type_label || '🌾 Đồ khô' }}
+                                                    {{
+                                                        ing.storage_type_label ||
+                                                        '🌾 Đồ khô'
+                                                    }}
                                                 </span>
 
                                                 <span
                                                     v-if="ing.storage_location"
-                                                    class="flex items-center gap-0.5 text-slate-500 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded text-[9px]"
+                                                    class="flex items-center gap-0.5 rounded bg-slate-100 px-1.5 py-0.5 text-[9px] text-slate-500 dark:bg-slate-800"
                                                 >
                                                     <MapPin class="size-2.5" />
                                                     {{ ing.storage_location }}
                                                 </span>
                                             </div>
 
-                                            <p class="mt-1 text-[10px] text-muted-foreground">
-                                                {{ ing.sku ?? 'SKU-NONE' }} · {{ ing.category_name ?? 'Nguyên liệu' }} · {{ ing.branch_name ?? 'Chưa xác định' }}
+                                            <p
+                                                class="mt-1 text-[10px] text-muted-foreground"
+                                            >
+                                                {{ ing.sku ?? 'SKU-NONE' }} ·
+                                                {{
+                                                    ing.category_name ??
+                                                    'Nguyên liệu'
+                                                }}
+                                                ·
+                                                {{
+                                                    ing.branch_name ??
+                                                    'Chưa xác định'
+                                                }}
                                             </p>
                                             <p
                                                 v-if="ing.average_cost > 0"
                                                 class="mt-0.5 text-[10px] font-semibold text-indigo-600 dark:text-indigo-400"
                                             >
-                                                TB: {{ vnd(ing.average_cost) }}/{{ ing.unit?.symbol ?? 'đv' }}
+                                                TB:
+                                                {{ vnd(ing.average_cost) }}/{{
+                                                    ing.unit?.symbol ?? 'đv'
+                                                }}
                                             </p>
                                         </div>
 
                                         <div class="shrink-0 text-right">
-                                            <div class="flex items-center justify-end gap-1.5">
+                                            <div
+                                                class="flex items-center justify-end gap-1.5"
+                                            >
                                                 <TrendingDown
-                                                    v-if="ing.stock !== null && ing.stock < (ing.min_stock_level || 5)"
-                                                    class="size-3 text-rose-500 animate-pulse"
+                                                    v-if="
+                                                        ing.stock !== null &&
+                                                        ing.stock <
+                                                            (ing.min_stock_level ||
+                                                                5)
+                                                    "
+                                                    class="size-3 animate-pulse text-rose-500"
                                                 />
                                                 <span
                                                     class="rounded-full px-2 py-0.5 font-mono text-[10px] font-bold"
                                                     :class="
                                                         ing.stock === null
                                                             ? 'bg-muted text-muted-foreground'
-                                                            : ing.stock < (ing.min_stock_level || 5)
+                                                            : ing.stock <
+                                                                (ing.min_stock_level ||
+                                                                    5)
                                                               ? 'bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-400'
-                                                              : ing.stock < (ing.reorder_level || 20)
+                                                              : ing.stock <
+                                                                  (ing.reorder_level ||
+                                                                      20)
                                                                 ? 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-400'
                                                                 : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400'
                                                     "
                                                 >
-                                                    {{ ing.stock !== null ? ing.stock.toFixed(1) : '—' }} {{ ing.unit?.symbol ?? '' }}
+                                                    {{
+                                                        ing.stock !== null
+                                                            ? ing.stock.toFixed(
+                                                                  1,
+                                                              )
+                                                            : '—'
+                                                    }}
+                                                    {{ ing.unit?.symbol ?? '' }}
                                                 </span>
                                             </div>
                                         </div>
@@ -983,13 +1193,23 @@ const submitWaste = () => {
 
                                     <!-- Active Batches (FEFO Breakdown) -->
                                     <div
-                                        v-if="ing.batches && ing.batches.length > 0"
+                                        v-if="
+                                            ing.batches &&
+                                            ing.batches.length > 0
+                                        "
                                         class="mt-2 space-y-1 rounded-lg border border-slate-200/60 bg-slate-50/70 p-2 dark:border-slate-800 dark:bg-slate-900/40"
                                     >
-                                        <div class="flex items-center justify-between text-[10px] font-bold text-slate-500">
-                                            <span class="flex items-center gap-1">
-                                                <Layers class="size-3 text-indigo-500" />
-                                                Lô HSD (FEFO): {{ ing.batches.length }} lô
+                                        <div
+                                            class="flex items-center justify-between text-[10px] font-bold text-slate-500"
+                                        >
+                                            <span
+                                                class="flex items-center gap-1"
+                                            >
+                                                <Layers
+                                                    class="size-3 text-indigo-500"
+                                                />
+                                                Lô HSD (FEFO):
+                                                {{ ing.batches.length }} lô
                                             </span>
                                             <span>Số lượng</span>
                                         </div>
@@ -997,11 +1217,21 @@ const submitWaste = () => {
                                         <div
                                             v-for="b in ing.batches"
                                             :key="b.id"
-                                            class="flex items-center justify-between text-[10px] font-mono border-t border-slate-200/40 dark:border-slate-800/40 pt-1"
+                                            class="flex items-center justify-between border-t border-slate-200/40 pt-1 font-mono text-[10px] dark:border-slate-800/40"
                                         >
-                                            <div class="flex items-center gap-1.5">
-                                                <span class="text-slate-600 dark:text-slate-400 font-semibold">{{ b.batch_number }}</span>
-                                                <span class="text-slate-400">· nhập {{ b.purchased_at || '—' }}</span>
+                                            <div
+                                                class="flex items-center gap-1.5"
+                                            >
+                                                <span
+                                                    class="font-semibold text-slate-600 dark:text-slate-400"
+                                                    >{{ b.batch_number }}</span
+                                                >
+                                                <span class="text-slate-400"
+                                                    >· nhập
+                                                    {{
+                                                        b.purchased_at || '—'
+                                                    }}</span
+                                                >
                                                 <span
                                                     v-if="b.expiry_date"
                                                     :class="[
@@ -1010,14 +1240,28 @@ const submitWaste = () => {
                                                             ? 'bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300'
                                                             : b.is_expiring_soon
                                                               ? 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300'
-                                                              : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300'
+                                                              : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300',
                                                     ]"
                                                 >
-                                                    {{ b.is_expired ? '🔴 Hết hạn (' + b.expiry_date + ')' : (b.is_expiring_soon ? '🟡 Sắp hết hạn (' + b.expiry_date + ')' : '🟢 HSD: ' + b.expiry_date) }}
+                                                    {{
+                                                        b.is_expired
+                                                            ? '🔴 Hết hạn (' +
+                                                              b.expiry_date +
+                                                              ')'
+                                                            : b.is_expiring_soon
+                                                              ? '🟡 Sắp hết hạn (' +
+                                                                b.expiry_date +
+                                                                ')'
+                                                              : '🟢 HSD: ' +
+                                                                b.expiry_date
+                                                    }}
                                                 </span>
                                             </div>
-                                            <span class="font-bold text-slate-700 dark:text-slate-300">
-                                                {{ b.quantity_remaining }} {{ ing.unit?.symbol ?? '' }}
+                                            <span
+                                                class="font-bold text-slate-700 dark:text-slate-300"
+                                            >
+                                                {{ b.quantity_remaining }}
+                                                {{ ing.unit?.symbol ?? '' }}
                                             </span>
                                         </div>
                                     </div>
@@ -1027,10 +1271,13 @@ const submitWaste = () => {
                                 v-if="totalIngredientPages > 1"
                                 class="flex items-center justify-between border-t border-border bg-slate-50/50 p-3 dark:bg-slate-900/10"
                             >
-                                <span class="text-[11px] font-medium text-muted-foreground">
+                                <span
+                                    class="text-[11px] font-medium text-muted-foreground"
+                                >
                                     Trang {{ ingredientCurrentPage }} /
                                     {{ totalIngredientPages }} · tổng
-                                    {{ filteredIngredientsByStorage.length }} nguyên liệu
+                                    {{ filteredIngredientsByStorage.length }}
+                                    nguyên liệu
                                 </span>
                                 <div class="flex items-center gap-1">
                                     <Button
@@ -1044,13 +1291,16 @@ const submitWaste = () => {
                                     </Button>
 
                                     <template
-                                        v-for="(page, idx) in visibleIngredientPages"
+                                        v-for="(
+                                            page, idx
+                                        ) in visibleIngredientPages"
                                         :key="idx"
                                     >
                                         <span
                                             v-if="page === '...'"
                                             class="px-1 text-xs font-bold text-muted-foreground select-none"
-                                        >...</span>
+                                            >...</span
+                                        >
                                         <Button
                                             v-else
                                             size="sm"
@@ -1059,7 +1309,10 @@ const submitWaste = () => {
                                                     ? 'default'
                                                     : 'outline'
                                             "
-                                            @click="ingredientCurrentPage = Number(page)"
+                                            @click="
+                                                ingredientCurrentPage =
+                                                    Number(page)
+                                            "
                                             class="h-7 min-w-[28px] rounded-lg px-1 text-xs font-bold"
                                         >
                                             {{ page }}
@@ -1095,20 +1348,28 @@ const submitWaste = () => {
                 <div class="lg:col-span-2">
                     <Card class="shadow-sm">
                         <CardHeader class="border-b border-border pb-3">
-                            <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                            <div
+                                class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between"
+                            >
                                 <div>
                                     <CardTitle
                                         class="flex items-center gap-1.5 text-base"
                                     >
-                                        <Scale class="size-5 text-indigo-500" />Công
-                                        Thức Định Lượng Món Ăn
+                                        <Scale
+                                            class="size-5 text-indigo-500"
+                                        />Công Thức Định Lượng Món Ăn
                                     </CardTitle>
                                     <CardDescription class="text-xs">
-                                        Hiển thị danh sách các món <strong>cần chế biến (🍲)</strong> để chủ quán khai báo định lượng nguyên liệu.
+                                        Hiển thị danh sách các món
+                                        <strong>cần chế biến (🍲)</strong> để
+                                        chủ quán khai báo định lượng nguyên
+                                        liệu.
                                     </CardDescription>
                                 </div>
                                 <div class="relative w-full sm:w-56">
-                                    <Search class="absolute top-2 left-2.5 size-3.5 text-slate-400" />
+                                    <Search
+                                        class="absolute top-2 left-2.5 size-3.5 text-slate-400"
+                                    />
                                     <input
                                         v-model="recipeSearch"
                                         type="text"
@@ -1162,7 +1423,7 @@ const submitWaste = () => {
                                             <span
                                                 v-for="r in p.recipes"
                                                 :key="r.id"
-                                                class="flex items-center gap-1 rounded-lg border bg-card px-2.5 py-1.5 text-[10px] font-medium"
+                                                class="flex items-center gap-1 rounded-lg border bg-card px-2.5 py-1.5 text-xs font-medium"
                                             >
                                                 <strong
                                                     >{{
@@ -1179,7 +1440,7 @@ const submitWaste = () => {
                                                 >
                                                 <span
                                                     v-if="r.waste_rate > 0"
-                                                    class="rounded border border-amber-200 bg-amber-50 px-1 text-[9px] text-amber-700 dark:bg-amber-900/30 dark:text-amber-400"
+                                                    class="rounded border border-amber-200 bg-amber-50 px-1 text-[10px] text-amber-700 dark:bg-amber-900/30 dark:text-amber-400"
                                                 >
                                                     +{{ r.waste_rate }}% hao
                                                 </span>
@@ -1283,270 +1544,293 @@ const submitWaste = () => {
                 class="grid animate-in gap-6 duration-200 fade-in lg:grid-cols-5"
             >
                 <!-- Form -->
-                <Card class="border-slate-200/80 shadow-sm lg:col-span-2">
-                    <CardHeader class="border-b border-border pb-3">
-                        <CardTitle
-                            class="flex items-center gap-2 text-sm font-bold"
-                        >
-                            <ArrowDownToLine
-                                class="size-4 text-indigo-500"
-                            />Ghi nhận nhập hàng
-                        </CardTitle>
-                        <CardDescription class="text-[11px]"
-                            >Cập nhật tồn kho và tính toán giá vốn bình
-                            quân.</CardDescription
-                        >
-                    </CardHeader>
-                    <CardContent class="pt-5">
-                        <form
-                            @submit.prevent="submitPurchase"
-                            class="space-y-4"
-                        >
-                            <!-- Nguyên liệu -->
-                            <div class="space-y-1.5">
-                                <Label class="text-xs"
-                                    >Nguyên liệu
-                                    <span class="text-rose-500">*</span></Label
-                                >
-                                <select
-                                    v-model="purchaseForm.ingredient_id"
-                                    required
-                                    class="w-full rounded-xl border border-border bg-background px-3 py-2.5 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 focus:outline-none"
-                                    :class="{
-                                        'border-rose-400':
-                                            purchaseForm.errors.ingredient_id,
-                                    }"
-                                >
-                                    <option value="" disabled>
-                                        Chọn nguyên liệu...
-                                    </option>
-                                    <option
-                                        v-for="ing in ingredients"
-                                        :key="ing.id"
-                                        :value="ing.id"
-                                    >
-                                        {{ ing.name }} (tồn:
-                                        {{ ing.stock?.toFixed(1) ?? '—' }}
-                                        {{ ing.unit?.symbol ?? '' }})
-                                    </option>
-                                </select>
-                                <p
-                                    v-if="selectedPurchaseIngredient"
-                                    class="text-[11px] text-indigo-500"
-                                >
-                                    Giá vốn TB hiện tại:
-                                    <strong
-                                        >{{
-                                            vnd(
-                                                selectedPurchaseIngredient.average_cost,
-                                            )
-                                        }}/{{
-                                            selectedPurchaseIngredient.unit
-                                                ?.symbol ?? 'đv'
-                                        }}</strong
-                                    >
-                                </p>
-                            </div>
-
-                            <div class="grid grid-cols-2 gap-3">
-                                <!-- Số lượng -->
+                <div ref="purchaseFormCard" class="h-fit lg:col-span-2">
+                    <Card class="border-slate-200/80 shadow-sm">
+                        <CardHeader class="border-b border-border pb-3">
+                            <CardTitle
+                                class="flex items-center gap-2 text-sm font-bold"
+                            >
+                                <ArrowDownToLine
+                                    class="size-4 text-indigo-500"
+                                />Ghi nhận nhập hàng
+                            </CardTitle>
+                            <CardDescription class="text-[11px]"
+                                >Cập nhật tồn kho và tính toán giá vốn bình
+                                quân.</CardDescription
+                            >
+                        </CardHeader>
+                        <CardContent class="pt-5">
+                            <form
+                                @submit.prevent="submitPurchase"
+                                class="space-y-4"
+                            >
+                                <!-- Nguyên liệu -->
                                 <div class="space-y-1.5">
                                     <Label class="text-xs"
-                                        >Số lượng
+                                        >Nguyên liệu
                                         <span class="text-rose-500"
                                             >*</span
                                         ></Label
                                     >
-                                    <div class="relative">
+                                    <select
+                                        v-model="purchaseForm.ingredient_id"
+                                        required
+                                        class="w-full rounded-xl border border-border bg-background px-3 py-2.5 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 focus:outline-none"
+                                        :class="{
+                                            'border-rose-400':
+                                                purchaseForm.errors
+                                                    .ingredient_id,
+                                        }"
+                                    >
+                                        <option value="" disabled>
+                                            Chọn nguyên liệu...
+                                        </option>
+                                        <option
+                                            v-for="ing in ingredients"
+                                            :key="ing.id"
+                                            :value="ing.id"
+                                        >
+                                            {{ ing.name }} (tồn:
+                                            {{ ing.stock?.toFixed(1) ?? '—' }}
+                                            {{ ing.unit?.symbol ?? '' }})
+                                        </option>
+                                    </select>
+                                    <p
+                                        v-if="selectedPurchaseIngredient"
+                                        class="text-[11px] text-indigo-500"
+                                    >
+                                        Giá vốn TB hiện tại:
+                                        <strong
+                                            >{{
+                                                vnd(
+                                                    selectedPurchaseIngredient.average_cost,
+                                                )
+                                            }}/{{
+                                                selectedPurchaseIngredient.unit
+                                                    ?.symbol ?? 'đv'
+                                            }}</strong
+                                        >
+                                    </p>
+                                </div>
+
+                                <div class="grid grid-cols-2 gap-3">
+                                    <!-- Số lượng -->
+                                    <div class="space-y-1.5">
+                                        <Label class="text-xs"
+                                            >Số lượng
+                                            <span class="text-rose-500"
+                                                >*</span
+                                            ></Label
+                                        >
+                                        <div class="relative">
+                                            <Input
+                                                v-model="purchaseForm.quantity"
+                                                type="number"
+                                                step="0.001"
+                                                min="0.001"
+                                                placeholder="0"
+                                                required
+                                                class="pr-10"
+                                                :class="{
+                                                    'border-rose-400':
+                                                        purchaseForm.errors
+                                                            .quantity,
+                                                }"
+                                            />
+                                            <span
+                                                class="absolute top-1/2 right-3 -translate-y-1/2 text-xs font-medium text-muted-foreground"
+                                            >
+                                                {{
+                                                    selectedPurchaseIngredient
+                                                        ?.unit?.symbol ?? 'đv'
+                                                }}
+                                            </span>
+                                        </div>
+                                    </div>
+                                    <!-- Đơn giá -->
+                                    <div class="space-y-1.5">
+                                        <Label class="text-xs"
+                                            >Đơn giá (đ)
+                                            <span class="text-rose-500"
+                                                >*</span
+                                            ></Label
+                                        >
                                         <Input
-                                            v-model="purchaseForm.quantity"
+                                            v-model="purchaseForm.unit_cost"
                                             type="number"
-                                            step="0.001"
-                                            min="0.001"
+                                            step="1"
+                                            min="0"
                                             placeholder="0"
                                             required
-                                            class="pr-10"
                                             :class="{
                                                 'border-rose-400':
                                                     purchaseForm.errors
-                                                        .quantity,
+                                                        .unit_cost,
                                             }"
                                         />
-                                        <span
-                                            class="absolute top-1/2 right-3 -translate-y-1/2 text-xs font-medium text-muted-foreground"
-                                        >
-                                            {{
-                                                selectedPurchaseIngredient?.unit
-                                                    ?.symbol ?? 'đv'
-                                            }}
-                                        </span>
                                     </div>
                                 </div>
-                                <!-- Đơn giá -->
+
+                                <!-- Thành tiền preview -->
+                                <div
+                                    v-if="
+                                        purchaseForm.quantity &&
+                                        purchaseForm.unit_cost
+                                    "
+                                    class="flex items-center justify-between rounded-xl border border-indigo-500/20 bg-indigo-500/10 px-4 py-2.5 text-sm"
+                                >
+                                    <span class="text-muted-foreground"
+                                        >Thành tiền</span
+                                    >
+                                    <span
+                                        class="font-bold text-indigo-600 dark:text-indigo-400"
+                                    >
+                                        {{
+                                            vnd(
+                                                Number(purchaseForm.quantity) *
+                                                    Number(
+                                                        purchaseForm.unit_cost,
+                                                    ),
+                                            )
+                                        }}
+                                    </span>
+                                </div>
+
+                                <!-- Nhà cung cấp -->
+                                <div class="space-y-1.5">
+                                    <Label class="text-xs">Nhà cung cấp</Label>
+                                    <select
+                                        v-model="purchaseForm.supplier_id"
+                                        class="w-full rounded-xl border border-border bg-background px-3 py-2.5 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 focus:outline-none"
+                                    >
+                                        <option value="">Không chọn</option>
+                                        <option
+                                            v-for="s in suppliers"
+                                            :key="s.id"
+                                            :value="s.id"
+                                        >
+                                            {{ s.name }}
+                                        </option>
+                                    </select>
+                                </div>
+
+                                <!-- Mã lô nhà cung cấp -->
                                 <div class="space-y-1.5">
                                     <Label class="text-xs"
-                                        >Đơn giá (đ)
-                                        <span class="text-rose-500"
+                                        >Mã lô / Batch No.</Label
+                                    >
+                                    <Input
+                                        v-model="purchaseForm.batch_number"
+                                        maxlength="50"
+                                        placeholder="VD: LOT-20260806-A01 (để trống sẽ tự tạo)"
+                                    />
+                                    <p
+                                        class="text-[10px] text-muted-foreground"
+                                    >
+                                        Mỗi lần nhập là một lô riêng, không gộp
+                                        với lô cũ.
+                                    </p>
+                                </div>
+
+                                <!-- Ngày nhập & Hạn sử dụng -->
+                                <div class="grid grid-cols-2 gap-3">
+                                    <div class="space-y-1.5">
+                                        <Label class="text-xs">Ngày nhập</Label>
+                                        <Input
+                                            v-model="purchaseForm.occurred_at"
+                                            type="date"
+                                        />
+                                    </div>
+                                    <div class="space-y-1.5">
+                                        <Label
+                                            class="text-xs font-semibold text-amber-700 dark:text-amber-400"
+                                        >
+                                            Hạn sử dụng (HSD)
+                                        </Label>
+                                        <Input
+                                            v-model="purchaseForm.expiry_date"
+                                            type="date"
+                                        />
+                                    </div>
+                                </div>
+
+                                <!-- Ghi chú -->
+                                <div class="space-y-1.5">
+                                    <Label class="text-xs">Ghi chú</Label>
+                                    <Input
+                                        v-model="purchaseForm.notes"
+                                        placeholder="Số hóa đơn, ghi chú..."
+                                    />
+                                </div>
+
+                                <!-- Tải ảnh hóa đơn cứng bắt buộc -->
+                                <div class="space-y-1.5">
+                                    <Label
+                                        class="text-xs font-semibold text-slate-700 dark:text-slate-300"
+                                    >
+                                        Hóa đơn cứng (Ảnh chụp chứng từ)
+                                        <span class="font-bold text-rose-500"
                                             >*</span
-                                        ></Label
-                                    >
-                                    <Input
-                                        v-model="purchaseForm.unit_cost"
-                                        type="number"
-                                        step="1"
-                                        min="0"
-                                        placeholder="0"
-                                        required
-                                        :class="{
-                                            'border-rose-400':
-                                                purchaseForm.errors.unit_cost,
-                                        }"
-                                    />
-                                </div>
-                            </div>
-
-                            <!-- Thành tiền preview -->
-                            <div
-                                v-if="
-                                    purchaseForm.quantity &&
-                                    purchaseForm.unit_cost
-                                "
-                                class="flex items-center justify-between rounded-xl border border-indigo-500/20 bg-indigo-500/10 px-4 py-2.5 text-sm"
-                            >
-                                <span class="text-muted-foreground"
-                                    >Thành tiền</span
-                                >
-                                <span
-                                    class="font-bold text-indigo-600 dark:text-indigo-400"
-                                >
-                                    {{
-                                        vnd(
-                                            Number(purchaseForm.quantity) *
-                                                Number(purchaseForm.unit_cost),
-                                        )
-                                    }}
-                                </span>
-                            </div>
-
-                            <!-- Nhà cung cấp -->
-                            <div class="space-y-1.5">
-                                <Label class="text-xs">Nhà cung cấp</Label>
-                                <select
-                                    v-model="purchaseForm.supplier_id"
-                                    class="w-full rounded-xl border border-border bg-background px-3 py-2.5 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 focus:outline-none"
-                                >
-                                    <option value="">Không chọn</option>
-                                    <option
-                                        v-for="s in suppliers"
-                                        :key="s.id"
-                                        :value="s.id"
-                                    >
-                                        {{ s.name }}
-                                    </option>
-                                </select>
-                            </div>
-
-                            <!-- Mã lô nhà cung cấp -->
-                            <div class="space-y-1.5">
-                                <Label class="text-xs">Mã lô / Batch No.</Label>
-                                <Input
-                                    v-model="purchaseForm.batch_number"
-                                    maxlength="50"
-                                    placeholder="VD: LOT-20260806-A01 (để trống sẽ tự tạo)"
-                                />
-                                <p class="text-[10px] text-muted-foreground">
-                                    Mỗi lần nhập là một lô riêng, không gộp với lô cũ.
-                                </p>
-                            </div>
-
-                            <!-- Ngày nhập & Hạn sử dụng -->
-                            <div class="grid grid-cols-2 gap-3">
-                                <div class="space-y-1.5">
-                                    <Label class="text-xs">Ngày nhập</Label>
-                                    <Input
-                                        v-model="purchaseForm.occurred_at"
-                                        type="date"
-                                    />
-                                </div>
-                                <div class="space-y-1.5">
-                                    <Label class="text-xs font-semibold text-amber-700 dark:text-amber-400">
-                                        Hạn sử dụng (HSD)
+                                        >
                                     </Label>
-                                    <Input
-                                        v-model="purchaseForm.expiry_date"
-                                        type="date"
+                                    <input
+                                        type="file"
+                                        @change="
+                                            (e) =>
+                                                (purchaseForm.invoice_file =
+                                                    (
+                                                        e.target as HTMLInputElement
+                                                    ).files?.[0] || null)
+                                        "
+                                        accept="image/*,.pdf"
+                                        required
+                                        class="w-full rounded-xl border border-slate-200 bg-background p-2 text-xs text-slate-500 file:mr-4 file:rounded-xl file:border-0 file:bg-indigo-50 file:px-4 file:py-2 file:text-xs file:font-semibold file:text-indigo-700 hover:file:bg-indigo-100 focus:ring-2 focus:ring-indigo-500/20 focus:outline-none"
                                     />
-                                </div>
-                            </div>
-
-                            <!-- Ghi chú -->
-                            <div class="space-y-1.5">
-                                <Label class="text-xs">Ghi chú</Label>
-                                <Input
-                                    v-model="purchaseForm.notes"
-                                    placeholder="Số hóa đơn, ghi chú..."
-                                />
-                            </div>
-
-                            <!-- Tải ảnh hóa đơn cứng bắt buộc -->
-                            <div class="space-y-1.5">
-                                <Label
-                                    class="text-xs font-semibold text-slate-700 dark:text-slate-300"
-                                >
-                                    Hóa đơn cứng (Ảnh chụp chứng từ)
-                                    <span class="font-bold text-rose-500"
-                                        >*</span
+                                    <p
+                                        class="text-[10px] text-muted-foreground"
                                     >
-                                </Label>
-                                <input
-                                    type="file"
-                                    @change="
-                                        (e) =>
-                                            (purchaseForm.invoice_file =
-                                                (e.target as HTMLInputElement)
-                                                    .files?.[0] || null)
-                                    "
-                                    accept="image/*,.pdf"
-                                    required
-                                    class="w-full rounded-xl border border-slate-200 bg-background p-2 text-xs text-slate-500 file:mr-4 file:rounded-xl file:border-0 file:bg-indigo-50 file:px-4 file:py-2 file:text-xs file:font-semibold file:text-indigo-700 hover:file:bg-indigo-100 focus:ring-2 focus:ring-indigo-500/20 focus:outline-none"
-                                />
-                                <p class="text-[10px] text-muted-foreground">
-                                    Chấp nhận JPG, PNG, PDF tối đa 2MB.
-                                </p>
-                            </div>
+                                        Chấp nhận JPG, PNG, PDF tối đa 2MB.
+                                    </p>
+                                </div>
 
-                            <div
-                                class="flex items-start gap-2 text-[11px] text-muted-foreground"
-                            >
-                                <Info
-                                    class="mt-0.5 size-3.5 shrink-0 text-indigo-400"
-                                />
-                                <span
-                                    >Nhân viên kho nhập hàng sẽ được Chủ doanh
-                                    nghiệp kiểm duyệt chéo và phê duyệt trước
-                                    khi cộng kho.</span
+                                <div
+                                    class="flex items-start gap-2 text-[11px] text-muted-foreground"
                                 >
-                            </div>
+                                    <Info
+                                        class="mt-0.5 size-3.5 shrink-0 text-indigo-400"
+                                    />
+                                    <span
+                                        >Nhân viên kho nhập hàng sẽ được Chủ
+                                        doanh nghiệp kiểm duyệt chéo và phê
+                                        duyệt trước khi cộng kho.</span
+                                    >
+                                </div>
 
-                            <Button
-                                type="submit"
-                                class="w-full rounded-xl bg-indigo-600 text-white hover:bg-indigo-700"
-                                :disabled="purchaseForm.processing"
-                            >
-                                <ArrowDownToLine class="mr-2 size-4" />
-                                {{
-                                    purchaseForm.processing
-                                        ? 'Đang gửi phê duyệt...'
-                                        : 'Gửi yêu cầu nhập hàng'
-                                }}
-                            </Button>
-                        </form>
-                    </CardContent>
-                </Card>
+                                <Button
+                                    type="submit"
+                                    class="w-full rounded-xl bg-indigo-600 text-white hover:bg-indigo-700"
+                                    :disabled="purchaseForm.processing"
+                                >
+                                    <ArrowDownToLine class="mr-2 size-4" />
+                                    {{
+                                        purchaseForm.processing
+                                            ? 'Đang gửi phê duyệt...'
+                                            : 'Gửi yêu cầu nhập hàng'
+                                    }}
+                                </Button>
+                            </form>
+                        </CardContent>
+                    </Card>
+                </div>
 
                 <!-- AI Forecast Recommendations -->
                 <Card
-                    class="animate-in border-indigo-200 bg-gradient-to-br from-indigo-50/20 via-background to-background shadow-sm duration-250 slide-in-from-right lg:col-span-3 dark:border-indigo-900/60"
+                    :style="
+                        aiForecastCardHeight
+                            ? { height: `${aiForecastCardHeight}px` }
+                            : undefined
+                    "
+                    class="h-full min-h-0 animate-in overflow-hidden border-indigo-200 bg-gradient-to-br from-indigo-50/20 via-background to-background shadow-sm duration-250 slide-in-from-right lg:col-span-3 dark:border-indigo-900/60"
                 >
                     <CardHeader class="border-b border-border pb-3">
                         <div class="flex items-center justify-between">
@@ -1571,7 +1855,9 @@ const submitWaste = () => {
                             </span>
                         </div>
                     </CardHeader>
-                    <CardContent class="divide-y divide-border p-0">
+                    <CardContent
+                        class="flex min-h-0 flex-1 flex-col divide-y divide-border overflow-hidden p-0"
+                    >
                         <div
                             v-if="loadingForecast"
                             class="p-16 text-center text-xs text-muted-foreground"
@@ -1589,7 +1875,7 @@ const submitWaste = () => {
                         </div>
                         <div
                             v-else
-                            class="max-h-[500px] divide-y divide-border overflow-y-auto"
+                            class="ai-forecast-scroll min-h-0 flex-1 divide-y divide-border overflow-y-auto"
                         >
                             <div
                                 v-for="item in aiForecasts"
@@ -1711,7 +1997,10 @@ const submitWaste = () => {
                                         <span v-if="p.occurred_at">
                                             · {{ p.occurred_at }}</span
                                         >
-                                        <span v-if="p.batch_number" class="font-semibold text-indigo-500">
+                                        <span
+                                            v-if="p.batch_number"
+                                            class="font-semibold text-indigo-500"
+                                        >
                                             · Lô {{ p.batch_number }}</span
                                         >
                                         <span v-if="p.notes" class="italic">
@@ -1792,15 +2081,24 @@ const submitWaste = () => {
                                     v-model="wasteForm.waste_category"
                                     class="w-full rounded-xl border border-border bg-background px-3 py-2.5 text-sm focus:border-rose-400 focus:ring-2 focus:ring-rose-500/20 focus:outline-none"
                                 >
-                                    <option value="spoilage">Hư hỏng / xuống chất lượng</option>
-                                    <option value="expired">Hết hạn sử dụng</option>
-                                    <option value="damaged">Hư hỏng bao bì</option>
-                                    <option value="cooking_loss">Hao hụt chế biến</option>
+                                    <option value="spoilage">
+                                        Hư hỏng / xuống chất lượng
+                                    </option>
+                                    <option value="expired">
+                                        Hết hạn sử dụng
+                                    </option>
+                                    <option value="damaged">
+                                        Hư hỏng bao bì
+                                    </option>
+                                    <option value="cooking_loss">
+                                        Hao hụt chế biến
+                                    </option>
                                     <option value="theft">Thất thoát</option>
                                     <option value="other">Khác</option>
                                 </select>
                                 <p class="text-[10px] text-muted-foreground">
-                                    Chọn “Hết hạn” để hệ thống ưu tiên loại bỏ các lô đã quá HSD.
+                                    Chọn “Hết hạn” để hệ thống ưu tiên loại bỏ
+                                    các lô đã quá HSD.
                                 </p>
                             </div>
 
@@ -2110,49 +2408,74 @@ const submitWaste = () => {
         <template v-if="activeTab === 'reconcile'">
             <div class="space-y-6">
                 <!-- Top Stats Cards -->
-                <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                <div
+                    class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4"
+                >
                     <Card class="shadow-sm">
                         <CardContent class="p-4">
-                            <p class="text-xs font-semibold text-muted-foreground">
+                            <p
+                                class="text-xs font-semibold text-muted-foreground"
+                            >
                                 Tổng mặt hàng kiểm kê
                             </p>
                             <p class="mt-1 text-2xl font-black text-foreground">
                                 {{ ingredients.length }}
-                                <span class="text-xs font-normal text-muted-foreground">nguyên liệu</span>
+                                <span
+                                    class="text-xs font-normal text-muted-foreground"
+                                    >nguyên liệu</span
+                                >
                             </p>
                         </CardContent>
                     </Card>
 
                     <Card class="shadow-sm">
                         <CardContent class="p-4">
-                            <p class="text-xs font-semibold text-muted-foreground">
+                            <p
+                                class="text-xs font-semibold text-muted-foreground"
+                            >
                                 Khớp tuyệt đối (0 chênh lệch)
                             </p>
-                            <p class="mt-1 text-2xl font-black text-emerald-600 dark:text-emerald-400">
+                            <p
+                                class="mt-1 text-2xl font-black text-emerald-600 dark:text-emerald-400"
+                            >
                                 {{ reconcileStats.matched }}
-                                <span class="text-xs font-normal text-muted-foreground">nguyên liệu</span>
+                                <span
+                                    class="text-xs font-normal text-muted-foreground"
+                                    >nguyên liệu</span
+                                >
                             </p>
                         </CardContent>
                     </Card>
 
                     <Card class="shadow-sm">
                         <CardContent class="p-4">
-                            <p class="text-xs font-semibold text-muted-foreground">
+                            <p
+                                class="text-xs font-semibold text-muted-foreground"
+                            >
                                 Hàng chênh lệch thiếu (Lệch -)
                             </p>
-                            <p class="mt-1 text-2xl font-black text-amber-600 dark:text-amber-400">
+                            <p
+                                class="mt-1 text-2xl font-black text-amber-600 dark:text-amber-400"
+                            >
                                 {{ reconcileStats.deficitCount }}
-                                <span class="text-xs font-normal text-muted-foreground">nguyên liệu</span>
+                                <span
+                                    class="text-xs font-normal text-muted-foreground"
+                                    >nguyên liệu</span
+                                >
                             </p>
                         </CardContent>
                     </Card>
 
                     <Card class="shadow-sm">
                         <CardContent class="p-4">
-                            <p class="text-xs font-semibold text-muted-foreground">
+                            <p
+                                class="text-xs font-semibold text-muted-foreground"
+                            >
                                 Tổng giá trị tổn thất thiếu kho
                             </p>
-                            <p class="mt-1 text-2xl font-black text-rose-600 dark:text-rose-400">
+                            <p
+                                class="mt-1 text-2xl font-black text-rose-600 dark:text-rose-400"
+                            >
                                 {{ vnd(reconcileStats.totalDeficitCost) }}
                             </p>
                         </CardContent>
@@ -2162,19 +2485,30 @@ const submitWaste = () => {
                 <!-- Audit Table Card -->
                 <Card class="shadow-sm">
                     <CardHeader class="border-b border-border pb-3">
-                        <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                        <div
+                            class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"
+                        >
                             <div>
-                                <CardTitle class="flex items-center gap-2 text-base font-extrabold">
-                                    <ClipboardCheck class="size-5 text-emerald-600" />
-                                    Bảng Đối Soát Tồn Kho Lý Thuyết vs Tồn Thực Tế
+                                <CardTitle
+                                    class="flex items-center gap-2 text-base font-extrabold"
+                                >
+                                    <ClipboardCheck
+                                        class="size-5 text-emerald-600"
+                                    />
+                                    Bảng Đối Soát Tồn Kho Lý Thuyết vs Tồn Thực
+                                    Tế
                                 </CardTitle>
                                 <CardDescription class="text-xs">
-                                    Nhập số lượng đếm được thực tế tại kho. Hệ thống tự động đối chiếu với số lượng tồn tính toán từ hóa đơn bán hàng POS.
+                                    Nhập số lượng đếm được thực tế tại kho. Hệ
+                                    thống tự động đối chiếu với số lượng tồn
+                                    tính toán từ hóa đơn bán hàng POS.
                                 </CardDescription>
                             </div>
 
                             <div class="relative w-full sm:w-64">
-                                <Search class="absolute top-2.5 left-2.5 size-4 text-slate-400" />
+                                <Search
+                                    class="absolute top-2.5 left-2.5 size-4 text-slate-400"
+                                />
                                 <input
                                     v-model="reconcileSearch"
                                     type="text"
@@ -2187,63 +2521,110 @@ const submitWaste = () => {
                     <CardContent class="p-0">
                         <div class="overflow-x-auto">
                             <table class="w-full text-left text-xs">
-                                <thead class="border-b border-border bg-muted/40 font-bold uppercase text-[10px] text-muted-foreground">
+                                <thead
+                                    class="border-b border-border bg-muted/40 text-[10px] font-bold text-muted-foreground uppercase"
+                                >
                                     <tr>
                                         <th class="p-3">Nguyên liệu</th>
-                                        <th class="p-3 text-right">Tồn Lý Thuyết (Hệ thống)</th>
-                                        <th class="p-3 text-center">Tồn Thực Tế (Đếm tại kho)</th>
-                                        <th class="p-3 text-right">Chênh lệch (+/-)</th>
-                                        <th class="p-3 text-right">Thành tiền chênh lệch</th>
+                                        <th class="p-3 text-right">
+                                            Tồn Lý Thuyết (Hệ thống)
+                                        </th>
+                                        <th class="p-3 text-center">
+                                            Tồn Thực Tế (Đếm tại kho)
+                                        </th>
+                                        <th class="p-3 text-right">
+                                            Chênh lệch (+/-)
+                                        </th>
+                                        <th class="p-3 text-right">
+                                            Thành tiền chênh lệch
+                                        </th>
                                     </tr>
                                 </thead>
                                 <tbody class="divide-y divide-border">
-                                    <tr v-for="ing in filteredReconcileIngredients" :key="ing.id" class="hover:bg-muted/20">
+                                    <tr
+                                        v-for="ing in filteredReconcileIngredients"
+                                        :key="ing.id"
+                                        class="hover:bg-muted/20"
+                                    >
                                         <td class="p-3">
-                                            <p class="font-bold text-foreground">{{ ing.name }}</p>
-                                            <p class="text-[10px] text-muted-foreground">
-                                                {{ ing.sku ?? 'SKU-NONE' }} · Giá vốn: {{ vnd(ing.average_cost) }}/{{ ing.unit?.symbol ?? 'đv' }}
+                                            <p
+                                                class="font-bold text-foreground"
+                                            >
+                                                {{ ing.name }}
+                                            </p>
+                                            <p
+                                                class="text-[10px] text-muted-foreground"
+                                            >
+                                                {{ ing.sku ?? 'SKU-NONE' }} ·
+                                                Giá vốn:
+                                                {{ vnd(ing.average_cost) }}/{{
+                                                    ing.unit?.symbol ?? 'đv'
+                                                }}
                                             </p>
                                         </td>
-                                        <td class="p-3 text-right font-mono font-bold text-foreground">
-                                            {{ ing.stock ?? 0 }} {{ ing.unit?.symbol ?? 'đv' }}
+                                        <td
+                                            class="p-3 text-right font-mono font-bold text-foreground"
+                                        >
+                                            {{ ing.stock ?? 0 }}
+                                            {{ ing.unit?.symbol ?? 'đv' }}
                                         </td>
                                         <td class="p-3 text-center">
-                                            <div class="inline-flex items-center gap-1.5">
+                                            <div
+                                                class="inline-flex items-center gap-1.5"
+                                            >
                                                 <Input
                                                     type="number"
                                                     step="0.001"
                                                     min="0"
-                                                    v-model="physicalStockMap[ing.id]"
+                                                    v-model="
+                                                        physicalStockMap[ing.id]
+                                                    "
                                                     class="h-8 w-28 text-center font-mono font-bold"
                                                 />
-                                                <span class="text-[11px] font-medium text-muted-foreground">{{ ing.unit?.symbol ?? 'đv' }}</span>
+                                                <span
+                                                    class="text-[11px] font-medium text-muted-foreground"
+                                                    >{{
+                                                        ing.unit?.symbol ?? 'đv'
+                                                    }}</span
+                                                >
                                             </div>
                                         </td>
-                                        <td class="p-3 text-right font-mono font-bold">
+                                        <td
+                                            class="p-3 text-right font-mono font-bold"
+                                        >
                                             <span
                                                 :class="[
                                                     'inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-xs font-bold',
                                                     getDiff(ing) === 0
                                                         ? 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300'
                                                         : getDiff(ing) < 0
-                                                        ? 'bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300'
-                                                        : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300',
+                                                          ? 'bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300'
+                                                          : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300',
                                                 ]"
                                             >
-                                                {{ getDiff(ing) > 0 ? '+' : '' }}{{ getDiff(ing) }} {{ ing.unit?.symbol ?? 'đv' }}
+                                                {{ getDiff(ing) > 0 ? '+' : ''
+                                                }}{{ getDiff(ing) }}
+                                                {{ ing.unit?.symbol ?? 'đv' }}
                                             </span>
                                         </td>
-                                        <td class="p-3 text-right font-mono font-bold">
+                                        <td
+                                            class="p-3 text-right font-mono font-bold"
+                                        >
                                             <span
                                                 :class="
                                                     getDiff(ing) < 0
                                                         ? 'text-rose-600 dark:text-rose-400'
                                                         : getDiff(ing) > 0
-                                                        ? 'text-emerald-600 dark:text-emerald-400'
-                                                        : 'text-muted-foreground'
+                                                          ? 'text-emerald-600 dark:text-emerald-400'
+                                                          : 'text-muted-foreground'
                                                 "
                                             >
-                                                {{ vnd(getDiff(ing) * ing.average_cost) }}
+                                                {{
+                                                    vnd(
+                                                        getDiff(ing) *
+                                                            ing.average_cost,
+                                                    )
+                                                }}
                                             </span>
                                         </td>
                                     </tr>
@@ -2252,10 +2633,16 @@ const submitWaste = () => {
                         </div>
 
                         <!-- Footer Audit Action Bar -->
-                        <div class="flex flex-col gap-3 border-t border-border bg-muted/20 p-4 sm:flex-row sm:items-center sm:justify-between">
-                            <div class="flex flex-1 flex-col gap-3 sm:flex-row sm:items-center">
+                        <div
+                            class="flex flex-col gap-3 border-t border-border bg-muted/20 p-4 sm:flex-row sm:items-center sm:justify-between"
+                        >
+                            <div
+                                class="flex flex-1 flex-col gap-3 sm:flex-row sm:items-center"
+                            >
                                 <div class="flex items-center gap-2">
-                                    <Label class="shrink-0 text-xs font-bold">Ghi chú đối soát:</Label>
+                                    <Label class="shrink-0 text-xs font-bold"
+                                        >Ghi chú đối soát:</Label
+                                    >
                                     <Input
                                         v-model="reconcileNotes"
                                         placeholder="Ví dụ: Kiểm kê định kỳ cuối ca..."
@@ -2263,21 +2650,49 @@ const submitWaste = () => {
                                     />
                                 </div>
 
-                                <div v-if="reconcileStats.deficitCount > 0" class="flex items-center gap-2">
-                                    <Label class="shrink-0 text-xs font-bold text-rose-600 dark:text-rose-400">
-                                        Quy trách nhiệm thất thoát ({{ vnd(reconcileStats.totalDeficitCost) }}):
+                                <label
+                                    class="flex items-center gap-2 text-xs font-bold text-indigo-700 dark:text-indigo-300"
+                                >
+                                    <input
+                                        v-model="reconcileOpeningBalance"
+                                        type="checkbox"
+                                        class="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                                    />
+                                    Đây là đối soát số dư đầu kỳ
+                                </label>
+
+                                <div
+                                    v-if="reconcileStats.deficitCount > 0"
+                                    class="flex items-center gap-2"
+                                >
+                                    <Label
+                                        class="shrink-0 text-xs font-bold text-rose-600 dark:text-rose-400"
+                                    >
+                                        Quy trách nhiệm thất thoát ({{
+                                            vnd(
+                                                reconcileStats.totalDeficitCost,
+                                            )
+                                        }}):
                                     </Label>
                                     <select
                                         v-model="reconcileEmployeeId"
                                         class="h-9 rounded-xl border border-rose-300 bg-card px-3 text-xs font-medium text-foreground focus:ring-2 focus:ring-rose-500/20 focus:outline-none dark:border-rose-800"
                                     >
-                                        <option value="">Không khấu trừ lương (Hao hụt quán tự chịu)</option>
+                                        <option value="">
+                                            Không khấu trừ lương (Hao hụt quán
+                                            tự chịu)
+                                        </option>
                                         <option
                                             v-for="emp in employees"
                                             :key="emp.id"
                                             :value="emp.id"
                                         >
-                                            Khấu trừ lương: {{ emp.full_name }}{{ emp.job_title ? ' (' + emp.job_title + ')' : '' }}
+                                            Khấu trừ lương: {{ emp.full_name
+                                            }}{{
+                                                emp.job_title
+                                                    ? ' (' + emp.job_title + ')'
+                                                    : ''
+                                            }}
                                         </option>
                                     </select>
                                 </div>
@@ -2288,7 +2703,11 @@ const submitWaste = () => {
                                 :disabled="isReconciling"
                             >
                                 <ClipboardCheck class="mr-1.5 size-4" />
-                                {{ isReconciling ? 'Đang cân bằng kho...' : 'Xác nhận & Cân bằng tồn kho' }}
+                                {{
+                                    isReconciling
+                                        ? 'Đang cân bằng kho...'
+                                        : 'Xác nhận & Cân bằng tồn kho'
+                                }}
                             </Button>
                         </div>
                     </CardContent>
@@ -2298,173 +2717,333 @@ const submitWaste = () => {
 
         <!-- ══ TAB: KẾ HOẠCH & DỰ BÁO NHẬP ══════════════════════════════════════ -->
         <template v-if="activeTab === 'planning'">
-            <div class="space-y-6 animate-in fade-in duration-200">
+            <div class="animate-in space-y-6 duration-200 fade-in">
                 <!-- Header Summary Banner -->
-                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                    <Card class="border-emerald-200 bg-emerald-50/40 dark:border-emerald-900/50 dark:bg-emerald-950/20">
-                        <CardContent class="p-4 flex items-center justify-between">
+                <div
+                    class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4"
+                >
+                    <Card
+                        class="border-emerald-200 bg-emerald-50/40 dark:border-emerald-900/50 dark:bg-emerald-950/20"
+                    >
+                        <CardContent
+                            class="flex items-center justify-between p-4"
+                        >
                             <div>
-                                <p class="text-xs font-bold text-emerald-800 dark:text-emerald-300">🥬 Hàng Tươi Sống</p>
-                                <h3 class="text-xl font-black text-emerald-700 dark:text-emerald-400">
-                                    {{ ingredients.filter(i => i.storage_type === 'fresh').length }} loại
+                                <p
+                                    class="text-xs font-bold text-emerald-800 dark:text-emerald-300"
+                                >
+                                    🥬 Hàng Tươi Sống
+                                </p>
+                                <h3
+                                    class="text-xl font-black text-emerald-700 dark:text-emerald-400"
+                                >
+                                    {{
+                                        ingredients.filter(
+                                            (i) => i.storage_type === 'fresh',
+                                        ).length
+                                    }}
+                                    loại
                                 </h3>
-                                <p class="text-[10px] text-emerald-600">HSD 1-3 ngày · Tiêu thụ ưu tiên FEFO</p>
+                                <p class="text-[10px] text-emerald-600">
+                                    HSD 1-3 ngày · Tiêu thụ ưu tiên FEFO
+                                </p>
                             </div>
-                            <span class="p-2.5 rounded-xl bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700">🥬</span>
+                            <span
+                                class="rounded-xl bg-emerald-100 p-2.5 text-emerald-700 dark:bg-emerald-900/40"
+                                >🥬</span
+                            >
                         </CardContent>
                     </Card>
 
-                    <Card class="border-amber-200 bg-amber-50/40 dark:border-amber-900/50 dark:bg-amber-950/20">
-                        <CardContent class="p-4 flex items-center justify-between">
+                    <Card
+                        class="border-amber-200 bg-amber-50/40 dark:border-amber-900/50 dark:bg-amber-950/20"
+                    >
+                        <CardContent
+                            class="flex items-center justify-between p-4"
+                        >
                             <div>
-                                <p class="text-xs font-bold text-amber-800 dark:text-amber-300">🥖 Bán Trong Ngày</p>
-                                <h3 class="text-xl font-black text-amber-700 dark:text-amber-400">
-                                    {{ ingredients.filter(i => i.storage_type === 'daily').length }} loại
+                                <p
+                                    class="text-xs font-bold text-amber-800 dark:text-amber-300"
+                                >
+                                    🥖 Bán Trong Ngày
+                                </p>
+                                <h3
+                                    class="text-xl font-black text-amber-700 dark:text-amber-400"
+                                >
+                                    {{
+                                        ingredients.filter(
+                                            (i) => i.storage_type === 'daily',
+                                        ).length
+                                    }}
+                                    loại
                                 </h3>
-                                <p class="text-[10px] text-amber-600">Kiểm soát dùng hết cuối ca / Cuối ngày</p>
+                                <p class="text-[10px] text-amber-600">
+                                    Kiểm soát dùng hết cuối ca / Cuối ngày
+                                </p>
                             </div>
-                            <span class="p-2.5 rounded-xl bg-amber-100 dark:bg-amber-900/40 text-amber-700">🥖</span>
+                            <span
+                                class="rounded-xl bg-amber-100 p-2.5 text-amber-700 dark:bg-amber-900/40"
+                                >🥖</span
+                            >
                         </CardContent>
                     </Card>
 
-                    <Card class="border-blue-200 bg-blue-50/40 dark:border-blue-900/50 dark:bg-blue-950/20">
-                        <CardContent class="p-4 flex items-center justify-between">
+                    <Card
+                        class="border-blue-200 bg-blue-50/40 dark:border-blue-900/50 dark:bg-blue-950/20"
+                    >
+                        <CardContent
+                            class="flex items-center justify-between p-4"
+                        >
                             <div>
-                                <p class="text-xs font-bold text-blue-800 dark:text-blue-300">🥫 Đóng Hộp / Đóng Gói</p>
-                                <h3 class="text-xl font-black text-blue-700 dark:text-blue-400">
-                                    {{ ingredients.filter(i => i.storage_type === 'canned_packaged').length }} loại
+                                <p
+                                    class="text-xs font-bold text-blue-800 dark:text-blue-300"
+                                >
+                                    🥫 Đóng Hộp / Đóng Gói
+                                </p>
+                                <h3
+                                    class="text-xl font-black text-blue-700 dark:text-blue-400"
+                                >
+                                    {{
+                                        ingredients.filter(
+                                            (i) =>
+                                                i.storage_type ===
+                                                'canned_packaged',
+                                        ).length
+                                    }}
+                                    loại
                                 </h3>
-                                <p class="text-[10px] text-blue-600">Hạn trung & dài · Quản lý mở nắp</p>
+                                <p class="text-[10px] text-blue-600">
+                                    Hạn trung & dài · Quản lý mở nắp
+                                </p>
                             </div>
-                            <span class="p-2.5 rounded-xl bg-blue-100 dark:bg-blue-900/40 text-blue-700">🥫</span>
+                            <span
+                                class="rounded-xl bg-blue-100 p-2.5 text-blue-700 dark:bg-blue-900/40"
+                                >🥫</span
+                            >
                         </CardContent>
                     </Card>
 
-                    <Card class="border-slate-200 bg-slate-50/40 dark:border-slate-800 dark:bg-slate-900/20">
-                        <CardContent class="p-4 flex items-center justify-between">
+                    <Card
+                        class="border-slate-200 bg-slate-50/40 dark:border-slate-800 dark:bg-slate-900/20"
+                    >
+                        <CardContent
+                            class="flex items-center justify-between p-4"
+                        >
                             <div>
-                                <p class="text-xs font-bold text-slate-800 dark:text-slate-300">🌾 Đồ Khô & Gia Vị</p>
-                                <h3 class="text-xl font-black text-slate-700 dark:text-slate-400">
-                                    {{ ingredients.filter(i => (!i.storage_type || i.storage_type === 'dry')).length }} loại
+                                <p
+                                    class="text-xs font-bold text-slate-800 dark:text-slate-300"
+                                >
+                                    🌾 Đồ Khô & Gia Vị
+                                </p>
+                                <h3
+                                    class="text-xl font-black text-slate-700 dark:text-slate-400"
+                                >
+                                    {{
+                                        ingredients.filter(
+                                            (i) =>
+                                                !i.storage_type ||
+                                                i.storage_type === 'dry',
+                                        ).length
+                                    }}
+                                    loại
                                 </h3>
-                                <p class="text-[10px] text-slate-500">Bảo quản kho khô · Mua gom định kỳ</p>
+                                <p class="text-[10px] text-slate-500">
+                                    Bảo quản kho khô · Mua gom định kỳ
+                                </p>
                             </div>
-                            <span class="p-2.5 rounded-xl bg-slate-200 dark:bg-slate-800 text-slate-700">🌾</span>
+                            <span
+                                class="rounded-xl bg-slate-200 p-2.5 text-slate-700 dark:bg-slate-800"
+                                >🌾</span
+                            >
                         </CardContent>
                     </Card>
                 </div>
 
                 <!-- Planning Table: Master Matrix & Reorder Recommendations -->
                 <Card class="shadow-sm">
-                    <CardHeader class="border-b border-border pb-3 flex flex-row items-center justify-between">
+                    <CardHeader
+                        class="flex flex-row items-center justify-between border-b border-border pb-3"
+                    >
                         <div>
-                            <CardTitle class="text-base font-bold text-slate-900 dark:text-slate-100">
+                            <CardTitle
+                                class="text-base font-bold text-slate-900 dark:text-slate-100"
+                            >
                                 📋 Kế Hoạch Đặt Hàng & Kiểm Soát Tồn Kho Chuẩn
                             </CardTitle>
                             <CardDescription class="text-xs">
-                                Tính toán nhu cầu dựa trên Tồn thực tế, Tồn tối thiểu (Min Stock), Điểm đặt hàng lại (Reorder Level) và Hạn sử dụng.
+                                Tính toán nhu cầu dựa trên Tồn thực tế, Tồn tối
+                                thiểu (Min Stock), Điểm đặt hàng lại (Reorder
+                                Level) và Hạn sử dụng.
                             </CardDescription>
                         </div>
                         <Button
                             size="sm"
-                            class="bg-indigo-600 text-white rounded-xl text-xs"
+                            class="rounded-xl bg-indigo-600 text-xs text-white"
                             @click="openAddIngredientModal()"
                         >
                             <Plus class="mr-1 size-3.5" /> Thêm nguyên liệu mới
                         </Button>
                     </CardHeader>
-                    <CardContent class="p-0 overflow-x-auto">
-                        <table class="w-full text-left text-xs border-collapse">
+                    <CardContent class="overflow-x-auto p-0">
+                        <table class="w-full border-collapse text-left text-xs">
                             <thead>
-                                <tr class="border-b bg-slate-100 text-[10px] font-bold text-slate-500 uppercase dark:bg-slate-950">
+                                <tr
+                                    class="border-b bg-slate-100 text-[10px] font-bold text-slate-500 uppercase dark:bg-slate-950"
+                                >
                                     <th class="p-3">Nguyên liệu</th>
                                     <th class="p-3">Loại bảo quản</th>
                                     <th class="p-3">Vị trí kho</th>
                                     <th class="p-3 text-right">Tồn hiện tại</th>
-                                    <th class="p-3 text-right">Mức tối thiểu (Min)</th>
-                                    <th class="p-3 text-right">Định mức đặt (Reorder)</th>
-                                    <th class="p-3 text-center">HSD Tiêu chuẩn</th>
-                                    <th class="p-3 text-center">Trạng thái đặt hàng</th>
+                                    <th class="p-3 text-right">
+                                        Mức tối thiểu (Min)
+                                    </th>
+                                    <th class="p-3 text-right">
+                                        Định mức đặt (Reorder)
+                                    </th>
+                                    <th class="p-3 text-center">
+                                        HSD Tiêu chuẩn
+                                    </th>
+                                    <th class="p-3 text-center">
+                                        Trạng thái đặt hàng
+                                    </th>
                                     <th class="p-3 text-right">Thao tác</th>
                                 </tr>
                             </thead>
-                            <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
+                            <tbody
+                                class="divide-y divide-slate-100 dark:divide-slate-800"
+                            >
                                 <tr
                                     v-for="ing in ingredients"
                                     :key="ing.id"
-                                    class="hover:bg-slate-50/50 dark:hover:bg-slate-900/30 transition"
+                                    class="transition hover:bg-slate-50/50 dark:hover:bg-slate-900/30"
                                 >
-                                    <td class="p-3 font-bold text-slate-800 dark:text-slate-200">
+                                    <td
+                                        class="p-3 font-bold text-slate-800 dark:text-slate-200"
+                                    >
                                         {{ ing.name }}
-                                        <span class="block text-[10px] font-normal text-slate-400">
-                                            {{ ing.sku }} · {{ ing.unit?.symbol }}
+                                        <span
+                                            class="block text-[10px] font-normal text-slate-400"
+                                        >
+                                            {{ ing.sku }} ·
+                                            {{ ing.unit?.symbol }}
                                         </span>
                                     </td>
                                     <td class="p-3">
-                                        <span :class="['rounded px-1.5 py-0.5 text-[10px] font-bold border', getStorageBadgeClass(ing.storage_type)]">
-                                            {{ ing.storage_type_label || '🌾 Đồ khô' }}
+                                        <span
+                                            :class="[
+                                                'rounded border px-1.5 py-0.5 text-[10px] font-bold',
+                                                getStorageBadgeClass(
+                                                    ing.storage_type,
+                                                ),
+                                            ]"
+                                        >
+                                            {{
+                                                ing.storage_type_label ||
+                                                '🌾 Đồ khô'
+                                            }}
                                         </span>
                                     </td>
                                     <td class="p-3 text-slate-500">
                                         {{ ing.storage_location || '—' }}
                                     </td>
-                                    <td class="p-3 text-right font-mono font-bold">
-                                        <span :class="[
-                                            (ing.stock ?? 0) < (ing.min_stock_level || 5)
-                                                ? 'text-rose-600 dark:text-rose-400'
-                                                : 'text-slate-700 dark:text-slate-300'
-                                        ]">
-                                            {{ (ing.stock ?? 0).toFixed(1) }} {{ ing.unit?.symbol }}
+                                    <td
+                                        class="p-3 text-right font-mono font-bold"
+                                    >
+                                        <span
+                                            :class="[
+                                                (ing.stock ?? 0) <
+                                                (ing.min_stock_level || 5)
+                                                    ? 'text-rose-600 dark:text-rose-400'
+                                                    : 'text-slate-700 dark:text-slate-300',
+                                            ]"
+                                        >
+                                            {{ (ing.stock ?? 0).toFixed(1) }}
+                                            {{ ing.unit?.symbol }}
                                         </span>
                                     </td>
-                                    <td class="p-3 text-right font-mono text-slate-500">
-                                        {{ (ing.min_stock_level || 0).toFixed(1) }}
+                                    <td
+                                        class="p-3 text-right font-mono text-slate-500"
+                                    >
+                                        {{
+                                            (ing.min_stock_level || 0).toFixed(
+                                                1,
+                                            )
+                                        }}
                                     </td>
-                                    <td class="p-3 text-right font-mono text-slate-500">
-                                        {{ (ing.reorder_level || 0).toFixed(1) }}
+                                    <td
+                                        class="p-3 text-right font-mono text-slate-500"
+                                    >
+                                        {{
+                                            (ing.reorder_level || 0).toFixed(1)
+                                        }}
                                     </td>
-                                    <td class="p-3 text-center font-mono text-slate-600 dark:text-slate-400">
-                                        {{ ing.default_shelf_life_days ? ing.default_shelf_life_days + ' ngày' : 'Chưa cài' }}
+                                    <td
+                                        class="p-3 text-center font-mono text-slate-600 dark:text-slate-400"
+                                    >
+                                        {{
+                                            ing.default_shelf_life_days
+                                                ? ing.default_shelf_life_days +
+                                                  ' ngày'
+                                                : 'Chưa cài'
+                                        }}
                                     </td>
                                     <td class="p-3 text-center">
                                         <span
-                                            v-if="(ing.stock ?? 0) < (ing.min_stock_level || 5)"
-                                            class="rounded-full bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300 px-2 py-0.5 text-[10px] font-bold border border-rose-200"
+                                            v-if="
+                                                (ing.stock ?? 0) <
+                                                (ing.min_stock_level || 5)
+                                            "
+                                            class="rounded-full border border-rose-200 bg-rose-100 px-2 py-0.5 text-[10px] font-bold text-rose-700 dark:bg-rose-950 dark:text-rose-300"
                                         >
                                             🔴 Cần nhập ngay
                                         </span>
                                         <span
-                                            v-else-if="(ing.stock ?? 0) < (ing.reorder_level || 20)"
-                                            class="rounded-full bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300 px-2 py-0.5 text-[10px] font-bold border border-amber-200"
+                                            v-else-if="
+                                                (ing.stock ?? 0) <
+                                                (ing.reorder_level || 20)
+                                            "
+                                            class="rounded-full border border-amber-200 bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-700 dark:bg-amber-950 dark:text-amber-300"
                                         >
                                             🟡 Gom đơn đặt
                                         </span>
                                         <span
                                             v-else
-                                            class="rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300 px-2 py-0.5 text-[10px] font-bold border border-emerald-200"
+                                            class="rounded-full border border-emerald-200 bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300"
                                         >
                                             🟢 Đủ cơ số
                                         </span>
                                     </td>
-                                    <td class="p-3 text-right space-x-1">
+                                    <td class="space-x-1 p-3 text-right">
                                         <Button
                                             size="sm"
                                             variant="outline"
                                             class="h-7 px-2 text-[10px] font-semibold"
-                                            @click="openEditIngredientModal(ing)"
+                                            @click="
+                                                openEditIngredientModal(ing)
+                                            "
                                         >
-                                            <Edit class="mr-1 size-3" /> Cấu hình
+                                            <Edit class="mr-1 size-3" /> Cấu
+                                            hình
                                         </Button>
                                         <Button
                                             size="sm"
-                                            class="h-7 px-2 text-[10px] font-semibold bg-indigo-600 text-white"
+                                            class="h-7 bg-indigo-600 px-2 text-[10px] font-semibold text-white"
                                             @click="
                                                 activeTab = 'purchase';
-                                                purchaseForm.ingredient_id = String(ing.id);
-                                                purchaseForm.quantity = String(Math.max(1, (ing.reorder_level || 10) - (ing.stock ?? 0)));
+                                                purchaseForm.ingredient_id =
+                                                    String(ing.id);
+                                                purchaseForm.quantity = String(
+                                                    Math.max(
+                                                        1,
+                                                        (ing.reorder_level ||
+                                                            10) -
+                                                            (ing.stock ?? 0),
+                                                    ),
+                                                );
                                             "
                                         >
-                                            <ShoppingCart class="mr-1 size-3" /> Nhập hàng
+                                            <ShoppingCart class="mr-1 size-3" />
+                                            Nhập hàng
                                         </Button>
                                     </td>
                                 </tr>
@@ -2639,13 +3218,13 @@ const submitWaste = () => {
                                 <div
                                     class="flex items-center justify-between border-b border-border pb-1.5 text-[11px] font-bold tracking-wider text-muted-foreground uppercase"
                                 >
-                                    <span class="w-[45%]"
+                                    <span class="w-[35%]"
                                         >Nguyên liệu
                                         <span class="text-rose-500"
                                             >*</span
                                         ></span
                                     >
-                                    <span class="w-[25%]"
+                                    <span class="w-[20%]"
                                         >Định lượng
                                         <span class="text-rose-500"
                                             >*</span
@@ -2668,9 +3247,10 @@ const submitWaste = () => {
                                         class="flex items-center gap-3"
                                     >
                                         <!-- Ingredient Select -->
-                                        <div class="w-[45%]">
+                                        <div class="w-[35%]">
                                             <select
                                                 v-model="item.ingredient_id"
+                                                @change="syncRecipeUnit(item)"
                                                 required
                                                 class="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 focus:outline-none"
                                             >
@@ -2703,12 +3283,52 @@ const submitWaste = () => {
                                             </select>
                                         </div>
 
+                                        <!-- Recipe unit -->
+                                        <div class="w-[20%]">
+                                            <select
+                                                v-model="item.unit_id"
+                                                @change="
+                                                    normalizeRecipeQuantity(
+                                                        item,
+                                                    )
+                                                "
+                                                required
+                                                class="w-full rounded-xl border border-border bg-background px-2 py-2 text-xs focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 focus:outline-none"
+                                            >
+                                                <option
+                                                    v-for="unit in recipeUnitsFor(
+                                                        item.ingredient_id,
+                                                    )"
+                                                    :key="unit.id"
+                                                    :value="String(unit.id)"
+                                                >
+                                                    {{ unit.symbol }}
+                                                </option>
+                                            </select>
+                                        </div>
+
                                         <!-- Quantity Input -->
-                                        <div class="relative w-[25%]">
+                                        <div class="relative w-[20%]">
                                             <Input
                                                 type="number"
-                                                step="0.001"
+                                                :step="
+                                                    recipeQuantityStep(
+                                                        item.unit_id,
+                                                    )
+                                                "
+                                                :min="
+                                                    recipeQuantityIsInteger(
+                                                        item.unit_id,
+                                                    )
+                                                        ? 1
+                                                        : 0.001
+                                                "
                                                 v-model="item.quantity"
+                                                @input="
+                                                    normalizeRecipeQuantity(
+                                                        item,
+                                                    )
+                                                "
                                                 placeholder="150"
                                                 required
                                                 class="h-9 pr-10 text-xs"
@@ -2717,17 +3337,17 @@ const submitWaste = () => {
                                                 class="absolute top-1/2 right-2.5 -translate-y-1/2 text-[10px] font-bold text-slate-400 select-none"
                                             >
                                                 {{
-                                                    ingredients.find(
-                                                        (i) =>
-                                                            String(i.id) ===
-                                                            item.ingredient_id,
-                                                    )?.unit?.symbol ?? 'đv'
+                                                    units.find(
+                                                        (unit) =>
+                                                            String(unit.id) ===
+                                                            item.unit_id,
+                                                    )?.symbol ?? 'đv'
                                                 }}
                                             </span>
                                         </div>
 
                                         <!-- Waste Rate Input -->
-                                        <div class="w-[20%]">
+                                        <div class="w-[15%]">
                                             <Input
                                                 type="number"
                                                 v-model="item.waste_rate"
@@ -2826,3 +3446,14 @@ const submitWaste = () => {
         @close="showIngredientModal = false"
     />
 </template>
+
+<style scoped>
+.ai-forecast-scroll {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+}
+
+.ai-forecast-scroll::-webkit-scrollbar {
+    display: none;
+}
+</style>

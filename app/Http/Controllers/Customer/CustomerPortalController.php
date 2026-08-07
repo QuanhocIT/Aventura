@@ -223,6 +223,7 @@ class CustomerPortalController extends Controller
             $productIds = collect($data['items'])->pluck('product_id')->toArray();
             $products = Product::where('restaurant_id', $restaurantId)
                 ->whereIn('id', $productIds)
+                ->sellableMenu()
                 ->get()
                 ->keyBy('id');
 

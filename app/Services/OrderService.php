@@ -51,6 +51,7 @@ class OrderService
                     $query->whereNull('branch_id')->orWhere('branch_id', $branchId);
                 })
                 ->whereIn('id', $productIds)
+                ->sellableMenu()
                 ->get()
                 ->keyBy('id');
 
@@ -124,7 +125,7 @@ class OrderService
                                     // Reserve inventory (holding stock) for the diff
                                     if ($product->track_inventory) {
                                         foreach ($product->recipes as $recipe) {
-                                            $totalUsed = ($recipe->quantity * $diff) * (1 + ($recipe->waste_rate / 100));
+                                            $totalUsed = $this->recipeUsageInInventoryUnit($recipe, (float) $diff);
                                             InventoryReservation::create([
                                                 'restaurant_id' => $restaurantId,
                                                 'branch_id' => $branchId,
@@ -169,7 +170,7 @@ class OrderService
                         // Reserve inventory (holding stock)
                         if ($product->track_inventory) {
                             foreach ($product->recipes as $recipe) {
-                                $totalUsed = ($recipe->quantity * $itemData['quantity']) * (1 + ($recipe->waste_rate / 100));
+                                $totalUsed = $this->recipeUsageInInventoryUnit($recipe, (float) $itemData['quantity']);
                                 InventoryReservation::create([
                                     'restaurant_id' => $restaurantId,
                                     'branch_id' => $branchId,
@@ -275,7 +276,7 @@ class OrderService
                 $product = $products->get($item['product_id']);
                 if ($product && $product->track_inventory) {
                     foreach ($product->recipes as $recipe) {
-                        $totalUsed = ($recipe->quantity * $item['quantity']) * (1 + ($recipe->waste_rate / 100));
+                        $totalUsed = $this->recipeUsageInInventoryUnit($recipe, (float) $item['quantity']);
                         InventoryReservation::create([
                             'restaurant_id' => $restaurantId,
                             'branch_id' => $branchId,
@@ -351,6 +352,13 @@ class OrderService
             }
 
             if ($newStatus === 'cancelled' && $oldStatus !== 'cancelled') {
+                if ($oldStatus === 'completed'
+                    && ($order->payment_status === 'paid' || $order->payment_status === 'partial_refund')) {
+                    throw new \RuntimeException(
+                        'Đơn đã thanh toán không thể hủy trực tiếp. Hãy xử lý hoàn tiền để hoàn kho và ghi nhận nhật ký.'
+                    );
+                }
+
                 $this->inventoryService->releaseInventoryReservations($order);
                 AuditLog::log('order_cancelled', 'deleted', $order, ['status' => $oldStatus], ['status' => 'cancelled']);
             }
@@ -558,6 +566,7 @@ class OrderService
                             ->where(function ($query) use ($order) {
                                 $query->whereNull('branch_id')->orWhere('branch_id', $order->branch_id);
                             })
+                            ->sellableMenu()
                             ->findOrFail($itemData['product_id']);
 
                         $unitPrice = $itemData['unit_price'] ?? (float) $product->price;
@@ -768,8 +777,11 @@ class OrderService
             }
 
             if ($queuePostPayment) {
-                // Dispatch job for heavy post-payment logic (BOM inventory deduction, member points, CDP update)
-                ProcessPostPaymentActions::dispatch($order->id, $user->id);
+                // Keep the queue for heavy loyalty/CDP work, but commit BOM
+                // deduction in this transaction so paid revenue can never
+                // exist without matching stock/COGS.
+                $this->inventoryService->deductInventoryForOrder($order, $user);
+                ProcessPostPaymentActions::dispatch($order->id, $user->id)->afterCommit();
             } else {
                 // 2. Trừ kho nguyên liệu
                 $this->inventoryService->deductInventoryForOrder($order, $user);
@@ -875,12 +887,19 @@ class OrderService
                     'branch_id' => $order->branch_id,
                     'order_id' => $order->id,
                     'ingredient_id' => $recipe->ingredient_id,
-                    'reserved_quantity' => (float) $recipe->quantity * (float) $item->quantity * (1 + ((float) $recipe->waste_rate / 100)),
+                    'reserved_quantity' => $this->recipeUsageInInventoryUnit($recipe, (float) $item->quantity),
                     'status' => 'holding',
                     'expires_at' => now()->addHours(4),
                 ]);
             }
         }
+    }
+
+    private function recipeUsageInInventoryUnit($recipe, float $itemQuantity): float
+    {
+        return app(UnitConversionService::class)->recipeQuantityInIngredientUnit($recipe)
+            * $itemQuantity
+            * (1 + ((float) $recipe->waste_rate / 100));
     }
 
     /**

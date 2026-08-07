@@ -24,6 +24,7 @@ class Inventory extends Model
     {
         return [
             'last_counted_at' => 'datetime',
+            'opening_balance_reconciled_at' => 'datetime',
             'quantity_on_hand' => 'float',
             'theoretical_quantity' => 'float',
         ];

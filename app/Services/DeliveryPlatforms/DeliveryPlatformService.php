@@ -86,6 +86,7 @@ class DeliveryPlatformService
             $products = Product::withoutGlobalScopes()
                 ->where('restaurant_id', $restaurantId)
                 ->where('is_active', true)
+                ->sellableMenu()
                 ->get(['id', 'name', 'price']);
 
             $subtotal = 0;
@@ -201,6 +202,7 @@ class DeliveryPlatformService
         $products = Product::withoutGlobalScopes()
             ->where('restaurant_id', $restaurantId)
             ->where('is_active', true)
+            ->sellableMenu()
             ->inRandomOrder()
             ->limit(random_int(1, 3))
             ->get(['name', 'price']);

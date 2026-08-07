@@ -33,6 +33,7 @@ class OnlineOrderService
             ->where('restaurant_id', $restaurant->id)
             ->where('is_active', true)
             ->where('is_available', true)
+            ->sellableMenu()
             ->where(function ($q) use ($branchId): void {
                 if ($branchId !== null) {
                     $q->whereNull('branch_id')->orWhere('branch_id', $branchId);
@@ -113,6 +114,7 @@ class OnlineOrderService
                         ->where('id', $item['product_id'])
                         ->where('is_active', true)
                         ->where('is_available', true)
+                        ->sellableMenu()
                         ->first();
 
                     if (! $product) {
@@ -203,7 +205,9 @@ class OnlineOrderService
                                 'branch_id' => $branchId,
                                 'order_id' => $order->id,
                                 'ingredient_id' => $recipe->ingredient_id,
-                                'reserved_quantity' => (float) $recipe->quantity * (float) $item['quantity'] * (1 + ((float) $recipe->waste_rate / 100)),
+                                'reserved_quantity' => app(UnitConversionService::class)->recipeQuantityInIngredientUnit($recipe)
+                                    * (float) $item['quantity']
+                                    * (1 + ((float) $recipe->waste_rate / 100)),
                                 'status' => 'holding',
                                 'expires_at' => now()->addHours(4),
                             ]);

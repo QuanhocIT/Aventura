@@ -148,6 +148,7 @@ class CashierDashboardController extends Controller
                 })
                 ->where('is_active', true)
                 ->where('is_available', true)
+                ->sellableMenu()
                 ->with('recipes.ingredient.unit')
                 ->get();
 
