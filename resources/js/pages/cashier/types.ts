@@ -6,6 +6,8 @@ export interface OrderItem {
     quantity: number;
     notes?: string;
     status?: string;
+    prepared_at?: string | null;
+    served_at?: string | null;
 }
 
 export interface TableItem {
@@ -18,6 +20,7 @@ export interface TableItem {
         id: number;
         order_number: string;
         status: string;
+        payment_status: string;
         subtotal: number;
         discount_amount: number;
         total_amount: number;

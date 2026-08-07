@@ -420,12 +420,15 @@ class DashboardController extends Controller
                 ->get()
                 ->map(function ($t) {
                     $status = $t->status;
-                    if ($status === 'occupied') {
-                        $activeOrder = $t->activeOrder;
-                        if (! $activeOrder) {
-                            $status = 'available';
-                            $t->update(['status' => 'available']);
+                    $activeOrder = $t->activeOrder;
+                    if ($activeOrder) {
+                        $status = 'occupied';
+                        if ($t->status !== 'occupied') {
+                            $t->update(['status' => 'occupied']);
                         }
+                    } elseif ($status === 'occupied') {
+                        $status = 'available';
+                        $t->update(['status' => 'available']);
                     }
 
                     return [

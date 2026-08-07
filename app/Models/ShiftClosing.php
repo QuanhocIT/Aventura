@@ -23,9 +23,10 @@ class ShiftClosing extends Model
                 ->first();
 
             $employeeId = $employee ? $employee->id : null;
+            // Fix #15: Đảm bảo timezone nhất quán khi parse closing_date
             $date = $model->closing_date instanceof Carbon
                 ? $model->closing_date->toDateString()
-                : Carbon::parse($model->closing_date)->toDateString();
+                : Carbon::parse($model->closing_date, config('app.timezone'))->toDateString();
 
             if (Salary::isPeriodLocked($model->restaurant_id, $employeeId, $date)) {
                 throw new \Exception('Dữ liệu chấm công chốt ca đã bị khóa do bảng lương của kỳ này đã được phê duyệt.');

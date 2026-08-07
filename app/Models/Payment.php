@@ -17,7 +17,7 @@ class Payment extends Model
     use HasFactory;
     use SoftDeletes;
 
-    protected $guarded = [];
+    protected $guarded = ['id'];
 
     protected static function booted(): void
     {

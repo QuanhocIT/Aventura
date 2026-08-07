@@ -60,6 +60,10 @@ class ApprovalController extends Controller
         abort_if($approval->restaurant_id !== $request->user()->restaurant_id, 403);
         abort_unless($approval->status === 'pending', 422);
 
+        if ($approval->operation_type === 'order_refund') {
+            abort_unless($request->user()->hasRole('owner'), 403, 'Chỉ chủ doanh nghiệp mới được duyệt hoàn tiền.');
+        }
+
         // Self-Approval Prevention Check
         abort_if($approval->requester_id === $request->user()->id, 403, 'Bạn không thể tự phê duyệt yêu cầu của chính mình.');
 
@@ -77,6 +81,10 @@ class ApprovalController extends Controller
         abort_unless($request->user()->can('approve_requests'), 403);
         abort_if($approval->restaurant_id !== $request->user()->restaurant_id, 403);
         abort_unless($approval->status === 'pending', 422);
+
+        if ($approval->operation_type === 'order_refund') {
+            abort_unless($request->user()->hasRole('owner'), 403, 'Chỉ chủ doanh nghiệp mới được từ chối hoàn tiền.');
+        }
 
         $data = $request->validate([
             'rejection_reason' => ['required', 'string', 'max:500'],

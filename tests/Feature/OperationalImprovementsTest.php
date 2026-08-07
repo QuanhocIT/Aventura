@@ -481,6 +481,100 @@ class OperationalImprovementsTest extends TestCase
         );
     }
 
+    public function test_paid_order_still_occupies_table_until_all_items_are_served(): void
+    {
+        $this->actingAs($this->owner);
+        $this->post(route('branch.switch'), ['branch_id' => $this->branch->id])->assertRedirect();
+
+        $table = RestaurantTable::factory()->create([
+            'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
+            'status' => 'available', // mô phỏng dữ liệu cũ bị trả bàn sớm sau thanh toán
+        ]);
+        $product = Product::factory()->create([
+            'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
+            'price' => 50000,
+            'is_active' => true,
+            'is_available' => true,
+        ]);
+
+        $order = Order::factory()->create([
+            'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
+            'table_id' => $table->id,
+            'status' => 'completed',
+            'payment_status' => 'paid',
+            'completed_at' => now(),
+        ]);
+        OrderItem::create([
+            'restaurant_id' => $this->restaurant->id,
+            'order_id' => $order->id,
+            'product_id' => $product->id,
+            'quantity' => 1,
+            'unit_price' => 50000,
+            'line_total' => 50000,
+            'status' => 'pending',
+        ]);
+
+        $response = $this->post(route('orders.store'), [
+            'channel' => 'dine_in',
+            'table_id' => $table->id,
+            'items' => [['product_id' => $product->id, 'quantity' => 1]],
+            'guests_count' => 1,
+        ]);
+
+        $response->assertRedirect();
+        $response->assertSessionHasErrors('items');
+        $this->assertSame(1, Order::where('table_id', $table->id)->count());
+    }
+
+    public function test_preparing_queue_hides_a_duplicate_table_order(): void
+    {
+        $oldOrder = Order::factory()->create([
+            'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
+            'table_id' => ($table = RestaurantTable::factory()->create([
+                'restaurant_id' => $this->restaurant->id,
+                'branch_id' => $this->branch->id,
+            ]))->id,
+            'status' => 'completed',
+            'payment_status' => 'paid',
+            'completed_at' => now(),
+        ]);
+        $newOrder = Order::factory()->create([
+            'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
+            'table_id' => $table->id,
+            'status' => 'pending',
+            'payment_status' => 'unpaid',
+        ]);
+        $product = Product::factory()->create(['restaurant_id' => $this->restaurant->id]);
+
+        foreach ([$oldOrder, $newOrder] as $order) {
+            OrderItem::create([
+                'restaurant_id' => $this->restaurant->id,
+                'order_id' => $order->id,
+                'product_id' => $product->id,
+                'quantity' => 1,
+                'unit_price' => 50000,
+                'line_total' => 50000,
+                'status' => 'pending',
+            ]);
+        }
+
+        $orders = app(\App\Repositories\OrderRepositoryInterface::class)
+            ->getOrdersQuery($this->restaurant->id, [
+                'status' => 'preparing',
+                'date' => today()->toDateString(),
+                'branch_id' => $this->branch->id,
+            ])->get();
+
+        $this->assertTrue($orders->contains('id', $oldOrder->id));
+        $this->assertFalse($orders->contains('id', $newOrder->id));
+        $this->assertSame($oldOrder->id, $table->fresh()->activeOrder()->value('id'));
+    }
+
     /**
      * Test 6: Trùng lắp client_item_id không tạo OrderItem trùng
      */

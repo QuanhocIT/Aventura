@@ -261,9 +261,20 @@ const submitDelete = () => {
         return;
     }
 
+    if (deletingTable.value.status === 'occupied' || deletingTable.value.active_order) {
+        toast.error(`Không thể xóa bàn ${deletingTable.value.name} vì bàn đang có đơn hàng chưa hoàn tất. Vui lòng thanh toán hoặc hủy đơn trước.`);
+        deletingTable.value = null;
+
+        return;
+    }
+
     router.delete(`/tables/${deletingTable.value.id}`, {
         onSuccess: () => {
             deletingTable.value = null;
+            toast.success('Đã xóa bàn thành công.');
+        },
+        onError: (errs: any) => {
+            toast.error(String(Object.values(errs)[0] ?? 'Có lỗi khi xóa bàn.'));
         },
     });
 };

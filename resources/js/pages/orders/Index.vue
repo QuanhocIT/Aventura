@@ -17,8 +17,9 @@ import {
     X,
     Utensils,
     Loader2,
+    RotateCcw,
 } from 'lucide-vue-next';
-import { computed, ref, onMounted, watch } from 'vue';
+import { computed, ref, onMounted, onUnmounted, watch } from 'vue';
 import { toast } from 'vue-sonner';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -43,6 +44,13 @@ type OrderItemDetail = {
     line_total: number;
     notes: string | null;
     status: string | null;
+    sent_to_kitchen_at?: string | null;
+    prepared_at?: string | null;
+    prepared_at_formatted?: string | null;
+    prepared_by_name?: string | null;
+    served_at?: string | null;
+    served_at_formatted?: string | null;
+    served_by_name?: string | null;
 };
 
 type DeliveryInfo = {
@@ -62,14 +70,22 @@ type Order = {
     branch_name: string;
     status: string;
     payment_status: string;
+    fulfillment_status: 'pending' | 'preparing' | 'ready' | 'served';
     channel: string;
     table_name: string | null;
     area_name: string | null;
     total_amount: number;
     items_count: number;
+    items_prepared_count?: number;
+    items_served_count?: number;
+    items_in_progress_count?: number;
+    items_ready_count?: number;
     created_at: string;
     created_at_full?: string;
+    created_at_formatted?: string;
     completed_at: string | null;
+    completed_at_full?: string | null;
+    completed_at_formatted?: string | null;
     note?: string | null;
     items?: OrderItemDetail[];
     delivery?: DeliveryInfo | null;
@@ -79,6 +95,7 @@ type Summary = {
     total: number;
     pending: number;
     preparing: number;
+    ready?: number;
     completed: number;
     cancelled: number;
     revenue: number;
@@ -90,6 +107,19 @@ const props = defineProps<{
     filters: { status: string; date: string };
     autoPayEnabled: boolean;
 }>();
+
+const officialView = ref<'orders' | 'ready'>('orders');
+const isOfficialReady = computed(() => officialView.value === 'ready');
+
+// Khi mở tab "Chờ phục vụ", backend trả đúng tập đơn ready. Không lọc lại
+// từ danh sách "Đang chế biến" vì hai trạng thái đã được tách ở server.
+const readyOrders = computed(() =>
+    isOfficialReady.value ? props.orders : [],
+);
+
+const officialOrders = computed(() =>
+    isOfficialReady.value ? readyOrders.value : props.orders,
+);
 
 const page = usePage();
 const roles = computed(() => {
@@ -122,6 +152,7 @@ const openDatePicker = () => {
 };
 
 const applyFilters = () => {
+    officialView.value = 'orders';
     router.get(
         '/orders',
         { status: activeStatus.value, date: dateInput.value },
@@ -130,6 +161,7 @@ const applyFilters = () => {
 };
 
 const setStatus = (s: string) => {
+    officialView.value = 'orders';
     activeStatus.value = s;
     router.get(
         '/orders',
@@ -138,20 +170,59 @@ const setStatus = (s: string) => {
     );
 };
 
+const selectOfficialView = (view: 'orders' | 'ready') => {
+    officialView.value = view;
+
+    if (view === 'ready' && activeStatus.value !== 'ready') {
+        activeStatus.value = 'ready';
+        router.get(
+            '/orders',
+            { status: 'ready', date: dateInput.value },
+            { preserveScroll: true, preserveState: true },
+        );
+    }
+};
+
 const statusUpdating = ref<Record<number, boolean>>({});
+
+const fulfillmentConfig: Record<
+    Order['fulfillment_status'],
+    { label: string; class: string; icon: any }
+> = {
+    pending: {
+        label: 'Chờ chế biến',
+        class: 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900/40 dark:bg-amber-950/40 dark:text-amber-300',
+        icon: Clock,
+    },
+    preparing: {
+        label: 'Đang chế biến',
+        class: 'border-violet-200 bg-violet-50 text-violet-700 dark:border-violet-900/40 dark:bg-violet-950/40 dark:text-violet-300',
+        icon: ChefHat,
+    },
+    ready: {
+        label: 'Chờ phục vụ',
+        class: 'border-sky-200 bg-sky-50 text-sky-700 dark:border-sky-900/40 dark:bg-sky-950/40 dark:text-sky-300',
+        icon: CheckCircle2,
+    },
+    served: {
+        label: 'Đã phục vụ',
+        class: 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900/40 dark:bg-emerald-950/40 dark:text-emerald-300',
+        icon: CheckCircle2,
+    },
+};
 
 // ─── Phân trang đơn hàng (10 đơn / trang) ───
 const currentPage = ref(1);
 const itemsPerPage = 10;
 
 const totalPages = computed(() =>
-    Math.ceil(props.orders.length / itemsPerPage),
+    Math.ceil(officialOrders.value.length / itemsPerPage),
 );
 
 const paginatedOrders = computed(() => {
     const start = (currentPage.value - 1) * itemsPerPage;
 
-    return props.orders.slice(start, start + itemsPerPage);
+    return officialOrders.value.slice(start, start + itemsPerPage);
 });
 
 const visiblePages = computed(() => {
@@ -171,7 +242,7 @@ const visiblePages = computed(() => {
     return pages;
 });
 
-watch([activeStatus, dateInput, () => props.orders], () => {
+watch([activeStatus, dateInput, () => props.orders, officialView], () => {
     currentPage.value = 1;
 });
 
@@ -313,47 +384,59 @@ function submitAction() {
     });
 }
 
+// ─── Xử lý Hoàn tiền (Refund) ───
+const showRefundModal = ref(false);
+const refundOrderTarget = ref<Order | null>(null);
+const refundType = ref<'full' | 'partial'>('full');
+const refundAmount = ref<number>(0);
+const refundReason = ref<string>('');
+const isSubmittingRefund = ref(false);
+
+const openRefundModal = (o: Order) => {
+    refundOrderTarget.value = o;
+    refundType.value = 'full';
+    refundAmount.value = o.total_amount;
+    refundReason.value = '';
+    showRefundModal.value = true;
+};
+
+const submitRefund = () => {
+    if (!refundOrderTarget.value || !refundReason.value.trim() || isSubmittingRefund.value) {
+        return;
+    }
+    isSubmittingRefund.value = true;
+    router.post(
+        `/orders/${refundOrderTarget.value.id}/refund`,
+        {
+            refund_type: refundType.value,
+            refund_amount: refundAmount.value,
+            reason: refundReason.value,
+        },
+        {
+            preserveScroll: true,
+            onSuccess: () => {
+                showRefundModal.value = false;
+                toast.success(
+                    isOwner.value
+                        ? 'Đã xử lý hoàn tiền thành công!'
+                        : 'Đã gửi yêu cầu hoàn tiền đến chủ doanh nghiệp.',
+                );
+            },
+            onError: (errs: any) => {
+                toast.error(String(Object.values(errs)[0] ?? 'Có lỗi khi hoàn tiền.'));
+            },
+            onFinish: () => {
+                isSubmittingRefund.value = false;
+            },
+        },
+    );
+};
+
 const splitTotal = computed(() =>
     billItems.value
         .filter((i) => selectedItemIds.value.includes(i.id))
         .reduce((sum, i) => sum + i.line_total, 0),
 );
-
-const statusConfig: Record<
-    string,
-    { label: string; color: string; bg: string; icon: any }
-> = {
-    pending: {
-        label: 'Chờ xác nhận',
-        color: 'text-amber-700',
-        bg: 'bg-amber-100 dark:bg-amber-950/40 dark:text-amber-400',
-        icon: Clock,
-    },
-    confirmed: {
-        label: 'Đã xác nhận',
-        color: 'text-sky-700',
-        bg: 'bg-sky-100 dark:bg-sky-950/40 dark:text-sky-400',
-        icon: CheckCircle2,
-    },
-    preparing: {
-        label: 'Đang chế biến',
-        color: 'text-violet-700',
-        bg: 'bg-violet-100 dark:bg-violet-950/40 dark:text-violet-400',
-        icon: ChefHat,
-    },
-    completed: {
-        label: 'Hoàn thành',
-        color: 'text-emerald-700',
-        bg: 'bg-emerald-100 dark:bg-emerald-950/40 dark:text-emerald-400',
-        icon: CheckCircle2,
-    },
-    cancelled: {
-        label: 'Đã hủy',
-        color: 'text-rose-700',
-        bg: 'bg-rose-100 dark:bg-rose-950/40 dark:text-rose-400',
-        icon: XCircle,
-    },
-};
 
 const paymentConfig: Record<string, { label: string; color: string }> = {
     unpaid: { label: 'Chưa TT', color: 'text-rose-600' },
@@ -460,6 +543,10 @@ const fetchRejectedQr = async () => {
 
 const selectTab = (tab: string) => {
     activeTab.value = tab;
+
+    if (tab === 'official') {
+        officialView.value = 'orders';
+    }
 
     if (tab === 'pending_qr') {
         fetchPendingQr();
@@ -650,13 +737,35 @@ void completionRate;
     return { status, title, text, tips };
 });
 
+let orderRefreshInterval: ReturnType<typeof setInterval> | null = null;
+
 onMounted(() => {
     // Check if there is an active tab parameter in the URL
     const urlParams = new URLSearchParams(window.location.search);
     const tabParam = urlParams.get('tab');
 
-    if (tabParam && ['pending_qr', 'rejected_qr'].includes(tabParam)) {
+    if (tabParam === 'ready') {
+        activeTab.value = 'official';
+        selectOfficialView('ready');
+    } else if (tabParam && ['pending_qr', 'rejected_qr'].includes(tabParam)) {
         selectTab(tabParam);
+    }
+
+    // Kitchen and service actions happen on another device. Refresh the
+    // owner view periodically so the progress badges do not require F5.
+    orderRefreshInterval = setInterval(() => {
+        router.reload({
+            only: ['orders', 'summary'],
+            preserveState: true,
+            preserveScroll: true,
+        });
+    }, 8000);
+});
+
+onUnmounted(() => {
+    if (orderRefreshInterval) {
+        clearInterval(orderRefreshInterval);
+        orderRefreshInterval = null;
     }
 });
 </script>
@@ -769,7 +878,7 @@ onMounted(() => {
                 >
                     {{ summary.pending }}
                 </p>
-                <p class="mt-0.5 text-xs text-amber-600/70">Chờ xác nhận</p>
+                <p class="mt-0.5 text-xs text-amber-600/70">Chờ chế biến</p>
             </div>
             <div
                 class="rounded-xl border border-violet-200 bg-violet-50 p-3 text-center dark:border-violet-900/40 dark:bg-violet-950/20"
@@ -1186,7 +1295,7 @@ onMounted(() => {
                 <button
                     v-for="(label, key) in {
                         all: 'Tất cả',
-                        pending: 'Chờ xác nhận',
+                        pending: 'Chờ chế biến',
                         confirmed: 'Đã xác nhận',
                         preparing: 'Đang chế biến',
                         completed: 'Hoàn thành',
@@ -1196,12 +1305,30 @@ onMounted(() => {
                     @click="setStatus(key)"
                     class="rounded-full border px-3 py-1.5 text-xs font-semibold transition-all"
                     :class="
-                        activeStatus === key
+                        activeStatus === key && !isOfficialReady
                             ? 'border-violet-500 bg-violet-50 text-violet-700 dark:border-violet-700 dark:bg-violet-950/40 dark:text-violet-400'
                             : 'border-slate-200 bg-white text-slate-500 hover:border-slate-300 dark:border-slate-800 dark:bg-slate-950'
                     "
                 >
                     {{ label }}
+                </button>
+                <button
+                    type="button"
+                    @click="selectOfficialView('ready')"
+                    class="inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold transition-all"
+                    :class="
+                        isOfficialReady
+                            ? 'border-emerald-500 bg-emerald-50 text-emerald-700 dark:border-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300'
+                            : 'border-slate-200 bg-white text-slate-500 hover:border-emerald-300 dark:border-slate-800 dark:bg-slate-950'
+                    "
+                >
+                    Chờ phục vụ
+                    <span
+                    v-if="(isOfficialReady ? readyOrders.length : (summary.ready ?? 0)) > 0"
+                        class="rounded-full bg-emerald-500 px-1.5 py-0.5 text-[10px] font-bold text-white"
+                    >
+                        {{ isOfficialReady ? readyOrders.length : (summary.ready ?? 0) }}
+                    </span>
                 </button>
             </div>
 
@@ -1209,16 +1336,16 @@ onMounted(() => {
             <Card class="shadow-sm">
                 <CardHeader class="border-b pb-3">
                     <CardTitle class="text-base">
-                        Danh sách đơn hàng
+                        {{ isOfficialReady ? 'Đơn chờ phục vụ' : 'Danh sách đơn hàng' }}
                         <span
                             class="ml-1 text-sm font-normal text-muted-foreground"
-                            >({{ orders.length }} đơn)</span
+                            >({{ officialOrders.length }} đơn)</span
                         >
                     </CardTitle>
                 </CardHeader>
                 <CardContent class="p-0">
                     <div
-                        v-if="orders.length"
+                        v-if="officialOrders.length"
                         class="divide-y divide-slate-100 dark:divide-slate-800"
                     >
                         <div
@@ -1257,13 +1384,34 @@ onMounted(() => {
                                     </span>
                                 </div>
                                 <div
-                                    class="mt-1 flex items-center gap-3 text-xs text-muted-foreground"
+                                    class="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground"
                                 >
-                                    <span>{{ o.created_at }}</span>
-                                    <span>{{ o.items_count }} món</span>
-                                    <span v-if="o.completed_at"
-                                        >Xong: {{ o.completed_at }}</span
+                                    <span class="inline-flex items-center gap-1">
+                                        <Clock class="size-3 text-slate-400" />
+                                        Tạo đơn: <strong class="font-mono text-slate-700 dark:text-slate-300">{{ o.created_at_formatted || o.created_at_full || o.created_at }}</strong>
+                                    </span>
+                                    <span class="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold text-slate-600 dark:bg-slate-800 dark:text-slate-400">
+                                        {{ o.items_count }} món
+                                    </span>
+                                    <!-- Tiến độ Bếp & Phục vụ -->
+                                    <span
+                                        v-if="o.items_prepared_count && o.items_prepared_count > 0"
+                                        class="inline-flex items-center gap-1 rounded-md border border-sky-200 bg-sky-50 px-1.5 py-0.5 text-[10px] font-bold text-sky-700 dark:border-sky-900/40 dark:bg-sky-950/40 dark:text-sky-300"
                                     >
+                                        <ChefHat class="size-3 text-sky-500" />
+                                        Bếp xong {{ o.items_prepared_count }}/{{ o.items_count }}
+                                    </span>
+                                    <span
+                                        v-if="o.items_served_count && o.items_served_count > 0"
+                                        class="inline-flex items-center gap-1 rounded-md border border-emerald-200 bg-emerald-50 px-1.5 py-0.5 text-[10px] font-bold text-emerald-700 dark:border-emerald-900/40 dark:bg-emerald-950/40 dark:text-emerald-300"
+                                    >
+                                        <Utensils class="size-3 text-emerald-500" />
+                                        Đã phục vụ {{ o.items_served_count }}/{{ o.items_count }}
+                                    </span>
+                                    <span v-if="o.completed_at" class="inline-flex items-center gap-1">
+                                        <CheckCircle2 class="size-3 text-emerald-500" />
+                                        Thanh toán: <strong class="font-mono text-emerald-600 dark:text-emerald-400">{{ o.completed_at_formatted || o.completed_at_full || o.completed_at }}</strong>
+                                    </span>
                                 </div>
                             </div>
 
@@ -1290,10 +1438,18 @@ onMounted(() => {
                                 @click.stop
                             >
                                 <span
-                                    class="rounded-full px-2 py-1 text-[10px] font-semibold"
-                                    :class="statusConfig[o.status]?.bg"
+                                    class="inline-flex items-center gap-1 rounded-full border px-2 py-1 text-[10px] font-bold"
+                                    :class="fulfillmentConfig[o.fulfillment_status].class"
+                                    :title="`Bếp ${o.items_prepared_count ?? 0}/${o.items_count} · Phục vụ ${o.items_served_count ?? 0}/${o.items_count}`"
                                 >
-                                    {{ statusConfig[o.status]?.label }}
+                                    <component
+                                        :is="fulfillmentConfig[o.fulfillment_status].icon"
+                                        class="size-3"
+                                    />
+                                    {{ fulfillmentConfig[o.fulfillment_status].label }}
+                                    <span class="font-mono opacity-80">
+                                        {{ o.items_served_count ?? 0 }}/{{ o.items_count }}
+                                    </span>
                                 </span>
                                 <button
                                     v-if="
@@ -1368,6 +1524,17 @@ onMounted(() => {
                                         >nháp</span
                                     >
                                 </a>
+
+                                <!-- Hoàn tiền (đơn đã thanh toán) -->
+                                <button
+                                    v-if="['paid', 'partial_refund'].includes(o.payment_status)"
+                                    @click.stop="openRefundModal(o)"
+                                    class="inline-flex h-7 cursor-pointer items-center gap-1 rounded-lg border border-rose-200 bg-rose-50 px-2 text-[10px] font-semibold text-rose-700 transition-colors hover:bg-rose-100 dark:border-rose-900/50 dark:bg-rose-950/30 dark:text-rose-400 dark:hover:bg-rose-950/60"
+                                    title="Xử lý hoàn tiền cho đơn hàng"
+                                >
+                                    <RotateCcw class="size-3" />
+                                    Hoàn tiền
+                                </button>
                             </div>
                         </div>
                     </div>
@@ -1405,10 +1572,10 @@ onMounted(() => {
                             {{
                                 Math.min(
                                     currentPage * itemsPerPage,
-                                    orders.length,
+                                    officialOrders.length,
                                 )
                             }}
-                            trong tổng số {{ orders.length }} đơn hàng
+                            trong tổng số {{ officialOrders.length }} đơn hàng
                         </div>
                         <div class="flex items-center gap-1.5">
                             <Button
@@ -1450,7 +1617,7 @@ onMounted(() => {
             </Card>
         </div>
 
-        <!-- TAB 2: Pending QR Orders -->
+        <!-- TAB 2: Pending QR orders -->
         <div v-else-if="activeTab === 'pending_qr'" class="space-y-4">
             <Card class="shadow-sm">
                 <CardHeader
@@ -2082,6 +2249,85 @@ onMounted(() => {
         </DialogContent>
     </Dialog>
 
+    <!-- ─── Dialog Hoàn tiền ─── -->
+    <Dialog :open="showRefundModal" @update:open="showRefundModal = $event">
+        <DialogContent class="sm:max-w-md">
+            <DialogHeader>
+                <DialogTitle class="flex items-center gap-2 text-base">
+                    <RotateCcw class="size-4 text-rose-600" />
+                    Hoàn tiền đơn hàng — {{ refundOrderTarget?.order_number }}
+                </DialogTitle>
+                <DialogDescription class="text-xs">
+                    Nhập thông tin để gửi chủ doanh nghiệp phê duyệt. Chưa có thao tác hoàn tiền nào được thực hiện.
+                </DialogDescription>
+            </DialogHeader>
+
+            <div class="space-y-4 py-2 text-xs">
+                <div>
+                    <label class="mb-1 block font-semibold">Hình thức hoàn tiền:</label>
+                    <div class="flex gap-4">
+                        <label class="flex cursor-pointer items-center gap-1.5">
+                            <input
+                                type="radio"
+                                v-model="refundType"
+                                value="full"
+                                @change="refundAmount = refundOrderTarget?.total_amount ?? 0"
+                            />
+                            <span>Hoàn toàn phần ({{ refundOrderTarget?.total_amount?.toLocaleString('vi-VN') }}đ)</span>
+                        </label>
+                        <label class="flex cursor-pointer items-center gap-1.5">
+                            <input type="radio" v-model="refundType" value="partial" />
+                            <span>Hoàn một phần</span>
+                        </label>
+                    </div>
+                </div>
+
+                <div v-if="refundType === 'partial'">
+                    <label class="mb-1 block font-semibold">Số tiền hoàn (VND):</label>
+                    <input
+                        type="number"
+                        v-model.number="refundAmount"
+                        :max="refundOrderTarget?.total_amount"
+                        min="1000"
+                        step="1000"
+                        class="w-full rounded-xl border border-input bg-background p-2.5 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    />
+                </div>
+
+                <div>
+                    <label class="mb-1 block font-semibold"
+                        >Lý do hoàn tiền (<span class="text-rose-500">* tối thiểu 10 ký tự</span>):</label
+                    >
+                    <textarea
+                        v-model="refundReason"
+                        rows="3"
+                        placeholder="Nhập chi tiết lý do hoàn tiền..."
+                        class="w-full rounded-xl border border-input bg-background p-2.5 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    ></textarea>
+                </div>
+
+                <p class="rounded-lg border border-amber-200 bg-amber-50 p-2.5 text-[11px] text-amber-800 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-300">
+                    Yêu cầu sẽ được gửi đến chủ doanh nghiệp. Chỉ khi được duyệt, tiền mới được hoàn và hệ thống mới ghi nhận giao dịch.
+                </p>
+            </div>
+
+            <DialogFooter class="flex justify-end gap-2">
+                <Button variant="outline" size="sm" class="text-xs" @click="showRefundModal = false">
+                    Hủy bỏ
+                </Button>
+                <Button
+                    size="sm"
+                    class="bg-rose-600 text-xs font-bold text-white hover:bg-rose-700"
+                    :disabled="isSubmittingRefund || refundReason.trim().length < 10"
+                    @click="submitRefund"
+                >
+                    <Loader2 v-if="isSubmittingRefund" class="mr-1 size-3.5 animate-spin" />
+                    {{ isOwner ? 'Xác nhận hoàn tiền' : 'Gửi yêu cầu phê duyệt' }}
+                </Button>
+            </DialogFooter>
+        </DialogContent>
+    </Dialog>
+
     <!-- Modal Chi Tiết Đơn Hàng -->
     <Dialog :open="showDetailModal" @update:open="showDetailModal = $event">
         <DialogContent
@@ -2110,10 +2356,14 @@ onMounted(() => {
                         </span>
                         <span
                             v-if="selectedOrder"
-                            class="rounded-full px-2.5 py-0.5 text-xs font-semibold"
-                            :class="statusConfig[selectedOrder.status]?.bg"
+                            class="inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-bold"
+                            :class="fulfillmentConfig[selectedOrder.fulfillment_status].class"
                         >
-                            {{ statusConfig[selectedOrder.status]?.label }}
+                            <component
+                                :is="fulfillmentConfig[selectedOrder.fulfillment_status].icon"
+                                class="size-3"
+                            />
+                            {{ fulfillmentConfig[selectedOrder.fulfillment_status].label }}
                         </span>
                     </div>
                 </div>
@@ -2172,10 +2422,15 @@ onMounted(() => {
                     </div>
                     <div>
                         <span class="block text-[11px] text-muted-foreground"
-                            >Thời gian hoàn thành:</span
+                            >Thời gian thanh toán:</span
                         >
-                        <span class="font-semibold text-foreground">
-                            {{ selectedOrder.completed_at || '—' }}
+                        <span class="font-semibold text-emerald-600 dark:text-emerald-400">
+                            {{
+                                selectedOrder.completed_at_full ||
+                                selectedOrder.completed_at_formatted ||
+                                selectedOrder.completed_at ||
+                                '—'
+                            }}
                         </span>
                     </div>
                     <div
@@ -2259,12 +2514,42 @@ onMounted(() => {
                             class="flex items-center justify-between p-3 text-xs transition-colors hover:bg-muted/30"
                         >
                             <div class="min-w-0 flex-1 pr-3">
-                                <div class="font-bold text-foreground">
-                                    {{ item.name }}
+                                <div class="flex flex-wrap items-center gap-2 font-bold text-foreground">
+                                    <span>{{ item.name }}</span>
+                                    <!-- Status badge cho từng món -->
+                                    <span
+                                        v-if="item.status === 'cancelled'"
+                                        class="rounded bg-rose-100 px-2 py-0.5 text-[10px] font-bold text-rose-700 dark:bg-rose-950/60 dark:text-rose-400"
+                                    >
+                                        Đã hủy
+                                    </span>
+                                    <span
+                                        v-else-if="item.served_at"
+                                        class="inline-flex items-center gap-1 rounded bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300"
+                                    >
+                                        <CheckCircle2 class="size-3 text-emerald-600 dark:text-emerald-400" />
+                                        Đã phục vụ {{ item.served_at }}
+                                        <span v-if="item.served_by_name" class="font-normal text-emerald-700/80 dark:text-emerald-400/80">· {{ item.served_by_name }}</span>
+                                    </span>
+                                    <span
+                                        v-else-if="item.prepared_at"
+                                        class="inline-flex items-center gap-1 rounded bg-sky-100 px-2 py-0.5 text-[10px] font-bold text-sky-800 dark:bg-sky-950/60 dark:text-sky-300"
+                                    >
+                                        <ChefHat class="size-3 text-sky-600 dark:text-sky-400" />
+                                        Bếp làm xong {{ item.prepared_at }} (Chờ phục vụ)
+                                        <span v-if="item.prepared_by_name" class="font-normal text-sky-700/80 dark:text-sky-400/80">· Bếp: {{ item.prepared_by_name }}</span>
+                                    </span>
+                                    <span
+                                        v-else
+                                        class="inline-flex items-center gap-1 rounded bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-800 dark:bg-amber-950/60 dark:text-amber-300"
+                                    >
+                                        <Clock class="size-3 text-amber-600 dark:text-amber-400" />
+                                        {{ item.status === 'preparing' ? 'Bếp đang làm' : 'Chờ bếp làm' }}
+                                    </span>
                                 </div>
                                 <div
                                     v-if="item.notes"
-                                    class="text-[11px] text-amber-600 italic dark:text-amber-400"
+                                    class="mt-0.5 text-[11px] text-amber-600 italic dark:text-amber-400"
                                 >
                                     Ghi chú: {{ item.notes }}
                                 </div>

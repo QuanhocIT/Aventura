@@ -32,6 +32,11 @@ class ApprovalRequestedNotification extends Notification
             $message = "{$this->requester->name} báo hao hụt {$operationData['ingredient_name']} ({$quantity} {$unit}) — cần phê duyệt.";
         }
 
+        if ($this->approval->operation_type === 'order_refund' && ! empty($operationData['order_number'])) {
+            $amount = number_format((float) ($operationData['refund_amount'] ?? 0), 0, ',', '.');
+            $message = "{$this->requester->name} yêu cầu hoàn {$amount}đ cho đơn {$operationData['order_number']} — cần phê duyệt.";
+        }
+
         return [
             'approval_id' => $this->approval->id,
             'operation_type' => $this->approval->operation_type,

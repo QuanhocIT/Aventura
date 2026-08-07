@@ -4,6 +4,7 @@ use App\Jobs\RecalculateTrustScoresJob;
 use App\Services\SupportPortalService;
 use App\Support\MaterializedViews\MaterializedViewRegistry;
 use Illuminate\Console\Scheduling\Schedule;
+use Illuminate\Support\Facades\Log;
 
 /**
  * NGUỒN DUY NHẤT khai báo lịch chạy định kỳ của hệ thống (Task Scheduler).
@@ -56,6 +57,7 @@ return function (Schedule $schedule): void {
     $schedule->command('loyalty:expire-points')->dailyAt('00:30');
     $schedule->command('loyalty:birthday-bonuses')->dailyAt('09:00');
     $schedule->command('inventory:check-expiry')->dailyAt('07:00');
+    $schedule->command('reservations:cleanup-expired')->everyThirtyMinutes();
     $schedule->command('checklist:send-reminders')->dailyAt('10:00');
     $schedule->command('checklist:send-reminders')->dailyAt('16:00');
     $schedule->command('system:audit-consistency')->dailyAt('03:00');
@@ -140,6 +142,20 @@ return function (Schedule $schedule): void {
     // ══════════════════════════════════════════════════════════════════════════
 
     $restoreGuard = fn (string $envKey) => ! filter_var(env($envKey, false), FILTER_VALIDATE_BOOL);
+
+    // Fix #10: Cảnh báo khi các job vận hành quan trọng chưa được bật
+    $criticalJobs = [
+        'SCHEDULER_RESTORE_RESERVATIONS_NO_SHOWS' => 'reservations:mark-no-shows',
+        'SCHEDULER_RESTORE_RESERVATIONS_EXPIRE_PENDING' => 'reservations:expire-pending',
+        'SCHEDULER_RESTORE_SHIFTS_AUTO_CLOSE' => 'shifts:auto-close-expired',
+        'SCHEDULER_RESTORE_KITCHEN_ALERT_OVERDUE' => 'kitchen:alert-overdue-orders',
+        'SCHEDULER_RESTORE_RESERVATIONS_REMINDERS' => 'reservations:send-reminders',
+    ];
+    foreach ($criticalJobs as $envKey => $cmd) {
+        if ($restoreGuard($envKey)) {
+            Log::warning("Scheduler: Job '{$cmd}' đang TẮT. Bật env {$envKey}=true trước khi go-live.");
+        }
+    }
 
     $schedule->command('restaurants:validate-activity')
         ->dailyAt('23:00')

@@ -15,18 +15,53 @@ class EloquentOrderRepository implements OrderRepositoryInterface
     public function getOrdersQuery(int $restaurantId, array $filters): Builder
     {
         $query = Order::where('restaurant_id', $restaurantId)
-            ->with(['table.area', 'items.product', 'deliveryDetail', 'branch:id,name'])
+            ->with(['table.area', 'items.product', 'items.preparedBy:id,name', 'items.servedBy:id,name', 'deliveryDetail', 'branch:id,name'])
             ->latest();
 
         if (! empty($filters['date'])) {
-            $query->whereBetween('created_at', [
-                $filters['date'].' 00:00:00',
-                $filters['date'].' 23:59:59',
-            ]);
+            $dateStart = $filters['date'].' 00:00:00';
+            $dateEnd = $filters['date'].' 23:59:59';
+            $query->where(function (Builder $q) use ($dateStart, $dateEnd) {
+                $q->whereBetween('created_at', [$dateStart, $dateEnd])
+                    ->orWhereBetween('completed_at', [$dateStart, $dateEnd]);
+            });
         }
 
         if (! empty($filters['status']) && $filters['status'] !== 'all') {
-            $query->where('status', $filters['status']);
+            if ($filters['status'] === 'preparing') {
+                // Chỉ hiện đơn hiện hành của bàn còn món chưa được bếp làm.
+                // Payment có thể đã hoàn tất trước vòng đời bếp/phục vụ.
+                $query->where('status', '!=', 'cancelled')
+                    ->currentTableOrder()
+                    ->whereHas('items', function (Builder $iq) {
+                        $iq->where('status', '!=', 'cancelled')
+                            ->whereNull('served_at')
+                            ->whereNull('prepared_at');
+                    });
+            } elseif ($filters['status'] === 'ready') {
+                // Đơn chờ phục vụ: mọi món còn lại đã làm xong, nhưng chưa
+                // được phục vụ. Đây là một trạng thái vận hành độc lập với
+                // orders.status/payment_status.
+                $query->where('status', '!=', 'cancelled')
+                    ->currentTableOrder()
+                    ->whereHas('items', function (Builder $iq) {
+                        $iq->where('status', '!=', 'cancelled')
+                            ->whereNull('served_at');
+                    })
+                    ->whereDoesntHave('items', function (Builder $iq) {
+                        $iq->where('status', '!=', 'cancelled')
+                            ->whereNull('served_at')
+                            ->whereNull('prepared_at');
+                    });
+            } elseif ($filters['status'] === 'pending') {
+                $query->where('status', 'pending')
+                    ->whereDoesntHave('items', function (Builder $iq) {
+                        $iq->where('status', 'preparing')
+                            ->orWhereNotNull('prepared_at');
+                    });
+            } else {
+                $query->where('status', $filters['status']);
+            }
         }
 
         // TRƯỚC ĐÂY KHÔNG LỌC THEO CHI NHÁNH: owner chuyển chi nhánh đang xem
@@ -47,7 +82,7 @@ class EloquentOrderRepository implements OrderRepositoryInterface
      */
     public function getSummaryStats(int $restaurantId, string $date, bool $kitchenOnly = false, ?int $branchId = null): array
     {
-        $query = Order::where('restaurant_id', $restaurantId)
+        $baseQuery = Order::where('restaurant_id', $restaurantId)
             ->whereBetween('created_at', [
                 $date.' 00:00:00',
                 $date.' 23:59:59',
@@ -55,30 +90,52 @@ class EloquentOrderRepository implements OrderRepositoryInterface
 
         $tenantContext = app(TenantContext::class);
         if ($tenantContext->isBranchScoped() || $tenantContext->isUnassigned()) {
-            $tenantContext->applyBranchScope($query);
+            $tenantContext->applyBranchScope($baseQuery);
         } elseif ($branchId) {
-            $query->where('branch_id', $branchId);
+            $baseQuery->where('branch_id', $branchId);
         }
 
         if ($kitchenOnly) {
-            $query->whereHas('items', function ($q) {
+            $baseQuery->whereHas('items', function ($q) {
                 $q->whereNotNull('served_at');
             });
         }
 
-        $stats = $query->selectRaw('status, COUNT(*) as count, SUM(total_amount) as revenue')
-            ->groupBy('status')
-            ->get();
+        $orders = $baseQuery->with('items:id,order_id,status,prepared_at,served_at')->get();
 
-        $total = $stats->sum('count');
+        $total = $orders->count();
+        $cancelledCount = $orders->where('status', 'cancelled')->count();
+        // Revenue still follows payment/order status, while the operational
+        // counters follow the item lifecycle (kitchen -> waiter).
+        $revenue = $orders->where('status', 'completed')->sum('total_amount');
+
+        $preparingCount = 0;
+        $pendingCount = 0;
+        $completedCount = 0;
+
+        foreach ($orders->reject(fn ($o) => $o->status === 'cancelled') as $o) {
+            $items = $o->items->reject(fn ($i) => $i->status === 'cancelled');
+            $allServed = $items->isEmpty() || $items->every(fn ($i) => $i->served_at !== null);
+            $hasPreparingItems = $items->contains(fn ($i) =>
+                $i->status === 'preparing' || $i->prepared_at !== null
+            );
+
+            if ($allServed) {
+                $completedCount++;
+            } elseif ($hasPreparingItems) {
+                $preparingCount++;
+            } else {
+                $pendingCount++;
+            }
+        }
 
         return [
             'total' => (int) $total,
-            'pending' => (int) ($stats->firstWhere('status', 'pending')?->count ?? 0),
-            'preparing' => (int) ($stats->firstWhere('status', 'preparing')?->count ?? 0),
-            'completed' => (int) ($stats->firstWhere('status', 'completed')?->count ?? 0),
-            'cancelled' => (int) ($stats->firstWhere('status', 'cancelled')?->count ?? 0),
-            'revenue' => (float) ($stats->firstWhere('status', 'completed')?->revenue ?? 0),
+            'pending' => (int) $pendingCount,
+            'preparing' => (int) $preparingCount,
+            'completed' => (int) $completedCount,
+            'cancelled' => (int) $cancelledCount,
+            'revenue' => (float) $revenue,
         ];
     }
 

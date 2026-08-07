@@ -18,7 +18,7 @@ class Inventory extends Model
     use BelongsToRestaurant;
     use HasFactory;
 
-    protected $guarded = [];
+    protected $guarded = ['id'];
 
     protected function casts(): array
     {

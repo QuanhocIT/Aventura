@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\AuditLog;
+use App\Models\InventoryReservation;
 use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\RestaurantTable;
@@ -58,9 +59,31 @@ class OrderSplitService
                 'note' => "Tách từ bill {$order->order_number}",
             ]);
 
+            // Fix #4: Load product recipes để xác định ingredient_ids cần di chuyển reservation
+            $movedIngredientIds = [];
+            $items->load('product.recipes');
+
             OrderItem::withoutGlobalScopes()
                 ->whereIn('id', $items->pluck('id'))
                 ->update(['order_id' => $newOrder->id]);
+
+            // Thu thập ingredient_ids của các items đã tách
+            foreach ($items as $item) {
+                if ($item->product?->track_inventory) {
+                    foreach ($item->product->recipes as $recipe) {
+                        $movedIngredientIds[] = $recipe->ingredient_id;
+                    }
+                }
+            }
+
+            // Di chuyển inventory reservations tương ứng sang đơn mới
+            if (! empty($movedIngredientIds)) {
+                InventoryReservation::where('order_id', $order->id)
+                    ->where('branch_id', $order->branch_id)
+                    ->where('status', 'holding')
+                    ->whereIn('ingredient_id', array_unique($movedIngredientIds))
+                    ->update(['order_id' => $newOrder->id]);
+            }
 
             $this->recalcTotals($order);
             $this->recalcTotals($newOrder);
@@ -91,6 +114,12 @@ class OrderSplitService
         return DB::transaction(function () use ($source, $target) {
             OrderItem::withoutGlobalScopes()
                 ->where('order_id', $source->id)
+                ->update(['order_id' => $target->id]);
+
+            // Fix #4: Di chuyển inventory reservations từ source sang target
+            InventoryReservation::where('order_id', $source->id)
+                ->where('branch_id', $source->branch_id)
+                ->where('status', 'holding')
                 ->update(['order_id' => $target->id]);
 
             $this->recalcTotals($target);

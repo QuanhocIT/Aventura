@@ -11,6 +11,7 @@ use App\Models\OrderItem;
 use App\Models\Product;
 use App\Models\ProductCategory;
 use App\Models\Restaurant;
+use App\Models\RestaurantBranch;
 use App\Services\Integrations\WebhookDispatchService;
 use App\Services\Integrations\ZaloOaService;
 use Illuminate\Support\Facades\Cache;
@@ -60,6 +61,12 @@ class OnlineOrderService
 
         if (! $config->is_active) {
             throw ValidationException::withMessages(['store' => 'Cửa hàng online hiện đang tạm ngừng.']);
+        }
+
+        // Fix #6: Kiểm tra giờ mở cửa — cho phép đặt lịch (preorder) ngoài giờ
+        $isScheduledOrder = ! empty($data['scheduled_at']);
+        if (! $isScheduledOrder && ! $config->isOpen()) {
+            throw ValidationException::withMessages(['store' => 'Cửa hàng online hiện ngoài giờ phục vụ. Bạn có thể đặt trước bằng cách chọn thời gian nhận hàng.']);
         }
 
         $branchId = $config->branch_id
@@ -277,11 +284,16 @@ class OnlineOrderService
             return ['deliverable' => false, 'reason' => 'Nhà hàng chưa cấu hình giao hàng.'];
         }
 
-        $rLat = (float) ($restaurant->latitude ?? 0);
-        $rLng = (float) ($restaurant->longitude ?? 0);
+        // Fix #13: Ưu tiên tọa độ chi nhánh xử lý đơn, fallback về nhà hàng chính
+        $branch = $config->branch_id
+            ? RestaurantBranch::withoutGlobalScopes()->find($config->branch_id)
+            : null;
+
+        $rLat = (float) ($branch?->latitude ?? $restaurant->latitude ?? 0);
+        $rLng = (float) ($branch?->longitude ?? $restaurant->longitude ?? 0);
 
         if ($rLat === 0.0 || $rLng === 0.0) {
-            return ['deliverable' => false, 'reason' => 'Nhà hàng chưa cập nhật tọa độ.'];
+            return ['deliverable' => false, 'reason' => 'Nhà hàng/chi nhánh chưa cập nhật tọa độ.'];
         }
 
         $distanceKm = $this->haversine($rLat, $rLng, $lat, $lng);

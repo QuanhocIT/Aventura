@@ -60,6 +60,7 @@ class ApprovalRequest extends Model
             'salary_adjustment' => 'Điều chỉnh lương',
             'shift_checkin' => 'Xác nhận vào ca',
             'employee_create' => 'Tạo nhân viên mới',
+            'order_refund' => 'Hoàn tiền đơn hàng',
             default => $this->operation_type,
         };
     }

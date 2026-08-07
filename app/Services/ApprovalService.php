@@ -6,6 +6,7 @@ use App\Models\ApprovalRequest;
 use App\Models\Employee;
 use App\Models\Ingredient;
 use App\Models\InventoryTransaction;
+use App\Models\Order;
 use App\Models\Salary;
 use App\Models\SalaryAdjustment;
 use App\Models\ScheduleAssignment;
@@ -13,13 +14,15 @@ use App\Models\User;
 use App\Notifications\ApprovalDecisionNotification;
 use App\Notifications\ApprovalRequestedNotification;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 
 class ApprovalService
 {
     public function __construct(
         private SalaryService $salaryService,
-        private InventoryService $inventoryService
+        private InventoryService $inventoryService,
+        private OrderRefundService $orderRefundService,
     ) {}
 
     /**
@@ -45,6 +48,8 @@ class ApprovalService
             $owner->notify(new ApprovalRequestedNotification($request, $requester));
         }
 
+        Cache::forget("pending_approvals:{$requester->restaurant_id}");
+
         return $request;
     }
 
@@ -53,6 +58,10 @@ class ApprovalService
      */
     public function approve(ApprovalRequest $approval, User $reviewer): void
     {
+        if ($approval->operation_type === 'order_refund' && ! $reviewer->hasRole('owner')) {
+            throw new \Exception('Chỉ chủ doanh nghiệp mới được duyệt yêu cầu hoàn tiền.');
+        }
+
         DB::transaction(function () use ($approval, $reviewer) {
             // Khóa bi quan bản ghi phê duyệt để tránh chạy trùng lặp
             $lockedApproval = ApprovalRequest::where('id', $approval->id)->lockForUpdate()->firstOrFail();
@@ -60,7 +69,7 @@ class ApprovalService
                 throw new \Exception('Yêu cầu này đã được xử lý trước đó.');
             }
 
-            $this->executeOperation($lockedApproval);
+            $this->executeOperation($lockedApproval, $reviewer->id);
 
             $lockedApproval->update([
                 'status' => 'approved',
@@ -68,6 +77,8 @@ class ApprovalService
                 'reviewed_at' => now(),
             ]);
         });
+
+        Cache::forget("pending_approvals:{$approval->restaurant_id}");
 
         $approval->requester?->notify(new ApprovalDecisionNotification($approval, 'approved'));
     }
@@ -99,13 +110,15 @@ class ApprovalService
             }
         });
 
+        Cache::forget("pending_approvals:{$approval->restaurant_id}");
+
         $approval->requester?->notify(new ApprovalDecisionNotification($approval, 'rejected'));
     }
 
     /**
      * Thực thi thao tác đã được phê duyệt.
      */
-    private function executeOperation(ApprovalRequest $approval): void
+    private function executeOperation(ApprovalRequest $approval, int $reviewerId): void
     {
         $data = $approval->operation_data;
 
@@ -114,8 +127,21 @@ class ApprovalService
             'inventory_waste' => $this->executeWaste($data, $approval->restaurant_id, $approval->requester_id),
             'salary_adjustment' => $this->executeSalaryAdjustment($data, $approval->restaurant_id),
             'shift_checkin' => $this->executeShiftCheckin($data, $approval->restaurant_id),
+            'order_refund' => $this->executeOrderRefund($data, $approval->restaurant_id, $reviewerId),
             default => null,
         };
+    }
+
+    private function executeOrderRefund(array $data, int $restaurantId, int $reviewerId): void
+    {
+        $order = Order::where('restaurant_id', $restaurantId)->findOrFail($data['order_id']);
+        $reviewer = User::findOrFail($reviewerId);
+
+        $this->orderRefundService->process($order, [
+            'refund_type' => $data['refund_type'],
+            'refund_amount' => $data['refund_amount'],
+            'reason' => $data['reason'],
+        ], $reviewer);
     }
 
     private function executeShiftCheckin(array $data, int $restaurantId): void

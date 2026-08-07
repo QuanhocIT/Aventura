@@ -9,11 +9,13 @@ use App\Models\AuditLog;
 use App\Models\Ingredient;
 use App\Models\OrderItem;
 use App\Models\Product;
+use App\Models\RestaurantTable;
 use App\Services\InventoryAvailabilityService;
 use App\Services\QuotaService;
 use App\Support\Tenant\TenantContext;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -40,14 +42,27 @@ class KitchenController extends Controller
 
         $restaurantId = $user->restaurant_id;
         $branchId = app(TenantContext::class)->activeBranchId();
+        $todayStart = today()->startOfDay();
+        $todayEnd = today()->endOfDay();
 
-        // 1. Nhận đơn (Pending/Preparing items in active orders)
-        // Grouped by table in frontend, so we just return the flat list ordered by time
+        // 1. Nhận đơn (Pending/Preparing items in active orders for today)
         $pendingItems = OrderItem::where('restaurant_id', $restaurantId)
             ->whereNull('prepared_at')
             ->where('status', '!=', 'cancelled')
-            ->whereHas('order', function ($q) {
-                $q->whereNotIn('status', ['completed', 'cancelled']);
+            ->whereHas('order', function ($q) use ($branchId, $todayStart, $todayEnd) {
+                // Payment completion and kitchen/service completion are
+                // separate. Keep every unserved item in the queue.
+                $q->where('status', '!=', 'cancelled')
+                    ->currentTableOrder()
+                    ->where(function ($dateQuery) use ($todayStart, $todayEnd) {
+                        $dateQuery->whereBetween('created_at', [$todayStart, $todayEnd])
+                            ->orWhereBetween('completed_at', [$todayStart, $todayEnd]);
+                    });
+                if ($branchId) {
+                    $q->where(function ($bq) use ($branchId) {
+                        $bq->whereNull('branch_id')->orWhere('branch_id', $branchId);
+                    });
+                }
             })
             ->with(['order.table', 'order.creator', 'product'])
             ->oldest('created_at')
@@ -59,6 +74,7 @@ class KitchenController extends Controller
                 'notes' => $item->notes,
                 'sent_to_kitchen_at' => $item->sent_to_kitchen_at ? $item->sent_to_kitchen_at->format('H:i') : $item->created_at->format('H:i'),
                 'sent_to_kitchen_at_raw' => ($item->sent_to_kitchen_at ?? $item->created_at)->toIso8601String(),
+                'status' => $item->status,
                 'creator_name' => $item->order->creator?->name ?? 'Hệ thống',
                 'table_name' => $item->order->table?->name ?? 'Mang về',
                 'table_id' => $item->order->table_id,
@@ -66,13 +82,25 @@ class KitchenController extends Controller
                 'prep_minutes' => max(1, (int) ($item->product?->preparation_time_minutes ?? 10)),
             ]);
 
-        // 2. Đơn đã làm xong (Completed but not served yet)
+        // 2. Đơn đã làm xong (Completed but not served yet for today)
+        // Payment status and kitchen status are independent. A paid
+        // order must remain visible in kitchen until every item is served.
         $completedItems = OrderItem::where('restaurant_id', $restaurantId)
             ->whereNotNull('prepared_at')
             ->whereNull('served_at')
             ->where('status', '!=', 'cancelled')
-            ->whereHas('order', function ($q) {
-                $q->whereNotIn('status', ['completed', 'cancelled']);
+            ->whereHas('order', function ($q) use ($branchId, $todayStart, $todayEnd) {
+                $q->where('status', '!=', 'cancelled')
+                    ->currentTableOrder()
+                    ->where(function ($dateQuery) use ($todayStart, $todayEnd) {
+                        $dateQuery->whereBetween('created_at', [$todayStart, $todayEnd])
+                            ->orWhereBetween('completed_at', [$todayStart, $todayEnd]);
+                    });
+                if ($branchId) {
+                    $q->where(function ($bq) use ($branchId) {
+                        $bq->whereNull('branch_id')->orWhere('branch_id', $branchId);
+                    });
+                }
             })
             ->with(['order.table', 'product', 'preparedBy'])
             ->latest('prepared_at')
@@ -163,17 +191,29 @@ class KitchenController extends Controller
         abort_unless($user->can('manage_kitchen'), 403);
         abort_if($item->restaurant_id !== $user->restaurant_id, 403);
 
-        if ($item->prepared_at !== null || $item->status === 'preparing' || $item->status === 'served') {
+        if ($item->prepared_at !== null || $item->status === 'served') {
             return back()->with('success', 'Món ăn đã được chế biến trước đó.');
         }
 
         $item->update([
+            'sent_to_kitchen_at' => $item->sent_to_kitchen_at ?? now(),
             'prepared_at' => now(),
             'prepared_by' => $user->id,
-            'status' => 'preparing', // transition status
+            // Keep `preparing` as the kitchen workflow state. prepared_at
+            // distinguishes “đang làm” from “bếp đã làm xong”.
+            'status' => 'preparing',
         ]);
 
-        event(new KitchenUpdated($user->restaurant_id));
+        if ($item->order_id) {
+            \App\Models\Order::where('id', $item->order_id)
+                ->whereIn('status', ['pending', 'confirmed'])
+                ->update(['status' => 'preparing']);
+        }
+
+        $this->broadcastSafely(
+            new KitchenUpdated($user->restaurant_id),
+            'kitchen.updated',
+        );
 
         return back()->with('success', 'Đã hoàn thành chuẩn bị món!');
     }
@@ -188,9 +228,18 @@ class KitchenController extends Controller
             'item_ids.*' => ['integer'],
         ]);
 
-        $updatedCount = OrderItem::whereIn('id', $validated['item_ids'])
+        $itemsToUpdate = OrderItem::whereIn('id', $validated['item_ids'])
             ->where('restaurant_id', $user->restaurant_id)
             ->whereNull('prepared_at')
+            ->get();
+
+        $orderIds = $itemsToUpdate->pluck('order_id')->unique()->filter();
+
+        OrderItem::whereIn('id', $itemsToUpdate->pluck('id'))
+            ->whereNull('sent_to_kitchen_at')
+            ->update(['sent_to_kitchen_at' => now()]);
+
+        $updatedCount = OrderItem::whereIn('id', $itemsToUpdate->pluck('id'))
             ->update([
                 'prepared_at' => now(),
                 'prepared_by' => $user->id,
@@ -198,7 +247,16 @@ class KitchenController extends Controller
             ]);
 
         if ($updatedCount > 0) {
-            event(new KitchenUpdated($user->restaurant_id));
+            if ($orderIds->isNotEmpty()) {
+                \App\Models\Order::whereIn('id', $orderIds)
+                    ->whereIn('status', ['pending', 'confirmed'])
+                    ->update(['status' => 'preparing']);
+            }
+
+            $this->broadcastSafely(
+                new KitchenUpdated($user->restaurant_id),
+                'kitchen.updated',
+            );
         }
 
         return back()->with('success', 'Đã hoàn thành chuẩn bị các món!');
@@ -207,11 +265,23 @@ class KitchenController extends Controller
     public function serve(Request $request, OrderItem $item): RedirectResponse
     {
         $user = $request->user();
-        abort_unless($user->can('manage_kitchen'), 403);
+        // Kitchen, cashier and waiter can confirm the hand-off. The owner can
+        // also correct it from an operational screen when needed.
+        abort_unless(
+            $user->can('manage_kitchen')
+                || $user->can('process_payments')
+                || $user->can('manage_orders')
+                || $user->can('create_orders'),
+            403,
+        );
         abort_if($item->restaurant_id !== $user->restaurant_id, 403);
 
         if ($item->served_at !== null || $item->status === 'served') {
             return back()->with('success', 'Món ăn đã được phục vụ trước đó.');
+        }
+
+        if ($item->prepared_at === null) {
+            return back()->withErrors(['item' => 'Chỉ được xác nhận phục vụ sau khi bếp đã làm xong món.']);
         }
 
         $item->update([
@@ -220,7 +290,25 @@ class KitchenController extends Controller
             'status' => 'served', // final status
         ]);
 
-        event(new KitchenUpdated($user->restaurant_id));
+        // Bàn chỉ được mở lại sau khi món cuối cùng đã phục vụ và không còn
+        // đơn nào khác đang hoạt động trên cùng bàn.
+        $item->loadMissing('order');
+        $order = $item->order;
+        if ($order?->table_id) {
+            $table = RestaurantTable::where('id', $order->table_id)
+                ->where('restaurant_id', $order->restaurant_id)
+                ->where('branch_id', $order->branch_id)
+                ->first();
+
+            if ($table && ! $table->orders()->activeForService()->exists()) {
+                $table->update(['status' => 'available']);
+            }
+        }
+
+        $this->broadcastSafely(
+            new KitchenUpdated($user->restaurant_id),
+            'kitchen.updated',
+        );
 
         return back()->with('success', 'Món ăn đã được phục vụ lấy đi!');
     }
@@ -241,7 +329,10 @@ class KitchenController extends Controller
             'out_of_stock_reason' => null,
         ]);
 
-        event(new ProductStockUpdated($user->restaurant_id));
+        $this->broadcastSafely(
+            new ProductStockUpdated($user->restaurant_id),
+            'product.stock_updated',
+        );
 
         return back()->with('success', "Đã tạm dừng phục vụ món {$product->name} trong {$validated['minutes']} phút!");
     }
@@ -262,7 +353,10 @@ class KitchenController extends Controller
             'paused_until' => null,
         ]);
 
-        event(new ProductStockUpdated($user->restaurant_id));
+        $this->broadcastSafely(
+            new ProductStockUpdated($user->restaurant_id),
+            'product.stock_updated',
+        );
 
         return back()->with('success', "Đã báo hết món {$product->name} trong {$validated['minutes']} phút!");
     }
@@ -279,7 +373,10 @@ class KitchenController extends Controller
             'out_of_stock_reason' => null,
         ]);
 
-        event(new ProductStockUpdated($user->restaurant_id));
+        $this->broadcastSafely(
+            new ProductStockUpdated($user->restaurant_id),
+            'product.stock_updated',
+        );
 
         return back()->with('success', "Đã mở lại bán món {$product->name}!");
     }
@@ -362,23 +459,44 @@ class KitchenController extends Controller
             'cancelled_by' => $user->name,
         ]);
 
-        event(new KitchenUpdated($user->restaurant_id));
-        event(new KitchenItemCancelled(
-            restaurantId: $user->restaurant_id,
-            productName: $productName,
-            tableName: $tableName,
-            quantity: (float) $item->quantity,
-            scope: $scope,
-            reason: $reason !== '' ? $reason : null,
-            cancelledByName: $user->name,
-            cancelledCount: $cancelledCount,
-            orderId: $item->order_id,
-        ));
+        $this->broadcastSafely(
+            new KitchenUpdated($user->restaurant_id),
+            'kitchen.updated',
+        );
+        $this->broadcastSafely(
+            new KitchenItemCancelled(
+                restaurantId: $user->restaurant_id,
+                productName: $productName,
+                tableName: $tableName,
+                quantity: (float) $item->quantity,
+                scope: $scope,
+                reason: $reason !== '' ? $reason : null,
+                cancelledByName: $user->name,
+                cancelledCount: $cancelledCount,
+                orderId: $item->order_id,
+            ),
+            'kitchen.item_cancelled',
+        );
 
         $msg = $scope === 'all_pending'
             ? "Đã hủy toàn bộ {$cancelledCount} phần món {$productName} trên các đơn chờ chế biến!"
             : "Đã hủy món {$productName} (Bàn {$tableName}) thành công!";
 
         return back()->with('success', $msg);
+    }
+
+    /**
+     * Realtime tạm dừng không được làm hỏng thao tác nghiệp vụ ở màn hình bếp.
+     */
+    private function broadcastSafely(object $event, string $eventName): void
+    {
+        try {
+            event($event);
+        } catch (\Throwable $exception) {
+            Log::warning('Realtime broadcast skipped from kitchen.', [
+                'event' => $eventName,
+                'error' => $exception->getMessage(),
+            ]);
+        }
     }
 }

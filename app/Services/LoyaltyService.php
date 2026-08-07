@@ -47,6 +47,17 @@ class LoyaltyService
             return 0;
         }
 
+        // Fix #2: Idempotent check — tránh tích điểm 2 lần khi updateOrderStatus
+        // và payOrder chạy đồng thời trên cùng 1 đơn hàng.
+        $alreadyEarned = LoyaltyTransaction::where('reference_type', Order::class)
+            ->where('reference_id', $order->id)
+            ->where('type', 'earn')
+            ->exists();
+
+        if ($alreadyEarned) {
+            return 0;
+        }
+
         $tier = $customer->loyaltyTier;
         $multiplier = $tier ? (float) $tier->points_multiplier : 1.0;
 

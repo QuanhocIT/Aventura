@@ -86,6 +86,7 @@ class OrderActionsController extends Controller
             RestaurantTable::where('restaurant_id', $request->user()->restaurant_id)
                 ->where('branch_id', $branchId)
                 ->where('status', 'available')
+                ->whereDoesntHave('orders', fn ($query) => $query->activeForService())
                 ->orderBy('name')
                 ->get(['id', 'name', 'capacity'])
         );

@@ -7,7 +7,9 @@ import {
     Trash2,
 } from 'lucide-vue-next';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';import type { OrderItem, TableItem } from '../types';
+import { computed } from 'vue';
+import { Input } from '@/components/ui/input';
+import type { OrderItem, TableItem } from '../types';
 
 const props = defineProps<{
     isCartOpen: boolean;
@@ -38,6 +40,28 @@ const emit = defineEmits<{
 
 const numberFormat = (val: number) =>
     new Intl.NumberFormat('vi-VN').format(val);
+
+const serviceItems = computed(() =>
+    (props.activeTable?.active_order?.items ?? []).filter(
+        (item) => item.status !== 'cancelled',
+    ),
+);
+const canPay = computed(() => {
+    const order = props.activeTable?.active_order;
+
+    return Boolean(
+        order?.payment_status === 'unpaid' &&
+            serviceItems.value.length > 0 &&
+            serviceItems.value.every((item) => Boolean(item.served_at)),
+    );
+});
+const paymentBlockMessage = computed(() => {
+    if (props.activeTable?.active_order?.payment_status !== 'unpaid') {
+        return 'Đơn đã thanh toán';
+    }
+
+    return 'Chờ phục vụ đủ món';
+});
 </script>
 
 <template>
@@ -222,11 +246,20 @@ const numberFormat = (val: number) =>
                     </Button>
 
                     <Button
-                        v-else-if="canProcessPayments"
+                        v-else-if="canProcessPayments && canPay"
                         class="flex-1 rounded-xl bg-emerald-600 text-xs hover:bg-emerald-700"
                         @click="emit('openPayment')"
                     >
                         Thanh toán
+                    </Button>
+
+                    <Button
+                        v-else-if="canProcessPayments"
+                        disabled
+                        class="flex-1 cursor-not-allowed bg-slate-200 text-xs font-bold text-slate-500 dark:bg-slate-800 dark:text-slate-400"
+                        :title="paymentBlockMessage"
+                    >
+                        {{ paymentBlockMessage }}
                     </Button>
                 </template>
             </div>

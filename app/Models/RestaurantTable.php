@@ -45,8 +45,9 @@ class RestaurantTable extends Model
     public function activeOrder(): HasOne
     {
         return $this->hasOne(Order::class, 'table_id')
-            ->whereNotIn('status', ['completed', 'cancelled'])
-            ->where('payment_status', 'unpaid');
+            ->activeForService()
+            ->currentTableOrder()
+            ->oldest('id');
     }
 
     protected static function booted(): void

@@ -6,6 +6,8 @@ use App\Events\Customer\ProductStockUpdated;
 use App\Events\Kitchen\KitchenUpdated;
 use App\Jobs\ProcessPostPaymentActions;
 use App\Models\AuditLog;
+use App\Models\CashRegister;
+use App\Models\CashTransaction;
 use App\Models\Customer;
 use App\Models\InventoryReservation;
 use App\Models\Order;
@@ -41,7 +43,8 @@ class OrderService
             $restaurantId = $user->restaurant_id;
             $branchId = app(TenantContext::class)->activeBranchId();
             abort_if($branchId === null, 403, 'Đơn hàng phải được tạo trong một chi nhánh cụ thể.');
-            $orderNumber = 'ORD-'.strtoupper(uniqid());
+            // Fix #12: Str::ulid() thay uniqid() — đảm bảo unique dưới high-throughput
+            $orderNumber = 'ORD-'.Str::ulid();
 
             // Pre-load các sản phẩm kèm recipes — tránh N+1 query trong loop bên dưới
             $productIds = array_column($data['items'], 'product_id');
@@ -63,19 +66,32 @@ class OrderService
             if (! empty($data['table_id'])) {
                 $table = RestaurantTable::where('restaurant_id', $restaurantId)
                     ->where('branch_id', $branchId)
+                    ->lockForUpdate()
                     ->find($data['table_id']);
                 abort_unless($table, 422, 'Bàn không thuộc chi nhánh hiện tại.');
             }
 
-            // Conflict Resolution: Check if table already has an active order (pending/preparing/ready/served)
+            // Một bàn chỉ có một đơn đang phục vụ. Với đơn chưa thanh toán,
+            // request từ POS/offline sync vẫn được gộp vào đơn hiện tại để
+            // tránh tạo thêm order; với đơn đã thanh toán nhưng chưa phục vụ
+            // hết thì phải chặn hoàn toàn.
             if (! empty($data['table_id'])) {
+                // Bảng đã được lock ở trên, nên cả hai thiết bị tạo đơn đồng
+                // thời đều phải lần lượt kiểm tra cùng một trạng thái bàn.
                 $existingActiveOrder = Order::where('restaurant_id', $restaurantId)
                     ->where('branch_id', $branchId)
                     ->where('table_id', $data['table_id'])
-                    ->whereIn('status', ['pending', 'preparing', 'ready', 'served'])
+                    ->activeForService()
+                    ->oldest('id')
+                    ->lockForUpdate()
                     ->first();
 
                 if ($existingActiveOrder) {
+                    if ($existingActiveOrder->payment_status !== 'unpaid'
+                        || in_array($existingActiveOrder->status, ['completed', 'cancelled'], true)) {
+                        throw new \RuntimeException("Bàn {$table->name} đang có đơn {$existingActiveOrder->order_number} chưa phục vụ xong. Không thể tạo đơn mới cho bàn này.");
+                    }
+
                     $reservationItems = collect($data['items'])
                         ->map(function (array $item) use ($existingActiveOrder): array {
                             if (! empty($item['client_item_id'])) {
@@ -162,6 +178,7 @@ class OrderService
                                 'discount_amount' => 0,
                                 'line_total' => $lineTotal,
                                 'status' => 'pending',
+                                'sent_to_kitchen_at' => now(),
                                 'notes' => ($itemData['notes'] ?? '').' (Offline Sync)',
                                 'client_item_id' => $itemData['client_item_id'] ?? null,
                             ]);
@@ -229,6 +246,7 @@ class OrderService
                     'discount_amount' => 0,
                     'line_total' => $lineTotal,
                     'status' => 'pending',
+                    'sent_to_kitchen_at' => now(),
                     'notes' => $itemData['notes'] ?? null,
                     'client_item_id' => $itemData['client_item_id'] ?? null,
                 ];
@@ -421,6 +439,8 @@ class OrderService
             ]);
 
             // 2. Chuyển các món ăn chỉ định sang đơn mới
+            // Fix #3: Collect product_ids của items được move để di chuyển reservation
+            $movedProductIds = [];
             foreach ($data['items'] as $itemData) {
                 $originalItem = OrderItem::where('order_id', $order->id)
                     ->lockForUpdate() // Khóa dòng item gốc để tránh ghi đè đồng thời
@@ -435,6 +455,7 @@ class OrderService
 
                 if ($splitQty >= $origQty) {
                     $originalItem->update(['order_id' => $newOrder->id]);
+                    $movedProductIds[] = $originalItem->product_id;
                 } else {
                     $originalItem->update([
                         'quantity' => $origQty - $splitQty,
@@ -449,10 +470,16 @@ class OrderService
                         'unit_price' => $originalItem->unit_price,
                         'line_total' => $splitQty * $originalItem->unit_price,
                         'status' => $originalItem->status,
+                        'sent_to_kitchen_at' => $originalItem->sent_to_kitchen_at ?? now(),
                         'notes' => $originalItem->notes,
                     ]);
                 }
             }
+
+            // Fix #3: Tái phân bổ inventory reservations cho đơn mới
+            // Release tất cả reservation cũ rồi re-sync cho cả 2 đơn
+            $this->syncHoldingReservations($order);
+            $this->syncHoldingReservations($newOrder);
 
             // 3. Tính toán lại subtotal & total_amount cho cả 2 đơn
             // Phân bổ discount theo tỷ lệ để tránh "Âm tiền"
@@ -581,6 +608,7 @@ class OrderService
                             'discount_amount' => 0,
                             'line_total' => $lineTotal,
                             'status' => 'pending',
+                            'sent_to_kitchen_at' => now(),
                             'notes' => $itemData['notes'] ?? null,
                         ]);
                     }
@@ -679,9 +707,32 @@ class OrderService
     /**
      * Thanh toán đơn hàng.
      */
+    public function assertCanBePaid(Order $order): void
+    {
+        $hasUnservedItems = OrderItem::where('restaurant_id', $order->restaurant_id)
+            ->where('order_id', $order->id)
+            ->where('status', '!=', 'cancelled')
+            ->whereNull('served_at')
+            ->exists();
+
+        if ($hasUnservedItems) {
+            throw new \RuntimeException('Chưa thể thanh toán: đơn hàng vẫn còn món chưa được phục vụ.');
+        }
+    }
+
     public function payOrder(Order $order, array $data, User $user, bool $queuePostPayment = false): bool
     {
         $paid = DB::transaction(function () use ($order, $data, $user, $queuePostPayment) {
+            // Luôn khóa bàn trước rồi mới khóa order, cùng thứ tự với luồng
+            // tạo đơn, để thanh toán đồng thời không tạo deadlock.
+            if ($order->table_id) {
+                RestaurantTable::where('id', $order->table_id)
+                    ->where('restaurant_id', $user->restaurant_id)
+                    ->where('branch_id', $order->branch_id)
+                    ->lockForUpdate()
+                    ->first();
+            }
+
             // Khóa row + đọc lại trạng thái mới nhất trong transaction để tránh 2 webhook
             // trùng lặp (retry gateway) cùng lúc vượt qua check payment_status và xử lý 2 lần.
             $order = Order::where('id', $order->id)
@@ -694,6 +745,8 @@ class OrderService
                 return false;
             }
 
+            $this->assertCanBePaid($order);
+
             // Cập nhật customer_id bên trong transaction an toàn
             if (isset($data['customer_id']) && $data['customer_id']) {
                 $order->update(['customer_id' => $data['customer_id']]);
@@ -702,7 +755,8 @@ class OrderService
 
             $customer = $order->customer_id ? Customer::find($order->customer_id) : null;
 
-            // Apply tier-based membership discount
+            // Fix #7: Apply tier-based membership discount CHỈ KHI chưa có discount
+            // từ createOrder (tránh stacking: createOrder -10% + payOrder -10% = -20%)
             if ($customer && ! str_contains($order->note ?? '', '[Ưu đãi Hội viên')) {
                 $tier = $customer->loyaltyTier;
                 $discountPct = $tier ? (float) $tier->discount_percent : 0;
@@ -724,6 +778,8 @@ class OrderService
                 if ($loyaltyDiscount > 0) {
                     $tierName = $tierName ?? 'Thành viên';
                     $order->discount_amount = (float) $order->discount_amount + $loyaltyDiscount;
+                    // Fix #7: Cap discount — không cho discount vượt subtotal
+                    $order->discount_amount = min((float) $order->discount_amount, (float) $order->subtotal);
                     $order->total_amount = max(0.0, (float) $order->subtotal - (float) $order->discount_amount);
                     $order->note = ($order->note ? $order->note.' ' : '')."[Ưu đãi Hội viên {$tierName}: -".number_format($loyaltyDiscount).'đ]';
                     $order->save();
@@ -739,6 +795,8 @@ class OrderService
 
                 if ($redeemDiscount > 0) {
                     $order->discount_amount = (float) $order->discount_amount + $redeemDiscount;
+                    // Fix #7: Cap discount — không cho discount vượt subtotal
+                    $order->discount_amount = min((float) $order->discount_amount, (float) $order->subtotal);
                     $order->total_amount = max(0.0, (float) $order->subtotal - (float) $order->discount_amount);
                     $order->note = ($order->note ? $order->note.' ' : '')."[Đã quy đổi {$redeemedPoints} điểm loyalty thưởng: -".number_format($redeemDiscount).'đ]';
                     $order->save();
@@ -768,12 +826,34 @@ class OrderService
                 'cashier_user_id' => $user->id,
             ]);
 
-            // 4. Giải phóng bàn
-            if ($order->table_id) {
-                RestaurantTable::where('id', $order->table_id)
-                    ->where('restaurant_id', $order->restaurant_id)
+            // 4. Chỉ giải phóng bàn khi toàn bộ món đã được phục vụ.
+            // Thanh toán xong chưa đồng nghĩa với kết thúc phục vụ.
+            $this->releaseTableIfNoActiveServiceOrder($order);
+
+            // Fix #14: Ghi CashTransaction khi thanh toán tiền mặt
+            if (($data['payment_method'] ?? '') === 'cash' && (float) $order->total_amount > 0) {
+                $cashRegister = CashRegister::where('restaurant_id', $order->restaurant_id)
                     ->where('branch_id', $order->branch_id)
-                    ->update(['status' => 'available']);
+                    ->where('status', 'open')
+                    ->first();
+
+                if ($cashRegister) {
+                    CashTransaction::create([
+                        'restaurant_id' => $order->restaurant_id,
+                        'branch_id' => $order->branch_id,
+                        'cash_register_id' => $cashRegister->id,
+                        'type' => 'in',
+                        'source' => 'order',
+                        'amount' => (float) $order->total_amount,
+                        'notes' => "Thanh toán đơn hàng {$order->order_number}",
+                        'reference_type' => Order::class,
+                        'reference_id' => $order->id,
+                        'created_by' => $user->id,
+                        'occurred_at' => now(),
+                    ]);
+
+                    $cashRegister->increment('expected_closing_balance', (float) $order->total_amount);
+                }
             }
 
             if ($queuePostPayment) {
@@ -847,6 +927,24 @@ class OrderService
         return $paid;
     }
 
+    /** Chuyển bàn về available chỉ khi không còn món chưa phục vụ. */
+    private function releaseTableIfNoActiveServiceOrder(Order $order): void
+    {
+        if (! $order->table_id) {
+            return;
+        }
+
+        $table = RestaurantTable::where('id', $order->table_id)
+            ->where('restaurant_id', $order->restaurant_id)
+            ->where('branch_id', $order->branch_id)
+            ->lockForUpdate()
+            ->first();
+
+        if ($table && ! $table->orders()->activeForService()->exists()) {
+            $table->update(['status' => 'available']);
+        }
+    }
+
     /**
      * Phê duyệt đối soát đơn bị tách để xóa phạt.
      */
@@ -876,21 +974,35 @@ class OrderService
             ->with('product.recipes')
             ->get();
 
+        // Fix #11: Batch insert thay vì loop create() — giảm N+1 queries
+        $reservationsToInsert = [];
+        $now = now();
+        $expiresAt = $now->copy()->addHours(4);
+
         foreach ($items as $item) {
             if (! $item->product?->track_inventory) {
                 continue;
             }
 
             foreach ($item->product->recipes as $recipe) {
-                InventoryReservation::create([
+                $reservationsToInsert[] = [
                     'restaurant_id' => $order->restaurant_id,
                     'branch_id' => $order->branch_id,
                     'order_id' => $order->id,
                     'ingredient_id' => $recipe->ingredient_id,
                     'reserved_quantity' => $this->recipeUsageInInventoryUnit($recipe, (float) $item->quantity),
                     'status' => 'holding',
-                    'expires_at' => now()->addHours(4),
-                ]);
+                    'expires_at' => $expiresAt,
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ];
+            }
+        }
+
+        if (! empty($reservationsToInsert)) {
+            // Chunk để tránh query quá dài khi đơn lớn
+            foreach (array_chunk($reservationsToInsert, 50) as $chunk) {
+                InventoryReservation::insert($chunk);
             }
         }
     }

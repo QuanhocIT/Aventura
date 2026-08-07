@@ -38,6 +38,7 @@ interface PendingItem {
     table_name: string;
     table_id: number | null;
     prep_minutes: number;
+    status: string;
 }
 
 interface CompletedItem {
@@ -313,7 +314,6 @@ const filteredGroupedProducts = computed(() => {
 });
 
 const optimisticPreparedItemIds = ref<number[]>([]);
-const optimisticServedItemIds = ref<number[]>([]);
 
 const activePendingItems = computed(() => {
     return props.pendingItems.filter(
@@ -321,11 +321,7 @@ const activePendingItems = computed(() => {
     );
 });
 
-const activeCompletedItems = computed(() => {
-    return props.completedItems.filter(
-        (item) => !optimisticServedItemIds.value.includes(item.id),
-    );
-});
+const activeCompletedItems = computed(() => props.completedItems);
 
 watch(
     () => props.pendingItems,
@@ -335,17 +331,6 @@ watch(
             optimisticPreparedItemIds.value.filter((id) =>
                 pendingIds.includes(id),
             );
-    },
-    { deep: true },
-);
-
-watch(
-    () => props.completedItems,
-    (newVal) => {
-        const completedIds = newVal.map((i) => i.id);
-        optimisticServedItemIds.value = optimisticServedItemIds.value.filter(
-            (id) => completedIds.includes(id),
-        );
     },
     { deep: true },
 );
@@ -603,7 +588,6 @@ const tableUrgency = computed(() => {
     return result;
 });
 
-// Hoàn thành chế biến món ăn ở bếp
 const handlePrepare = (itemId: number) => {
     if (isUpdating.value[itemId]) {
         return;
@@ -674,8 +658,6 @@ const handleServe = (itemId: number) => {
         return;
     }
 
-    optimisticServedItemIds.value.push(itemId);
-
     isUpdating.value[itemId] = true;
     router.post(
         `/kitchen/items/${itemId}/serve`,
@@ -686,8 +668,6 @@ const handleServe = (itemId: number) => {
                 isUpdating.value[itemId] = false;
             },
             onError: () => {
-                optimisticServedItemIds.value =
-                    optimisticServedItemIds.value.filter((id) => id !== itemId);
                 toast.error('Có lỗi xảy ra, không thể hoàn thành phục vụ!');
             },
         },
@@ -1253,7 +1233,8 @@ onUnmounted(() => {
                                 }"
                             >
                                 <div class="flex items-center justify-between">
-                                    <CardTitle
+                                    <div class="min-w-0">
+                                        <CardTitle
                                         class="flex items-center gap-2 text-sm font-extrabold text-slate-900 dark:text-white"
                                     >
                                         <span
@@ -1272,7 +1253,8 @@ onUnmounted(() => {
                                         >
                                         </span>
                                         Bàn: {{ tableName }}
-                                    </CardTitle>
+                                        </CardTitle>
+                                    </div>
 
                                     <div class="flex items-center gap-2">
                                         <!-- ETA Badge -->
@@ -1363,6 +1345,16 @@ onUnmounted(() => {
                                             >
                                                 {{ item.product_name }}
                                             </h3>
+                                            <Badge
+                                                class="rounded-full px-2 py-0.5 text-[9px] font-bold"
+                                                :class="
+                                                    item.status === 'preparing'
+                                                        ? 'bg-violet-100 text-violet-700 dark:bg-violet-950/40 dark:text-violet-300'
+                                                        : 'bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300'
+                                                "
+                                            >
+                                                {{ item.status === 'preparing' ? 'Đang chế biến' : 'Chờ chế biến' }}
+                                            </Badge>
                                         </div>
 
                                         <!-- Meta thông tin thêm qua KitchenTimer -->
@@ -1451,7 +1443,7 @@ onUnmounted(() => {
                                             "
                                             :disabled="isUpdating[item.id]"
                                             @click="handlePrepare(item.id)"
-                                            title="Hoàn thành món"
+                                            title="Đánh dấu đã chế biến"
                                         >
                                             <Check class="size-5" />
                                         </Button>
@@ -1545,7 +1537,7 @@ onUnmounted(() => {
                                     }"
                                 >
                                     <div class="min-w-0 flex-1">
-                                        <div class="flex items-center gap-2">
+                                        <div class="flex flex-col items-start gap-0.5">
                                             <span
                                                 class="text-xs font-extrabold text-indigo-600 dark:text-indigo-400"
                                             >
@@ -1717,9 +1709,9 @@ onUnmounted(() => {
                                 class="mt-2 flex items-center gap-3 text-[10px] font-bold text-muted-foreground"
                             >
                                 <span
-                                    class="flex items-center gap-0.5 rounded bg-indigo-50 px-1.5 py-0.5 text-indigo-600 dark:bg-indigo-950/30 dark:text-indigo-400"
+                                    class="flex flex-col items-start rounded bg-indigo-50 px-1.5 py-0.5 text-indigo-600 dark:bg-indigo-950/30 dark:text-indigo-400"
                                 >
-                                    Bàn: {{ item.table_name }}
+                                    <span>Bàn: {{ item.table_name }}</span>
                                 </span>
                                 <span>•</span>
                                 <span

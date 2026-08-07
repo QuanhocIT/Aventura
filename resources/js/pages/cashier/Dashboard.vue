@@ -730,7 +730,7 @@ onUnmounted(() => {
 
         <!-- ── TOAST NOTIFICATIONS ────────────────────────────────────── -->
         <div
-            class="pointer-events-none fixed right-6 bottom-6 z-[70] flex flex-col gap-2"
+            class="pointer-events-none fixed top-6 left-1/2 z-[100] flex -translate-x-1/2 flex-col items-center gap-2"
         >
             <transition-group name="toast">
                 <div

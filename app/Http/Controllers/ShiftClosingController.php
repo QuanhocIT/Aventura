@@ -16,6 +16,7 @@ use App\Models\WorkShift;
 use App\Services\InventoryService;
 use App\Services\QuotaService;
 use App\Services\SalaryService;
+use App\Services\OrderService;
 use App\Support\Tenant\TenantContext;
 use App\Support\TenantRule;
 use Carbon\Carbon;
@@ -33,6 +34,7 @@ class ShiftClosingController extends Controller
     public function __construct(
         private TenantContext $tenantContext,
         private InventoryService $inventoryService,
+        private OrderService $orderService,
     ) {}
 
     public function index(Request $request): Response
@@ -646,6 +648,16 @@ class ShiftClosingController extends Controller
     private function processAutoPay(Order $order, User $user, Carbon $completedAt): void
     {
         DB::transaction(function () use ($order, $user, $completedAt) {
+            // Giữ thứ tự khóa giống luồng tạo/thanh toán POS: khóa bàn trước,
+            // sau đó mới khóa order để tránh deadlock lúc chốt ca.
+            if ($order->table_id) {
+                RestaurantTable::where('id', $order->table_id)
+                    ->where('restaurant_id', $order->restaurant_id)
+                    ->where('branch_id', $order->branch_id)
+                    ->lockForUpdate()
+                    ->first();
+            }
+
             // Khoá row và đọc lại trạng thái mới nhất để tránh thanh toán trùng
             // khi cashier bấm thanh toán thủ công đồng thời với auto-pay lúc chốt ca.
             $order = Order::where('id', $order->id)->lockForUpdate()->first();
@@ -653,6 +665,8 @@ class ShiftClosingController extends Controller
             if (! $order || $order->payment_status === 'paid') {
                 return; // Đã được thanh toán bởi luồng khác, bỏ qua
             }
+
+            $this->orderService->assertCanBePaid($order);
 
             // 1. Tạo Payment record
             Payment::create([
@@ -679,9 +693,17 @@ class ShiftClosingController extends Controller
                 'cashier_user_id' => $user->id,
             ]);
 
-            // 4. Giải phóng bàn
+            // Chỉ giải phóng bàn khi toàn bộ món đã phục vụ xong.
             if ($order->table_id) {
-                RestaurantTable::where('id', $order->table_id)->update(['status' => 'available']);
+                $table = RestaurantTable::where('id', $order->table_id)
+                    ->where('restaurant_id', $order->restaurant_id)
+                    ->where('branch_id', $order->branch_id)
+                    ->lockForUpdate()
+                    ->first();
+
+                if ($table && ! $table->orders()->activeForService()->exists()) {
+                    $table->update(['status' => 'available']);
+                }
             }
 
             AuditLog::log('order_paid', 'updated', $order, ['payment_status' => 'unpaid'], ['payment_status' => 'paid']);

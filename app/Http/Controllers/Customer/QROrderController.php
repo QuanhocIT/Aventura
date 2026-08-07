@@ -384,7 +384,11 @@ class QROrderController extends Controller
         );
 
         // Kích hoạt Event thông báo Realtime (< 500ms) trên màn hình máy POS/Tablet của Staff
-        event(new TemporaryOrderCreated($tempOrder));
+        try {
+            event(new TemporaryOrderCreated($tempOrder));
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::warning('Broadcast temporary order created failed: '.$e->getMessage());
+        }
 
         // Khởi tạo Delay Job trong queue với TTL là 2 phút (120 giây) để theo dõi lùi bước
         VerifyTemporaryOrderDelayJob::dispatch($tempOrder->id)->delay(now()->addSeconds(120));
@@ -420,7 +424,11 @@ class QROrderController extends Controller
 
         $msg = $data['message'] ?: 'Khách hàng yêu cầu phục vụ tại bàn';
 
-        event(new StaffCalled($restaurantId, $table->name, $table->area?->name ?? 'Khu vực', $msg));
+        try {
+            event(new StaffCalled($restaurantId, $table->name, $table->area?->name ?? 'Khu vực', $msg));
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::warning('Broadcast staff called failed: '.$e->getMessage());
+        }
 
         return response()->json([
             'success' => true,
@@ -457,7 +465,11 @@ class QROrderController extends Controller
             ], 422);
         }
 
-        event(new PaymentRequested($restaurantId, $table->name, $table->area?->name ?? 'Khu vực'));
+        try {
+            event(new PaymentRequested($restaurantId, $table->name, $table->area?->name ?? 'Khu vực'));
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::warning('Broadcast payment requested failed: '.$e->getMessage());
+        }
 
         return response()->json([
             'success' => true,
@@ -501,7 +513,11 @@ class QROrderController extends Controller
             'status' => 'new',
         ]);
 
-        event(new FeedbackSubmitted($restaurantId, $feedback));
+        try {
+            event(new FeedbackSubmitted($restaurantId, $feedback));
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::warning('Broadcast feedback submitted failed: '.$e->getMessage());
+        }
 
         return response()->json([
             'success' => true,

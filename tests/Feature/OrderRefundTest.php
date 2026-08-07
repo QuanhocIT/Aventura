@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\Order;
+use App\Models\ApprovalRequest;
 use App\Models\Restaurant;
 use App\Models\RestaurantBranch;
 use App\Models\User;
@@ -149,7 +150,7 @@ class OrderRefundTest extends TestCase
         $this->assertSame('paid', $order->refresh()->payment_status);
     }
 
-    public function test_cashier_without_approval_permission_needs_bypass_code(): void
+    public function test_cashier_refund_creates_approval_request_without_bypass_code(): void
     {
         Role::firstOrCreate(['name' => 'cashier', 'guard_name' => 'web']);
         $cashier = User::factory()->create([
@@ -163,13 +164,92 @@ class OrderRefundTest extends TestCase
 
         $this->actingAs($cashier)
             ->post("/orders/{$order->id}/refund", [
-                'reason' => 'Thu ngân tự hoàn tiền không có mã quản lý',
+                'reason' => 'Khách yêu cầu hoàn tiền do món ăn bị giao sai',
                 'refund_amount' => 50000,
                 'refund_type' => 'partial',
             ])
-            ->assertSessionHasErrors(['bypass_code']);
+            ->assertRedirect();
 
         $this->assertSame('paid', $order->refresh()->payment_status);
+
+        $approval = ApprovalRequest::where('restaurant_id', $this->restaurant->id)
+            ->where('operation_type', 'order_refund')
+            ->latest('id')
+            ->firstOrFail();
+
+        $this->assertSame('pending', $approval->status);
+        $this->assertSame($cashier->id, $approval->requester_id);
+        $this->assertSame(50000.0, (float) data_get($approval->operation_data, 'refund_amount'));
+        $this->assertDatabaseHas('notifications', [
+            'notifiable_id' => $this->owner->id,
+            'type' => \App\Notifications\ApprovalRequestedNotification::class,
+        ]);
+    }
+
+    public function test_owner_approval_processes_refund_and_notifies_requester(): void
+    {
+        $cashierRole = Role::where('name', 'cashier')->firstOrFail();
+        $cashier = User::factory()->create([
+            'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
+            'status' => 'active',
+        ]);
+        $cashier->assignRole($cashierRole);
+        $order = $this->makePaidOrder();
+
+        $this->actingAs($cashier)->post("/orders/{$order->id}/refund", [
+            'reason' => 'Khách yêu cầu hoàn tiền do món ăn bị giao sai',
+            'refund_amount' => 50000,
+            'refund_type' => 'partial',
+        ])->assertRedirect();
+
+        $approval = ApprovalRequest::where('operation_type', 'order_refund')->latest('id')->firstOrFail();
+
+        $this->actingAs($this->owner)
+            ->patch("/approvals/{$approval->id}/approve")
+            ->assertRedirect();
+
+        $this->assertSame('partial_refund', $order->refresh()->payment_status);
+        $this->assertEquals(50000, (float) $order->refund_amount);
+        $this->assertSame('approved', $approval->refresh()->status);
+        $this->assertDatabaseHas('notifications', [
+            'notifiable_id' => $cashier->id,
+            'type' => \App\Notifications\ApprovalDecisionNotification::class,
+        ]);
+    }
+
+    public function test_owner_rejection_does_not_refund_and_notifies_requester(): void
+    {
+        $cashierRole = Role::where('name', 'cashier')->firstOrFail();
+        $cashier = User::factory()->create([
+            'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
+            'status' => 'active',
+        ]);
+        $cashier->assignRole($cashierRole);
+        $order = $this->makePaidOrder();
+
+        $this->actingAs($cashier)->post("/orders/{$order->id}/refund", [
+            'reason' => 'Khách yêu cầu hoàn tiền do món ăn bị giao sai',
+            'refund_amount' => 50000,
+            'refund_type' => 'partial',
+        ])->assertRedirect();
+
+        $approval = ApprovalRequest::where('operation_type', 'order_refund')->latest('id')->firstOrFail();
+
+        $this->actingAs($this->owner)
+            ->patch("/approvals/{$approval->id}/reject", [
+                'rejection_reason' => 'Đã kiểm tra và không đủ điều kiện hoàn tiền.',
+            ])
+            ->assertRedirect();
+
+        $this->assertSame('paid', $order->refresh()->payment_status);
+        $this->assertNull($order->refund_amount);
+        $this->assertSame('rejected', $approval->refresh()->status);
+        $this->assertDatabaseHas('notifications', [
+            'notifiable_id' => $cashier->id,
+            'type' => \App\Notifications\ApprovalDecisionNotification::class,
+        ]);
     }
 
     public function test_cannot_refund_order_of_another_restaurant(): void

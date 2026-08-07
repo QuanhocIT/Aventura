@@ -107,7 +107,14 @@ class CashierDashboardController extends Controller
                     $activeOrder = $t->activeOrder;
 
                     $status = $t->status;
-                    if (! $activeOrder && $status === 'occupied') {
+                    if ($activeOrder) {
+                        // Đồng bộ lại trạng thái hiển thị với đơn đang phục vụ,
+                        // kể cả trường hợp dữ liệu cũ đã bị trả về available sau khi thanh toán.
+                        $status = 'occupied';
+                        if ($t->status !== 'occupied') {
+                            $t->update(['status' => 'occupied']);
+                        }
+                    } elseif ($status === 'occupied') {
                         $status = 'available';
                         $t->update(['status' => 'available']);
                     }
@@ -122,6 +129,7 @@ class CashierDashboardController extends Controller
                             'id' => $activeOrder->id,
                             'order_number' => $activeOrder->order_number,
                             'status' => $activeOrder->status,
+                            'payment_status' => $activeOrder->payment_status,
                             'subtotal' => (float) $activeOrder->subtotal,
                             'discount_amount' => (float) $activeOrder->discount_amount,
                             'total_amount' => (float) $activeOrder->total_amount,
@@ -136,6 +144,8 @@ class CashierDashboardController extends Controller
                                 'quantity' => (float) $item->quantity,
                                 'notes' => $item->notes,
                                 'status' => $item->status,
+                                'prepared_at' => $item->prepared_at?->toIso8601String(),
+                                'served_at' => $item->served_at?->toIso8601String(),
                             ]),
                         ] : null,
                     ];
@@ -337,7 +347,9 @@ class CashierDashboardController extends Controller
                 ->whereHas('order', function ($q) use ($restaurant, $branchId) {
                     $q->where('restaurant_id', $restaurant->id)
                         ->when($branchId, fn ($b) => $b->where('branch_id', $branchId))
-                        ->whereNotIn('status', ['completed', 'cancelled']);
+                        // Payment can finish the order before the waiter
+                        // carries the dish to the table.
+                        ->where('status', '!=', 'cancelled');
                 })
                 ->with(['order.table', 'product', 'preparedBy'])
                 ->latest('prepared_at')

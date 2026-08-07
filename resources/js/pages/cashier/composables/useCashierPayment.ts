@@ -69,7 +69,26 @@ export function useCashierPayment(
         searchCustomerPhone.value = '';
     };
 
+    const canPayActiveOrder = () => {
+        const order = activeTable.value?.active_order;
+        const serviceItems = (order?.items ?? []).filter(
+            (item) => item.status !== 'cancelled',
+        );
+
+        return Boolean(
+            order?.payment_status === 'unpaid' &&
+                serviceItems.length > 0 &&
+                serviceItems.every((item) => Boolean(item.served_at)),
+        );
+    };
+
     const openPayment = () => {
+        if (!canPayActiveOrder()) {
+            toast('Chưa thể thanh toán: đơn hàng vẫn còn món chưa được phục vụ.', 'error');
+
+            return;
+        }
+
         paymentMethod.value = 'cash';
         cashReceived.value = activeTable.value?.active_order?.total_amount ?? 0;
         foundCustomer.value = null;
@@ -80,6 +99,12 @@ export function useCashierPayment(
 
     const processPayment = () => {
         if (!activeTable.value?.active_order || isPaying.value) {
+            return;
+        }
+
+        if (!canPayActiveOrder()) {
+            toast('Chưa thể thanh toán: đơn hàng vẫn còn món chưa được phục vụ.', 'error');
+
             return;
         }
 
@@ -127,7 +152,7 @@ export function useCashierPayment(
             })
             .catch((err) => {
                 toast(
-                    err.response?.data?.message || 'Lỗi xử lý thanh toán.',
+                    err.response?.data?.error || err.response?.data?.message || 'Lỗi xử lý thanh toán.',
                     'error',
                 );
             })

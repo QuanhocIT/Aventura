@@ -143,7 +143,11 @@ class StaffQROrderController extends Controller
         });
 
         // Phát tín hiệu Realtime cập nhật trạng thái đơn cho Khách hàng
-        event(new TemporaryOrderUpdated($temporaryOrder));
+        try {
+            event(new TemporaryOrderUpdated($temporaryOrder));
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::warning('Broadcast temporary order updated failed: '.$e->getMessage());
+        }
 
         // Lấy gợi ý Upselling AI dựa trên các món ăn trong đơn hàng
         $promotionController = app(PromotionController::class);
@@ -206,7 +210,11 @@ class StaffQROrderController extends Controller
         }
 
         // Phát tín hiệu Realtime cập nhật trạng thái cho Khách hàng
-        event(new TemporaryOrderUpdated($temporaryOrder));
+        try {
+            event(new TemporaryOrderUpdated($temporaryOrder));
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::warning('Broadcast temporary order updated failed: '.$e->getMessage());
+        }
 
         return response()->json([
             'success' => true,

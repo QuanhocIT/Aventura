@@ -197,9 +197,19 @@ class TablesController extends Controller
         abort_if($table->restaurant_id !== $request->user()->restaurant_id, 403);
         abort_unless($request->user()->canAccessBranch((int) $table->branch_id), 403);
 
+        $hasActiveOrder = $table->status === 'occupied'
+            || $table->activeOrder()->exists()
+            || $table->orders()->whereNotIn('status', ['completed', 'cancelled'])->exists();
+
+        if ($hasActiveOrder) {
+            throw ValidationException::withMessages([
+                'table' => "Không thể xóa bàn {$table->name} vì bàn đang có khách hoặc đơn hàng chưa hoàn tất. Vui lòng thanh toán hoặc hủy đơn trước khi xóa bàn.",
+            ]);
+        }
+
         $table->delete();
 
-        return back()->with('success', 'Đã xóa bàn.');
+        return back()->with('success', 'Đã xóa bàn thành công.');
     }
 
     public function regenerateQr(Request $request, RestaurantTable $table): RedirectResponse

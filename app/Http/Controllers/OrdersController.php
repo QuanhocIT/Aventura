@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\AccountReceivable;
 use App\Models\AuditLog;
+use App\Models\ApprovalRequest;
 use App\Models\Customer;
 use App\Models\Delivery\DeliveryDetail;
 use App\Models\Order;
@@ -17,7 +18,9 @@ use App\Services\CdpService;
 use App\Services\InventoryAvailabilityService;
 use App\Services\InventoryService;
 use App\Services\LoyaltyService;
+use App\Services\ApprovalService;
 use App\Services\OrderService;
+use App\Services\OrderRefundService;
 use App\Support\Tenant\TenantContext;
 use App\Support\TenantRule;
 use Illuminate\Http\JsonResponse;
@@ -86,6 +89,7 @@ class OrdersController extends Controller
         $tables = RestaurantTable::where('restaurant_id', $restaurantId)
             ->where('branch_id', $branchId)
             ->where('status', 'available')
+            ->whereDoesntHave('orders', fn ($query) => $query->activeForService())
             ->get()
             ->map(fn ($t) => [
                 'id' => $t->id,
@@ -234,7 +238,33 @@ class OrdersController extends Controller
             });
         }
 
-        $orders = $ordersQuery->get()->map(fn ($o) => [
+        $orders = $ordersQuery->get()->map(function ($o) {
+            $items = $o->items
+                ->reject(fn ($item) => $item->status === 'cancelled')
+                ->values();
+            $itemsCount = $items->count();
+            $preparedCount = $items->whereNotNull('prepared_at')->count();
+            $servedCount = $items->whereNotNull('served_at')->count();
+            $inProgressCount = $items
+                ->where('status', 'preparing')
+                ->whereNull('prepared_at')
+                ->whereNull('served_at')
+                ->count();
+            $readyCount = $items
+                ->whereNotNull('prepared_at')
+                ->whereNull('served_at')
+                ->count();
+
+            // Payment may set orders.status to completed before the kitchen
+            // and waiter finish. Keep the operational progress per item.
+            $fulfillmentStatus = match (true) {
+                $itemsCount === 0 || $servedCount === $itemsCount => 'served',
+                $readyCount === $itemsCount => 'ready',
+                $inProgressCount > 0 || $readyCount > 0 || $preparedCount > 0 => 'preparing',
+                default => 'pending',
+            };
+
+            return [
             'id' => $o->id,
             'order_number' => $o->order_number,
             'branch_id' => $o->branch_id,
@@ -242,13 +272,21 @@ class OrdersController extends Controller
             'status' => $o->status,
             'payment_status' => $o->payment_status,
             'channel' => $o->channel,
+            'fulfillment_status' => $fulfillmentStatus,
             'table_name' => $o->table?->name,
             'area_name' => $o->table?->area?->name,
             'total_amount' => (float) $o->total_amount,
-            'items_count' => $o->items->count(),
+            'items_count' => $itemsCount,
+            'items_prepared_count' => $preparedCount,
+            'items_served_count' => $servedCount,
+            'items_in_progress_count' => $inProgressCount,
+            'items_ready_count' => $readyCount,
             'created_at' => $o->created_at->format('H:i'),
             'created_at_full' => $o->created_at->format('H:i:s - d/m/Y'),
+            'created_at_formatted' => $o->created_at->format('H:i - d/m/Y'),
             'completed_at' => $o->completed_at?->format('H:i'),
+            'completed_at_full' => $o->completed_at?->format('H:i:s - d/m/Y'),
+            'completed_at_formatted' => $o->completed_at?->format('H:i - d/m/Y'),
             'note' => $o->note ?? $o->notes ?? null,
             'items' => $o->items->map(fn ($item) => [
                 'id' => $item->id,
@@ -258,6 +296,13 @@ class OrdersController extends Controller
                 'line_total' => (float) ($item->line_total ?? ($item->quantity * ($item->unit_price ?? 0))),
                 'notes' => $item->notes ?? null,
                 'status' => $item->status ?? null,
+                'sent_to_kitchen_at' => $item->sent_to_kitchen_at?->format('H:i'),
+                'prepared_at' => $item->prepared_at?->format('H:i'),
+                'prepared_at_formatted' => $item->prepared_at?->format('H:i - d/m/Y'),
+                'prepared_by_name' => $item->preparedBy?->name ?? null,
+                'served_at' => $item->served_at?->format('H:i'),
+                'served_at_formatted' => $item->served_at?->format('H:i - d/m/Y'),
+                'served_by_name' => $item->servedBy?->name ?? null,
             ])->values()->all(),
             'delivery' => $o->deliveryDetail ? [
                 'customer_name' => $o->deliveryDetail->customer_name,
@@ -268,9 +313,15 @@ class OrdersController extends Controller
                 'status' => $o->deliveryDetail->delivery_status,
                 'notes' => $o->deliveryDetail->notes,
             ] : null,
-        ]);
+            ];
+        });
 
         $summary = $this->orderRepository->getSummaryStats($restaurantId, $dateFilter, $isKitchenOnly, $branchId);
+        $summary['ready'] = $this->orderRepository->getOrdersQuery($restaurantId, [
+            'status' => 'ready',
+            'date' => $dateFilter,
+            'branch_id' => $branchId,
+        ])->count();
 
         $autoPaySetting = DB::table('restaurant_settings')
             ->where('restaurant_id', $restaurantId)
@@ -536,6 +587,14 @@ class OrdersController extends Controller
 
             try {
                 DB::transaction(function () use ($order, $customerId, $data, $user) {
+                    if ($order->table_id) {
+                        RestaurantTable::where('id', $order->table_id)
+                            ->where('restaurant_id', $order->restaurant_id)
+                            ->where('branch_id', $order->branch_id)
+                            ->lockForUpdate()
+                            ->first();
+                    }
+
                     // Lock order row tr\u01b0\u1edbc \u2014 ng\u0103n concurrent payment v\u00e0o c\u00f9ng \u0111\u01a1n
                     $order = Order::where('id', $order->id)->lockForUpdate()->firstOrFail();
 
@@ -543,6 +602,8 @@ class OrdersController extends Controller
                     if ($order->status === 'completed' || $order->payment_status !== 'unpaid') {
                         throw new \Exception('Đơn hàng này đã được xử lý thanh toán trước đó.');
                     }
+
+                    $this->orderService->assertCanBePaid($order);
 
                     // Lock the customer row
                     $customer = Customer::where('id', $customerId)->lockForUpdate()->firstOrFail();
@@ -618,9 +679,17 @@ class OrdersController extends Controller
                         'cashier_user_id' => $user->id,
                     ]);
 
-                    // Release table
+                    // Chỉ giải phóng bàn khi không còn đơn/món nào đang phục vụ.
                     if ($order->table_id) {
-                        RestaurantTable::where('id', $order->table_id)->update(['status' => 'available']);
+                        $table = RestaurantTable::where('id', $order->table_id)
+                            ->where('restaurant_id', $order->restaurant_id)
+                            ->where('branch_id', $order->branch_id)
+                            ->lockForUpdate()
+                            ->first();
+
+                        if ($table && ! $table->orders()->activeForService()->exists()) {
+                            $table->update(['status' => 'available']);
+                        }
                     }
 
                     // Customer updates + loyalty points
@@ -708,12 +777,7 @@ class OrdersController extends Controller
     }
 
     /**
-     * Yêu cầu hoàn tiền cho đơn hàng đã thanh toán.
-     * - Chỉ áp dụng cho đơn đã paid
-     * - Bắt buộc nhập lý do hoàn tiền
-     * - Không phải Owner/Manager → phải có bypass code
-     * - Ghi audit log với chi tiết old_values / new_values
-     * - Hoàn tồn kho nếu refund toàn bộ đơn
+     * Tạo yêu cầu hoàn tiền cho nhân viên; chủ doanh nghiệp xử lý trực tiếp.
      */
     public function refund(Request $request, Order $order): RedirectResponse
     {
@@ -726,7 +790,6 @@ class OrdersController extends Controller
         $data = $request->validate([
             'reason' => ['required', 'string', 'min:10', 'max:500'],
             'refund_amount' => ['required', 'numeric', 'min:1000', "max:{$order->total_amount}"],
-            'bypass_code' => ['nullable', 'string'],
             'refund_type' => ['required', 'in:full,partial'],
         ]);
 
@@ -739,78 +802,42 @@ class OrdersController extends Controller
             return back()->withErrors(['refund_amount' => 'Hoàn toàn phần phải bằng đúng số tiền còn được hoàn.']);
         }
 
-        // Nếu không phải Owner/Manager → phải có bypass code
-        if (! $user->can('approve_requests')) {
-            $approvingUser = User::validateManagerBypass($data['bypass_code'] ?? '', $order->restaurant_id);
-            if (! $approvingUser) {
-                return back()->withErrors(['bypass_code' => 'Hoàn tiền yêu cầu mã phê duyệt của quản lý hoặc chưa cấu hình mã phê duyệt.']);
-            }
-            // Ghi log bypass hoàn tiền
-            AuditLog::log('order_refund_bypass', 'updated', $order, null, [
-                'refund_amount' => $data['refund_amount'],
-                'bypass_code_used' => true,
-                'approved_by_user_id' => $approvingUser->id,
-                'approved_by_user_name' => $approvingUser->name,
-            ]);
+        // Chủ doanh nghiệp có thể xử lý trực tiếp; không cần mã bypass.
+        if ($user->hasRole('owner')) {
+            app(OrderRefundService::class)->process($order, $data, $user);
+
+            return back()->with('success', 'Đã xử lý hoàn tiền thành công. Nhật ký kiểm toán đã được ghi nhận.');
         }
 
-        DB::transaction(function () use ($order, $data, $user) {
-            $order = Order::whereKey($order->id)->lockForUpdate()->firstOrFail();
-            $oldPaymentStatus = $order->payment_status;
-            $oldRefundAmount = (float) ($order->refund_amount ?? 0);
-            $refundAmount = (float) $data['refund_amount'];
+        $hasPendingRequest = ApprovalRequest::forRestaurant($order->restaurant_id)
+            ->where('operation_type', 'order_refund')
+            ->where('status', 'pending')
+            ->get()
+            ->contains(fn (ApprovalRequest $approval) => (int) data_get($approval->operation_data, 'order_id') === (int) $order->id);
 
-            if (! in_array($oldPaymentStatus, ['paid', 'partial_refund'], true)
-                || $oldRefundAmount + $refundAmount > (float) $order->total_amount + 0.01) {
-                throw new \RuntimeException('Đơn hàng đã được hoàn tiền hoặc không còn số dư để hoàn.');
-            }
+        if ($hasPendingRequest) {
+            return back()->withErrors(['refund' => 'Đơn hàng này đã có yêu cầu hoàn tiền đang chờ chủ doanh nghiệp phê duyệt.']);
+        }
 
-            $order->update([
-                'payment_status' => $data['refund_type'] === 'full' ? 'refunded' : 'partial_refund',
-                'refund_amount' => $oldRefundAmount + $refundAmount,
-                'refund_reason' => trim(($order->refund_reason ? $order->refund_reason."\n" : '').$data['reason']),
-                'refunded_at' => now(),
-                'refunded_by' => $user->id,
-            ]);
+        $approval = app(ApprovalService::class)->submitRequest('order_refund', [
+            'order_id' => $order->id,
+            'order_number' => $order->order_number,
+            'table_name' => $order->table?->name,
+            'refund_type' => $data['refund_type'],
+            'refund_amount' => (float) $data['refund_amount'],
+            'refund_reason' => $data['reason'],
+            'reason' => $data['reason'],
+        ], $user);
 
-            Payment::create([
-                'restaurant_id' => $order->restaurant_id,
-                'branch_id' => $order->branch_id,
-                'order_id' => $order->id,
-                'processed_by' => $user->id,
-                'payment_method' => $order->payments()->where('status', 'paid')->value('payment_method') ?? 'mixed',
-                'status' => 'refunded',
-                'amount' => $refundAmount,
-                'cash_received' => 0,
-                'change_amount' => 0,
-                'paid_at' => now(),
-            ]);
+        AuditLog::log('refund_requested', 'updated', $order, null, [
+            'approval_id' => $approval->id,
+            'refund_amount' => (float) $data['refund_amount'],
+            'refund_type' => $data['refund_type'],
+            'refund_reason' => $data['reason'],
+            'requested_by_user_id' => $user->id,
+            'requested_by_user_name' => $user->name,
+        ]);
 
-            // Hoàn tồn kho nếu refund toàn bộ
-            if ($data['refund_type'] === 'full' && ! $order->inventory_restored_at) {
-                app(InventoryService::class)->restoreStockForOrder($order);
-                $order->update([
-                    'status' => 'cancelled',
-                    'inventory_restored_at' => now(),
-                ]);
-            }
-
-            // Ghi audit log — TRƯỚC ĐÂY dùng cột auditable_type/auditable_id (bảng
-            // audit_logs dùng subject_type/subject_id) và thiếu cột 'event' NOT NULL,
-            // khiến INSERT ném lỗi SQL làm ROLLBACK cả transaction hoàn tiền.
-            AuditLog::log(
-                'refund_processed',
-                'updated',
-                $order,
-                ['payment_status' => $oldPaymentStatus],
-                [
-                    'payment_status' => $order->payment_status,
-                    'refund_amount' => $data['refund_amount'],
-                    'refund_reason' => $data['reason'],
-                ],
-            );
-        });
-
-        return back()->with('success', 'Đã xử lý hoàn tiền thành công. Nhật ký kiểm toán đã được ghi nhận.');
+        return back()->with('success', 'Đã gửi yêu cầu hoàn tiền đến chủ doanh nghiệp để phê duyệt.');
     }
 }

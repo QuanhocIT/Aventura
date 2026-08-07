@@ -16,6 +16,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Facades\Cache;
 use Laravel\Scout\Searchable;
@@ -27,7 +28,7 @@ class Order extends Model
     use Searchable;
     use SoftDeletes;
 
-    protected $guarded = [];
+    protected $guarded = ['id'];
 
     /**
      * Get the indexable data array for the model.
@@ -68,7 +69,23 @@ class Order extends Model
 
     public function table(): BelongsTo
     {
-        return $this->belongsTo(RestaurantTable::class, 'table_id');
+        return $this->belongsTo(RestaurantTable::class, 'table_id')->withTrashed();
+    }
+
+    /**
+     * Fix #9: Hiển thị tên bàn kèm ghi chú nếu bàn đã bị xóa mềm,
+     * tránh nhân viên bối rối khi thấy bàn "không tồn tại" trên giao diện.
+     */
+    public function getTableDisplayNameAttribute(): ?string
+    {
+        $tableModel = $this->table()->first();
+        if (! $tableModel) {
+            return null;
+        }
+
+        return $tableModel->trashed()
+            ? $tableModel->name.' (Đã xóa)'
+            : $tableModel->name;
     }
 
     public function creator(): BelongsTo
@@ -79,6 +96,74 @@ class Order extends Model
     public function items(): HasMany
     {
         return $this->hasMany(OrderItem::class);
+    }
+
+    /**
+     * Đơn vẫn đang chiếm bàn về mặt vận hành.
+     *
+     * Thanh toán có thể hoàn tất trước khi bếp/phục vụ hoàn tất, vì vậy
+     * payment_status không đủ để quyết định bàn đã được giải phóng hay chưa.
+     */
+    public function scopeActiveForService(Builder $query): Builder
+    {
+        return $query
+            ->where('status', '!=', 'cancelled')
+            ->where(function (Builder $q): void {
+                $q->whereNotIn('payment_status', ['paid', 'refunded'])
+                    ->orWhereNull('payment_status')
+                    ->orWhereHas('items', function (Builder $itemQuery): void {
+                        $itemQuery
+                            ->where('status', '!=', 'cancelled')
+                            ->whereNull('served_at');
+                    });
+            });
+    }
+
+    /**
+     * Chỉ lấy đơn hiện hành đầu tiên của một bàn.
+     *
+     * Điều này giúp các bản ghi trùng do dữ liệu cũ không làm nhân đôi đơn
+     * trên màn hình quản lý/bếp. Nếu một đơn cũ được phục vụ sau thời điểm
+     * đơn mới tạo ra, đơn mới vẫn được xem là bản ghi trùng và bị ẩn khỏi
+     * luồng vận hành.
+     */
+    public function scopeCurrentTableOrder(Builder $query): Builder
+    {
+        return $query->where(function (Builder $q): void {
+            $q->whereNull('table_id')
+                ->orWhereNotExists(function ($previous): void {
+                    $previous
+                        ->selectRaw('1')
+                        ->from('orders as previous_orders')
+                        ->whereColumn('previous_orders.restaurant_id', 'orders.restaurant_id')
+                        ->whereColumn('previous_orders.branch_id', 'orders.branch_id')
+                        ->whereColumn('previous_orders.table_id', 'orders.table_id')
+                        ->whereColumn('previous_orders.id', '<', 'orders.id')
+                        ->whereNull('previous_orders.deleted_at')
+                        ->where('previous_orders.status', '!=', 'cancelled')
+                        ->where(function ($active): void {
+                            $active
+                                ->whereNotIn('previous_orders.payment_status', ['paid', 'refunded'])
+                                ->orWhereNull('previous_orders.payment_status')
+                                ->orWhereExists(function ($item): void {
+                                    $item
+                                        ->selectRaw('1')
+                                        ->from('order_items as previous_items')
+                                        ->whereColumn('previous_items.order_id', 'previous_orders.id')
+                                        ->where('previous_items.status', '!=', 'cancelled')
+                                        ->whereNull('previous_items.served_at');
+                                })
+                                ->orWhereExists(function ($servedItem): void {
+                                    $servedItem
+                                        ->selectRaw('1')
+                                        ->from('order_items as previous_served_items')
+                                        ->whereColumn('previous_served_items.order_id', 'previous_orders.id')
+                                        ->where('previous_served_items.status', '!=', 'cancelled')
+                                        ->whereColumn('previous_served_items.served_at', '>', 'orders.created_at');
+                                });
+                        });
+                });
+        });
     }
 
     /**

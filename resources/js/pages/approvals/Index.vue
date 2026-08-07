@@ -17,6 +17,7 @@ import {
     UserPlus,
     Timer,
     Bell,
+    RotateCcw,
 } from 'lucide-vue-next';
 import { computed, ref } from 'vue';
 import { toast } from 'vue-sonner';
@@ -207,6 +208,11 @@ const operationConfig: Record<
         color: 'text-teal-600 dark:text-teal-400',
         bg: 'bg-teal-50 dark:bg-teal-950/40 border border-teal-100 dark:border-teal-900/20',
     },
+    order_refund: {
+        icon: RotateCcw,
+        color: 'text-rose-600 dark:text-rose-400',
+        bg: 'bg-rose-50 dark:bg-rose-950/40 border border-rose-100 dark:border-rose-900/20',
+    },
 };
 
 function opConfig(type: string) {
@@ -237,6 +243,12 @@ const dataLabels: Record<string, string> = {
     amount: 'Số tiền',
     reason: 'Lý do',
     salary_id: 'ID bảng lương',
+    order_id: 'ID đơn hàng',
+    order_number: 'Mã đơn hàng',
+    table_name: 'Bàn',
+    refund_type: 'Hình thức hoàn tiền',
+    refund_amount: 'Số tiền hoàn',
+    refund_reason: 'Lý do hoàn tiền',
 };
 
 const typeAdjLabels: Record<string, string> = {
@@ -294,6 +306,14 @@ function formatDataEntry(
         };
     }
 
+    if (key === 'refund_type') {
+        return {
+            label,
+            display: value === 'full' ? 'Hoàn toàn phần' : 'Hoàn một phần',
+            highlight: false,
+        };
+    }
+
     if (key === 'waste_category') {
         return {
             label,
@@ -322,6 +342,10 @@ function visibleDataEntries(data: Record<string, unknown>) {
 
     if (data['ingredient_name']) {
         skip.add('ingredient_id');
+    }
+
+    if (data['order_number']) {
+        skip.add('order_id');
     }
 
     return Object.entries(data)

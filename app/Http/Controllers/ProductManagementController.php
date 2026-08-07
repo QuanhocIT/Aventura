@@ -2,10 +2,15 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Ingredient;
+use App\Models\Inventory;
+use App\Models\InventoryBatch;
 use App\Models\Product;
 use App\Models\ProductCategory;
+use App\Models\ProductRecipe;
 use App\Models\RestaurantBranch;
 use App\Models\SystemSetting;
+use App\Models\Unit;
 use App\Notifications\ProductRecipeRequiredNotification;
 use App\Support\Tenant\TenantContext;
 use Illuminate\Http\RedirectResponse;
@@ -176,7 +181,11 @@ class ProductManagementController extends Controller
             'track_inventory' => true,
         ]);
 
-        ($user->restaurant?->owner ?? $user)->notify(new ProductRecipeRequiredNotification($product));
+        if (! $product->is_processed) {
+            $this->autoProvisionUnprocessedInventory($product);
+        } else {
+            ($user->restaurant?->owner ?? $user)->notify(new ProductRecipeRequiredNotification($product));
+        }
 
         $this->forgetCatalogCaches($user->restaurant_id, $context, $branchId);
 
@@ -217,9 +226,84 @@ class ProductManagementController extends Controller
 
         $product->update($data);
 
+        if (! $product->is_processed) {
+            $this->autoProvisionUnprocessedInventory($product);
+        }
+
         $this->forgetCatalogCaches($user->restaurant_id, app(TenantContext::class), $product->branch_id);
 
         return back()->with('success', 'Đã cập nhật thông tin món ăn.');
+    }
+
+    /**
+     * Tự động khởi tạo nguyên liệu 1-1 và tồn kho cho món bán sẵn (Không chế biến).
+     */
+    public function autoProvisionUnprocessedInventory(Product $product): void
+    {
+        if ((bool) $product->is_processed) {
+            return;
+        }
+
+        $unit = Unit::firstOrCreate([
+            'restaurant_id' => $product->restaurant_id,
+            'symbol' => 'Cái',
+        ], [
+            'name' => 'Chai/Lon/Cái/Gói',
+        ]);
+
+        $ingredient = Ingredient::firstOrCreate([
+            'restaurant_id' => $product->restaurant_id,
+            'name' => $product->name,
+        ], [
+            'sku' => 'ING-'.$product->code,
+            'unit_id' => $unit->id,
+            'min_stock_level' => 10,
+            'average_cost' => round((float) $product->price * 0.5, 2),
+        ]);
+
+        ProductRecipe::updateOrCreate([
+            'product_id' => $product->id,
+            'ingredient_id' => $ingredient->id,
+        ], [
+            'restaurant_id' => $product->restaurant_id,
+            'quantity' => 1,
+            'unit_id' => $unit->id,
+            'waste_rate' => 0,
+        ]);
+
+        $branchIds = $product->branch_id
+            ? [(int) $product->branch_id]
+            : RestaurantBranch::where('restaurant_id', $product->restaurant_id)->pluck('id')->all();
+
+        foreach ($branchIds as $bId) {
+            Inventory::firstOrCreate([
+                'restaurant_id' => $product->restaurant_id,
+                'branch_id' => $bId,
+                'ingredient_id' => $ingredient->id,
+            ], [
+                'quantity_on_hand' => 999999,
+                'theoretical_quantity' => 999999,
+                'last_cost' => round((float) $product->price * 0.5, 2),
+            ]);
+
+            InventoryBatch::firstOrCreate([
+                'restaurant_id' => $product->restaurant_id,
+                'branch_id' => $bId,
+                'ingredient_id' => $ingredient->id,
+                'status' => 'active',
+            ], [
+                'batch_number' => 'BATCH-'.$product->code,
+                'quantity_remaining' => 999999,
+                'unit_cost' => round((float) $product->price * 0.5, 2),
+                'purchased_at' => now(),
+                'expiry_date' => now()->addYears(5)->toDateString(),
+            ]);
+        }
+
+        $product->update([
+            'is_available' => true,
+            'track_inventory' => true,
+        ]);
     }
 
     /**
