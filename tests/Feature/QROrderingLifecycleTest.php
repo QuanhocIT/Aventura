@@ -581,6 +581,77 @@ class QROrderingLifecycleTest extends TestCase
     }
 
     /**
+     * Nhân viên chỉnh đơn QR và khách tại bàn xác nhận lại phiên bản mới.
+     */
+    public function test_staff_can_request_qr_order_revision_and_customer_can_confirm_it(): void
+    {
+        Event::fake();
+
+        $product = Product::factory()->create([
+            'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
+            'category_id' => $this->category->id,
+            'name' => 'Món thay thế',
+            'code' => 'PROD-REVISED',
+            'price' => 75000,
+            'is_active' => true,
+            'is_available' => true,
+        ]);
+
+        $tempOrder = TemporaryOrder::create([
+            'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
+            'table_id' => $this->table->id,
+            'customer_name' => 'Khách tại bàn',
+            'status' => 'waiting_verification',
+            'cart_data' => [
+                [
+                    'product_id' => $product->id,
+                    'name' => $product->name,
+                    'sku' => $product->code,
+                    'quantity' => 1,
+                    'unit_price' => 75000,
+                    'line_total' => 75000,
+                ],
+            ],
+            'total_amount' => 75000,
+        ]);
+
+        $revisionResponse = $this->actingAs($this->staff)
+            ->patchJson(route('temporary-orders.revise', $tempOrder->id), [
+                'message' => 'Món cũ đã hết, vui lòng xác nhận món thay thế.',
+                'items' => [
+                    [
+                        'product_id' => $product->id,
+                        'quantity' => 2,
+                        'notes' => 'Ít cay',
+                    ],
+                ],
+            ]);
+
+        $revisionResponse->assertOk()->assertJsonPath('success', true);
+
+        $tempOrder->refresh();
+        $this->assertTrue($tempOrder->awaiting_customer_confirmation);
+        $this->assertSame('Món cũ đã hết, vui lòng xác nhận món thay thế.', $tempOrder->revision_note);
+        $this->assertSame(150000.0, (float) $tempOrder->total_amount);
+        $this->assertSame(2.0, (float) $tempOrder->cart_data[0]['quantity']);
+
+        $confirmResponse = $this->postJson(route('customer.qr-order.confirm-revision', [
+            'restaurant' => $this->restaurant->id,
+            'token' => $this->table->qr_token,
+            'temporaryOrder' => $tempOrder->id,
+        ]));
+
+        $confirmResponse->assertOk()->assertJsonPath('success', true);
+
+        $tempOrder->refresh();
+        $this->assertFalse($tempOrder->awaiting_customer_confirmation);
+        $this->assertNotNull($tempOrder->revision_confirmed_at);
+        Event::assertDispatched(TemporaryOrderUpdated::class);
+    }
+
+    /**
      * Test Pha 5: Manager reviews rejected QR order logs.
      */
     public function test_manager_reviews_rejected_logs(): void

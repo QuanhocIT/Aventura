@@ -53,6 +53,8 @@ interface CartDataItem {
 interface ActiveOrder {
     id: number;
     status: 'waiting_verification' | 'escalated' | 'confirmed' | 'cancelled';
+    awaiting_customer_confirmation: boolean;
+    revision_note: string | null;
     total_amount: number;
     cart_data: CartDataItem[];
     order_id: number | null;
@@ -795,6 +797,25 @@ function refetchActiveOrders() {
     router.reload({ only: ['activeTempOrders'] });
 }
 
+const confirmingRevisionId = ref<number | null>(null);
+
+async function confirmRevision(order: ActiveOrder) {
+    if (confirmingRevisionId.value) return;
+
+    confirmingRevisionId.value = order.id;
+    try {
+        const response = await axios.post(
+            `/customer/order/${props.restaurant.id}/${props.table.qr_token}/temporary/${order.id}/confirm-revision`,
+        );
+        toast.success(response.data.message || 'Đã xác nhận thay đổi đơn.');
+        refetchActiveOrders();
+    } catch (error: any) {
+        toast.error(error.response?.data?.message || 'Không thể xác nhận thay đổi đơn.');
+    } finally {
+        confirmingRevisionId.value = null;
+    }
+}
+
 function refetchMenuOnly() {
     router.reload({ only: ['products'] });
 }
@@ -889,11 +910,17 @@ onMounted(() => {
                 if (order || e.table_id === props.table.id) {
                     refetchActiveOrders();
 
-                    if (e.status === 'confirmed') {
-                        toast.success(
-                            'Đơn hàng của bạn đã được nhân viên xác nhận và gửi xuống bếp!',
-                        );
-                    } else if (e.status === 'cancelled') {
+                      if (e.status === 'confirmed') {
+                          toast.success(
+                              'Đơn hàng của bạn đã được nhân viên xác nhận và gửi xuống bếp!',
+                          );
+                      } else if (e.awaiting_customer_confirmation) {
+                          toast.warning(
+                              e.revision_note
+                                  ? `Nhân viên đã chỉnh đơn: ${e.revision_note}`
+                                  : 'Nhân viên đã chỉnh đơn. Vui lòng kiểm tra và xác nhận lại.',
+                          );
+                      } else if (e.status === 'cancelled') {
                         toast.error(
                             'Đơn hàng của bạn đã bị từ chối/hủy. Vui lòng liên hệ nhân viên.',
                         );
@@ -1179,6 +1206,29 @@ onUnmounted(() => {
                         >
                             Bị hủy
                         </span>
+                    </div>
+
+                    <div
+                        v-if="order.awaiting_customer_confirmation"
+                        class="mb-4 rounded-2xl border border-orange-200 bg-orange-50 p-3 text-orange-800"
+                    >
+                        <div class="text-[11px] font-black uppercase tracking-wide">
+                            Nhân viên đề xuất chỉnh sửa đơn
+                        </div>
+                        <p class="mt-1 text-xs leading-relaxed">
+                            {{ order.revision_note || 'Vui lòng kiểm tra lại các món trước khi xác nhận.' }}
+                        </p>
+                        <button
+                            class="mt-3 w-full rounded-xl bg-orange-500 px-3 py-2 text-[11px] font-black text-white transition hover:bg-orange-600 disabled:opacity-60"
+                            :disabled="confirmingRevisionId === order.id"
+                            @click="confirmRevision(order)"
+                        >
+                            {{
+                                confirmingRevisionId === order.id
+                                    ? 'Đang xác nhận...'
+                                    : 'Xác nhận thay đổi đơn'
+                            }}
+                        </button>
                     </div>
 
                     <!-- Progress Bar Steps -->

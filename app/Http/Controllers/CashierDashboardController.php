@@ -251,6 +251,7 @@ class CashierDashboardController extends Controller
             $tempQrOrders = TemporaryOrder::where('restaurant_id', $restaurant->id)
                 ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
                 ->whereIn('status', ['waiting_verification', 'escalated'])
+                ->where('awaiting_customer_confirmation', false)
                 ->with(['table'])
                 ->latest()
                 ->get()

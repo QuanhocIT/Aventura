@@ -493,6 +493,7 @@ Route::middleware(['auth', 'verified', 'tenant.subscription', 'tenant.ratelimit'
     // Quản lý đơn đệm QR và Nhật ký hủy (Staff & Manager)
     Route::get('api/temporary-orders', [StaffQROrderController::class, 'index'])->name('temporary-orders.index');
     Route::post('api/temporary-orders/{temporaryOrder}/confirm', [StaffQROrderController::class, 'confirm'])->name('temporary-orders.confirm');
+    Route::patch('api/temporary-orders/{temporaryOrder}/revise', [StaffQROrderController::class, 'requestRevision'])->name('temporary-orders.revise');
     Route::post('api/temporary-orders/{temporaryOrder}/cancel', [StaffQROrderController::class, 'cancel'])->name('temporary-orders.cancel');
     Route::get('api/temporary-orders/rejected-logs', [StaffQROrderController::class, 'rejectedLogs'])->name('temporary-orders.rejected-logs');
 

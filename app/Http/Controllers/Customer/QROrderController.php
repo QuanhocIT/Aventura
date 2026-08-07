@@ -199,9 +199,11 @@ class QROrderController extends Controller
                 }
 
                 return [
-                    'id' => $to->id,
-                    'status' => $to->status,
-                    'total_amount' => (float) $to->total_amount,
+                'id' => $to->id,
+                'status' => $to->status,
+                'awaiting_customer_confirmation' => (bool) $to->awaiting_customer_confirmation,
+                'revision_note' => $to->revision_note,
+                'total_amount' => (float) $to->total_amount,
                     'cart_data' => $to->cart_data,
                     'order_id' => $to->order_id,
                     'order_number' => $to->order?->order_number,
@@ -419,6 +421,62 @@ class QROrderController extends Controller
                 'cart_data' => $tempOrder->cart_data,
                 'created_at' => $tempOrder->created_at->toIso8601String(),
             ],
+        ]);
+    }
+
+    /**
+     * Khách xác nhận lại phiên bản đơn do nhân viên chỉnh sửa.
+     */
+    public function confirmRevision(Request $request, $restaurantId, $qrToken, TemporaryOrder $temporaryOrder): JsonResponse
+    {
+        $table = RestaurantTable::withoutGlobalScopes()
+            ->where('restaurant_id', $restaurantId)
+            ->where('qr_token', $qrToken)
+            ->firstOrFail();
+
+        abort_if(
+            $temporaryOrder->restaurant_id !== (int) $restaurantId
+                || $temporaryOrder->table_id !== $table->id,
+            404,
+        );
+
+        try {
+            $updatedTemporaryOrder = DB::transaction(function () use ($temporaryOrder) {
+                $lockedOrder = TemporaryOrder::where('id', $temporaryOrder->id)
+                    ->lockForUpdate()
+                    ->firstOrFail();
+
+                if (! $lockedOrder->awaiting_customer_confirmation) {
+                    throw new \Exception('Đơn này không còn chờ xác nhận chỉnh sửa.');
+                }
+
+                if (! in_array($lockedOrder->status, ['waiting_verification', 'escalated'], true)) {
+                    throw new \Exception('Đơn này đã được xử lý và không thể xác nhận lại.');
+                }
+
+                $lockedOrder->update([
+                    'awaiting_customer_confirmation' => false,
+                    'revision_confirmed_at' => now(),
+                ]);
+
+                return $lockedOrder->fresh(['table']);
+            });
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage(),
+            ], 422);
+        }
+
+        try {
+            event(new \App\Events\Customer\TemporaryOrderUpdated($updatedTemporaryOrder));
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::warning('Broadcast temporary order revision confirmation failed: '.$e->getMessage());
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Đã xác nhận nội dung chỉnh sửa. Nhân viên sẽ duyệt đơn ngay.',
         ]);
     }
 

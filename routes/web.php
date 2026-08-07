@@ -227,6 +227,7 @@ Route::middleware('throttle:60,1')->group(function () {
     Route::post('customer/order/feedback/{restaurant}', [QROrderController::class, 'submitFeedback'])->name('customer.qr-order.feedback');
     Route::get('customer/order/{restaurant}/{token}', [QROrderController::class, 'showMenu'])->name('customer.qr-order.show');
     Route::post('customer/order/{restaurant}/{token}', [QROrderController::class, 'submitOrder'])->middleware('throttle:qr_order_submit')->name('customer.qr-order.submit');
+    Route::post('customer/order/{restaurant}/{token}/temporary/{temporaryOrder}/confirm-revision', [QROrderController::class, 'confirmRevision'])->name('customer.qr-order.confirm-revision');
     Route::post('api/customer/track-behavior', [CdpController::class, 'trackBehavior'])->name('api.customer.track-behavior');
     Route::get('api/orders/{order}/payment-qr', [OrderPaymentQrController::class, 'paymentQr'])->name('api.orders.payment-qr');
     Route::get('api/orders/{order}/payment-status', [OrderPaymentQrController::class, 'paymentStatus'])->name('api.orders.payment-status');

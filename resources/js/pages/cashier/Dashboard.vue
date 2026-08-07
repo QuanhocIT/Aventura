@@ -236,6 +236,13 @@ const confirmQrOrder = (orderInput: number | any) => {
         });
 };
 
+const refreshQrOrders = (payload: { message: string; type: 'success' | 'error' }) => {
+    toast(payload.message, payload.type);
+    if (payload.type === 'success') {
+        router.reload({ only: ['qrOrders', 'tablesData'] });
+    }
+};
+
 const servingItemId = ref<number | null>(null);
 const markItemServed = (itemId: number) => {
     servingItemId.value = itemId;
@@ -562,13 +569,15 @@ onUnmounted(() => {
             <!-- TAB 2: ĐƠN HÀNG QR & NGOẠI SÀN -->
             <div v-else-if="activeTab === 'qr'">
                 <QrOrdersPanel
-                    :qr-orders="props.qrOrders"
-                    :external-orders="props.externalOrders"
-                    :confirming-order-id="confirmingOrderId"
-                    :updating-external-id="updatingExternalId"
-                    @confirm-qr-order="confirmQrOrder"
-                    @update-external-order-status="updateExternalOrderStatus"
-                />
+                      :qr-orders="props.qrOrders"
+                      :external-orders="props.externalOrders"
+                      :products="props.products"
+                      :confirming-order-id="confirmingOrderId"
+                      :updating-external-id="updatingExternalId"
+                      @confirm-qr-order="confirmQrOrder"
+                      @update-external-order-status="updateExternalOrderStatus"
+                      @refresh-qr-orders="refreshQrOrders"
+                  />
             </div>
 
             <!-- TAB 3: LỊCH SỬ BẾP & HOÀN TẤT -->

@@ -37,6 +37,10 @@ class TemporaryOrderUpdated implements ShouldBroadcastNow
             'table_id' => $this->temporaryOrder->table_id,
             'status' => $this->temporaryOrder->status,
             'order_id' => $this->temporaryOrder->order_id,
+            'awaiting_customer_confirmation' => (bool) $this->temporaryOrder->awaiting_customer_confirmation,
+            'revision_note' => $this->temporaryOrder->revision_note,
+            'total_amount' => (float) $this->temporaryOrder->total_amount,
+            'cart_data' => $this->temporaryOrder->cart_data,
         ];
     }
 }
