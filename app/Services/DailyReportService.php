@@ -306,6 +306,8 @@ class DailyReportService
             ->join('orders', 'order_items.order_id', '=', 'orders.id')
             ->join('product_recipes', 'product_recipes.product_id', '=', 'order_items.product_id')
             ->join('ingredients', 'ingredients.id', '=', 'product_recipes.ingredient_id')
+            ->join('units as recipe_units', 'recipe_units.id', '=', 'product_recipes.unit_id')
+            ->join('units as ingredient_units', 'ingredient_units.id', '=', 'ingredients.unit_id')
             ->where('orders.restaurant_id', $restaurantId)
             ->when($branchId !== null, fn ($q) => $q->where('orders.branch_id', $branchId))
             ->where('orders.status', 'completed')
@@ -315,6 +317,7 @@ class DailyReportService
                 SUM(
                     order_items.quantity
                     * product_recipes.quantity
+                    * (COALESCE(recipe_units.conversion_factor_to_base, 1) / COALESCE(ingredient_units.conversion_factor_to_base, 1))
                     * (1 + product_recipes.waste_rate / 100)
                     * ingredients.average_cost
                 ) as total_cogs

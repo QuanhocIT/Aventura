@@ -51,13 +51,16 @@ class InternalTransferController extends Controller
             ->join('orders', 'order_items.order_id', '=', 'orders.id')
             ->join('products', 'order_items.product_id', '=', 'products.id')
             ->join('product_recipes', 'products.id', '=', 'product_recipes.product_id')
+            ->join('ingredients', 'ingredients.id', '=', 'product_recipes.ingredient_id')
+            ->join('units as recipe_units', 'recipe_units.id', '=', 'product_recipes.unit_id')
+            ->join('units as ingredient_units', 'ingredient_units.id', '=', 'ingredients.unit_id')
             ->where('orders.restaurant_id', $user->restaurant_id)
             ->where('orders.status', 'completed')
             ->whereBetween('orders.completed_at', [$startDate, $endDate])
             ->select(
                 'orders.branch_id',
                 'product_recipes.ingredient_id',
-                DB::raw('SUM(order_items.quantity * product_recipes.quantity * (1 + (product_recipes.waste_rate / 100))) as total_used')
+                DB::raw('SUM(order_items.quantity * product_recipes.quantity * (COALESCE(recipe_units.conversion_factor_to_base, 1) / COALESCE(ingredient_units.conversion_factor_to_base, 1)) * (1 + (product_recipes.waste_rate / 100))) as total_used')
             )
             ->groupBy('orders.branch_id', 'product_recipes.ingredient_id')
             ->get();
