@@ -10,6 +10,7 @@ use App\Models\ShiftSwap;
 use App\Models\WorkShift;
 use App\Services\QrCodeService;
 use App\Services\QuotaService;
+use App\Services\AutoCheckoutService;
 use App\Services\ShiftSwapService;
 use App\Services\TimeClockService;
 use App\Support\Tenant\TenantContext;
@@ -32,6 +33,7 @@ class ScheduleController extends Controller
         private TenantContext $tenantContext,
         private TimeClockService $timeClock,
         private ShiftSwapService $shiftSwap,
+        private AutoCheckoutService $autoCheckout,
     ) {}
 
     /**
@@ -395,6 +397,10 @@ class ScheduleController extends Controller
             abort(403, 'Bạn chưa được liên kết với hồ sơ nhân sự nào trên hệ thống.');
         }
 
+        // Đồng bộ ngay ca đã hết giờ để ca tiếp theo có thể hiện nút check-in,
+        // kể cả khi scheduler chưa kịp chạy tại đúng thời điểm kết thúc ca.
+        $this->autoCheckout->closeExpiredAssignments($employee->id);
+
         $startOfWeek = Carbon::now()->startOfWeek(Carbon::MONDAY)->toDateString();
         $endOfWeek = Carbon::now()->endOfWeek(Carbon::SUNDAY)->toDateString();
 
@@ -423,30 +429,31 @@ class ScheduleController extends Controller
         $todayActiveAssignment = null;
         $now = now();
 
-        // 1. Kiểm tra xem có ca đang checked_in hay không
+        // 1. Kiểm tra xem có ca đang checked_in hoặc pending_checkout hay không
         $checkedInAssignment = ScheduleAssignment::where('employee_id', $employee->id)
-            ->where('status', 'checked_in')
+            ->whereIn('status', ['checked_in', 'pending_checkout'])
             ->with('shift')
             ->first();
 
         if ($checkedInAssignment) {
-            $diff = Carbon::parse($checkedInAssignment->check_in_at)->diff($now);
+            $checkInTime = $checkedInAssignment->check_in_at ? Carbon::parse($checkedInAssignment->check_in_at) : $now;
+            $diff = $checkInTime->diff($now);
             $durationStr = sprintf('%02d:%02d:%02d', $diff->h + ($diff->days * 24), $diff->i, $diff->s);
 
             $todayActiveAssignment = [
                 'id' => $checkedInAssignment->id,
                 'shift_name' => $checkedInAssignment->shift?->name ?? '—',
                 'shift_time' => $checkedInAssignment->shift ? substr($checkedInAssignment->shift->start_time, 0, 5).' - '.substr($checkedInAssignment->shift->end_time, 0, 5) : '—',
-                'check_in_at' => Carbon::parse($checkedInAssignment->check_in_at)->format('H:i:s d/m/Y'),
+                'check_in_at' => $checkedInAssignment->check_in_at ? Carbon::parse($checkedInAssignment->check_in_at)->format('H:i:s d/m/Y') : null,
                 'status' => $checkedInAssignment->status,
                 'duration' => $durationStr,
                 'can_check_in' => false,
-                'can_check_out' => true,
+                'can_check_out' => $checkedInAssignment->status === 'checked_in',
             ];
         } else {
-            // 2. Tìm ca scheduled hôm nay trong khung giờ cho phép check-in
+            // 2. Tìm ca scheduled hoặc pending_checkin hôm nay trong khung giờ cho phép check-in
             $scheduledAssignments = ScheduleAssignment::where('employee_id', $employee->id)
-                ->where('status', 'scheduled')
+                ->whereIn('status', ['scheduled', 'pending_checkin'])
                 ->with('shift')
                 ->get();
 
@@ -477,7 +484,7 @@ class ScheduleController extends Controller
                         'check_in_at' => null,
                         'status' => $sa->status,
                         'duration' => null,
-                        'can_check_in' => true,
+                        'can_check_in' => $sa->status === 'scheduled',
                         'can_check_out' => false,
                     ];
                     break;

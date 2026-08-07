@@ -120,6 +120,7 @@ Route::middleware(['auth', 'verified', 'tenant.subscription', 'tenant.ratelimit'
     Route::get('schedules', [ScheduleController::class, 'index'])->name('schedules.index');
     Route::post('schedules/check-in', [AttendanceController::class, 'checkIn'])->name('schedules.check-in');
     Route::post('schedules/request-check-in', [AttendanceController::class, 'requestCheckIn'])->name('schedules.request-check-in');
+    Route::post('schedules/request-check-out', [AttendanceController::class, 'requestCheckOut'])->name('schedules.request-check-out');
     Route::post('schedules/check-out', [AttendanceController::class, 'checkOut'])->name('schedules.check-out');
     Route::post('schedules/check-in-employee', [AttendanceController::class, 'checkInEmployee'])->name('schedules.check-in-employee');
     Route::post('schedules/check-out-employee', [AttendanceController::class, 'checkOutEmployee'])->name('schedules.check-out-employee');

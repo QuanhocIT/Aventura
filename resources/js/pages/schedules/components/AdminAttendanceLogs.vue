@@ -128,7 +128,9 @@ const printRoster = () => {
 
 const statusLabels: Record<string, string> = {
     scheduled: 'Chưa vào ca',
+    pending_checkin: 'Chờ duyệt vào ca',
     checked_in: 'Đang làm việc',
+    pending_checkout: 'Chờ duyệt hết ca',
     completed: 'Đã hoàn thành ca',
     absent: 'Vắng mặt',
     leave_approved: 'Nghỉ phép',
@@ -137,8 +139,12 @@ const statusLabels: Record<string, string> = {
 const statusColors: Record<string, string> = {
     scheduled:
         'bg-amber-50 text-amber-600 border border-amber-200 dark:bg-amber-950/20 dark:text-amber-400 dark:border-amber-900/30',
+    pending_checkin:
+        'bg-amber-50 text-amber-700 border border-amber-300 animate-pulse dark:bg-amber-950/30 dark:text-amber-400 dark:border-amber-800',
     checked_in:
         'bg-emerald-50 text-emerald-600 border border-emerald-200 animate-pulse dark:bg-emerald-950/20 dark:text-emerald-400 dark:border-emerald-900/30',
+    pending_checkout:
+        'bg-amber-50 text-amber-700 border border-amber-300 animate-pulse dark:bg-amber-950/30 dark:text-amber-400 dark:border-amber-800',
     completed:
         'bg-indigo-50 text-indigo-600 border border-indigo-200 dark:bg-indigo-950/20 dark:text-indigo-400 dark:border-indigo-900/30',
     absent: 'bg-rose-50 text-rose-600 border border-rose-200 dark:bg-rose-950/20 dark:text-rose-400 dark:border-rose-900/30',
@@ -429,7 +435,7 @@ const statusColors: Record<string, string> = {
                                         Báo Vắng
                                     </button>
                                 </template>
-                                <template v-else-if="a.status === 'checked_in'">
+                                <template v-else-if="['checked_in', 'pending_checkout'].includes(a.status)">
                                     <button
                                         @click="
                                             emit(

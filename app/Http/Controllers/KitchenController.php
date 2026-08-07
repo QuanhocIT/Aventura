@@ -56,7 +56,8 @@ class KitchenController extends Controller
                     ->currentTableOrder()
                     ->where(function ($dateQuery) use ($todayStart, $todayEnd) {
                         $dateQuery->whereBetween('created_at', [$todayStart, $todayEnd])
-                            ->orWhereBetween('completed_at', [$todayStart, $todayEnd]);
+                            ->orWhereBetween('completed_at', [$todayStart, $todayEnd])
+                            ->orWhereBetween('updated_at', [$todayStart, $todayEnd]);
                     });
                 if ($branchId) {
                     $q->where(function ($bq) use ($branchId) {
@@ -94,7 +95,8 @@ class KitchenController extends Controller
                     ->currentTableOrder()
                     ->where(function ($dateQuery) use ($todayStart, $todayEnd) {
                         $dateQuery->whereBetween('created_at', [$todayStart, $todayEnd])
-                            ->orWhereBetween('completed_at', [$todayStart, $todayEnd]);
+                            ->orWhereBetween('completed_at', [$todayStart, $todayEnd])
+                            ->orWhereBetween('updated_at', [$todayStart, $todayEnd]);
                     });
                 if ($branchId) {
                     $q->where(function ($bq) use ($branchId) {

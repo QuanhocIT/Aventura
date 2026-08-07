@@ -8,7 +8,6 @@ use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Support\Facades\Cache;
 
 class OrderItem extends Model
 {
@@ -48,7 +47,16 @@ class OrderItem extends Model
 
     protected static function booted(): void
     {
-        $clearCache = fn ($item) => Cache::forget("restaurant_{$item->restaurant_id}_tables");
+        $clearCache = function ($item): void {
+            $branchId = $item->branch_id
+                ?? $item->order?->branch_id
+                ?? $item->order()->value('branch_id');
+
+            RestaurantTable::forgetTableCachesFor(
+                (int) $item->restaurant_id,
+                $branchId ? (int) $branchId : null,
+            );
+        };
         static::saved($clearCache);
         static::deleted($clearCache);
     }

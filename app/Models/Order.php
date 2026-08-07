@@ -18,7 +18,6 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\SoftDeletes;
-use Illuminate\Support\Facades\Cache;
 use Laravel\Scout\Searchable;
 
 class Order extends Model
@@ -131,37 +130,84 @@ class Order extends Model
     {
         return $query->where(function (Builder $q): void {
             $q->whereNull('table_id')
-                ->orWhereNotExists(function ($previous): void {
-                    $previous
-                        ->selectRaw('1')
-                        ->from('orders as previous_orders')
-                        ->whereColumn('previous_orders.restaurant_id', 'orders.restaurant_id')
-                        ->whereColumn('previous_orders.branch_id', 'orders.branch_id')
-                        ->whereColumn('previous_orders.table_id', 'orders.table_id')
-                        ->whereColumn('previous_orders.id', '<', 'orders.id')
-                        ->whereNull('previous_orders.deleted_at')
-                        ->where('previous_orders.status', '!=', 'cancelled')
-                        ->where(function ($active): void {
-                            $active
-                                ->whereNotIn('previous_orders.payment_status', ['paid', 'refunded'])
-                                ->orWhereNull('previous_orders.payment_status')
-                                ->orWhereExists(function ($item): void {
+                ->orWhere(function ($tableOrder): void {
+                    $tableOrder->where(function ($current): void {
+                        // Đơn đã thanh toán nhưng còn món chưa phục vụ được
+                        // ưu tiên giữ lại để không bị một bản ghi trùng mới che mất.
+                        $current->where(function ($paidWithUnserved): void {
+                            $paidWithUnserved
+                                ->whereIn('orders.payment_status', ['paid', 'refunded'])
+                                ->whereExists(function ($item): void {
                                     $item
                                         ->selectRaw('1')
-                                        ->from('order_items as previous_items')
-                                        ->whereColumn('previous_items.order_id', 'previous_orders.id')
-                                        ->where('previous_items.status', '!=', 'cancelled')
-                                        ->whereNull('previous_items.served_at');
+                                        ->from('order_items as current_items')
+                                        ->whereColumn('current_items.order_id', 'orders.id')
+                                        ->where('current_items.status', '!=', 'cancelled')
+                                        ->whereNull('current_items.served_at');
+                                });
+                        })->orWhere(function ($unpaidCurrent): void {
+                            $unpaidCurrent
+                                ->where(function ($payment): void {
+                                    $payment
+                                        ->whereNotIn('orders.payment_status', ['paid', 'refunded'])
+                                        ->orWhereNull('orders.payment_status');
                                 })
-                                ->orWhereExists(function ($servedItem): void {
-                                    $servedItem
+                                // Không để đơn chưa thanh toán mới che đơn đã
+                                // thanh toán còn món đang chờ phục vụ.
+                                ->whereNotExists(function ($previousPaid): void {
+                                    $previousPaid
                                         ->selectRaw('1')
-                                        ->from('order_items as previous_served_items')
-                                        ->whereColumn('previous_served_items.order_id', 'previous_orders.id')
-                                        ->where('previous_served_items.status', '!=', 'cancelled')
-                                        ->whereColumn('previous_served_items.served_at', '>', 'orders.created_at');
+                                        ->from('orders as previous_paid_orders')
+                                        ->whereColumn('previous_paid_orders.restaurant_id', 'orders.restaurant_id')
+                                        ->whereColumn('previous_paid_orders.branch_id', 'orders.branch_id')
+                                        ->whereColumn('previous_paid_orders.table_id', 'orders.table_id')
+                                        ->whereColumn('previous_paid_orders.id', '<', 'orders.id')
+                                        ->whereNull('previous_paid_orders.deleted_at')
+                                        ->where('previous_paid_orders.status', '!=', 'cancelled')
+                                        ->whereIn('previous_paid_orders.payment_status', ['paid', 'refunded'])
+                                        ->whereExists(function ($item): void {
+                                            $item
+                                                ->selectRaw('1')
+                                                ->from('order_items as previous_paid_items')
+                                                ->whereColumn('previous_paid_items.order_id', 'previous_paid_orders.id')
+                                                ->where('previous_paid_items.status', '!=', 'cancelled')
+                                                ->whereNull('previous_paid_items.served_at');
+                                        });
+                                })
+                                ->whereNotExists(function ($later): void {
+                                    $later
+                                        ->selectRaw('1')
+                                        ->from('orders as later_orders')
+                                        ->whereColumn('later_orders.restaurant_id', 'orders.restaurant_id')
+                                        ->whereColumn('later_orders.branch_id', 'orders.branch_id')
+                                        ->whereColumn('later_orders.table_id', 'orders.table_id')
+                                        ->whereNull('later_orders.deleted_at')
+                                        ->where('later_orders.status', '!=', 'cancelled')
+                                        ->where(function ($active): void {
+                                            $active
+                                                ->whereNotIn('later_orders.payment_status', ['paid', 'refunded'])
+                                                ->orWhereNull('later_orders.payment_status')
+                                                ->orWhereExists(function ($item): void {
+                                                    $item
+                                                        ->selectRaw('1')
+                                                        ->from('order_items as later_items')
+                                                        ->whereColumn('later_items.order_id', 'later_orders.id')
+                                                        ->where('later_items.status', '!=', 'cancelled')
+                                                        ->whereNull('later_items.served_at');
+                                                });
+                                        })
+                                        ->where(function ($newer): void {
+                                            $newer
+                                                ->whereColumn('later_orders.updated_at', '>', 'orders.updated_at')
+                                                ->orWhere(function ($sameTime): void {
+                                                    $sameTime
+                                                        ->whereColumn('later_orders.updated_at', '=', 'orders.updated_at')
+                                                        ->whereColumn('later_orders.id', '>', 'orders.id');
+                                                });
+                                        });
                                 });
                         });
+                    });
                 });
         });
     }
@@ -235,7 +281,10 @@ class Order extends Model
         });
 
         // Xóa cache danh sách bàn khi đơn thay đổi
-        $clearTableCache = fn ($order) => Cache::forget("restaurant_{$order->restaurant_id}_tables");
+        $clearTableCache = fn ($order) => RestaurantTable::forgetTableCachesFor(
+            (int) $order->restaurant_id,
+            $order->branch_id ? (int) $order->branch_id : null,
+        );
         static::saved($clearTableCache);
         static::deleted($clearTableCache);
 

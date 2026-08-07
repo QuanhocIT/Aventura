@@ -23,7 +23,10 @@ class EloquentOrderRepository implements OrderRepositoryInterface
             $dateEnd = $filters['date'].' 23:59:59';
             $query->where(function (Builder $q) use ($dateStart, $dateEnd) {
                 $q->whereBetween('created_at', [$dateStart, $dateEnd])
-                    ->orWhereBetween('completed_at', [$dateStart, $dateEnd]);
+                    ->orWhereBetween('completed_at', [$dateStart, $dateEnd])
+                    // Đơn cũ có thể nhận thêm món trong ngày (đồng bộ offline
+                    // hoặc gọi thêm qua QR), nên ngày hoạt động phải được tính.
+                    ->orWhereBetween('updated_at', [$dateStart, $dateEnd]);
             });
         }
 

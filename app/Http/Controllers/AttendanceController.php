@@ -618,4 +618,50 @@ class AttendanceController extends Controller
 
         return back()->with('success', '🚀 Đã gửi yêu cầu xác nhận vào ca tới Chủ doanh nghiệp! Vui lòng chờ Chủ quán phê duyệt trong ngày.');
     }
+
+    /**
+     * Nhân viên gửi yêu cầu xác nhận hết ca tới Chủ doanh nghiệp cho họ phê duyệt.
+     */
+    public function requestCheckOut(Request $request): RedirectResponse
+    {
+        $user = $request->user();
+        if ($user->hasAnyRole(['owner', 'manager'])) {
+            return back()->withErrors(['email' => 'Tài khoản Chủ quán / Quản lý không cần gửi yêu cầu xác nhận hết ca.']);
+        }
+
+        $employee = $user->employee;
+        if (! $employee) {
+            return back()->withErrors(['email' => 'Bạn không phải là nhân viên hợp lệ trên hệ thống.']);
+        }
+
+        $assignment = ScheduleAssignment::where('employee_id', $employee->id)
+            ->whereIn('status', ['checked_in', 'pending_checkout'])
+            ->with('shift')
+            ->first();
+
+        if (! $assignment) {
+            return back()->withErrors(['email' => 'Không tìm thấy ca trực nào đang hoạt động để gửi yêu cầu xác nhận hết ca.']);
+        }
+
+        if ($assignment->status === 'pending_checkout') {
+            return back()->with('info', 'Yêu cầu xác nhận hết ca của bạn đang chờ Chủ quán phê duyệt.');
+        }
+
+        if ($assignment->status === 'completed') {
+            return back()->with('success', 'Bạn đã hoàn thành ca trực này trước đó.');
+        }
+
+        // Gửi yêu cầu phê duyệt cho Chủ doanh nghiệp
+        app(ApprovalService::class)->submitRequest('shift_checkout', [
+            'assignment_id' => $assignment->id,
+            'employee_id' => $employee->id,
+            'shift_name' => $assignment->shift?->name ?? 'Ca trực',
+            'requested_at' => now()->toIso8601String(),
+            'notes' => 'Yêu cầu xác nhận hết ca từ nhân viên '.$user->name.' ('.($employee->job_title ?? 'Nhân viên').')',
+        ], $user);
+
+        $assignment->update(['status' => 'pending_checkout']);
+
+        return back()->with('success', '🚀 Đã gửi yêu cầu xác nhận hết ca tới Chủ doanh nghiệp! Vui lòng chờ Chủ quán phê duyệt.');
+    }
 }

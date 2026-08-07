@@ -171,7 +171,7 @@ class InventoryService
                 }
             }
         }
-        event(new ProductStockUpdated($order->restaurant_id));
+        $this->broadcastStockUpdatedSafely($order->restaurant_id);
         app(InventoryAvailabilityService::class)->refreshBranch($order->restaurant_id, (int) $order->branch_id);
     }
 
@@ -266,7 +266,7 @@ class InventoryService
 
         // Đẩy tác vụ tính toán lại average_cost sang Queue ngầm để tối ưu hiệu năng
         dispatch(new RecalculateAverageCostJob($restaurantId, $ingredient->id, $oldQty, $newQty, $newCost));
-        event(new ProductStockUpdated($restaurantId));
+        $this->broadcastStockUpdatedSafely($restaurantId);
         app(InventoryAvailabilityService::class)->refreshBranch($restaurantId, $branchId);
     }
 
@@ -341,7 +341,7 @@ class InventoryService
             'theoretical_quantity' => max(0, (float) $inventory->theoretical_quantity - $wasteQty),
         ]);
 
-        event(new ProductStockUpdated($restaurantId));
+        $this->broadcastStockUpdatedSafely($restaurantId);
         app(InventoryAvailabilityService::class)->refreshBranch($restaurantId, $branchId);
 
         return $transaction;
@@ -816,7 +816,23 @@ class InventoryService
                 }
             }
         }
-        event(new ProductStockUpdated($order->restaurant_id));
+        $this->broadcastStockUpdatedSafely($order->restaurant_id);
         app(InventoryAvailabilityService::class)->refreshBranch($order->restaurant_id, (int) $order->branch_id);
+    }
+
+    /**
+     * Realtime is an optional notification channel. It must never roll back
+     * a successful inventory/payment transaction when Reverb is unavailable.
+     */
+    private function broadcastStockUpdatedSafely(int $restaurantId): void
+    {
+        try {
+            event(new ProductStockUpdated($restaurantId));
+        } catch (\Throwable $e) {
+            Log::warning('Realtime stock broadcast skipped.', [
+                'restaurant_id' => $restaurantId,
+                'error' => $e->getMessage(),
+            ]);
+        }
     }
 }

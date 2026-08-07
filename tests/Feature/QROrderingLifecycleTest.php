@@ -469,6 +469,25 @@ class QROrderingLifecycleTest extends TestCase
             'track_inventory' => false,
         ]);
 
+        // Bàn có thể còn bản ghi cũ chưa được chốt do dữ liệu/đồng bộ trước đó.
+        // Yêu cầu QR mới vẫn phải tạo một đơn riêng và trở thành đơn hiện hành.
+        $staleOrder = Order::create([
+            'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
+            'table_id' => $this->table->id,
+            'created_by' => $this->staff->id,
+            'order_number' => 'ORD-STALE-QR',
+            'channel' => 'dine_in',
+            'status' => 'pending',
+            'payment_status' => 'unpaid',
+            'subtotal' => 50000,
+            'total_amount' => 50000,
+        ]);
+        $staleOrder->forceFill([
+            'created_at' => now()->subDay(),
+            'updated_at' => now()->subDay(),
+        ])->saveQuietly();
+
         $tempOrder = TemporaryOrder::create([
             'restaurant_id' => $this->restaurant->id,
             'branch_id' => $this->branch->id,
@@ -502,6 +521,7 @@ class QROrderingLifecycleTest extends TestCase
         // Verify official order was created with status pending, channel qr, and links table
         $order = Order::find($tempOrder->order_id);
         $this->assertNotNull($order);
+        $this->assertNotSame($staleOrder->id, $order->id);
         $this->assertEquals('qr', $order->channel);
         $this->assertEquals($this->table->id, $order->table_id);
         $this->assertEquals(360000.0, $order->total_amount);
@@ -509,6 +529,12 @@ class QROrderingLifecycleTest extends TestCase
         // Verify table status is occupied
         $this->table->refresh();
         $this->assertEquals('occupied', $this->table->status);
+        $this->assertEquals($order->id, $this->table->activeOrder?->id);
+
+        $tablesPage = $this->actingAs($this->owner)->get(route('tables.index'));
+        $tablesPage->assertInertia(fn (Assert $page) => $page
+            ->where('tables', fn ($tables) => collect($tables)->firstWhere('id', $this->table->id)['status'] === 'occupied')
+        );
 
         // Verify WebSocket event broadcasted
         Event::assertDispatched(TemporaryOrderUpdated::class);

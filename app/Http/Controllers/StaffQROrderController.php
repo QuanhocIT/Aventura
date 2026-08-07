@@ -95,6 +95,7 @@ class StaffQROrderController extends Controller
             $orderData = [
                 'table_id' => $temporaryOrder->table_id,
                 'customer_id' => $customerId,
+                'channel' => 'qr',
                 'note' => "Đơn QR-Order [Xác nhận bởi: {$user->name}]",
                 'items' => collect($temporaryOrder->cart_data)->map(fn ($item) => [
                     'product_id' => $item['product_id'],
@@ -104,7 +105,10 @@ class StaffQROrderController extends Controller
             ];
 
             // Gọi OrderService để khởi tạo đơn hàng chính thức (Kích hoạt DB Transaction & Kitchen Display Sync)
-            $order = $this->orderService->createOrder($orderData, $user);
+            // Mỗi yêu cầu gọi món QR là một đơn riêng. Luồng POS/offline mới
+            // được phép gộp vào đơn đang phục vụ; nếu gộp ở đây, đơn QR sẽ
+            // mang ngày tạo của đơn cũ và khách/bếp có thể không thấy món mới.
+            $order = $this->orderService->createOrder($orderData, $user, false);
 
             // Chuyển kênh phân phối sang 'qr'
             $order->update([

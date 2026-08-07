@@ -59,6 +59,7 @@ class ApprovalRequest extends Model
             'inventory_waste' => 'Ghi hao hụt',
             'salary_adjustment' => 'Điều chỉnh lương',
             'shift_checkin' => 'Xác nhận vào ca',
+            'shift_checkout' => 'Xác nhận hết ca',
             'employee_create' => 'Tạo nhân viên mới',
             'order_refund' => 'Hoàn tiền đơn hàng',
             default => $this->operation_type,

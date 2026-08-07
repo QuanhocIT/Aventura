@@ -18,6 +18,8 @@ import {
     Timer,
     Bell,
     RotateCcw,
+    LogIn,
+    LogOut,
 } from 'lucide-vue-next';
 import { computed, ref } from 'vue';
 import { toast } from 'vue-sonner';
@@ -213,6 +215,16 @@ const operationConfig: Record<
         color: 'text-rose-600 dark:text-rose-400',
         bg: 'bg-rose-50 dark:bg-rose-950/40 border border-rose-100 dark:border-rose-900/20',
     },
+    shift_checkin: {
+        icon: LogIn,
+        color: 'text-emerald-600 dark:text-emerald-400',
+        bg: 'bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-100 dark:border-emerald-900/20',
+    },
+    shift_checkout: {
+        icon: LogOut,
+        color: 'text-amber-600 dark:text-amber-400',
+        bg: 'bg-amber-50 dark:bg-amber-950/40 border border-amber-100 dark:border-amber-900/20',
+    },
 };
 
 function opConfig(type: string) {
@@ -249,6 +261,9 @@ const dataLabels: Record<string, string> = {
     refund_type: 'Hình thức hoàn tiền',
     refund_amount: 'Số tiền hoàn',
     refund_reason: 'Lý do hoàn tiền',
+    assignment_id: 'ID Ca trực',
+    shift_name: 'Tên ca trực',
+    requested_at: 'Thời gian yêu cầu',
 };
 
 const typeAdjLabels: Record<string, string> = {

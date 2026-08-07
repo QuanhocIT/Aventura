@@ -47,7 +47,8 @@ class RestaurantTable extends Model
         return $this->hasOne(Order::class, 'table_id')
             ->activeForService()
             ->currentTableOrder()
-            ->oldest('id');
+            ->latest('updated_at')
+            ->latest('id');
     }
 
     protected static function booted(): void
@@ -68,9 +69,28 @@ class RestaurantTable extends Model
         });
     }
 
+    /**
+     * Xóa các cache sơ đồ bàn sau khi đơn/món ăn thay đổi.
+     *
+     * Đơn hàng không tự lưu lại model bàn, nên cache theo scope của bàn
+     * trước đây có thể giữ trạng thái "trống" dù đã có món mới.
+     */
+    public static function forgetTableCachesFor(int $restaurantId, ?int $branchId = null): void
+    {
+        Cache::forget("restaurant_{$restaurantId}_tables");
+        Cache::forget("restaurant_{$restaurantId}_tables:scope:all");
+        Cache::forget("restaurant_{$restaurantId}_tables:scope:none");
+
+        if ($branchId) {
+            Cache::forget("restaurant_{$restaurantId}_tables:scope:".TenantContext::branchScopeKey($branchId));
+        }
+    }
+
     private static function forgetScopedCaches(self $table): void
     {
-        foreach (['tables', 'areas'] as $resource) {
+        self::forgetTableCachesFor((int) $table->restaurant_id, $table->branch_id ? (int) $table->branch_id : null);
+
+        foreach (['areas'] as $resource) {
             Cache::forget("restaurant_{$table->restaurant_id}_{$resource}");
             Cache::forget("restaurant_{$table->restaurant_id}_{$resource}:scope:all");
             Cache::forget("restaurant_{$table->restaurant_id}_{$resource}:scope:none");

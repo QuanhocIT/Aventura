@@ -37,9 +37,9 @@ class OrderService
     /**
      * Tạo đơn hàng mới từ giao diện POS.
      */
-    public function createOrder(array $data, User $user): Order
+    public function createOrder(array $data, User $user, bool $mergeExistingTableOrder = true): Order
     {
-        return DB::transaction(function () use ($data, $user) {
+        return DB::transaction(function () use ($data, $user, $mergeExistingTableOrder) {
             $restaurantId = $user->restaurant_id;
             $branchId = app(TenantContext::class)->activeBranchId();
             abort_if($branchId === null, 403, 'Đơn hàng phải được tạo trong một chi nhánh cụ thể.');
@@ -75,7 +75,7 @@ class OrderService
             // request từ POS/offline sync vẫn được gộp vào đơn hiện tại để
             // tránh tạo thêm order; với đơn đã thanh toán nhưng chưa phục vụ
             // hết thì phải chặn hoàn toàn.
-            if (! empty($data['table_id'])) {
+            if (! empty($data['table_id']) && $mergeExistingTableOrder) {
                 // Bảng đã được lock ở trên, nên cả hai thiết bị tạo đơn đồng
                 // thời đều phải lần lượt kiểm tra cùng một trạng thái bàn.
                 $existingActiveOrder = Order::where('restaurant_id', $restaurantId)

@@ -107,6 +107,11 @@ class ApprovalService
                 if ($assignment && in_array($assignment->status, ['scheduled', 'pending_checkin'])) {
                     $assignment->update(['status' => 'absent']);
                 }
+            } elseif ($approval->operation_type === 'shift_checkout' && ! empty($approval->operation_data['assignment_id'])) {
+                $assignment = ScheduleAssignment::withoutGlobalScopes()->find($approval->operation_data['assignment_id']);
+                if ($assignment && $assignment->status === 'pending_checkout') {
+                    $assignment->update(['status' => 'checked_in']);
+                }
             }
         });
 
@@ -127,6 +132,7 @@ class ApprovalService
             'inventory_waste' => $this->executeWaste($data, $approval->restaurant_id, $approval->requester_id),
             'salary_adjustment' => $this->executeSalaryAdjustment($data, $approval->restaurant_id),
             'shift_checkin' => $this->executeShiftCheckin($data, $approval->restaurant_id),
+            'shift_checkout' => $this->executeShiftCheckout($data, $approval->restaurant_id),
             'order_refund' => $this->executeOrderRefund($data, $approval->restaurant_id, $reviewerId),
             default => null,
         };
@@ -157,6 +163,24 @@ class ApprovalService
                 'status' => 'checked_in',
             ]);
             $assignment->employee?->flushShiftAccessCache();
+            Cache::forget("employee_dashboard:{$assignment->employee_id}:".now()->format('Y-m'));
+        }
+    }
+
+    private function executeShiftCheckout(array $data, int $restaurantId): void
+    {
+        $assignment = ScheduleAssignment::withoutGlobalScopes()
+            ->where('restaurant_id', $restaurantId)
+            ->find($data['assignment_id']);
+
+        if ($assignment && in_array($assignment->status, ['checked_in', 'pending_checkout'])) {
+            $checkOutTime = ! empty($data['requested_at']) ? Carbon::parse($data['requested_at']) : now();
+            $assignment->update([
+                'check_out_at' => $checkOutTime,
+                'status' => 'completed',
+            ]);
+            $assignment->employee?->flushShiftAccessCache();
+            Cache::forget("employee_dashboard:{$assignment->employee_id}:".now()->format('Y-m'));
         }
     }
 

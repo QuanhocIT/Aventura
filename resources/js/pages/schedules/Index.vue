@@ -131,6 +131,7 @@ const props = defineProps<PropType>();
 const currentTime = ref('');
 const currentDate = ref('');
 let clockInterval: any = null;
+let attendanceRefreshInterval: any = null;
 
 const updateClock = () => {
     const now = new Date();
@@ -150,11 +151,26 @@ const updateClock = () => {
 onMounted(() => {
     updateClock();
     clockInterval = setInterval(updateClock, 1000);
+
+    // Đồng bộ trạng thái để ca mới tự hiện nút check-in khi trang vẫn đang mở.
+    if (!props.isAdmin) {
+        attendanceRefreshInterval = setInterval(() => {
+            router.reload({
+                only: ['todayActiveAssignment'],
+                preserveScroll: true,
+                preserveState: true,
+            });
+        }, 30000);
+    }
 });
 
 onUnmounted(() => {
     if (clockInterval) {
         clearInterval(clockInterval);
+    }
+
+    if (attendanceRefreshInterval) {
+        clearInterval(attendanceRefreshInterval);
     }
 });
 

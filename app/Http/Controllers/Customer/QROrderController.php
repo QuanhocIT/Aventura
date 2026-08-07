@@ -173,7 +173,23 @@ class QROrderController extends Controller
                 $itemsStatus = [];
                 if ($to->status === 'confirmed' && $to->order) {
                     // Trạng thái đơn: pending/confirmed/preparing -> Bếp đang chế biến, completed/served -> Đã lên món
-                    foreach ($to->order->items as $item) {
+                    // Khi dữ liệu cũ từng gộp nhiều yêu cầu QR vào một đơn,
+                    // chỉ hiển thị các món được tạo từ lúc yêu cầu này gửi đi.
+                    // Nếu không lọc, khách thấy cả món của bàn từ các ngày trước.
+                    $orderItems = $to->order->items
+                        ->filter(fn ($item) => $item->created_at && $item->created_at->greaterThanOrEqualTo($to->created_at));
+
+                    if ($orderItems->isEmpty()) {
+                        // Giữ trạng thái chờ nấu cho dữ liệu cũ không có
+                        // timestamp món phù hợp, thay vì hiển thị nhầm món khác.
+                        $itemsStatus = collect($to->cart_data)->map(fn ($item) => [
+                            'name' => $item['name'] ?? 'Món ăn',
+                            'quantity' => (float) ($item['quantity'] ?? 0),
+                            'status' => 'pending',
+                        ])->values()->all();
+                    }
+
+                    foreach ($orderItems as $item) {
                         $itemsStatus[] = [
                             'name' => $item->product?->name ?? 'Món ăn',
                             'quantity' => (float) $item->quantity,

@@ -189,6 +189,11 @@ return function (Schedule $schedule): void {
         ->dailyAt('23:45')
         ->skip($restoreGuard('SCHEDULER_RESTORE_SHIFTS_AUTO_CLOSE'));
 
+    // Tự chốt giờ ra cho nhân viên quên check-out ngay khi ca kết thúc.
+    $schedule->command('attendance:auto-checkout')
+        ->everyMinute()
+        ->withoutOverlapping(1);
+
     $schedule->command('kitchen:alert-overdue-orders')
         ->everyFiveMinutes()
         ->skip($restoreGuard('SCHEDULER_RESTORE_KITCHEN_ALERT_OVERDUE'));
