@@ -321,6 +321,74 @@ const updateExternalOrderStatus = ({
     );
 };
 
+// Hủy món trực tiếp từ panel POS. Món đã bắt đầu chế biến sẽ được chuyển
+// thành yêu cầu chờ quản lý duyệt ở phía máy chủ.
+const cancelItemTarget = ref<OrderItem | null>(null);
+const cancelItemReason = ref('Khách bận việc đột xuất');
+const cancelItemCustomReason = ref('');
+const isCancellingItem = ref(false);
+const cancelReasonOptions = [
+    'Khách bận việc đột xuất',
+    'Khách đổi món',
+    'Nhập nhầm món',
+];
+const customCancelReasonValue = '__custom__';
+const effectiveCancelItemReason = computed(() =>
+    cancelItemReason.value === customCancelReasonValue
+        ? cancelItemCustomReason.value.trim()
+        : cancelItemReason.value.trim(),
+);
+
+const openCancelItemModal = (item: OrderItem) => {
+    if (!item.id) {
+        return;
+    }
+
+    cancelItemTarget.value = item;
+    cancelItemReason.value = cancelReasonOptions[0];
+    cancelItemCustomReason.value = '';
+};
+
+const closeCancelItemModal = () => {
+    cancelItemTarget.value = null;
+    cancelItemCustomReason.value = '';
+};
+
+const submitCancelItem = () => {
+    const orderId = activeTable.value?.active_order?.id;
+    const item = cancelItemTarget.value;
+    const reason = effectiveCancelItemReason.value;
+
+    if (!orderId || !item?.id || reason.length < 3 || isCancellingItem.value) {
+        return;
+    }
+
+    isCancellingItem.value = true;
+    router.post(
+        `/orders/${orderId}/items/${item.id}/cancel`,
+        { reason },
+        {
+            preserveScroll: true,
+            onSuccess: () => {
+                closeCancelItemModal();
+                toast('Đã xử lý yêu cầu hủy món và báo xuống bếp.');
+            },
+            onError: (errors: Record<string, string | string[]>) => {
+                const message = Object.values(errors)[0];
+                toast(
+                    Array.isArray(message)
+                        ? message[0]
+                        : String(message || 'Không thể hủy món.'),
+                    'error',
+                );
+            },
+            onFinish: () => {
+                isCancellingItem.value = false;
+            },
+        },
+    );
+};
+
 // Self Service Admin Modals
 const showSelfServiceModal = ref(false);
 const selfServiceTab = ref<'schedule' | 'leave' | 'complaint'>('schedule');
@@ -584,6 +652,7 @@ onUnmounted(() => {
                     @increase-qty="increaseQty"
                     @decrease-qty="decreaseQty"
                     @remove-item="removeItem"
+                    @cancel-item="openCancelItemModal"
                     @submit-order="submitOrder"
                     @open-payment="openPayment"
                     @send-to-kitchen="sendToKitchen"
@@ -771,6 +840,98 @@ onUnmounted(() => {
                     : processMergeTable()
             "
         />
+
+        <!-- MODAL HỦY MÓN TỪ POS -->
+        <div
+            v-if="cancelItemTarget"
+            class="fixed inset-0 z-[90] flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur-sm"
+            @click.self="closeCancelItemModal"
+        >
+            <div
+                class="w-full max-w-md rounded-3xl border border-rose-500/30 bg-slate-900 p-6 text-left shadow-2xl"
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="cancel-item-title"
+            >
+                <div class="flex items-start justify-between gap-4">
+                    <div>
+                        <p
+                            id="cancel-item-title"
+                            class="text-lg font-black text-slate-100"
+                        >
+                            Hủy món
+                        </p>
+                        <p class="mt-1 text-xs leading-5 text-slate-400">
+                            {{ cancelItemTarget.product_name }} ·
+                            {{ cancelItemTarget.quantity }} món
+                        </p>
+                    </div>
+                    <button
+                        type="button"
+                        class="rounded-xl p-2 text-slate-400 transition-colors hover:bg-slate-800 hover:text-white"
+                        :disabled="isCancellingItem"
+                        aria-label="Đóng"
+                        @click="closeCancelItemModal"
+                    >
+                        <XCircle class="size-5" />
+                    </button>
+                </div>
+
+                <div class="mt-5 space-y-3">
+                    <label
+                        for="cashier-cancel-reason"
+                        class="block text-xs font-bold text-slate-300"
+                    >
+                        Lý do hủy món <span class="text-rose-400">*</span>
+                    </label>
+                    <select
+                        id="cashier-cancel-reason"
+                        v-model="cancelItemReason"
+                        class="h-11 w-full rounded-xl border border-slate-700 bg-slate-950 px-3 text-sm text-slate-100 outline-none transition-colors focus:border-rose-500"
+                    >
+                        <option
+                            v-for="reason in cancelReasonOptions"
+                            :key="reason"
+                            :value="reason"
+                        >
+                            {{ reason }}
+                        </option>
+                        <option :value="customCancelReasonValue">Khác</option>
+                    </select>
+                    <textarea
+                        v-if="cancelItemReason === customCancelReasonValue"
+                        v-model="cancelItemCustomReason"
+                        rows="3"
+                        maxlength="500"
+                        placeholder="Nhập lý do hủy..."
+                        class="w-full resize-none rounded-xl border border-slate-700 bg-slate-950 px-3 py-2.5 text-sm text-slate-100 outline-none placeholder:text-slate-500 focus:border-rose-500"
+                    />
+                    <p class="text-[11px] leading-5 text-slate-500">
+                        Nếu món đã bắt đầu chế biến, yêu cầu sẽ chuyển đến quản lý
+                        duyệt và ghi nhận tổn thất nếu được duyệt.
+                    </p>
+                </div>
+
+                <div class="mt-6 grid grid-cols-2 gap-3">
+                    <button
+                        type="button"
+                        class="h-11 rounded-xl border border-slate-700 text-xs font-black text-slate-300 transition-colors hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+                        :disabled="isCancellingItem"
+                        @click="closeCancelItemModal"
+                    >
+                        Để lại
+                    </button>
+                    <button
+                        type="button"
+                        class="h-11 rounded-xl bg-rose-600 text-xs font-black text-white transition-colors hover:bg-rose-500 disabled:cursor-not-allowed disabled:opacity-50"
+                        :disabled="effectiveCancelItemReason.length < 3 || isCancellingItem"
+                        @click="submitCancelItem"
+                    >
+                        {{ isCancellingItem ? 'Đang xử lý...' : 'Xác nhận hủy món' }}
+                    </button>
+                </div>
+            </div>
+        </div>
 
         <!-- ── MODAL CỔNG HÀNH CHÍNH TỰ PHỤC VỤ ───────────────────────── -->
         <SelfServiceModal

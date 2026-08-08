@@ -1863,13 +1863,8 @@ const submitSwapReject = () => {
                                     </div>
                                     <div class="min-w-0 flex-1">
                                         <div class="flex items-center gap-2">
-                                            <p
-                                                class="truncate text-sm font-semibold"
-                                            >
-                                                {{ emp.full_name }}
-                                            </p>
                                             <span
-                                                class="shrink-0 rounded-full px-2 py-0.5 text-[9px] font-bold tracking-wider uppercase"
+                                                class="order-last ml-auto shrink-0 rounded-full px-2 py-0.5 text-[9px] font-bold tracking-wider uppercase"
                                                 :class="
                                                     roleColors[emp.role] ||
                                                     'bg-slate-100'
@@ -1880,6 +1875,11 @@ const submitSwapReject = () => {
                                                     emp.role
                                                 }}
                                             </span>
+                                            <p
+                                                class="min-w-0 flex-1 truncate text-sm font-semibold"
+                                            >
+                                                {{ emp.full_name }}
+                                            </p>
                                             <span
                                                 v-if="emp.status === 'inactive'"
                                                 class="shrink-0 rounded-full bg-slate-100 px-1.5 py-0.5 text-[9px] text-slate-500 dark:bg-slate-800 dark:text-slate-400"

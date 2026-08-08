@@ -6,6 +6,7 @@ import {
     Plus,
     ShoppingCart,
     Trash2,
+    XCircle,
 } from 'lucide-vue-next';
 import { computed } from 'vue';
 import { Button } from '@/components/ui/button';
@@ -31,6 +32,7 @@ const emit = defineEmits<{
     (e: 'increaseQty', item: OrderItem): void;
     (e: 'decreaseQty', item: OrderItem): void;
     (e: 'removeItem', item: OrderItem): void;
+    (e: 'cancelItem', item: OrderItem): void;
     (e: 'submitOrder'): void;
     (e: 'openPayment'): void;
     (e: 'sendToKitchen'): void;
@@ -185,6 +187,17 @@ const paymentBlockMessage = computed(() => {
                                 <Trash2 class="size-4" />
                             </button>
                         </div>
+
+                        <button
+                            v-if="item.id && item.status !== 'cancelled' && !item.served_at"
+                            type="button"
+                            class="mt-3 flex h-9 w-full items-center justify-center gap-2 rounded-xl border border-rose-500/40 bg-rose-500/5 text-xs font-black text-rose-500 transition-colors hover:bg-rose-500/10 dark:text-rose-300"
+                            title="Hủy món đã gửi bếp"
+                            @click="emit('cancelItem', item)"
+                        >
+                            <XCircle class="size-4" />
+                            Hủy món
+                        </button>
                     </article>
                 </div>
 

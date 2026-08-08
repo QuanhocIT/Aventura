@@ -4,6 +4,7 @@ import {
     ChefHat,
     Clock,
     Check,
+    Play,
     Bell,
     RefreshCw,
     Inbox,
@@ -34,6 +35,7 @@ interface PendingItem {
     notes: string | null;
     sent_to_kitchen_at: string;
     sent_to_kitchen_at_raw: string;
+    started_preparing_at: string | null;
     creator_name: string;
     table_name: string;
     table_id: number | null;
@@ -145,14 +147,14 @@ const showCancelItemModal = ref(false);
 const selectedCancelItem = ref<PendingItem | null>(null);
 const cancelScope = ref<'single' | 'all_pending'>('single');
 const cancelQuantity = ref(1);
-const cancelReason = ref('');
+const cancelReason = ref('Khách bận việc đột xuất');
 const isSubmittingCancel = ref(false);
 
 const openCancelModal = (item: PendingItem) => {
     selectedCancelItem.value = item;
     cancelScope.value = 'single';
     cancelQuantity.value = 1;
-    cancelReason.value = '';
+    cancelReason.value = 'Khách bận việc đột xuất';
     showCancelItemModal.value = true;
 };
 
@@ -334,6 +336,12 @@ const filteredGroupedProducts = computed(() => {
 });
 
 const optimisticPreparedItemIds = ref<number[]>([]);
+const optimisticStartedPreparingItemIds = ref<number[]>([]);
+
+const isItemStarted = (item: PendingItem): boolean =>
+    Boolean(item.started_preparing_at) ||
+    item.status === 'preparing' ||
+    optimisticStartedPreparingItemIds.value.includes(item.id);
 
 const activePendingItems = computed(() => {
     return props.pendingItems.filter(
@@ -351,6 +359,12 @@ watch(
             optimisticPreparedItemIds.value.filter((id) =>
                 pendingIds.includes(id),
             );
+        optimisticStartedPreparingItemIds.value =
+            optimisticStartedPreparingItemIds.value.filter((id) => {
+                const item = newVal.find((pendingItem) => pendingItem.id === id);
+
+                return Boolean(item && !item.started_preparing_at);
+            });
     },
     { deep: true },
 );
@@ -607,6 +621,38 @@ const tableUrgency = computed(() => {
 
     return result;
 });
+
+const handleStartPreparing = (itemId: number) => {
+    if (
+        isUpdating.value[itemId] ||
+        optimisticStartedPreparingItemIds.value.includes(itemId)
+    ) {
+        return;
+    }
+
+    optimisticStartedPreparingItemIds.value.push(itemId);
+    isUpdating.value[itemId] = true;
+
+    router.post(
+        `/kitchen/items/${itemId}/start`,
+        {},
+        {
+            preserveScroll: true,
+            onFinish: () => {
+                isUpdating.value[itemId] = false;
+            },
+            onError: () => {
+                optimisticStartedPreparingItemIds.value =
+                    optimisticStartedPreparingItemIds.value.filter(
+                        (id) => id !== itemId,
+                    );
+                toast.error(
+                    'Có lỗi xảy ra, không thể đánh dấu bếp bắt đầu chế biến!',
+                );
+            },
+        },
+    );
+};
 
 const handlePrepare = (itemId: number) => {
     if (isUpdating.value[itemId]) {
@@ -1453,6 +1499,30 @@ onUnmounted(() => {
                                             <XCircle class="size-5" />
                                         </Button>
                                         <Button
+                                            type="button"
+                                            variant="outline"
+                                            class="h-10 w-10 shrink-0 rounded-xl transition-all"
+                                            :class="
+                                                isItemStarted(item)
+                                                    ? 'border-slate-200 bg-slate-100 text-slate-400 opacity-60 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-600'
+                                                    : 'border-cyan-200 bg-cyan-50 text-cyan-600 shadow-sm hover:bg-cyan-100 hover:text-cyan-700 dark:border-cyan-900/40 dark:bg-cyan-950/30 dark:text-cyan-400 dark:hover:bg-cyan-950/50'
+                                            "
+                                            :disabled="
+                                                isUpdating[item.id] ||
+                                                isItemStarted(item)
+                                            "
+                                            @click="
+                                                handleStartPreparing(item.id)
+                                            "
+                                            :title="
+                                                isItemStarted(item)
+                                                    ? 'Đã bắt đầu chế biến'
+                                                    : 'Bắt đầu chế biến'
+                                            "
+                                        >
+                                            <Play class="size-5" />
+                                        </Button>
+                                        <Button
                                             class="h-10 w-10 shrink-0 rounded-xl text-white shadow-sm transition-all"
                                             :class="
                                                 slaLevel(item) === 'late'
@@ -1644,6 +1714,30 @@ onUnmounted(() => {
                                             title="Hủy món này"
                                         >
                                             <XCircle class="size-4.5" />
+                                        </Button>
+                                        <Button
+                                            type="button"
+                                            variant="outline"
+                                            class="h-9 w-9 shrink-0 rounded-xl transition-all"
+                                            :class="
+                                                isItemStarted(item)
+                                                    ? 'border-slate-200 bg-slate-100 text-slate-400 opacity-60 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-600'
+                                                    : 'border-cyan-200 bg-cyan-50 text-cyan-600 shadow-sm hover:bg-cyan-100 hover:text-cyan-700 dark:border-cyan-900/40 dark:bg-cyan-950/30 dark:text-cyan-400 dark:hover:bg-cyan-950/50'
+                                            "
+                                            :disabled="
+                                                isUpdating[item.id] ||
+                                                isItemStarted(item)
+                                            "
+                                            @click="
+                                                handleStartPreparing(item.id)
+                                            "
+                                            :title="
+                                                isItemStarted(item)
+                                                    ? 'Đã bắt đầu chế biến'
+                                                    : 'Bắt đầu chế biến'
+                                            "
+                                        >
+                                            <Play class="size-4.5" />
                                         </Button>
                                         <Button
                                             class="h-9 w-9 shrink-0 rounded-xl text-white shadow-sm transition-all"
@@ -2318,7 +2412,7 @@ onUnmounted(() => {
                         type="button"
                         size="sm"
                         class="h-10 rounded-xl bg-rose-600 px-4 font-bold text-white shadow-sm hover:bg-rose-700 dark:bg-rose-700 dark:hover:bg-rose-800"
-                        :disabled="isSubmittingCancel"
+                        :disabled="isSubmittingCancel || cancelReason.trim().length < 3"
                         @click="submitCancelItem"
                     >
                         {{ isSubmittingCancel ? 'Đang xử lý...' : 'Xác Nhận Hủy Món' }}

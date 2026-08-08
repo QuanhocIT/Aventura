@@ -565,7 +565,7 @@ class OperationalImprovementsTest extends TestCase
 
         $orders = app(\App\Repositories\OrderRepositoryInterface::class)
             ->getOrdersQuery($this->restaurant->id, [
-                'status' => 'preparing',
+                'status' => 'waiting_preparing',
                 'date' => today()->toDateString(),
                 'branch_id' => $this->branch->id,
             ])->get();

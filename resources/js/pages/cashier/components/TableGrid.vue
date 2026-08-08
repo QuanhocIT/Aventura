@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Users, Utensils, AlertTriangle } from 'lucide-vue-next';
+import { Users, Utensils } from 'lucide-vue-next';
 import { Badge } from '@/components/ui/badge';
 import type { TableItem } from '../types';
 
@@ -180,28 +180,6 @@ const getStatusBadge = (status: TableItem['status']) => {
                     </div>
                 </div>
 
-                <!-- Split Order / Red Flag Badge -->
-                <div
-                    v-if="
-                        table.active_order?.is_split ||
-                        table.active_order?.is_red_flagged
-                    "
-                    class="absolute top-1.5 right-1.5 flex gap-1"
-                >
-                    <span
-                        v-if="table.active_order.is_split"
-                        class="rounded-full bg-indigo-100 px-1.5 py-0.5 text-[9px] font-bold text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300"
-                    >
-                        Tách
-                    </span>
-                    <span
-                        v-if="table.active_order.is_red_flagged"
-                        class="flex items-center gap-0.5 rounded-full bg-rose-100 px-1.5 py-0.5 text-[9px] font-bold text-rose-700 dark:bg-rose-950 dark:text-rose-300"
-                        title="Đơn hàng bất thường"
-                    >
-                        <AlertTriangle class="size-2.5" /> Chú ý
-                    </span>
-                </div>
             </div>
         </div>
     </div>

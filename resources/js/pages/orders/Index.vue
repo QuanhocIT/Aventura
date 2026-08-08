@@ -44,12 +44,16 @@ type OrderItemDetail = {
     notes: string | null;
     status: string | null;
     sent_to_kitchen_at?: string | null;
+    started_preparing_at?: string | null;
     prepared_at?: string | null;
     prepared_at_formatted?: string | null;
     prepared_by_name?: string | null;
     served_at?: string | null;
     served_at_formatted?: string | null;
     served_by_name?: string | null;
+    cancelled_at?: string | null;
+    cancelled_by_name?: string | null;
+    cancellation_reason?: string | null;
 };
 
 type DeliveryInfo = {
@@ -195,6 +199,16 @@ const selectOfficialView = (view: 'orders' | 'ready') => {
         );
     }
 };
+
+const statusFilters = [
+    { key: 'all', label: 'Tất cả' },
+    { key: 'confirmed', label: 'Đã xác nhận' },
+    { key: 'waiting_preparing', label: 'Chờ chế biến' },
+    { key: 'preparing', label: 'Đang chế biến' },
+    { key: 'ready', label: 'Chờ phục vụ' },
+    { key: 'completed', label: 'Hoàn thành' },
+    { key: 'cancelled', label: 'Đã hủy' },
+] as const;
 
 const statusUpdating = ref<Record<number, boolean>>({});
 
@@ -342,6 +356,22 @@ async function openMove(o: Order) {
     }
 }
 
+function convertToTakeaway(o: Order) {
+    if (actionLoading.value) {
+        return;
+    }
+
+    actionLoading.value = true;
+    router.post(`/orders/${o.id}/convert-to-takeaway`, {}, {
+        preserveScroll: true,
+        onSuccess: () => toast.success('Đã chuyển đơn sang mang về.'),
+        onError: (errs: any) => toast.error(String(Object.values(errs)[0] ?? 'Không thể chuyển đơn.')),
+        onFinish: () => {
+            actionLoading.value = false;
+        },
+    });
+}
+
 // Các đơn khác có thể nhận gộp (chưa thanh toán, đang hoạt động, khác đơn nguồn).
 const mergeCandidates = computed(() =>
     props.orders.filter((o) => canModify(o) && o.id !== actionOrder.value?.id),
@@ -441,6 +471,58 @@ const submitRefund = () => {
             },
             onFinish: () => {
                 isSubmittingRefund.value = false;
+            },
+        },
+    );
+};
+
+// ── Hủy món / báo bếp ─────────────────────────────────────────────────────
+const showCancelItemModal = ref(false);
+const cancelItemTarget = ref<OrderItemDetail | null>(null);
+const cancelItemReason = ref('Khách bận việc đột xuất');
+const cancelItemCustomReason = ref('');
+const isSubmittingItemCancel = ref(false);
+const cancellationReasonOptions = [
+    'Khách bận việc đột xuất',
+    'Khách đổi món',
+    'Khách không muốn nhận món',
+    'Món hết nguyên liệu / không thể phục vụ',
+];
+
+const openCancelItemModal = (item: OrderItemDetail) => {
+    cancelItemTarget.value = item;
+    cancelItemReason.value = 'Khách bận việc đột xuất';
+    cancelItemCustomReason.value = '';
+    showCancelItemModal.value = true;
+};
+
+const effectiveCancelItemReason = computed(() =>
+    cancelItemReason.value === '__custom__'
+        ? cancelItemCustomReason.value
+        : cancelItemReason.value,
+);
+
+const submitCancelItem = () => {
+    if (!selectedOrder.value || !cancelItemTarget.value || effectiveCancelItemReason.value.trim().length < 3 || isSubmittingItemCancel.value) {
+        return;
+    }
+
+    isSubmittingItemCancel.value = true;
+    router.post(
+        `/orders/${selectedOrder.value.id}/items/${cancelItemTarget.value.id}/cancel`,
+        { reason: effectiveCancelItemReason.value.trim() },
+        {
+            preserveScroll: true,
+            onSuccess: () => {
+                showCancelItemModal.value = false;
+                cancelItemTarget.value = null;
+                toast.success('Đã gửi yêu cầu hủy món và báo xuống bếp.');
+            },
+            onError: (errs: any) => {
+                toast.error(String(Object.values(errs)[0] ?? 'Không thể hủy món.'));
+            },
+            onFinish: () => {
+                isSubmittingItemCancel.value = false;
             },
         },
     );
@@ -1313,40 +1395,48 @@ onUnmounted(() => {
             <!-- Status filter chips -->
             <div class="flex flex-wrap gap-2">
                 <button
-                    v-for="(label, key) in {
-                        all: 'Tất cả',
-                        confirmed: 'Đã xác nhận',
-                        preparing: 'Đang chế biến',
-                        completed: 'Hoàn thành',
-                        cancelled: 'Đã hủy',
-                    } as Record<string, string>"
-                    :key="key"
-                    @click="setStatus(key)"
+                    v-for="filter in statusFilters"
+                    :key="filter.key"
+                    @click="
+                        filter.key === 'ready'
+                            ? selectOfficialView('ready')
+                            : setStatus(filter.key)
+                    "
                     class="rounded-full border px-3 py-1.5 text-xs font-semibold transition-all"
                     :class="
-                        activeStatus === key && !isOfficialReady
-                            ? 'border-violet-500 bg-violet-50 text-violet-700 dark:border-violet-700 dark:bg-violet-950/40 dark:text-violet-400'
-                            : 'border-slate-200 bg-white text-slate-500 hover:border-slate-300 dark:border-slate-800 dark:bg-slate-950'
+                        filter.key === 'ready'
+                            ? isOfficialReady
+                                ? 'border-emerald-500 bg-emerald-50 text-emerald-700 dark:border-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300'
+                                : 'border-slate-200 bg-white text-slate-500 hover:border-emerald-300 dark:border-slate-800 dark:bg-slate-950'
+                            : activeStatus === filter.key && !isOfficialReady
+                              ? 'border-violet-500 bg-violet-50 text-violet-700 dark:border-violet-700 dark:bg-violet-950/40 dark:text-violet-400'
+                              : 'border-slate-200 bg-white text-slate-500 hover:border-slate-300 dark:border-slate-800 dark:bg-slate-950'
                     "
                 >
-                    {{ label }}
-                </button>
-                <button
-                    type="button"
-                    @click="selectOfficialView('ready')"
-                    class="inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold transition-all"
-                    :class="
-                        isOfficialReady
-                            ? 'border-emerald-500 bg-emerald-50 text-emerald-700 dark:border-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300'
-                            : 'border-slate-200 bg-white text-slate-500 hover:border-emerald-300 dark:border-slate-800 dark:bg-slate-950'
-                    "
-                >
-                    Chờ phục vụ
+                    {{ filter.label }}
                     <span
-                    v-if="(isOfficialReady ? readyOrders.length : (summary.ready ?? 0)) > 0"
+                        v-if="
+                            filter.key === 'waiting_preparing' &&
+                            summary.pending > 0
+                        "
+                        class="rounded-full bg-amber-500 px-1.5 py-0.5 text-[10px] font-bold text-white"
+                    >
+                        {{ summary.pending }}
+                    </span>
+                    <span
+                        v-if="
+                            filter.key === 'ready' &&
+                            (isOfficialReady
+                                ? readyOrders.length
+                                : (summary.ready ?? 0)) > 0
+                        "
                         class="rounded-full bg-emerald-500 px-1.5 py-0.5 text-[10px] font-bold text-white"
                     >
-                        {{ isOfficialReady ? readyOrders.length : (summary.ready ?? 0) }}
+                        {{
+                            isOfficialReady
+                                ? readyOrders.length
+                                : (summary.ready ?? 0)
+                        }}
                     </span>
                 </button>
             </div>
@@ -1522,6 +1612,14 @@ onUnmounted(() => {
                                         title="Chuyển sang bàn khác"
                                     >
                                         Chuyển bàn
+                                    </button>
+                                    <button
+                                        v-if="o.table_name && o.channel === 'dine_in'"
+                                        @click.stop="convertToTakeaway(o)"
+                                        class="h-7 cursor-pointer rounded-lg border border-amber-200 bg-amber-50 px-2 text-[10px] font-semibold text-amber-700 transition-colors hover:bg-amber-100 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-400"
+                                        title="Chuyển nhanh đơn tại bàn sang mang về"
+                                    >
+                                        Mang về
                                     </button>
                                     <button
                                         @click.stop="openMerge(o)"
@@ -2405,6 +2503,50 @@ onUnmounted(() => {
         </DialogContent>
     </Dialog>
 
+    <!-- Modal Hủy món -->
+    <Dialog :open="showCancelItemModal" @update:open="showCancelItemModal = $event">
+        <DialogContent class="max-w-md rounded-2xl">
+            <DialogHeader>
+                <DialogTitle>Hủy món và báo xuống bếp</DialogTitle>
+                <DialogDescription>
+                    {{ cancelItemTarget?.name }} · {{ selectedOrder?.order_number }}
+                </DialogDescription>
+            </DialogHeader>
+            <div class="space-y-3 py-2">
+                <label class="text-xs font-bold text-foreground">Lý do hủy món <span class="text-rose-500">*</span></label>
+                <select
+                    v-model="cancelItemReason"
+                    class="w-full rounded-xl border border-input bg-background p-2.5 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                    <option v-for="reason in cancellationReasonOptions" :key="reason" :value="reason">{{ reason }}</option>
+                    <option value="__custom__">Lý do khác...</option>
+                </select>
+                <textarea
+                    v-if="cancelItemReason === '__custom__'"
+                    v-model="cancelItemCustomReason"
+                    placeholder="Nhập lý do hủy..."
+                    rows="3"
+                    class="w-full rounded-xl border border-input bg-background p-2.5 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                />
+                <p class="rounded-lg border border-amber-200 bg-amber-50 p-2.5 text-[11px] text-amber-800 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-300">
+                    Nếu bếp đã bắt đầu làm, hệ thống sẽ yêu cầu quản lý duyệt và ghi nhận món vào Hủy/Tổn thất.
+                </p>
+            </div>
+            <DialogFooter class="gap-2">
+                <Button variant="outline" size="sm" class="text-xs" @click="showCancelItemModal = false">Đóng</Button>
+                <Button
+                    size="sm"
+                    class="bg-rose-600 text-xs font-bold text-white hover:bg-rose-700"
+                    :disabled="isSubmittingItemCancel || effectiveCancelItemReason.trim().length < 3"
+                    @click="submitCancelItem"
+                >
+                    <Loader2 v-if="isSubmittingItemCancel" class="mr-1 size-3.5 animate-spin" />
+                    Xác nhận hủy món
+                </Button>
+            </DialogFooter>
+        </DialogContent>
+    </Dialog>
+
     <!-- Modal Chi Tiết Đơn Hàng -->
     <Dialog :open="showDetailModal" @update:open="showDetailModal = $event">
         <DialogContent
@@ -2621,7 +2763,7 @@ onUnmounted(() => {
                                         class="inline-flex items-center gap-1 rounded bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-800 dark:bg-amber-950/60 dark:text-amber-300"
                                     >
                                         <Clock class="size-3 text-amber-600 dark:text-amber-400" />
-                                        {{ item.status === 'preparing' ? 'Bếp đang làm' : 'Chờ bếp làm' }}
+                                        {{ item.started_preparing_at || item.status === 'preparing' ? 'Bếp đang làm' : 'Chờ bếp làm' }}
                                     </span>
                                 </div>
                                 <div
@@ -2643,6 +2785,15 @@ onUnmounted(() => {
                                 >
                                     {{ formatCurrency(item.line_total) }}
                                 </div>
+                                <button
+                                    v-if="item.status !== 'cancelled' && !item.served_at"
+                                    type="button"
+                                    class="mt-1 inline-flex cursor-pointer items-center gap-1 rounded-lg border border-rose-200 bg-rose-50 px-2 py-1 text-[10px] font-bold text-rose-700 transition-colors hover:bg-rose-100 dark:border-rose-900/50 dark:bg-rose-950/30 dark:text-rose-400"
+                                    @click="openCancelItemModal(item)"
+                                >
+                                    <Trash2 class="size-3" />
+                                    Hủy món
+                                </button>
                             </div>
                         </div>
                         <div

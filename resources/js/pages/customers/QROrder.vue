@@ -1224,10 +1224,10 @@ onUnmounted(() => {
                     <div
                         class="relative mb-4 grid grid-cols-3 gap-2 text-center"
                     >
-                        <div class="z-10 flex flex-col items-center">
+                        <div class="relative flex flex-col items-center">
                             <div
                                 :class="[
-                                    'flex size-8 items-center justify-center rounded-full border-2 text-xs font-bold transition-all duration-300',
+                                    'relative z-10 flex size-8 items-center justify-center rounded-full border-2 text-xs font-bold transition-all duration-300',
                                     [
                                         'waiting_verification',
                                         'escalated',
@@ -1248,11 +1248,11 @@ onUnmounted(() => {
                                 >Đặt đơn</span
                             >
                         </div>
-                        <div class="relative z-10 flex flex-col items-center">
+                        <div class="relative flex flex-col items-center">
                             <!-- Link bar left -->
                             <div
                                 :class="[
-                                    'absolute top-[15px] -left-[65%] -z-10 h-[2px] w-[130%] transition-all duration-300',
+                                    'pointer-events-none absolute top-[15px] left-[-65%] z-0 h-[2px] w-[130%] transition-all duration-300',
                                     order.status === 'confirmed'
                                         ? 'bg-amber-400'
                                         : 'bg-slate-200',
@@ -1261,7 +1261,7 @@ onUnmounted(() => {
 
                             <div
                                 :class="[
-                                    'flex size-8 items-center justify-center rounded-full border-2 text-xs font-bold transition-all duration-300',
+                                    'relative z-10 flex size-8 items-center justify-center rounded-full border-2 text-xs font-bold transition-all duration-300',
                                     order.status === 'confirmed'
                                         ? 'border-amber-300 bg-gradient-to-tr from-amber-400 to-amber-500 text-white shadow-sm'
                                         : 'border-slate-200 bg-white text-slate-400',
@@ -1283,11 +1283,11 @@ onUnmounted(() => {
                                 >Chế biến</span
                             >
                         </div>
-                        <div class="relative z-10 flex flex-col items-center">
+                        <div class="relative flex flex-col items-center">
                             <!-- Link bar right -->
                             <div
                                 :class="[
-                                    'absolute top-[15px] -left-[65%] -z-10 h-[2px] w-[130%] transition-all duration-300',
+                                    'pointer-events-none absolute top-[15px] left-[-65%] z-0 h-[2px] w-[130%] transition-all duration-300',
                                     (order.order_status === 'completed' ||
                                         order.items_status.every(
                                             (i) => i.status === 'served',
@@ -1300,7 +1300,7 @@ onUnmounted(() => {
 
                             <div
                                 :class="[
-                                    'flex size-8 items-center justify-center rounded-full border-2 text-xs font-bold transition-all duration-300',
+                                    'relative z-10 flex size-8 items-center justify-center rounded-full border-2 text-xs font-bold transition-all duration-300',
                                     order.status === 'confirmed' &&
                                     (order.order_status === 'completed' ||
                                         order.items_status.every(

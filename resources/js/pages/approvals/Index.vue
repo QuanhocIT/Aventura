@@ -215,6 +215,11 @@ const operationConfig: Record<
         color: 'text-rose-600 dark:text-rose-400',
         bg: 'bg-rose-50 dark:bg-rose-950/40 border border-rose-100 dark:border-rose-900/20',
     },
+    order_item_cancel: {
+        icon: Trash2,
+        color: 'text-orange-600 dark:text-orange-400',
+        bg: 'bg-orange-50 dark:bg-orange-950/40 border border-orange-100 dark:border-orange-900/20',
+    },
     shift_checkin: {
         icon: LogIn,
         color: 'text-emerald-600 dark:text-emerald-400',
@@ -261,6 +266,8 @@ const dataLabels: Record<string, string> = {
     refund_type: 'Hình thức hoàn tiền',
     refund_amount: 'Số tiền hoàn',
     refund_reason: 'Lý do hoàn tiền',
+    product_name: 'Món ăn',
+    was_started: 'Đã bắt đầu chế biến',
     assignment_id: 'ID Ca trực',
     shift_name: 'Tên ca trực',
     requested_at: 'Thời gian yêu cầu',
