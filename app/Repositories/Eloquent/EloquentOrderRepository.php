@@ -31,15 +31,34 @@ class EloquentOrderRepository implements OrderRepositoryInterface
         }
 
         if (! empty($filters['status']) && $filters['status'] !== 'all') {
-            if ($filters['status'] === 'preparing') {
-                // Chỉ hiện đơn hiện hành của bàn còn món chưa được bếp làm.
+            if ($filters['status'] === 'waiting_preparing') {
+                // Món đã gửi xuống bếp nhưng chưa được bếp bấm "Bắt đầu chế biến".
+                $query->where('status', '!=', 'cancelled')
+                    ->currentTableOrder()
+                    ->whereHas('items', function (Builder $iq) {
+                        $iq->where('status', '!=', 'cancelled')
+                            ->whereNull('served_at')
+                            ->whereNull('prepared_at')
+                            ->whereNull('started_preparing_at');
+                    })
+                    ->whereDoesntHave('items', function (Builder $iq) {
+                        $iq->where('status', '!=', 'cancelled')
+                            ->whereNull('served_at')
+                            ->where(function (Builder $itemQuery) {
+                                $itemQuery->whereNotNull('started_preparing_at')
+                                    ->orWhereNotNull('prepared_at');
+                            });
+                    });
+            } elseif ($filters['status'] === 'preparing') {
+                // Chỉ hiện đơn hiện hành có món đã được bếp bấm bắt đầu chế biến.
                 // Payment có thể đã hoàn tất trước vòng đời bếp/phục vụ.
                 $query->where('status', '!=', 'cancelled')
                     ->currentTableOrder()
                     ->whereHas('items', function (Builder $iq) {
                         $iq->where('status', '!=', 'cancelled')
                             ->whereNull('served_at')
-                            ->whereNull('prepared_at');
+                            ->whereNull('prepared_at')
+                            ->whereNotNull('started_preparing_at');
                     });
             } elseif ($filters['status'] === 'ready') {
                 // Đơn chờ phục vụ: mọi món còn lại đã làm xong, nhưng chưa
@@ -59,8 +78,11 @@ class EloquentOrderRepository implements OrderRepositoryInterface
             } elseif ($filters['status'] === 'pending') {
                 $query->where('status', 'pending')
                     ->whereDoesntHave('items', function (Builder $iq) {
-                        $iq->where('status', 'preparing')
-                            ->orWhereNotNull('prepared_at');
+                        $iq->where(function (Builder $itemQuery) {
+                            $itemQuery->where('status', 'preparing')
+                                ->orWhereNotNull('started_preparing_at')
+                                ->orWhereNotNull('prepared_at');
+                        });
                     });
             } else {
                 $query->where('status', $filters['status']);
@@ -104,7 +126,7 @@ class EloquentOrderRepository implements OrderRepositoryInterface
             });
         }
 
-        $orders = $baseQuery->with('items:id,order_id,status,prepared_at,served_at')->get();
+        $orders = $baseQuery->with('items:id,order_id,status,started_preparing_at,prepared_at,served_at')->get();
 
         $total = $orders->count();
         $cancelledCount = $orders->where('status', 'cancelled')->count();
@@ -120,7 +142,7 @@ class EloquentOrderRepository implements OrderRepositoryInterface
             $items = $o->items->reject(fn ($i) => $i->status === 'cancelled');
             $allServed = $items->isEmpty() || $items->every(fn ($i) => $i->served_at !== null);
             $hasPreparingItems = $items->contains(fn ($i) =>
-                $i->status === 'preparing' || $i->prepared_at !== null
+                $i->started_preparing_at !== null || $i->prepared_at !== null
             );
 
             if ($allServed) {

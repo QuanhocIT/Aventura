@@ -20,8 +20,10 @@ class OrderItem extends Model
     {
         return [
             'sent_to_kitchen_at' => 'datetime',
+            'started_preparing_at' => 'datetime',
             'prepared_at' => 'datetime',
             'served_at' => 'datetime',
+            'cancelled_at' => 'datetime',
         ];
     }
 
@@ -43,6 +45,11 @@ class OrderItem extends Model
     public function servedBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'served_by');
+    }
+
+    public function cancelledBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'cancelled_by');
     }
 
     protected static function booted(): void

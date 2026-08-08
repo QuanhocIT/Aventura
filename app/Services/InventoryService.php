@@ -11,6 +11,7 @@ use App\Models\InventoryBatchAllocation;
 use App\Models\InventoryReservation;
 use App\Models\InventoryTransaction;
 use App\Models\Order;
+use App\Models\OrderItem;
 use App\Models\RequestForProposal;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
@@ -145,6 +146,7 @@ class InventoryService
                         'ingredient_id' => $recipe->ingredient_id,
                         'inventory_id' => $inventory->id,
                         'order_id' => $order->id,
+                        'order_item_id' => $item->id,
                         'performed_by' => $user->id,
                         'type' => 'usage',
                         'direction' => 'out',
@@ -160,6 +162,10 @@ class InventoryService
                     InventoryReservation::where('order_id', $order->id)
                         ->where('branch_id', $order->branch_id)
                         ->where('ingredient_id', $recipe->ingredient_id)
+                        ->where(function ($query) use ($item): void {
+                            $query->where('order_item_id', $item->id)
+                                ->orWhereNull('order_item_id');
+                        })
                         ->where('status', 'holding')
                         ->update(['status' => 'committed']);
 
@@ -345,6 +351,234 @@ class InventoryService
         app(InventoryAvailabilityService::class)->refreshBranch($restaurantId, $branchId);
 
         return $transaction;
+    }
+
+    /**
+     * Apply the stock consequence of cancelling one order item.
+     *
+     * Before the kitchen starts, a paid item's usage is reversed (or its
+     * holding reservation is released). Once preparation has started, the
+     * consumed usage is classified as order-cancellation waste so the stock
+     * is not deducted twice but remains visible in loss reports.
+     */
+    public function handleCancelledItem(OrderItem $item, User $user, bool $wasStarted, string $reason): void
+    {
+        $item->loadMissing(['order', 'product.recipes.unit', 'product.recipes.ingredient.unit']);
+        $order = $item->order;
+        $product = $item->product;
+
+        if (! $order || ! $product?->track_inventory || $product->recipes->isEmpty()) {
+            $this->releaseItemReservations($item);
+
+            return;
+        }
+
+        $usageTransactions = InventoryTransaction::withoutGlobalScopes()
+            ->where('restaurant_id', $order->restaurant_id)
+            ->where('branch_id', $order->branch_id)
+            ->where('order_id', $order->id)
+            ->where('order_item_id', $item->id)
+            ->where('direction', 'out')
+            ->whereIn('type', ['usage', 'waste'])
+            ->lockForUpdate()
+            ->get();
+
+        // Orders paid before per-item inventory links were introduced can
+        // still be reversed safely when their ledger note identifies the
+        // product. New transactions always use order_item_id above.
+        if ($usageTransactions->isEmpty()) {
+            $usageTransactions = InventoryTransaction::withoutGlobalScopes()
+                ->where('restaurant_id', $order->restaurant_id)
+                ->where('branch_id', $order->branch_id)
+                ->where('order_id', $order->id)
+                ->where('direction', 'out')
+                ->where('type', 'usage')
+                ->where('notes', 'like', '%(Món: '.$product->name.')%')
+                ->lockForUpdate()
+                ->get();
+        }
+
+        if (! $wasStarted) {
+            foreach ($usageTransactions->where('type', 'usage') as $usageTransaction) {
+                $this->restoreUsageTransaction($usageTransaction, $user, $item, $reason);
+            }
+            $this->releaseItemReservations($item);
+
+            return;
+        }
+
+        // Payment may already have consumed the BOM. Reclassify that exact
+        // transaction instead of creating a second outbound movement.
+        $hadOutboundUsage = $usageTransactions->isNotEmpty();
+        foreach ($usageTransactions->where('type', 'usage') as $usageTransaction) {
+            $usageTransaction->update([
+                'type' => 'waste',
+                'waste_category' => 'order_cancellation',
+                'notes' => trim(($usageTransaction->notes ? $usageTransaction->notes.' ' : '')
+                    ."[Hủy món: {$reason}]"),
+            ]);
+        }
+
+        if (! $hadOutboundUsage) {
+            $this->recordCancelledItemWaste($item, $user, $reason);
+        }
+
+        $this->releaseItemReservations($item);
+    }
+
+    private function releaseItemReservations(OrderItem $item): void
+    {
+        InventoryReservation::where('order_id', $item->order_id)
+            ->where('branch_id', $item->order?->branch_id)
+            ->where('order_item_id', $item->id)
+            ->whereIn('status', ['holding', 'committed'])
+            ->update(['status' => 'released']);
+
+        if ($item->order) {
+            app(InventoryAvailabilityService::class)->refreshBranch(
+                $item->order->restaurant_id,
+                (int) $item->order->branch_id,
+            );
+        }
+    }
+
+    private function restoreUsageTransaction(
+        InventoryTransaction $sourceTransaction,
+        User $user,
+        OrderItem $item,
+        string $reason,
+    ): void {
+        $marker = "order-item-cancel-return:{$item->id}";
+        if (InventoryTransaction::withoutGlobalScopes()
+            ->where('order_item_id', $item->id)
+            ->where('reference_code', $marker)
+            ->exists()) {
+            return;
+        }
+
+        $inventory = Inventory::withoutGlobalScopes()
+            ->where('restaurant_id', $sourceTransaction->restaurant_id)
+            ->where('branch_id', $sourceTransaction->branch_id)
+            ->where('ingredient_id', $sourceTransaction->ingredient_id)
+            ->lockForUpdate()
+            ->first();
+
+        if (! $inventory) {
+            return;
+        }
+
+        $sourceAllocations = InventoryBatchAllocation::withoutGlobalScopes()
+            ->where('restaurant_id', $sourceTransaction->restaurant_id)
+            ->where('inventory_transaction_id', $sourceTransaction->id)
+            ->where('direction', 'out')
+            ->get();
+        $restored = $sourceAllocations->isNotEmpty()
+            ? $this->restoreBatches($sourceAllocations)
+            : [
+                'allocations' => [],
+                'quantity' => (float) $sourceTransaction->quantity,
+                'total_cost' => (float) $sourceTransaction->total_cost,
+            ];
+
+        $inventory->update([
+            'quantity_on_hand' => (float) $inventory->quantity_on_hand + $restored['quantity'],
+            'theoretical_quantity' => (float) $inventory->theoretical_quantity + $restored['quantity'],
+        ]);
+
+        $transaction = InventoryTransaction::create([
+            'restaurant_id' => $sourceTransaction->restaurant_id,
+            'branch_id' => $sourceTransaction->branch_id,
+            'ingredient_id' => $sourceTransaction->ingredient_id,
+            'inventory_id' => $inventory->id,
+            'order_id' => $item->order_id,
+            'order_item_id' => $item->id,
+            'performed_by' => $user->id,
+            'type' => 'return',
+            'direction' => 'in',
+            'quantity' => $restored['quantity'],
+            'unit_cost' => $restored['quantity'] > 0 ? $restored['total_cost'] / $restored['quantity'] : 0,
+            'total_cost' => $restored['total_cost'],
+            'reference_code' => $marker,
+            'notes' => "Hoàn kho do hủy món {$item->product?->name} ({$reason})",
+            'occurred_at' => now(),
+        ]);
+        $this->recordBatchAllocations($transaction, $restored['allocations'], 'in');
+
+        $this->broadcastStockUpdatedSafely($sourceTransaction->restaurant_id);
+    }
+
+    private function recordCancelledItemWaste(OrderItem $item, User $user, string $reason): void
+    {
+        $order = $item->order;
+        $product = $item->product;
+        $ingredientIds = $product->recipes->pluck('ingredient_id')->unique()->sort()->values();
+        $inventories = Inventory::where('restaurant_id', $order->restaurant_id)
+            ->where('branch_id', $order->branch_id)
+            ->whereIn('ingredient_id', $ingredientIds)
+            ->lockForUpdate()
+            ->get()
+            ->keyBy('ingredient_id');
+
+        foreach ($product->recipes as $recipe) {
+            $ingredient = $recipe->ingredient;
+            if (! $ingredient) {
+                continue;
+            }
+
+            $inventory = $inventories->get($recipe->ingredient_id);
+            if (! $inventory) {
+                $inventory = Inventory::create([
+                    'restaurant_id' => $order->restaurant_id,
+                    'branch_id' => $order->branch_id,
+                    'ingredient_id' => $recipe->ingredient_id,
+                    'quantity_on_hand' => 0,
+                    'theoretical_quantity' => 0,
+                    'last_cost' => (float) $ingredient->average_cost,
+                ]);
+                $inventories->put($recipe->ingredient_id, $inventory);
+            }
+
+            $quantity = app(UnitConversionService::class)->recipeQuantityInIngredientUnit($recipe)
+                * (float) $item->quantity
+                * (1 + ((float) $recipe->waste_rate / 100));
+            $this->assertSufficientStock($ingredient, (float) $inventory->quantity_on_hand, $quantity);
+            $this->ensureLegacyBatchForInventory($inventory);
+            $consumed = $this->consumeBatches(
+                $order->restaurant_id,
+                (int) $order->branch_id,
+                $ingredient->id,
+                $quantity,
+                false,
+                $ingredient->name,
+            );
+
+            $cost = $consumed['total_cost'] ?: $quantity * (float) $ingredient->average_cost;
+            $transaction = InventoryTransaction::create([
+                'restaurant_id' => $order->restaurant_id,
+                'branch_id' => $order->branch_id,
+                'ingredient_id' => $ingredient->id,
+                'inventory_id' => $inventory->id,
+                'order_id' => $order->id,
+                'order_item_id' => $item->id,
+                'performed_by' => $user->id,
+                'type' => 'waste',
+                'waste_category' => 'order_cancellation',
+                'direction' => 'out',
+                'quantity' => $quantity,
+                'unit_cost' => $quantity > 0 ? $cost / $quantity : 0,
+                'total_cost' => $cost,
+                'reference_code' => "order-item-cancel-waste:{$item->id}",
+                'notes' => "Hủy món đã bắt đầu chế biến: {$product->name} ({$reason})",
+                'occurred_at' => now(),
+            ]);
+            $this->recordBatchAllocations($transaction, $consumed['allocations'], 'out');
+            $inventory->update([
+                'quantity_on_hand' => max(0, (float) $inventory->quantity_on_hand - $quantity),
+                'theoretical_quantity' => max(0, (float) $inventory->theoretical_quantity - $quantity),
+            ]);
+        }
+
+        $this->broadcastStockUpdatedSafely($order->restaurant_id);
     }
 
     /**

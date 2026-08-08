@@ -9,6 +9,7 @@ use App\Support\Tenant\TenantContext;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 /** Tách bill / gộp đơn / chuyển bàn — yêu cầu quyền manage_orders. */
 class OrderActionsController extends Controller
@@ -58,6 +59,62 @@ class OrderActionsController extends Controller
         $this->service->moveTable($order, (int) $data['table_id'], $request->user());
 
         return back()->with('success', 'Đã chuyển bàn thành công.');
+    }
+
+    /** Chuyển nhanh đơn tại bàn sang mang về và cộng phí hộp/túi nếu đã cấu hình. */
+    public function convertToTakeaway(Request $request, Order $order): RedirectResponse
+    {
+        abort_unless(
+            $request->user()->can('manage_orders') || $request->user()->can('create_orders'),
+            403,
+        );
+        abort_unless($order->restaurant_id === $request->user()->restaurant_id, 403);
+        abort_unless($request->user()->canAccessBranch((int) $order->branch_id), 403);
+        abort_unless($order->channel === 'dine_in' && $order->table_id, 422, 'Đơn này không còn ở trạng thái tại bàn.');
+        abort_unless(! in_array($order->status, ['completed', 'cancelled'], true), 422, 'Đơn đã kết thúc, không thể chuyển mang về.');
+        abort_unless(! in_array($order->payment_status, ['paid', 'refunded'], true), 422, 'Đơn đã thanh toán, không thể tự động cộng lại phí mang về.');
+
+        $packagingSetting = DB::table('restaurant_settings')
+            ->where('restaurant_id', $request->user()->restaurant_id)
+            ->where('key_name', 'takeaway_packaging_fee')
+            ->value('value');
+        $packagingFee = is_numeric($packagingSetting)
+            ? (float) $packagingSetting
+            : (float) (json_decode((string) $packagingSetting, true) ?? 0);
+
+        DB::transaction(function () use ($order, $request, $packagingFee): void {
+            $lockedOrder = Order::whereKey($order->id)
+                ->where('restaurant_id', $request->user()->restaurant_id)
+                ->lockForUpdate()
+                ->firstOrFail();
+            $oldTableId = $lockedOrder->table_id;
+            $lockedOrder->channel = 'takeaway';
+            $lockedOrder->table_id = null;
+            $lockedOrder->service_charge = (float) $lockedOrder->service_charge + $packagingFee;
+            $lockedOrder->total_amount = max(
+                0.0,
+                (float) $lockedOrder->subtotal
+                    - (float) $lockedOrder->discount_amount
+                    + (float) $lockedOrder->service_charge
+                    + (float) $lockedOrder->tax_amount,
+            );
+            $lockedOrder->note = trim(($lockedOrder->note ? $lockedOrder->note.' ' : '')
+                .'[Chuyển sang mang về'.($packagingFee > 0 ? ', đã cộng phí hộp/túi' : '').']');
+            $lockedOrder->save();
+
+            $table = RestaurantTable::whereKey($oldTableId)
+                ->where('restaurant_id', $lockedOrder->restaurant_id)
+                ->where('branch_id', $lockedOrder->branch_id)
+                ->lockForUpdate()
+                ->first();
+            if ($table && ! $table->orders()->activeForService()->exists()) {
+                $table->update(['status' => 'available']);
+            }
+        });
+
+        return back()->with('success', $packagingFee > 0
+            ? 'Đã chuyển đơn sang mang về và cộng phí hộp/túi.'
+            : 'Đã chuyển đơn sang mang về.');
     }
 
     /** Danh sách món của đơn — cho dialog tách bill. */

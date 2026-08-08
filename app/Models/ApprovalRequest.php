@@ -63,6 +63,7 @@ class ApprovalRequest extends Model
             'shift_checkout' => 'Xác nhận hết ca',
             'employee_create' => 'Tạo nhân viên mới',
             'order_refund' => 'Hoàn tiền đơn hàng',
+            'order_item_cancel' => 'Hủy món / ghi nhận tổn thất',
             default => $this->operation_type,
         };
     }

@@ -268,6 +268,7 @@ Route::middleware(['auth', 'verified', 'tenant.subscription', 'tenant.ratelimit'
     Route::post('orders/{order}/split', [OrderActionsController::class, 'split'])->name('orders.split');
     Route::post('orders/{order}/merge', [OrderActionsController::class, 'merge'])->name('orders.merge');
     Route::post('orders/{order}/move-table', [OrderActionsController::class, 'moveTable'])->name('orders.move-table');
+    Route::post('orders/{order}/convert-to-takeaway', [OrderActionsController::class, 'convertToTakeaway'])->name('orders.convert-to-takeaway');
 
     // Chương trình Khách hàng Thân thiết (Loyalty Program)
     Route::prefix('loyalty')->name('loyalty.')->group(function () {
@@ -327,6 +328,7 @@ Route::middleware(['auth', 'verified', 'tenant.subscription', 'tenant.ratelimit'
     Route::get('kitchen/menu-control', [KitchenMenuControlController::class, 'index'])->name('kitchen.menu-control.index');
     Route::post('kitchen/menu-control/activate', [KitchenMenuControlController::class, 'activate'])->name('kitchen.menu-control.activate');
     Route::post('kitchen/items/prepare-bulk', [KitchenController::class, 'prepareBulk'])->name('kitchen.prepare-bulk');
+    Route::post('kitchen/items/{item}/start', [KitchenController::class, 'startPreparing'])->name('kitchen.start-preparing');
     Route::post('kitchen/items/{item}/prepare', [KitchenController::class, 'prepare'])->name('kitchen.prepare');
     Route::post('kitchen/items/{item}/cancel', [KitchenController::class, 'cancelItem'])->name('kitchen.cancel-item');
     Route::post('kitchen/items/{item}/serve', [KitchenController::class, 'serve'])->name('kitchen.serve');
@@ -338,6 +340,7 @@ Route::middleware(['auth', 'verified', 'tenant.subscription', 'tenant.ratelimit'
     Route::get('orders/create', [OrdersController::class, 'create'])->name('orders.create');
     Route::post('orders', [OrdersController::class, 'store'])->name('orders.store');
     Route::get('orders', [OrdersController::class, 'index'])->name('orders.index');
+    Route::post('orders/{order}/items/{item}/cancel', [OrdersController::class, 'cancelItem'])->name('orders.items.cancel');
     Route::patch('orders/{order}/status', [OrdersController::class, 'updateStatus'])->name('orders.update-status');
     Route::post('orders/{order}/split', [OrdersController::class, 'split'])->name('orders.split');
     Route::patch('orders/{order}/override-split-penalty', [OrdersController::class, 'overrideSplitPenalty'])->name('orders.override-split-penalty');

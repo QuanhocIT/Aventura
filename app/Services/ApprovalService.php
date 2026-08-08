@@ -23,6 +23,7 @@ class ApprovalService
         private SalaryService $salaryService,
         private InventoryService $inventoryService,
         private OrderRefundService $orderRefundService,
+        private OrderItemCancellationService $orderItemCancellationService,
     ) {}
 
     /**
@@ -134,8 +135,23 @@ class ApprovalService
             'shift_checkin' => $this->executeShiftCheckin($data, $approval->restaurant_id),
             'shift_checkout' => $this->executeShiftCheckout($data, $approval->restaurant_id),
             'order_refund' => $this->executeOrderRefund($data, $approval->restaurant_id, $reviewerId),
+            'order_item_cancel' => $this->executeOrderItemCancellation($data, $approval->restaurant_id, $reviewerId),
             default => null,
         };
+    }
+
+    private function executeOrderItemCancellation(array $data, int $restaurantId, int $reviewerId): void
+    {
+        $item = \App\Models\OrderItem::withoutGlobalScopes()
+            ->where('restaurant_id', $restaurantId)
+            ->findOrFail($data['order_item_id']);
+        $reviewer = User::findOrFail($reviewerId);
+
+        $this->orderItemCancellationService->cancel(
+            $item,
+            $reviewer,
+            (string) $data['reason'],
+        );
     }
 
     private function executeOrderRefund(array $data, int $restaurantId, int $reviewerId): void

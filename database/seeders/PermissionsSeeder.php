@@ -65,6 +65,7 @@ class PermissionsSeeder extends Seeder
             'manage_salary',
             'manage_customers',
             'manage_feedback',
+            'approve_requests',
             'view_violations',
             'report_violations',
             'view_report',
