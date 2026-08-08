@@ -15,6 +15,7 @@ use App\Services\QuotaService;
 use App\Support\Tenant\TenantContext;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -391,6 +392,7 @@ class KitchenController extends Controller
 
         $validated = $request->validate([
             'scope' => ['required', 'string', 'in:single,all_pending'],
+            'quantity' => ['nullable', 'integer', 'min:1'],
             'reason' => ['nullable', 'string', 'max:500'],
         ]);
 
@@ -398,68 +400,147 @@ class KitchenController extends Controller
         $reason = trim($validated['reason'] ?? '');
         $noteAppend = $reason !== '' ? "[Hủy bởi bếp: {$reason}]" : '[Hủy bởi bếp]';
 
-        $productName = $item->product?->name ?? 'Món ăn';
-        $tableName = $item->order?->table?->name ?? 'Mang về';
-        $cancelledCount = 0;
+        $result = DB::transaction(function () use ($item, $user, $scope, $reason, $noteAppend, $validated) {
+            $lockedItem = OrderItem::where('id', $item->id)
+                ->where('restaurant_id', $user->restaurant_id)
+                ->with(['order.table', 'product.recipes.unit', 'product.recipes.ingredient.unit'])
+                ->lockForUpdate()
+                ->firstOrFail();
 
-        if ($scope === 'all_pending') {
-            $pendingItemsToCancel = OrderItem::where('restaurant_id', $user->restaurant_id)
-                ->where('product_id', $item->product_id)
-                ->whereNull('prepared_at')
-                ->where('status', '!=', 'cancelled')
-                ->whereHas('order', function ($q) {
-                    $q->whereNotIn('status', ['completed', 'cancelled']);
-                })
-                ->with('order')
-                ->get();
-
-            $cancelledCount = $pendingItemsToCancel->count();
-
-            foreach ($pendingItemsToCancel as $pendingItem) {
-                $pendingItem->update([
-                    'status' => 'cancelled',
-                    'notes' => $pendingItem->notes ? $pendingItem->notes.' '.$noteAppend : $noteAppend,
+            if ($lockedItem->prepared_at !== null || $lockedItem->status === 'served') {
+                throw \Illuminate\Validation\ValidationException::withMessages([
+                    'item' => 'Món đã được chế biến hoặc phục vụ, không thể hủy thêm.',
                 ]);
+            }
 
-                if ($pendingItem->order) {
-                    $activeSubtotal = OrderItem::where('order_id', $pendingItem->order_id)
-                        ->where('status', '!=', 'cancelled')
-                        ->sum('line_total');
+            $productName = $lockedItem->product?->name ?? 'Món ăn';
+            $tableName = $lockedItem->order?->table?->name ?? 'Mang về';
+            $cancelledCount = 0;
+            $cancelledQuantity = 0.0;
+            $affectedOrderIds = [];
+            $auditItem = $lockedItem;
 
-                    $pendingItem->order->update([
-                        'subtotal' => $activeSubtotal,
-                        'total_amount' => max(0, $activeSubtotal - $pendingItem->order->discount_amount),
+            if ($scope === 'all_pending') {
+                $pendingItemsToCancel = OrderItem::where('restaurant_id', $user->restaurant_id)
+                    ->where('product_id', $lockedItem->product_id)
+                    ->whereNull('prepared_at')
+                    ->where('status', '!=', 'cancelled')
+                    ->whereHas('order', function ($q) {
+                        $q->whereNotIn('status', ['completed', 'cancelled']);
+                    })
+                    ->with('order')
+                    ->lockForUpdate()
+                    ->get();
+
+                $affectedOrderIds = $pendingItemsToCancel
+                    ->pluck('order_id')
+                    ->filter()
+                    ->unique()
+                    ->values()
+                    ->all();
+
+                foreach ($pendingItemsToCancel as $pendingItem) {
+                    $cancelledQuantity += (float) $pendingItem->quantity;
+                    $pendingItem->update([
+                        'status' => 'cancelled',
+                        'notes' => $pendingItem->notes ? $pendingItem->notes.' '.$noteAppend : $noteAppend,
+                    ]);
+
+                    if ($pendingItem->order) {
+                        $this->recalculateCancelledOrder($pendingItem->order);
+                        app(\App\Services\OrderService::class)
+                            ->refreshHoldingReservations($pendingItem->order->fresh());
+                    }
+                }
+
+                $cancelledCount = (int) round($cancelledQuantity);
+            } else {
+                $availableQuantity = (int) floor((float) $lockedItem->quantity);
+                $requestedQuantity = (int) ($validated['quantity'] ?? $availableQuantity);
+
+                if ($requestedQuantity < 1 || $requestedQuantity > $availableQuantity) {
+                    throw \Illuminate\Validation\ValidationException::withMessages([
+                        'quantity' => "Số lượng hủy phải từ 1 đến {$availableQuantity} phần.",
                     ]);
                 }
+
+                $affectedOrderIds = $lockedItem->order_id ? [$lockedItem->order_id] : [];
+                $cancelledQuantity = (float) $requestedQuantity;
+                $cancelledCount = $requestedQuantity;
+
+                if ($requestedQuantity < $availableQuantity) {
+                    $ratio = $requestedQuantity / $availableQuantity;
+                    $cancelledItem = $lockedItem->replicate([
+                        'quantity',
+                        'discount_amount',
+                        'line_total',
+                        'status',
+                        'notes',
+                        'sent_to_kitchen_at',
+                        'prepared_at',
+                        'served_at',
+                        'client_item_id',
+                    ]);
+                    $cancelledItem->quantity = $requestedQuantity;
+                    $cancelledItem->discount_amount = round((float) $lockedItem->discount_amount * $ratio, 2);
+                    $cancelledItem->line_total = round((float) $lockedItem->line_total * $ratio, 2);
+                    $cancelledItem->status = 'cancelled';
+                    $cancelledItem->notes = $lockedItem->notes
+                        ? $lockedItem->notes.' '.$noteAppend
+                        : $noteAppend;
+                    $cancelledItem->save();
+
+                    $lockedItem->quantity = $availableQuantity - $requestedQuantity;
+                    $lockedItem->discount_amount = round(
+                        (float) $lockedItem->discount_amount - (float) $cancelledItem->discount_amount,
+                        2,
+                    );
+                    $lockedItem->line_total = round(
+                        (float) $lockedItem->line_total - (float) $cancelledItem->line_total,
+                        2,
+                    );
+                    $lockedItem->save();
+                    $auditItem = $cancelledItem;
+                } else {
+                    $lockedItem->update([
+                        'status' => 'cancelled',
+                        'notes' => $lockedItem->notes ? $lockedItem->notes.' '.$noteAppend : $noteAppend,
+                    ]);
+                }
+
+                if ($lockedItem->order) {
+                    $this->recalculateCancelledOrder($lockedItem->order);
+                    app(\App\Services\OrderService::class)
+                        ->refreshHoldingReservations($lockedItem->order->fresh());
+                }
             }
-        } else {
-            $item->loadMissing(['order.table', 'product']);
-            $item->update([
-                'status' => 'cancelled',
-                'notes' => $item->notes ? $item->notes.' '.$noteAppend : $noteAppend,
+
+            AuditLog::log('kitchen_item_cancelled', 'updated', $auditItem, null, [
+                'product_name' => $productName,
+                'table_name' => $tableName,
+                'scope' => $scope,
+                'reason' => $reason,
+                'cancelled_count' => $cancelledCount,
+                'cancelled_quantity' => $cancelledQuantity,
+                'cancelled_by' => $user->name,
             ]);
-            $cancelledCount = 1;
 
-            if ($item->order) {
-                $activeSubtotal = OrderItem::where('order_id', $item->order_id)
-                    ->where('status', '!=', 'cancelled')
-                    ->sum('line_total');
+            return compact(
+                'productName',
+                'tableName',
+                'cancelledCount',
+                'cancelledQuantity',
+                'affectedOrderIds',
+                'lockedItem',
+            );
+        });
 
-                $item->order->update([
-                    'subtotal' => $activeSubtotal,
-                    'total_amount' => max(0, $activeSubtotal - $item->order->discount_amount),
-                ]);
-            }
-        }
-
-        AuditLog::log('kitchen_item_cancelled', 'updated', $item, null, [
-            'product_name' => $productName,
-            'table_name' => $tableName,
-            'scope' => $scope,
-            'reason' => $reason,
-            'cancelled_count' => $cancelledCount,
-            'cancelled_by' => $user->name,
-        ]);
+        $productName = $result['productName'];
+        $tableName = $result['tableName'];
+        $cancelledCount = $result['cancelledCount'];
+        $cancelledQuantity = $result['cancelledQuantity'];
+        $affectedOrderIds = $result['affectedOrderIds'];
+        $item = $result['lockedItem'];
 
         $this->broadcastSafely(
             new KitchenUpdated($user->restaurant_id),
@@ -470,21 +551,55 @@ class KitchenController extends Controller
                 restaurantId: $user->restaurant_id,
                 productName: $productName,
                 tableName: $tableName,
-                quantity: (float) $item->quantity,
+                quantity: $cancelledQuantity,
                 scope: $scope,
                 reason: $reason !== '' ? $reason : null,
                 cancelledByName: $user->name,
                 cancelledCount: $cancelledCount,
                 orderId: $item->order_id,
+                orderIds: $affectedOrderIds,
             ),
             'kitchen.item_cancelled',
         );
 
         $msg = $scope === 'all_pending'
             ? "Đã hủy toàn bộ {$cancelledCount} phần món {$productName} trên các đơn chờ chế biến!"
-            : "Đã hủy món {$productName} (Bàn {$tableName}) thành công!";
+            : "Đã hủy {$cancelledCount} phần món {$productName} (Bàn {$tableName}) thành công!";
 
         return back()->with('success', $msg);
+    }
+
+    private function recalculateCancelledOrder(\App\Models\Order $order): void
+    {
+        $activeSubtotal = OrderItem::where('order_id', $order->id)
+            ->where('status', '!=', 'cancelled')
+            ->sum('line_total');
+
+        $order->update([
+            'subtotal' => $activeSubtotal,
+            'total_amount' => max(0, $activeSubtotal - $order->discount_amount),
+        ]);
+
+        $hasActiveItems = OrderItem::where('order_id', $order->id)
+            ->where('status', '!=', 'cancelled')
+            ->exists();
+
+        if (! $hasActiveItems
+            && $order->payment_status === 'unpaid'
+            && ! in_array($order->status, ['completed', 'cancelled'], true)) {
+            $order->update([
+                'status' => 'cancelled',
+                'cancelled_at' => now(),
+                'note' => trim(($order->note ? $order->note.' ' : '').'[Hủy bởi bếp]'),
+            ]);
+
+            if ($order->table_id) {
+                RestaurantTable::where('id', $order->table_id)
+                    ->where('restaurant_id', $order->restaurant_id)
+                    ->where('branch_id', $order->branch_id)
+                    ->update(['status' => 'available']);
+            }
+        }
     }
 
     /**

@@ -22,6 +22,7 @@ class KitchenItemCancelled implements ShouldBroadcastNow
         public string $cancelledByName,
         public int $cancelledCount,
         public ?int $orderId = null,
+        public array $orderIds = [],
     ) {}
 
     public function broadcastOn(): array
@@ -49,6 +50,7 @@ class KitchenItemCancelled implements ShouldBroadcastNow
             'cancelled_by_name' => $this->cancelledByName,
             'cancelled_count' => $this->cancelledCount,
             'order_id' => $this->orderId,
+            'order_ids' => $this->orderIds,
             'timestamp' => now()->toIso8601String(),
         ];
     }

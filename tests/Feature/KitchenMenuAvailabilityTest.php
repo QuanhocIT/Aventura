@@ -2,7 +2,11 @@
 
 namespace Tests\Feature;
 
+use App\Events\Kitchen\KitchenItemCancelled;
+use App\Events\Kitchen\KitchenUpdated;
 use App\Models\Area;
+use App\Models\Order;
+use App\Models\OrderItem;
 use App\Models\Product;
 use App\Models\ProductCategory;
 use App\Models\Restaurant;
@@ -10,6 +14,7 @@ use App\Models\RestaurantBranch;
 use App\Models\RestaurantTable;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Event;
 use Tests\TestCase;
 
 class KitchenMenuAvailabilityTest extends TestCase
@@ -238,5 +243,65 @@ class KitchenMenuAvailabilityTest extends TestCase
         $this->assertDatabaseMissing('temporary_orders', [
             'restaurant_id' => $this->restaurant->id,
         ]);
+    }
+
+    public function test_kitchen_can_cancel_only_part_of_an_item_quantity(): void
+    {
+        Event::fake([KitchenItemCancelled::class, KitchenUpdated::class]);
+
+        $order = Order::create([
+            'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
+            'table_id' => $this->table->id,
+            'order_number' => 'KITCHEN-PARTIAL-1',
+            'channel' => 'qr',
+            'status' => 'preparing',
+            'payment_status' => 'unpaid',
+            'subtotal' => 150000,
+            'total_amount' => 150000,
+        ]);
+
+        $item = OrderItem::create([
+            'restaurant_id' => $this->restaurant->id,
+            'order_id' => $order->id,
+            'product_id' => $this->product->id,
+            'quantity' => 3,
+            'unit_price' => 50000,
+            'line_total' => 150000,
+            'status' => 'preparing',
+            'sent_to_kitchen_at' => now(),
+        ]);
+
+        $response = $this->actingAs($this->kitchenStaff)->post(
+            route('kitchen.cancel-item', $item),
+            [
+                'scope' => 'single',
+                'quantity' => 1,
+                'reason' => 'Hết nguyên liệu một phần',
+            ],
+        );
+
+        $response->assertRedirect();
+        $item->refresh();
+        $order->refresh();
+
+        $this->assertSame(2.0, (float) $item->quantity);
+        $this->assertSame('preparing', $item->status);
+        $this->assertSame(100000.0, (float) $item->line_total);
+        $this->assertSame(100000.0, (float) $order->subtotal);
+        $this->assertSame(100000.0, (float) $order->total_amount);
+        $this->assertDatabaseHas('order_items', [
+            'order_id' => $order->id,
+            'product_id' => $this->product->id,
+            'quantity' => 1,
+            'line_total' => 50000,
+            'status' => 'cancelled',
+        ]);
+
+        Event::assertDispatched(KitchenItemCancelled::class, function (KitchenItemCancelled $event) use ($order): bool {
+            return $event->orderId === $order->id
+                && $event->cancelledCount === 1
+                && $event->quantity === 1.0;
+        });
     }
 }

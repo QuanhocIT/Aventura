@@ -144,12 +144,14 @@ const submitKitchenWaste = () => {
 const showCancelItemModal = ref(false);
 const selectedCancelItem = ref<PendingItem | null>(null);
 const cancelScope = ref<'single' | 'all_pending'>('single');
+const cancelQuantity = ref(1);
 const cancelReason = ref('');
 const isSubmittingCancel = ref(false);
 
 const openCancelModal = (item: PendingItem) => {
     selectedCancelItem.value = item;
     cancelScope.value = 'single';
+    cancelQuantity.value = 1;
     cancelReason.value = '';
     showCancelItemModal.value = true;
 };
@@ -161,11 +163,25 @@ const countPendingItemsForSelected = computed(() => {
 
     const name = selectedCancelItem.value.product_name;
 
-    return activePendingItems.value.filter((i) => i.product_name === name).length;
+    return activePendingItems.value
+        .filter((i) => i.product_name === name)
+        .reduce((total, item) => total + Math.max(0, Math.floor(item.quantity)), 0);
 });
 
 const submitCancelItem = () => {
     if (!selectedCancelItem.value) {
+        return;
+    }
+
+    if (
+        cancelScope.value === 'single' &&
+        (cancelQuantity.value < 1 ||
+            cancelQuantity.value > Math.floor(selectedCancelItem.value.quantity))
+    ) {
+        toast.error(
+            `Số phần hủy phải từ 1 đến ${Math.floor(selectedCancelItem.value.quantity)}.`,
+        );
+
         return;
     }
 
@@ -174,6 +190,10 @@ const submitCancelItem = () => {
         `/kitchen/items/${selectedCancelItem.value.id}/cancel`,
         {
             scope: cancelScope.value,
+            quantity:
+                cancelScope.value === 'single'
+                    ? cancelQuantity.value
+                    : undefined,
             reason: cancelReason.value,
         },
         {
@@ -2217,8 +2237,24 @@ onUnmounted(() => {
                                         Chỉ hủy món này ở Bàn {{ selectedCancelItem.table_name }}
                                     </p>
                                     <p class="text-[11px] text-muted-foreground mt-0.5">
-                                        Hủy {{ Math.round(selectedCancelItem.quantity) }} phần "{{ selectedCancelItem.product_name }}" của đơn hiện tại.
+                                        Có {{ Math.floor(selectedCancelItem.quantity) }} phần "{{ selectedCancelItem.product_name }}" trong đơn hiện tại.
                                     </p>
+                                    <div class="mt-3 flex items-center gap-3">
+                                        <label class="text-[11px] font-bold text-slate-600 dark:text-slate-300">
+                                            Số phần cần hủy
+                                        </label>
+                                        <input
+                                            v-model.number="cancelQuantity"
+                                            type="number"
+                                            min="1"
+                                            :max="Math.floor(selectedCancelItem.quantity)"
+                                            :disabled="cancelScope !== 'single'"
+                                            class="h-9 w-20 rounded-lg border border-rose-200 bg-white px-2 text-center text-sm font-black text-rose-600 outline-none focus:border-rose-500 focus:ring-2 focus:ring-rose-500/20 disabled:cursor-not-allowed disabled:opacity-50 dark:border-rose-900/50 dark:bg-slate-950"
+                                        />
+                                        <span class="text-[11px] text-muted-foreground">
+                                            Còn lại {{ Math.max(0, Math.floor(selectedCancelItem.quantity) - cancelQuantity) }} phần
+                                        </span>
+                                    </div>
                                 </div>
                             </label>
 
