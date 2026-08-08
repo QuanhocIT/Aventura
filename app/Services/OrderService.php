@@ -288,7 +288,7 @@ class OrderService
 
             foreach ($itemsToCreate as $item) {
                 $item['order_id'] = $order->id;
-                OrderItem::create($item);
+                $createdItem = OrderItem::create($item);
 
                 // Reserve inventory (holding stock)
                 $product = $products->get($item['product_id']);
@@ -299,6 +299,7 @@ class OrderService
                             'restaurant_id' => $restaurantId,
                             'branch_id' => $branchId,
                             'order_id' => $order->id,
+                            'order_item_id' => $createdItem->id,
                             'ingredient_id' => $recipe->ingredient_id,
                             'reserved_quantity' => $totalUsed,
                             'status' => 'holding',
@@ -989,6 +990,7 @@ class OrderService
                     'restaurant_id' => $order->restaurant_id,
                     'branch_id' => $order->branch_id,
                     'order_id' => $order->id,
+                    'order_item_id' => $item->id,
                     'ingredient_id' => $recipe->ingredient_id,
                     'reserved_quantity' => $this->recipeUsageInInventoryUnit($recipe, (float) $item->quantity),
                     'status' => 'holding',

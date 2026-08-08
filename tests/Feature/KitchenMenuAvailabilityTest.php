@@ -304,4 +304,45 @@ class KitchenMenuAvailabilityTest extends TestCase
                 && $event->quantity === 1.0;
         });
     }
+
+    public function test_kitchen_staff_can_mark_an_item_as_started_preparing(): void
+    {
+        Event::fake([KitchenUpdated::class]);
+
+        $order = Order::create([
+            'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
+            'table_id' => $this->table->id,
+            'order_number' => 'KITCHEN-START-1',
+            'channel' => 'dine_in',
+            'status' => 'pending',
+            'payment_status' => 'unpaid',
+            'subtotal' => 50000,
+            'total_amount' => 50000,
+        ]);
+
+        $item = OrderItem::create([
+            'restaurant_id' => $this->restaurant->id,
+            'order_id' => $order->id,
+            'product_id' => $this->product->id,
+            'quantity' => 1,
+            'unit_price' => 50000,
+            'line_total' => 50000,
+            'status' => 'pending',
+            'sent_to_kitchen_at' => now(),
+        ]);
+
+        $response = $this->actingAs($this->kitchenStaff)->post(
+            route('kitchen.start-preparing', $item),
+        );
+
+        $response->assertRedirect();
+        $item->refresh();
+        $order->refresh();
+
+        $this->assertNotNull($item->started_preparing_at);
+        $this->assertSame('preparing', $item->status);
+        $this->assertSame('preparing', $order->status);
+        Event::assertDispatched(KitchenUpdated::class);
+    }
 }

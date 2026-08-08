@@ -8,6 +8,7 @@ use App\Models\ApprovalRequest;
 use App\Models\Customer;
 use App\Models\Delivery\DeliveryDetail;
 use App\Models\Order;
+use App\Models\OrderItem;
 use App\Models\Payment;
 use App\Models\Product;
 use App\Models\ProductCategory;
@@ -22,6 +23,7 @@ use App\Services\LoyaltyService;
 use App\Services\ApprovalService;
 use App\Services\OrderService;
 use App\Services\OrderRefundService;
+use App\Services\OrderItemCancellationService;
 use App\Support\Tenant\TenantContext;
 use App\Support\TenantRule;
 use Illuminate\Http\JsonResponse;
@@ -247,7 +249,7 @@ class OrdersController extends Controller
             $preparedCount = $items->whereNotNull('prepared_at')->count();
             $servedCount = $items->whereNotNull('served_at')->count();
             $inProgressCount = $items
-                ->where('status', 'preparing')
+                ->whereNotNull('started_preparing_at')
                 ->whereNull('prepared_at')
                 ->whereNull('served_at')
                 ->count();
@@ -298,12 +300,16 @@ class OrdersController extends Controller
                 'notes' => $item->notes ?? null,
                 'status' => $item->status ?? null,
                 'sent_to_kitchen_at' => $item->sent_to_kitchen_at?->format('H:i'),
+                'started_preparing_at' => $item->started_preparing_at?->format('H:i'),
                 'prepared_at' => $item->prepared_at?->format('H:i'),
                 'prepared_at_formatted' => $item->prepared_at?->format('H:i - d/m/Y'),
                 'prepared_by_name' => $item->preparedBy?->name ?? null,
                 'served_at' => $item->served_at?->format('H:i'),
                 'served_at_formatted' => $item->served_at?->format('H:i - d/m/Y'),
                 'served_by_name' => $item->servedBy?->name ?? null,
+                'cancelled_at' => $item->cancelled_at?->format('H:i'),
+                'cancelled_by_name' => $item->cancelledBy?->name ?? null,
+                'cancellation_reason' => $item->cancellation_reason,
             ])->values()->all(),
             'delivery' => $o->deliveryDetail ? [
                 'customer_name' => $o->deliveryDetail->customer_name,
@@ -438,6 +444,88 @@ class OrdersController extends Controller
         }
 
         return back()->with('success', 'Đã cập nhật trạng thái đơn hàng.');
+    }
+
+    /**
+     * Hủy một món từ POS. Món chưa bắt đầu được bếp xử lý ngay; món đã bắt
+     * đầu sẽ tạo yêu cầu quản lý nếu người thao tác chưa có quyền duyệt.
+     */
+    public function cancelItem(
+        Request $request,
+        Order $order,
+        OrderItem $item,
+    ): RedirectResponse|JsonResponse {
+        $user = $request->user();
+        abort_if($order->restaurant_id !== $user->restaurant_id, 403);
+        abort_if($item->restaurant_id !== $user->restaurant_id || $item->order_id !== $order->id, 404);
+        $hasApprovalAuthority = $user->can('approve_requests') || $user->hasAnyRole(['owner', 'manager']);
+        abort_unless($user->can('manage_orders')
+            || $user->can('create_orders')
+            || $user->can('process_payments')
+            || $hasApprovalAuthority, 403);
+        abort_unless($user->canAccessBranch((int) $order->branch_id), 403);
+
+        $data = $request->validate([
+            'reason' => ['required', 'string', 'min:3', 'max:500'],
+        ]);
+        $reason = trim($data['reason']);
+
+        $freshItem = OrderItem::whereKey($item->id)->firstOrFail();
+        $hasStarted = $freshItem->started_preparing_at !== null
+            || $freshItem->prepared_at !== null
+            || $freshItem->status === 'preparing';
+
+        if ($hasStarted && ! $hasApprovalAuthority) {
+            $alreadyPending = ApprovalRequest::forRestaurant($order->restaurant_id)
+                ->where('operation_type', 'order_item_cancel')
+                ->where('status', 'pending')
+                ->get()
+                ->contains(fn (ApprovalRequest $approval): bool => (int) data_get(
+                    $approval->operation_data,
+                    'order_item_id',
+                ) === (int) $item->id);
+
+            if ($alreadyPending) {
+                return back()->withErrors(['item' => 'Món này đã có yêu cầu hủy đang chờ quản lý duyệt.']);
+            }
+
+            $approval = app(ApprovalService::class)->submitRequest('order_item_cancel', [
+                'order_id' => $order->id,
+                'order_number' => $order->order_number,
+                'order_item_id' => $item->id,
+                'product_name' => $item->product?->name,
+                'table_name' => $order->table?->name,
+                'reason' => $reason,
+                'was_started' => true,
+            ], $user);
+
+            AuditLog::log('order_item_cancel_requested', 'updated', $item, null, [
+                'approval_id' => $approval->id,
+                'order_id' => $order->id,
+                'reason' => $reason,
+                'requested_by_user_id' => $user->id,
+                'requested_by_user_name' => $user->name,
+            ]);
+
+            return back()->with('success', 'Đã gửi yêu cầu hủy món đến quản lý phê duyệt.');
+        }
+
+        try {
+            $result = app(OrderItemCancellationService::class)->cancel($item, $user, $reason);
+        } catch (\Throwable $exception) {
+            if ($request->wantsJson()) {
+                return response()->json(['error' => $exception->getMessage()], 422);
+            }
+
+            return back()->withErrors(['item' => $exception->getMessage()]);
+        }
+
+        $message = "Đã hủy món {$result['product_name']} và báo xuống bếp.";
+        if ((float) $result['refund_amount'] > 0) {
+            $message .= ' Đã ghi nhận hoàn '.number_format($result['refund_amount'], 0, ',', '.').'đ.';
+        }
+
+        return back()->with('success', $message);
     }
 
     /**

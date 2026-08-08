@@ -49,7 +49,24 @@ class OrderFulfillmentTrackingTest extends TestCase
 
         $repo = app(OrderRepositoryInterface::class);
         $this->assertTrue($repo->getOrdersQuery($restaurant->id, [
+            'status' => 'waiting_preparing',
+            'branch_id' => $branch->id,
+        ])->get()->contains('id', $order->id));
+        $this->assertFalse($repo->getOrdersQuery($restaurant->id, [
             'status' => 'preparing',
+            'branch_id' => $branch->id,
+        ])->get()->contains('id', $order->id));
+
+        $this->actingAs($kitchenUser)
+            ->post(route('kitchen.start-preparing', $item))
+            ->assertRedirect();
+
+        $this->assertTrue($repo->getOrdersQuery($restaurant->id, [
+            'status' => 'preparing',
+            'branch_id' => $branch->id,
+        ])->get()->contains('id', $order->id));
+        $this->assertFalse($repo->getOrdersQuery($restaurant->id, [
+            'status' => 'waiting_preparing',
             'branch_id' => $branch->id,
         ])->get()->contains('id', $order->id));
 

@@ -76,6 +76,7 @@ class KitchenController extends Controller
                 'notes' => $item->notes,
                 'sent_to_kitchen_at' => $item->sent_to_kitchen_at ? $item->sent_to_kitchen_at->format('H:i') : $item->created_at->format('H:i'),
                 'sent_to_kitchen_at_raw' => ($item->sent_to_kitchen_at ?? $item->created_at)->toIso8601String(),
+                'started_preparing_at' => $item->started_preparing_at?->toIso8601String(),
                 'status' => $item->status,
                 'creator_name' => $item->order->creator?->name ?? 'Hệ thống',
                 'table_name' => $item->order->table?->name ?? 'Mang về',
@@ -188,6 +189,40 @@ class KitchenController extends Controller
         ];
     }
 
+    public function startPreparing(Request $request, OrderItem $item): RedirectResponse
+    {
+        $user = $request->user();
+        abort_unless($user->can('manage_kitchen'), 403);
+        abort_if($item->restaurant_id !== $user->restaurant_id, 403);
+
+        if ($item->prepared_at !== null || $item->status === 'served') {
+            return back()->with('success', 'Món ăn đã hoàn tất, không cần đánh dấu bắt đầu nữa.');
+        }
+
+        $startedAt = $item->started_preparing_at ?? now();
+
+        $item->update([
+            'sent_to_kitchen_at' => $item->sent_to_kitchen_at ?? $startedAt,
+            'started_preparing_at' => $startedAt,
+            'status' => in_array($item->status, ['pending', 'sent'], true)
+                ? 'preparing'
+                : $item->status,
+        ]);
+
+        if ($item->order_id) {
+            \App\Models\Order::where('id', $item->order_id)
+                ->whereIn('status', ['pending', 'confirmed'])
+                ->update(['status' => 'preparing']);
+        }
+
+        $this->broadcastSafely(
+            new KitchenUpdated($user->restaurant_id),
+            'kitchen.updated',
+        );
+
+        return back()->with('success', 'Đã đánh dấu bếp bắt đầu chế biến món!');
+    }
+
     public function prepare(Request $request, OrderItem $item): RedirectResponse
     {
         $user = $request->user();
@@ -200,6 +235,7 @@ class KitchenController extends Controller
 
         $item->update([
             'sent_to_kitchen_at' => $item->sent_to_kitchen_at ?? now(),
+            'started_preparing_at' => $item->started_preparing_at ?? now(),
             'prepared_at' => now(),
             'prepared_by' => $user->id,
             // Keep `preparing` as the kitchen workflow state. prepared_at
@@ -241,6 +277,10 @@ class KitchenController extends Controller
         OrderItem::whereIn('id', $itemsToUpdate->pluck('id'))
             ->whereNull('sent_to_kitchen_at')
             ->update(['sent_to_kitchen_at' => now()]);
+
+        OrderItem::whereIn('id', $itemsToUpdate->pluck('id'))
+            ->whereNull('started_preparing_at')
+            ->update(['started_preparing_at' => now()]);
 
         $updatedCount = OrderItem::whereIn('id', $itemsToUpdate->pluck('id'))
             ->update([
@@ -393,7 +433,7 @@ class KitchenController extends Controller
         $validated = $request->validate([
             'scope' => ['required', 'string', 'in:single,all_pending'],
             'quantity' => ['nullable', 'integer', 'min:1'],
-            'reason' => ['nullable', 'string', 'max:500'],
+            'reason' => ['required', 'string', 'min:3', 'max:500'],
         ]);
 
         $scope = $validated['scope'];
@@ -441,10 +481,23 @@ class KitchenController extends Controller
 
                 foreach ($pendingItemsToCancel as $pendingItem) {
                     $cancelledQuantity += (float) $pendingItem->quantity;
+                    $wasStarted = $pendingItem->started_preparing_at !== null
+                        || $pendingItem->prepared_at !== null
+                        || $pendingItem->status === 'preparing';
                     $pendingItem->update([
                         'status' => 'cancelled',
+                        'cancelled_at' => now(),
+                        'cancelled_by' => $user->id,
+                        'cancellation_reason' => $reason,
                         'notes' => $pendingItem->notes ? $pendingItem->notes.' '.$noteAppend : $noteAppend,
                     ]);
+
+                    app(\App\Services\InventoryService::class)->handleCancelledItem(
+                        $pendingItem->fresh(['order', 'product.recipes.unit', 'product.recipes.ingredient.unit']),
+                        $user,
+                        $wasStarted,
+                        $reason,
+                    );
 
                     if ($pendingItem->order) {
                         $this->recalculateCancelledOrder($pendingItem->order);
@@ -480,11 +533,17 @@ class KitchenController extends Controller
                         'prepared_at',
                         'served_at',
                         'client_item_id',
+                        'cancelled_at',
+                        'cancelled_by',
+                        'cancellation_reason',
                     ]);
                     $cancelledItem->quantity = $requestedQuantity;
                     $cancelledItem->discount_amount = round((float) $lockedItem->discount_amount * $ratio, 2);
                     $cancelledItem->line_total = round((float) $lockedItem->line_total * $ratio, 2);
                     $cancelledItem->status = 'cancelled';
+                    $cancelledItem->cancelled_at = now();
+                    $cancelledItem->cancelled_by = $user->id;
+                    $cancelledItem->cancellation_reason = $reason;
                     $cancelledItem->notes = $lockedItem->notes
                         ? $lockedItem->notes.' '.$noteAppend
                         : $noteAppend;
@@ -502,10 +561,23 @@ class KitchenController extends Controller
                     $lockedItem->save();
                     $auditItem = $cancelledItem;
                 } else {
+                    $wasStarted = $lockedItem->started_preparing_at !== null
+                        || $lockedItem->prepared_at !== null
+                        || $lockedItem->status === 'preparing';
                     $lockedItem->update([
                         'status' => 'cancelled',
+                        'cancelled_at' => now(),
+                        'cancelled_by' => $user->id,
+                        'cancellation_reason' => $reason,
                         'notes' => $lockedItem->notes ? $lockedItem->notes.' '.$noteAppend : $noteAppend,
                     ]);
+
+                    app(\App\Services\InventoryService::class)->handleCancelledItem(
+                        $lockedItem->fresh(['order', 'product.recipes.unit', 'product.recipes.ingredient.unit']),
+                        $user,
+                        $wasStarted,
+                        $reason,
+                    );
                 }
 
                 if ($lockedItem->order) {

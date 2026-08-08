@@ -192,7 +192,7 @@ class OnlineOrderService
                 ]);
 
                 foreach ($orderItems as $item) {
-                    OrderItem::create([
+                    $createdItem = OrderItem::create([
                         'restaurant_id' => $config->restaurant_id,
                         'order_id' => $order->id,
                         'product_id' => $item['product_id'],
@@ -211,6 +211,7 @@ class OnlineOrderService
                                 'restaurant_id' => $config->restaurant_id,
                                 'branch_id' => $branchId,
                                 'order_id' => $order->id,
+                                'order_item_id' => $createdItem->id,
                                 'ingredient_id' => $recipe->ingredient_id,
                                 'reserved_quantity' => app(UnitConversionService::class)->recipeQuantityInIngredientUnit($recipe)
                                     * (float) $item['quantity']
