@@ -13,19 +13,22 @@ use App\Models\ProductCategory;
 use App\Models\RestaurantTable;
 use App\Models\ScheduleAssignment;
 use App\Models\TemporaryOrder;
+use App\Models\User;
 use App\Models\WorkShift;
 use App\Services\InventoryAvailabilityService;
 use App\Support\Tenant\TenantContext;
 use Carbon\Carbon;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Inertia\Inertia;
 use Inertia\Response;
 
 class CashierDashboardController extends Controller
 {
-    public function index(): Response
+    public function index(Request $request): Response
     {
-        $user = auth()->user();
+        /** @var User|null $user */
+        $user = $request->user();
         $restaurant = $user?->restaurant;
         $employee = $user?->employee;
         $tenantContext = app(TenantContext::class);
@@ -136,7 +139,10 @@ class CashierDashboardController extends Controller
                             'note' => $activeOrder->note,
                             'is_split' => (bool) $activeOrder->is_split,
                             'is_red_flagged' => (bool) $activeOrder->is_red_flagged,
-                            'items' => $activeOrder->items->map(fn ($item) => [
+                            'items' => $activeOrder->items
+                                ->where('status', '!=', 'cancelled')
+                                ->values()
+                                ->map(fn ($item) => [
                                 'id' => $item->id,
                                 'product_id' => $item->product_id,
                                 'product_name' => $item->product?->name,
@@ -146,7 +152,7 @@ class CashierDashboardController extends Controller
                                 'status' => $item->status,
                                 'prepared_at' => $item->prepared_at?->toIso8601String(),
                                 'served_at' => $item->served_at?->toIso8601String(),
-                            ]),
+                                ]),
                         ] : null,
                     ];
                 })->all();
@@ -268,7 +274,8 @@ class CashierDashboardController extends Controller
                     'created_at' => $to->created_at->format('H:i'),
                     'created_date' => $to->created_at->format('d/m/Y'),
                     'items' => collect($to->cart_data)->map(fn ($item) => [
-                        'product_name' => $item['name'] ?? 'Món ăn',
+                        'product_id' => (int) ($item['product_id'] ?? ($item['product']['id'] ?? 0)),
+                        'product_name' => $item['name'] ?? ($item['product_name'] ?? ($item['product']['name'] ?? 'Món ăn')),
                         'quantity' => (float) ($item['quantity'] ?? 1),
                         'unit_price' => (float) ($item['unit_price'] ?? 0),
                         'line_total' => (float) ($item['line_total'] ?? 0),

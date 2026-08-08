@@ -112,6 +112,25 @@ class OrderSplitService
         }
 
         return DB::transaction(function () use ($source, $target) {
+            // Lock both orders before moving items so simultaneous cashier
+            // actions cannot merge the same bill twice.
+            $source = Order::withoutGlobalScopes()
+                ->whereKey($source->id)
+                ->lockForUpdate()
+                ->firstOrFail();
+            $target = Order::withoutGlobalScopes()
+                ->whereKey($target->id)
+                ->lockForUpdate()
+                ->firstOrFail();
+
+            if ($source->restaurant_id !== $target->restaurant_id
+                || $source->branch_id !== $target->branch_id) {
+                throw ValidationException::withMessages(['order' => 'Hai don khong thuoc cung chi nhanh.']);
+            }
+
+            $this->assertEditable($source);
+            $this->assertEditable($target);
+
             OrderItem::withoutGlobalScopes()
                 ->where('order_id', $source->id)
                 ->update(['order_id' => $target->id]);
@@ -153,8 +172,15 @@ class OrderSplitService
         $this->assertEditable($order);
 
         DB::transaction(function () use ($order, $tableId) {
+            $order = Order::withoutGlobalScopes()
+                ->whereKey($order->id)
+                ->lockForUpdate()
+                ->firstOrFail();
+            $this->assertEditable($order);
+
             $newTable = RestaurantTable::withoutGlobalScopes()
                 ->where('restaurant_id', $order->restaurant_id)
+                ->where('branch_id', $order->branch_id)
                 ->where('id', $tableId)
                 ->lockForUpdate()
                 ->first();

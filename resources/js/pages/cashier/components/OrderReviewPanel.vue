@@ -7,9 +7,9 @@ import {
     ShoppingCart,
     Trash2,
 } from 'lucide-vue-next';
+import { computed } from 'vue';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { computed } from 'vue';
 import type { OrderItem, TableItem } from '../types';
 
 const props = defineProps<{
@@ -22,6 +22,7 @@ const props = defineProps<{
     isSubmitting: boolean;
     canProcessPayments: boolean;
     canSplitOrders: boolean;
+    canManageTableOrders: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -34,6 +35,8 @@ const emit = defineEmits<{
     (e: 'openPayment'): void;
     (e: 'sendToKitchen'): void;
     (e: 'openSplitOrder'): void;
+    (e: 'openMoveTable'): void;
+    (e: 'openMergeTable'): void;
 }>();
 
 const numberFormat = (val: number) =>
@@ -274,6 +277,24 @@ const paymentBlockMessage = computed(() => {
                     @click="emit('openSplitOrder')"
                 >
                     Tách đơn
+                </Button>
+
+                <Button
+                    v-if="isNotified && canManageTableOrders"
+                    variant="outline"
+                    class="h-10 rounded-xl border-indigo-500/50 bg-transparent text-xs font-bold text-indigo-300 hover:bg-indigo-500/10"
+                    @click="emit('openMoveTable')"
+                >
+                    Chuyển bàn
+                </Button>
+
+                <Button
+                    v-if="isNotified && canManageTableOrders"
+                    variant="outline"
+                    class="h-10 rounded-xl border-violet-500/50 bg-transparent text-xs font-bold text-violet-300 hover:bg-violet-500/10"
+                    @click="emit('openMergeTable')"
+                >
+                    Gộp bàn
                 </Button>
             </div>
         </footer>

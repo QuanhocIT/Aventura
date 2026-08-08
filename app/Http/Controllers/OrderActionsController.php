@@ -78,7 +78,10 @@ class OrderActionsController extends Controller
     /** Danh sách bàn trống — cho dialog chuyển bàn. */
     public function availableTables(Request $request): JsonResponse
     {
-        abort_unless($request->user()->can('manage_orders'), 403);
+        abort_unless(
+            $request->user()->can('manage_orders') || $request->user()->can('split_orders'),
+            403
+        );
         $branchId = app(TenantContext::class)->activeBranchId();
         abort_if($branchId === null, 403, 'Vui lòng chọn chi nhánh trước khi chuyển bàn.');
 
@@ -94,7 +97,10 @@ class OrderActionsController extends Controller
 
     private function authorizeOrder(Request $request, Order $order): void
     {
-        abort_unless($request->user()->can('manage_orders'), 403);
+        abort_unless(
+            $request->user()->can('manage_orders') || $request->user()->can('split_orders'),
+            403
+        );
         abort_unless($order->restaurant_id === $request->user()->restaurant_id, 403);
         abort_unless($request->user()->canAccessBranch((int) $order->branch_id), 403);
     }

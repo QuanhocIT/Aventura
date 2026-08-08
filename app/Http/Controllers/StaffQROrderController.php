@@ -357,7 +357,7 @@ class StaffQROrderController extends Controller
     public function rejectedLogs(Request $request): JsonResponse
     {
         $user = $request->user();
-        abort_unless($user->hasAnyRole(['owner', 'manager']), 403);
+        abort_unless($user->hasAnyRole(['owner', 'manager']) || $user->can('create_orders') || $user->can('manage_orders'), 403);
         $restaurantId = $user->restaurant_id;
 
         $logs = TemporaryOrder::where('restaurant_id', $restaurantId)

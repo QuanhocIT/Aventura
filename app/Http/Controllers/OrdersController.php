@@ -12,6 +12,7 @@ use App\Models\Payment;
 use App\Models\Product;
 use App\Models\ProductCategory;
 use App\Models\RestaurantTable;
+use App\Models\TemporaryOrder;
 use App\Models\User;
 use App\Repositories\OrderRepositoryInterface;
 use App\Services\CdpService;
@@ -323,6 +324,67 @@ class OrdersController extends Controller
             'branch_id' => $branchId,
         ])->count();
 
+        // A QR request is stored as a temporary order until a staff member
+        // confirms it. Keep rejected QR requests visible in the same date
+        // view as cancelled official orders so a rejection is not mistaken
+        // for a missing record.
+        $cancelledQrOrdersQuery = TemporaryOrder::where('restaurant_id', $restaurantId)
+            ->where('status', 'cancelled')
+            ->whereDate('updated_at', $dateFilter)
+            ->with(['table.area', 'branch:id,name', 'cancelledBy:id,name'])
+            ->latest('updated_at');
+
+        if ($this->tenantContext->isBranchScoped() || $this->tenantContext->isUnassigned()) {
+            $this->tenantContext->applyBranchScope($cancelledQrOrdersQuery);
+        }
+
+        $cancelledQrOrders = $cancelledQrOrdersQuery->get()->map(function (TemporaryOrder $temporaryOrder) {
+            $items = collect($temporaryOrder->cart_data ?? []);
+
+            return [
+                'id' => $temporaryOrder->id,
+                'order_number' => 'QR-TEMP-'.$temporaryOrder->id,
+                'branch_id' => $temporaryOrder->branch_id,
+                'branch_name' => $temporaryOrder->branch?->name ?? 'Chưa xác định',
+                'status' => 'cancelled',
+                'payment_status' => 'unpaid',
+                'channel' => 'qr',
+                'fulfillment_status' => 'pending',
+                'table_name' => $temporaryOrder->table?->name,
+                'area_name' => $temporaryOrder->table?->area?->name,
+                'total_amount' => (float) $temporaryOrder->total_amount,
+                'items_count' => $items->count(),
+                'items_prepared_count' => 0,
+                'items_served_count' => 0,
+                'items_in_progress_count' => 0,
+                'items_ready_count' => 0,
+                'created_at' => $temporaryOrder->created_at->format('H:i'),
+                'created_at_full' => $temporaryOrder->created_at->format('H:i:s - d/m/Y'),
+                'created_at_formatted' => $temporaryOrder->created_at->format('H:i - d/m/Y'),
+                'completed_at' => null,
+                'completed_at_full' => null,
+                'completed_at_formatted' => null,
+                'note' => $temporaryOrder->notes,
+                'items' => $items->map(fn (array $item, int $index) => [
+                    'id' => $item['product_id'] ?? $index,
+                    'name' => $item['name'] ?? 'Món ăn',
+                    'quantity' => (float) ($item['quantity'] ?? 0),
+                    'unit_price' => (float) ($item['unit_price'] ?? 0),
+                    'line_total' => (float) ($item['line_total'] ?? 0),
+                    'notes' => $item['notes'] ?? null,
+                    'status' => 'cancelled',
+                ])->values()->all(),
+                'delivery' => null,
+                'cancelled_at' => $temporaryOrder->updated_at->format('H:i - d/m/Y'),
+                'cancelled_by_name' => $temporaryOrder->cancelledBy?->name ?? 'Hệ thống',
+                'cancellation_reason' => $temporaryOrder->cancellation_reason,
+            ];
+        })->values()->all();
+
+        $cancelledQrCount = count($cancelledQrOrders);
+        $summary['total'] += $cancelledQrCount;
+        $summary['cancelled'] += $cancelledQrCount;
+
         $autoPaySetting = DB::table('restaurant_settings')
             ->where('restaurant_id', $restaurantId)
             ->where('key_name', 'auto_pay_on_last_shift_close')
@@ -331,6 +393,7 @@ class OrdersController extends Controller
 
         return Inertia::render('orders/Index', [
             'orders' => $orders,
+            'cancelledQrOrders' => $cancelledQrOrders,
             'summary' => $summary,
             'filters' => ['status' => $statusFilter, 'date' => $dateFilter],
             'autoPayEnabled' => $autoPayEnabled,

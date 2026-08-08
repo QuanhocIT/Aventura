@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import axios from 'axios';
-import { ref } from 'vue';
 import { Sparkles, Clock, Pencil, Ban, Plus, X } from 'lucide-vue-next';
+import { ref } from 'vue';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -45,27 +45,50 @@ const itemName = (item: any) => item.product_name || item.product?.name || item.
 
 function openEdit(order: any) {
     editingOrder.value = order;
-    editingItems.value = (order.items || []).map((item: any) => ({
-        product_id: Number(item.product_id || item.product?.id),
-        name: itemName(item),
-        quantity: Number(item.quantity || 1),
-        notes: item.notes || '',
-    }));
+    editingItems.value = (order.items || []).map((item: any) => {
+        let pId = Number(item.product_id || item.product?.id || item.id);
+        const name = itemName(item);
+
+        if ((!pId || isNaN(pId)) && props.products) {
+            const matched = props.products.find(
+                (p) => p.name.trim().toLowerCase() === name.trim().toLowerCase()
+            );
+
+            if (matched) {
+                pId = matched.id;
+            }
+        }
+
+        return {
+            product_id: pId || 0,
+            name,
+            quantity: Number(item.quantity || 1),
+            notes: item.notes || '',
+        };
+    });
     revisionMessage.value = '';
     selectedProductId.value = null;
 }
 
 function addProduct() {
-    if (!selectedProductId.value) return;
+    if (!selectedProductId.value) {
+return;
+}
+
     const product = props.products.find((item) => item.id === selectedProductId.value);
-    if (!product) return;
+
+    if (!product) {
+return;
+}
 
     const existing = editingItems.value.find((item) => item.product_id === product.id);
+
     if (existing) {
         existing.quantity += 1;
     } else {
         editingItems.value.push({ product_id: product.id, name: product.name, quantity: 1, notes: '' });
     }
+
     selectedProductId.value = null;
 }
 
@@ -74,9 +97,12 @@ function removeItem(index: number) {
 }
 
 async function saveRevision() {
-    if (!editingOrder.value || !revisionMessage.value.trim() || editingItems.value.length === 0) return;
+    if (!editingOrder.value || !revisionMessage.value.trim() || editingItems.value.length === 0) {
+return;
+}
 
     isSavingRevision.value = true;
+
     try {
         const response = await axios.patch(`/api/temporary-orders/${editingOrder.value.id}/revise`, {
             message: revisionMessage.value.trim(),
@@ -101,9 +127,12 @@ function openReject(order: any) {
 }
 
 async function submitRejection() {
-    if (!rejectingOrder.value || !rejectionReason.value.trim()) return;
+    if (!rejectingOrder.value || !rejectionReason.value.trim()) {
+return;
+}
 
     isRejecting.value = true;
+
     try {
         const response = await axios.post(`/api/temporary-orders/${rejectingOrder.value.id}/cancel`, {
             reason: rejectionReason.value.trim(),
@@ -410,87 +439,129 @@ async function submitRejection() {
             </CardContent>
         </Card>
 
-        <div
-            v-if="editingOrder"
-            class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm"
-            @click.self="editingOrder = null"
-        >
-            <div class="w-full max-w-lg rounded-3xl bg-white p-6 shadow-2xl dark:bg-slate-900">
-                <div class="mb-5 flex items-start justify-between gap-4">
-                    <div>
-                        <h3 class="text-lg font-black text-slate-900 dark:text-white">
-                            Chỉnh đơn {{ editingOrder.order_number }} - {{ editingOrder.table?.name }}
-                        </h3>
-                        <p class="mt-1 text-xs text-slate-500">
-                            Khách tại bàn sẽ nhận thông báo và cần xác nhận thay đổi.
-                        </p>
-                    </div>
-                    <button class="rounded-full p-1 text-slate-400 hover:bg-slate-100" @click="editingOrder = null">
-                        <X class="size-5" />
-                    </button>
-                </div>
-
-                <div class="max-h-64 space-y-3 overflow-y-auto pr-1">
-                    <div
-                        v-for="(item, index) in editingItems"
-                        :key="`${item.product_id}-${index}`"
-                        class="rounded-2xl border border-slate-200 p-3 dark:border-slate-700"
-                    >
-                        <div class="flex items-center gap-3">
-                            <span class="min-w-0 flex-1 truncate text-sm font-bold">{{ item.name }}</span>
-                            <input
-                                v-model.number="item.quantity"
-                                type="number"
-                                min="0.01"
-                                step="0.01"
-                                class="w-20 rounded-lg border border-slate-200 px-2 py-1 text-center text-sm dark:border-slate-700 dark:bg-slate-800"
-                            />
-                            <button class="rounded-lg p-1.5 text-red-500 hover:bg-red-50" @click="removeItem(index)">
-                                <X class="size-4" />
-                            </button>
+        <Teleport to="body">
+            <div
+                v-if="editingOrder"
+                class="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm"
+                @click.self="editingOrder = null"
+            >
+                <div
+                    role="dialog"
+                    aria-modal="true"
+                    class="scrollbar-hidden max-h-[calc(100vh-2rem)] w-full max-w-lg overflow-y-auto rounded-3xl bg-white p-6 shadow-2xl dark:bg-slate-900"
+                >
+                    <div class="mb-5 flex items-start justify-between gap-4">
+                        <div>
+                            <h3
+                                class="text-lg font-black text-slate-900 dark:text-white"
+                            >
+                                Chỉnh đơn {{ editingOrder.order_number }} -
+                                {{ editingOrder.table?.name }}
+                            </h3>
+                            <p class="mt-1 text-xs text-slate-500">
+                                Khách tại bàn sẽ nhận thông báo và cần xác nhận
+                                thay đổi.
+                            </p>
                         </div>
-                        <input
-                            v-model="item.notes"
-                            type="text"
-                            placeholder="Ghi chú món (không bắt buộc)"
-                            class="mt-2 w-full rounded-lg border border-slate-200 px-3 py-1.5 text-xs dark:border-slate-700 dark:bg-slate-800"
-                        />
+                        <button
+                            class="rounded-full p-1 text-slate-400 hover:bg-slate-100"
+                            @click="editingOrder = null"
+                        >
+                            <X class="size-5" />
+                        </button>
                     </div>
-                </div>
 
-                <div class="mt-3 flex gap-2">
-                    <select
-                        v-model="selectedProductId"
-                        class="min-w-0 flex-1 rounded-xl border border-slate-200 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800"
-                    >
-                        <option :value="null">Thêm món...</option>
-                        <option v-for="product in products" :key="product.id" :value="product.id">
-                            {{ product.name }} - {{ numberFormat(product.price) }}đ
-                        </option>
-                    </select>
-                    <Button type="button" variant="outline" class="rounded-xl" @click="addProduct">
-                        <Plus class="size-4" />
-                    </Button>
-                </div>
+                    <div class="scrollbar-hidden max-h-64 space-y-3 overflow-y-auto pr-1">
+                        <div
+                            v-for="(item, index) in editingItems"
+                            :key="`${item.product_id}-${index}`"
+                            class="rounded-2xl border border-slate-200 p-3 dark:border-slate-700"
+                        >
+                            <div class="flex items-center gap-3">
+                                <span
+                                    class="min-w-0 flex-1 truncate text-sm font-bold"
+                                    >{{ item.name }}</span
+                                >
+                                <input
+                                    v-model.number="item.quantity"
+                                    type="number"
+                                    min="0.01"
+                                    step="0.01"
+                                    class="w-20 rounded-lg border border-slate-200 px-2 py-1 text-center text-sm dark:border-slate-700 dark:bg-slate-800"
+                                />
+                                <button
+                                    class="rounded-lg p-1.5 text-red-500 hover:bg-red-50"
+                                    @click="removeItem(index)"
+                                >
+                                    <X class="size-4" />
+                                </button>
+                            </div>
+                            <input
+                                v-model="item.notes"
+                                type="text"
+                                placeholder="Ghi chú món (không bắt buộc)"
+                                class="mt-2 w-full rounded-lg border border-slate-200 px-3 py-1.5 text-xs dark:border-slate-700 dark:bg-slate-800"
+                            />
+                        </div>
+                    </div>
 
-                <textarea
-                    v-model="revisionMessage"
-                    rows="3"
-                    placeholder="Nhập lý do hoặc nội dung thay đổi để khách xác nhận..."
-                    class="mt-4 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800"
-                />
-                <div class="mt-4 flex justify-end gap-2">
-                    <Button variant="outline" class="rounded-xl" @click="editingOrder = null">Hủy</Button>
-                    <Button
-                        class="rounded-xl bg-indigo-600 text-white hover:bg-indigo-700"
-                        :disabled="isSavingRevision || !revisionMessage.trim() || editingItems.length === 0"
-                        @click="saveRevision"
-                    >
-                        {{ isSavingRevision ? 'Đang gửi...' : 'Lưu & gửi khách xác nhận' }}
-                    </Button>
+                    <div class="mt-3 flex gap-2">
+                        <select
+                            v-model="selectedProductId"
+                            class="min-w-0 flex-1 rounded-xl border border-slate-200 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800"
+                        >
+                            <option :value="null">Thêm món...</option>
+                            <option
+                                v-for="product in products"
+                                :key="product.id"
+                                :value="product.id"
+                            >
+                                {{ product.name }} -
+                                {{ numberFormat(product.price) }}đ
+                            </option>
+                        </select>
+                        <Button
+                            type="button"
+                            variant="outline"
+                            class="rounded-xl"
+                            @click="addProduct"
+                        >
+                            <Plus class="size-4" />
+                        </Button>
+                    </div>
+
+                    <textarea
+                        v-model="revisionMessage"
+                        rows="3"
+                        placeholder="Nhập lý do hoặc nội dung thay đổi để khách xác nhận..."
+                        class="mt-4 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800"
+                    />
+                    <div class="mt-4 flex justify-end gap-2">
+                        <Button
+                            variant="outline"
+                            class="rounded-xl"
+                            @click="editingOrder = null"
+                            >Hủy</Button
+                        >
+                        <Button
+                            class="rounded-xl bg-indigo-600 text-white hover:bg-indigo-700"
+                            :disabled="
+                                isSavingRevision ||
+                                !revisionMessage.trim() ||
+                                editingItems.length === 0
+                            "
+                            @click="saveRevision"
+                        >
+                            {{
+                                isSavingRevision
+                                    ? 'Đang gửi...'
+                                    : 'Lưu & gửi khách xác nhận'
+                            }}
+                        </Button>
+                    </div>
                 </div>
             </div>
-        </div>
+        </Teleport>
 
         <div
             v-if="rejectingOrder"
@@ -529,3 +600,14 @@ async function submitRejection() {
         </div>
     </div>
 </template>
+
+<style scoped>
+.scrollbar-hidden {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+}
+
+.scrollbar-hidden::-webkit-scrollbar {
+    display: none;
+}
+</style>

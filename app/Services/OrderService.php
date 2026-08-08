@@ -1007,6 +1007,16 @@ class OrderService
         }
     }
 
+    /** Rebuild holding reservations after an item quantity changes in the kitchen. */
+    public function refreshHoldingReservations(Order $order): void
+    {
+        $this->syncHoldingReservations($order);
+        $this->inventoryAvailabilityService->refreshBranch(
+            $order->restaurant_id,
+            (int) $order->branch_id,
+        );
+    }
+
     private function recipeUsageInInventoryUnit($recipe, float $itemQuantity): float
     {
         return app(UnitConversionService::class)->recipeQuantityInIngredientUnit($recipe)

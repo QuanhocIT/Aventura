@@ -31,6 +31,7 @@ export function useCashierCart(
         const currentQty = cartItems.value
             .filter((item) => item.product_id === product.id && !item.id)
             .reduce((sum, item) => sum + item.quantity, 0);
+
         if (product.available_portions !== null && product.available_portions !== undefined && currentQty >= product.available_portions) {
             toast(`Món ${product.name} chỉ còn ${product.available_portions} suất có thể phục vụ.`, 'error');
 
@@ -82,6 +83,7 @@ export function useCashierCart(
 
         if (item) {
             const product = products().find((p) => p.id === productId);
+
             if (product?.available_portions !== null && product?.available_portions !== undefined && item.quantity >= product.available_portions) {
                 toast(`Món ${product.name} đã đạt số suất còn lại trong kho.`, 'error');
 
@@ -118,6 +120,7 @@ export function useCashierCart(
     const increaseQty = (item: OrderItem) => {
         if (! item.id) {
             const product = products().find((p) => p.id === item.product_id);
+
             if (product?.available_portions !== null && product?.available_portions !== undefined && item.quantity >= product.available_portions) {
                 toast(`Món ${product.name} đã đạt số suất còn lại trong kho.`, 'error');
 
@@ -217,9 +220,9 @@ export function useCashierCart(
                             if (updated) {
                                 activeTable.value = updated;
                                 cartItems.value =
-                                    updated.active_order?.items.map((item) => ({
-                                        ...item,
-                                    })) ?? [];
+                                    updated.active_order?.items
+                                        .filter((item) => item.status !== 'cancelled')
+                                        .map((item) => ({ ...item })) ?? [];
                             }
                         }, 200);
                         toast('Đã gửi bổ sung món xuống nhà bếp thành công!');
@@ -253,9 +256,9 @@ export function useCashierCart(
                             if (updated) {
                                 activeTable.value = updated;
                                 cartItems.value =
-                                    updated.active_order?.items.map((item) => ({
-                                        ...item,
-                                    })) ?? [];
+                                    updated.active_order?.items
+                                        .filter((item) => item.status !== 'cancelled')
+                                        .map((item) => ({ ...item })) ?? [];
                             }
                         }, 200);
                         toast('Đã tạo đơn mới thành công!');

@@ -1,6 +1,6 @@
 import { router } from '@inertiajs/vue3';
 import type { Ref } from 'vue';
-import { ref, computed } from 'vue';
+import { ref, computed, watch } from 'vue';
 import type { TableItem, OrderItem } from '../types';
 
 export function useCashierTables(
@@ -19,6 +19,10 @@ export function useCashierTables(
     const splitTableId = ref<number | null>(null);
     const splitItems = ref<OrderItem[]>([]);
     const isSubmittingSplit = ref(false);
+    const tableAction = ref<'move' | 'merge' | null>(null);
+    const selectedMoveTableId = ref<number | null>(null);
+    const selectedMergeTargetOrderId = ref<number | null>(null);
+    const isSubmittingTableAction = ref(false);
 
     const areaList = computed(() => {
         const areas = new Set<string>();
@@ -44,14 +48,71 @@ export function useCashierTables(
         }),
     );
 
+    const availableTables = computed(() =>
+        tablesData().filter(
+            (table) =>
+                table.id !== activeTable.value?.id &&
+                table.status === 'available' &&
+                !table.active_order,
+        ),
+    );
+
+    const mergeCandidates = computed(() =>
+        tablesData().filter((table) => {
+            const order = table.active_order;
+
+            return Boolean(
+                table.id !== activeTable.value?.id &&
+                    order &&
+                    order.payment_status !== 'paid' &&
+                    !['completed', 'cancelled'].includes(order.status),
+            );
+        }),
+    );
+
+    watch(
+        () => tablesData(),
+        (nextTables) => {
+            if (!activeTable.value) {
+                return;
+            }
+
+            const updatedTable = nextTables.find(
+                (table) => table.id === activeTable.value?.id,
+            );
+
+            if (!updatedTable) {
+                return;
+            }
+
+            activeTable.value = updatedTable;
+
+            if (!updatedTable.active_order) {
+                cartItems.value = [];
+                isCartOpen.value = false;
+                drawerStep.value = 'select';
+                isNotified.value = false;
+
+                return;
+            }
+
+            if (isCartOpen.value && drawerStep.value === 'confirm') {
+                cartItems.value = updatedTable.active_order.items
+                    .filter((item) => item.status !== 'cancelled')
+                    .map((item) => ({ ...item }));
+            }
+        },
+        { deep: true },
+    );
+
     const openTableOrder = (table: TableItem) => {
         activeTable.value = table;
         isCartOpen.value = true;
 
         if (table.active_order) {
-            cartItems.value = table.active_order.items.map((item) => ({
-                ...item,
-            }));
+            cartItems.value = table.active_order.items
+                .filter((item) => item.status !== 'cancelled')
+                .map((item) => ({ ...item }));
             cartNote.value = table.active_order.note || '';
             drawerStep.value = 'confirm';
             isNotified.value = true;
@@ -68,12 +129,107 @@ export function useCashierTables(
             return;
         }
 
-        splitItems.value = activeTable.value.active_order.items.map((i) => ({
-            ...i,
-            quantity: 1,
-        }));
+        splitItems.value = activeTable.value.active_order.items
+            .filter((item) => item.status !== 'cancelled')
+            .map((i) => ({ ...i, quantity: 1 }));
         splitTableId.value = null;
         showSplitModal.value = true;
+    };
+
+    const openMoveTable = () => {
+        if (!activeTable.value?.active_order) {
+            return;
+        }
+
+        selectedMoveTableId.value = null;
+        tableAction.value = 'move';
+    };
+
+    const openMergeTable = () => {
+        if (!activeTable.value?.active_order) {
+            return;
+        }
+
+        selectedMergeTargetOrderId.value = null;
+        tableAction.value = 'merge';
+    };
+
+    const closeTableAction = () => {
+        tableAction.value = null;
+        selectedMoveTableId.value = null;
+        selectedMergeTargetOrderId.value = null;
+    };
+
+    const finishTableAction = (message: string) => {
+        closeTableAction();
+        isCartOpen.value = false;
+        activeTable.value = null;
+        drawerStep.value = 'select';
+        toast(message);
+    };
+
+    const processMoveTable = () => {
+        const order = activeTable.value?.active_order;
+
+        if (!order || !selectedMoveTableId.value || isSubmittingTableAction.value) {
+            return;
+        }
+
+        isSubmittingTableAction.value = true;
+        router.post(
+            `/orders/${order.id}/move-table`,
+            { table_id: selectedMoveTableId.value },
+            {
+                preserveScroll: true,
+                onSuccess: () => finishTableAction('Đã chuyển bàn thành công.'),
+                onError: (errors: Record<string, string | string[]>) => {
+                    const message = Object.values(errors)[0];
+                    toast(
+                        Array.isArray(message)
+                            ? message[0]
+                            : String(message || 'Không thể chuyển bàn.'),
+                        'error',
+                    );
+                },
+                onFinish: () => {
+                    isSubmittingTableAction.value = false;
+                },
+            },
+        );
+    };
+
+    const processMergeTable = () => {
+        const order = activeTable.value?.active_order;
+
+        if (
+            !order ||
+            !selectedMergeTargetOrderId.value ||
+            isSubmittingTableAction.value
+        ) {
+            return;
+        }
+
+        isSubmittingTableAction.value = true;
+        router.post(
+            `/orders/${order.id}/merge`,
+            { target_order_id: selectedMergeTargetOrderId.value },
+            {
+                preserveScroll: true,
+                onSuccess: () => finishTableAction('Đã gộp hai bàn thành công.'),
+                onError: (errors: Record<string, string | string[]>) => {
+                    const message = Object.values(errors)[0];
+                    toast(
+                        Array.isArray(message)
+                            ? message[0]
+                            : String(message || 'Không thể gộp bàn.'),
+                        'error',
+                    );
+                },
+                onFinish: () => {
+                    isSubmittingTableAction.value = false;
+                },
+            },
+        );
     };
 
     const splitProjection = computed(() => {
@@ -170,5 +326,16 @@ export function useCashierTables(
         splitProjection,
         openSplitOrder,
         processSplit,
+        tableAction,
+        availableTables,
+        mergeCandidates,
+        selectedMoveTableId,
+        selectedMergeTargetOrderId,
+        isSubmittingTableAction,
+        openMoveTable,
+        openMergeTable,
+        closeTableAction,
+        processMoveTable,
+        processMergeTable,
     };
 }
