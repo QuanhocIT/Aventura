@@ -100,49 +100,33 @@ class CashierDashboardController extends Controller
                 });
             }
 
-            // Query tables along with their active unpaid orders (eager load activeOrder relationship)
-            $tablesData = RestaurantTable::with(['area', 'activeOrder.items.product'])
+            // Query tables along with their active unpaid orders (load all active orders per table)
+            $tablesData = RestaurantTable::with(['area', 'orders' => function ($q) {
+                $q->activeForService()->with('items.product');
+            }])
                 ->where('restaurant_id', $restaurant->id)
                 ->where('branch_id', $branchId)
                 ->orderBy('name')
                 ->get()
                 ->map(function ($t) {
-                    $activeOrder = $t->activeOrder;
-
+                    $activeOrders = $t->orders;
                     $status = $t->status;
-                    if ($activeOrder) {
-                        // Đồng bộ lại trạng thái hiển thị với đơn đang phục vụ,
-                        // kể cả trường hợp dữ liệu cũ đã bị trả về available sau khi thanh toán.
+
+                    if ($activeOrders->isNotEmpty()) {
                         $status = 'occupied';
                         if ($t->status !== 'occupied') {
                             $t->update(['status' => 'occupied']);
                         }
-                    } elseif ($status === 'occupied') {
-                        $status = 'available';
-                        $t->update(['status' => 'available']);
-                    }
 
-                    return [
-                        'id' => $t->id,
-                        'name' => $t->name,
-                        'area' => $t->area?->name ?? 'Khu vực chung',
-                        'capacity' => $t->capacity,
-                        'status' => $status,
-                        'active_order' => $activeOrder ? [
-                            'id' => $activeOrder->id,
-                            'order_number' => $activeOrder->order_number,
-                            'status' => $activeOrder->status,
-                            'payment_status' => $activeOrder->payment_status,
-                            'subtotal' => (float) $activeOrder->subtotal,
-                            'discount_amount' => (float) $activeOrder->discount_amount,
-                            'total_amount' => (float) $activeOrder->total_amount,
-                            'note' => $activeOrder->note,
-                            'is_split' => (bool) $activeOrder->is_split,
-                            'is_red_flagged' => (bool) $activeOrder->is_red_flagged,
-                            'items' => $activeOrder->items
-                                ->where('status', '!=', 'cancelled')
-                                ->values()
-                                ->map(fn ($item) => [
+                        $primaryOrder = $activeOrders->sortByDesc('updated_at')->first();
+                        $totalSubtotal = (float) $activeOrders->sum('subtotal');
+                        $totalDiscount = (float) $activeOrders->sum('discount_amount');
+                        $totalAmount = (float) $activeOrders->sum('total_amount');
+
+                        $mergedItems = $activeOrders->flatMap(fn ($o) => $o->items)
+                            ->where('status', '!=', 'cancelled')
+                            ->values()
+                            ->map(fn ($item) => [
                                 'id' => $item->id,
                                 'product_id' => $item->product_id,
                                 'product_name' => $item->product?->name,
@@ -152,8 +136,41 @@ class CashierDashboardController extends Controller
                                 'status' => $item->status,
                                 'prepared_at' => $item->prepared_at?->toIso8601String(),
                                 'served_at' => $item->served_at?->toIso8601String(),
-                                ]),
-                        ] : null,
+                            ])->all();
+
+                        $orderNumberStr = $activeOrders->count() > 1
+                            ? implode(', ', $activeOrders->pluck('order_number')->toArray())
+                            : $primaryOrder->order_number;
+
+                        $activeOrderData = [
+                            'id' => $primaryOrder->id,
+                            'order_ids' => $activeOrders->pluck('id')->toArray(),
+                            'order_number' => $orderNumberStr,
+                            'status' => $primaryOrder->status,
+                            'payment_status' => $primaryOrder->payment_status,
+                            'subtotal' => $totalSubtotal,
+                            'discount_amount' => $totalDiscount,
+                            'total_amount' => $totalAmount,
+                            'note' => $primaryOrder->note,
+                            'is_split' => (bool) $primaryOrder->is_split,
+                            'is_red_flagged' => (bool) $primaryOrder->is_red_flagged,
+                            'items' => $mergedItems,
+                        ];
+                    } else {
+                        if ($status === 'occupied') {
+                            $status = 'available';
+                            $t->update(['status' => 'available']);
+                        }
+                        $activeOrderData = null;
+                    }
+
+                    return [
+                        'id' => $t->id,
+                        'name' => $t->name,
+                        'area' => $t->area?->name ?? 'Khu vực chung',
+                        'capacity' => $t->capacity,
+                        'status' => $status,
+                        'active_order' => $activeOrderData,
                     ];
                 })->all();
 

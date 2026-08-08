@@ -54,7 +54,7 @@ class KitchenController extends Controller
                 // Payment completion and kitchen/service completion are
                 // separate. Keep every unserved item in the queue.
                 $q->where('status', '!=', 'cancelled')
-                    ->currentTableOrder()
+                    ->activeForService()
                     ->where(function ($dateQuery) use ($todayStart, $todayEnd) {
                         $dateQuery->whereBetween('created_at', [$todayStart, $todayEnd])
                             ->orWhereBetween('completed_at', [$todayStart, $todayEnd])
@@ -94,7 +94,7 @@ class KitchenController extends Controller
             ->where('status', '!=', 'cancelled')
             ->whereHas('order', function ($q) use ($branchId, $todayStart, $todayEnd) {
                 $q->where('status', '!=', 'cancelled')
-                    ->currentTableOrder()
+                    ->activeForService()
                     ->where(function ($dateQuery) use ($todayStart, $todayEnd) {
                         $dateQuery->whereBetween('created_at', [$todayStart, $todayEnd])
                             ->orWhereBetween('completed_at', [$todayStart, $todayEnd])
