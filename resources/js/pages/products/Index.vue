@@ -244,6 +244,10 @@ const editingProduct = ref<Product | null>(null);
 const deletingProduct = ref<Product | null>(null);
 const searchQuery = ref('');
 const selectedCategory = ref<number | ''>('');
+const selectedBranchFilter = ref<number | '' | 'shared'>('');
+
+// true khi đang ở chế độ xem toàn chuỗi
+const isAllScope = computed(() => props.branchScope === 'all');
 
 // ── Forms ──────────────────────────────────────────────────────────────────────
 const categoryForm = useForm({
@@ -280,6 +284,19 @@ const editForm = useForm({
 // ── Computed ───────────────────────────────────────────────────────────────────
 const filteredProducts = computed(() => {
     let list = props.products;
+
+    // Khi scope=all, lọc thêm theo chi nhánh được chọn trong banner
+    if (isAllScope.value && selectedBranchFilter.value !== '') {
+        if (selectedBranchFilter.value === 'shared') {
+            // Chỉ sản phẩm dùng chung (branch_id === null)
+            list = list.filter((p) => p.branch_id === null || p.branch_id === undefined);
+        } else {
+            // Sản phẩm của chi nhánh đó + sản phẩm dùng chung
+            list = list.filter(
+                (p) => p.branch_id === selectedBranchFilter.value || p.branch_id === null || p.branch_id === undefined,
+            );
+        }
+    }
 
     if (selectedCategory.value !== '') {
         list = list.filter((p) => p.category?.id === selectedCategory.value);
@@ -326,7 +343,7 @@ const visiblePages = computed(() => {
     return pages;
 });
 
-watch([selectedCategory, searchQuery], () => {
+watch([selectedCategory, searchQuery, selectedBranchFilter], () => {
     currentPage.value = 1;
 });
 
@@ -557,6 +574,47 @@ const toggleAvailability = (p: Product) => {
                     <Plus class="mr-2 size-4" />Thêm món ăn
                 </Button>
             </div>
+        </div>
+
+        <!-- Chain scope banner — chỉ hiện khi đang xem Toàn chuỗi -->
+        <div
+            v-if="isAllScope"
+            class="flex flex-wrap items-center gap-3 rounded-2xl border border-blue-200/70 bg-blue-50/60 px-4 py-3 dark:border-blue-800/40 dark:bg-blue-950/20"
+        >
+            <div
+                class="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-blue-500/10 text-lg"
+            >
+                🌐
+            </div>
+            <div class="min-w-0 flex-1">
+                <p class="text-xs font-bold text-blue-800 dark:text-blue-300">
+                    Đang xem Toàn chuỗi —
+                    <span class="font-black">{{ products.length }}</span>
+                    sản phẩm từ tất cả chi nhánh
+                </p>
+                <p
+                    class="text-[10px] text-blue-600/80 dark:text-blue-400/80"
+                >
+                    Bao gồm sản phẩm dùng chung và riêng từng chi nhánh.
+                    Khi thêm mới, bạn cần chọn chi nhánh đích.
+                </p>
+            </div>
+            <!-- Quick branch filter -->
+            <select
+                v-if="branches.length > 1"
+                v-model="selectedBranchFilter"
+                class="h-8 shrink-0 rounded-xl border border-blue-200 bg-white px-3 text-[11px] font-bold text-blue-800 focus:outline-none dark:border-blue-800/50 dark:bg-slate-900 dark:text-blue-300"
+            >
+                <option value="">Tất cả chi nhánh</option>
+                <option value="shared">🔗 Dùng chung toàn chuỗi</option>
+                <option
+                    v-for="branch in branches"
+                    :key="branch.id"
+                    :value="branch.id"
+                >
+                    📍 {{ branch.name }}
+                </option>
+            </select>
         </div>
 
         <!-- AI Menu Insights Accordion -->
@@ -1450,6 +1508,19 @@ const toggleAvailability = (p: Product) => {
                                         <p class="font-bold text-foreground">
                                             {{ cat.name }}
                                         </p>
+                                        <!-- Label chi nhánh nguồn — chỉ hiện khi scope=all -->
+                                        <span
+                                            v-if="isAllScope && cat.branch_id"
+                                            class="mt-0.5 block text-[9px] font-semibold text-blue-500/80 dark:text-blue-400/70"
+                                        >
+                                            📍 {{ cat.branch_name ?? 'Chi nhánh riêng' }}
+                                        </span>
+                                        <span
+                                            v-else-if="isAllScope && !cat.branch_id"
+                                            class="mt-0.5 block text-[9px] font-semibold text-blue-500/60 dark:text-blue-400/50"
+                                        >
+                                            🔗 Dùng chung
+                                        </span>
                                         <p
                                             class="mt-0.5 truncate text-[10px] text-muted-foreground"
                                         >
@@ -1609,6 +1680,23 @@ const toggleAvailability = (p: Product) => {
                                                     {{
                                                         p.category?.name ??
                                                         'Chưa gán'
+                                                    }}
+                                                </Badge>
+                                                <!-- Badge chi nhánh — chỉ hiện khi scope=all -->
+                                                <Badge
+                                                    v-if="isAllScope"
+                                                    variant="outline"
+                                                    :class="[
+                                                        'shrink-0 px-2 py-0 text-[9px] font-bold',
+                                                        p.branch_id === null || p.branch_id === undefined
+                                                            ? 'border-blue-500/20 bg-blue-500/5 text-blue-600 dark:text-blue-400'
+                                                            : 'border-slate-300/40 bg-muted/50 text-muted-foreground',
+                                                    ]"
+                                                >
+                                                    {{
+                                                        p.branch_id === null || p.branch_id === undefined
+                                                            ? '🌐 Toàn chuỗi'
+                                                            : (p.branch_name ?? 'Chi nhánh')
                                                     }}
                                                 </Badge>
                                             </div>
