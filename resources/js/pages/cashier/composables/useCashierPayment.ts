@@ -18,6 +18,12 @@ export function useCashierPayment(
     const isSearchingCustomer = ref(false);
     const foundCustomer = ref<CustomerItem | null>(null);
     const loyaltyPointsToRedeem = ref<number>(0);
+    const voucherCode = ref('');
+    const isApplyingVoucher = ref(false);
+    const bypassRequired = ref(false);
+    const bypassMessage = ref('');
+    const bypassCode = ref('');
+    const appliedVoucherName = ref('');
     const isPaying = ref(false);
 
     const paymentMethods = [
@@ -94,7 +100,62 @@ export function useCashierPayment(
         foundCustomer.value = null;
         searchCustomerPhone.value = '';
         loyaltyPointsToRedeem.value = 0;
+        voucherCode.value = '';
+        bypassRequired.value = false;
+        bypassMessage.value = '';
+        bypassCode.value = '';
+        appliedVoucherName.value = '';
         showPaymentModal.value = true;
+    };
+
+    const applyVoucher = () => {
+        const orderId = activeTable.value?.active_order?.id;
+        if (!voucherCode.value.trim() || !orderId) {
+            toast('Vui lòng nhập mã khuyến mãi / voucher.', 'error');
+
+            return;
+        }
+
+        isApplyingVoucher.value = true;
+        axios
+            .post('/api/promotions/apply', {
+                order_id: orderId,
+                code: voucherCode.value.trim().toUpperCase(),
+                bypass_code: bypassCode.value ? bypassCode.value.trim() : undefined,
+            })
+            .then((res) => {
+                const data = res.data;
+                toast(data.message || 'Áp dụng mã khuyến mãi thành công!');
+                bypassRequired.value = false;
+                bypassMessage.value = '';
+                bypassCode.value = '';
+                appliedVoucherName.value = data.promotion_name || voucherCode.value.toUpperCase();
+                voucherCode.value = '';
+
+                if (activeTable.value?.active_order) {
+                    if (data.discount_amount !== undefined) {
+                        activeTable.value.active_order.discount_amount = data.discount_amount;
+                    }
+                    if (data.total_amount !== undefined) {
+                        activeTable.value.active_order.total_amount = data.total_amount;
+                        cashReceived.value = data.total_amount;
+                    }
+                }
+                router.reload({ only: ['tablesData'] });
+            })
+            .catch((err) => {
+                const data = err.response?.data;
+                if (data?.status === 'requires_bypass') {
+                    bypassRequired.value = true;
+                    bypassMessage.value = data.message || 'Yêu cầu nhập mã phê duyệt của Quản lý.';
+                    toast(data.message || 'Phát hiện cảnh báo: Yêu cầu mã duyệt của Quản lý.', 'error');
+                } else {
+                    toast(data?.message || data?.error || 'Mã khuyến mãi không hợp lệ hoặc đã hết hạn.', 'error');
+                }
+            })
+            .finally(() => {
+                isApplyingVoucher.value = false;
+            });
     };
 
     const processPayment = () => {
@@ -169,12 +230,19 @@ export function useCashierPayment(
         isSearchingCustomer,
         foundCustomer,
         loyaltyPointsToRedeem,
+        voucherCode,
+        isApplyingVoucher,
+        bypassRequired,
+        bypassMessage,
+        bypassCode,
+        appliedVoucherName,
         isPaying,
         paymentMethods,
         cashDenominations,
         changeAmount,
         searchCustomer,
         clearCustomerSelection,
+        applyVoucher,
         openPayment,
         processPayment,
     };

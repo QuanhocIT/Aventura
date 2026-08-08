@@ -21,6 +21,7 @@ import ProductGrid from './components/ProductGrid.vue';
 import QrOrdersPanel from './components/QrOrdersPanel.vue';
 import SelfServiceModal from './components/SelfServiceModal.vue';
 import SplitOrderModal from './components/SplitOrderModal.vue';
+import TableActionModal from './components/TableActionModal.vue';
 import TableGrid from './components/TableGrid.vue';
 import { useCashierCart } from './composables/useCashierCart';
 import { useCashierPayment } from './composables/useCashierPayment';
@@ -139,6 +140,17 @@ const {
     splitProjection,
     openSplitOrder,
     processSplit,
+    tableAction,
+    availableTables,
+    mergeCandidates,
+    selectedMoveTableId,
+    selectedMergeTargetOrderId,
+    isSubmittingTableAction,
+    openMoveTable,
+    openMergeTable,
+    closeTableAction,
+    processMoveTable,
+    processMergeTable,
 } = tablesComposable;
 
 const cartComposable = useCashierCart(
@@ -182,12 +194,19 @@ const {
     isSearchingCustomer,
     foundCustomer,
     loyaltyPointsToRedeem,
+    voucherCode,
+    isApplyingVoucher,
+    bypassRequired,
+    bypassMessage,
+    bypassCode,
+    appliedVoucherName,
     isPaying,
     paymentMethods,
     cashDenominations,
     changeAmount,
     searchCustomer,
     clearCustomerSelection,
+    applyVoucher,
     openPayment,
     processPayment,
 } = paymentComposable;
@@ -206,6 +225,7 @@ const confirmQrOrder = (orderInput: number | any) => {
     } else {
         orderId = Number(orderInput);
         const found = props.qrOrders?.find((o) => o.id === orderId);
+
         if (found && found.is_temporary === false) {
             isTemporary = false;
         }
@@ -238,6 +258,7 @@ const confirmQrOrder = (orderInput: number | any) => {
 
 const refreshQrOrders = (payload: { message: string; type: 'success' | 'error' }) => {
     toast(payload.message, payload.type);
+
     if (payload.type === 'success') {
         router.reload({ only: ['qrOrders', 'tablesData'] });
     }
@@ -254,6 +275,7 @@ const markItemServed = (itemId: number) => {
             } else {
                 toast('Đã đánh dấu phục vụ món!');
             }
+
             router.reload({ only: ['kitchenReadyItems', 'tablesData'] });
         })
         .catch((err) => {
@@ -555,6 +577,9 @@ onUnmounted(() => {
                     :is-submitting="isSubmitting"
                     :can-process-payments="can('process_payments')"
                     :can-split-orders="can('split_orders')"
+                    :can-manage-table-orders="
+                        can('manage_orders') || can('split_orders')
+                    "
                     @update:drawer-step="drawerStep = $event"
                     @increase-qty="increaseQty"
                     @decrease-qty="decreaseQty"
@@ -563,6 +588,8 @@ onUnmounted(() => {
                     @open-payment="openPayment"
                     @send-to-kitchen="sendToKitchen"
                     @open-split-order="openSplitOrder"
+                    @open-move-table="openMoveTable"
+                    @open-merge-table="openMergeTable"
                 />
             </template>
 
@@ -697,11 +724,18 @@ onUnmounted(() => {
             :is-searching-customer="isSearchingCustomer"
             :found-customer="foundCustomer"
             v-model:loyalty-points-to-redeem="loyaltyPointsToRedeem"
+            v-model:voucher-code="voucherCode"
+            :is-applying-voucher="isApplyingVoucher"
+            :bypass-required="bypassRequired"
+            :bypass-message="bypassMessage"
+            v-model:bypass-code="bypassCode"
+            :applied-voucher-name="appliedVoucherName"
             :is-paying="isPaying"
             :payment-methods="paymentMethods"
             :cash-denominations="cashDenominations"
             @search-customer="searchCustomer"
             @clear-customer-selection="clearCustomerSelection"
+            @apply-voucher="applyVoucher"
             @process-payment="processPayment"
         />
 
@@ -715,6 +749,27 @@ onUnmounted(() => {
             :is-submitting-split="isSubmittingSplit"
             :split-projection="splitProjection"
             @process-split="processSplit"
+        />
+
+        <TableActionModal
+            :open="tableAction !== null"
+            :mode="tableAction || 'move'"
+            :active-table="activeTable"
+            :available-tables="availableTables"
+            :merge-candidates="mergeCandidates"
+            v-model:selected-table-id="selectedMoveTableId"
+            v-model:selected-target-order-id="selectedMergeTargetOrderId"
+            :is-submitting="isSubmittingTableAction"
+            @update:open="
+                (open: boolean) => {
+                    if (!open) closeTableAction();
+                }
+            "
+            @submit="
+                tableAction === 'move'
+                    ? processMoveTable()
+                    : processMergeTable()
+            "
         />
 
         <!-- ── MODAL CỔNG HÀNH CHÍNH TỰ PHỤC VỤ ───────────────────────── -->

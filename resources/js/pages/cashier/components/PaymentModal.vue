@@ -4,6 +4,10 @@ import {
     X,
     CheckCircle2 as CheckIcon,
     Search,
+    Ticket,
+    Tag,
+    ShieldAlert,
+    Loader2,
 } from 'lucide-vue-next';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -20,6 +24,12 @@ const props = defineProps<{
     isSearchingCustomer: boolean;
     foundCustomer: CustomerItem | null;
     loyaltyPointsToRedeem: number;
+    voucherCode?: string;
+    isApplyingVoucher?: boolean;
+    bypassRequired?: boolean;
+    bypassMessage?: string;
+    bypassCode?: string;
+    appliedVoucherName?: string;
     isPaying: boolean;
     paymentMethods: Array<{ id: string; label: string }>;
     cashDenominations: number[];
@@ -31,8 +41,11 @@ const emit = defineEmits<{
     (e: 'update:cashReceived', val: number): void;
     (e: 'update:searchCustomerPhone', val: string): void;
     (e: 'update:loyaltyPointsToRedeem', val: number): void;
+    (e: 'update:voucherCode', val: string): void;
+    (e: 'update:bypassCode', val: string): void;
     (e: 'searchCustomer'): void;
     (e: 'clearCustomerSelection'): void;
+    (e: 'applyVoucher'): void;
     (e: 'processPayment'): void;
 }>();
 
@@ -134,6 +147,92 @@ const numberFormat = (val: number) =>
                                 )
                             }}đ
                         </span>
+                    </div>
+                </div>
+
+                <!-- Khuyến mãi / Áp dụng Voucher -->
+                <div class="mt-1 flex flex-col gap-2 border-t pt-3 text-left">
+                    <span class="flex items-center gap-1.5 text-xs font-bold text-slate-500">
+                        <Ticket class="size-3.5 text-indigo-600 dark:text-indigo-400" />
+                        Mã khuyến mãi / Voucher:
+                    </span>
+
+                    <div class="flex gap-2">
+                        <Input
+                            type="text"
+                            placeholder="Nhập mã voucher (vd: KM50K)..."
+                            :value="voucherCode"
+                            @input="
+                                emit(
+                                    'update:voucherCode',
+                                    ($event.target as HTMLInputElement).value,
+                                )
+                            "
+                            @keyup.enter="emit('applyVoucher')"
+                            class="h-9 rounded-xl text-xs font-bold tracking-wider uppercase"
+                            :disabled="isApplyingVoucher"
+                        />
+                        <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            class="h-9 shrink-0 rounded-xl border-indigo-200 bg-indigo-50/50 text-xs font-bold text-indigo-700 hover:bg-indigo-100 dark:border-indigo-900/50 dark:bg-indigo-950/30 dark:text-indigo-300"
+                            :disabled="isApplyingVoucher || !(voucherCode && voucherCode.trim())"
+                            @click="emit('applyVoucher')"
+                        >
+                            <Loader2 v-if="isApplyingVoucher" class="mr-1 size-3.5 animate-spin" />
+                            <Tag v-else class="mr-1 size-3.5 shrink-0 text-indigo-600 dark:text-indigo-400" />
+                            Áp dụng
+                        </Button>
+                    </div>
+
+                    <!-- Hiển thị mã đã được áp dụng thành công -->
+                    <div
+                        v-if="appliedVoucherName || (activeTable?.active_order?.discount_amount && activeTable.active_order.discount_amount > 0)"
+                        class="flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50/70 p-2.5 text-xs text-emerald-800 dark:border-emerald-900/50 dark:bg-emerald-950/30 dark:text-emerald-300"
+                    >
+                        <CheckIcon class="size-4 shrink-0 text-emerald-600" />
+                        <span class="font-bold">
+                            Đã giảm {{ numberFormat(activeTable?.active_order?.discount_amount ?? 0) }}đ
+                            <span v-if="appliedVoucherName">({{ appliedVoucherName }})</span>
+                        </span>
+                    </div>
+
+                    <!-- Cảnh báo mã yêu cầu Quản lý xác thực (Bypass) -->
+                    <div
+                        v-if="bypassRequired"
+                        class="flex flex-col gap-2 rounded-xl border border-amber-200 bg-amber-50/80 p-3 text-xs text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-200"
+                    >
+                        <span class="flex items-center gap-1 font-bold text-amber-700 dark:text-amber-400">
+                            <ShieldAlert class="size-4 text-amber-600" /> Yêu cầu phê duyệt từ Quản lý
+                        </span>
+                        <p class="text-[11px] leading-4 text-amber-700 dark:text-amber-300">
+                            {{ bypassMessage }}
+                        </p>
+                        <div class="flex gap-2">
+                            <Input
+                                type="password"
+                                placeholder="Mã PIN Quản lý..."
+                                :value="bypassCode"
+                                @input="
+                                    emit(
+                                        'update:bypassCode',
+                                        ($event.target as HTMLInputElement).value,
+                                    )
+                                "
+                                @keyup.enter="emit('applyVoucher')"
+                                class="h-8 rounded-lg text-xs"
+                            />
+                            <Button
+                                type="button"
+                                size="sm"
+                                class="h-8 rounded-lg bg-amber-600 text-xs font-bold text-white hover:bg-amber-700"
+                                :disabled="isApplyingVoucher || !(bypassCode && bypassCode.trim())"
+                                @click="emit('applyVoucher')"
+                            >
+                                Xác nhận
+                            </Button>
+                        </div>
                     </div>
                 </div>
 
