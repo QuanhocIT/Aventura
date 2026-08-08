@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Models\Concerns\BelongsToRestaurant;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
@@ -42,12 +43,12 @@ class ApprovalRequest extends Model
         return $this->belongsTo(User::class, 'reviewer_id');
     }
 
-    public function scopePending($query)
+    public function scopePending(Builder $query): Builder
     {
         return $query->where('status', 'pending');
     }
 
-    public function scopeForRestaurant($query, int $restaurantId)
+    public function scopeForRestaurant(Builder $query, int $restaurantId): Builder
     {
         return $query->where('restaurant_id', $restaurantId);
     }

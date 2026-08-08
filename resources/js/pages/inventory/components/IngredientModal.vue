@@ -69,24 +69,39 @@ const handleStorageTypeChange = () => {
     if (form.storage_type === 'fresh') {
         form.default_shelf_life_days = '3';
         form.expiry_warning_days = '1';
-        if (!form.storage_location) form.storage_location = 'Tủ mát (2-4°C)';
+
+        if (!form.storage_location) {
+form.storage_location = 'Tủ mát (2-4°C)';
+}
     } else if (form.storage_type === 'daily') {
         form.default_shelf_life_days = '1';
         form.expiry_warning_days = '1';
         form.auto_waste_end_of_day = true;
-        if (!form.storage_location) form.storage_location = 'Quầy chế biến trong ngày';
+
+        if (!form.storage_location) {
+form.storage_location = 'Quầy chế biến trong ngày';
+}
     } else if (form.storage_type === 'canned_packaged') {
         form.default_shelf_life_days = '180';
         form.expiry_warning_days = '7';
-        if (!form.storage_location) form.storage_location = 'Kệ kho khô - Khu C';
+
+        if (!form.storage_location) {
+form.storage_location = 'Kệ kho khô - Khu C';
+}
     } else if (form.storage_type === 'short_shelf') {
         form.default_shelf_life_days = '10';
         form.expiry_warning_days = '2';
-        if (!form.storage_location) form.storage_location = 'Tủ bảo quản mát';
+
+        if (!form.storage_location) {
+form.storage_location = 'Tủ bảo quản mát';
+}
     } else {
         form.default_shelf_life_days = '365';
         form.expiry_warning_days = '14';
-        if (!form.storage_location) form.storage_location = 'Kho khô chính - Kệ A';
+
+        if (!form.storage_location) {
+form.storage_location = 'Kho khô chính - Kệ A';
+}
     }
 };
 

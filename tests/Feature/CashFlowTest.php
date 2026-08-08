@@ -4,11 +4,14 @@ namespace Tests\Feature;
 
 use App\Models\CashRegister;
 use App\Models\CashTransaction;
+use App\Models\Employee;
 use App\Models\Order;
 use App\Models\Payment;
 use App\Models\Restaurant;
 use App\Models\RestaurantBranch;
+use App\Models\Salary;
 use App\Models\ShiftClosing;
+use App\Models\SalaryAdjustment;
 use App\Models\User;
 use App\Models\WorkShift;
 use App\Services\MaterializedViewRefresher;
@@ -239,6 +242,84 @@ class CashFlowTest extends TestCase
             ->first();
         $this->assertNotNull($closing);
         $this->assertEquals($register->id, $closing->cash_register_id);
+    }
+
+    public function test_shift_close_creates_one_aggregate_slip_with_actual_transfer_and_signed_responsibility(): void
+    {
+        $this->actingAs($this->cashier);
+
+        $response = $this->post(route('shift-closings.store'), [
+            'shift_id' => $this->shift->id,
+            'closing_date' => today()->toDateString(),
+            'actual_cash' => 500000,
+            'actual_transfer_amount' => 120000,
+            'responsibility_amount' => -10000,
+            'responsibility_note' => 'Thiếu tiền mặt khi kiểm đếm cuối ca',
+            'submit' => 0,
+        ]);
+
+        $response->assertRedirect(route('shift-closings.index'));
+
+        $closings = ShiftClosing::where('restaurant_id', $this->restaurant->id)
+            ->where('branch_id', $this->branch->id)
+            ->where('shift_id', $this->shift->id)
+            ->whereDate('closing_date', today())
+            ->get();
+
+        $this->assertCount(1, $closings);
+        $closing = $closings->firstOrFail();
+        $this->assertSame('Toàn bộ khu vực', $closing->area_name);
+        $this->assertNotNull($closing->period_start_at);
+        $this->assertNotNull($closing->closed_at);
+        $this->assertEquals(120000, (float) $closing->actual_transfer_amount);
+        $this->assertEquals(-10000, (float) $closing->responsibility_amount);
+        $this->assertSame('Thiếu tiền mặt khi kiểm đếm cuối ca', $closing->responsibility_note);
+    }
+
+    public function test_positive_responsibility_is_added_to_monthly_salary_after_confirmation(): void
+    {
+        $this->actingAs($this->cashier);
+
+        $employee = Employee::factory()->create([
+            'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
+            'user_id' => $this->cashier->id,
+            'base_salary' => 8000000,
+            'status' => 'active',
+        ]);
+
+        $closing = ShiftClosing::create([
+            'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
+            'shift_id' => $this->shift->id,
+            'closing_date' => today(),
+            'cashier_user_id' => $this->cashier->id,
+            'expected_cash' => 500000,
+            'actual_cash' => 500000,
+            'cash_difference' => 0,
+            'transfer_amount' => 100000,
+            'actual_transfer_amount' => 100000,
+            'transfer_difference' => 0,
+            'responsibility_amount' => 250000,
+            'status' => 'submitted',
+            'closed_at' => now(),
+        ]);
+
+        $response = $this->actingAs($this->owner)->patch(
+            route('shift-closings.confirm', $closing),
+        );
+
+        $response->assertRedirect();
+        $this->assertDatabaseHas('salary_adjustments', [
+            'reference_id' => $closing->id,
+            'reference_type' => ShiftClosing::class,
+            'employee_id' => $employee->id,
+            'type' => 'bonus',
+            'amount' => 250000,
+        ]);
+
+        $salary = Salary::where('employee_id', $employee->id)->firstOrFail();
+        $this->assertEquals(250000, (float) $salary->bonus_amount);
     }
 
     public function test_dashboard_alerts_appear_on_variance_and_budget_overrun(): void

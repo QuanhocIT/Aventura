@@ -63,6 +63,22 @@ class RestaurantTable extends Model
             self::forgetScopedCaches($table);
             Cache::forget("quota_summary:{$table->restaurant_id}");
         });
+
+        static::deleting(function ($table) {
+            // Khi xóa bàn: đổi qr_token sang chuỗi ngẫu nhiên mới & đặt inactive
+            // để tất cả mã QR/link cũ đã tạo trước đó bị vô hiệu hóa hoàn toàn
+            $table->qr_token = \Illuminate\Support\Str::random(32);
+            $table->status = 'inactive';
+            $table->saveQuietly();
+
+            \App\Models\TemporaryOrder::where('table_id', $table->id)
+                ->whereIn('status', ['waiting_verification', 'escalated'])
+                ->update([
+                    'status' => 'cancelled',
+                    'cancellation_reason' => 'Bàn ăn đã bị xóa bởi chủ nhà hàng/quản lý',
+                ]);
+        });
+
         static::deleted(function ($table) {
             self::forgetScopedCaches($table);
             Cache::forget("quota_summary:{$table->restaurant_id}");

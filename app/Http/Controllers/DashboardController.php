@@ -58,7 +58,7 @@ class DashboardController extends Controller
         }
 
         if ($user && $user->can('create_orders') && ! $user->can('view_report')) {
-            return app(CashierDashboardController::class)->index();
+            return app(CashierDashboardController::class)->index($request);
         }
 
         // Nhân viên kho: đưa thẳng vào trang quản lý Tồn kho (giống pattern Kitchen/Cashier ở trên)

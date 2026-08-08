@@ -205,8 +205,16 @@ class Phase3FeaturesTest extends TestCase
 
     public function test_move_table_updates_statuses(): void
     {
-        $oldTable = RestaurantTable::factory()->create(['restaurant_id' => $this->restaurant->id, 'status' => 'occupied']);
-        $newTable = RestaurantTable::factory()->create(['restaurant_id' => $this->restaurant->id, 'status' => 'available']);
+        $oldTable = RestaurantTable::factory()->create([
+            'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
+            'status' => 'occupied',
+        ]);
+        $newTable = RestaurantTable::factory()->create([
+            'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
+            'status' => 'available',
+        ]);
 
         $order = $this->makeOrderWithItems([50000, 20000]);
         $order->update(['table_id' => $oldTable->id]);
@@ -220,7 +228,11 @@ class Phase3FeaturesTest extends TestCase
 
     public function test_cannot_move_to_occupied_table(): void
     {
-        $busy = RestaurantTable::factory()->create(['restaurant_id' => $this->restaurant->id, 'status' => 'occupied']);
+        $busy = RestaurantTable::factory()->create([
+            'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
+            'status' => 'occupied',
+        ]);
         $order = $this->makeOrderWithItems([50000, 20000]);
 
         $this->expectException(ValidationException::class);

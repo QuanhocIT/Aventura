@@ -432,16 +432,16 @@ class EmployeeManagementController extends Controller
 
         try {
             [$newUser, $newEmployee] = DB::transaction(function () use ($data, $user, $branchId, $frontUrl, $backUrl): array {
-                // Chưa cấp mật khẩu dùng được. Nhân viên sẽ tự đặt mật khẩu trong link kích hoạt.
+                // Mật khẩu mặc định là 'password', tài khoản kích hoạt ngay để đăng nhập.
                 $newUser = User::create([
                     'name' => $data['name'],
                     'email' => $data['email'],
-                    'password' => bcrypt(Str::random(64)),
+                    'password' => bcrypt('password'),
                     'phone' => $data['phone'],
                     'restaurant_id' => $user->restaurant_id,
                     'branch_id' => $branchId ?: null,
-                    'status' => 'inactive',
-                    'email_verified_at' => null,
+                    'status' => 'active',
+                    'email_verified_at' => now(),
                 ]);
 
                 $role = Role::firstOrCreate([
@@ -469,7 +469,7 @@ class EmployeeManagementController extends Controller
                     'base_salary' => $data['base_salary'] ?? 0,
                     'job_title' => $data['job_title'],
                     'employment_type' => 'full_time',
-                    'status' => 'inactive',
+                    'status' => 'active',
                     'role_id' => $role->id,
                 ]);
 
@@ -516,7 +516,7 @@ class EmployeeManagementController extends Controller
             return back()->with('error', 'Đã tạo hồ sơ nhưng không gửi được email kích hoạt. Vui lòng kiểm tra cấu hình mail và gửi lại lời mời.');
         }
 
-        return back()->with('success', "Đã gửi link kích hoạt tài khoản đến hộp thư {$data['email']}. Nhân viên sẽ tự đặt mật khẩu khi kích hoạt.");
+        return back()->with('success', "Đã tạo tài khoản nhân viên thành công với mật khẩu mặc định là 'password'.");
     }
 
     /**

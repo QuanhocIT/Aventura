@@ -253,7 +253,9 @@ class InventorySafetyGateTest extends TestCase
             'quantity' => 1,
             'unit_price' => 50000,
             'line_total' => 50000,
-            'status' => 'pending',
+            'status' => 'served',
+            'prepared_at' => now(),
+            'served_at' => now(),
         ]);
 
         try {

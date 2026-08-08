@@ -196,7 +196,9 @@ class DebtManagementTest extends TestCase
             'quantity' => 2,
             'unit_price' => 20000,
             'line_total' => 40000,
-            'status' => 'pending',
+            'status' => 'served',
+            'prepared_at' => now(),
+            'served_at' => now(),
         ]);
 
         // 1. Pay with debt fails without customer

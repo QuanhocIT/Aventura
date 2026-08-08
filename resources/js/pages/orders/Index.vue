@@ -5,7 +5,6 @@ import {
     ShoppingCart,
     CheckCircle2,
     Clock,
-    XCircle,
     ChefHat,
     CalendarDays,
     RefreshCw,
@@ -101,8 +100,15 @@ type Summary = {
     revenue: number;
 };
 
+type CancelledQrOrder = Order & {
+    cancelled_at: string;
+    cancelled_by_name: string;
+    cancellation_reason: string | null;
+};
+
 const props = defineProps<{
     orders: Order[];
+    cancelledQrOrders: CancelledQrOrder[];
     summary: Summary;
     filters: { status: string; date: string };
     autoPayEnabled: boolean;
@@ -139,6 +145,13 @@ const toggleAutoPay = () => {
 const dateInput = ref(props.filters.date);
 const activeStatus = ref(props.filters.status);
 const datePickerRef = ref<HTMLInputElement | null>(null);
+
+const showCancelledQrOrders = computed(
+    () =>
+        !isOfficialReady.value &&
+        ['all', 'cancelled'].includes(activeStatus.value) &&
+        props.cancelledQrOrders.length > 0,
+);
 
 const openDatePicker = () => {
     if (datePickerRef.value) {
@@ -404,6 +417,7 @@ const submitRefund = () => {
     if (!refundOrderTarget.value || !refundReason.value.trim() || isSubmittingRefund.value) {
         return;
     }
+
     isSubmittingRefund.value = true;
     router.post(
         `/orders/${refundOrderTarget.value.id}/refund`,
@@ -665,6 +679,13 @@ const channelStats = computed(() => {
             stats.other++;
             amounts.other += o.total_amount;
         }
+    });
+
+    // Cancelled QR requests are temporary orders, so they are not included
+    // in props.orders. Count them in the QR channel analytics as well.
+    props.cancelledQrOrders.forEach((o) => {
+        stats.qr++;
+        amounts.qr += o.total_amount;
     });
 
     return { stats, amounts };
@@ -1272,7 +1293,6 @@ onUnmounted(() => {
                 </span>
             </button>
             <button
-                v-if="isOwner || roles.includes('manager')"
                 @click="selectTab('rejected_qr')"
                 :class="[
                     'cursor-pointer border-b-2 pb-3 text-sm font-semibold transition-all',
@@ -1295,7 +1315,6 @@ onUnmounted(() => {
                 <button
                     v-for="(label, key) in {
                         all: 'Tất cả',
-                        pending: 'Chờ chế biến',
                         confirmed: 'Đã xác nhận',
                         preparing: 'Đang chế biến',
                         completed: 'Hoàn thành',
@@ -1333,7 +1352,10 @@ onUnmounted(() => {
             </div>
 
             <!-- Orders table -->
-            <Card class="shadow-sm">
+            <Card
+                v-if="officialOrders.length || !showCancelledQrOrders"
+                class="shadow-sm"
+            >
                 <CardHeader class="border-b pb-3">
                     <CardTitle class="text-base">
                         {{ isOfficialReady ? 'Đơn chờ phục vụ' : 'Danh sách đơn hàng' }}
@@ -1611,6 +1633,61 @@ onUnmounted(() => {
                             >
                                 Sau
                             </Button>
+                        </div>
+                    </div>
+                </CardContent>
+            </Card>
+
+            <!-- Cancelled QR requests are temporary orders until confirmed. -->
+            <Card v-if="showCancelledQrOrders" class="shadow-sm">
+                <CardHeader class="border-b pb-3">
+                    <CardTitle class="text-base">
+                        Đơn QR bị hủy
+                        <span class="ml-1 text-sm font-normal text-muted-foreground">
+                            ({{ cancelledQrOrders.length }} đơn)
+                        </span>
+                    </CardTitle>
+                </CardHeader>
+                <CardContent class="p-0">
+                    <div class="divide-y divide-slate-100 dark:divide-slate-800">
+                        <div
+                            v-for="o in cancelledQrOrders"
+                            :key="`cancelled-qr-${o.id}`"
+                            class="flex flex-col gap-3 px-5 py-4 md:flex-row md:items-center md:justify-between"
+                        >
+                            <div class="min-w-0 flex-1">
+                                <div class="flex flex-wrap items-center gap-2">
+                                    <span class="font-mono text-sm font-bold text-slate-800 dark:text-slate-200">
+                                        {{ o.order_number }}
+                                    </span>
+                                    <span class="rounded-md border border-indigo-200 bg-indigo-50 px-1.5 py-0.5 text-[9px] font-semibold text-indigo-700 dark:border-indigo-900/40 dark:bg-indigo-950/40 dark:text-indigo-300">
+                                        QR Scan
+                                    </span>
+                                    <span class="rounded-full border border-rose-200 bg-rose-50 px-2 py-1 text-[10px] font-bold text-rose-700 dark:border-rose-900/40 dark:bg-rose-950/40 dark:text-rose-300">
+                                        Đã hủy
+                                    </span>
+                                    <span v-if="o.table_name" class="text-[10px] text-slate-400">
+                                        {{ o.table_name }}{{ o.area_name ? ` · ${o.area_name}` : '' }}
+                                    </span>
+                                </div>
+                                <div class="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                                    <span>Tạo đơn: <strong class="font-mono">{{ o.created_at_formatted }}</strong></span>
+                                    <span>Hủy lúc: <strong class="font-mono">{{ o.cancelled_at }}</strong></span>
+                                    <span>{{ o.items_count }} món</span>
+                                </div>
+                                <p class="mt-2 text-xs text-slate-500">
+                                    {{ o.items?.map((item) => `${item.quantity}x ${item.name}`).join(', ') }}
+                                </p>
+                                <p class="mt-1 text-xs text-rose-600 dark:text-rose-400">
+                                    Lý do: {{ o.cancellation_reason || 'Không ghi lý do' }} · Người hủy: {{ o.cancelled_by_name }}
+                                </p>
+                            </div>
+                            <div class="shrink-0 text-right">
+                                <p class="font-mono text-sm font-bold text-slate-800 dark:text-slate-200">
+                                    {{ formatCurrency(o.total_amount) }}
+                                </p>
+                                <p class="text-[10px] font-semibold text-slate-500">Không tính doanh thu</p>
+                            </div>
                         </div>
                     </div>
                 </CardContent>

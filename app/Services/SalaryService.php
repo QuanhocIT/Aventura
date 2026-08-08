@@ -360,12 +360,18 @@ class SalaryService
             ->get();
 
         // 6. Shift shortages
-        $context['shortages'] = empty($userIds) ? collect() : ShiftClosing::withoutGlobalScopes()
+        $context['responsibility_closings'] = empty($userIds) ? collect() : ShiftClosing::withoutGlobalScopes()
             ->where('restaurant_id', $restaurantId)
             ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
             ->whereIn('cashier_user_id', $userIds)
             ->whereBetween('closing_date', [$periodStart, $periodEnd])
-            ->where('cash_difference', '<', 0)
+            ->where(function ($q) {
+                $q->where('responsibility_amount', '<>', 0)
+                    ->orWhere(function ($legacy) {
+                        $legacy->whereNull('responsibility_amount')
+                            ->where('cash_difference', '<', 0);
+                    });
+            })
             ->get();
 
         // 7. Waste transactions
@@ -466,10 +472,10 @@ class SalaryService
         $start = $salary->pay_period_start->toDateString();
         $end = $salary->pay_period_end->toDateString();
 
-        // 1. Trừ lương Thu ngân (Cash shortage): Hụt két ca trực
+        // 1. Quy trách nhiệm ca: âm trừ lương, dương cộng lương.
         if ($employee->user_id) {
-            if (isset($context['shortages'])) {
-                $shortages = $context['shortages']
+            if (isset($context['responsibility_closings'])) {
+                $responsibilityClosings = $context['responsibility_closings']
                     ->where('cashier_user_id', $employee->user_id)
                     ->filter(function ($s) use ($start, $end) {
                         $dateStr = $s->closing_date instanceof Carbon
@@ -479,15 +485,29 @@ class SalaryService
                         return $dateStr >= $start && $dateStr <= $end;
                     });
             } else {
-                $shortages = ShiftClosing::withoutGlobalScopes()
+                $responsibilityClosings = ShiftClosing::withoutGlobalScopes()
                     ->where('restaurant_id', $restaurantId)
                     ->where('cashier_user_id', $employee->user_id)
                     ->whereBetween('closing_date', [$start, $end])
-                    ->where('cash_difference', '<', 0)
+                    ->where(function ($q) {
+                        $q->where('responsibility_amount', '<>', 0)
+                            ->orWhere(function ($legacy) {
+                                $legacy->whereNull('responsibility_amount')
+                                    ->where('cash_difference', '<', 0);
+                            });
+                    })
                     ->get();
             }
 
-            foreach ($shortages as $closing) {
+            foreach ($responsibilityClosings as $closing) {
+                $responsibilityAmount = is_null($closing->responsibility_amount)
+                    ? (float) $closing->cash_difference
+                    : (float) $closing->responsibility_amount;
+
+                if ($responsibilityAmount === 0.0) {
+                    continue;
+                }
+
                 $exists = false;
                 if (isset($context['adjustments_map'])) {
                     $key = ShiftClosing::class.'_'.$closing->id.'_'.$employee->id;
@@ -505,9 +525,9 @@ class SalaryService
                         'salary_id' => $salary->id,
                         'restaurant_id' => $restaurantId,
                         'employee_id' => $employee->id,
-                        'type' => 'cash_shortage',
-                        'amount' => abs((float) $closing->cash_difference),
-                        'reason' => 'Khấu trừ hụt két ca trực ngày '.$closing->closing_date,
+                        'type' => $responsibilityAmount < 0 ? 'cash_shortage' : 'bonus',
+                        'amount' => abs($responsibilityAmount),
+                        'reason' => ($responsibilityAmount < 0 ? 'Khấu trừ trách nhiệm ca ngày ' : 'Cộng trách nhiệm ca ngày ').$closing->closing_date,
                         'reference_id' => $closing->id,
                         'reference_type' => ShiftClosing::class,
                         'status' => 'applied',

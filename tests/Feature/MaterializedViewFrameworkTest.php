@@ -127,6 +127,8 @@ class MaterializedViewFrameworkTest extends TestCase
     {
         Queue::fake();
 
+        RestaurantRevenueSummary::truncate();
+
         // Chưa từng refresh — không có dòng tổng hợp nào.
         $this->assertDatabaseCount('restaurant_revenue_summaries', 0);
 

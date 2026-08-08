@@ -18,10 +18,9 @@ abstract class TestCase extends BaseTestCase
         $this->seed(PermissionsSeeder::class);
     }
 
-    protected function skipUnlessFortifyHas(string $feature, ?string $message = null): void
+    protected function tearDown(): void
     {
-        if (! Features::enabled($feature)) {
-            $this->markTestSkipped($message ?? "Fortify feature [{$feature}] is not enabled.");
-        }
+        \App\Http\Middleware\SetTenantContext::$enforceShiftLockInTests = false;
+        parent::tearDown();
     }
 }

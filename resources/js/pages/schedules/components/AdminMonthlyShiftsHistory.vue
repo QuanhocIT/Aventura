@@ -138,6 +138,7 @@ const shiftGroups = computed(() => {
     >();
 
     const closingsMap = new Map<string, ShiftClosing>();
+
     if (props.monthlyShiftClosings) {
         for (const c of props.monthlyShiftClosings) {
             const key = `${c.closing_date}_${c.shift_id}`;
@@ -154,8 +155,10 @@ const shiftGroups = computed(() => {
         }
 
         const groupKey = `${a.scheduled_date}_${a.shift_name}`;
+
         if (!map.has(groupKey)) {
             let timeStr = '—';
+
             if (a.shift_start && a.shift_end) {
                 timeStr = `${a.shift_start} - ${a.shift_end}`;
             }

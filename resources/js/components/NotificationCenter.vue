@@ -98,6 +98,7 @@ function markRead(id: number) {
 
     if (notif) {
         notif.read = true;
+
         if (notif.serverId) {
             void axios.post(`/notifications/${notif.serverId}/read`).catch(() => undefined);
         }
@@ -166,6 +167,7 @@ async function loadDatabaseNotifications() {
                 notification.url || '/notifications',
             );
             const created = items.value[0];
+
             if (created) {
                 created.serverId = notification.id;
                 created.time = notification.created_at || created.time;
@@ -245,6 +247,7 @@ onMounted(() => {
 });
 onUnmounted(() => {
     document.removeEventListener('mousedown', onClickOutside);
+
     if (notificationPollTimer) {
         clearInterval(notificationPollTimer);
     }

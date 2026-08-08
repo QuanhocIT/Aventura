@@ -19,8 +19,6 @@ import {
     Search,
     ClipboardCheck,
     Edit,
-    Clock,
-    Calendar,
     MapPin,
     Layers,
     CalendarCheck,
@@ -294,6 +292,7 @@ let purchaseCardResizeObserver: ResizeObserver | null = null;
 
 const syncAiForecastCardHeight = () => {
     const height = purchaseFormCard.value?.getBoundingClientRect().height;
+
     if (height) {
         aiForecastCardHeight.value = Math.round(height);
     }
@@ -305,6 +304,7 @@ const observePurchaseFormCard = () => {
 
     if (!purchaseFormCard.value) {
         aiForecastCardHeight.value = null;
+
         return;
     }
 
@@ -344,6 +344,7 @@ const applyForecast = (item: any) => {
 
 onMounted(() => {
     fetchAiForecast();
+
     if (activeTab.value === 'purchase') {
         void nextTick(observePurchaseFormCard);
     }
@@ -552,6 +553,7 @@ const visibleIngredientPages = computed(() => {
     }
 
     pages.push(1);
+
     if (current > 3) {
         pages.push('...');
     }
@@ -567,6 +569,7 @@ const visibleIngredientPages = computed(() => {
     if (current < total - 2) {
         pages.push('...');
     }
+
     pages.push(total);
 
     return pages;
@@ -675,6 +678,7 @@ const recipeUnitsFor = (ingredientId: string) => {
     const ingredient = props.ingredients.find(
         (item) => String(item.id) === ingredientId,
     );
+
     if (!ingredient?.unit) {
         return props.units;
     }
@@ -682,6 +686,7 @@ const recipeUnitsFor = (ingredientId: string) => {
     const ingredientUnit = props.units.find(
         (unit) => unit.id === ingredient.unit?.id,
     );
+
     return ingredientUnit?.type
         ? props.units.filter(
               (unit) => !unit.type || unit.type === ingredientUnit.type,
