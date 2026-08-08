@@ -686,6 +686,19 @@ class QROrderingLifecycleTest extends TestCase
             'cancellation_reason' => 'Không đúng món',
             'cancelled_by_name' => $this->staff->name,
         ]);
+        // The orders page must also include cancelled QR requests in the
+        // selected date's cancellation view, not only in the QR audit tab.
+        $ordersPage = $this->actingAs($this->owner)
+            ->get(route('orders.index', [
+                'status' => 'cancelled',
+                'date' => today()->toDateString(),
+            ]));
+
+        $ordersPage->assertOk();
+        $ordersProps = $ordersPage->original->getData()['page']['props'];
+        $this->assertCount(1, $ordersProps['cancelledQrOrders']);
+        $this->assertSame($tempOrder->id, $ordersProps['cancelledQrOrders'][0]['id']);
+        $this->assertSame(1, $ordersProps['summary']['cancelled']);
     }
 
     /**
@@ -777,5 +790,58 @@ class QROrderingLifecycleTest extends TestCase
         $this->assertEquals(88, $feedback->staff_rating[0]['employee_id']);
 
         Event::assertDispatched(FeedbackSubmitted::class);
+    }
+
+    /**
+     * Test khi chủ doanh nghiệp/quản lý xóa bàn thì QR và link đã tạo trước đó bị vô hiệu hóa hoàn toàn.
+     */
+    public function test_deleted_table_invalidates_qr_and_link(): void
+    {
+        $oldToken = $this->table->qr_token;
+
+        // Tạo đơn đệm QR đang chờ cho bàn này
+        $tempOrder = TemporaryOrder::create([
+            'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
+            'table_id' => $this->table->id,
+            'customer_name' => 'Khách Bàn Xóa',
+            'status' => 'waiting_verification',
+            'cart_data' => [],
+            'total_amount' => 0,
+        ]);
+
+        // Thực hiện xóa bàn bởi Owner
+        $response = $this->actingAs($this->owner)
+            ->delete(route('tables.destroy', $this->table->id));
+
+        $response->assertRedirect();
+
+        // Kiểm tra bàn đã bị soft delete, status inactive và qr_token được làm mới
+        $this->table->refresh();
+        $this->assertNotNull($this->table->deleted_at);
+        $this->assertEquals('inactive', $this->table->status);
+        $this->assertNotEquals($oldToken, $this->table->qr_token);
+
+        // Kiểm tra đơn đệm QR của bàn đã bị hủy
+        $tempOrder->refresh();
+        $this->assertEquals('cancelled', $tempOrder->status);
+        $this->assertEquals('Bàn ăn đã bị xóa bởi chủ nhà hàng/quản lý', $tempOrder->cancellation_reason);
+
+        // Truy cập menu bằng link/mã QR cũ thu về 404
+        $menuResponse = $this->get(route('customer.qr-order.show', [
+            'restaurant' => $this->restaurant->id,
+            'token' => $oldToken,
+        ]));
+        $menuResponse->assertStatus(404);
+
+        // Gửi đơn bằng link/mã QR cũ thu về 404
+        $submitResponse = $this->postJson(route('customer.qr-order.submit', [
+            'restaurant' => $this->restaurant->id,
+            'token' => $oldToken,
+        ]), [
+            'customer_name' => 'Test',
+            'items' => [['product_id' => 1, 'quantity' => 1]],
+        ]);
+        $submitResponse->assertStatus(404);
     }
 }

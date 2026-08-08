@@ -48,6 +48,8 @@ interface CartDataItem {
     quantity: number;
     name: string;
     notes: string | null;
+    unit_price?: number;
+    line_total?: number;
 }
 
 interface ActiveOrder {
@@ -60,8 +62,15 @@ interface ActiveOrder {
     order_id: number | null;
     order_number: string | null;
     order_status: string | null;
+    order_note: string | null;
     payment_status: string | null;
-    items_status: { name: string; quantity: number; status: string }[];
+    cancellation_reason: string | null;
+    items_status: {
+        name: string;
+        quantity: number;
+        status: string;
+        notes?: string | null;
+    }[];
     created_at: string;
 }
 
@@ -146,14 +155,6 @@ const staffCallPresets = [
         message: 'Yêu cầu thêm bát đũa, thìa ăn',
     },
     { label: '🧻 Xin khăn giấy', message: 'Yêu cầu thêm khăn giấy' },
-    {
-        label: '💵 Gọi thanh toán Tiền mặt',
-        message: 'Yêu cầu thanh toán bằng Tiền mặt',
-    },
-    {
-        label: '💳 Gọi thanh toán Chuyển khoản',
-        message: 'Yêu cầu thanh toán qua Chuyển khoản/VietQR',
-    },
 ];
 
 const callStaffWithMessage = async (message: string) => {
@@ -274,6 +275,16 @@ const finalCartPrice = computed(() =>
     Math.max(0, cartTotalPrice.value - pointsDiscount.value),
 );
 
+const totalActiveOrdersAmount = computed(() =>
+    props.activeTempOrders.reduce((sum, o) => {
+        if (o.status !== 'cancelled' && o.order_status !== 'cancelled') {
+            return sum + (o.total_amount || 0);
+        }
+
+        return sum;
+    }, 0),
+);
+
 // Behavior Tracking
 const sessionToken = ref('');
 
@@ -337,95 +348,6 @@ const modalNotes = ref('');
 // Interactions status
 const isCallingStaff = ref(false);
 const isRequestingPayment = ref(false);
-
-// VietQR Payment status
-const isQrPaymentModalOpen = ref(false);
-const paymentQrUrl = ref('');
-const paymentQrOrder = ref<any>(null);
-const paymentSuccess = ref(false);
-const paymentTimer = ref<any>(null);
-const isSimulatingPayment = ref(false);
-
-const openQrPaymentModal = async (order: any) => {
-    paymentQrOrder.value = order;
-    paymentQrUrl.value = '';
-    paymentSuccess.value = false;
-    isQrPaymentModalOpen.value = true;
-
-    try {
-        const res = await axios.get(`/api/orders/${order.order_id}/payment-qr`);
-
-        if (res.data.success) {
-            paymentQrUrl.value = res.data.qr_url;
-            startPaymentPolling(order.order_id);
-        } else {
-            toast.error('Không thể tạo mã QR thanh toán.');
-        }
-    } catch {
-        toast.error('Lỗi kết nối khi sinh mã QR.');
-    }
-};
-
-const closeQrPaymentModal = () => {
-    isQrPaymentModalOpen.value = false;
-
-    if (paymentTimer.value) {
-        clearInterval(paymentTimer.value);
-        paymentTimer.value = null;
-    }
-};
-
-const startPaymentPolling = (orderId: number) => {
-    if (paymentTimer.value) {
-        clearInterval(paymentTimer.value);
-    }
-
-    paymentTimer.value = setInterval(async () => {
-        try {
-            const res = await axios.get(
-                `/api/orders/${orderId}/payment-status`,
-            );
-
-            if (res.data.success && res.data.is_paid) {
-                paymentSuccess.value = true;
-                toast.success('Thanh toán thành công!');
-                clearInterval(paymentTimer.value);
-                paymentTimer.value = null;
-
-                setTimeout(() => {
-                    closeQrPaymentModal();
-                    refetchActiveOrders();
-                }, 2000);
-            }
-        } catch (e: any) {
-            console.error('Error polling status:', e);
-        }
-    }, 3000);
-};
-
-const simulatePaymentSuccess = async () => {
-    if (!paymentQrOrder.value) {
-        return;
-    }
-
-    isSimulatingPayment.value = true;
-
-    try {
-        const res = await axios.post('/api/webhooks/payments/vietqr', {
-            description: `AVTORD${paymentQrOrder.value.order_id}`,
-        });
-
-        if (res.data.success) {
-            toast.success('Gửi webhook giả lập thành công!');
-        } else {
-            toast.error(res.data.message || 'Lỗi giả lập thanh toán.');
-        }
-    } catch {
-        toast.error('Lỗi khi gọi API webhook giả lập.');
-    } finally {
-        isSimulatingPayment.value = false;
-    }
-};
 
 // Feedback rating state
 const showFeedbackSection = ref(false);
@@ -800,9 +722,12 @@ function refetchActiveOrders() {
 const confirmingRevisionId = ref<number | null>(null);
 
 async function confirmRevision(order: ActiveOrder) {
-    if (confirmingRevisionId.value) return;
+    if (confirmingRevisionId.value) {
+return;
+}
 
     confirmingRevisionId.value = order.id;
+
     try {
         const response = await axios.post(
             `/customer/order/${props.restaurant.id}/${props.table.qr_token}/temporary/${order.id}/confirm-revision`,
@@ -822,6 +747,7 @@ function refetchMenuOnly() {
 
 const now = ref(new Date());
 let countdownInterval: ReturnType<typeof setInterval> | null = null;
+let orderPollingInterval: ReturnType<typeof setInterval> | null = null;
 
 function getProductRemainingSeconds(untilTimeStr: string | null) {
     if (!untilTimeStr) {
@@ -861,11 +787,15 @@ onMounted(() => {
     const storedPhone = localStorage.getItem('customer_phone');
     const urlParams = new URLSearchParams(window.location.search);
     const urlPhone = urlParams.get('phone');
+    const urlSessionId = urlParams.get('session_id');
 
-    if (storedPhone && !urlPhone) {
+    if (urlSessionId !== sessionToken.value || (storedPhone && !urlPhone)) {
         const newUrl = new URL(window.location.href);
-        newUrl.searchParams.set('phone', storedPhone);
-        window.location.href = newUrl.toString();
+        newUrl.searchParams.set('session_id', sessionToken.value);
+        if (!urlPhone && storedPhone) {
+            newUrl.searchParams.set('phone', storedPhone);
+        }
+        window.location.replace(newUrl.toString());
 
         return;
     }
@@ -901,6 +831,11 @@ onMounted(() => {
         }
     }, 1000);
 
+    // Keep the customer's own order current when realtime is unavailable.
+    orderPollingInterval = setInterval(() => {
+        refetchActiveOrders();
+    }, 8000);
+
     // Listen to live temporary order status updates
     if (window.Echo) {
         window.Echo.channel(`table.${props.table.qr_token}`)
@@ -927,26 +862,8 @@ onMounted(() => {
                     }
                 }
             })
-            .listen('.order.paid', (e: any) => {
-                if (
-                    paymentQrOrder.value &&
-                    e.order_id === paymentQrOrder.value.order_id
-                ) {
-                    paymentSuccess.value = true;
-
-                    if (paymentTimer.value) {
-                        clearInterval(paymentTimer.value);
-                        paymentTimer.value = null;
-                    }
-
-                    toast.success('Thanh toán thành công qua chuyển khoản!');
-                    setTimeout(() => {
-                        closeQrPaymentModal();
-                        refetchActiveOrders();
-                    }, 2000);
-                } else {
-                    refetchActiveOrders();
-                }
+            .listen('.order.paid', () => {
+                refetchActiveOrders();
             });
 
         // Listen to stock changes
@@ -955,7 +872,29 @@ onMounted(() => {
             () => {
                 refetchMenuOnly();
             },
-        );
+        ).listen('.kitchen.item_cancelled', (e: any) => {
+            const affectedOrderIds = [
+                ...(Array.isArray(e.order_ids) ? e.order_ids : []),
+                e.order_id,
+            ]
+                .filter((id) => id !== null && id !== undefined)
+                .map((id) => Number(id));
+
+            const affectedOrder = props.activeTempOrders.find(
+                (order) =>
+                    order.order_id !== null &&
+                    affectedOrderIds.includes(Number(order.order_id)),
+            );
+
+            if (!affectedOrder) {
+                return;
+            }
+
+            refetchActiveOrders();
+            toast.error(
+                `Bếp vừa hủy ${e.product_name || 'món ăn'} trong đơn của bạn${e.reason ? `: ${e.reason}` : '.'}`,
+            );
+        });
     }
 });
 
@@ -1064,6 +1003,10 @@ onUnmounted(() => {
         clearInterval(countdownInterval);
     }
 
+    if (orderPollingInterval) {
+        clearInterval(orderPollingInterval);
+    }
+
     if (paymentTimer.value) {
         clearInterval(paymentTimer.value);
     }
@@ -1163,11 +1106,24 @@ onUnmounted(() => {
             v-if="activeTempOrders.length"
             class="shrink-0 border-b border-slate-100 bg-white p-5"
         >
-            <h3
-                class="mb-3.5 flex items-center gap-2 text-[10px] font-black tracking-widest text-slate-400 uppercase"
-            >
-                <Clock class="size-3.5 text-amber-500" /> Tiến độ món ăn của bạn
-            </h3>
+            <div class="mb-3.5 flex items-center justify-between">
+                <h3
+                    class="flex items-center gap-2 text-[10px] font-black tracking-widest text-slate-400 uppercase"
+                >
+                    <Clock class="size-3.5 text-amber-500" /> Đơn của bạn
+                </h3>
+                <div
+                    v-if="totalActiveOrdersAmount > 0"
+                    class="flex items-center gap-1.5 rounded-xl border border-amber-200 bg-amber-50 px-3 py-1.5 shadow-sm"
+                >
+                    <span class="text-[10px] font-bold text-slate-600 uppercase"
+                        >Cần thanh toán:</span
+                    >
+                    <span class="text-xs font-black text-amber-600">
+                        {{ formatCurrency(totalActiveOrdersAmount) }}
+                    </span>
+                </div>
+            </div>
 
             <div class="space-y-4">
                 <div
@@ -1179,8 +1135,12 @@ onUnmounted(() => {
                     <div class="mb-3.5 flex items-center justify-between">
                         <span
                             class="shadow-xxs rounded-lg border border-slate-200 bg-white px-2 py-0.5 text-[9px] font-bold tracking-wider text-slate-400 uppercase"
-                            >Yêu cầu #{{ order.id }}</span
                         >
+                            <template v-if="order.order_number">
+                                Đơn #{{ order.order_number }}
+                            </template>
+                            <template v-else>Đơn của bạn #{{ order.id }}</template>
+                        </span>
 
                         <span
                             v-if="order.status === 'waiting_verification'"
@@ -1195,16 +1155,22 @@ onUnmounted(() => {
                             Đang giục món...
                         </span>
                         <span
-                            v-else-if="order.status === 'confirmed'"
+                            v-else-if="
+                                order.status === 'confirmed' &&
+                                order.order_status !== 'cancelled'
+                            "
                             class="rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[9px] font-black tracking-wide text-emerald-600 uppercase"
                         >
                             Đã nhận đơn
                         </span>
                         <span
-                            v-else-if="order.status === 'cancelled'"
+                            v-else-if="
+                                order.status === 'cancelled' ||
+                                order.order_status === 'cancelled'
+                            "
                             class="rounded-full bg-slate-200 px-2.5 py-1 text-[9px] font-black tracking-wide text-slate-500 uppercase"
                         >
-                            Bị hủy
+                            Đơn bị hủy
                         </span>
                     </div>
 
@@ -1229,6 +1195,29 @@ onUnmounted(() => {
                                     : 'Xác nhận thay đổi đơn'
                             }}
                         </button>
+                    </div>
+
+                    <div
+                        v-if="
+                            order.status === 'cancelled' ||
+                            order.order_status === 'cancelled' ||
+                            (order.items_status.length > 0 &&
+                                order.items_status.every(
+                                    (item) => item.status === 'cancelled',
+                                ))
+                        "
+                        class="mb-4 rounded-2xl border border-rose-200 bg-rose-50 p-3 text-rose-800"
+                    >
+                        <div class="text-[11px] font-black uppercase tracking-wide">
+                            Đơn/món đã bị bếp hủy
+                        </div>
+                        <p class="mt-1 text-xs leading-relaxed">
+                            {{
+                                order.cancellation_reason ||
+                                order.order_note ||
+                                'Vui lòng liên hệ nhân viên để được hỗ trợ.'
+                            }}
+                        </p>
                     </div>
 
                     <!-- Progress Bar Steps -->
@@ -1340,17 +1329,27 @@ onUnmounted(() => {
                             :key="idx"
                             class="flex items-center justify-between"
                         >
-                            <span class="font-medium text-slate-700"
-                                ><span
-                                    class="mr-1 font-extrabold text-amber-500"
-                                    >{{ item.quantity }}x</span
+                            <div class="min-w-0 pr-2">
+                                <span class="font-medium text-slate-700">
+                                    <span
+                                        class="mr-1 font-extrabold text-amber-500"
+                                        >{{ item.quantity }}x</span
+                                    >
+                                    {{ item.name }}
+                                </span>
+                                <div
+                                    v-if="item.status === 'cancelled' && item.notes"
+                                    class="mt-1 text-[9px] font-semibold text-rose-500"
                                 >
-                                {{ item.name }}</span
-                            >
+                                    {{ item.notes }}
+                                </div>
+                            </div>
                             <span
                                 :class="[
                                     'rounded-lg border px-2 py-0.5 text-[9px] font-bold tracking-wide uppercase',
-                                    item.status === 'served'
+                                    item.status === 'cancelled'
+                                        ? 'border-rose-200 bg-rose-50 text-rose-600'
+                                        : item.status === 'served'
                                         ? 'border-emerald-250 bg-emerald-50 text-emerald-600'
                                         : item.status === 'preparing'
                                           ? 'border-amber-250 animate-pulse bg-amber-50 text-amber-600'
@@ -1358,7 +1357,9 @@ onUnmounted(() => {
                                 ]"
                             >
                                 {{
-                                    item.status === 'served'
+                                    item.status === 'cancelled'
+                                        ? 'Đã hủy'
+                                        : item.status === 'served'
                                         ? 'Đã lên món'
                                         : item.status === 'preparing'
                                           ? 'Đang nấu'
@@ -1366,34 +1367,48 @@ onUnmounted(() => {
                                 }}
                             </span>
                         </div>
+                        <div
+                            v-if="order.total_amount"
+                            class="mt-2.5 flex items-center justify-between border-t border-slate-100 pt-2 text-[10px] font-bold text-slate-700"
+                        >
+                            <span>Thành tiền đơn này:</span>
+                            <span class="font-black text-amber-600">
+                                {{ formatCurrency(order.total_amount) }}
+                            </span>
+                        </div>
                     </div>
                     <div
                         v-else
-                        class="rounded-xl border border-slate-200 bg-white px-2 py-2 text-[10px] text-slate-400 italic"
+                        class="rounded-xl border border-slate-200 bg-white p-3 text-[10px] text-slate-600 shadow-inner"
                     >
-                        Giỏ hàng:
-                        {{
-                            order.cart_data
-                                .map((i) => `${i.quantity}x ${i.name}`)
-                                .join(', ')
-                        }}
+                        <div
+                            class="mb-2 flex items-center justify-between font-black tracking-wide text-slate-500 uppercase"
+                        >
+                            <span>Chi tiết đơn</span>
+                            <span class="text-amber-600">
+                                {{ formatCurrency(order.total_amount) }}
+                            </span>
+                        </div>
+                        <div
+                            v-for="(item, idx) in order.cart_data"
+                            :key="`${order.id}-cart-${idx}`"
+                            class="flex items-center justify-between border-t border-slate-100 py-1.5"
+                        >
+                            <span>
+                                <strong class="mr-1 text-amber-500"
+                                    >{{ item.quantity }}x</strong
+                                >
+                                {{ item.name }}
+                            </span>
+                            <span v-if="item.line_total" class="font-semibold">
+                                {{ formatCurrency(item.line_total) }}
+                            </span>
+                        </div>
                     </div>
 
-                    <!-- Nút Thanh toán VietQR động -->
-                    <button
-                        v-if="
-                            order.status === 'confirmed' &&
-                            order.order_id &&
-                            order.payment_status === 'unpaid'
-                        "
-                        @click="openQrPaymentModal(order)"
-                        class="text-xxs mt-3 flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl bg-slate-900 py-2.5 font-black text-white shadow-sm transition-all hover:bg-slate-800 active:scale-98"
-                    >
-                        <CreditCard class="size-4" /> THANH TOÁN QR TRỰC TUYẾN
-                    </button>
                     <!-- Báo đã thanh toán -->
                     <div
-                        v-else-if="
+                        v-if="
                             order.status === 'confirmed' &&
                             order.payment_status === 'paid'
                         "
@@ -2590,157 +2605,6 @@ onUnmounted(() => {
                         </button>
                     </div>
                 </div>
-            </div>
-        </div>
-
-        <!-- ── VietQR Payment Modal ────────────────────────────────────────── -->
-        <div
-            v-if="isQrPaymentModalOpen && paymentQrOrder"
-            class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm"
-        >
-            <div
-                class="animate-zoom-in w-full max-w-sm overflow-hidden rounded-[30px] border border-slate-200 bg-white shadow-2xl"
-            >
-                <header
-                    class="flex items-center justify-between border-b border-slate-100 p-5"
-                >
-                    <div>
-                        <h3
-                            class="text-xs font-black tracking-wide text-slate-800 uppercase"
-                        >
-                            Chuyển khoản VietQR
-                        </h3>
-                        <p class="mt-0.5 text-[10px] text-slate-400">
-                            Hóa đơn: {{ paymentQrOrder.order_number }}
-                        </p>
-                    </div>
-                    <button
-                        @click="closeQrPaymentModal"
-                        class="cursor-pointer rounded-xl bg-slate-100 p-1.5 text-slate-500 hover:bg-slate-200"
-                    >
-                        <X class="size-4" />
-                    </button>
-                </header>
-
-                <div class="space-y-4 p-6 text-center">
-                    <!-- Success State -->
-                    <div
-                        v-if="paymentSuccess"
-                        class="animate-in space-y-4 py-6 duration-300 fade-in"
-                    >
-                        <div
-                            class="mx-auto flex size-16 animate-bounce items-center justify-center rounded-full border border-emerald-200 bg-emerald-50 text-3xl font-bold text-emerald-600 shadow-md"
-                        >
-                            ✓
-                        </div>
-                        <div>
-                            <h4 class="text-sm font-black text-slate-800">
-                                Thanh toán thành công!
-                            </h4>
-                            <p
-                                class="mt-1.5 text-xs leading-relaxed text-slate-500"
-                            >
-                                Đơn hàng của quý khách đã hoàn tất thanh toán.
-                                Cảm ơn quý khách đã tin tưởng!
-                            </p>
-                        </div>
-                    </div>
-
-                    <!-- Standard QR / Loading State -->
-                    <div v-else class="space-y-4">
-                        <div
-                            class="inline-block rounded-[22px] border border-slate-200 bg-white p-3.5 shadow-lg"
-                        >
-                            <div
-                                v-if="!paymentQrUrl"
-                                class="flex size-48 items-center justify-center"
-                            >
-                                <Loader2
-                                    class="size-8 animate-spin text-amber-500"
-                                />
-                            </div>
-                            <img
-                                v-else
-                                :src="paymentQrUrl"
-                                alt="VietQR Code"
-                                class="size-48 object-contain"
-                            />
-                        </div>
-
-                        <!-- Account Details -->
-                        <div
-                            class="border-slate-250 text-xxs space-y-2 rounded-2xl border bg-slate-50 p-4 text-left"
-                        >
-                            <div class="flex items-center justify-between">
-                                <span
-                                    class="font-bold tracking-wider text-slate-400 uppercase"
-                                    >Số tiền:</span
-                                >
-                                <span
-                                    class="text-sm font-black tracking-wide text-amber-600"
-                                    >{{
-                                        formatCurrency(
-                                            paymentQrOrder.total_amount,
-                                        )
-                                    }}</span
-                                >
-                            </div>
-                            <div class="flex items-center justify-between">
-                                <span
-                                    class="font-bold tracking-wider text-slate-400 uppercase"
-                                    >Nội dung:</span
-                                >
-                                <span
-                                    class="rounded border border-slate-200 bg-white px-2 py-0.5 font-extrabold text-slate-700 select-all"
-                                    >AVTORD{{ paymentQrOrder.order_id }}</span
-                                >
-                            </div>
-                        </div>
-
-                        <!-- Waiting Spinner -->
-                        <div
-                            class="text-xxs flex items-center justify-center gap-2 rounded-xl border border-amber-100 bg-amber-50 py-2 font-black text-amber-600"
-                        >
-                            <Loader2 class="size-3.5 animate-spin" />
-                            <span class="tracking-wider uppercase"
-                                >Chờ hệ thống ngân hàng xác nhận...</span
-                            >
-                        </div>
-
-                        <p
-                            class="text-left text-[9px] leading-relaxed text-slate-400"
-                        >
-                            💡 **Hướng dẫn**: Dùng ứng dụng ngân hàng quét mã QR
-                            để chuyển khoản nhanh. Vui lòng giữ nguyên nội dung
-                            chuyển khoản để lệnh thanh toán tự động khớp trong
-                            5-10 giây.
-                        </p>
-                    </div>
-                </div>
-
-                <!-- Bottom controls: Simulator button -->
-                <footer
-                    class="flex flex-col gap-2.5 border-t border-slate-100 bg-slate-50 p-5"
-                >
-                    <button
-                        v-if="!paymentSuccess"
-                        @click="simulatePaymentSuccess"
-                        :disabled="isSimulatingPayment"
-                        class="text-xxs flex h-10 w-full cursor-pointer items-center justify-center gap-2 rounded-xl border border-slate-200 bg-slate-100 font-black text-slate-800 transition-all hover:bg-slate-200 disabled:opacity-50"
-                    >
-                        <Loader2
-                            v-if="isSimulatingPayment"
-                            class="size-3.5 animate-spin"
-                        />
-                        <span>⚡ Giả lập thanh toán thành công (Test)</span>
-                    </button>
-                    <button
-                        @click="closeQrPaymentModal"
-                        class="text-xxs hover:bg-slate-850 h-10 w-full cursor-pointer rounded-xl bg-slate-900 font-black text-white transition-all"
-                    >
-                        {{ paymentSuccess ? 'Đóng' : 'Quay lại' }}
-                    </button>
-                </footer>
             </div>
         </div>
     </div>

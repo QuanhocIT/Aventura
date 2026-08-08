@@ -17,6 +17,7 @@ class TemporaryOrder extends Model
     protected $casts = [
         'cart_data' => 'array',
         'total_amount' => 'float',
+        'session_id' => 'string',
         'awaiting_customer_confirmation' => 'boolean',
         'revision_confirmed_at' => 'datetime',
     ];
