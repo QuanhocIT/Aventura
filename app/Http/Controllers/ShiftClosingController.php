@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Area;
 use App\Models\AuditLog;
 use App\Models\CashRegister;
 use App\Models\CashTransaction;
@@ -20,10 +21,12 @@ use App\Services\OrderService;
 use App\Support\Tenant\TenantContext;
 use App\Support\TenantRule;
 use Carbon\Carbon;
+use Carbon\CarbonInterface;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Inertia\Inertia;
@@ -82,15 +85,34 @@ class ShiftClosingController extends Controller
             'shift_code' => $c->shift?->code ?? '',
             'shift_start' => $c->shift?->start_time ?? '',
             'shift_end' => $c->shift?->end_time ?? '',
+            'period_start_at' => $c->period_start_at?->format('H:i d/m/Y'),
+            'area_name' => $c->area_name ?? ($c->area?->name ?? 'Khu vực chung'),
+            'order_count' => (int) $c->order_count,
+            'total_order_count' => (int) ($c->total_order_count ?? $c->order_count),
+            'cash_order_count' => (int) ($c->cash_order_count ?? 0),
+            'transfer_order_count' => (int) ($c->transfer_order_count ?? 0),
+            'cancelled_order_count' => (int) ($c->cancelled_order_count ?? 0),
+            'cancelled_total_amount' => (float) ($c->cancelled_total_amount ?? 0),
+            'refunded_order_count' => (int) ($c->refunded_order_count ?? 0),
+            'refunded_total_amount' => (float) ($c->refunded_total_amount ?? 0),
             'cashier_name' => $c->cashier?->name ?? '—',
             'status' => $c->status,
             'expected_cash' => (float) $c->expected_cash,
+            'cash_sales_amount' => (float) ($c->cash_sales_amount ?? 0),
             'actual_cash' => (float) $c->actual_cash,
             'cash_difference' => (float) $c->cash_difference,
             'transfer_amount' => (float) $c->transfer_amount,
-            // gross_revenue = tiền thực thu trong ca (actual_cash) + chuyển khoản
-            // Không dùng expected_cash vì expected_cash đã cộng opening_balance và điều chỉnh két
-            'gross_revenue' => (float) ($c->actual_cash + $c->transfer_amount),
+            'actual_transfer_amount' => (float) ($c->actual_transfer_amount ?? 0),
+            'transfer_difference' => (float) ($c->transfer_difference ?? 0),
+            'gross_revenue_amount' => (float) ($c->gross_revenue_amount ?? 0),
+            'discount_amount' => (float) ($c->discount_amount ?? 0),
+            'net_revenue_amount' => (float) ($c->net_revenue_amount ?? 0),
+            'total_difference' => (float) ($c->total_difference ?? $c->cash_difference),
+            'responsibility_amount' => is_null($c->responsibility_amount)
+                ? (float) $c->cash_difference
+                : (float) $c->responsibility_amount,
+            'responsibility_note' => $c->responsibility_note,
+            'gross_revenue' => (float) ($c->gross_revenue_amount ?? ($c->actual_cash + $c->transfer_amount - ($c->refunded_total_amount ?? 0))),
             'other_expense' => (float) $c->other_expense_amount,
             'notes' => $c->notes,
             'confirmed_by_name' => $c->confirmedBy?->name ?? null,
@@ -133,9 +155,14 @@ class ShiftClosingController extends Controller
                 ->get(['id', 'name', 'code', 'start_time', 'end_time', 'is_overnight']);
         }
 
+        $areas = Area::where('restaurant_id', $restaurantId)
+            ->when($branchId, fn ($q) => $q->where(fn ($sq) => $sq->where('branch_id', $branchId)->orWhereNull('branch_id')))
+            ->get(['id', 'name']);
+
         return Inertia::render('shift-closings/Index', [
             'closings' => $closings->values(),
             'shifts' => $shifts,
+            'areas' => $areas,
             'kpi' => $kpi,
             'filters' => ['status' => $statusFilter, 'month' => $monthFilter],
             'activeBranchId' => $branchId,
@@ -160,7 +187,8 @@ class ShiftClosingController extends Controller
 
         $closingDate = Carbon::parse($request->input('closing_date'));
 
-        [$startDt, $endDt] = $this->shiftTimeRange($shift, $closingDate);
+        $closingAt = now();
+        [$startDt, $endDt] = $this->shiftTimeRange($shift, $closingDate, $closingAt);
 
         $unpaidTableOrders = collect();
         $isLastShift = $this->checkIsLastShift($restaurantId, $shift->id, $branchId);
@@ -279,37 +307,73 @@ class ShiftClosingController extends Controller
         })->count();
         $pendingOrders = max(0, $pendingOrders - $unpaidInShiftCount);
 
+        $areaFilter = $request->input('area_id');
+        $areaName = $this->areaSelectionName($restaurantId, $branchId, $areaFilter);
+        $isAreaScoped = $this->isAreaScoped($areaFilter);
+
         $alreadyClosed = ShiftClosing::withoutGlobalScopes()
             ->where('restaurant_id', $restaurantId)
             ->where('branch_id', $branchId)
             ->where('shift_id', $shift->id)
+            ->where('area_name', $areaName)
             ->whereDate('closing_date', $closingDate)
             ->exists();
+
+        $areasBreakdown = $this->getAreaBreakdownForShift(
+            $restaurantId,
+            $shift->id,
+            $closingDate->toDateString(),
+            $branchId,
+            $closingAt,
+        );
+        if ($isAreaScoped) {
+            $areasBreakdown = $this->filterBreakdownForArea($areasBreakdown, $areaFilter);
+        }
+        $summary = $this->summarizeBreakdown($areasBreakdown, $areaName);
+        $expectedCashForSlip = $isAreaScoped
+            ? $summary['cash_sales_amount']
+            : $expectedCashAfterPenalty;
+        $transferAmountForSlip = $isAreaScoped
+            ? $summary['transfer_amount']
+            : $transferAmount;
 
         return response()->json([
             'shift_name' => $shift->name,
             'shift_code' => $shift->code,
             'start_time' => $startDt->format('H:i d/m/Y'),
             'end_time' => $endDt->format('H:i d/m/Y'),
+            'period_start_at' => $startDt->toIso8601String(),
+            'period_end_at' => $endDt->toIso8601String(),
             'is_overnight' => (bool) $shift->is_overnight,
-            'order_count' => $completedOrders->count(),
-            'gross_revenue' => (float) $grossRevenue,
-            'discount_total' => (float) $discountTotal,
-            'net_revenue' => (float) $netRevenueAfterPenalty,
-            'expected_cash' => $expectedCashAfterPenalty,
+            'area_name' => $areaName,
+            'order_count' => $summary['order_count'],
+            'total_order_count' => $summary['total_order_count'],
+            'cash_order_count' => $summary['cash_order_count'],
+            'transfer_order_count' => $summary['transfer_order_count'],
+            'cancelled_order_count' => $summary['cancelled_order_count'],
+            'cancelled_total_amount' => $summary['cancelled_total_amount'],
+            'refunded_order_count' => $summary['refunded_order_count'],
+            'refunded_total_amount' => $summary['refunded_total_amount'],
+            'gross_revenue' => $summary['gross_revenue'],
+            'discount_total' => $summary['discount_total'],
+            'net_revenue' => $summary['net_revenue'],
+            'cash_sales_amount' => $summary['cash_sales_amount'],
+            'expected_cash' => $expectedCashForSlip,
             'bank_transfer' => $bankTransferAmount,
             'card' => $cardAmount,
             'ewallet' => $ewalletAmount,
             'mixed' => $mixedAmount,
-            'transfer_amount' => $transferAmount,
+            'transfer_amount' => $transferAmountForSlip,
             'pending_orders' => $pendingOrders,
             'already_closed' => $alreadyClosed,
+            'areas_breakdown' => $areasBreakdown,
             'split_penalty_total' => (float) $splitPenaltyTotal,
             'split_orders' => $splitOrders,
             'opening_balance' => $openingBalance,
             'other_cash_in' => $otherCashIn,
             'other_cash_out' => $otherCashOut,
             'has_register' => $hasRegister,
+            'closing_at' => $closingAt->toIso8601String(),
         ]);
     }
 
@@ -322,7 +386,11 @@ class ShiftClosingController extends Controller
         $data = $request->validate([
             'shift_id' => ['required', 'integer', TenantRule::exists('work_shifts')],
             'closing_date' => ['required', 'date', 'before_or_equal:today'],
+            'area_id' => ['nullable'],
             'actual_cash' => ['required', 'numeric', 'min:0'],
+            'actual_transfer_amount' => ['nullable', 'numeric', 'min:0'],
+            'responsibility_amount' => ['nullable', 'numeric'],
+            'responsibility_note' => ['nullable', 'string', 'max:1000'],
             'other_expense_amount' => ['nullable', 'numeric', 'min:0'],
             'notes' => ['nullable', 'string', 'max:1000'],
             'submit' => ['nullable', 'in:0,1'],
@@ -333,17 +401,22 @@ class ShiftClosingController extends Controller
         $branchId = $this->resolveOperationalBranch($user);
 
         $status = $request->boolean('submit') ? 'submitted' : 'draft';
-        $notes = $data['notes'];
+        $notes = $data['notes'] ?? null;
+        $closingAt = now();
+        $areaFilter = $data['area_id'] ?? null;
+        $areaName = $this->areaSelectionName($restaurantId, $branchId, $areaFilter);
+        $isAreaScoped = $this->isAreaScoped($areaFilter);
         $isLastShift = $this->checkIsLastShift($restaurantId, $data['shift_id'], $branchId);
         $autoPayEnabled = $this->isAutoPayEnabled($restaurantId, $branchId);
 
         try {
-            DB::transaction(function () use ($restaurantId, $branchId, $data, $user, $isLastShift, $autoPayEnabled, $status, &$notes) {
+            DB::transaction(function () use ($restaurantId, $branchId, $data, $user, $isLastShift, $autoPayEnabled, $status, $closingAt, $areaFilter, $areaName, $isAreaScoped, &$notes) {
                 // Kiểm tra lại trong transaction với lock để tránh race condition
                 $existsInLock = ShiftClosing::withoutGlobalScopes()
                     ->where('restaurant_id', $restaurantId)
                     ->where('branch_id', $branchId)
                     ->where('shift_id', $data['shift_id'])
+                    ->where('area_name', $areaName)
                     ->whereDate('closing_date', $data['closing_date'])
                     ->lockForUpdate()
                     ->exists();
@@ -359,7 +432,7 @@ class ShiftClosingController extends Controller
                         ->where(fn ($q) => $q->where('branch_id', $branchId)->orWhereNull('branch_id'))
                         ->findOrFail($data['shift_id']);
                     $closingDate = Carbon::parse($data['closing_date']);
-                    [$startDt, $endDt] = $this->shiftTimeRange($shift, $closingDate);
+                    [$startDt, $endDt] = $this->shiftTimeRange($shift, $closingDate, $closingAt);
 
                     $unpaidOrders = Order::withoutGlobalScopes()
                         ->where('restaurant_id', $restaurantId)
@@ -378,31 +451,82 @@ class ShiftClosingController extends Controller
                     }
                 }
 
-                $calculated = $this->calculateShiftRevenue($restaurantId, $data['shift_id'], $data['closing_date'], $branchId);
-                $cashDifference = (float) $data['actual_cash'] - $calculated['expected_cash'];
+                $calculated = $this->calculateShiftRevenue(
+                    $restaurantId,
+                    $data['shift_id'],
+                    $data['closing_date'],
+                    $branchId,
+                    $closingAt,
+                );
+                $areasBreakdown = $this->getAreaBreakdownForShift(
+                    $restaurantId,
+                    $data['shift_id'],
+                    $data['closing_date'],
+                    $branchId,
+                    $closingAt,
+                );
+                if ($isAreaScoped) {
+                    $areasBreakdown = $this->filterBreakdownForArea($areasBreakdown, $areaFilter);
+                }
+                $summary = $this->summarizeBreakdown($areasBreakdown, $areaName);
+                $expectedCashForSlip = $isAreaScoped
+                    ? $summary['cash_sales_amount']
+                    : $calculated['expected_cash'];
+                $transferAmountForSlip = $isAreaScoped
+                    ? $summary['transfer_amount']
+                    : $calculated['transfer_amount'];
+                $actualTransfer = (float) ($data['actual_transfer_amount'] ?? 0);
+                $cashDifference = (float) $data['actual_cash'] - $expectedCashForSlip;
+                $transferDifference = $actualTransfer - $transferAmountForSlip;
+                $totalDifference = $cashDifference + $transferDifference;
+                $responsibilityAmount = array_key_exists('responsibility_amount', $data)
+                    && ! is_null($data['responsibility_amount'])
+                    ? (float) $data['responsibility_amount']
+                    : $totalDifference;
 
-                if ($calculated['split_penalty_total'] > 0) {
+                if (! $isAreaScoped && $calculated['split_penalty_total'] > 0) {
                     $notes = trim(($notes ?? '')."\n[Khấu trừ đơn tách] Phạt đơn tách chưa đối soát: -".number_format($calculated['split_penalty_total']).'đ');
                 }
 
+                // Một ca + khu vực chỉ có đúng một phiếu tổng.
                 ShiftClosing::create([
                     'restaurant_id' => $restaurantId,
                     'branch_id' => $branchId,
                     'shift_id' => $data['shift_id'],
                     'closing_date' => $data['closing_date'],
+                    'period_start_at' => $calculated['period_start_at'],
+                    'area_id' => is_numeric($areaFilter) ? (int) $areaFilter : null,
+                    'area_name' => $areaName,
+                    'order_count' => $summary['order_count'],
+                    'total_order_count' => $summary['total_order_count'],
+                    'cash_order_count' => $summary['cash_order_count'],
+                    'transfer_order_count' => $summary['transfer_order_count'],
+                    'cancelled_order_count' => $summary['cancelled_order_count'],
+                    'cancelled_total_amount' => $summary['cancelled_total_amount'],
+                    'refunded_order_count' => $summary['refunded_order_count'],
+                    'refunded_total_amount' => $summary['refunded_total_amount'],
                     'cashier_user_id' => $user->id,
-                    'expected_cash' => $calculated['expected_cash'],
+                    'expected_cash' => $expectedCashForSlip,
+                    'cash_sales_amount' => $summary['cash_sales_amount'],
                     'actual_cash' => $data['actual_cash'],
                     'cash_difference' => $cashDifference,
-                    'transfer_amount' => $calculated['transfer_amount'],
+                    'transfer_amount' => $transferAmountForSlip,
+                    'actual_transfer_amount' => $actualTransfer,
+                    'transfer_difference' => $transferDifference,
+                    'gross_revenue_amount' => $summary['gross_revenue'],
+                    'discount_amount' => $summary['discount_total'],
+                    'net_revenue_amount' => $summary['net_revenue'],
+                    'total_difference' => $totalDifference,
+                    'responsibility_amount' => $responsibilityAmount,
+                    'responsibility_note' => $data['responsibility_note'] ?? null,
                     'other_expense_amount' => $data['other_expense_amount'] ?? 0,
                     'notes' => $notes,
                     'status' => $status,
-                    'closed_at' => now(),
+                    'closed_at' => $closingAt,
                     'cash_register_id' => $calculated['register_id'],
                 ]);
 
-                if ($calculated['register_id'] && $status === 'submitted') {
+                if ($calculated['register_id'] && $status === 'submitted' && ! $isAreaScoped) {
                     $register = CashRegister::where('restaurant_id', $restaurantId)
                         ->where('branch_id', $branchId)
                         ->find($calculated['register_id']);
@@ -412,7 +536,7 @@ class ShiftClosingController extends Controller
                             'closed_by' => $user->id,
                             'closed_at' => now(),
                             'closing_balance' => $data['actual_cash'],
-                            'expected_closing_balance' => $calculated['expected_cash'],
+                            'expected_closing_balance' => $expectedCashForSlip,
                             'difference' => $cashDifference,
                         ]);
                     }
@@ -455,8 +579,12 @@ class ShiftClosingController extends Controller
                 'confirmed_by' => $user->id,
             ]);
 
-            // Auto-tạo khấu trừ lương nếu cashier thiếu quỹ
-            if ((float) $closing->cash_difference < 0 && $closing->cashier_user_id) {
+            // Quy trách nhiệm theo số đã nhập: âm là trừ lương, dương là cộng lương.
+            $responsibilityAmount = is_null($closing->responsibility_amount)
+                ? (float) $closing->cash_difference
+                : (float) $closing->responsibility_amount;
+
+            if ($responsibilityAmount !== 0.0 && $closing->cashier_user_id) {
                 $employee = Employee::withoutGlobalScopes()
                     ->where('restaurant_id', $restaurantId)
                     ->where('branch_id', $closing->branch_id)
@@ -473,15 +601,16 @@ class ShiftClosingController extends Controller
                     if (! $alreadyExists) {
                         $dateStr = Carbon::parse($closing->closing_date)->toDateString();
                         $shiftName = $closing->shift?->name ?? 'ca';
-                        $shortageAmt = abs((float) $closing->cash_difference);
+                        $adjustmentType = $responsibilityAmount < 0 ? 'cash_shortage' : 'bonus';
+                        $adjustmentAmount = abs($responsibilityAmount);
 
                         $salaryService = app(SalaryService::class);
                         $salary = $salaryService->getOrCreateDraft($restaurantId, $employee, $dateStr);
                         $salaryService->addAdjustment($salary, [
                             'employee_id' => $employee->id,
-                            'type' => 'cash_shortage',
-                            'amount' => $shortageAmt,
-                            'reason' => "Thiếu quỹ {$shiftName} ngày ".Carbon::parse($closing->closing_date)->format('d/m/Y').': '.number_format($shortageAmt).'đ',
+                            'type' => $adjustmentType,
+                            'amount' => $adjustmentAmount,
+                            'reason' => ($responsibilityAmount < 0 ? 'Trừ trách nhiệm' : 'Cộng trách nhiệm')." {$shiftName} ngày ".Carbon::parse($closing->closing_date)->format('d/m/Y').': '.number_format($adjustmentAmount).'đ',
                             'reference_id' => $closing->id,
                             'reference_type' => ShiftClosing::class,
                         ]);
@@ -511,7 +640,7 @@ class ShiftClosingController extends Controller
 
     // ── Private helpers ───────────────────────────────────────────────────────
 
-    private function calculateShiftRevenue(int $restaurantId, int $shiftId, string $date, ?int $branchId = null): array
+    private function calculateShiftRevenue(int $restaurantId, int $shiftId, string $date, ?int $branchId = null, ?CarbonInterface $closingAt = null): array
     {
         $shift = WorkShift::withoutGlobalScopes()
             ->where('restaurant_id', $restaurantId)
@@ -521,7 +650,7 @@ class ShiftClosingController extends Controller
             ->findOrFail($shiftId);
         $closingDate = Carbon::parse($date);
 
-        [$startDt, $endDt] = $this->shiftTimeRange($shift, $closingDate);
+        [$startDt, $endDt] = $this->shiftTimeRange($shift, $closingDate, $closingAt);
 
         $orderIds = Order::withoutGlobalScopes()
             ->where('restaurant_id', $restaurantId)
@@ -556,8 +685,8 @@ class ShiftClosingController extends Controller
             ->where('shift_id', $shiftId)
             ->where('status', 'open')
             ->where(function ($q) {
-                $q->where('cashier_user_id', auth()->id())
-                    ->orWhere('opened_by', auth()->id());
+                $q->where('cashier_user_id', Auth::id())
+                    ->orWhere('opened_by', Auth::id());
             })
             ->first();
 
@@ -581,20 +710,30 @@ class ShiftClosingController extends Controller
         $expectedCashTotal = max(0.0, $openingBalance + $expectedCash - $splitPenaltyTotal + $otherCashIn - $otherCashOut);
 
         return [
+            'period_start_at' => $startDt,
+            'period_end_at' => $endDt,
             'expected_cash' => $expectedCashTotal,
+            'cash_sales_amount' => (float) $expectedCash,
             'transfer_amount' => (float) $payments->whereIn('payment_method', ['bank_transfer', 'card', 'ewallet', 'mixed'])->sum('amount'),
             'split_penalty_total' => (float) $splitPenaltyTotal,
             'register_id' => $registerId,
         ];
     }
 
-    private function shiftTimeRange(WorkShift $shift, Carbon $closingDate): array
+    private function shiftTimeRange(WorkShift $shift, Carbon $closingDate, ?CarbonInterface $closingAt = null): array
     {
         $startDt = Carbon::parse($closingDate->toDateString().' '.$shift->start_time);
 
-        $endDt = $shift->is_overnight
+        $scheduledEndDt = $shift->is_overnight
             ? Carbon::parse($closingDate->copy()->addDay()->toDateString().' '.$shift->end_time)
             : Carbon::parse($closingDate->toDateString().' '.$shift->end_time);
+
+        // For a live close, the report ends exactly when the cashier presses
+        // close. Historical dates keep their scheduled shift boundary.
+        $isLiveClosing = $closingAt
+            && ($closingDate->isToday() || ($shift->is_overnight && $closingDate->isYesterday()))
+            && $closingAt->greaterThan($startDt);
+        $endDt = $isLiveClosing ? $closingAt->copy() : $scheduledEndDt;
 
         return [$startDt, $endDt];
     }
@@ -713,7 +852,7 @@ class ShiftClosingController extends Controller
     /**
      * Tạo file snapshot lưu trữ trạng thái các đơn hàng trước khi thực hiện auto-pay lúc chốt ca.
      */
-    private function saveBeforeAutoPaySnapshot(int $restaurantId, int $branchId, int $shiftId, string $closingDate, $orders): void
+    private function saveBeforeAutoPaySnapshot(int $restaurantId, int $branchId, int $shiftId, string $closingDate, \Illuminate\Support\Collection $orders): void
     {
         if ($orders->isEmpty()) {
             return;
@@ -748,7 +887,7 @@ class ShiftClosingController extends Controller
         Log::info('ShiftClosingController: Đã lưu snapshot trước auto-pay', ['file' => $filename]);
     }
 
-    private function resolveOperationalBranch($user): int
+    private function resolveOperationalBranch(User $user): int
     {
         $branchId = $this->tenantContext->activeBranchId()
             ?? ($user->isOwner() ? $user->assignedBranchId() : null);
@@ -767,7 +906,227 @@ class ShiftClosingController extends Controller
         return $branchId;
     }
 
-    private function authorizeClosingBranch($user, ShiftClosing $closing): void
+    private function getAreaBreakdownForShift(int $restaurantId, int $shiftId, string $date, ?int $branchId = null, ?CarbonInterface $closingAt = null): array
+    {
+        $shift = WorkShift::withoutGlobalScopes()
+            ->where('restaurant_id', $restaurantId)
+            ->when($branchId, fn ($q) => $q->where(fn ($scope) => $scope
+                ->where('branch_id', $branchId)
+                ->orWhereNull('branch_id')))
+            ->findOrFail($shiftId);
+
+        $closingDate = Carbon::parse($date);
+        [$startDt, $endDt] = $this->shiftTimeRange($shift, $closingDate, $closingAt);
+
+        $areaGroups = [];
+
+        $existingAreas = Area::withoutGlobalScopes()
+            ->where('restaurant_id', $restaurantId)
+            ->when($branchId, fn ($q) => $q->where(fn ($sq) => $sq->where('branch_id', $branchId)->orWhereNull('branch_id')))
+            ->get(['id', 'name']);
+
+        foreach ($existingAreas as $areaObj) {
+            $areaGroups['area_'.$areaObj->id] = [
+                'area_id' => $areaObj->id,
+                'area_name' => $areaObj->name,
+                'total_order_count' => 0,
+                'order_count' => 0,
+                'cash_order_count' => 0,
+                'expected_cash' => 0.0,
+                'transfer_order_count' => 0,
+                'transfer_amount' => 0.0,
+                'cancelled_order_count' => 0,
+                'cancelled_total_amount' => 0.0,
+                'refunded_order_count' => 0,
+                'refunded_total_amount' => 0.0,
+                'gross_revenue' => 0.0,
+                'discount_total' => 0.0,
+                'net_revenue' => 0.0,
+            ];
+        }
+
+        $takeawayKey = 'takeaway';
+        $areaGroups[$takeawayKey] = [
+            'area_id' => null,
+            'area_name' => 'Mang về / Giao hàng',
+            'total_order_count' => 0,
+            'order_count' => 0,
+            'cash_order_count' => 0,
+            'expected_cash' => 0.0,
+            'transfer_order_count' => 0,
+            'transfer_amount' => 0.0,
+            'cancelled_order_count' => 0,
+            'cancelled_total_amount' => 0.0,
+            'refunded_order_count' => 0,
+            'refunded_total_amount' => 0.0,
+            'gross_revenue' => 0.0,
+            'discount_total' => 0.0,
+            'net_revenue' => 0.0,
+        ];
+
+        $shiftOrders = Order::withoutGlobalScopes()
+            ->where('restaurant_id', $restaurantId)
+            ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
+            ->where(function ($q) use ($startDt, $endDt) {
+                $q->whereBetween('created_at', [$startDt, $endDt])
+                    ->orWhereBetween('completed_at', [$startDt, $endDt])
+                    ->orWhereBetween('cancelled_at', [$startDt, $endDt])
+                    ->orWhereBetween('refunded_at', [$startDt, $endDt]);
+            })
+            ->with(['table.area', 'payments'])
+            ->get();
+
+        foreach ($shiftOrders as $ord) {
+            $areaObj = $ord->table?->area;
+            $groupKey = $areaObj ? 'area_'.$areaObj->id : $takeawayKey;
+
+            if (! isset($areaGroups[$groupKey])) {
+                $areaGroups[$groupKey] = [
+                    'area_id' => $areaObj?->id,
+                    'area_name' => $areaObj?->name ?? 'Mang về / Giao hàng',
+                    'total_order_count' => 0,
+                    'order_count' => 0,
+                    'cash_order_count' => 0,
+                    'expected_cash' => 0.0,
+                    'transfer_order_count' => 0,
+                    'transfer_amount' => 0.0,
+                    'cancelled_order_count' => 0,
+                    'cancelled_total_amount' => 0.0,
+                    'refunded_order_count' => 0,
+                    'refunded_total_amount' => 0.0,
+                    'gross_revenue' => 0.0,
+                    'discount_total' => 0.0,
+                    'net_revenue' => 0.0,
+                ];
+            }
+
+            if ($ord->created_at >= $startDt && $ord->created_at <= $endDt) {
+                $areaGroups[$groupKey]['total_order_count'] += 1;
+            }
+
+            if ($ord->status === 'cancelled' && (($ord->cancelled_at && $ord->cancelled_at >= $startDt && $ord->cancelled_at <= $endDt) || ($ord->updated_at >= $startDt && $ord->updated_at <= $endDt))) {
+                $areaGroups[$groupKey]['cancelled_order_count'] += 1;
+                $areaGroups[$groupKey]['cancelled_total_amount'] += (float) $ord->total_amount;
+            }
+
+            if ($ord->payment_status === 'refunded' && (($ord->refunded_at && $ord->refunded_at >= $startDt && $ord->refunded_at <= $endDt) || ($ord->updated_at >= $startDt && $ord->updated_at <= $endDt))) {
+                $areaGroups[$groupKey]['refunded_order_count'] += 1;
+                $areaGroups[$groupKey]['refunded_total_amount'] += (float) $ord->total_amount;
+            }
+
+            if ($ord->status === 'completed') {
+                $areaGroups[$groupKey]['order_count'] += 1;
+                $areaGroups[$groupKey]['discount_total'] += (float) $ord->discount_amount;
+
+                $hasCash = false;
+                $hasTransfer = false;
+
+                foreach ($ord->payments as $pm) {
+                    if ($pm->status === 'paid') {
+                        if ($pm->payment_method === 'cash') {
+                            $areaGroups[$groupKey]['expected_cash'] += (float) $pm->amount;
+                            $hasCash = true;
+                        } else {
+                            $areaGroups[$groupKey]['transfer_amount'] += (float) $pm->amount;
+                            $hasTransfer = true;
+                        }
+                    }
+                }
+
+                if ($hasCash) {
+                    $areaGroups[$groupKey]['cash_order_count'] += 1;
+                }
+                if ($hasTransfer) {
+                    $areaGroups[$groupKey]['transfer_order_count'] += 1;
+                }
+            }
+        }
+
+        foreach ($areaGroups as $k => $g) {
+            $gross = $g['expected_cash'] + $g['transfer_amount'] - $g['refunded_total_amount'];
+            $areaGroups[$k]['gross_revenue'] = max(0.0, $gross);
+            $areaGroups[$k]['net_revenue'] = max(0.0, $gross - $g['discount_total']);
+        }
+
+        $result = collect(array_values($areaGroups))
+            ->filter(function ($item) {
+                return $item['total_order_count'] > 0 || $item['order_count'] > 0 || $item['cancelled_order_count'] > 0 || $item['refunded_order_count'] > 0;
+            })
+            ->values()
+            ->all();
+
+        if (empty($result)) {
+            $result = array_values($areaGroups);
+        }
+
+        return $result;
+    }
+
+    /**
+     * Collapse the per-area calculation into the single immutable slip shown
+     * to the cashier and used by payroll reconciliation.
+     */
+    private function summarizeBreakdown(array $breakdown, string $areaName = 'Toàn bộ khu vực'): array
+    {
+        $sum = static fn (string $key): float => (float) collect($breakdown)->sum(
+            fn (array $item): float => (float) ($item[$key] ?? 0),
+        );
+
+        return [
+            'area_name' => $areaName,
+            'order_count' => (int) $sum('order_count'),
+            'total_order_count' => (int) $sum('total_order_count'),
+            'cash_order_count' => (int) $sum('cash_order_count'),
+            'transfer_order_count' => (int) $sum('transfer_order_count'),
+            'cancelled_order_count' => (int) $sum('cancelled_order_count'),
+            'cancelled_total_amount' => $sum('cancelled_total_amount'),
+            'refunded_order_count' => (int) $sum('refunded_order_count'),
+            'refunded_total_amount' => $sum('refunded_total_amount'),
+            'cash_sales_amount' => $sum('expected_cash'),
+            'transfer_amount' => $sum('transfer_amount'),
+            'gross_revenue' => $sum('gross_revenue'),
+            'discount_total' => $sum('discount_total'),
+            'net_revenue' => $sum('net_revenue'),
+        ];
+    }
+
+    private function isAreaScoped(mixed $areaFilter): bool
+    {
+        return ! is_null($areaFilter) && $areaFilter !== '' && $areaFilter !== 'all';
+    }
+
+    private function filterBreakdownForArea(array $breakdown, mixed $areaFilter): array
+    {
+        if ($areaFilter === 'takeaway') {
+            return array_values(array_filter($breakdown, fn (array $item): bool => is_null($item['area_id'] ?? null)));
+        }
+
+        return array_values(array_filter(
+            $breakdown,
+            fn (array $item): bool => (int) ($item['area_id'] ?? 0) === (int) $areaFilter,
+        ));
+    }
+
+    private function areaSelectionName(int $restaurantId, ?int $branchId, mixed $areaFilter): string
+    {
+        if ($areaFilter === 'takeaway') {
+            return 'Mang về / Giao hàng';
+        }
+
+        if ($this->isAreaScoped($areaFilter)) {
+            return Area::withoutGlobalScopes()
+                ->where('restaurant_id', $restaurantId)
+                ->when($branchId, fn ($q) => $q->where(fn ($scope) => $scope
+                    ->where('branch_id', $branchId)
+                    ->orWhereNull('branch_id')))
+                ->whereKey((int) $areaFilter)
+                ->value('name') ?? 'Khu vực đã chọn';
+        }
+
+        return 'Toàn bộ khu vực';
+    }
+
+    private function authorizeClosingBranch(User $user, ShiftClosing $closing): void
     {
         abort_if($closing->restaurant_id !== $user->restaurant_id, 403);
         abort_unless($user->canAccessBranch($closing->branch_id), 403);

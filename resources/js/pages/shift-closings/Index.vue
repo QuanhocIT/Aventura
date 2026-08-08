@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Head, router, useForm } from '@inertiajs/vue3';
+import { Head, router, useForm, usePage } from '@inertiajs/vue3';
 import {
     AlertTriangle,
     ArrowDownCircle,
@@ -16,7 +16,9 @@ import {
     CreditCard,
     Info,
     Loader2,
+    MapPin,
     ReceiptText,
+    Store,
     TriangleAlert,
     Wallet,
     X,
@@ -49,12 +51,31 @@ type ShiftClosing = {
     shift_code: string;
     shift_start: string;
     shift_end: string;
+    period_start_at: string | null;
+    area_name?: string;
+    order_count?: number;
+    total_order_count?: number;
+    cash_order_count?: number;
+    transfer_order_count?: number;
+    cancelled_order_count?: number;
+    cancelled_total_amount?: number;
+    refunded_order_count?: number;
+    refunded_total_amount?: number;
     cashier_name: string;
     status: Status;
     expected_cash: number;
+    cash_sales_amount: number;
     actual_cash: number;
     cash_difference: number;
     transfer_amount: number;
+    actual_transfer_amount: number;
+    transfer_difference: number;
+    gross_revenue_amount: number;
+    discount_amount: number;
+    net_revenue_amount: number;
+    total_difference: number;
+    responsibility_amount: number;
+    responsibility_note: string | null;
     gross_revenue: number;
     other_expense: number;
     notes: string | null;
@@ -79,6 +100,24 @@ type KPI = {
     total_difference: number;
 };
 
+type AreaBreakdownItem = {
+    area_id: number | null;
+    area_name: string;
+    total_order_count: number;
+    order_count: number;
+    cash_order_count: number;
+    expected_cash: number;
+    transfer_order_count: number;
+    transfer_amount: number;
+    cancelled_order_count: number;
+    cancelled_total_amount: number;
+    refunded_order_count: number;
+    refunded_total_amount: number;
+    gross_revenue: number;
+    discount_total: number;
+    net_revenue: number;
+};
+
 type Preview = {
     shift_name: string;
     shift_code: string;
@@ -86,9 +125,17 @@ type Preview = {
     end_time: string;
     is_overnight: boolean;
     order_count: number;
+    total_order_count: number;
+    cash_order_count: number;
+    transfer_order_count: number;
+    cancelled_order_count: number;
+    cancelled_total_amount: number;
+    refunded_order_count: number;
+    refunded_total_amount: number;
     gross_revenue: number;
     discount_total: number;
     net_revenue: number;
+    cash_sales_amount: number;
     expected_cash: number;
     bank_transfer: number;
     card: number;
@@ -97,15 +144,21 @@ type Preview = {
     transfer_amount: number;
     pending_orders: number;
     already_closed: boolean;
+    areas_breakdown?: AreaBreakdownItem[];
     opening_balance?: number;
     other_cash_in?: number;
     other_cash_out?: number;
     has_register?: boolean;
+    period_start_at: string;
+    period_end_at: string;
+    area_name: string;
+    closing_at: string;
 };
 
 const props = defineProps<{
     closings: ShiftClosing[];
     shifts: Shift[];
+    areas?: Array<{ id: number; name: string }>;
     kpi: KPI;
     filters: { status: string; month: string };
     canConfirm: boolean;
@@ -172,6 +225,27 @@ const compact = (v: number) =>
         maximumFractionDigits: 1,
     }).format(v) + 'đ';
 
+// ── Tenant & Branch info ───────────────────────────────────────────────────────
+
+const page = usePage();
+const tenant = computed(() => (page.props as any).tenant);
+const restaurantName = computed(() => tenant.value?.name || 'Cửa hàng');
+const activeBranchName = computed(() => {
+    if (!tenant.value?.branches || tenant.value?.branches.length === 0) {
+        return 'Chi nhánh mặc định';
+    }
+
+    if (!tenant.value?.active_branch_id) {
+        return 'Toàn bộ chi nhánh';
+    }
+
+    const branch = tenant.value.branches.find(
+        (b: any) => b.id === tenant.value.active_branch_id,
+    );
+
+    return branch ? branch.name : 'Chi nhánh mặc định';
+});
+
 // ── Create dialog ─────────────────────────────────────────────────────────────
 
 const showDialog = ref(false);
@@ -183,13 +257,18 @@ const previewError = ref('');
 const form = useForm({
     shift_id: null as number | null,
     closing_date: new Date().toISOString().slice(0, 10),
+    area_id: null as number | string | null,
     actual_cash: 0,
+    actual_transfer_amount: 0,
+    responsibility_amount: 0,
+    responsibility_note: '',
     other_expense_amount: 0,
     notes: '',
 });
 
 const isSubmitting = ref(false);
 const isProcessing = ref(false);
+const responsibilityAuto = ref(true);
 
 const cashDifference = computed(() => {
     if (!previewData.value) {
@@ -199,13 +278,36 @@ const cashDifference = computed(() => {
     return form.actual_cash - previewData.value.expected_cash;
 });
 
+const transferDifference = computed(() => {
+    if (!previewData.value) {
+        return 0;
+    }
+
+    return form.actual_transfer_amount - previewData.value.transfer_amount;
+});
+
+const totalDifference = computed(
+    () => cashDifference.value + transferDifference.value,
+);
+
+watch([() => form.actual_cash, () => form.actual_transfer_amount], () => {
+    if (responsibilityAuto.value) {
+        form.responsibility_amount = totalDifference.value;
+    }
+});
+
 function openDialog() {
     form.reset();
     form.closing_date = todayStr;
     form.shift_id = null;
+    form.area_id = null;
     form.actual_cash = 0;
+    form.actual_transfer_amount = 0;
+    form.responsibility_amount = 0;
+    form.responsibility_note = '';
     form.other_expense_amount = 0;
     form.notes = '';
+    responsibilityAuto.value = true;
     previewData.value = null;
     previewError.value = '';
     dialogStep.value = 1;
@@ -214,8 +316,8 @@ function openDialog() {
 }
 
 async function loadPreview() {
-    if (!form.shift_id || !form.closing_date) {
-        previewError.value = 'Vui lòng chọn ca và ngày.';
+    if (!form.shift_id || !form.closing_date || !form.area_id) {
+        previewError.value = 'Vui lòng chọn ca, khu vực và ngày.';
 
         return;
     }
@@ -225,7 +327,8 @@ async function loadPreview() {
     previewData.value = null;
 
     try {
-        const url = `/shift-closings/preview?shift_id=${form.shift_id}&closing_date=${form.closing_date}`;
+        const areaParam = form.area_id ? `&area_id=${form.area_id}` : '';
+        const url = `/shift-closings/preview?shift_id=${form.shift_id}&closing_date=${form.closing_date}${areaParam}`;
         const res = await fetch(url, {
             headers: {
                 Accept: 'application/json',
@@ -242,6 +345,9 @@ async function loadPreview() {
         const data: Preview = await res.json();
         previewData.value = data;
         form.actual_cash = data.expected_cash;
+        form.actual_transfer_amount = data.transfer_amount;
+        responsibilityAuto.value = true;
+        form.responsibility_amount = 0;
         dialogStep.value = 2;
     } catch {
         previewError.value = 'Lỗi kết nối. Thử lại.';
@@ -443,13 +549,23 @@ function openCalendar() {
         calView.value = { year: today.getFullYear(), month: today.getMonth() };
     }
 
-    // Đặt calendar sang bên phải trigger
     if (calTriggerRef.value) {
         const rect = calTriggerRef.value.getBoundingClientRect();
+        const calWidth = 272;
+        let leftPos = rect.left;
+
+        if (leftPos + calWidth > window.innerWidth - 16) {
+            leftPos = window.innerWidth - calWidth - 16;
+        }
+
+        if (leftPos < 16) {
+            leftPos = 16;
+        }
+
         calPos.value = {
-            top: rect.top + window.scrollY,
-            left: rect.right + window.scrollX + 8,
-            width: rect.width,
+            top: rect.bottom + 6,
+            left: leftPos,
+            width: calWidth,
         };
     }
 
@@ -861,14 +977,17 @@ onUnmounted(() =>
                 <template v-else>
                     <!-- Table Header -->
                     <div
-                        class="hidden grid-cols-[auto_1fr_1fr_1fr_1fr_1fr_auto] gap-4 border-b border-slate-100 bg-slate-50/50 px-5 py-3 text-[10px] font-bold tracking-wider text-slate-500 uppercase lg:grid dark:border-slate-800 dark:bg-slate-900/30"
+                        class="hidden grid-cols-[auto_1.1fr_1.1fr_1fr_1.1fr_1.1fr_1fr_1fr_1.2fr_auto] gap-2.5 border-b border-slate-100 bg-slate-50/50 px-5 py-3 text-[10px] font-bold tracking-wider text-slate-500 uppercase lg:grid dark:border-slate-800 dark:bg-slate-900/30"
                     >
                         <div></div>
                         <div>Ngày / Ca</div>
-                        <div>Cashier</div>
-                        <div class="text-right">Doanh thu gộp</div>
-                        <div class="text-right">Tiền mặt thực</div>
-                        <div class="text-right">Chênh lệch</div>
+                        <div>Khu vực</div>
+                        <div>Đơn vào</div>
+                        <div class="text-right">Thanh toán TM</div>
+                        <div class="text-right">Thanh toán CK</div>
+                        <div class="text-right">Đơn hủy</div>
+                        <div class="text-right">Hoàn tiền</div>
+                        <div class="text-right">Tổng doanh thu</div>
                         <div class="text-right">Trạng thái</div>
                     </div>
 
@@ -880,7 +999,7 @@ onUnmounted(() =>
                     >
                         <!-- Main Row -->
                         <div
-                            class="grid cursor-pointer grid-cols-[auto_1fr_auto] items-center gap-3 px-4 py-4 transition hover:bg-slate-50/60 lg:grid-cols-[auto_1fr_1fr_1fr_1fr_1fr_auto] lg:gap-4 lg:px-5 dark:hover:bg-slate-900/30"
+                            class="grid cursor-pointer grid-cols-[auto_1fr_auto] items-center gap-3 px-4 py-4 transition hover:bg-slate-50/60 lg:grid-cols-[auto_1.1fr_1.1fr_1fr_1.1fr_1.1fr_1fr_1fr_1.2fr_auto] lg:gap-2.5 lg:px-5 dark:hover:bg-slate-900/30"
                             @click="toggleExpand(closing.id)"
                         >
                             <!-- Expand toggle -->
@@ -907,51 +1026,75 @@ onUnmounted(() =>
                                         class="truncate text-xs font-medium text-slate-400"
                                         >{{ closing.shift_name }}</span
                                     >
-                                    <span
-                                        class="hidden font-mono text-[10px] text-slate-400 lg:inline"
-                                        >({{ closing.shift_start }}–{{
-                                            closing.shift_end
-                                        }})</span
-                                    >
                                 </div>
                             </div>
 
-                            <!-- Cashier -->
-                            <div class="hidden items-center gap-2 lg:flex">
-                                <div
-                                    class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border bg-indigo-500/10 text-xs font-bold text-indigo-600 dark:border-indigo-900/30 dark:bg-indigo-950/40 dark:text-indigo-400"
-                                >
-                                    {{
-                                        closing.cashier_name?.slice(0, 1) ?? '?'
-                                    }}
-                                </div>
+                            <!-- Khu vực -->
+                            <div class="hidden items-center lg:flex">
                                 <span
-                                    class="truncate text-sm font-semibold text-slate-500"
-                                    >{{ closing.cashier_name }}</span
+                                    class="inline-flex items-center rounded-lg border border-indigo-200/60 bg-indigo-50/70 px-2.5 py-1 text-xs font-bold text-indigo-700 dark:border-indigo-900/40 dark:bg-indigo-950/50 dark:text-indigo-300"
                                 >
+                                    {{ closing.area_name || 'Khu vực chung' }}
+                                </span>
                             </div>
 
-                            <!-- Doanh thu gộp -->
+                            <!-- Đơn vào khu vực -->
+                            <div class="hidden flex-col lg:flex">
+                                <span class="text-xs font-extrabold text-slate-800 dark:text-slate-200">
+                                    {{ closing.total_order_count ?? closing.order_count ?? 0 }} đơn
+                                </span>
+                                <span class="text-[10px] text-slate-400 font-medium">
+                                    ({{ closing.order_count ?? 0 }} xong)
+                                </span>
+                            </div>
+
+                            <!-- Thanh toán TM -->
                             <div class="hidden text-right font-mono lg:block">
-                                <p class="text-sm font-bold">
+                                <p class="text-xs font-bold text-blue-600 dark:text-blue-400">
+                                    {{ compact(closing.expected_cash) }}
+                                </p>
+                                <p class="text-[10px] text-slate-400">
+                                    {{ closing.cash_order_count ?? 0 }} đơn TM
+                                </p>
+                            </div>
+
+                            <!-- Thanh toán CK -->
+                            <div class="hidden text-right font-mono lg:block">
+                                <p class="text-xs font-bold text-violet-600 dark:text-violet-400">
+                                    {{ compact(closing.transfer_amount) }}
+                                </p>
+                                <p class="text-[10px] text-slate-400">
+                                    {{ closing.transfer_order_count ?? 0 }} đơn CK
+                                </p>
+                            </div>
+
+                            <!-- Đơn hủy -->
+                            <div class="hidden text-right font-mono lg:block">
+                                <p class="text-xs font-bold text-rose-500">
+                                    {{ compact(closing.cancelled_total_amount ?? 0) }}
+                                </p>
+                                <p class="text-[10px] text-slate-400">
+                                    {{ closing.cancelled_order_count ?? 0 }} đơn hủy
+                                </p>
+                            </div>
+
+                            <!-- Hoàn tiền -->
+                            <div class="hidden text-right font-mono lg:block">
+                                <p class="text-xs font-bold text-amber-600">
+                                    {{ compact(closing.refunded_total_amount ?? 0) }}
+                                </p>
+                                <p class="text-[10px] text-slate-400">
+                                    {{ closing.refunded_order_count ?? 0 }} đơn hoàn
+                                </p>
+                            </div>
+
+                            <!-- Tổng doanh thu (= TM + CK - Hoàn tiền) -->
+                            <div class="hidden text-right font-mono lg:block">
+                                <p class="text-sm font-black text-emerald-600 dark:text-emerald-400">
                                     {{ compact(closing.gross_revenue) }}
                                 </p>
-                                <p
-                                    class="mt-0.5 text-[10px] font-medium text-slate-400"
-                                >
-                                    <span class="text-blue-500"
-                                        >TM:
-                                        {{
-                                            compact(closing.expected_cash)
-                                        }}</span
-                                    >
-                                    <span class="mx-1">·</span>
-                                    <span class="text-violet-500"
-                                        >CK:
-                                        {{
-                                            compact(closing.transfer_amount)
-                                        }}</span
-                                    >
+                                <p class="text-[9px] text-slate-400">
+                                    TM+CK-Hoàn
                                 </p>
                             </div>
 
@@ -1115,6 +1258,14 @@ onUnmounted(() =>
                                                     }}</span
                                                 >
                                             </div>
+                                            <div class="flex justify-between text-violet-600 dark:text-violet-400">
+                                                <span class="font-medium">CK thực nhận</span>
+                                                <span class="font-mono font-bold">{{ vnd(closing.actual_transfer_amount) }}</span>
+                                            </div>
+                                            <div class="flex justify-between text-violet-600 dark:text-violet-400">
+                                                <span class="font-medium">Lệch CK</span>
+                                                <span class="font-mono font-bold">{{ closing.transfer_difference >= 0 ? '+' : '' }}{{ vnd(closing.transfer_difference) }}</span>
+                                            </div>
                                             <div
                                                 class="flex justify-between border-t border-slate-100 pt-2 text-slate-800 dark:border-slate-800 dark:text-slate-200"
                                             >
@@ -1141,6 +1292,10 @@ onUnmounted(() =>
                                                         )
                                                     }}
                                                 </span>
+                                            </div>
+                                            <div class="flex justify-between border-t border-amber-100 pt-2 text-amber-700 dark:border-amber-900/40 dark:text-amber-300">
+                                                <span class="font-bold">Quy trách nhiệm</span>
+                                                <span class="font-mono font-black">{{ closing.responsibility_amount >= 0 ? '+' : '' }}{{ vnd(closing.responsibility_amount) }}</span>
                                             </div>
                                             <div
                                                 v-if="closing.other_expense > 0"
@@ -1314,22 +1469,24 @@ onUnmounted(() =>
     </div>
 
     <!-- ══ Create Shift Closing Dialog ═══════════════════════════════════════ -->
-    <Transition
-        enter-active-class="transition duration-200 ease-out"
-        enter-from-class="opacity-0"
-        enter-to-class="opacity-100"
-        leave-active-class="transition duration-150 ease-in"
-        leave-from-class="opacity-100"
-        leave-to-class="opacity-0"
-    >
-        <div
-            v-if="showDialog"
-            class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs"
-            @click.self="showDialog = false"
+    <Teleport to="body">
+        <Transition
+            enter-active-class="transition duration-200 ease-out"
+            enter-from-class="opacity-0"
+            enter-to-class="opacity-100"
+            leave-active-class="transition duration-150 ease-in"
+            leave-from-class="opacity-100"
+            leave-to-class="opacity-0"
         >
+            <div
+                v-if="showDialog"
+                class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs"
+                @click.self="showDialog = false"
+            >
             <Card
-                class="flex w-full max-w-lg animate-in flex-col overflow-hidden shadow-2xl duration-150 zoom-in-95 fade-in"
-                style="max-height: 90vh"
+                class="flex w-full animate-in flex-col overflow-hidden shadow-2xl duration-150 zoom-in-95 fade-in transition-all duration-200"
+                :class="dialogStep === 1 ? 'max-w-lg' : 'max-w-5xl'"
+                style="max-height: 94vh"
             >
                 <!-- Dialog Header -->
                 <CardHeader
@@ -1377,6 +1534,30 @@ onUnmounted(() =>
                     <!-- ── Step 1: Chọn ca & ngày ───────────────────────── -->
                     <template v-if="dialogStep === 1">
                         <div class="space-y-4">
+                            <!-- Banner thông tin Cửa hàng & Chi nhánh đang chốt ca -->
+                            <div
+                                class="flex items-center gap-3 rounded-xl border border-indigo-100 bg-indigo-50/70 p-3 text-xs dark:border-indigo-900/40 dark:bg-indigo-950/40"
+                            >
+                                <div
+                                    class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-indigo-600 text-white dark:bg-indigo-500"
+                                >
+                                    <Store class="size-4" />
+                                </div>
+                                <div class="flex flex-col gap-0.5 min-w-0">
+                                    <div class="flex items-center gap-1.5 flex-wrap">
+                                        <span class="font-bold text-slate-800 dark:text-slate-200 truncate">{{ restaurantName }}</span>
+                                        <span class="text-slate-300 dark:text-slate-600">•</span>
+                                        <span class="inline-flex items-center gap-1 font-bold text-indigo-600 dark:text-indigo-400">
+                                            <MapPin class="size-3 shrink-0" />
+                                            {{ activeBranchName }}
+                                        </span>
+                                    </div>
+                                    <p class="text-[11px] text-slate-500 dark:text-slate-400">
+                                        Đang lập phiếu chốt ca cho cửa hàng và chi nhánh này
+                                    </p>
+                                </div>
+                            </div>
+
                             <!-- Chọn ca -->
                             <div class="flex flex-col space-y-1.5">
                                 <Label
@@ -1405,6 +1586,33 @@ onUnmounted(() =>
                                                 ? ' +1 ngày'
                                                 : ''
                                         }})
+                                    </option>
+                                </select>
+                            </div>
+
+                            <!-- Chọn khu vực -->
+                            <div class="flex flex-col space-y-1.5">
+                                <Label
+                                    class="text-xs font-bold tracking-wide text-slate-500 uppercase"
+                                    >Khu vực cần chốt
+                                    <span class="text-rose-500">*</span></Label
+                                >
+                                <select
+                                    v-model="form.area_id"
+                                    class="mt-1.5 w-full rounded-md border border-slate-200 bg-background px-3 py-2 text-sm font-semibold text-slate-700 focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:outline-none"
+                                >
+                                    <option :value="null" disabled>
+                                        Chọn khu vực...
+                                    </option>
+                                    <option
+                                        v-for="area in areas"
+                                        :key="area.id"
+                                        :value="area.id"
+                                    >
+                                        {{ area.name }}
+                                    </option>
+                                    <option value="takeaway">
+                                        Mang về / Giao hàng
                                     </option>
                                 </select>
                             </div>
@@ -1446,6 +1654,11 @@ onUnmounted(() =>
 
                             <!-- Calendar Teleport -->
                             <Teleport to="body">
+                                <div
+                                    v-if="showCalendar"
+                                    class="fixed inset-0 z-[9998]"
+                                    @click="showCalendar = false"
+                                />
                                 <Transition
                                     enter-active-class="transition duration-150 ease-out"
                                     enter-from-class="opacity-0 scale-95 translate-y-1"
@@ -1729,7 +1942,119 @@ onUnmounted(() =>
 
                     <!-- ── Step 2: Preview + Nhập tiền ─────────────────── -->
                     <template v-else-if="previewData">
-                        <!-- Header ca -->
+                        <!-- Phiếu tổng duy nhất của ca đang chọn -->
+                        <div
+                            class="overflow-hidden rounded-lg border border-slate-300 bg-white text-slate-900 shadow-sm"
+                        >
+                            <div class="border-b-4 border-indigo-950 px-4 py-4 sm:px-5">
+                                <div class="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
+                                    <div>
+                                        <p class="text-[10px] font-bold tracking-[0.18em] text-indigo-950 uppercase">
+                                            {{ restaurantName }} · {{ activeBranchName }}
+                                        </p>
+                                        <h2 class="mt-1 text-2xl font-black tracking-wide text-indigo-950">
+                                            PHIẾU CHỐT CA
+                                        </h2>
+                                        <p class="text-[11px] text-slate-500">
+                                            Tổng hợp từ lúc bắt đầu ca đến thời điểm bấm chốt
+                                        </p>
+                                    </div>
+                                    <div class="rounded border border-slate-300 px-3 py-2 text-[11px] leading-5">
+                                        <p>Ngày: <strong>{{ form.closing_date }}</strong></p>
+                                        <p>Ca: <strong>{{ previewData.shift_name }}</strong></p>
+                                        <p>Kết thúc: <strong>{{ previewData.end_time }}</strong></p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="grid gap-0 sm:grid-cols-2">
+                                <div class="border-b border-slate-200 p-3 sm:border-r">
+                                    <p class="text-[10px] font-black text-indigo-950 uppercase">1. NGÀY / CA</p>
+                                    <p class="mt-1 text-xs font-semibold">{{ previewData.start_time }} → {{ previewData.end_time }}</p>
+                                </div>
+                                <div class="border-b border-slate-200 p-3">
+                                    <p class="text-[10px] font-black text-indigo-950 uppercase">2. KHU VỰC</p>
+                                    <p class="mt-1 text-xs font-semibold">Toàn bộ khu vực</p>
+                                </div>
+                                <div class="border-b border-slate-200 p-3 sm:border-r">
+                                    <p class="text-[10px] font-black text-indigo-950 uppercase">3. ĐƠN VÀO</p>
+                                    <p class="mt-1 text-xs font-semibold">{{ previewData.total_order_count }} đơn vào · {{ previewData.order_count }} hoàn tất</p>
+                                </div>
+                                <div class="border-b border-slate-200 p-3">
+                                    <p class="text-[10px] font-black text-indigo-950 uppercase">4. THANH TOÁN TM</p>
+                                    <p class="mt-1 text-xs font-semibold">{{ previewData.cash_order_count }} đơn · {{ vnd(previewData.cash_sales_amount) }}</p>
+                                </div>
+                                <div class="border-b border-slate-200 p-3 sm:border-r">
+                                    <p class="text-[10px] font-black text-indigo-950 uppercase">5. THANH TOÁN CK</p>
+                                    <p class="mt-1 text-xs font-semibold">{{ previewData.transfer_order_count }} đơn · {{ vnd(previewData.transfer_amount) }}</p>
+                                </div>
+                                <div class="border-b border-slate-200 p-3">
+                                    <p class="text-[10px] font-black text-indigo-950 uppercase">6. ĐƠN HỦY / HOÀN TIỀN</p>
+                                    <p class="mt-1 text-xs font-semibold">Hủy {{ previewData.cancelled_order_count }} đơn · {{ vnd(previewData.cancelled_total_amount) }} <span class="text-slate-400">|</span> Hoàn {{ previewData.refunded_order_count }} đơn</p>
+                                </div>
+                                <div class="border-b border-slate-200 p-3 sm:border-r">
+                                    <p class="text-[10px] font-black text-indigo-950 uppercase">7. TỔNG DOANH THU THUẦN</p>
+                                    <p class="mt-1 text-base font-black text-indigo-700">{{ vnd(previewData.net_revenue) }}</p>
+                                </div>
+                                <div class="border-b border-slate-200 p-3">
+                                    <p class="text-[10px] font-black text-indigo-950 uppercase">8. KỲ VỌNG KÉT TIỀN MẶT</p>
+                                    <p class="mt-1 text-base font-black text-indigo-700">{{ vnd(previewData.expected_cash) }}</p>
+                                </div>
+                            </div>
+
+                            <div class="bg-indigo-50/60 px-4 py-3 text-xs">
+                                <div class="flex justify-between gap-3 font-bold">
+                                    <span>Từ đầu ca đến lúc chốt</span>
+                                    <span class="text-right">{{ previewData.start_time }} → {{ previewData.end_time }}</span>
+                                </div>
+                                <div class="mt-1 flex justify-between gap-3">
+                                    <span>Giảm giá</span>
+                                    <span>-{{ vnd(previewData.discount_total) }}</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="mt-4 grid gap-3 lg:grid-cols-2">
+                            <div class="rounded-lg border border-indigo-100 bg-indigo-50/40 p-4">
+                                <p class="text-xs font-black tracking-wide text-indigo-950 uppercase">Đối soát tiền thực nhận</p>
+                                <div class="mt-3 grid gap-3 sm:grid-cols-2">
+                                    <div>
+                                        <Label class="text-[11px] font-bold text-slate-600">Tiền mặt thực nhận <span class="text-rose-500">*</span></Label>
+                                        <Input v-model.number="form.actual_cash" type="number" min="0" step="1000" class="mt-1 h-9 font-bold" />
+                                        <p class="mt-1 text-[10px] text-slate-500">Kỳ vọng: {{ vnd(previewData.expected_cash) }}</p>
+                                    </div>
+                                    <div>
+                                        <Label class="text-[11px] font-bold text-slate-600">Chuyển khoản thực nhận <span class="text-rose-500">*</span></Label>
+                                        <Input v-model.number="form.actual_transfer_amount" type="number" min="0" step="1000" class="mt-1 h-9 font-bold" />
+                                        <p class="mt-1 text-[10px] text-slate-500">Kỳ vọng: {{ vnd(previewData.transfer_amount) }}</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="rounded-lg border border-amber-200 bg-amber-50/60 p-4">
+                                <p class="text-xs font-black tracking-wide text-amber-900 uppercase">Quy trách nhiệm tính lương</p>
+                                <Input v-model.number="form.responsibility_amount" @input="responsibilityAuto = false" type="number" step="1000" class="mt-3 h-10 bg-white font-black" />
+                                <p class="mt-1 text-[10px] text-amber-800">Số âm sẽ trừ lương, số dương sẽ cộng lương. Mặc định theo tổng chênh lệch.</p>
+                                <div class="mt-3 space-y-1 border-t border-amber-200 pt-2 text-[11px]">
+                                    <div class="flex justify-between"><span>Lệch tiền mặt</span><strong>{{ cashDifference >= 0 ? '+' : '' }}{{ vnd(cashDifference) }}</strong></div>
+                                    <div class="flex justify-between"><span>Lệch chuyển khoản</span><strong>{{ transferDifference >= 0 ? '+' : '' }}{{ vnd(transferDifference) }}</strong></div>
+                                    <div class="flex justify-between border-t border-amber-200 pt-1 font-black text-amber-950"><span>Tổng chênh lệch</span><strong>{{ totalDifference >= 0 ? '+' : '' }}{{ vnd(totalDifference) }}</strong></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="mt-3 grid gap-3 lg:grid-cols-2">
+                            <div>
+                                <Label class="text-[11px] font-bold text-slate-600">Ghi chú quy trách nhiệm</Label>
+                                <textarea v-model="form.responsibility_note" rows="2" maxlength="1000" placeholder="Ví dụ: Thiếu tiền mặt do... / Dư chuyển khoản do..." class="mt-1 w-full resize-none rounded-md border border-slate-200 bg-background px-3 py-2 text-xs font-semibold text-slate-700 focus-visible:ring-2 focus-visible:ring-indigo-500/30 focus-visible:outline-none" />
+                            </div>
+                            <div>
+                                <Label class="text-[11px] font-bold text-slate-600">Ghi chú vận hành ca</Label>
+                                <textarea v-model="form.notes" rows="2" maxlength="1000" placeholder="Ghi chú thêm cho phiếu chốt ca..." class="mt-1 w-full resize-none rounded-md border border-slate-200 bg-background px-3 py-2 text-xs font-semibold text-slate-700 focus-visible:ring-2 focus-visible:ring-indigo-500/30 focus-visible:outline-none" />
+                            </div>
+                        </div>
+
+                        <div v-if="false">
                         <div
                             class="mb-4 flex items-center justify-between border-b pb-2"
                         >
@@ -1796,6 +2121,64 @@ onUnmounted(() =>
                                 >
                                     {{ compact(previewData.net_revenue) }}
                                 </p>
+                            </div>
+                        </div>
+
+                        <!-- Area Breakdown Table -->
+                        <div
+                            v-if="previewData.areas_breakdown && previewData.areas_breakdown.length > 0"
+                            class="mb-4 rounded-xl border border-indigo-100 bg-indigo-50/20 p-3.5 dark:border-indigo-900/30 dark:bg-indigo-950/20"
+                        >
+                            <p class="mb-2 text-xs font-bold text-indigo-700 dark:text-indigo-300 uppercase tracking-wide flex items-center justify-between">
+                                <span>📍 Báo cáo Chi tiết Chốt ca theo Khu vực</span>
+                                <span class="rounded bg-indigo-100 px-2 py-0.5 text-[10px] font-bold text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200">
+                                    {{ previewData.areas_breakdown.length }} khu vực
+                                </span>
+                            </p>
+                            <div class="overflow-x-auto rounded-lg border border-slate-200/70 bg-white dark:border-slate-800 dark:bg-slate-900">
+                                <table class="w-full text-left text-xs">
+                                    <thead class="bg-slate-50 text-[10px] font-bold text-slate-500 uppercase dark:bg-slate-800/60 dark:text-slate-400">
+                                        <tr>
+                                            <th class="px-3 py-2">Khu vực</th>
+                                            <th class="px-3 py-2 text-center">Đơn vào</th>
+                                            <th class="px-3 py-2 text-right">Thanh toán TM</th>
+                                            <th class="px-3 py-2 text-right">Thanh toán CK</th>
+                                            <th class="px-3 py-2 text-right">Đơn hủy</th>
+                                            <th class="px-3 py-2 text-right">Hoàn tiền</th>
+                                            <th class="px-3 py-2 text-right">Tổng doanh thu</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
+                                        <tr v-for="(areaItem, idx) in previewData.areas_breakdown" :key="idx" class="hover:bg-slate-50/50">
+                                            <td class="px-3 py-2 font-bold text-slate-800 dark:text-slate-200">
+                                                {{ areaItem.area_name }}
+                                            </td>
+                                            <td class="px-3 py-2 text-center font-bold text-slate-600 dark:text-slate-400">
+                                                {{ areaItem.total_order_count || areaItem.order_count }} đơn
+                                            </td>
+                                            <td class="px-3 py-2 text-right font-mono font-bold text-blue-600 dark:text-blue-400">
+                                                <span>{{ compact(areaItem.expected_cash) }}</span>
+                                                <div class="text-[9px] font-normal text-slate-400">({{ areaItem.cash_order_count || 0 }} đơn)</div>
+                                            </td>
+                                            <td class="px-3 py-2 text-right font-mono font-bold text-violet-600 dark:text-violet-400">
+                                                <span>{{ compact(areaItem.transfer_amount) }}</span>
+                                                <div class="text-[9px] font-normal text-slate-400">({{ areaItem.transfer_order_count || 0 }} đơn)</div>
+                                            </td>
+                                            <td class="px-3 py-2 text-right font-mono font-bold text-rose-500">
+                                                <span>{{ compact(areaItem.cancelled_total_amount || 0) }}</span>
+                                                <div class="text-[9px] font-normal text-slate-400">({{ areaItem.cancelled_order_count || 0 }} đơn)</div>
+                                            </td>
+                                            <td class="px-3 py-2 text-right font-mono font-bold text-amber-600">
+                                                <span>{{ compact(areaItem.refunded_total_amount || 0) }}</span>
+                                                <div class="text-[9px] font-normal text-slate-400">({{ areaItem.refunded_order_count || 0 }} đơn)</div>
+                                            </td>
+                                            <td class="px-3 py-2 text-right font-mono font-black text-emerald-600 dark:text-emerald-400">
+                                                <span>{{ compact(areaItem.gross_revenue) }}</span>
+                                                <div class="text-[9px] font-normal text-slate-400">(TM+CK-Hoàn)</div>
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
                             </div>
                         </div>
 
@@ -2164,6 +2547,7 @@ onUnmounted(() =>
                                 />
                             </div>
                         </div>
+                        </div>
                     </template>
                 </div>
 
@@ -2188,7 +2572,7 @@ onUnmounted(() =>
                         <Button
                             v-if="dialogStep === 1"
                             @click="loadPreview"
-                            :disabled="previewLoading || !form.shift_id"
+                            :disabled="previewLoading || !form.shift_id || !form.area_id"
                             class="flex h-9 items-center gap-1.5 bg-indigo-600 text-xs font-semibold text-white transition-transform hover:bg-indigo-700 active:scale-95"
                         >
                             <Loader2
@@ -2236,91 +2620,94 @@ onUnmounted(() =>
             </Card>
         </div>
     </Transition>
+    </Teleport>
 
     <!-- ══ Dispute Dialog ════════════════════════════════════════════════════ -->
-    <Transition
-        enter-active-class="transition duration-200 ease-out"
-        enter-from-class="opacity-0"
-        enter-to-class="opacity-100"
-        leave-active-class="transition duration-150 ease-in"
-        leave-from-class="opacity-100"
-        leave-to-class="opacity-0"
-    >
-        <div
-            v-if="disputeTarget"
-            class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs"
-            @click.self="disputeTarget = null"
+    <Teleport to="body">
+        <Transition
+            enter-active-class="transition duration-200 ease-out"
+            enter-from-class="opacity-0"
+            enter-to-class="opacity-100"
+            leave-active-class="transition duration-150 ease-in"
+            leave-from-class="opacity-100"
+            leave-to-class="opacity-0"
         >
-            <Card
-                class="flex w-full max-w-md animate-in flex-col overflow-hidden shadow-2xl duration-150 zoom-in-95 fade-in"
+            <div
+                v-if="disputeTarget"
+                class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs"
+                @click.self="disputeTarget = null"
             >
-                <CardHeader
-                    class="flex flex-row items-center justify-between gap-4 border-b pb-3"
+                <Card
+                    class="flex w-full max-w-md animate-in flex-col overflow-hidden shadow-2xl duration-150 zoom-in-95 fade-in"
                 >
-                    <div class="flex items-center gap-3">
-                        <div
-                            class="flex h-10 w-10 items-center justify-center rounded-2xl bg-rose-50 text-rose-600 dark:bg-rose-950/60 dark:text-rose-400"
+                    <CardHeader
+                        class="flex flex-row items-center justify-between gap-4 border-b pb-3"
+                    >
+                        <div class="flex items-center gap-3">
+                            <div
+                                class="flex h-10 w-10 items-center justify-center rounded-2xl bg-rose-50 text-rose-600 dark:bg-rose-950/60 dark:text-rose-400"
+                            >
+                                <AlertTriangle class="size-5" />
+                            </div>
+                            <div>
+                                <CardTitle class="text-base text-rose-600"
+                                    >Yêu cầu đối soát lại ca</CardTitle
+                                >
+                                <CardDescription
+                                    >{{ disputeTarget.shift_name }} — Ngày
+                                    {{
+                                        disputeTarget.closing_date
+                                    }}</CardDescription
+                                >
+                            </div>
+                        </div>
+                        <button
+                            @click="disputeTarget = null"
+                            class="rounded-lg p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
                         >
-                            <AlertTriangle class="size-5" />
-                        </div>
-                        <div>
-                            <CardTitle class="text-base text-rose-600"
-                                >Yêu cầu đối soát lại ca</CardTitle
-                            >
-                            <CardDescription
-                                >{{ disputeTarget.shift_name }} — Ngày
-                                {{
-                                    disputeTarget.closing_date
-                                }}</CardDescription
-                            >
-                        </div>
-                    </div>
-                    <button
-                        @click="disputeTarget = null"
-                        class="rounded-lg p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
-                    >
-                        <X class="size-4" />
-                    </button>
-                </CardHeader>
+                            <X class="size-4" />
+                        </button>
+                    </CardHeader>
 
-                <div class="flex flex-col gap-1.5 px-6 py-5">
-                    <Label
-                        class="text-xs font-bold tracking-wide text-slate-500 uppercase"
-                        >Lý do tranh chấp / Đối soát lại
-                        <span class="text-rose-500">*</span></Label
-                    >
-                    <textarea
-                        v-model="disputeNotes"
-                        rows="3"
-                        maxlength="1000"
-                        placeholder="Mô tả cụ thể và chi tiết sai lệch két tiền mặt hoặc chuyển khoản để quản lý/owner thực hiện đối soát lại..."
-                        class="mt-1.5 w-full resize-none rounded-md border border-slate-200 bg-background px-3 py-2.5 text-sm font-semibold text-slate-700 focus-visible:ring-2 focus-visible:ring-rose-400 focus-visible:outline-none"
-                    />
-                </div>
-
-                <div
-                    class="flex justify-end gap-2 border-t border-slate-100 bg-slate-50/50 px-6 py-4 dark:bg-slate-900/50"
-                >
-                    <Button
-                        variant="outline"
-                        @click="disputeTarget = null"
-                        class="h-9 text-xs font-semibold"
-                    >
-                        Huỷ bỏ
-                    </Button>
-                    <Button
-                        @click="submitDispute"
-                        :disabled="disputeLoading"
-                        class="flex h-9 items-center gap-1.5 bg-rose-600 text-xs font-semibold text-white transition-transform hover:bg-rose-700 active:scale-95"
-                    >
-                        <Loader2
-                            v-if="disputeLoading"
-                            class="size-4 animate-spin"
+                    <div class="flex flex-col gap-1.5 px-6 py-5">
+                        <Label
+                            class="text-xs font-bold tracking-wide text-slate-500 uppercase"
+                            >Lý do tranh chấp / Đối soát lại
+                            <span class="text-rose-500">*</span></Label
+                        >
+                        <textarea
+                            v-model="disputeNotes"
+                            rows="3"
+                            maxlength="1000"
+                            placeholder="Mô tả cụ thể và chi tiết sai lệch két tiền mặt hoặc chuyển khoản để quản lý/owner thực hiện đối soát lại..."
+                            class="mt-1.5 w-full resize-none rounded-md border border-slate-200 bg-background px-3 py-2.5 text-sm font-semibold text-slate-700 focus-visible:ring-2 focus-visible:ring-rose-400 focus-visible:outline-none"
                         />
-                        Xác nhận khiếu nại
-                    </Button>
-                </div>
-            </Card>
-        </div>
-    </Transition>
+                    </div>
+
+                    <div
+                        class="flex justify-end gap-2 border-t border-slate-100 bg-slate-50/50 px-6 py-4 dark:bg-slate-900/50"
+                    >
+                        <Button
+                            variant="outline"
+                            @click="disputeTarget = null"
+                            class="h-9 text-xs font-semibold"
+                        >
+                            Huỷ bỏ
+                        </Button>
+                        <Button
+                            @click="submitDispute"
+                            :disabled="disputeLoading"
+                            class="flex h-9 items-center gap-1.5 bg-rose-600 text-xs font-semibold text-white transition-transform hover:bg-rose-700 active:scale-95"
+                        >
+                            <Loader2
+                                v-if="disputeLoading"
+                                class="size-4 animate-spin"
+                            />
+                            Xác nhận khiếu nại
+                        </Button>
+                    </div>
+                </Card>
+            </div>
+        </Transition>
+    </Teleport>
 </template>
