@@ -85,17 +85,19 @@ class EmployeeManagementTest extends TestCase
         // (không còn tiền tố /storage/ công khai).
         $this->assertNotEmpty($employee->citizen_id_front_url);
         $this->assertStringStartsWith('citizen_ids/', $employee->citizen_id_front_url);
-        Storage::disk('local')->assertExists($employee->citizen_id_front_url);
-        Storage::disk('local')->assertExists($employee->citizen_id_back_url);
+        /** @var \Illuminate\Filesystem\FilesystemAdapter $localDisk */
+        $localDisk = Storage::disk('local');
+        $localDisk->assertExists($employee->citizen_id_front_url);
+        $localDisk->assertExists($employee->citizen_id_back_url);
 
         // Tuyệt đối không có file nào rơi vào disk public
         $this->assertSame([], Storage::disk('public')->allFiles('citizen_ids'));
 
-        // User đi kèm được tạo ở trạng thái chờ xác nhận
+        // User đi kèm được tạo ở trạng thái hoạt động ngay
         $this->assertDatabaseHas('users', [
             'email' => 'nhanvien@example.com',
             'restaurant_id' => $this->restaurant->id,
-            'status' => 'inactive',
+            'status' => 'active',
         ]);
     }
 

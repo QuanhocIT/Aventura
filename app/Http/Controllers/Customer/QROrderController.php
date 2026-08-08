@@ -34,11 +34,13 @@ class QROrderController extends Controller
     /**
      * Hiển thị giao diện khách hàng gọi món tại bàn qua QR code.
      */
-    public function showMenu($restaurantId, $qrToken): Response
+    public function showMenu(int $restaurantId, string $qrToken): Response
     {
         $table = RestaurantTable::withoutGlobalScopes()
             ->where('restaurant_id', $restaurantId)
             ->where('qr_token', $qrToken)
+            ->whereNull('deleted_at')
+            ->where('status', '!=', 'inactive')
             ->with(['area', 'branch'])
             ->firstOrFail();
 
@@ -164,7 +166,22 @@ class QROrderController extends Controller
         // 4. Lấy các đơn hàng tạm thời hoặc đơn hàng chính thức đang active tại bàn này
         $activeTempOrders = TemporaryOrder::withoutGlobalScopes()
             ->where('table_id', $table->id)
-            ->whereIn('status', ['waiting_verification', 'escalated', 'confirmed'])
+            ->whereIn('status', ['waiting_verification', 'escalated', 'confirmed', 'cancelled'])
+            ->when(
+                filled(request()->query('session_id')),
+                function ($query): void {
+                    $query->where(function ($ownerQuery): void {
+                        $ownerQuery->where('session_id', (string) request()->query('session_id'));
+
+                        if (filled(request()->query('phone'))) {
+                            $ownerQuery->orWhere('customer_phone', (string) request()->query('phone'));
+                        }
+                    });
+                },
+                fn ($query) => filled(request()->query('phone'))
+                    ? $query->where('customer_phone', (string) request()->query('phone'))
+                    : $query,
+            )
             ->with(['order.items.product'])
             ->latest()
             ->get()
@@ -194,8 +211,16 @@ class QROrderController extends Controller
                             'name' => $item->product?->name ?? 'Món ăn',
                             'quantity' => (float) $item->quantity,
                             'status' => $item->status, // pending, sent, preparing, served, cancelled
+                            'notes' => $item->notes,
                         ];
                     }
+                } elseif ($to->status === 'cancelled') {
+                    $itemsStatus = collect($to->cart_data)->map(fn ($item) => [
+                        'name' => $item['name'] ?? 'Món ăn',
+                        'quantity' => (float) ($item['quantity'] ?? 0),
+                        'status' => 'cancelled',
+                        'notes' => $item['notes'] ?? null,
+                    ])->values()->all();
                 }
 
                 return [
@@ -203,12 +228,14 @@ class QROrderController extends Controller
                 'status' => $to->status,
                 'awaiting_customer_confirmation' => (bool) $to->awaiting_customer_confirmation,
                 'revision_note' => $to->revision_note,
-                'total_amount' => (float) $to->total_amount,
+                    'total_amount' => (float) ($to->order?->total_amount ?? $to->total_amount),
                     'cart_data' => $to->cart_data,
                     'order_id' => $to->order_id,
                     'order_number' => $to->order?->order_number,
                     'order_status' => $to->order?->status,
+                    'order_note' => $to->order?->note,
                     'payment_status' => $to->order?->payment_status,
+                    'cancellation_reason' => $to->cancellation_reason,
                     'items_status' => $itemsStatus,
                     'created_at' => $to->created_at->toIso8601String(),
                 ];
@@ -259,12 +286,20 @@ class QROrderController extends Controller
     /**
      * Khách hàng gửi đơn hàng đệm (Self-ordering request).
      */
-    public function submitOrder(Request $request, $restaurantId, $qrToken): JsonResponse
+    public function submitOrder(Request $request, int $restaurantId, string $qrToken): JsonResponse
     {
         $table = RestaurantTable::withoutGlobalScopes()
             ->where('restaurant_id', $restaurantId)
             ->where('qr_token', $qrToken)
-            ->firstOrFail();
+            ->whereNull('deleted_at')
+            ->where('status', '!=', 'inactive')
+            ->first();
+
+        if (! $table) {
+            return response()->json([
+                'message' => 'Bàn ăn này đã bị xóa hoặc không còn hoạt động.',
+            ], 404);
+        }
 
         $data = $request->validate([
             'customer_name' => ['nullable', 'string', 'max:255'],
@@ -382,6 +417,7 @@ class QROrderController extends Controller
             'table_id' => $table->id,
             'customer_name' => $data['customer_name'] ?? 'Khách tại bàn',
             'customer_phone' => $data['customer_phone'] ?? null,
+            'session_id' => $data['session_id'] ?? null,
             'status' => 'waiting_verification',
             'cart_data' => $cartData,
             'total_amount' => $finalAmount,
@@ -427,12 +463,20 @@ class QROrderController extends Controller
     /**
      * Khách xác nhận lại phiên bản đơn do nhân viên chỉnh sửa.
      */
-    public function confirmRevision(Request $request, $restaurantId, $qrToken, TemporaryOrder $temporaryOrder): JsonResponse
+    public function confirmRevision(Request $request, int $restaurantId, string $qrToken, TemporaryOrder $temporaryOrder): JsonResponse
     {
         $table = RestaurantTable::withoutGlobalScopes()
             ->where('restaurant_id', $restaurantId)
             ->where('qr_token', $qrToken)
-            ->firstOrFail();
+            ->whereNull('deleted_at')
+            ->where('status', '!=', 'inactive')
+            ->first();
+
+        if (! $table) {
+            return response()->json([
+                'message' => 'Bàn ăn này đã bị xóa hoặc không còn hoạt động.',
+            ], 404);
+        }
 
         abort_if(
             $temporaryOrder->restaurant_id !== (int) $restaurantId
@@ -483,7 +527,7 @@ class QROrderController extends Controller
     /**
      * Khách hàng bấm nút "Gọi nhân viên".
      */
-    public function callStaff(Request $request, $restaurantId): JsonResponse
+    public function callStaff(Request $request, int $restaurantId): JsonResponse
     {
         $data = $request->validate([
             'table_id' => ['required', TenantRule::exists('restaurant_tables', restaurantId: (int) $restaurantId)],
@@ -493,6 +537,8 @@ class QROrderController extends Controller
         $table = RestaurantTable::withoutGlobalScopes()
             ->where('restaurant_id', $restaurantId)
             ->where('id', $data['table_id'])
+            ->whereNull('deleted_at')
+            ->where('status', '!=', 'inactive')
             ->with(['area'])
             ->firstOrFail();
 
@@ -513,7 +559,7 @@ class QROrderController extends Controller
     /**
      * Khách hàng bấm nút "Yêu cầu thanh toán".
      */
-    public function paymentRequest(Request $request, $restaurantId): JsonResponse
+    public function paymentRequest(Request $request, int $restaurantId): JsonResponse
     {
         $data = $request->validate([
             'table_id' => ['required', TenantRule::exists('restaurant_tables', restaurantId: (int) $restaurantId)],
@@ -522,6 +568,8 @@ class QROrderController extends Controller
         $table = RestaurantTable::withoutGlobalScopes()
             ->where('restaurant_id', $restaurantId)
             ->where('id', $data['table_id'])
+            ->whereNull('deleted_at')
+            ->where('status', '!=', 'inactive')
             ->with(['area'])
             ->firstOrFail();
 
@@ -554,7 +602,7 @@ class QROrderController extends Controller
     /**
      * Khách hàng gửi đánh giá món ăn và nhân viên.
      */
-    public function submitFeedback(Request $request, $restaurantId): JsonResponse
+    public function submitFeedback(Request $request, int $restaurantId): JsonResponse
     {
         $data = $request->validate([
             'table_id' => ['required', TenantRule::exists('restaurant_tables', restaurantId: (int) $restaurantId)],
@@ -571,6 +619,8 @@ class QROrderController extends Controller
         $table = RestaurantTable::withoutGlobalScopes()
             ->where('restaurant_id', $restaurantId)
             ->where('id', $data['table_id'])
+            ->whereNull('deleted_at')
+            ->where('status', '!=', 'inactive')
             ->firstOrFail();
 
         $feedback = CustomerFeedback::create([
