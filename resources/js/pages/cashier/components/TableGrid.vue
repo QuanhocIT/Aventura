@@ -32,8 +32,18 @@ const statusFilters: Array<{
 const numberFormat = (val: number) =>
     new Intl.NumberFormat('vi-VN').format(val);
 
-const getStatusBadge = (status: TableItem['status']) => {
-    switch (status) {
+const isPaying = (table: TableItem) =>
+    Boolean(table.is_payment_requested || table.active_order?.is_payment_requested);
+
+const getStatusBadge = (table: TableItem) => {
+    if (isPaying(table)) {
+        return {
+            label: '💳 Chờ thanh toán',
+            class: 'bg-amber-500 text-white font-black animate-pulse shadow-xs shadow-amber-500/40',
+        };
+    }
+
+    switch (table.status) {
         case 'available':
             return {
                 label: 'Bàn Trống',
@@ -121,9 +131,11 @@ const getStatusBadge = (status: TableItem['status']) => {
                 @click="emit('selectTable', table)"
                 class="group relative flex cursor-pointer flex-col justify-between overflow-hidden rounded-2xl border p-4 transition-all duration-200 hover:-translate-y-1 hover:shadow-lg"
                 :class="[
-                    activeTableId === table.id
-                        ? 'border-indigo-600 bg-indigo-50/50 shadow-md ring-2 ring-indigo-600/30 dark:bg-indigo-950/20'
-                        : 'border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900',
+                    isPaying(table)
+                        ? 'border-amber-500 bg-amber-50/60 ring-2 ring-amber-500/40 shadow-md shadow-amber-500/10 dark:bg-amber-950/30'
+                        : activeTableId === table.id
+                          ? 'border-indigo-600 bg-indigo-50/50 shadow-md ring-2 ring-indigo-600/30 dark:bg-indigo-950/20'
+                          : 'border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900',
                 ]"
             >
                 <div class="flex items-start justify-between">
@@ -131,11 +143,13 @@ const getStatusBadge = (status: TableItem['status']) => {
                         <div
                             class="flex size-9 items-center justify-center rounded-xl font-bold transition-colors"
                             :class="
-                                table.status === 'occupied'
-                                    ? 'bg-rose-100 text-rose-600 dark:bg-rose-950/40'
-                                    : table.status === 'reserved'
-                                      ? 'bg-amber-100 text-amber-600 dark:bg-amber-950/40'
-                                      : 'bg-emerald-100 text-emerald-600 dark:bg-emerald-950/40'
+                                isPaying(table)
+                                    ? 'bg-amber-500 text-white shadow-md'
+                                    : table.status === 'occupied'
+                                      ? 'bg-rose-100 text-rose-600 dark:bg-rose-950/40'
+                                      : table.status === 'reserved'
+                                        ? 'bg-amber-100 text-amber-600 dark:bg-amber-950/40'
+                                        : 'bg-emerald-100 text-emerald-600 dark:bg-emerald-950/40'
                             "
                         >
                             <Utensils class="size-4" />
@@ -155,9 +169,9 @@ const getStatusBadge = (status: TableItem['status']) => {
                     <Badge
                         variant="secondary"
                         class="border-0 text-[10px] font-bold"
-                        :class="getStatusBadge(table.status).class"
+                        :class="getStatusBadge(table).class"
                     >
-                        {{ getStatusBadge(table.status).label }}
+                        {{ getStatusBadge(table).label }}
                     </Badge>
                 </div>
 

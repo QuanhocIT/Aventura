@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import {
     ArrowLeft,
+    ArrowLeftRight,
     CheckCircle2 as CheckIcon,
+    CreditCard,
     Minus,
     Plus,
     ShoppingCart,
@@ -35,6 +37,7 @@ const emit = defineEmits<{
     (e: 'cancelItem', item: OrderItem): void;
     (e: 'submitOrder'): void;
     (e: 'openPayment'): void;
+    (e: 'callPayment'): void;
     (e: 'sendToKitchen'): void;
     (e: 'openSplitOrder'): void;
     (e: 'openMoveTable'): void;
@@ -292,12 +295,26 @@ const paymentBlockMessage = computed(() => {
                     Tách đơn
                 </Button>
 
+                <!-- Nút Gọi thanh toán cho Nhân viên Order -->
                 <Button
-                    v-if="isNotified && canManageTableOrders"
+                    v-if="isNotified && activeTable?.active_order && activeTable?.active_order?.payment_status !== 'paid'"
                     variant="outline"
-                    class="h-10 rounded-xl border-indigo-500/50 bg-transparent text-xs font-bold text-indigo-300 hover:bg-indigo-500/10"
+                    class="h-10 rounded-xl border-amber-500 bg-amber-500/10 text-xs font-bold text-amber-600 dark:text-amber-300 hover:bg-amber-500/20"
+                    :disabled="Boolean(activeTable?.active_order?.is_payment_requested)"
+                    @click="emit('callPayment')"
+                >
+                    <CreditCard class="mr-1.5 size-4" />
+                    {{ activeTable?.active_order?.is_payment_requested ? 'Đã gọi thanh toán' : 'Gọi thanh toán' }}
+                </Button>
+
+                <!-- Nút Chuyển bàn cho Nhân viên Order -->
+                <Button
+                    v-if="isNotified"
+                    variant="outline"
+                    class="h-10 rounded-xl border-indigo-500/50 bg-transparent text-xs font-bold text-indigo-600 dark:text-indigo-300 hover:bg-indigo-500/10"
                     @click="emit('openMoveTable')"
                 >
+                    <ArrowLeftRight class="mr-1.5 size-4" />
                     Chuyển bàn
                 </Button>
 

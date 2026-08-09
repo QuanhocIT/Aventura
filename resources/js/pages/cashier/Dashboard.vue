@@ -151,6 +151,7 @@ const {
     closeTableAction,
     processMoveTable,
     processMergeTable,
+    callPayment,
 } = tablesComposable;
 
 const cartComposable = useCashierCart(
@@ -655,6 +656,7 @@ onUnmounted(() => {
                     @cancel-item="openCancelItemModal"
                     @submit-order="submitOrder"
                     @open-payment="openPayment"
+                    @call-payment="callPayment"
                     @send-to-kitchen="sendToKitchen"
                     @open-split-order="openSplitOrder"
                     @open-move-table="openMoveTable"

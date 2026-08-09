@@ -142,12 +142,15 @@ class CashierDashboardController extends Controller
                             ? implode(', ', $activeOrders->pluck('order_number')->toArray())
                             : $primaryOrder->order_number;
 
+                        $isPaymentRequested = (bool) ($t->is_payment_requested || $activeOrders->contains(fn ($o) => $o->is_payment_requested));
+
                         $activeOrderData = [
                             'id' => $primaryOrder->id,
                             'order_ids' => $activeOrders->pluck('id')->toArray(),
                             'order_number' => $orderNumberStr,
                             'status' => $primaryOrder->status,
                             'payment_status' => $primaryOrder->payment_status,
+                            'is_payment_requested' => $isPaymentRequested,
                             'subtotal' => $totalSubtotal,
                             'discount_amount' => $totalDiscount,
                             'total_amount' => $totalAmount,
@@ -159,9 +162,10 @@ class CashierDashboardController extends Controller
                     } else {
                         if ($status === 'occupied') {
                             $status = 'available';
-                            $t->update(['status' => 'available']);
+                            $t->update(['status' => 'available', 'is_payment_requested' => false]);
                         }
                         $activeOrderData = null;
+                        $isPaymentRequested = false;
                     }
 
                     return [
@@ -170,6 +174,7 @@ class CashierDashboardController extends Controller
                         'area' => $t->area?->name ?? 'Khu vực chung',
                         'capacity' => $t->capacity,
                         'status' => $status,
+                        'is_payment_requested' => $isPaymentRequested,
                         'active_order' => $activeOrderData,
                     ];
                 })->all();

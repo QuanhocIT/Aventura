@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Events\Customer\PaymentRequested;
 use App\Models\Order;
 use App\Models\RestaurantTable;
 use App\Services\OrderSplitService;
@@ -11,7 +12,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
-/** Tách bill / gộp đơn / chuyển bàn — yêu cầu quyền manage_orders. */
+/** Tách bill / gộp đơn / chuyển bàn / gọi thanh toán. */
 class OrderActionsController extends Controller
 {
     public function __construct(private OrderSplitService $service) {}
@@ -61,11 +62,65 @@ class OrderActionsController extends Controller
         return back()->with('success', 'Đã chuyển bàn thành công.');
     }
 
+    /** Gọi thanh toán — gửi thông báo tới Thu ngân và đánh dấu bàn. */
+    public function requestPayment(Request $request, Order $order): JsonResponse
+    {
+        abort_unless($order->restaurant_id === $request->user()->restaurant_id, 403);
+        abort_unless($request->user()->canAccessBranch((int) $order->branch_id), 403);
+
+        DB::transaction(function () use ($order): void {
+            $order->update([
+                'is_payment_requested' => true,
+                'payment_requested_at' => now(),
+            ]);
+
+            if ($order->table_id) {
+                RestaurantTable::where('id', $order->table_id)->update([
+                    'is_payment_requested' => true,
+                ]);
+            }
+        });
+
+        $table = $order->table;
+        $tableName = $table?->name ?? "Đơn {$order->order_number}";
+        $areaName = $table?->area?->name ?? 'Khu vực';
+
+        try {
+            event(new PaymentRequested(
+                (int) $order->restaurant_id,
+                $tableName,
+                $areaName
+            ));
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::warning('Broadcast PaymentRequested failed: ' . $e->getMessage());
+        }
+
+        try {
+            \App\Models\SystemAlert::create([
+                'restaurant_id' => $order->restaurant_id,
+                'branch_id' => $order->branch_id,
+                'type' => 'payment_request',
+                'title' => "💳 Bàn {$tableName} gọi thanh toán",
+                'message' => "Bàn {$tableName} ({$areaName}) đang yêu cầu thanh toán hóa đơn " . number_format((float) $order->total_amount, 0, ',', '.') . 'đ.',
+                'status' => 'active',
+            ]);
+        } catch (\Throwable $e) {
+            // Keep resilient if system_alerts table varies
+        }
+
+        RestaurantTable::forgetTableCachesFor((int) $order->restaurant_id, $order->branch_id ? (int) $order->branch_id : null);
+
+        return response()->json([
+            'success' => true,
+            'message' => "Đã gửi yêu cầu thanh toán cho Bàn {$tableName} tới Thu ngân thành công!",
+        ]);
+    }
+
     /** Chuyển nhanh đơn tại bàn sang mang về và cộng phí hộp/túi nếu đã cấu hình. */
     public function convertToTakeaway(Request $request, Order $order): RedirectResponse
     {
         abort_unless(
-            $request->user()->can('manage_orders') || $request->user()->can('create_orders'),
+            $request->user()->can('manage_orders') || $request->user()->can('create_orders') || $request->user()->hasAnyRole(['order', 'cashier', 'staff', 'waiter', 'owner', 'manager']),
             403,
         );
         abort_unless($order->restaurant_id === $request->user()->restaurant_id, 403);
@@ -108,7 +163,7 @@ class OrderActionsController extends Controller
                 ->lockForUpdate()
                 ->first();
             if ($table && ! $table->orders()->activeForService()->exists()) {
-                $table->update(['status' => 'available']);
+                $table->update(['status' => 'available', 'is_payment_requested' => false]);
             }
         });
 
@@ -136,7 +191,7 @@ class OrderActionsController extends Controller
     public function availableTables(Request $request): JsonResponse
     {
         abort_unless(
-            $request->user()->can('manage_orders') || $request->user()->can('split_orders'),
+            $request->user()->can('manage_orders') || $request->user()->can('split_orders') || $request->user()->can('create_orders') || $request->user()->hasAnyRole(['order', 'cashier', 'staff', 'waiter', 'owner', 'manager']),
             403
         );
         $branchId = app(TenantContext::class)->activeBranchId();
@@ -155,7 +210,7 @@ class OrderActionsController extends Controller
     private function authorizeOrder(Request $request, Order $order): void
     {
         abort_unless(
-            $request->user()->can('manage_orders') || $request->user()->can('split_orders'),
+            $request->user()->can('manage_orders') || $request->user()->can('split_orders') || $request->user()->can('create_orders') || $request->user()->hasAnyRole(['order', 'cashier', 'staff', 'waiter', 'owner', 'manager']),
             403
         );
         abort_unless($order->restaurant_id === $request->user()->restaurant_id, 403);

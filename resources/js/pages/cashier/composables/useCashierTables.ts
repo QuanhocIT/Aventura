@@ -1,4 +1,5 @@
 import { router } from '@inertiajs/vue3';
+import axios from 'axios';
 import type { Ref } from 'vue';
 import { ref, computed, watch } from 'vue';
 import type { TableItem, OrderItem } from '../types';
@@ -311,6 +312,35 @@ export function useCashierTables(
         );
     };
 
+    const callPayment = async () => {
+        const order = activeTable.value?.active_order;
+
+        if (!order) {
+            return;
+        }
+
+        try {
+            const res = await axios.post(`/orders/${order.id}/request-payment`);
+
+            if (res.data?.success) {
+                if (activeTable.value) {
+                    activeTable.value.is_payment_requested = true;
+
+                    if (activeTable.value.active_order) {
+                        activeTable.value.active_order.is_payment_requested = true;
+                    }
+                }
+
+                toast(res.data.message || 'Đã gửi thông báo gọi thanh toán cho Thu ngân!');
+                router.reload({ only: ['tablesData'] });
+            }
+        } catch (err: any) {
+            const message =
+                err.response?.data?.message || 'Không thể gửi yêu cầu thanh toán.';
+            toast(String(message), 'error');
+        }
+    };
+
     return {
         activeTable,
         drawerStep,
@@ -337,5 +367,6 @@ export function useCashierTables(
         closeTableAction,
         processMoveTable,
         processMergeTable,
+        callPayment,
     };
 }

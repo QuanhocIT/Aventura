@@ -52,6 +52,8 @@ class Order extends Model
     protected function casts(): array
     {
         return [
+            'is_payment_requested' => 'boolean',
+            'payment_requested_at' => 'datetime',
             'confirmed_at' => 'datetime',
             'completed_at' => 'datetime',
             'cancelled_at' => 'datetime',

@@ -35,6 +35,7 @@ type PendingItem = {
 type ActiveOrder = {
     id: number;
     order_number: string;
+    is_payment_requested?: boolean;
     waiter_name: string;
     total_amount: number;
     elapsed_minutes: number;
@@ -48,6 +49,7 @@ type Table = {
     name: string;
     capacity: number;
     status: string; // 'available', 'occupied', 'reserved', 'inactive', 'cleaning'
+    is_payment_requested?: boolean;
     x_pos: number;
     y_pos: number;
     area: { id: number; name: string } | null;
@@ -1433,7 +1435,14 @@ const vnd = (value: number) => {
                                 <div
                                     v-for="t in paginatedTables"
                                     :key="t.id"
-                                    class="group relative cursor-pointer rounded-2xl border border-slate-100 bg-white p-4 transition-all hover:shadow-md dark:border-slate-800 dark:bg-slate-900"
+                                    class="group relative cursor-pointer rounded-2xl border p-4 transition-all hover:shadow-md"
+                                    :class="[
+                                        t.is_payment_requested || t.active_order?.is_payment_requested
+                                            ? 'border-amber-500 bg-amber-50/60 ring-2 ring-amber-500/40 shadow-md shadow-amber-500/10 dark:bg-amber-950/30'
+                                            : editingTable?.id === t.id
+                                              ? 'border-teal-500 bg-teal-50/20 ring-2 ring-teal-500/30'
+                                              : 'border-slate-100 bg-white hover:border-slate-300 dark:border-slate-800 dark:bg-slate-900',
+                                    ]"
                                     @click="openEdit(t)"
                                 >
                                     <div
@@ -1444,7 +1453,11 @@ const vnd = (value: number) => {
                                         </h4>
                                         <span
                                             class="mt-1 size-2 shrink-0 rounded-full"
-                                            :class="statusConfig[t.status]?.dot"
+                                            :class="
+                                                t.is_payment_requested || t.active_order?.is_payment_requested
+                                                    ? 'bg-amber-500 animate-ping'
+                                                    : statusConfig[t.status]?.dot
+                                            "
                                         />
                                     </div>
 
@@ -1461,10 +1474,16 @@ const vnd = (value: number) => {
                                         <span
                                             class="rounded-full px-2 py-0.5 text-[9px] font-semibold"
                                             :class="
-                                                statusConfig[t.status]?.color
+                                                t.is_payment_requested || t.active_order?.is_payment_requested
+                                                    ? 'bg-amber-500 text-white font-black animate-pulse shadow-xs shadow-amber-500/40'
+                                                    : statusConfig[t.status]?.color
                                             "
                                         >
-                                            {{ statusConfig[t.status]?.label }}
+                                            {{
+                                                t.is_payment_requested || t.active_order?.is_payment_requested
+                                                    ? '💳 Chờ thanh toán'
+                                                    : statusConfig[t.status]?.label
+                                            }}
                                         </span>
                                         <span
                                             v-if="t.area"

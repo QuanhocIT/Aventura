@@ -69,6 +69,7 @@ class TablesController extends Controller
                         'name' => $t->name,
                         'capacity' => $t->capacity,
                         'status' => $status,
+                        'is_payment_requested' => (bool) ($t->is_payment_requested || ($activeOrder?->is_payment_requested ?? false)),
                         'x_pos' => (int) $t->x_pos,
                         'y_pos' => (int) $t->y_pos,
                         'area' => $t->area ? ['id' => $t->area->id, 'name' => $t->area->name] : null,
@@ -77,6 +78,7 @@ class TablesController extends Controller
                         'active_order' => $activeOrder ? [
                             'id' => $activeOrder->id,
                             'order_number' => $activeOrder->order_number,
+                            'is_payment_requested' => (bool) $activeOrder->is_payment_requested,
                             'waiter_name' => $activeOrder->creator?->name ?? 'Khách đặt (QR)',
                             'total_amount' => (float) $activeOrder->total_amount,
                             'elapsed_minutes' => $activeOrder->created_at ? now()->diffInMinutes($activeOrder->created_at) : 0,

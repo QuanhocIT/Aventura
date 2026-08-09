@@ -10,6 +10,7 @@ use App\Http\Controllers\BusinessGoalController;
 use App\Http\Controllers\CashFlowController;
 use App\Http\Controllers\CdpController;
 use App\Http\Controllers\ChatbotController;
+use App\Http\Controllers\CompanyPolicyController;
 use App\Http\Controllers\CustomerController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DebtController;
@@ -36,6 +37,7 @@ use App\Http\Controllers\MenuEngineeringController;
 use App\Http\Controllers\MenuInsightController;
 use App\Http\Controllers\OnboardingController;
 use App\Http\Controllers\OnlineStoreSettingsController;
+use App\Http\Controllers\OperationalAuditController;
 use App\Http\Controllers\OperationPolicyController;
 use App\Http\Controllers\OperationsChecklistController;
 use App\Http\Controllers\OrderActionsController;
@@ -57,11 +59,13 @@ use App\Http\Controllers\ShiftSwapController;
 use App\Http\Controllers\StaffQROrderController;
 use App\Http\Controllers\SupplierController;
 use App\Http\Controllers\SupplierPortalController;
+use App\Http\Controllers\SupplyRequestController;
 use App\Http\Controllers\SupportController;
 use App\Http\Controllers\TableReservationController;
 use App\Http\Controllers\TablesController;
 use App\Http\Controllers\TrainingController;
 use App\Http\Controllers\ViolationReportController;
+use App\Http\Controllers\WarehouseGovernanceController;
 use App\Http\Controllers\WasteManagementController;
 use App\Http\Controllers\WeatherForecastController;
 use App\Http\Controllers\WebhookEndpointController;
@@ -262,12 +266,13 @@ Route::middleware(['auth', 'verified', 'tenant.subscription', 'tenant.ratelimit'
     // Hóa đơn điện tử (XML chuẩn TT78) cho đơn đã thanh toán
     Route::get('orders/{order}/e-invoice.xml', [EInvoiceController::class, 'download'])->name('orders.e-invoice');
 
-    // Tách bill / gộp đơn / chuyển bàn
+    // Tách bill / gộp đơn / chuyển bàn / gọi thanh toán
     Route::get('api/orders/{order}/items', [OrderActionsController::class, 'items'])->name('orders.items');
     Route::get('api/orders/available-tables', [OrderActionsController::class, 'availableTables'])->name('orders.available-tables');
     Route::post('orders/{order}/split', [OrderActionsController::class, 'split'])->name('orders.split');
     Route::post('orders/{order}/merge', [OrderActionsController::class, 'merge'])->name('orders.merge');
     Route::post('orders/{order}/move-table', [OrderActionsController::class, 'moveTable'])->name('orders.move-table');
+    Route::post('orders/{order}/request-payment', [OrderActionsController::class, 'requestPayment'])->name('orders.request-payment');
     Route::post('orders/{order}/convert-to-takeaway', [OrderActionsController::class, 'convertToTakeaway'])->name('orders.convert-to-takeaway');
 
     // Chương trình Khách hàng Thân thiết (Loyalty Program)
@@ -440,9 +445,11 @@ Route::middleware(['auth', 'verified', 'tenant.subscription', 'tenant.ratelimit'
     Route::post('fraud/verify-pin', [FraudController::class, 'verifyManagerPin'])->name('fraud.pin.verify');
 
     // Kiểm duyệt chéo (Cross-review)
-    Route::get('approvals', [ApprovalController::class, 'index'])->name('approvals.index');
-    Route::patch('approvals/{approval}/approve', [ApprovalController::class, 'approve'])->name('approvals.approve');
-    Route::patch('approvals/{approval}/reject', [ApprovalController::class, 'reject'])->name('approvals.reject');
+    Route::middleware('role_or_permission:owner|super_admin')->group(function () {
+        Route::get('approvals', [ApprovalController::class, 'index'])->name('approvals.index');
+        Route::patch('approvals/{approval}/approve', [ApprovalController::class, 'approve'])->name('approvals.approve');
+        Route::patch('approvals/{approval}/reject', [ApprovalController::class, 'reject'])->name('approvals.reject');
+    });
 
     // Quản lý phản hồi khách hàng (Owner & Manager)
     Route::get('feedback', [FeedbackController::class, 'index'])->name('feedback.index');
@@ -475,6 +482,38 @@ Route::middleware(['auth', 'verified', 'tenant.subscription', 'tenant.ratelimit'
     Route::get('api/inventory/transfer-recommendations', [InternalTransferController::class, 'transferRecommendations'])->name('inventory.transfer-recommendations');
     Route::post('api/inventory/internal-transfers', [InternalTransferController::class, 'storeInternalTransfer'])->name('inventory.internal-transfers');
     Route::get('api/inventory/internal-transfers', [InternalTransferController::class, 'listInternalTransfers'])->name('inventory.internal-transfers.list');
+
+    // Quản lý Tổng Kho & Yêu cầu cấp phát hàng hóa
+    Route::middleware('role_or_permission:owner|super_admin|warehouse.view')->group(function () {
+        Route::get('inventory/central-warehouse', [SupplyRequestController::class, 'centralWarehousePage'])->name('inventory.central-warehouse');
+        Route::get('api/supply-requests', [SupplyRequestController::class, 'index'])->name('supply-requests.index');
+    });
+    Route::get('inventory/branch-requisition', [SupplyRequestController::class, 'branchRequisitionPage'])->middleware('role_or_permission:owner|super_admin|supply_requests.create|supply_requests.receive')->name('inventory.branch-requisition');
+    Route::post('api/supply-requests', [SupplyRequestController::class, 'store'])->middleware('role_or_permission:owner|super_admin|supply_requests.create')->name('supply-requests.store');
+    Route::post('api/supply-requests/{id}/approve', [SupplyRequestController::class, 'approve'])->middleware('role_or_permission:owner|super_admin|supply_requests.approve')->name('supply-requests.approve');
+    Route::post('api/supply-requests/{id}/dispatch', [SupplyRequestController::class, 'dispatch'])->middleware('role_or_permission:owner|super_admin|supply_requests.dispatch')->name('supply-requests.dispatch');
+    Route::post('api/supply-requests/{id}/receive', [SupplyRequestController::class, 'receive'])->middleware('role_or_permission:owner|super_admin|supply_requests.receive')->name('supply-requests.receive');
+    Route::post('api/supply-requests/{id}/reject', [SupplyRequestController::class, 'reject'])->middleware('role_or_permission:owner|super_admin|supply_requests.approve')->name('supply-requests.reject');
+    Route::post('api/supply-requests/set-central-branch', [SupplyRequestController::class, 'setCentralBranch'])->middleware('role_or_permission:owner|super_admin|warehouse.manage')->name('supply-requests.set-central-branch');
+    Route::post('api/warehouse/ingredient-prices', [SupplyRequestController::class, 'updateIngredientPrices'])->middleware('role_or_permission:owner|super_admin|warehouse.manage')->name('warehouse.ingredient-prices.update');
+
+    // Bộ Quy Tắc Siết Chặt Quản Lý Tài Chính & Quy Trách Nhiệm Kho (Dành cho Trưởng Kho)
+    Route::get('inventory/warehouse-governance', [WarehouseGovernanceController::class, 'page'])->middleware('role_or_permission:owner|super_admin|warehouse_governance.view')->name('inventory.warehouse-governance');
+    Route::post('api/warehouse-governance/rules', [WarehouseGovernanceController::class, 'updateRules'])->middleware('role_or_permission:owner|super_admin|warehouse_governance.manage')->name('warehouse-governance.update-rules');
+    Route::post('api/warehouse-governance/disputes/{id}/resolve', [WarehouseGovernanceController::class, 'resolveDispute'])->middleware('role_or_permission:owner|super_admin|warehouse_governance.manage')->name('warehouse-governance.resolve-dispute');
+
+    // Bộ Quy Định & Tiêu Chuẩn Vận Hành Toàn Hệ Thống
+    Route::get('operations/company-policies', [CompanyPolicyController::class, 'page'])->middleware('role_or_permission:owner|super_admin|company_policies.manage')->name('operations.company-policies');
+    Route::get('api/company-policies', [CompanyPolicyController::class, 'index'])->middleware('role_or_permission:owner|super_admin|company_policies.view|company_policies.manage')->name('company-policies.index');
+    Route::post('api/company-policies', [CompanyPolicyController::class, 'store'])->middleware('role_or_permission:owner|super_admin|company_policies.manage')->name('company-policies.store');
+    Route::put('api/company-policies/{id}', [CompanyPolicyController::class, 'update'])->middleware('role_or_permission:owner|super_admin|company_policies.manage')->name('company-policies.update');
+    Route::delete('api/company-policies/{id}', [CompanyPolicyController::class, 'destroy'])->middleware('role_or_permission:owner|super_admin|company_policies.manage')->name('company-policies.destroy');
+
+    // Giám Sát Vận Hành & Lập/Duyệt Biên Bản Vi Phạm Xử Phạt
+    Route::get('operations/audit', [OperationalAuditController::class, 'page'])->middleware('role_or_permission:owner|super_admin|operational_audit.view|operational_audit.approve')->name('operations.audit');
+    Route::post('api/operational-audit/reports', [OperationalAuditController::class, 'storeReport'])->middleware('role_or_permission:owner|super_admin|operational_audit.report')->name('operational-audit.reports.store');
+    Route::post('api/operational-audit/reports/{id}/approve', [OperationalAuditController::class, 'approveReport'])->middleware('role_or_permission:owner|super_admin|operational_audit.approve')->name('operational-audit.reports.approve');
+    Route::post('api/operational-audit/reports/{id}/reject', [OperationalAuditController::class, 'rejectReport'])->middleware('role_or_permission:owner|super_admin|operational_audit.approve')->name('operational-audit.reports.reject');
 
     // Quản lý Đấu thầu RFP (Dành cho nhà hàng)
     Route::get('rfps', [RfpController::class, 'index'])->name('rfps.index');
