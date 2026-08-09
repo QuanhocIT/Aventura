@@ -1,0 +1,154 @@
+<?php
+
+namespace Tests\Feature;
+
+use App\Models\CompanyPolicy;
+use App\Models\OperationalInfringementReport;
+use App\Models\Restaurant;
+use App\Models\RestaurantBranch;
+use App\Models\User;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
+use Spatie\Permission\Models\Role;
+use Spatie\Permission\PermissionRegistrar;
+use Tests\TestCase;
+
+class OperationalAuditTest extends TestCase
+{
+    use RefreshDatabase;
+
+    public function test_operations_inspector_can_report_across_branches_but_cannot_approve()
+    {
+        $restaurant = Restaurant::factory()->create();
+
+        $inspector = User::factory()->create([
+            'restaurant_id' => $restaurant->id,
+            'branch_id' => null,
+        ]);
+        $inspector->assignRole('operations_inspector');
+
+        $this->assertTrue($inspector->canViewAllBranches());
+        $this->assertTrue($inspector->can('operational_audit.view'));
+        $this->assertTrue($inspector->can('operational_audit.report'));
+        $this->assertFalse($inspector->can('operational_audit.approve'));
+        $this->assertFalse($inspector->can('warehouse.manage'));
+    }
+
+    public function test_owner_can_access_policy_and_audit_pages_even_when_permissions_are_not_resynced()
+    {
+        $restaurant = Restaurant::factory()->create();
+
+        $owner = User::factory()->create([
+            'restaurant_id' => $restaurant->id,
+            'branch_id' => null,
+        ]);
+        $owner->assignRole('owner');
+
+        Role::findByName('owner')->syncPermissions([]);
+        app(PermissionRegistrar::class)->forgetCachedPermissions();
+
+        $this->actingAs($owner)
+            ->get('/operations/company-policies')
+            ->assertOk();
+
+        $this->actingAs($owner)
+            ->postJson('/api/company-policies', [
+                'title' => 'Quy dinh demo owner',
+                'category' => 'general',
+                'content' => 'Chu nha hang phai tao duoc tieu chuan van hanh.',
+                'suggested_fine_amount' => 100000,
+                'applies_to_all_branches' => true,
+            ])
+            ->assertOk();
+
+        $this->actingAs($owner)
+            ->get('/operations/audit')
+            ->assertOk();
+    }
+
+    public function test_policy_creation_audit_reporting_and_owner_approval_flow()
+    {
+        Storage::fake('public');
+
+        $restaurant = Restaurant::factory()->create();
+
+        $branch1 = RestaurantBranch::factory()->create([
+            'restaurant_id' => $restaurant->id,
+            'name' => 'Chi nhánh Quận 1',
+        ]);
+
+        $owner = User::factory()->create([
+            'restaurant_id' => $restaurant->id,
+        ]);
+        $owner->assignRole('owner');
+
+        $inspector = User::factory()->create([
+            'restaurant_id' => $restaurant->id,
+        ]);
+        $inspector->assignRole('operations_inspector');
+
+        $staff = User::factory()->create([
+            'restaurant_id' => $restaurant->id,
+            'branch_id' => $branch1->id,
+        ]);
+        $staff->assignRole('kitchen');
+
+        // 1. Owner creates a policy
+        $this->actingAs($owner);
+        $policyResponse = $this->postJson('/api/company-policies', [
+            'title' => 'Quy định Vệ sinh Khu vực Bếp & Đóng gói',
+            'category' => 'food_safety',
+            'content' => 'Tất cả nhân viên bếp phải đeo găng tay và đội mũ trùm tóc khi chế biến.',
+            'suggested_fine_amount' => 500000,
+            'applies_to_all_branches' => true,
+        ]);
+
+        $policyResponse->assertStatus(200);
+        $this->assertDatabaseHas('company_policies', [
+            'restaurant_id' => $restaurant->id,
+            'title' => 'Quy định Vệ sinh Khu vực Bếp & Đóng gói',
+        ]);
+
+        $policy = CompanyPolicy::first();
+
+        // 2. Inspector audits Branch 1 and files penalty report
+        $this->actingAs($inspector);
+        $reportResponse = $this
+            ->withHeaders(['Accept' => 'application/json'])
+            ->post('/api/operational-audit/reports', [
+                'branch_id' => $branch1->id,
+                'policy_id' => $policy->id,
+                'offender_user_id' => $staff->id,
+                'infringement_date' => now()->toDateString(),
+                'description' => 'Phát hiện nhân viên bếp không đeo khẩu trang và găng tay khi làm món.',
+                'proof_photo' => UploadedFile::fake()->image('vi-pham-bep.jpg'),
+                'penalty_amount' => 500000,
+            ]);
+
+        $reportResponse->assertStatus(200);
+        $this->assertDatabaseHas('operational_infringement_reports', [
+            'restaurant_id' => $restaurant->id,
+            'branch_id' => $branch1->id,
+            'status' => 'pending_owner_approval',
+            'penalty_amount' => 500000,
+        ]);
+
+        $report = OperationalInfringementReport::first();
+        $this->assertNotNull($report->proof_photo_url);
+        Storage::disk('public')->assertExists(str_replace('/storage/', '', $report->proof_photo_url));
+
+        // 3. Owner approves the penalty report
+        $this->actingAs($owner);
+        $approveResponse = $this->postJson("/api/operational-audit/reports/{$report->id}/approve", [
+            'owner_notes' => 'Đã xác nhận hình ảnh vi phạm. Đồng ý mức phạt 500.000đ.',
+        ]);
+
+        $approveResponse->assertStatus(200);
+        $this->assertDatabaseHas('operational_infringement_reports', [
+            'id' => $report->id,
+            'status' => 'approved',
+            'approved_by' => $owner->id,
+        ]);
+    }
+}
