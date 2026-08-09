@@ -183,9 +183,26 @@ async function loadDatabaseNotifications() {
 // ──────────────────────────────────────────────────────────────────────────────
 import { watch } from 'vue';
 
+let lastNotifFlashMsg = '';
+
 watch(
     () => (page.props as any).flash,
     (flash) => {
+        const currentMsg =
+            flash?.success || flash?.error || flash?.info || flash?.warning || '';
+
+        if (!currentMsg) {
+            lastNotifFlashMsg = '';
+
+            return;
+        }
+
+        if (currentMsg === lastNotifFlashMsg) {
+            return;
+        }
+
+        lastNotifFlashMsg = currentMsg;
+
         if (flash?.success) {
             addNotification('success', 'Thành công', flash.success);
         }

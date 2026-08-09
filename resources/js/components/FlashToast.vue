@@ -27,19 +27,38 @@ function removeToast(id: number) {
     }
 }
 
+let lastSuccessMsg = '';
+let lastErrorMsg = '';
+let lastInfoMsg = '';
+
 watch(
     () => (page.props as any).flash,
     (flash) => {
         if (flash?.success) {
-            addToast('success', flash.success);
+            if (flash.success !== lastSuccessMsg) {
+                lastSuccessMsg = flash.success;
+                addToast('success', flash.success);
+            }
+        } else {
+            lastSuccessMsg = '';
         }
 
         if (flash?.error) {
-            addToast('error', flash.error);
+            if (flash.error !== lastErrorMsg) {
+                lastErrorMsg = flash.error;
+                addToast('error', flash.error);
+            }
+        } else {
+            lastErrorMsg = '';
         }
 
         if (flash?.info) {
-            addToast('info', flash.info);
+            if (flash.info !== lastInfoMsg) {
+                lastInfoMsg = flash.info;
+                addToast('info', flash.info);
+            }
+        } else {
+            lastInfoMsg = '';
         }
     },
     { deep: true },
