@@ -51,7 +51,7 @@ class InventoryManagementController extends Controller
      */
     public function inventoryPage(Request $request): Response
     {
-        abort_unless($request->user()->hasAnyRole(['owner', 'manager', 'inventory_staff']), 403);
+        abort_unless($request->user()->hasAnyRole(['owner', 'manager', 'inventory_staff', 'warehouse_manager', 'warehouse_staff']), 403);
 
         $restaurant = $request->user()->restaurant;
         if (! $restaurant && ! $request->user()->hasRole('super_admin')) {
@@ -324,6 +324,14 @@ class InventoryManagementController extends Controller
             'items.*.waste_rate' => ['nullable', 'numeric', 'min:0', 'max:100'],
         ]);
 
+        if (! $user->isOwner() && ! $user->isSuperAdmin()) {
+            $this->approvalService->submitRequest('inventory_recipe_save', array_merge($data, [
+                'branch_id' => $branchId,
+            ]), $user);
+
+            return back()->with('success', 'Yêu cầu cập nhật công thức đã được gửi Chủ nhà hàng phê duyệt.');
+        }
+
         $productId = $data['product_id'];
         $product = Product::where('restaurant_id', $user->restaurant_id)
             ->whereKey($productId)
@@ -409,6 +417,17 @@ class InventoryManagementController extends Controller
             ->findOrFail($id);
 
         $productId = (int) $recipe->product_id;
+
+        if (! $request->user()->isOwner() && ! $request->user()->isSuperAdmin()) {
+            $this->approvalService->submitRequest('inventory_recipe_delete', [
+                'recipe_id' => $recipe->id,
+                'product_id' => $productId,
+                'branch_id' => $branchId,
+            ], $request->user());
+
+            return back()->with('success', 'Yêu cầu xóa công thức đã được gửi Chủ nhà hàng phê duyệt.');
+        }
+
         $recipe->delete();
 
         app(ProductCostService::class)->recalculateForProducts([$productId]);
@@ -446,6 +465,14 @@ class InventoryManagementController extends Controller
             'reorder_level' => ['nullable', 'numeric', 'min:0'],
             'auto_waste_end_of_day' => ['nullable', 'boolean'],
         ]);
+
+        if (! $user->isOwner() && ! $user->isSuperAdmin()) {
+            $this->approvalService->submitRequest('inventory_create', array_merge($data, [
+                'branch_id' => $branchId,
+            ]), $user);
+
+            return back()->with('success', 'Yêu cầu thêm nguyên liệu mới đã được gửi lên Chủ nhà hàng phê duyệt.');
+        }
 
         Ingredient::create([
             'restaurant_id' => $user->restaurant_id,
@@ -494,6 +521,28 @@ class InventoryManagementController extends Controller
             'auto_waste_end_of_day' => ['nullable', 'boolean'],
         ]);
 
+        if (! $user->isOwner() && ! $user->isSuperAdmin()) {
+            $this->approvalService->submitRequest('inventory_update', [
+                'ingredient_id' => $ingredient->id,
+                'ingredient_name' => $ingredient->name,
+                'attributes' => [
+                    'name' => $data['name'],
+                    'unit_id' => $data['unit_id'],
+                    'category_name' => $data['category'] ?? null,
+                    'storage_type' => $data['storage_type'] ?? 'dry',
+                    'default_shelf_life_days' => $data['default_shelf_life_days'] ?? null,
+                    'storage_location' => $data['storage_location'] ?? null,
+                    'expiry_warning_days' => $data['expiry_warning_days'] ?? 3,
+                    'min_stock_level' => $data['min_stock_level'] ?? 0,
+                    'reorder_level' => $data['reorder_level'] ?? 0,
+                    'auto_waste_end_of_day' => $data['auto_waste_end_of_day'] ?? false,
+                ],
+                'branch_id' => $branchId,
+            ], $user);
+
+            return back()->with('success', 'Yêu cầu cập nhật thông tin nguyên liệu đã được gửi lên Chủ nhà hàng phê duyệt.');
+        }
+
         $ingredient->update([
             'name' => $data['name'],
             'unit_id' => $data['unit_id'],
@@ -511,11 +560,40 @@ class InventoryManagementController extends Controller
     }
 
     /**
+     * Xóa nguyên liệu khỏi kho.
+     */
+    public function deleteIngredient(Request $request, $id): RedirectResponse
+    {
+        abort_unless($request->user()->hasAnyRole(['owner', 'manager']), 403);
+
+        $user = $request->user();
+        $branchId = $this->requireActiveBranch($request);
+
+        $ingredient = Ingredient::where('restaurant_id', $user->restaurant_id)
+            ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
+            ->findOrFail($id);
+
+        if (! $user->isOwner() && ! $user->isSuperAdmin()) {
+            $this->approvalService->submitRequest('inventory_delete', [
+                'ingredient_id' => $ingredient->id,
+                'ingredient_name' => $ingredient->name,
+                'branch_id' => $branchId,
+            ], $user);
+
+            return back()->with('success', 'Yêu cầu xóa nguyên liệu đã được gửi đến Chủ nhà hàng phê duyệt.');
+        }
+
+        $ingredient->delete();
+
+        return back()->with('success', 'Đã xóa nguyên liệu khỏi kho.');
+    }
+
+    /**
      * Ghi nhận nhập hàng hàng ngày (stock receiving).
      */
     public function storePurchase(Request $request): RedirectResponse
     {
-        abort_unless($request->user()->hasAnyRole(['owner', 'manager', 'inventory_staff']), 403);
+        abort_unless($request->user()->hasAnyRole(['owner', 'manager', 'inventory_staff', 'warehouse_manager', 'warehouse_staff']), 403);
 
         $branchId = $this->requireActiveBranch($request);
 
@@ -580,7 +658,7 @@ class InventoryManagementController extends Controller
         unset($data['invoice_file']);
 
         // Yêu cầu phê duyệt chéo: Nhân viên kho / quản lý không được cộng thẳng, phải gửi Owner duyệt
-        if (! $user->can('approve_requests')) {
+        if (! $user->isOwner() && ! $user->isSuperAdmin()) {
             $this->approvalService->submitRequest('inventory_purchase', $data, $user);
 
             return back()->with('success', 'Yêu cầu nhập hàng đã gửi Chủ nhà hàng để phê duyệt.');
@@ -854,7 +932,7 @@ class InventoryManagementController extends Controller
      */
     public function storeWaste(Request $request): RedirectResponse
     {
-        abort_unless($request->user()->hasAnyRole(['owner', 'manager', 'inventory_staff', 'kitchen', 'waiter', 'cashier']), 403);
+        abort_unless($request->user()->hasAnyRole(['owner', 'manager', 'inventory_staff', 'warehouse_manager', 'warehouse_staff', 'kitchen', 'waiter', 'cashier']), 403);
 
         $data = $request->validate([
             'ingredient_id' => ['required', TenantRule::exists('ingredients')],
@@ -881,7 +959,7 @@ class InventoryManagementController extends Controller
         // Bếp là người báo cáo sự cố, không phải người tự xác nhận.
         // Kể cả khi permission bị gán nhầm, báo cáo của Bếp vẫn phải chờ
         // Chủ/Quản lý được ủy quyền duyệt.
-        if ($user->hasRole('kitchen') || ! $user->can('approve_requests')) {
+        if ($user->hasRole('kitchen') || (! $user->isOwner() && ! $user->isSuperAdmin())) {
             $data['employee_id'] = null;
             $this->approvalService->submitRequest('inventory_waste', $data, $user);
 
@@ -955,6 +1033,12 @@ class InventoryManagementController extends Controller
         ]);
 
         $user = $request->user();
+
+        if (! $user->isOwner() && ! $user->isSuperAdmin()) {
+            $this->approvalService->submitRequest('inventory_stocktake', array_merge($data, ['branch_id' => $branchId]), $user);
+
+            return back()->with('success', 'Yêu cầu kiểm kê kho đã được gửi Chủ nhà hàng phê duyệt.');
+        }
 
         try {
             DB::transaction(function () use ($user, $data, $branchId) {
