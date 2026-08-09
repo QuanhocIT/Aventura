@@ -33,6 +33,21 @@ class PermissionsSeeder extends Seeder
             'report_violations',
             'manage_restaurant_settings',
             'adjust_inventory',
+            'company_policies.view',
+            'company_policies.manage',
+            'operational_audit.view',
+            'operational_audit.report',
+            'operational_audit.approve',
+            'warehouse.view',
+            'warehouse.manage',
+            'warehouse_governance.view',
+            'warehouse_governance.manage',
+            'supplier.portal.view',
+            'supply_requests.view',
+            'supply_requests.create',
+            'supply_requests.approve',
+            'supply_requests.dispatch',
+            'supply_requests.receive',
         ];
 
         // Tạo các permissions nếu chưa tồn tại
@@ -69,6 +84,11 @@ class PermissionsSeeder extends Seeder
             'view_violations',
             'report_violations',
             'view_report',
+            'company_policies.view',
+            'operational_audit.view',
+            'supply_requests.view',
+            'supply_requests.create',
+            'supply_requests.receive',
         ]);
 
         // 4. Lấy hoặc tạo role cashier (Thu ngân)
@@ -103,6 +123,62 @@ class PermissionsSeeder extends Seeder
             'view_violations',
             'report_violations',
             'adjust_inventory',
+            'company_policies.view',
+            'supply_requests.view',
+            'supply_requests.create',
+            'supply_requests.receive',
+        ]);
+
+        // 6b. Role warehouse_manager (Trưởng Kho Tổng)
+        $warehouseManagerRole = Role::firstOrCreate([
+            'name' => 'warehouse_manager',
+            'guard_name' => 'web',
+        ]);
+        $warehouseManagerRole->syncPermissions([
+            'adjust_inventory',
+            'company_policies.view',
+            'warehouse.view',
+            'warehouse.manage',
+            'warehouse_governance.view',
+            'warehouse_governance.manage',
+            'supply_requests.view',
+            'supply_requests.approve',
+            'supply_requests.dispatch',
+        ]);
+
+        // 6c. Role warehouse_staff (Nhân viên Kho Tổng)
+        $warehouseStaffRole = Role::firstOrCreate([
+            'name' => 'warehouse_staff',
+            'guard_name' => 'web',
+        ]);
+        $warehouseStaffRole->syncPermissions([
+            'adjust_inventory',
+            'company_policies.view',
+            'warehouse.view',
+            'supply_requests.view',
+            'supply_requests.dispatch',
+        ]);
+
+        // 6d. Role operations_inspector (Giám sát viên Vận hành / Auditor)
+        $inspectorRole = Role::firstOrCreate([
+            'name' => 'operations_inspector',
+            'guard_name' => 'web',
+        ]);
+        $inspectorRole->syncPermissions([
+            'view_violations',
+            'report_violations',
+            'company_policies.view',
+            'operational_audit.view',
+            'operational_audit.report',
+        ]);
+
+        // 6e. Role supplier (NhÃ  cung cáº¥p gá»‘c)
+        $supplierRole = Role::firstOrCreate([
+            'name' => 'supplier',
+            'guard_name' => 'web',
+        ]);
+        $supplierRole->syncPermissions([
+            'supplier.portal.view',
         ]);
 
         // 7. Lấy hoặc tạo role waiter (Nhân viên order)

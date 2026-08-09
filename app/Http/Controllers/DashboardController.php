@@ -53,6 +53,18 @@ class DashboardController extends Controller
             return redirect('/super-admin/dashboard');
         }
 
+        if ($user && $user->hasRole('supplier')) {
+            return redirect()->route('supplier.dashboard');
+        }
+
+        if ($user && $user->hasRole('operations_inspector')) {
+            return redirect()->route('operations.audit');
+        }
+
+        if ($user && $user->hasAnyRole(['warehouse_manager', 'warehouse_staff'])) {
+            return redirect()->route('inventory.central-warehouse');
+        }
+
         if ($user && $user->can('manage_kitchen') && ! $user->can('view_report')) {
             return redirect()->route('kitchen.index');
         }

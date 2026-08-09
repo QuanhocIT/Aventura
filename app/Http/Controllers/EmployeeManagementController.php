@@ -389,7 +389,7 @@ class EmployeeManagementController extends Controller
             'compensation_type' => ['sometimes', 'string', 'in:fixed,hourly,shift'],
             'pay_rate' => ['nullable', 'numeric', 'min:0'],
             'base_salary' => ['required', 'numeric', 'min:0'],
-            'role' => ['required', 'string', 'in:cashier,kitchen,manager,waiter'],
+            'role' => ['required', 'string', 'in:cashier,kitchen,manager,waiter,inventory_staff,warehouse_staff,warehouse_manager,operations_inspector'],
             'job_title' => ['required', 'string', 'max:100'],
             // TRƯỚC ĐÂY KHÔNG CÓ — employees.branch_id/users.branch_id không
             // bao giờ được ghi, khiến việc gán nhân viên theo chi nhánh không

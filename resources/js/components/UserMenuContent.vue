@@ -31,9 +31,14 @@ const roles = computed(() => {
 const isOwner = computed(() => roles.value.includes('owner'));
 const isEmployee = computed(() =>
     roles.value.some((role) =>
-        ['cashier', 'waiter', 'kitchen', 'inventory_staff', 'shipper'].includes(
-            role,
-        ),
+        [
+            'cashier',
+            'waiter',
+            'kitchen',
+            'inventory_staff',
+            'warehouse_staff',
+            'shipper',
+        ].includes(role),
     ),
 );
 

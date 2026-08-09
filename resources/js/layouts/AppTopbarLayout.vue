@@ -1,13 +1,6 @@
 <script setup lang="ts">
 import { Link, router, usePage } from '@inertiajs/vue3';
-import {
-    LogOut,
-    Menu,
-    Monitor,
-    Settings,
-    UserRound,
-    X,
-} from 'lucide-vue-next';
+import { LogOut, Menu, Monitor, Settings, UserRound, X } from 'lucide-vue-next';
 
 import { computed, ref, onMounted, onUnmounted } from 'vue';
 import AppearanceToggleInline from '@/components/AppearanceToggleInline.vue';
@@ -54,7 +47,14 @@ const isSuperAdmin = computed(() =>
 );
 const isOwner = computed(() => hasRole('owner'));
 const isEmployee = computed(() =>
-    hasRole('cashier', 'waiter', 'kitchen', 'inventory_staff', 'shipper'),
+    hasRole(
+        'cashier',
+        'waiter',
+        'kitchen',
+        'inventory_staff',
+        'warehouse_staff',
+        'shipper',
+    ),
 );
 
 const showChatbot = computed(
@@ -327,10 +327,7 @@ const handleLogout = () => {
                                         v-if="isEmployee"
                                         class="mr-2 h-4 w-4"
                                     />
-                                    <Settings
-                                        v-else
-                                        class="mr-2 h-4 w-4"
-                                    />
+                                    <Settings v-else class="mr-2 h-4 w-4" />
                                     {{
                                         isEmployee
                                             ? 'Hồ sơ cá nhân'

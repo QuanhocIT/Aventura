@@ -1,11 +1,12 @@
 <script setup lang="ts">
 import { Link, usePage } from '@inertiajs/vue3';
-import { AlertTriangle, Bell, Star } from 'lucide-vue-next';
+import { AlertTriangle, Bell, BookOpen, Star } from 'lucide-vue-next';
 import { computed, ref } from 'vue';
 import AppearanceToggleInline from '@/components/AppearanceToggleInline.vue';
 import BranchContextSelector from '@/components/BranchContextSelector.vue';
 import Breadcrumbs from '@/components/Breadcrumbs.vue';
 import PlatformFeedbackModal from '@/components/PlatformFeedbackModal.vue';
+import PolicyViewerModal from '@/components/PolicyViewerModal.vue';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {
     DropdownMenu,
@@ -64,14 +65,20 @@ void isSuperAdmin.value;
 const isOwner = computed(() => roles.value.includes('owner'));
 const isEmployee = computed(() =>
     roles.value.some((role) =>
-        ['cashier', 'waiter', 'kitchen', 'inventory_staff', 'shipper'].includes(
-            role,
-        ),
+        [
+            'cashier',
+            'waiter',
+            'kitchen',
+            'inventory_staff',
+            'warehouse_staff',
+            'shipper',
+        ].includes(role),
     ),
 );
 const { isAllBranches } = useBranchContext();
 
 const showFeedbackModal = ref(false);
+const showPolicyModal = ref(false);
 </script>
 
 <template>
@@ -104,6 +111,19 @@ const showFeedbackModal = ref(false);
         </div>
 
         <div class="flex items-center gap-4">
+            <!-- Nút Tra cứu nhanh Quy Định & Tiêu Chuẩn dành cho nhân viên (Ẩn ở tài khoản Chủ doanh nghiệp) -->
+            <button
+                v-if="user && !isOwner"
+                @click="showPolicyModal = true"
+                class="flex cursor-pointer items-center gap-1.5 rounded-xl border border-indigo-500/30 bg-indigo-500/10 px-2.5 py-1.5 text-xs font-bold text-indigo-700 shadow-2xs transition-all hover:scale-[1.02] hover:bg-indigo-500/20 dark:text-indigo-300"
+                title="Tra cứu Bộ Quy Định & Tiêu Chuẩn Vận Hành Nhà Hàng"
+            >
+                <BookOpen
+                    class="size-3.5 text-indigo-600 dark:text-indigo-400"
+                />
+                <span class="hidden sm:inline">📜 Quy Định & Tiêu Chuẩn</span>
+            </button>
+
             <!-- The only global branch selector. Non-owners see a read-only context. -->
             <BranchContextSelector v-if="!isEmployee" class="mr-2" />
 
@@ -175,4 +195,5 @@ const showFeedbackModal = ref(false);
     </div>
 
     <PlatformFeedbackModal v-if="isOwner" v-model:open="showFeedbackModal" />
+    <PolicyViewerModal v-model:is-open="showPolicyModal" />
 </template>

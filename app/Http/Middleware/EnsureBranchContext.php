@@ -16,7 +16,7 @@ class EnsureBranchContext
 
         // Supplier portal users are external collaborators and do not belong
         // to an operational branch of the restaurant.
-        if ($user?->hasRole('supplier')) {
+        if ($user?->hasRole('supplier') || $user?->canViewAllBranches()) {
             return $next($request);
         }
 

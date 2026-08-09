@@ -176,7 +176,9 @@ class User extends Authenticatable implements MustVerifyEmail
 
     public function canViewAllBranches(): bool
     {
-        return $this->isSuperAdmin() || $this->isOwner();
+        return $this->isSuperAdmin()
+            || $this->isOwner()
+            || $this->hasAnyRole(['operations_inspector', 'warehouse_manager']);
     }
 
     public function canAccessBranch(?int $branchId): bool
@@ -210,6 +212,10 @@ class User extends Authenticatable implements MustVerifyEmail
             return true;
         }
 
+        if ($this->hasAnyRole(['operations_inspector', 'warehouse_manager', 'warehouse_staff'])) {
+            return true;
+        }
+
         if ($this->hasAnyRole(['owner', 'manager', 'supplier', 'quản lý', 'quan_ly', 'quanly'])) {
             return true;
         }
@@ -217,7 +223,7 @@ class User extends Authenticatable implements MustVerifyEmail
         $employee = $this->employee;
         if ($employee) {
             $jobTitle = mb_strtolower($employee->job_title);
-            if (str_contains($jobTitle, 'manager') || str_contains($jobTitle, 'quản lý')) {
+            if (str_contains($jobTitle, 'manager') || str_contains($jobTitle, 'quản lý') || str_contains($jobTitle, 'trưởng kho') || str_contains($jobTitle, 'thanh tra') || str_contains($jobTitle, 'giám sát')) {
                 return true;
             }
         }
