@@ -19,6 +19,8 @@ import {
     RefreshCw,
     ArrowUpDown,
     Search,
+    ChevronLeft,
+    ChevronRight,
 } from 'lucide-vue-next';
 import { ref, computed, watch } from 'vue';import { Button } from '@/components/ui/button';
 import {
@@ -117,6 +119,8 @@ const props = defineProps<{
 const showAddEmployee = ref(false);
 const editingEmployee = ref<Employee | null>(null);
 const empSearchQuery = ref('');
+const empCurrentPage = ref(1);
+const empPerPage = 8;
 
 const filteredEmployees = computed(() => {
     const q = empSearchQuery.value.trim().toLowerCase();
@@ -132,6 +136,45 @@ const filteredEmployees = computed(() => {
             (e.job_title ?? '').toLowerCase().includes(q) ||
             (e.phone ?? '').toLowerCase().includes(q),
     );
+});
+
+const totalEmpPages = computed(() =>
+    Math.ceil(filteredEmployees.value.length / empPerPage) || 1,
+);
+
+const paginatedEmployees = computed(() => {
+    const start = (empCurrentPage.value - 1) * empPerPage;
+
+    return filteredEmployees.value.slice(start, start + empPerPage);
+});
+
+const visibleEmpPages = computed(() => {
+    const total = totalEmpPages.value;
+    const current = empCurrentPage.value;
+    const pages: number[] = [];
+
+    let start = Math.max(1, current - 2);
+    const end = Math.min(total, start + 4);
+
+    if (end - start < 4) {
+        start = Math.max(1, end - 4);
+    }
+
+    for (let i = start; i <= end; i++) {
+        pages.push(i);
+    }
+
+    return pages;
+});
+
+watch(empSearchQuery, () => {
+    empCurrentPage.value = 1;
+});
+
+watch(totalEmpPages, (newTotal) => {
+    if (empCurrentPage.value > newTotal) {
+        empCurrentPage.value = Math.max(1, newTotal);
+    }
 });
 
 const employeeForm = useForm({
@@ -1214,10 +1257,22 @@ const submitSwapReject = () => {
                                         Nhà bếp (Chuẩn bị món)
                                     </option>
                                     <option value="manager">
-                                        Quản lý cửa hàng
+                                        Quản lý cửa hàng (Chi nhánh)
                                     </option>
                                     <option value="waiter">
                                         Nhân viên order (Phục vụ)
+                                    </option>
+                                    <option value="inventory_staff">
+                                        Nhân viên Kho Chi Nhánh
+                                    </option>
+                                    <option value="warehouse_staff">
+                                        Nhân viên Kho Tổng
+                                    </option>
+                                    <option value="warehouse_manager">
+                                        Trưởng Kho Tổng
+                                    </option>
+                                    <option value="operations_inspector">
+                                        Giám sát viên Vận hành / Thanh tra
                                     </option>
                                 </select>
                             </div>
@@ -1563,10 +1618,22 @@ const submitSwapReject = () => {
                                         Nhà bếp (Chuẩn bị món)
                                     </option>
                                     <option value="manager">
-                                        Quản lý cửa hàng
+                                        Quản lý cửa hàng (Chi nhánh)
                                     </option>
                                     <option value="waiter">
                                         Nhân viên order (Phục vụ)
+                                    </option>
+                                    <option value="inventory_staff">
+                                        Nhân viên Kho Chi Nhánh
+                                    </option>
+                                    <option value="warehouse_staff">
+                                        Nhân viên Kho Tổng
+                                    </option>
+                                    <option value="warehouse_manager">
+                                        Trưởng Kho Tổng
+                                    </option>
+                                    <option value="operations_inspector">
+                                        Giám sát viên Vận hành / Thanh tra
                                     </option>
                                 </select>
                             </div>
@@ -1841,7 +1908,7 @@ const submitSwapReject = () => {
                     >
                         <div v-if="filteredEmployees.length">
                             <div
-                                v-for="emp in filteredEmployees"
+                                v-for="emp in paginatedEmployees"
                                 :key="emp.id"
                                 class="border-b border-slate-100 last:border-0 dark:border-slate-800"
                             >
@@ -2080,6 +2147,53 @@ const submitSwapReject = () => {
                                             </a>
                                         </div>
                                     </div>
+                                </div>
+                            </div>
+
+                            <!-- Pagination controls (8 employees per page) -->
+                            <div
+                                v-if="totalEmpPages > 1"
+                                class="flex items-center justify-between border-t border-slate-100 px-4 py-3 dark:border-slate-800"
+                            >
+                                <span class="text-xs text-slate-500 dark:text-slate-400">
+                                    Trang {{ empCurrentPage }} / {{ totalEmpPages }}
+                                </span>
+                                <div class="flex items-center gap-1">
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        :disabled="empCurrentPage === 1"
+                                        @click="empCurrentPage--"
+                                        class="h-7 px-2 text-xs"
+                                    >
+                                        <ChevronLeft class="mr-0.5 size-3.5" />
+                                        Trước
+                                    </Button>
+                                    <Button
+                                        v-for="p in visibleEmpPages"
+                                        :key="p"
+                                        variant="outline"
+                                        size="sm"
+                                        @click="empCurrentPage = p"
+                                        :class="[
+                                            'h-7 w-7 p-0 text-xs font-semibold',
+                                            empCurrentPage === p
+                                                ? 'bg-indigo-600 text-white hover:bg-indigo-700 hover:text-white dark:bg-indigo-500'
+                                                : ''
+                                        ]"
+                                    >
+                                        {{ p }}
+                                    </Button>
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        :disabled="empCurrentPage === totalEmpPages"
+                                        @click="empCurrentPage++"
+                                        class="h-7 px-2 text-xs"
+                                    >
+                                        Sau
+                                        <ChevronRight class="ml-0.5 size-3.5" />
+                                    </Button>
                                 </div>
                             </div>
                         </div>
