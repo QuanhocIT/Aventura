@@ -46,6 +46,31 @@ class LeaveScheduleController extends Controller
     }
 
     /**
+     * Lấp nhanh các vị trí ca còn trống từ ngày được chọn đến hết tuần.
+     */
+    public function quickAutoSchedule(Request $request): RedirectResponse
+    {
+        $user = $request->user();
+        $restaurant = $user->restaurant;
+        if (! $restaurant && ! $request->user()->hasRole('super_admin')) {
+            abort(404, 'Không tìm thấy nhà hàng.');
+        }
+
+        $restaurant?->loadMissing('plan');
+        if ($restaurant && ! app(QuotaService::class)->hasFeature($restaurant, 'hr_timekeeping')) {
+            return back()->withErrors(['feature' => 'Gói dịch vụ hiện tại không hỗ trợ tính năng Lịch làm việc. Vui lòng nâng cấp gói.']);
+        }
+
+        $result = $this->assignments->quickAutoSchedule($restaurant, $user);
+
+        if (! $result['success']) {
+            return back()->withErrors(['quick_schedule' => $result['message']]);
+        }
+
+        return back()->with('success', $result['message']);
+    }
+
+    /**
      * Tạo mới hoặc cập nhật lịch xếp ca.
      */
     public function storeAssignment(Request $request): RedirectResponse
