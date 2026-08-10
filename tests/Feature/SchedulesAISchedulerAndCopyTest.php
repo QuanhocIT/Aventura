@@ -262,12 +262,16 @@ class SchedulesAISchedulerAndCopyTest extends TestCase
             'status' => 'active',
         ]);
 
+        $completedDate = Carbon::today()->isMonday()
+            ? Carbon::today()->addDay()->toDateString()
+            : Carbon::today()->startOfWeek(Carbon::MONDAY)->toDateString();
+
         $completedAssignment = ScheduleAssignment::create([
             'restaurant_id' => $this->restaurant->id,
             'branch_id' => $this->branch->id,
             'employee_id' => $employee->id,
             'shift_id' => $shift->id,
-            'scheduled_date' => Carbon::now()->startOfWeek(Carbon::MONDAY)->toDateString(),
+            'scheduled_date' => $completedDate,
             'status' => 'completed',
         ]);
 
