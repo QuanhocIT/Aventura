@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\Employee;
 use App\Models\Restaurant;
+use App\Models\RestaurantBranch;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
@@ -63,6 +64,47 @@ class EmployeeManagementTest extends TestCase
         $this->actingAs($this->owner)->get('/employees')->assertOk();
     }
 
+    public function test_owner_account_is_not_displayed_in_employee_list(): void
+    {
+        $ownerEmployee = Employee::factory()->create([
+            'restaurant_id' => $this->restaurant->id,
+            'user_id' => $this->owner->id,
+            'full_name' => $this->owner->name,
+        ]);
+        $staffEmployee = Employee::factory()->create([
+            'restaurant_id' => $this->restaurant->id,
+            'full_name' => 'Nhân viên hiển thị',
+        ]);
+
+        $response = $this->actingAs($this->owner)->get('/employees');
+        $response->assertOk();
+
+        $props = $response->original->getData()['page']['props'];
+        $employees = collect($props['employees']);
+
+        $this->assertFalse($employees->contains('id', $ownerEmployee->id));
+        $this->assertTrue($employees->contains('id', $staffEmployee->id));
+    }
+
+    public function test_employee_without_ratings_does_not_receive_a_five_star_display_value(): void
+    {
+        $employee = Employee::factory()->create([
+            'restaurant_id' => $this->restaurant->id,
+            'rating_star' => 5.0,
+            'rating_count' => 0,
+        ]);
+
+        $response = $this->actingAs($this->owner)->get('/employees');
+        $response->assertOk();
+
+        $props = $response->original->getData()['page']['props'];
+        $employeeData = collect($props['employees'])->firstWhere('id', $employee->id);
+
+        $this->assertNotNull($employeeData);
+        $this->assertNull($employeeData['rating_star']);
+        $this->assertSame(0, $employeeData['rating_count']);
+    }
+
     public function test_owner_can_create_employee_and_cccd_is_stored_privately(): void
     {
         Storage::fake('local');
@@ -98,6 +140,46 @@ class EmployeeManagementTest extends TestCase
             'email' => 'nhanvien@example.com',
             'restaurant_id' => $this->restaurant->id,
             'status' => 'active',
+        ]);
+    }
+
+    public function test_branch_manager_can_create_frontline_staff_but_cannot_grant_elevated_roles(): void
+    {
+        $branch = RestaurantBranch::factory()->create([
+            'restaurant_id' => $this->restaurant->id,
+        ]);
+        $manager = User::factory()->create([
+            'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $branch->id,
+            'status' => 'active',
+        ]);
+        $manager->assignRole('manager');
+
+        $allowedResponse = $this->actingAs($manager)
+            ->withSession(['active_branch_id' => $branch->id])
+            ->post('/employees', $this->validEmployeePayload([
+                'email' => 'order-manager-created@example.com',
+                'role' => 'waiter',
+                'branch_id' => $branch->id,
+            ]));
+
+        $allowedResponse->assertRedirect()->assertSessionHasNoErrors();
+        $this->assertDatabaseHas('users', [
+            'email' => 'order-manager-created@example.com',
+            'restaurant_id' => $this->restaurant->id,
+        ]);
+
+        $forbiddenResponse = $this->actingAs($manager)
+            ->withSession(['active_branch_id' => $branch->id])
+            ->post('/employees', $this->validEmployeePayload([
+                'email' => 'warehouse-manager-created@example.com',
+                'role' => 'warehouse_manager',
+                'branch_id' => $branch->id,
+            ]));
+
+        $forbiddenResponse->assertSessionHasErrors('role');
+        $this->assertDatabaseMissing('users', [
+            'email' => 'warehouse-manager-created@example.com',
         ]);
     }
 

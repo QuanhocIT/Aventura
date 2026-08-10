@@ -33,6 +33,8 @@ class EmployeeManagementController extends Controller
 {
     use PasswordValidationRules;
 
+    private const BRANCH_MANAGER_STAFF_ROLES = ['cashier', 'waiter', 'kitchen'];
+
     /**
      * Trang Nhân sự & Lịch biểu (Dành cho Day 3).
      */
@@ -61,6 +63,10 @@ class EmployeeManagementController extends Controller
 
         $employees = Employee::where('restaurant_id', $user->restaurant_id)
             ->when($tenantContext->isBranchScoped(), fn ($q) => $q->where('branch_id', $branchId))
+            ->when($restaurant?->owner_user_id, fn ($q, $ownerUserId) => $q->where(function ($ownerQuery) use ($ownerUserId) {
+                $ownerQuery->whereNull('user_id')->orWhere('user_id', '!=', $ownerUserId);
+            }))
+            ->whereDoesntHave('user.roles', fn ($q) => $q->where('name', 'owner')->where('guard_name', 'web'))
             ->with(['user.roles'])
             ->with('branch:id,name')
             ->get()
@@ -84,7 +90,9 @@ class EmployeeManagementController extends Controller
                 'compensation_type' => $e->compensation_type ?? 'fixed',
                 'pay_rate' => (float) ($e->pay_rate ?? 0),
                 'base_salary' => (float) ($e->base_salary ?? 0),
-                'rating_star' => (float) ($e->rating_star ?? 5.0),
+                'rating_star' => (int) ($e->rating_count ?? 0) > 0
+                    ? (float) ($e->rating_star ?? 0)
+                    : null,
                 'rating_count' => (int) ($e->rating_count ?? 0),
                 'branch_id' => $e->branch_id,
                 'branch_name' => $e->branch?->name,
@@ -365,6 +373,7 @@ class EmployeeManagementController extends Controller
                 : $restaurant->branches()->whereKey($branchId)->get(['id', 'name']),
             'activeBranchId' => $branchId,
             'branchScope' => $tenantContext->scope(),
+            'isBranchManager' => $user->isBranchManager(),
         ]);
     }
 
@@ -401,6 +410,8 @@ class EmployeeManagementController extends Controller
                 Rule::exists('restaurant_branches', 'id')->where('restaurant_id', $user->restaurant_id),
             ],
         ]);
+
+        $this->assertRoleAssignmentAllowed($user, $data['role']);
 
         // $user->branch_id (owner/manager) chỉ có giá trị nếu đã từng bấm nút
         // chuyển chi nhánh trong phiên hiện tại (session active_branch_id) —
@@ -1016,7 +1027,7 @@ class EmployeeManagementController extends Controller
             'full_name' => ['sometimes', 'string', 'max:255'],
             'phone' => ['sometimes', 'nullable', 'string', 'max:20'],
             'job_title' => ['sometimes', 'string', 'max:100'],
-            'role' => ['sometimes', 'string', 'in:cashier,kitchen,manager,waiter'],
+            'role' => ['sometimes', 'string', 'in:cashier,kitchen,manager,waiter,inventory_staff,warehouse_staff,warehouse_manager,operations_inspector'],
             'compensation_type' => ['sometimes', 'string', 'in:fixed,hourly,shift'],
             'pay_rate' => ['sometimes', 'numeric', 'min:0'],
             'base_salary' => ['sometimes', 'numeric', 'min:0'],
@@ -1030,6 +1041,10 @@ class EmployeeManagementController extends Controller
                 Rule::exists('restaurant_branches', 'id')->where('restaurant_id', $user->restaurant_id),
             ],
         ]);
+
+        if (isset($data['role'])) {
+            $this->assertRoleAssignmentAllowed($user, $data['role'], $oldRole);
+        }
 
         $newBranchId = $oldBranchId;
         if (array_key_exists('branch_id', $data)) {
@@ -1212,5 +1227,18 @@ class EmployeeManagementController extends Controller
     private function authorizeEmployeeManagement(User $user): void
     {
         abort_unless($user->isSuperAdmin() || $user->can('manage_employees'), 403, 'Bạn không có quyền quản lý nhân viên.');
+    }
+
+    private function assertRoleAssignmentAllowed(User $user, string $role, ?string $existingRole = null): void
+    {
+        if (
+            $user->isBranchManager()
+            && ! in_array($role, self::BRANCH_MANAGER_STAFF_ROLES, true)
+            && $role !== $existingRole
+        ) {
+            throw ValidationException::withMessages([
+                'role' => 'Tài khoản quản lý chỉ được tạo hoặc phân quyền cho Thu ngân, Nhân viên Order và Nhân viên Bếp.',
+            ]);
+        }
     }
 }

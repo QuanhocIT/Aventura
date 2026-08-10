@@ -15,6 +15,7 @@ use App\Services\MaterializedViewRefresher;
 use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Queue;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
@@ -138,6 +139,26 @@ class EmployeePortalTest extends TestCase
         $response2 = $this->actingAs($this->employeeUser)->get(route('employee-portal.index'));
         $response2->assertStatus(200);
         $response2->assertInertia(fn ($page) => $page->component('employee-portal/Dashboard'));
+    }
+
+    public function test_employee_can_update_own_password_from_portal_account(): void
+    {
+        $response = $this->actingAs($this->employeeUser)
+            ->from(route('employee-portal.profile'))
+            ->put(route('user-password.update'), [
+                'current_password' => 'password',
+                'password' => 'new-employee-password',
+                'password_confirmation' => 'new-employee-password',
+            ]);
+
+        $response
+            ->assertSessionHasNoErrors()
+            ->assertRedirect(route('employee-portal.profile'));
+
+        $this->assertTrue(Hash::check(
+            'new-employee-password',
+            $this->employeeUser->refresh()->password,
+        ));
     }
 
     /**

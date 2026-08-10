@@ -102,7 +102,8 @@ const isSuperAdmin = computed(() =>
 );
 const isOwner = computed(() => hasRole('owner'));
 const isManager = computed(() => hasRole('manager'));
-const isCashier = computed(() => hasRole('cashier', 'waiter'));
+const isCashier = computed(() => hasRole('cashier'));
+const isWaiter = computed(() => hasRole('waiter'));
 const isKitchen = computed(() => hasRole('kitchen'));
 const isInventory = computed(() => hasRole('inventory_staff'));
 const isOperationsInspector = computed(() => hasRole('operations_inspector'));
@@ -572,6 +573,10 @@ const ownerNav = computed<NavItem[]>(() => {
     ];
 
     return nav.filter((item) => {
+        if (isOwner.value && item.href === '/inventory/branch-requisition') {
+            return false;
+        }
+
         if (isManager.value) {
             if (item.href === '/fraud' || item.href === '/audit-logs') {
                 return false;
@@ -767,6 +772,31 @@ const cashierNav = computed<NavItem[]>(() => {
     );
 });
 
+// ─── WAITER (ORDER STAFF) MENU ────────────────────────────────────────────────
+const waiterNav = computed<NavItem[]>(() => {
+    const nav = [
+        { title: 'Trang chủ', href: '/dashboard', icon: LayoutGrid },
+        { title: 'Cổng nhân sự', href: '/employee-portal', icon: UserCheck },
+        {
+            title: 'Doanh thu ca',
+            href: '/shift-closings',
+            icon: ClipboardCheck,
+            feature: 'inventory_basic',
+        },
+        {
+            title: 'Lịch làm việc',
+            href: '/schedules',
+            icon: CalendarDays,
+            feature: 'hr_timekeeping',
+        },
+        { title: 'Tố cáo ẩn danh', href: '/violations', icon: ShieldAlert },
+    ];
+
+    return nav.filter(
+        (item) => !item.feature || canFeature(item.feature as any),
+    );
+});
+
 // ─── KITCHEN MENU ─────────────────────────────────────────────────────────────
 const kitchenNav = computed<NavItem[]>(() => {
     const nav = [
@@ -932,6 +962,8 @@ const mainNavItems = computed<NavItem[]>(() => {
         items = [...managerNav.value];
     } else if (isCashier.value) {
         items = [...cashierNav.value];
+    } else if (isWaiter.value) {
+        items = [...waiterNav.value];
     } else if (isKitchen.value) {
         items = [...kitchenNav.value];
     } else if (isInventory.value) {
@@ -944,7 +976,8 @@ const mainNavItems = computed<NavItem[]>(() => {
         !isOwner.value &&
         !isOperationsInspector.value &&
         !isWarehouseManager.value &&
-        !isCashier.value;
+        !isCashier.value &&
+        !isWaiter.value;
 
     if (showPortalLink && items.length > 0) {
         if (

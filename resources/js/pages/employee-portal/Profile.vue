@@ -1,11 +1,12 @@
 <script setup lang="ts">
-import { Head, Link } from '@inertiajs/vue3';
+import { Form, Head, Link } from '@inertiajs/vue3';
 import {
     ArrowLeft,
     BriefcaseBusiness,
     CalendarDays,
     CheckCircle2,
     Clock3,
+    KeyRound,
     Mail,
     MapPin,
     MessageSquareQuote,
@@ -14,7 +15,11 @@ import {
     Star,
     UserRound,
 } from 'lucide-vue-next';
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
+import SecurityController from '@/actions/App/Http/Controllers/Settings/SecurityController';
+import InputError from '@/components/InputError.vue';
+import PasswordInput from '@/components/PasswordInput.vue';
+import { Button } from '@/components/ui/button';
 import AppLayout from '@/layouts/AppLayout.vue';
 
 type Employee = {
@@ -61,6 +66,8 @@ const props = defineProps<{
 }>();
 
 defineOptions({ layout: AppLayout });
+
+const showPasswordForm = ref(false);
 
 const initials = computed(() =>
     props.employee.full_name
@@ -457,6 +464,105 @@ const displayValue = (value?: string | null) => value || 'Chưa cập nhật';
                             <Clock3 class="size-4 text-muted-foreground" />
                         </div>
                     </dl>
+
+                    <div class="border-t border-border px-6 py-5">
+                        <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                            <div>
+                                <p class="text-sm font-bold text-foreground">
+                                    Đổi mật khẩu đăng nhập
+                                </p>
+                                <p class="mt-1 text-xs text-muted-foreground">
+                                    Mật khẩu hiện tại không thể xem lại. Bạn cần nhập mật khẩu hiện tại để đặt mật khẩu mới.
+                                </p>
+                            </div>
+                            <Button
+                                type="button"
+                                variant="outline"
+                                class="shrink-0 rounded-xl"
+                                @click="showPasswordForm = !showPasswordForm"
+                            >
+                                <KeyRound class="size-4" />
+                                {{ showPasswordForm ? 'Đóng' : 'Đổi mật khẩu' }}
+                            </Button>
+                        </div>
+
+                        <Form
+                            v-if="showPasswordForm"
+                            v-bind="SecurityController.update.form()"
+                            :options="{ preserveScroll: true }"
+                            reset-on-success
+                            :reset-on-error="[
+                                'password',
+                                'password_confirmation',
+                                'current_password',
+                            ]"
+                            class="mt-5 space-y-4"
+                            v-slot="{ errors, processing }"
+                        >
+                            <div class="grid gap-2">
+                                <label
+                                    for="employee_current_password"
+                                    class="text-xs font-bold tracking-wide text-muted-foreground uppercase"
+                                >
+                                    Mật khẩu hiện tại
+                                </label>
+                                <PasswordInput
+                                    id="employee_current_password"
+                                    name="current_password"
+                                    autocomplete="current-password"
+                                    placeholder="Nhập mật khẩu hiện tại"
+                                    class="rounded-xl"
+                                />
+                                <InputError :message="errors.current_password" />
+                            </div>
+
+                            <div class="grid gap-2">
+                                <label
+                                    for="employee_new_password"
+                                    class="text-xs font-bold tracking-wide text-muted-foreground uppercase"
+                                >
+                                    Mật khẩu mới
+                                </label>
+                                <PasswordInput
+                                    id="employee_new_password"
+                                    name="password"
+                                    autocomplete="new-password"
+                                    placeholder="Nhập mật khẩu mới"
+                                    class="rounded-xl"
+                                />
+                                <InputError :message="errors.password" />
+                            </div>
+
+                            <div class="grid gap-2">
+                                <label
+                                    for="employee_password_confirmation"
+                                    class="text-xs font-bold tracking-wide text-muted-foreground uppercase"
+                                >
+                                    Xác nhận mật khẩu mới
+                                </label>
+                                <PasswordInput
+                                    id="employee_password_confirmation"
+                                    name="password_confirmation"
+                                    autocomplete="new-password"
+                                    placeholder="Nhập lại mật khẩu mới"
+                                    class="rounded-xl"
+                                />
+                                <InputError
+                                    :message="errors.password_confirmation"
+                                />
+                            </div>
+
+                            <div class="flex justify-end pt-1">
+                                <Button
+                                    type="submit"
+                                    :disabled="processing"
+                                    class="rounded-xl"
+                                >
+                                    Lưu mật khẩu
+                                </Button>
+                            </div>
+                        </Form>
+                    </div>
                 </section>
             </div>
 

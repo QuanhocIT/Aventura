@@ -182,15 +182,18 @@ const showPolicyModal = ref(false);
 
     <div
         v-if="isAllBranches"
-        class="mx-4 mt-2 flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5 text-xs font-medium text-amber-800 md:mx-6 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-200"
+        class="mx-4 mt-2 flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm leading-5 font-medium text-amber-800 md:mx-6 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-200"
         role="status"
     >
         <AlertTriangle
-            class="size-4 shrink-0 text-amber-600 dark:text-amber-400"
+            class="mt-0.5 size-4 shrink-0 text-amber-600 dark:text-amber-400"
         />
-        <span>
-            Bạn đang xem dữ liệu <strong>Toàn chuỗi</strong>. Các số liệu đang
-            được tổng hợp từ các chi nhánh.
+        <span class="min-w-0 flex-1">
+            <span class="font-semibold">Bạn đang xem dữ liệu:</span>
+            <strong class="ml-1">Toàn chuỗi.</strong>
+            <span class="ml-1 font-normal"
+                >Các số liệu đang được tổng hợp từ các chi nhánh.</span
+            >
         </span>
     </div>
 

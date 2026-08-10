@@ -49,7 +49,7 @@ type Employee = {
     compensation_type?: 'fixed' | 'hourly' | 'shift';
     pay_rate?: number;
     base_salary?: number;
-    rating_star?: number;
+    rating_star?: number | null;
     rating_count?: number;
     date_of_birth?: string | null;
     citizen_id_number?: string | null;
@@ -114,6 +114,7 @@ const props = defineProps<{
     branches: Array<{ id: number; name: string }>;
     activeBranchId: number | null;
     branchScope: string;
+    isBranchManager: boolean;
 }>();
 
 const showAddEmployee = ref(false);
@@ -284,6 +285,41 @@ const roleLabels: Record<string, string> = {
     staff: 'Nhân viên phục vụ',
 };
 
+type RoleOption = { value: string; label: string; disabled?: boolean };
+
+const managerAllowedRoles = ['cashier', 'waiter', 'kitchen'];
+const allRoleOptions: RoleOption[] = [
+    { value: 'cashier', label: 'Thu ngân (Bán hàng)' },
+    { value: 'kitchen', label: 'Nhà bếp (Chuẩn bị món)' },
+    { value: 'manager', label: 'Quản lý cửa hàng (Chi nhánh)' },
+    { value: 'waiter', label: 'Nhân viên order (Phục vụ)' },
+    { value: 'inventory_staff', label: 'Nhân viên Kho Chi Nhánh' },
+    { value: 'warehouse_staff', label: 'Nhân viên Kho Tổng' },
+    { value: 'warehouse_manager', label: 'Trưởng Kho Tổng' },
+    { value: 'operations_inspector', label: 'Giám sát viên Vận hành / Thanh tra' },
+];
+
+const createRoleOptions = computed(() =>
+    props.isBranchManager
+        ? allRoleOptions.filter((option) => managerAllowedRoles.includes(option.value))
+        : allRoleOptions,
+);
+
+const editRoleOptions = computed(() => {
+    if (!props.isBranchManager || !editForm.role || managerAllowedRoles.includes(editForm.role)) {
+        return createRoleOptions.value;
+    }
+
+    return [
+        {
+            value: editForm.role,
+            label: `${roleLabels[editForm.role] ?? editForm.role} (Đang giữ nguyên)`,
+            disabled: true,
+        },
+        ...createRoleOptions.value,
+    ];
+});
+
 const roleColors: Record<string, string> = {
     owner: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-400',
     manager: 'bg-sky-100 text-sky-700 dark:bg-sky-950 dark:text-sky-400',
@@ -435,7 +471,7 @@ const handleToggleAutoSchedule = async () => {
         }
     }
 
-    const targetState = !isAutoSchedule.value;
+const targetState = !isAutoSchedule.value;
     router.post(
         '/employees/schedules/toggle-auto',
         {
@@ -451,6 +487,7 @@ const handleToggleAutoSchedule = async () => {
 
 // Modals State
 const showShiftConfigModal = ref(false);
+const showQuickScheduleModal = ref(false);
 const showAssignModal = ref(false);
 
 const showLeaveModal = ref(false);
@@ -752,6 +789,39 @@ const saveShiftsConfig = () => {
             onSuccess: () => {
                 showShiftConfigModal.value = false;
             },
+        },
+    );
+};
+
+const openQuickScheduleModal = () => {
+    showQuickScheduleModal.value = true;
+};
+
+const submitQuickSchedule = async () => {
+    if (
+        !(await confirmDialog({
+            title: 'Xác nhận thiết lập ca nhanh',
+            description:
+                'Hệ thống sẽ lấy đúng thời điểm bạn bấm Xếp ca làm mốc. Hôm nay chỉ xếp các ca có giờ bắt đầu từ thời điểm đó trở đi; từ ngày mai đến Chủ nhật sẽ xếp các ca trống. Các ca đã có và đã khóa được giữ nguyên.',
+            variant: 'default',
+        }))
+    ) {
+        return;
+    }
+
+    router.post(
+        '/employees/schedules/quick-auto',
+        {},
+        {
+            onSuccess: () => {
+                showQuickScheduleModal.value = false;
+            },
+            onError: (errors: any) =>
+                import('vue-sonner').then((m) =>
+                    m.toast.error(
+                        errors.quick_schedule || 'Không thể xếp ca nhanh.',
+                    ),
+                ),
         },
     );
 };
@@ -1243,6 +1313,12 @@ const submitSwapReject = () => {
                                 <Label for="emp-role"
                                     >Phân quyền hệ thống</Label
                                 >
+                                <p
+                                    v-if="props.isBranchManager"
+                                    class="text-xs text-amber-600 dark:text-amber-400"
+                                >
+                                    Quản lý chỉ được tạo Thu ngân, Order hoặc Bếp.
+                                </p>
                                 <select
                                     id="emp-role"
                                     v-model="employeeForm.role"
@@ -1250,29 +1326,12 @@ const submitSwapReject = () => {
                                     required
                                     class="w-full rounded-md border border-slate-200 bg-background px-3 py-2 text-sm focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:outline-none"
                                 >
-                                    <option value="cashier">
-                                        Thu ngân (Bán hàng)
-                                    </option>
-                                    <option value="kitchen">
-                                        Nhà bếp (Chuẩn bị món)
-                                    </option>
-                                    <option value="manager">
-                                        Quản lý cửa hàng (Chi nhánh)
-                                    </option>
-                                    <option value="waiter">
-                                        Nhân viên order (Phục vụ)
-                                    </option>
-                                    <option value="inventory_staff">
-                                        Nhân viên Kho Chi Nhánh
-                                    </option>
-                                    <option value="warehouse_staff">
-                                        Nhân viên Kho Tổng
-                                    </option>
-                                    <option value="warehouse_manager">
-                                        Trưởng Kho Tổng
-                                    </option>
-                                    <option value="operations_inspector">
-                                        Giám sát viên Vận hành / Thanh tra
+                                    <option
+                                        v-for="roleOption in createRoleOptions"
+                                        :key="roleOption.value"
+                                        :value="roleOption.value"
+                                    >
+                                        {{ roleOption.label }}
                                     </option>
                                 </select>
                             </div>
@@ -1611,29 +1670,13 @@ const submitSwapReject = () => {
                                     v-model="editForm.role"
                                     class="w-full rounded-md border border-slate-200 bg-background px-3 py-2 text-sm focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:outline-none"
                                 >
-                                    <option value="cashier">
-                                        Thu ngân (Bán hàng)
-                                    </option>
-                                    <option value="kitchen">
-                                        Nhà bếp (Chuẩn bị món)
-                                    </option>
-                                    <option value="manager">
-                                        Quản lý cửa hàng (Chi nhánh)
-                                    </option>
-                                    <option value="waiter">
-                                        Nhân viên order (Phục vụ)
-                                    </option>
-                                    <option value="inventory_staff">
-                                        Nhân viên Kho Chi Nhánh
-                                    </option>
-                                    <option value="warehouse_staff">
-                                        Nhân viên Kho Tổng
-                                    </option>
-                                    <option value="warehouse_manager">
-                                        Trưởng Kho Tổng
-                                    </option>
-                                    <option value="operations_inspector">
-                                        Giám sát viên Vận hành / Thanh tra
+                                    <option
+                                        v-for="roleOption in editRoleOptions"
+                                        :key="roleOption.value"
+                                        :value="roleOption.value"
+                                        :disabled="roleOption.disabled"
+                                    >
+                                        {{ roleOption.label }}
                                     </option>
                                 </select>
                             </div>
@@ -1963,30 +2006,52 @@ const submitSwapReject = () => {
                                             class="mt-1 flex items-center gap-1.5 text-xs"
                                         >
                                             <span
+                                                v-if="(emp.rating_count || 0) > 0"
                                                 class="inline-flex items-center gap-0.5 rounded-full border border-amber-200/50 bg-amber-50 px-2 py-0.5 text-[10px] font-bold text-amber-700 dark:bg-amber-950/40 dark:text-amber-300"
                                             >
                                                 ⭐
                                                 {{
-                                                    Number(
-                                                        emp.rating_star || 5.0,
-                                                    ).toFixed(1)
+                                                    Number(emp.rating_star).toFixed(1)
                                                 }}
                                                 / 5.0
                                             </span>
                                             <span
+                                                v-else
+                                                class="text-[10px] font-medium text-slate-400"
+                                            >
+                                                Chưa có đánh giá
+                                            </span>
+                                            <span
+                                                v-if="(emp.rating_count || 0) > 0"
                                                 class="text-[10px] font-medium text-slate-400"
                                             >
                                                 ({{ emp.rating_count || 0 }}
                                                 lượt đánh giá)
                                             </span>
                                         </div>
-                                        <span
-                                            v-if="emp.email"
-                                            class="mt-0.5 flex items-center gap-1 text-[10px] text-muted-foreground"
+                                        <div
+                                            class="mt-1 flex min-w-0 items-center gap-1.5 text-xs text-slate-300 dark:text-slate-300"
                                         >
-                                            <Mail class="size-2.5" />
-                                            {{ emp.email }}
-                                        </span>
+                                            <Mail
+                                                class="size-3 shrink-0 text-slate-400"
+                                            />
+                                            <span
+                                                class="shrink-0 font-semibold text-slate-400"
+                                                >Email:</span
+                                            >
+                                            <span
+                                                class="truncate"
+                                                :title="
+                                                    emp.email ??
+                                                    'Chưa cập nhật email'
+                                                "
+                                            >
+                                                {{
+                                                    emp.email ||
+                                                    'Chưa cập nhật email'
+                                                }}
+                                            </span>
+                                        </div>
                                     </div>
                                     <div
                                         class="flex shrink-0 items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100"
@@ -2301,6 +2366,17 @@ const submitSwapReject = () => {
                             >
                                 <Settings class="size-3.5" />
                                 Thiết lập Ca
+                            </Button>
+
+                            <Button
+                                @click="openQuickScheduleModal"
+                                :disabled="isAutoSchedule"
+                                variant="outline"
+                                size="sm"
+                                class="flex h-8 shrink-0 items-center gap-1.5 border-amber-200 text-xs text-amber-600 hover:border-amber-300 hover:text-amber-700 disabled:opacity-50"
+                            >
+                                <Sparkles class="size-3.5" />
+                                Thiết lập ca nhanh
                             </Button>
                         </div>
                     </CardHeader>
@@ -2860,6 +2936,77 @@ const submitSwapReject = () => {
                 </div>
             </CardContent>
         </Card>
+
+        <!-- Modal: Thiết lập ca nhanh -->
+        <Teleport to="body">
+            <div
+                v-if="showQuickScheduleModal"
+                class="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 p-4 pt-16 backdrop-blur-xs md:pt-24"
+            >
+                <Card
+                    class="w-full max-w-md animate-in shadow-2xl duration-150 zoom-in-95 fade-in"
+                >
+                    <CardHeader
+                        class="flex flex-row items-start justify-between gap-4 border-b pb-3"
+                    >
+                        <div>
+                            <CardTitle
+                                class="flex items-center gap-1.5 text-base text-amber-600"
+                            >
+                                <Sparkles class="size-5" />
+                                Thiết lập ca nhanh
+                            </CardTitle>
+                            <CardDescription>
+                                Hệ thống tự lấy ngày và thời điểm bạn bấm
+                                “Xếp ca” làm mốc, không cần chọn ngày.
+                            </CardDescription>
+                        </div>
+                        <button
+                            @click="showQuickScheduleModal = false"
+                            class="rounded-lg p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+                        >
+                            <X class="size-4" />
+                        </button>
+                    </CardHeader>
+                    <CardContent class="space-y-4 pt-4">
+                        <div
+                            class="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs leading-5 text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-200"
+                        >
+                            <p class="font-semibold">
+                                Quy tắc thiết lập ca nhanh
+                            </p>
+                            <p class="mt-1">
+                                Hôm nay chỉ xếp ca có giờ bắt đầu không trước
+                                thời điểm bạn bấm “Xếp ca”. Ví dụ bấm lúc 17:00
+                                thì ca bắt đầu trước 17:00 sẽ không được xếp.
+                                Từ ngày mai đến Chủ nhật, hệ thống xếp các ca
+                                còn trống. Ca đã có, đã hoàn thành hoặc đã khóa
+                                không bị thay đổi.
+                            </p>
+                        </div>
+
+                        <div class="flex justify-end gap-2 border-t pt-3">
+                            <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                @click="showQuickScheduleModal = false"
+                                >Hủy</Button
+                            >
+                            <Button
+                                type="button"
+                                size="sm"
+                                @click="submitQuickSchedule"
+                                class="bg-amber-500 font-semibold text-white shadow hover:bg-amber-600"
+                            >
+                                <Sparkles class="mr-1.5 size-3.5" />
+                                Xếp ca
+                            </Button>
+                        </div>
+                    </CardContent>
+                </Card>
+            </div>
+        </Teleport>
 
         <!-- Modal: Thiết lập Ca làm việc (showShiftConfigModal) -->
         <Teleport to="body">
