@@ -1,6 +1,15 @@
 <script setup lang="ts">
 import axios from 'axios';
-import { BookOpen, FileText, Search, X } from 'lucide-vue-next';
+import {
+    AlertCircle,
+    BookOpen,
+    ChevronRight,
+    FileText,
+    Inbox,
+    RefreshCw,
+    Search,
+    X,
+} from 'lucide-vue-next';
 import { computed, ref, watch } from 'vue';
 import { toast } from 'vue-sonner';
 
@@ -14,21 +23,63 @@ const props = defineProps<{
 const emit = defineEmits(['update:isOpen']);
 
 const isLoading = ref(false);
+const hasError = ref(false);
 const searchQuery = ref('');
 const selectedCategory = ref<string>('all');
 const policies = ref<Array<any>>([]);
+const categories = ref<Array<{ code: string; name: string }>>([]);
 const selectedPolicy = ref<any>(null);
+
+const sidebarSummary = computed(() => {
+    if (policies.value.length === 0) {
+        return `${categories.value.length} danh mục sẵn sàng`;
+    }
+
+    return `${filteredPolicies.value.length} quy định phù hợp`;
+});
+
+const filteredPolicies = computed(() => {
+    const query = searchQuery.value.trim().toLowerCase();
+
+    return policies.value.filter((policy) => {
+        const matchesCategory =
+            selectedCategory.value === 'all' || policy.category === selectedCategory.value;
+        const searchableText = [policy.title, policy.policy_code, policy.content]
+            .filter(Boolean)
+            .join(' ')
+            .toLowerCase();
+
+        return matchesCategory && (!query || searchableText.includes(query));
+    });
+});
+
+const selectedCategoryLabel = computed(() => {
+    if (selectedCategory.value === 'all') {
+        return 'Tất cả danh mục';
+    }
+
+    return getCategoryLabel(selectedCategory.value);
+});
 
 const fetchPolicies = async () => {
     isLoading.value = true;
+    hasError.value = false;
 
     try {
         const res = await axios.get('/api/company-policies');
 
-        if (res.data.success) {
-            policies.value = res.data.data || [];
+        if (!res.data.success) {
+            throw new Error('Unable to load policies');
         }
+
+        policies.value = res.data.data || [];
+        categories.value = res.data.categories || [];
+        selectedPolicy.value = filteredPolicies.value[0] ?? null;
     } catch {
+        policies.value = [];
+        categories.value = [];
+        selectedPolicy.value = null;
+        hasError.value = true;
         toast.error('Không thể tải Bộ quy định tiêu chuẩn.');
     } finally {
         isLoading.value = false;
@@ -37,41 +88,24 @@ const fetchPolicies = async () => {
 
 watch(
     () => props.isOpen,
-    (val) => {
-        if (val) {
+    (isOpen) => {
+        if (isOpen) {
+            searchQuery.value = '';
+            selectedCategory.value = 'all';
             fetchPolicies();
         }
     },
 );
 
-const filteredPolicies = computed(() => {
-    return policies.value.filter((p) => {
-        const matchesCategory = selectedCategory.value === 'all' || p.category === selectedCategory.value;
-        const matchesSearch =
-            p.title.toLowerCase().includes(searchQuery.value.toLowerCase()) ||
-            p.policy_code.toLowerCase().includes(searchQuery.value.toLowerCase()) ||
-            p.content.toLowerCase().includes(searchQuery.value.toLowerCase());
-
-        return matchesCategory && matchesSearch;
-    });
+watch([searchQuery, selectedCategory], () => {
+    if (!selectedPolicy.value || !filteredPolicies.value.some((policy) => policy.id === selectedPolicy.value.id)) {
+        selectedPolicy.value = filteredPolicies.value[0] ?? null;
+    }
 });
 
-const getCategoryLabel = (cat: string) => {
-    switch (cat) {
-        case 'food_safety':
-            return 'An Toàn Thực Phẩm';
-        case 'service_attitude':
-            return 'Thái Độ Phục Vụ';
-        case 'inventory_storage':
-            return 'Vệ Sinh Kho & Bảo Quản';
-        case 'pos_cashier':
-            return 'POS & Thu Ngân';
-        case 'uniform_time':
-            return 'Đồng Phục & Giờ Giấc';
-        default:
-            return 'Quy Định Chung';
-    }
-};
+function getCategoryLabel(categoryCode: string) {
+    return categories.value.find((category) => category.code === categoryCode)?.name ?? 'Quy Định Chung';
+}
 
 const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(amount || 0);
@@ -80,126 +114,268 @@ const formatCurrency = (amount: number) => {
 const closeModal = () => {
     emit('update:isOpen', false);
 };
+
+const clearFilters = () => {
+    searchQuery.value = '';
+    selectedCategory.value = 'all';
+};
 </script>
 
 <template>
-    <div v-if="isOpen" class="fixed inset-0 z-50 bg-slate-900/70 backdrop-blur-sm flex items-center justify-center p-4">
-        <div class="bg-white rounded-2xl shadow-2xl max-w-4xl w-full h-[85vh] flex flex-col overflow-hidden border border-slate-200">
-            <!-- Header -->
-            <div class="p-5 border-b bg-gradient-to-r from-indigo-950 via-slate-900 to-slate-950 text-white flex justify-between items-center">
-                <div class="flex items-center gap-3">
-                    <div class="p-2 bg-indigo-500/20 rounded-xl border border-indigo-400/30">
-                        <BookOpen class="w-6 h-6 text-indigo-400" />
+    <div
+        v-if="isOpen"
+        class="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/80 p-3 backdrop-blur-md sm:p-6"
+    >
+        <section
+            class="flex h-[calc(100vh-1.5rem)] max-h-[820px] w-full max-w-6xl flex-col overflow-hidden rounded-3xl border border-border bg-card text-card-foreground shadow-2xl sm:h-[calc(100vh-3rem)]"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Bộ Quy Định và Tiêu Chuẩn Vận Hành"
+        >
+            <header
+                class="flex shrink-0 items-center justify-between gap-4 border-b border-border bg-gradient-to-r from-indigo-500/15 via-background to-background px-4 py-4 sm:px-6"
+            >
+                <div class="flex min-w-0 items-center gap-3">
+                    <div class="shrink-0 rounded-2xl border border-indigo-400/30 bg-indigo-500/15 p-2.5">
+                        <BookOpen class="size-6 text-indigo-500 dark:text-indigo-300" />
                     </div>
-                    <div>
-                        <h3 class="font-bold text-lg">Bộ Quy Định & Tiêu Chuẩn Vận Hành Nhà Hàng</h3>
-                        <p class="text-xs text-indigo-200/80">Tra cứu nhanh các quy tắc, tiêu chuẩn chất lượng và chế tài thưởng phạt từ Ban Quản Trị</p>
+                    <div class="min-w-0">
+                        <p class="mb-0.5 text-[10px] font-bold uppercase tracking-[0.2em] text-indigo-600 dark:text-indigo-300">
+                            Trung tâm vận hành
+                        </p>
+                        <h3 class="truncate text-base font-bold text-foreground sm:text-lg">
+                            Bộ Quy Định &amp; Tiêu Chuẩn
+                        </h3>
+                        <p class="hidden truncate text-xs text-muted-foreground sm:block">
+                            Tra cứu các quy tắc, tiêu chuẩn và mức phạt đang áp dụng.
+                        </p>
                     </div>
                 </div>
-                <button @click="closeModal" class="text-slate-400 hover:text-white p-1.5 rounded-lg transition">
-                    <X class="w-6 h-6" />
+                <button
+                    type="button"
+                    aria-label="Đóng bộ quy định"
+                    class="shrink-0 rounded-xl p-2 text-muted-foreground transition hover:bg-muted hover:text-foreground"
+                    @click="closeModal"
+                >
+                    <X class="size-5" />
                 </button>
-            </div>
+            </header>
 
-            <!-- Content Area -->
-            <div class="flex-1 flex overflow-hidden">
-                <!-- Sidebar Filter & List -->
-                <div class="w-1/3 border-r bg-slate-50 flex flex-col p-4 space-y-3">
-                    <div class="relative">
-                        <Search class="w-4 h-4 absolute left-3 top-3 text-slate-400" />
-                        <Input v-model="searchQuery" placeholder="Tìm kiếm quy định..." class="pl-9 text-xs bg-white" />
+            <div class="flex min-h-0 flex-1 flex-col md:flex-row">
+                <aside
+                    class="flex min-h-0 w-full shrink-0 flex-col border-b border-border bg-muted/20 md:w-[340px] md:border-r md:border-b-0"
+                >
+                    <div class="shrink-0 space-y-3 border-b border-border p-4">
+                        <div class="flex items-center justify-between gap-3">
+                            <div>
+                                <p class="text-xs font-bold text-foreground">Danh sách quy định</p>
+                                <p class="mt-0.5 text-[11px] text-muted-foreground">
+                                    {{ sidebarSummary }}
+                                </p>
+                            </div>
+                            <span class="rounded-full border border-indigo-500/25 bg-indigo-500/10 px-2 py-1 text-[10px] font-semibold text-indigo-600 dark:text-indigo-300">
+                                {{ selectedCategoryLabel }}
+                            </span>
+                        </div>
+
+                        <div class="relative">
+                            <Search class="absolute top-2.5 left-3 size-4 text-muted-foreground" />
+                            <Input
+                                v-model="searchQuery"
+                                placeholder="Tìm theo mã hoặc tên..."
+                                class="h-9 border-border bg-background/70 pl-9 text-xs text-foreground placeholder:text-muted-foreground"
+                            />
+                        </div>
+
+                        <div class="flex flex-wrap content-start gap-1.5 pr-1">
+                            <button
+                                type="button"
+                                class="rounded-lg border px-2.5 py-1.5 text-[11px] font-semibold transition"
+                                :class="
+                                    selectedCategory === 'all'
+                                        ? 'border-indigo-500 bg-indigo-600 text-white shadow-sm'
+                                        : 'border-border bg-background/60 text-muted-foreground hover:bg-muted hover:text-foreground'
+                                "
+                                @click="selectedCategory = 'all'"
+                            >
+                                Tất cả
+                            </button>
+                            <button
+                                v-for="category in categories"
+                                :key="category.code"
+                                type="button"
+                                class="max-w-full truncate rounded-lg border px-2.5 py-1.5 text-[11px] font-semibold transition"
+                                :class="
+                                    selectedCategory === category.code
+                                        ? 'border-indigo-500 bg-indigo-600 text-white shadow-sm'
+                                        : 'border-border bg-background/60 text-muted-foreground hover:bg-muted hover:text-foreground'
+                                "
+                                :title="category.name"
+                                @click="selectedCategory = category.code"
+                            >
+                                {{ category.name }}
+                            </button>
+                        </div>
                     </div>
 
-                    <div class="flex flex-wrap gap-1">
-                        <button
-                            @click="selectedCategory = 'all'"
-                            :class="['px-2.5 py-1 rounded-lg text-[11px] font-semibold transition', selectedCategory === 'all' ? 'bg-indigo-600 text-white' : 'bg-slate-200 text-slate-700 hover:bg-slate-300']"
-                        >
-                            Tất cả
-                        </button>
-                        <button
-                            @click="selectedCategory = 'food_safety'"
-                            :class="['px-2.5 py-1 rounded-lg text-[11px] font-semibold transition', selectedCategory === 'food_safety' ? 'bg-indigo-600 text-white' : 'bg-slate-200 text-slate-700 hover:bg-slate-300']"
-                        >
-                            ATTP
-                        </button>
-                        <button
-                            @click="selectedCategory = 'service_attitude'"
-                            :class="['px-2.5 py-1 rounded-lg text-[11px] font-semibold transition', selectedCategory === 'service_attitude' ? 'bg-indigo-600 text-white' : 'bg-slate-200 text-slate-700 hover:bg-slate-300']"
-                        >
-                            Phục vụ
-                        </button>
-                        <button
-                            @click="selectedCategory = 'pos_cashier'"
-                            :class="['px-2.5 py-1 rounded-lg text-[11px] font-semibold transition', selectedCategory === 'pos_cashier' ? 'bg-indigo-600 text-white' : 'bg-slate-200 text-slate-700 hover:bg-slate-300']"
-                        >
-                            Thu Ngân
-                        </button>
-                    </div>
+                    <div class="min-h-0 flex-1 overflow-y-auto p-3">
+                        <div v-if="isLoading" class="flex h-full min-h-40 flex-col items-center justify-center gap-3 text-center">
+                            <RefreshCw class="size-5 animate-spin text-indigo-500" />
+                            <p class="text-xs text-muted-foreground">Đang tải quy định...</p>
+                        </div>
 
-                    <div class="flex-1 overflow-y-auto space-y-2 pr-1">
-                        <div v-if="isLoading" class="p-8 text-center text-xs text-slate-400">
-                            Đang tải quy định...
+                        <div v-else-if="hasError" class="flex h-full min-h-40 flex-col items-center justify-center gap-3 px-4 text-center">
+                            <div class="rounded-2xl border border-rose-500/20 bg-rose-500/10 p-3">
+                                <AlertCircle class="size-5 text-rose-500" />
+                            </div>
+                            <div>
+                                <p class="text-sm font-semibold text-foreground">Không tải được dữ liệu</p>
+                                <p class="mt-1 text-xs leading-5 text-muted-foreground">Vui lòng thử lại sau giây lát.</p>
+                            </div>
+                            <Button variant="outline" size="sm" class="h-8 text-xs" @click="fetchPolicies">
+                                <RefreshCw class="mr-1.5 size-3.5" /> Thử lại
+                            </Button>
                         </div>
-                        <div v-else-if="filteredPolicies.length === 0" class="p-8 text-center text-xs text-slate-400">
-                            Không tìm thấy quy định phù hợp.
+
+                        <div v-else-if="policies.length === 0" class="rounded-2xl border border-dashed border-border bg-background/40 p-6 text-center">
+                            <div class="mx-auto w-fit rounded-2xl border border-border bg-background/70 p-3">
+                                <Inbox class="size-5 text-muted-foreground" />
+                            </div>
+                            <div class="mt-3">
+                                <p class="text-sm font-semibold text-foreground">Chưa có quy định được ban hành</p>
+                                <p class="mt-1 text-xs leading-5 text-muted-foreground">Các danh mục phía trên đã sẵn sàng. Nội dung sẽ xuất hiện sau khi quản trị viên tạo quy định.</p>
+                            </div>
                         </div>
-                        <div
-                            v-for="p in filteredPolicies"
-                            :key="p.id"
-                            @click="selectedPolicy = p"
-                            :class="['p-3 rounded-xl border text-left cursor-pointer transition', selectedPolicy?.id === p.id ? 'bg-white border-indigo-500 shadow-sm' : 'bg-white/60 border-slate-200 hover:bg-white']"
-                        >
-                            <div class="flex justify-between items-start gap-1">
-                                <span class="font-mono text-[10px] font-bold text-indigo-600">{{ p.policy_code }}</span>
-                                <span class="px-2 py-0.5 bg-indigo-50 text-indigo-700 text-[10px] font-semibold rounded">
-                                    {{ getCategoryLabel(p.category) }}
+
+                        <div v-else-if="filteredPolicies.length === 0" class="rounded-2xl border border-dashed border-border bg-background/40 p-6 text-center">
+                            <div class="mx-auto w-fit rounded-2xl border border-border bg-background/70 p-3">
+                                <Search class="size-5 text-muted-foreground" />
+                            </div>
+                            <div class="mt-3">
+                                <p class="text-sm font-semibold text-foreground">Không có quy định phù hợp</p>
+                                <p class="mt-1 text-xs leading-5 text-muted-foreground">Bộ lọc hiện tại không tìm thấy quy định nào.</p>
+                            </div>
+                            <Button variant="outline" size="sm" class="mt-4 h-8 text-xs" @click="clearFilters">
+                                Xóa bộ lọc
+                            </Button>
+                        </div>
+
+                        <div v-else class="space-y-2">
+                            <button
+                                v-for="policy in filteredPolicies"
+                                :key="policy.id"
+                                type="button"
+                                class="group w-full rounded-2xl border p-3 text-left transition"
+                                :class="
+                                    selectedPolicy?.id === policy.id
+                                        ? 'border-indigo-500/60 bg-indigo-500/10 shadow-sm'
+                                        : 'border-border bg-background/40 hover:border-indigo-500/35 hover:bg-background/80'
+                                "
+                                @click="selectedPolicy = policy"
+                            >
+                                <div class="flex items-center justify-between gap-2">
+                                    <span class="font-mono text-[10px] font-bold tracking-wide text-indigo-600 dark:text-indigo-300">
+                                        {{ policy.policy_code }}
+                                    </span>
+                                    <ChevronRight
+                                        class="size-3.5 shrink-0 text-muted-foreground transition group-hover:translate-x-0.5"
+                                    />
+                                </div>
+                                <h4 class="mt-2 line-clamp-2 text-sm font-bold leading-5 text-foreground">
+                                    {{ policy.title }}
+                                </h4>
+                                <span class="mt-2 inline-flex max-w-full truncate rounded-md bg-indigo-500/10 px-2 py-1 text-[10px] font-semibold text-indigo-600 dark:text-indigo-300">
+                                    {{ getCategoryLabel(policy.category) }}
+                                </span>
+                            </button>
+                        </div>
+                    </div>
+                </aside>
+
+                <main class="flex min-h-0 flex-1 flex-col bg-background/50">
+                    <div v-if="selectedPolicy" class="min-h-0 flex-1 overflow-y-auto p-5 sm:p-8">
+                        <div class="mx-auto max-w-3xl space-y-6">
+                            <div class="border-b border-border pb-5">
+                                <div class="flex flex-wrap items-center gap-2">
+                                    <span class="rounded-md bg-indigo-500/10 px-2 py-1 font-mono text-xs font-bold text-indigo-600 dark:text-indigo-300">
+                                        {{ selectedPolicy.policy_code }}
+                                    </span>
+                                    <span class="rounded-md border border-border bg-muted/50 px-2 py-1 text-[11px] font-semibold text-muted-foreground">
+                                        {{ getCategoryLabel(selectedPolicy.category) }}
+                                    </span>
+                                </div>
+                                <h2 class="mt-4 text-2xl font-bold leading-tight text-foreground sm:text-3xl">
+                                    {{ selectedPolicy.title }}
+                                </h2>
+                                <p class="mt-3 text-sm leading-6 text-muted-foreground">
+                                    Quy định này đang được áp dụng cho
+                                    <strong class="text-foreground">
+                                        {{ selectedPolicy.applies_to_all_branches ? 'tất cả chi nhánh toàn chuỗi' : 'chi nhánh được chỉ định' }}
+                                    </strong>.
+                                </p>
+                            </div>
+
+                            <section class="rounded-2xl border border-border bg-card/70 p-5">
+                                <p class="mb-3 text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">
+                                    Nội dung quy định
+                                </p>
+                                <div class="whitespace-pre-line text-sm leading-7 text-foreground/90">
+                                    {{ selectedPolicy.content }}
+                                </div>
+                            </section>
+
+                            <div
+                                v-if="selectedPolicy.suggested_fine_amount > 0"
+                                class="flex flex-col gap-2 rounded-2xl border border-rose-500/20 bg-rose-500/10 p-4 text-sm text-rose-700 dark:text-rose-200 sm:flex-row sm:items-center sm:justify-between"
+                            >
+                                <span class="font-semibold">Mức phạt tham chiếu</span>
+                                <span class="font-mono font-bold text-rose-600 dark:text-rose-200">
+                                    {{ formatCurrency(selectedPolicy.suggested_fine_amount) }}
                                 </span>
                             </div>
-                            <h4 class="font-bold text-xs text-slate-900 mt-1 line-clamp-1">{{ p.title }}</h4>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Main Content View -->
-                <div class="w-2/3 p-6 overflow-y-auto bg-white flex flex-col justify-between">
-                    <div v-if="selectedPolicy" class="space-y-4 text-xs">
-                        <div class="border-b pb-4">
-                            <div class="flex items-center gap-2 mb-1">
-                                <span class="font-mono font-bold text-indigo-600 text-sm">{{ selectedPolicy.policy_code }}</span>
-                                <span class="px-2.5 py-0.5 bg-indigo-100 text-indigo-800 font-semibold rounded-md text-xs">
-                                    {{ getCategoryLabel(selectedPolicy.category) }}
-                                </span>
-                            </div>
-                            <h2 class="text-xl font-bold text-slate-900">{{ selectedPolicy.title }}</h2>
-                            <p class="text-slate-500 mt-1">
-                                Phạm vi:
-                                <strong class="text-slate-800">
-                                    {{ selectedPolicy.applies_to_all_branches ? 'Tất cả chi nhánh toàn chuỗi' : 'Áp dụng chi nhánh cụ thể' }}
-                                </strong>
-                            </p>
-                        </div>
-
-                        <div class="prose prose-xs max-w-none text-slate-800 space-y-3 whitespace-pre-line leading-relaxed">
-                            {{ selectedPolicy.content }}
-                        </div>
-
-                        <div v-if="selectedPolicy.suggested_fine_amount > 0" class="p-3 bg-rose-50 border border-rose-200 rounded-xl text-rose-800 flex items-center justify-between">
-                            <span class="font-semibold">Mức phạt vi phạm tham chiếu định mức:</span>
-                            <span class="font-bold text-sm font-mono text-rose-900">{{ formatCurrency(selectedPolicy.suggested_fine_amount) }}</span>
                         </div>
                     </div>
 
-                    <div v-else class="flex flex-col items-center justify-center h-full text-slate-400 space-y-2">
-                        <FileText class="w-12 h-12 text-slate-300" />
-                        <p>Chọn một quy định từ danh sách bên trái để đọc nội dung chi tiết.</p>
+                    <div v-else-if="hasError" class="flex min-h-0 flex-1 flex-col items-center justify-center px-6 text-center">
+                        <div class="rounded-3xl border border-rose-500/20 bg-rose-500/10 p-5">
+                            <AlertCircle class="size-10 text-rose-500" />
+                        </div>
+                        <p class="mt-5 text-base font-semibold text-foreground">Không thể hiển thị bộ quy định</p>
+                        <p class="mt-2 max-w-sm text-sm leading-6 text-muted-foreground">Hãy thử tải lại dữ liệu để tiếp tục.</p>
+                        <Button variant="outline" size="sm" class="mt-4 h-9 text-xs" @click="fetchPolicies">
+                            <RefreshCw class="mr-1.5 size-3.5" /> Thử lại
+                        </Button>
                     </div>
 
-                    <div class="pt-4 border-t flex justify-end">
-                        <Button @click="closeModal" variant="outline" size="sm" class="text-xs">Đóng</Button>
+                    <div v-else-if="policies.length === 0" class="flex min-h-0 flex-1 flex-col items-center justify-center px-6 text-center">
+                        <div class="rounded-3xl border border-indigo-500/20 bg-indigo-500/10 p-5">
+                            <FileText class="size-10 text-indigo-500 dark:text-indigo-300" />
+                        </div>
+                        <p class="mt-5 text-base font-semibold text-foreground">Chưa có quy định được ban hành</p>
+                        <p class="mt-2 max-w-sm text-sm leading-6 text-muted-foreground">Khu vực này sẽ hiển thị nội dung chi tiết sau khi quản trị viên ban hành quy định.</p>
                     </div>
-                </div>
+
+                    <div v-else class="flex min-h-0 flex-1 flex-col items-center justify-center px-6 text-center">
+                        <div class="rounded-3xl border border-border bg-muted/30 p-5">
+                            <Search class="size-10 text-muted-foreground" />
+                        </div>
+                        <p class="mt-5 text-base font-semibold text-foreground">Không có quy định phù hợp</p>
+                        <p class="mt-2 max-w-sm text-sm leading-6 text-muted-foreground">Hãy thử bỏ bộ lọc để xem lại toàn bộ danh sách.</p>
+                        <Button variant="outline" size="sm" class="mt-4 h-9 text-xs" @click="clearFilters">
+                            Xem tất cả quy định
+                        </Button>
+                    </div>
+
+                    <footer class="flex shrink-0 items-center justify-between gap-3 border-t border-border px-5 py-3 sm:px-8">
+                        <span class="hidden text-xs text-muted-foreground sm:block">
+                            Chỉ hiển thị quy định đang được ban hành.
+                        </span>
+                        <Button variant="outline" size="sm" class="h-9 px-4 text-xs" @click="closeModal">
+                            Đóng
+                        </Button>
+                    </footer>
+                </main>
             </div>
-        </div>
+        </section>
     </div>
 </template>

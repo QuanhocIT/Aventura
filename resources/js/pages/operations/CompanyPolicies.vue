@@ -29,11 +29,21 @@ defineOptions({ layout: AppLayout });
 const props = defineProps<{
     policies: Array<any>;
     branches: Array<any>;
+    categories: Array<{
+        id: number;
+        code: string;
+        name: string;
+        is_system?: boolean;
+    }>;
 }>();
 
 const isModalOpen = ref(false);
 const isProcessing = ref(false);
 const editingPolicy = ref<any>(null);
+const categoryOptions = ref([...props.categories]);
+const isCategoryModalOpen = ref(false);
+const isCategoryProcessing = ref(false);
+const newCategoryName = ref('');
 
 const form = ref({
     title: '',
@@ -71,6 +81,40 @@ const openEditModal = (p: any) => {
         status: p.status,
     };
     isModalOpen.value = true;
+};
+
+const openCategoryModal = () => {
+    newCategoryName.value = '';
+    isCategoryModalOpen.value = true;
+};
+
+const submitCategory = async () => {
+    const name = newCategoryName.value.trim();
+    if (!name) {
+        toast.error('Vui lòng nhập tên danh mục.');
+
+        return;
+    }
+
+    isCategoryProcessing.value = true;
+
+    try {
+        const response = await axios.post('/api/company-policy-categories', {
+            name,
+        });
+        const category = response.data.data;
+
+        categoryOptions.value.push(category);
+        form.value.category = category.code;
+        isCategoryModalOpen.value = false;
+        toast.success('Đã tạo danh mục kiểm soát mới.');
+    } catch (e: any) {
+        toast.error(
+            e.response?.data?.message || 'Không thể tạo danh mục kiểm soát.',
+        );
+    } finally {
+        isCategoryProcessing.value = false;
+    }
 };
 
 const submitForm = async () => {
@@ -120,20 +164,10 @@ const deletePolicy = async (id: number) => {
 };
 
 const getCategoryLabel = (cat: string) => {
-    switch (cat) {
-        case 'food_safety':
-            return 'An Toàn Thực Phẩm';
-        case 'service_attitude':
-            return 'Thái Độ Phục Vụ';
-        case 'inventory_storage':
-            return 'Vệ Sinh Kho & Bảo Quản';
-        case 'pos_cashier':
-            return 'POS & Thu Ngân';
-        case 'uniform_time':
-            return 'Đồng Phục & Giờ Giấc';
-        default:
-            return 'Quy Định Chung';
-    }
+    return (
+        categoryOptions.value.find((category) => category.code === cat)?.name ??
+        'Quy Định Chung'
+    );
 };
 
 const formatCurrency = (amount: number) => {
@@ -489,29 +523,28 @@ const getCategoryTone = (category: string) => {
 
                     <div class="grid grid-cols-2 gap-4">
                         <div>
-                            <label
-                                class="mb-1.5 block font-semibold text-foreground"
-                                >Danh mục kiểm soát</label
-                            >
+                            <div class="mb-1.5 flex items-center justify-between gap-2">
+                                <label class="font-semibold text-foreground"
+                                    >Danh mục kiểm soát</label
+                                >
+                                <button
+                                    type="button"
+                                    @click="openCategoryModal"
+                                    class="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-bold text-indigo-600 transition hover:bg-indigo-500/10 dark:text-indigo-300"
+                                >
+                                    <Plus class="size-3.5" /> Tạo danh mục
+                                </button>
+                            </div>
                             <select
                                 v-model="form.category"
                                 class="w-full rounded-xl border border-input bg-background p-2.5 font-medium text-foreground outline-none focus:ring-2 focus:ring-indigo-500/30"
                             >
-                                <option value="general">Quy Định Chung</option>
-                                <option value="food_safety">
-                                    An Toàn Thực Phẩm & Chế Biến
-                                </option>
-                                <option value="service_attitude">
-                                    Thái Độ & Quy Trình Phục Vụ
-                                </option>
-                                <option value="inventory_storage">
-                                    Vệ Sinh Kho & Bảo Quản
-                                </option>
-                                <option value="pos_cashier">
-                                    Quy Trình POS & Thu Ngân
-                                </option>
-                                <option value="uniform_time">
-                                    Đồng Phục & Giờ Giấc
+                                <option
+                                    v-for="category in categoryOptions"
+                                    :key="category.id"
+                                    :value="category.code"
+                                >
+                                    {{ category.name }}
                                 </option>
                             </select>
                         </div>
@@ -607,6 +640,67 @@ const getCategoryTone = (category: string) => {
                                 ? 'Cập Nhật Quy Định'
                                 : 'Ban Hành Quy Định'
                         }}
+                    </Button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Create control category modal -->
+        <div
+            v-if="isCategoryModalOpen"
+            class="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur-sm"
+        >
+            <div
+                class="w-full max-w-md rounded-2xl border border-border bg-background p-5 text-foreground shadow-2xl"
+            >
+                <div class="flex items-center justify-between gap-3">
+                    <div>
+                        <h3 class="font-bold">Tạo danh mục kiểm soát</h3>
+                        <p class="mt-1 text-xs text-muted-foreground">
+                            Danh mục mới sẽ xuất hiện ngay trong form ban hành quy
+                            định.
+                        </p>
+                    </div>
+                    <button
+                        type="button"
+                        @click="isCategoryModalOpen = false"
+                        class="rounded-lg p-1.5 text-muted-foreground transition hover:bg-muted hover:text-foreground"
+                    >
+                        <X class="size-5" />
+                    </button>
+                </div>
+
+                <div class="mt-5">
+                    <label class="mb-1.5 block text-xs font-semibold"
+                        >Tên danh mục (*)</label
+                    >
+                    <Input
+                        v-model="newCategoryName"
+                        autofocus
+                        placeholder="VD: An toàn điện & Phòng cháy chữa cháy"
+                        class="text-xs"
+                        @keyup.enter="submitCategory"
+                    />
+                </div>
+
+                <div class="mt-5 flex justify-end gap-2">
+                    <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        class="text-xs"
+                        @click="isCategoryModalOpen = false"
+                        >Hủy</Button
+                    >
+                    <Button
+                        type="button"
+                        size="sm"
+                        class="gap-1.5 rounded-xl bg-indigo-600 text-xs font-semibold text-white hover:bg-indigo-700"
+                        :disabled="isCategoryProcessing"
+                        @click="submitCategory"
+                    >
+                        <Save class="size-3.5" />
+                        Tạo danh mục
                     </Button>
                 </div>
             </div>
