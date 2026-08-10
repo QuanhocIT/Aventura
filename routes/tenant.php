@@ -114,6 +114,7 @@ Route::middleware(['auth', 'verified', 'tenant.subscription', 'tenant.ratelimit'
     Route::post('employees/schedules', [LeaveScheduleController::class, 'storeAssignment'])->name('employees.schedules.store');
     Route::post('employees/schedules/delete', [LeaveScheduleController::class, 'destroyAssignment'])->name('employees.schedules.destroy');
     Route::post('employees/schedules/toggle-auto', [LeaveScheduleController::class, 'toggleAutoSchedule'])->name('employees.schedules.toggle-auto');
+    Route::post('employees/schedules/quick-auto', [LeaveScheduleController::class, 'quickAutoSchedule'])->name('employees.schedules.quick-auto');
     Route::post('employees/schedules/copy-last-week', [LeaveScheduleController::class, 'copyLastWeekSchedules'])->name('employees.schedules.copy-last-week');
     Route::post('employees/leaves', [LeaveScheduleController::class, 'storeLeaveRequest'])->name('employees.leaves.store');
     Route::get('employees/leaves/{leave}/replacements', [LeaveScheduleController::class, 'getReplacementSuggestions'])->name('employees.leaves.replacements');
@@ -274,6 +275,7 @@ Route::middleware(['auth', 'verified', 'tenant.subscription', 'tenant.ratelimit'
     Route::post('orders/{order}/move-table', [OrderActionsController::class, 'moveTable'])->name('orders.move-table');
     Route::post('orders/{order}/request-payment', [OrderActionsController::class, 'requestPayment'])->name('orders.request-payment');
     Route::post('orders/{order}/convert-to-takeaway', [OrderActionsController::class, 'convertToTakeaway'])->name('orders.convert-to-takeaway');
+    Route::post('orders/{order}/call-waiter', [OrderActionsController::class, 'callWaiter'])->name('orders.call-waiter');
 
     // Chương trình Khách hàng Thân thiết (Loyalty Program)
     Route::prefix('loyalty')->name('loyalty.')->group(function () {
@@ -300,6 +302,7 @@ Route::middleware(['auth', 'verified', 'tenant.subscription', 'tenant.ratelimit'
     Route::patch('promotions/{promotion}/toggle', [PromotionController::class, 'toggleActive'])->name('promotions.toggle');
     Route::post('promotions/{promotion}/approve', [PromotionController::class, 'approve'])->name('promotions.approve');
     Route::post('promotions/combos', [PromotionController::class, 'storeCombo'])->name('promotions.combos.store');
+    Route::get('api/promotions/available', [PromotionController::class, 'availableForCashier'])->name('promotions.available');
     Route::post('api/promotions/apply', [PromotionController::class, 'apply'])->middleware('throttle:voucher_apply')->name('promotions.apply');
     Route::post('api/promotions/validate', [PromotionController::class, 'validatePromotion'])->name('promotions.validate');
     Route::get('api/promotions/basket-analysis', [PromotionController::class, 'getBasketAnalysis'])->name('promotions.basket-analysis');
@@ -445,7 +448,7 @@ Route::middleware(['auth', 'verified', 'tenant.subscription', 'tenant.ratelimit'
     Route::post('fraud/verify-pin', [FraudController::class, 'verifyManagerPin'])->name('fraud.pin.verify');
 
     // Kiểm duyệt chéo (Cross-review)
-    Route::middleware('role_or_permission:owner|super_admin')->group(function () {
+    Route::middleware('role_or_permission:owner|manager|super_admin|approve_requests')->group(function () {
         Route::get('approvals', [ApprovalController::class, 'index'])->name('approvals.index');
         Route::patch('approvals/{approval}/approve', [ApprovalController::class, 'approve'])->name('approvals.approve');
         Route::patch('approvals/{approval}/reject', [ApprovalController::class, 'reject'])->name('approvals.reject');
@@ -504,10 +507,15 @@ Route::middleware(['auth', 'verified', 'tenant.subscription', 'tenant.ratelimit'
 
     // Bộ Quy Định & Tiêu Chuẩn Vận Hành Toàn Hệ Thống
     Route::get('operations/company-policies', [CompanyPolicyController::class, 'page'])->middleware('role_or_permission:owner|super_admin|company_policies.manage')->name('operations.company-policies');
-    Route::get('api/company-policies', [CompanyPolicyController::class, 'index'])->middleware('role_or_permission:owner|super_admin|company_policies.view|company_policies.manage')->name('company-policies.index');
+    // Nhân viên được phép tra cứu các quy định đã ban hành; quyền quản trị vẫn
+    // được giữ riêng cho các route tạo, sửa và xóa bên dưới.
+    Route::get('api/company-policies', [CompanyPolicyController::class, 'index'])->name('company-policies.index');
     Route::post('api/company-policies', [CompanyPolicyController::class, 'store'])->middleware('role_or_permission:owner|super_admin|company_policies.manage')->name('company-policies.store');
     Route::put('api/company-policies/{id}', [CompanyPolicyController::class, 'update'])->middleware('role_or_permission:owner|super_admin|company_policies.manage')->name('company-policies.update');
     Route::delete('api/company-policies/{id}', [CompanyPolicyController::class, 'destroy'])->middleware('role_or_permission:owner|super_admin|company_policies.manage')->name('company-policies.destroy');
+    Route::post('api/company-policy-categories', [CompanyPolicyController::class, 'storeCategory'])->middleware('role_or_permission:owner|super_admin|company_policies.manage')->name('company-policy-categories.store');
+    Route::put('api/company-policy-categories/{id}', [CompanyPolicyController::class, 'updateCategory'])->middleware('role_or_permission:owner|super_admin|company_policies.manage')->name('company-policy-categories.update');
+    Route::delete('api/company-policy-categories/{id}', [CompanyPolicyController::class, 'destroyCategory'])->middleware('role_or_permission:owner|super_admin|company_policies.manage')->name('company-policy-categories.destroy');
 
     // Giám Sát Vận Hành & Lập/Duyệt Biên Bản Vi Phạm Xử Phạt
     Route::get('operations/audit', [OperationalAuditController::class, 'page'])->middleware('role_or_permission:owner|super_admin|operational_audit.view|operational_audit.approve')->name('operations.audit');
