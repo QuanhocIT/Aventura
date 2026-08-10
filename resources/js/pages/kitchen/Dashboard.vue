@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { Head, router, usePage } from '@inertiajs/vue3';
+import axios from 'axios';
 import {
     ChefHat,
     Clock,
@@ -122,7 +123,7 @@ const submitKitchenWaste = () => {
         },
         {
             onSuccess: () => {
-                toast.success('Đã gửi báo cáo nguyên liệu hỏng tới Chủ nhà hàng thành công! Sau khi Chủ quán phê duyệt, hệ thống sẽ tự động tính toán trừ kho và chi phí.');
+                toast.success('Đã gửi báo cáo cho Quản lý chi nhánh và Chủ quán! Sau khi được phê duyệt, hệ thống sẽ tự động trừ kho và tính chi phí.');
                 showWasteModal.value = false;
                 wasteForm.value = {
                     ingredient_id: '',
@@ -503,6 +504,25 @@ let statusCheckInterval: ReturnType<typeof setInterval> | null = null;
 let pollingInterval: ReturnType<typeof setInterval> | null = null;
 
 const isMuted = ref(localStorage.getItem('kitchen_muted') === 'true');
+const callingWaiter = ref<Record<number, boolean>>({});
+
+async function triggerCallWaiter(item: any) {
+    if (!item?.order_id) {
+        toast.error('Món ăn không thuộc đơn hợp lệ.');
+        return;
+    }
+    callingWaiter.value[item.id] = true;
+    try {
+        await axios.post(`/orders/${item.order_id}/call-waiter`, {
+            item_name: item.product_name || item.name || '',
+        });
+        toast.success(`🛎️ Đã réo phục vụ ra lấy món "${item.product_name || item.name}" (Bàn ${item.table_name})!`);
+    } catch (e: any) {
+        toast.error(e.response?.data?.message || 'Không thể gửi tín hiệu gọi phục vụ.');
+    } finally {
+        callingWaiter.value[item.id] = false;
+    }
+}
 const toggleMute = () => {
     isMuted.value = !isMuted.value;
     localStorage.setItem('kitchen_muted', String(isMuted.value));
@@ -1856,15 +1876,26 @@ onUnmounted(() => {
                             </div>
                         </div>
 
-                        <!-- Nút hoàn thành phục vụ -->
-                        <Button
-                            class="h-10 w-10 shrink-0 rounded-xl bg-emerald-500 text-white shadow-sm transition-all hover:bg-emerald-600"
-                            :disabled="isUpdating[item.id]"
-                            @click="handleServe(item.id)"
-                            title="Xác nhận phục vụ đã lấy đi"
-                        >
-                            <Check class="size-5" />
-                        </Button>
+                        <!-- Nút hoàn thành phục vụ & Réo phục vụ -->
+                        <div class="flex items-center gap-1.5 shrink-0">
+                            <Button
+                                class="h-10 px-2.5 rounded-xl bg-amber-500 text-white font-bold text-xs shadow-sm transition-all hover:bg-amber-600 flex items-center gap-1"
+                                :disabled="callingWaiter[item.id]"
+                                @click="triggerCallWaiter(item)"
+                                title="Bật âm báo réo phục vụ ra lấy món"
+                            >
+                                <Bell class="size-4" />
+                                <span>Réo phục vụ</span>
+                            </Button>
+                            <Button
+                                class="h-10 w-10 shrink-0 rounded-xl bg-emerald-500 text-white shadow-sm transition-all hover:bg-emerald-600"
+                                :disabled="isUpdating[item.id]"
+                                @click="handleServe(item.id)"
+                                title="Xác nhận phục vụ đã lấy đi"
+                            >
+                                <Check class="size-5" />
+                            </Button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -2164,7 +2195,7 @@ onUnmounted(() => {
                             </div>
                             <div>
                                 <h3 class="text-base font-bold text-foreground">Báo Cáo Nguyên Liệu Hỏng / Thất Thoát</h3>
-                                <p class="text-xs text-muted-foreground">Gửi chủ nhà hàng phê duyệt để trừ kho và tính toán lãng phí</p>
+                                <p class="text-xs text-muted-foreground">Gửi Quản lý chi nhánh và Chủ quán phê duyệt để trừ kho và tính toán lãng phí</p>
                             </div>
                         </div>
                         <button
@@ -2229,7 +2260,7 @@ onUnmounted(() => {
 
                         <div>
                             <label class="block text-xs font-bold text-foreground mb-1.5">
-                                Mô tả sự cố chi tiết cho Chủ quán
+                                Mô tả sự cố chi tiết cho Quản lý và Chủ quán
                             </label>
                             <textarea
                                 v-model="wasteForm.notes"
@@ -2255,7 +2286,7 @@ onUnmounted(() => {
                             :disabled="isSubmittingWaste"
                             @click="submitKitchenWaste"
                         >
-                            {{ isSubmittingWaste ? 'Đang gửi...' : 'Gửi Báo Cáo Cho Chủ Quán' }}
+                            {{ isSubmittingWaste ? 'Đang gửi...' : 'Gửi Báo Cáo Cho Quản Lý & Chủ Quán' }}
                         </Button>
                     </div>
                 </div>

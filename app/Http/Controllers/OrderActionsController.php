@@ -207,10 +207,28 @@ class OrderActionsController extends Controller
         );
     }
 
+    public function callWaiter(Request $request, Order $order): JsonResponse
+    {
+        $this->authorizeOrder($request, $order);
+
+        $itemName = $request->input('item_name', '');
+        $tableName = $order->table?->name ?? 'Đơn mang về / Online';
+
+        event(new \App\Events\Kitchen\KitchenWaiterCalled(
+            restaurantId: $order->restaurant_id,
+            orderId: $order->id,
+            orderNumber: $order->order_number,
+            tableName: $tableName,
+            itemName: $itemName,
+        ));
+
+        return response()->json(['message' => 'Đã gửi thông báo réo phục vụ tới các thiết bị!']);
+    }
+
     private function authorizeOrder(Request $request, Order $order): void
     {
         abort_unless(
-            $request->user()->can('manage_orders') || $request->user()->can('split_orders') || $request->user()->can('create_orders') || $request->user()->hasAnyRole(['order', 'cashier', 'staff', 'waiter', 'owner', 'manager']),
+            $request->user()->can('manage_orders') || $request->user()->can('split_orders') || $request->user()->can('create_orders') || $request->user()->can('manage_kitchen') || $request->user()->hasAnyRole(['order', 'cashier', 'staff', 'waiter', 'kitchen', 'owner', 'manager']),
             403
         );
         abort_unless($order->restaurant_id === $request->user()->restaurant_id, 403);

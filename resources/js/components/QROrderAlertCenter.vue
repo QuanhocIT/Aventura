@@ -357,6 +357,25 @@ onMounted(() => {
                     `⚠️ Bếp báo hủy món: ${e.product_name} (${isAll ? 'Tất cả đơn chờ' : 'Bàn ' + e.table_name}). Vui lòng báo khách!`,
                     { duration: 15000 }
                 );
+            })
+
+            // 7. Listening to Kitchen Call Waiter Alerts
+            .listen('.kitchen.waiter_called', (e: any) => {
+                playAlarm('escalated');
+                activeNotifications.value.unshift({
+                    uid: `kitchen-call-${Date.now()}`,
+                    type: 'kitchen_waiter_called',
+                    title: `🛎️ BẾP RÉO LẤY MÓN - BÀN ${e.table_name}`,
+                    subtitle: e.item_name ? `Món: ${e.item_name}` : `Đơn #${e.order_number}`,
+                    details: e.message || 'Món ăn đã chế biến xong, bếp gọi phục vụ ra lấy món gấp!',
+                    time: e.timestamp,
+                    urgency: 'high',
+                });
+
+                toast.info(
+                    `🛎️ Bếp réo lấy món! Bàn ${e.table_name} ${e.item_name ? '(' + e.item_name + ')' : ''}`,
+                    { duration: 10000 }
+                );
             });
     }
 });
