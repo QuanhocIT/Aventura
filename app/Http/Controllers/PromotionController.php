@@ -209,7 +209,7 @@ class PromotionController extends Controller
         }
 
         // Quy trình duyệt: Owner tạo tự duyệt, Manager tạo cần phê duyệt
-        $isOwner = $user->can('approve_requests');
+        $isOwner = $user->isOwner() || $user->isSuperAdmin();
 
         Promotion::create([
             'restaurant_id' => $restaurantId,
