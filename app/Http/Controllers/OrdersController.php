@@ -217,7 +217,7 @@ class OrdersController extends Controller
     public function index(Request $request): Response
     {
         $user = $request->user();
-        abort_unless($user->can('create_orders') || $user->can('manage_orders') || $user->can('process_payments') || $user->can('manage_kitchen'), 403);
+        abort_unless($user->can('manage_orders') || $user->can('process_payments') || $user->can('manage_kitchen'), 403);
         $restaurantId = $user->restaurant_id;
 
         $statusFilter = $request->get('status', 'all');
@@ -719,11 +719,16 @@ class OrdersController extends Controller
         abort_if($order->payment_status === 'paid', 422, 'Đơn hàng này đã được thanh toán rồi.');
 
         $data = $request->validate([
-            'payment_method' => ['required', 'in:cash,bank_transfer,card,ewallet,debt'],
+            'payment_method' => ['required', 'in:cash,bank_transfer,card,ewallet,debt,multi'],
             'cash_received' => ['nullable', 'numeric', 'min:0'],
             'change_amount' => ['nullable', 'numeric', 'min:0'],
             'redeem_points' => ['nullable', 'integer', 'min:0'],
             'customer_id' => ['nullable', TenantRule::exists('customers')],
+            'payments' => ['nullable', 'array', 'min:1'],
+            'payments.*.payment_method' => ['required_with:payments', 'string', 'in:cash,bank_transfer,card,ewallet,vietqr'],
+            'payments.*.amount' => ['required_with:payments', 'numeric', 'min:0.01'],
+            'payments.*.cash_received' => ['nullable', 'numeric', 'min:0'],
+            'payments.*.change_amount' => ['nullable', 'numeric', 'min:0'],
         ]);
 
         if ($data['payment_method'] === 'debt') {

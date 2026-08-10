@@ -19,6 +19,10 @@ use Illuminate\Support\Facades\DB;
  */
 class PromotionApplicationService
 {
+    public function __construct(
+        private PromotionStackingService $promotionStacking,
+    ) {}
+
     /**
      * Áp mã khuyến mãi vào 1 đơn hàng — bọc trong transaction có lockForUpdate
      * để tránh race condition khi 2 request áp mã cùng lúc.
@@ -41,8 +45,23 @@ class PromotionApplicationService
         // Bọc toàn bộ check budget, cập nhật order và voucher trong transaction với lockForUpdate
         return DB::transaction(function () use ($promotion, $orderId, $bypassCode, $restaurantId, $actingUser) {
             // Lock order và promotion
-            $order = Order::where('id', $orderId)->lockForUpdate()->firstOrFail();
+            $order = Order::where('restaurant_id', $restaurantId)
+                ->where('id', $orderId)
+                ->with('items')
+                ->lockForUpdate()
+                ->firstOrFail();
             $promotion = Promotion::where('id', $promotion->id)->lockForUpdate()->firstOrFail();
+
+            if (
+                $promotion->branch_id !== null
+                && (int) $promotion->branch_id !== (int) $order->branch_id
+            ) {
+                return [
+                    'success' => false,
+                    'status' => 'error',
+                    'message' => 'Mã khuyến mãi không áp dụng cho chi nhánh của đơn hàng này.',
+                ];
+            }
 
             // Real-Time Fraud Prevention Checks
             $cashierFastKey = "voucher_applied_fast_check:{$restaurantId}:{$actingUser->id}";
@@ -111,6 +130,14 @@ class PromotionApplicationService
                     'success' => false,
                     'status' => 'error',
                     'message' => 'Đơn hàng chưa đạt giá trị tối thiểu để áp dụng mã giảm giá này. Giá trị tối thiểu cần đạt: '.number_format($promotion->min_order_amount).'đ',
+                ];
+            }
+
+            if (! $this->promotionStacking->validateConditions($promotion, $order)) {
+                return [
+                    'success' => false,
+                    'status' => 'error',
+                    'message' => 'Đơn hàng hiện tại chưa đáp ứng điều kiện của mã khuyến mãi này.',
                 ];
             }
 

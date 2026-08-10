@@ -186,6 +186,125 @@ class PromotionAndComboTest extends TestCase
         $this->assertTrue($promoManager->is_approved);
     }
 
+    public function test_cashier_only_receives_promotions_eligible_for_current_order(): void
+    {
+        $otherBranch = RestaurantBranch::factory()->create([
+            'restaurant_id' => $this->restaurant->id,
+        ]);
+
+        $order = Order::create([
+            'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
+            'order_number' => 'ORD-VOUCHER-LIST',
+            'subtotal' => 100000,
+            'discount_amount' => 0,
+            'total_amount' => 100000,
+            'status' => 'pending',
+            'payment_status' => 'unpaid',
+        ]);
+
+        Promotion::create([
+            'restaurant_id' => $this->restaurant->id,
+            'name' => 'Voucher hợp lệ',
+            'code' => 'ELIGIBLE10',
+            'type' => 'percent',
+            'value' => 10,
+            'is_active' => true,
+            'is_approved' => true,
+        ]);
+
+        Promotion::create([
+            'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $otherBranch->id,
+            'name' => 'Sai chi nhánh',
+            'code' => 'OTHER-BRANCH',
+            'type' => 'percent',
+            'value' => 10,
+            'is_active' => true,
+            'is_approved' => true,
+        ]);
+
+        Promotion::create([
+            'restaurant_id' => $this->restaurant->id,
+            'name' => 'Chưa đủ giá trị đơn',
+            'code' => 'MIN-ORDER',
+            'type' => 'fixed_amount',
+            'value' => 50000,
+            'min_order_amount' => 200000,
+            'is_active' => true,
+            'is_approved' => true,
+        ]);
+
+        Promotion::create([
+            'restaurant_id' => $this->restaurant->id,
+            'name' => 'Chưa đủ số món',
+            'code' => 'MIN-ITEMS',
+            'type' => 'percent',
+            'value' => 10,
+            'conditions' => ['min_items' => 2],
+            'is_active' => true,
+            'is_approved' => true,
+        ]);
+
+        Promotion::create([
+            'restaurant_id' => $this->restaurant->id,
+            'name' => 'Đã hết hạn',
+            'code' => 'EXPIRED',
+            'type' => 'percent',
+            'value' => 10,
+            'start_date' => now()->subDay(),
+            'end_date' => now()->subMinute(),
+            'is_active' => true,
+            'is_approved' => true,
+        ]);
+
+        $response = $this->actingAs($this->cashier)
+            ->getJson("/api/promotions/available?order_id={$order->id}")
+            ->assertOk();
+
+        $this->assertSame(
+            ['ELIGIBLE10'],
+            collect($response->json('promotions'))->pluck('code')->all(),
+        );
+    }
+
+    public function test_apply_rejects_promotion_from_another_branch(): void
+    {
+        $otherBranch = RestaurantBranch::factory()->create([
+            'restaurant_id' => $this->restaurant->id,
+        ]);
+
+        $order = Order::create([
+            'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
+            'order_number' => 'ORD-VOUCHER-BRANCH-CHECK',
+            'subtotal' => 100000,
+            'discount_amount' => 0,
+            'total_amount' => 100000,
+            'status' => 'pending',
+            'payment_status' => 'unpaid',
+        ]);
+
+        Promotion::create([
+            'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $otherBranch->id,
+            'name' => 'Voucher sai chi nhánh',
+            'code' => 'WRONG-BRANCH',
+            'type' => 'percent',
+            'value' => 10,
+            'is_active' => true,
+            'is_approved' => true,
+        ]);
+
+        $this->actingAs($this->cashier)
+            ->postJson('/api/promotions/apply', [
+                'order_id' => $order->id,
+                'code' => 'WRONG-BRANCH',
+            ])
+            ->assertStatus(422)
+            ->assertJsonPath('message', 'Mã khuyến mãi không áp dụng cho chi nhánh của đơn hàng này.');
+    }
+
     /**
      * Test Model Observer bắt sự kiện và đẩy ngầm ghi log áp mã qua Queue.
      */

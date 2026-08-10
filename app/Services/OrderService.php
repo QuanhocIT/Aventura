@@ -805,24 +805,55 @@ class OrderService
                 }
             }
 
-            // 1. Tạo Payment record
-            Payment::create([
-                'restaurant_id' => $order->restaurant_id,
-                'branch_id' => $order->branch_id,
-                'order_id' => $order->id,
-                'processed_by' => $user->id,
-                'payment_method' => $data['payment_method'],
-                'status' => 'paid',
-                'amount' => $order->total_amount,
-                'cash_received' => $data['cash_received'] ?? $order->total_amount,
-                'change_amount' => $data['change_amount'] ?? 0,
-                'paid_at' => now(),
-            ]);
+            // 1. Tạo Payment record (Hỗ trợ Thanh toán kết hợp - Multi-Tender)
+            $cashAmountToRecord = 0.0;
+
+            if (! empty($data['payments']) && is_array($data['payments'])) {
+                foreach ($data['payments'] as $p) {
+                    $pAmount = (float) ($p['amount'] ?? 0);
+                    if ($pAmount <= 0) continue;
+
+                    Payment::create([
+                        'restaurant_id' => $order->restaurant_id,
+                        'branch_id' => $order->branch_id,
+                        'order_id' => $order->id,
+                        'processed_by' => $user->id,
+                        'payment_method' => $p['payment_method'] ?? 'cash',
+                        'status' => 'paid',
+                        'amount' => $pAmount,
+                        'cash_received' => $p['cash_received'] ?? $pAmount,
+                        'change_amount' => $p['change_amount'] ?? 0,
+                        'paid_at' => now(),
+                    ]);
+
+                    if (($p['payment_method'] ?? '') === 'cash') {
+                        $cashAmountToRecord += $pAmount;
+                    }
+                }
+            } else {
+                Payment::create([
+                    'restaurant_id' => $order->restaurant_id,
+                    'branch_id' => $order->branch_id,
+                    'order_id' => $order->id,
+                    'processed_by' => $user->id,
+                    'payment_method' => $data['payment_method'],
+                    'status' => 'paid',
+                    'amount' => $order->total_amount,
+                    'cash_received' => $data['cash_received'] ?? $order->total_amount,
+                    'change_amount' => $data['change_amount'] ?? 0,
+                    'paid_at' => now(),
+                ]);
+
+                if (($data['payment_method'] ?? '') === 'cash') {
+                    $cashAmountToRecord = (float) $order->total_amount;
+                }
+            }
 
             // 3. Cập nhật Order status thành completed & payment_status paid
             $order->update([
                 'status' => 'completed',
                 'payment_status' => 'paid',
+                'payment_method' => $data['payment_method'] ?? 'cash',
                 'completed_at' => now(),
                 'cashier_user_id' => $user->id,
             ]);
@@ -831,8 +862,8 @@ class OrderService
             // Thanh toán xong chưa đồng nghĩa với kết thúc phục vụ.
             $this->releaseTableIfNoActiveServiceOrder($order);
 
-            // Fix #14: Ghi CashTransaction khi thanh toán tiền mặt
-            if (($data['payment_method'] ?? '') === 'cash' && (float) $order->total_amount > 0) {
+            // Ghi CashTransaction cho số tiền mặt thực tế nhận được (kể cả trong đơn thanh toán đa phương thức)
+            if ($cashAmountToRecord > 0) {
                 $cashRegister = CashRegister::where('restaurant_id', $order->restaurant_id)
                     ->where('branch_id', $order->branch_id)
                     ->where('status', 'open')
@@ -845,7 +876,7 @@ class OrderService
                         'cash_register_id' => $cashRegister->id,
                         'type' => 'in',
                         'source' => 'order',
-                        'amount' => (float) $order->total_amount,
+                        'amount' => $cashAmountToRecord,
                         'notes' => "Thanh toán đơn hàng {$order->order_number}",
                         'reference_type' => Order::class,
                         'reference_id' => $order->id,
@@ -853,7 +884,7 @@ class OrderService
                         'occurred_at' => now(),
                     ]);
 
-                    $cashRegister->increment('expected_closing_balance', (float) $order->total_amount);
+                    $cashRegister->increment('expected_closing_balance', $cashAmountToRecord);
                 }
             }
 

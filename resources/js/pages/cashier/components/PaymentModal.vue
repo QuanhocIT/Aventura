@@ -13,6 +13,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
 import type { TableItem, CustomerItem } from '../types';
+import type { AvailableVoucher } from '../composables/useCashierPayment';
 
 const props = defineProps<{
     showPaymentModal: boolean;
@@ -25,6 +26,8 @@ const props = defineProps<{
     foundCustomer: CustomerItem | null;
     loyaltyPointsToRedeem: number;
     voucherCode?: string;
+    availableVouchers?: AvailableVoucher[];
+    isLoadingVouchers?: boolean;
     isApplyingVoucher?: boolean;
     bypassRequired?: boolean;
     bypassMessage?: string;
@@ -33,6 +36,14 @@ const props = defineProps<{
     isPaying: boolean;
     paymentMethods: Array<{ id: string; label: string }>;
     cashDenominations: number[];
+    multiPayments?: Array<{
+        payment_method: 'cash' | 'bank_transfer' | 'card' | 'ewallet';
+        amount: number;
+        cash_received?: number;
+        change_amount?: number;
+    }>;
+    multiTotalPaid?: number;
+    multiRemainingBalance?: number;
 }>();
 
 const emit = defineEmits<{
@@ -47,6 +58,8 @@ const emit = defineEmits<{
     (e: 'clearCustomerSelection'): void;
     (e: 'applyVoucher'): void;
     (e: 'processPayment'): void;
+    (e: 'addMultiPayment'): void;
+    (e: 'removeMultiPayment', index: number): void;
 }>();
 
 const numberFormat = (val: number) =>
@@ -154,24 +167,44 @@ const numberFormat = (val: number) =>
                 <div class="mt-1 flex flex-col gap-2 border-t pt-3 text-left">
                     <span class="flex items-center gap-1.5 text-xs font-bold text-slate-500">
                         <Ticket class="size-3.5 text-indigo-600 dark:text-indigo-400" />
-                        Mã khuyến mãi / Voucher:
+                        Chọn mã khuyến mãi / Voucher:
                     </span>
 
                     <div class="flex gap-2">
-                        <Input
-                            type="text"
-                            placeholder="Nhập mã voucher (vd: KM50K)..."
-                            :value="voucherCode"
-                            @input="
+                        <select
+                            :value="voucherCode ?? ''"
+                            @change="
                                 emit(
                                     'update:voucherCode',
-                                    ($event.target as HTMLInputElement).value,
+                                    ($event.target as HTMLSelectElement).value,
                                 )
                             "
-                            @keyup.enter="emit('applyVoucher')"
-                            class="h-9 rounded-xl text-xs font-bold tracking-wider uppercase"
-                            :disabled="isApplyingVoucher"
-                        />
+                            class="h-9 min-w-0 flex-1 rounded-xl border border-slate-200 bg-white px-3 text-xs font-bold text-slate-700 outline-none focus:border-indigo-500 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-200"
+                            :disabled="
+                                isLoadingVouchers ||
+                                isApplyingVoucher ||
+                                !availableVouchers?.length
+                            "
+                        >
+                            <option value="">
+                                {{
+                                    isLoadingVouchers
+                                        ? 'Đang tải mã ưu đãi...'
+                                        : availableVouchers?.length
+                                          ? 'Chọn mã ưu đãi...'
+                                          : 'Không có mã phù hợp với đơn'
+                                }}
+                            </option>
+                            <option
+                                v-for="voucher in availableVouchers"
+                                :key="voucher.id"
+                                :value="voucher.code"
+                            >
+                                {{ voucher.code }} — {{ voucher.name }} (-{{
+                                    voucher.discount_label
+                                }})
+                            </option>
+                        </select>
                         <Button
                             type="button"
                             size="sm"
@@ -185,6 +218,14 @@ const numberFormat = (val: number) =>
                             Áp dụng
                         </Button>
                     </div>
+
+                    <p
+                        v-if="!isLoadingVouchers && !availableVouchers?.length"
+                        class="text-[11px] text-slate-500 dark:text-slate-400"
+                    >
+                        Chỉ các mã đúng chi nhánh, còn hiệu lực và đủ điều kiện
+                        đơn hàng mới hiển thị ở đây.
+                    </p>
 
                     <!-- Hiển thị mã đã được áp dụng thành công -->
                     <div
@@ -433,6 +474,61 @@ const numberFormat = (val: number) =>
                             >{{ numberFormat(changeAmount) }}đ</span
                         >
                     </div>
+                </div>
+
+                <!-- Thanh toán kết hợp (Multi-Tender) -->
+                <div
+                    v-if="paymentMethod === 'multi'"
+                    class="flex flex-col gap-3 rounded-2xl border border-indigo-200 bg-indigo-50/50 p-3.5 text-left text-xs dark:border-indigo-900/50 dark:bg-indigo-950/20"
+                >
+                    <div class="flex items-center justify-between font-bold text-indigo-700 dark:text-indigo-300">
+                        <span>🔀 Nhập số tiền từng phương thức:</span>
+                        <span class="font-mono text-[11px]" :class="(multiRemainingBalance ?? 0) > 0 ? 'text-amber-600' : 'text-emerald-600'">
+                            {{ (multiRemainingBalance ?? 0) > 0 ? `Còn thiếu: ${numberFormat(multiRemainingBalance ?? 0)}đ` : '✓ Đã nhập đủ tiền' }}
+                        </span>
+                    </div>
+
+                    <div
+                        v-for="(p, idx) in multiPayments"
+                        :key="idx"
+                        class="flex items-center gap-2 rounded-xl border bg-white p-2 dark:border-slate-800 dark:bg-slate-900"
+                    >
+                        <select
+                            v-model="p.payment_method"
+                            class="h-8 rounded-lg border border-slate-200 bg-slate-50 text-xs font-bold text-slate-700 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-200"
+                        >
+                            <option value="cash">💵 Tiền mặt</option>
+                            <option value="bank_transfer">🏦 QR Chuyển khoản</option>
+                            <option value="card">💳 Thẻ ATM/POS</option>
+                            <option value="ewallet">📱 Ví điện tử</option>
+                        </select>
+                        <Input
+                            type="number"
+                            v-model.number="p.amount"
+                            placeholder="Số tiền..."
+                            class="h-8 flex-1 font-mono text-xs font-bold"
+                        />
+                        <Button
+                            type="button"
+                            size="icon"
+                            variant="ghost"
+                            class="h-7 w-7 text-rose-500 hover:bg-rose-50"
+                            @click="emit('removeMultiPayment', idx)"
+                            v-if="(multiPayments?.length ?? 0) > 1"
+                        >
+                            <X class="size-3.5" />
+                        </Button>
+                    </div>
+
+                    <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        class="h-8 rounded-xl border-dashed border-indigo-300 text-xs font-bold text-indigo-600 hover:bg-indigo-50 dark:border-indigo-800 dark:text-indigo-400"
+                        @click="emit('addMultiPayment')"
+                    >
+                        + Thêm phương thức thanh toán
+                    </Button>
                 </div>
 
                 <!-- Thông tin ghi nợ VIP/B2B -->

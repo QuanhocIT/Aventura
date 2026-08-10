@@ -4,6 +4,17 @@ import type { Ref } from 'vue';
 import { ref, computed } from 'vue';
 import type { TableItem, CustomerItem } from '../types';
 
+export type AvailableVoucher = {
+    id: number;
+    code: string;
+    name: string;
+    type: 'percent' | 'fixed_amount';
+    value: number;
+    min_order_amount: number;
+    max_discount_amount: number;
+    discount_label: string;
+};
+
 export function useCashierPayment(
     activeTable: Ref<TableItem | null>,
     isCartOpen: Ref<boolean>,
@@ -11,9 +22,20 @@ export function useCashierPayment(
 ) {
     const showPaymentModal = ref(false);
     const paymentMethod = ref<
-        'cash' | 'bank_transfer' | 'card' | 'ewallet' | 'debt'
+        'cash' | 'bank_transfer' | 'card' | 'ewallet' | 'debt' | 'multi'
     >('cash');
     const cashReceived = ref<number>(0);
+    const multiPayments = ref<
+        Array<{
+            payment_method: 'cash' | 'bank_transfer' | 'card' | 'ewallet';
+            amount: number;
+            cash_received?: number;
+            change_amount?: number;
+        }>
+    >([
+        { payment_method: 'cash', amount: 0, cash_received: 0, change_amount: 0 },
+        { payment_method: 'bank_transfer', amount: 0 },
+    ]);
     const searchCustomerPhone = ref('');
     const isSearchingCustomer = ref(false);
     const foundCustomer = ref<CustomerItem | null>(null);
@@ -24,6 +46,8 @@ export function useCashierPayment(
     const bypassMessage = ref('');
     const bypassCode = ref('');
     const appliedVoucherName = ref('');
+    const availableVouchers = ref<AvailableVoucher[]>([]);
+    const isLoadingVouchers = ref(false);
     const isPaying = ref(false);
 
     const paymentMethods = [
@@ -32,6 +56,7 @@ export function useCashierPayment(
         { id: 'card' as const, label: '💳 Thẻ ATM/POS' },
         { id: 'ewallet' as const, label: '📱 Ví điện tử' },
         { id: 'debt' as const, label: '📝 Ghi nợ VIP/B2B' },
+        { id: 'multi' as const, label: '🔀 Thanh toán kết hợp (Multi-Tender)' },
     ];
 
     const cashDenominations = [50000, 100000, 200000, 500000];
@@ -41,6 +66,32 @@ export function useCashierPayment(
 
         return Math.max(0, cashReceived.value - total);
     });
+
+    const multiTotalPaid = computed(() => {
+        return multiPayments.value.reduce(
+            (sum, item) => sum + (Number(item.amount) || 0),
+            0,
+        );
+    });
+
+    const multiRemainingBalance = computed(() => {
+        const total = activeTable.value?.active_order?.total_amount ?? 0;
+
+        return Math.max(0, total - multiTotalPaid.value);
+    });
+
+    const addMultiPayment = () => {
+        multiPayments.value.push({
+            payment_method: 'bank_transfer',
+            amount: multiRemainingBalance.value,
+        });
+    };
+
+    const removeMultiPayment = (index: number) => {
+        if (multiPayments.value.length > 1) {
+            multiPayments.value.splice(index, 1);
+        }
+    };
 
     const searchCustomer = () => {
         if (!searchCustomerPhone.value.trim()) {
@@ -75,6 +126,29 @@ export function useCashierPayment(
         searchCustomerPhone.value = '';
     };
 
+    const loadAvailableVouchers = (orderId: number) => {
+        isLoadingVouchers.value = true;
+        availableVouchers.value = [];
+
+        axios
+            .get('/api/promotions/available', {
+                params: { order_id: orderId },
+            })
+            .then((res) => {
+                availableVouchers.value = res.data.promotions ?? [];
+            })
+            .catch((err) => {
+                toast(
+                    err.response?.data?.message ||
+                        'Không thể tải danh sách mã ưu đãi.',
+                    'error',
+                );
+            })
+            .finally(() => {
+                isLoadingVouchers.value = false;
+            });
+    };
+
     const canPayActiveOrder = () => {
         const order = activeTable.value?.active_order;
         const serviceItems = (order?.items ?? []).filter(
@@ -96,7 +170,20 @@ export function useCashierPayment(
         }
 
         paymentMethod.value = 'cash';
-        cashReceived.value = activeTable.value?.active_order?.total_amount ?? 0;
+        const orderTotal = activeTable.value?.active_order?.total_amount ?? 0;
+        cashReceived.value = orderTotal;
+        multiPayments.value = [
+            {
+                payment_method: 'cash',
+                amount: Math.floor(orderTotal / 2),
+                cash_received: Math.floor(orderTotal / 2),
+                change_amount: 0,
+            },
+            {
+                payment_method: 'bank_transfer',
+                amount: Math.ceil(orderTotal / 2),
+            },
+        ];
         foundCustomer.value = null;
         searchCustomerPhone.value = '';
         loyaltyPointsToRedeem.value = 0;
@@ -105,13 +192,19 @@ export function useCashierPayment(
         bypassMessage.value = '';
         bypassCode.value = '';
         appliedVoucherName.value = '';
+
+        const orderId = activeTable.value?.active_order?.id;
+        if (orderId) {
+            loadAvailableVouchers(orderId);
+        }
+
         showPaymentModal.value = true;
     };
 
     const applyVoucher = () => {
         const orderId = activeTable.value?.active_order?.id;
         if (!voucherCode.value.trim() || !orderId) {
-            toast('Vui lòng nhập mã khuyến mãi / voucher.', 'error');
+            toast('Vui lòng chọn mã khuyến mãi / voucher.', 'error');
 
             return;
         }
@@ -187,17 +280,48 @@ export function useCashierPayment(
             }
         }
 
+        const payload: any = {
+            payment_method: paymentMethod.value,
+            cash_received: cashReceived.value,
+            change_amount: changeAmount.value,
+            customer_id: foundCustomer.value ? foundCustomer.value.id : null,
+            redeem_points: redeemPoints > 0 ? redeemPoints : undefined,
+        };
+
+        if (paymentMethod.value === 'multi') {
+            const validPayments = multiPayments.value.filter(
+                (p) => Number(p.amount) > 0,
+            );
+
+            if (validPayments.length === 0) {
+                toast(
+                    'Vui lòng nhập số tiền cho ít nhất 1 phương thức thanh toán.',
+                    'error',
+                );
+
+                return;
+            }
+
+            const total = activeTable.value?.active_order?.total_amount ?? 0;
+
+            if (multiTotalPaid.value < total) {
+                toast(
+                    `Tổng số tiền thanh toán (${multiTotalPaid.value.toLocaleString()}đ) còn thiếu ${(total - multiTotalPaid.value).toLocaleString()}đ`,
+                    'error',
+                );
+
+                return;
+            }
+
+            payload.payments = validPayments;
+        }
+
         isPaying.value = true;
         axios
-            .post(`/orders/${activeTable.value.active_order.id}/pay`, {
-                payment_method: paymentMethod.value,
-                cash_received: cashReceived.value,
-                change_amount: changeAmount.value,
-                customer_id: foundCustomer.value
-                    ? foundCustomer.value.id
-                    : null,
-                redeem_points: redeemPoints > 0 ? redeemPoints : undefined,
-            })
+            .post(
+                `/orders/${activeTable.value.active_order.id}/pay`,
+                payload,
+            )
             .then(() => {
                 showPaymentModal.value = false;
                 isCartOpen.value = false;
@@ -236,10 +360,17 @@ export function useCashierPayment(
         bypassMessage,
         bypassCode,
         appliedVoucherName,
+        availableVouchers,
+        isLoadingVouchers,
         isPaying,
         paymentMethods,
         cashDenominations,
         changeAmount,
+        multiPayments,
+        multiTotalPaid,
+        multiRemainingBalance,
+        addMultiPayment,
+        removeMultiPayment,
         searchCustomer,
         clearCustomerSelection,
         applyVoucher,

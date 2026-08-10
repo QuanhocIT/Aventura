@@ -452,5 +452,8 @@ class OrderAuditingAndFraudDetectionTest extends TestCase
             'change_amount' => 0,
         ]);
         $responsePay->assertStatus(403);
+
+        $responseIndex = $this->actingAs($waiter)->get(route('orders.index'));
+        $responseIndex->assertStatus(403);
     }
 }

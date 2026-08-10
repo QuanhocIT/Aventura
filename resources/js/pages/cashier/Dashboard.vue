@@ -201,10 +201,17 @@ const {
     bypassMessage,
     bypassCode,
     appliedVoucherName,
+    availableVouchers,
+    isLoadingVouchers,
     isPaying,
     paymentMethods,
     cashDenominations,
     changeAmount,
+    multiPayments,
+    multiTotalPaid,
+    multiRemainingBalance,
+    addMultiPayment,
+    removeMultiPayment,
     searchCustomer,
     clearCustomerSelection,
     applyVoucher,
@@ -796,6 +803,8 @@ onUnmounted(() => {
             :found-customer="foundCustomer"
             v-model:loyalty-points-to-redeem="loyaltyPointsToRedeem"
             v-model:voucher-code="voucherCode"
+            :available-vouchers="availableVouchers"
+            :is-loading-vouchers="isLoadingVouchers"
             :is-applying-voucher="isApplyingVoucher"
             :bypass-required="bypassRequired"
             :bypass-message="bypassMessage"
@@ -804,10 +813,15 @@ onUnmounted(() => {
             :is-paying="isPaying"
             :payment-methods="paymentMethods"
             :cash-denominations="cashDenominations"
+            :multi-payments="multiPayments"
+            :multi-total-paid="multiTotalPaid"
+            :multi-remaining-balance="multiRemainingBalance"
             @search-customer="searchCustomer"
             @clear-customer-selection="clearCustomerSelection"
             @apply-voucher="applyVoucher"
             @process-payment="processPayment"
+            @add-multi-payment="addMultiPayment"
+            @remove-multi-payment="removeMultiPayment"
         />
 
         <!-- ── MODAL TÁCH ĐƠN ──────────────────────────────────────────── -->

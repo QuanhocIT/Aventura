@@ -10,8 +10,10 @@ use App\Services\AnalyticsServiceClient;
 use App\Services\CircuitBreaker;
 use App\Services\FraudDetectionService;
 use App\Services\PromotionApplicationService;
+use App\Services\PromotionStackingService;
 use App\Services\QrCodeService;
 use App\Services\QuotaService;
+use App\Support\Tenant\TenantContext;
 use App\Support\TenantRule;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -26,6 +28,7 @@ class PromotionController extends Controller
     public function __construct(
         private FraudDetectionService $fraudService,
         private PromotionApplicationService $promotionApplication,
+        private PromotionStackingService $promotionStacking,
     ) {}
 
     /**
@@ -379,6 +382,67 @@ class PromotionController extends Controller
         }
 
         return response()->json(array_merge(['message' => $result['message']], $result['data']));
+    }
+
+    /**
+     * Trả về các voucher mà thu ngân có thể chọn cho đúng đơn hiện tại.
+     * Danh sách được lọc theo chi nhánh, thời gian, ngân sách và điều kiện đơn.
+     */
+    public function availableForCashier(Request $request, TenantContext $tenantContext): JsonResponse
+    {
+        $user = $request->user();
+        abort_unless($user->can('manage_orders') || $user->hasRole('cashier'), 403);
+
+        $data = $request->validate([
+            'order_id' => ['required', 'integer', TenantRule::exists('orders')],
+        ]);
+
+        $branchId = $tenantContext->activeBranchId();
+        abort_if($branchId === null, 422, 'POS phải được mở trong một chi nhánh cụ thể.');
+        abort_unless($user->canAccessBranch($branchId), 403);
+
+        $order = Order::where('restaurant_id', $user->restaurant_id)
+            ->where('branch_id', $branchId)
+            ->with('items')
+            ->findOrFail((int) $data['order_id']);
+
+        $now = now();
+        $promotions = Promotion::where('restaurant_id', $user->restaurant_id)
+            ->whereNotNull('code')
+            ->where('is_active', true)
+            ->where('is_approved', true)
+            ->where(function ($query) use ($branchId): void {
+                $query->whereNull('branch_id')->orWhere('branch_id', $branchId);
+            })
+            ->where(function ($query) use ($now): void {
+                $query->whereNull('start_date')->orWhere('start_date', '<=', $now);
+            })
+            ->where(function ($query) use ($now): void {
+                $query->whereNull('end_date')->orWhere('end_date', '>=', $now);
+            })
+            ->orderBy('stacking_priority', 'desc')
+            ->orderBy('name')
+            ->get()
+            ->filter(function (Promotion $promotion) use ($order): bool {
+                return (float) $order->subtotal >= (float) $promotion->min_order_amount
+                    && ! $promotion->isBudgetExhausted()
+                    && $this->promotionStacking->validateConditions($promotion, $order);
+            })
+            ->values()
+            ->map(fn (Promotion $promotion): array => [
+                'id' => $promotion->id,
+                'code' => $promotion->code,
+                'name' => $promotion->name,
+                'type' => $promotion->type,
+                'value' => (float) $promotion->value,
+                'min_order_amount' => (float) $promotion->min_order_amount,
+                'max_discount_amount' => (float) $promotion->max_discount_amount,
+                'discount_label' => $promotion->type === 'percent'
+                    ? ((float) $promotion->value).'%'
+                    : number_format((float) $promotion->value).'đ',
+            ]);
+
+        return response()->json(['promotions' => $promotions]);
     }
 
     public function validatePromotion(Request $request): JsonResponse
