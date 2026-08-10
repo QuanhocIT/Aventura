@@ -2446,49 +2446,6 @@ const submitWaste = () => {
                             </div>
                         </div>
 
-                        <div v-if="centralRequestStep === 'details'" class="grid grid-cols-2 gap-3">
-                            <div class="space-y-1.5">
-                                <Label class="text-xs">Ngày dự kiến nhận</Label>
-                                <Input v-model="centralRequestForm.requested_delivery_date" type="date" class="h-9 text-xs" />
-                            </div>
-                            <div class="rounded-xl border border-indigo-500/20 bg-indigo-500/10 p-2.5 text-right">
-                                <p class="text-[10px] text-muted-foreground">Giá trị dự kiến</p>
-                                <p class="mt-1 text-sm font-bold text-indigo-600 dark:text-indigo-400">{{ vnd(centralRequestTotal) }}</p>
-                            </div>
-                        </div>
-
-                        <textarea
-                            v-if="centralRequestStep === 'details'"
-                            v-model="centralRequestForm.notes"
-                            rows="3"
-                            placeholder="Ghi chú cho Kho Tổng: thời gian cần hàng, lý do, yêu cầu đóng gói..."
-                            class="w-full rounded-xl border border-border bg-background px-3 py-2.5 text-xs text-foreground outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
-                        ></textarea>
-
-                        <div v-if="centralRequestStep === 'details'" class="flex items-center justify-between gap-2 border-t border-border pt-4">
-                            <Button type="button" variant="ghost" size="sm" class="text-xs" @click="clearCentralRequest">
-                                Xóa danh sách
-                            </Button>
-                            <Button
-                                type="button"
-                                size="sm"
-                                class="bg-emerald-600 text-xs text-white hover:bg-emerald-700"
-                                :disabled="isSubmittingCentralRequest || !centralRequestForm.items.length || !canCreateSupplyRequests"
-                                @click="submitCentralRequest"
-                            >
-                                <Send class="mr-1.5 size-3.5" />
-                                {{ isSubmittingCentralRequest ? 'Đang gửi...' : 'Gửi Kho Tổng giao hàng' }}
-                            </Button>
-                        </div>
-                        <div v-else class="flex items-center justify-between gap-2 border-t border-border pt-4">
-                            <Button type="button" variant="ghost" size="sm" class="text-xs" @click="clearCentralRequest">
-                                Xóa danh sách
-                            </Button>
-                            <Button type="button" size="sm" class="bg-indigo-600 text-xs text-white hover:bg-indigo-700" :disabled="!centralRequestForm.items.length || !canCreateSupplyRequests" @click="confirmCentralSelection">
-                                Xác nhận lựa chọn
-                                <ArrowDownToLine class="ml-1.5 size-3.5" />
-                            </Button>
-                        </div>
                     </CardContent>
                 </Card>
             </div>
