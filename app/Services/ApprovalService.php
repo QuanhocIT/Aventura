@@ -11,6 +11,7 @@ use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\Product;
 use App\Models\ProductRecipe;
+use App\Models\RestaurantBranch;
 use App\Models\Salary;
 use App\Models\SalaryAdjustment;
 use App\Models\ScheduleAssignment;
@@ -22,6 +23,7 @@ use Carbon\Carbon;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 
 class ApprovalService
 {
@@ -34,27 +36,48 @@ class ApprovalService
     ) {}
 
     /**
-     * Tạo yêu cầu chờ phê duyệt và thông báo đến Owner.
+     * Tạo yêu cầu chờ phê duyệt và thông báo đến Owner cùng quản lý chi nhánh.
      */
     public function submitRequest(string $operationType, array $data, User $requester): ApprovalRequest
     {
+        $branchId = $data['branch_id'] ?? $requester->assignedBranchId();
+
         $request = ApprovalRequest::create([
             'restaurant_id' => $requester->restaurant_id,
-            'branch_id' => $requester->branch_id,
+            'branch_id' => $branchId,
             'requester_id' => $requester->id,
             'operation_type' => $operationType,
             'operation_data' => $data,
             'status' => 'pending',
         ]);
 
-        // Thông báo Owner
+        // Luôn gửi Owner để giám sát toàn chuỗi.
         $owner = User::where('restaurant_id', $requester->restaurant_id)
             ->role('owner')
             ->first();
 
-        if ($owner) {
-            $owner->notify(new ApprovalRequestedNotification($request, $requester));
+        $recipientIds = collect([$owner?->id]);
+
+        // Gửi thêm cho quản lý được gán trực tiếp vào chi nhánh và các tài
+        // khoản manager có branch_id tương ứng. Dùng cả hai nguồn vì dữ liệu
+        // cũ có thể chỉ lưu một trong hai cách.
+        if ($branchId) {
+            $branch = RestaurantBranch::withoutGlobalScopes()
+                ->where('restaurant_id', $requester->restaurant_id)
+                ->find($branchId);
+
+            $recipientIds = $recipientIds->merge([$branch?->manager_user_id]);
+            $recipientIds = $recipientIds->merge(
+                User::role('manager')
+                    ->where('restaurant_id', $requester->restaurant_id)
+                    ->where('branch_id', $branchId)
+                    ->pluck('id'),
+            );
         }
+
+        User::whereIn('id', $recipientIds->filter()->unique()->reject(fn ($id) => (int) $id === (int) $requester->id))
+            ->get()
+            ->each(fn (User $recipient) => $recipient->notify(new ApprovalRequestedNotification($request, $requester)));
 
         Cache::forget("pending_approvals:{$requester->restaurant_id}");
 
@@ -161,6 +184,12 @@ class ApprovalService
 
     private function executeInventoryCreate(array $data, int $restaurantId): void
     {
+        if (blank($data['storage_location'] ?? null) || empty($data['default_shelf_life_days'])) {
+            throw ValidationException::withMessages([
+                'inventory_create' => 'Không thể tạo nguyên liệu khi thiếu vị trí kho hoặc HSD tiêu chuẩn.',
+            ]);
+        }
+
         $branchId = $data['branch_id'] ?? null;
         Ingredient::create([
             'restaurant_id' => $restaurantId,

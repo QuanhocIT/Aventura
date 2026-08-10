@@ -35,6 +35,8 @@ class CentralApprovalEngineTest extends TestCase
                 'unit_id' => $unit->id,
                 'category' => 'Thịt tươi',
                 'storage_type' => 'fresh',
+                'default_shelf_life_days' => 3,
+                'storage_location' => 'Tủ mát Bếp 1',
             ]);
 
         $response->assertRedirect();

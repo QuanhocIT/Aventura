@@ -9,6 +9,7 @@ use App\Models\RestaurantBranch;
 use App\Models\SupplyRequest;
 use App\Models\SupplyRequestItem;
 use App\Models\User;
+use App\Notifications\SupplyRequestCreatedNotification;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use InvalidArgumentException;
@@ -64,7 +65,11 @@ class CentralWarehouseService
             throw new InvalidArgumentException('Chưa thiết lập Tổng Kho cho nhà hàng.');
         }
 
-        return DB::transaction(function () use ($restaurantId, $central, $toBranchId, $creator, $items, $requestedDate, $notes) {
+        if ($toBranchId === (int) $central->id) {
+            throw new InvalidArgumentException('Kho Tổng độc lập không thể là chi nhánh nhận hàng.');
+        }
+
+        $supplyRequest = DB::transaction(function () use ($restaurantId, $central, $toBranchId, $creator, $items, $requestedDate, $notes) {
             $requestCode = 'SR-'.Carbon::now()->format('Ymd').'-'.str_pad((string) (SupplyRequest::where('restaurant_id', $restaurantId)->count() + 1), 4, '0', STR_PAD_LEFT);
 
             $supplyRequest = SupplyRequest::create([
@@ -88,6 +93,17 @@ class CentralWarehouseService
 
                 $unitCost = (float) ($ingredient->average_cost ?? 0);
                 $qty = (float) $itemData['quantity'];
+                $centralInventory = Inventory::where('restaurant_id', $restaurantId)
+                    ->where('branch_id', $central->id)
+                    ->where('ingredient_id', $ingredient->id)
+                    ->first();
+
+                if (! $centralInventory || (float) $centralInventory->quantity_on_hand < $qty) {
+                    $available = (float) ($centralInventory?->quantity_on_hand ?? 0);
+                    $unitSymbol = $ingredient->unit?->symbol ?? 'đv';
+                    throw new InvalidArgumentException("Tổng kho chỉ còn {$available} {$unitSymbol} {$ingredient->name}, không đủ để lập yêu cầu {$qty}.");
+                }
+
                 $lineCost = round($unitCost * $qty, 2);
                 $totalAmount += $lineCost;
 
@@ -107,6 +123,13 @@ class CentralWarehouseService
 
             return $supplyRequest->load(['items.ingredient', 'fromBranch', 'toBranch', 'creator']);
         });
+
+        User::where('restaurant_id', $restaurantId)
+            ->whereHas('roles', fn ($query) => $query->whereIn('name', ['owner', 'warehouse_manager', 'warehouse_staff']))
+            ->get()
+            ->each(fn (User $warehouseUser) => $warehouseUser->notify(new SupplyRequestCreatedNotification($supplyRequest)));
+
+        return $supplyRequest;
     }
 
     /**

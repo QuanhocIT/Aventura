@@ -11,6 +11,7 @@ use App\Models\Restaurant;
 use App\Models\RestaurantBranch;
 use App\Models\Unit;
 use App\Models\User;
+use App\Notifications\ApprovalRequestedNotification;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Inertia\Testing\AssertableInertia as Assert;
 use Spatie\Permission\Models\Permission;
@@ -226,5 +227,35 @@ class InventoryWasteWorkflowTest extends TestCase
         ]);
         $this->assertEquals(8.0, (float) $inventory->fresh()->quantity_on_hand);
         $this->assertEquals(0, \DB::table('salary_adjustments')->count());
+    }
+
+    public function test_kitchen_waste_report_notifies_owner_and_branch_manager(): void
+    {
+        $this->branch->update(['manager_user_id' => $this->manager->id]);
+
+        $kitchenRole = Role::firstOrCreate(['name' => 'kitchen', 'guard_name' => 'web']);
+        $kitchen = User::factory()->create([
+            'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
+        ]);
+        $kitchen->assignRole($kitchenRole);
+
+        $this->actingAs($kitchen)->post(route('inventory.waste.store'), [
+            'ingredient_id' => $this->ingredient->id,
+            'quantity' => 1,
+            'waste_category' => 'damaged',
+            'notes' => 'Hộp bị đổ trong lúc sơ chế',
+        ])->assertSessionHasNoErrors();
+
+        $this->assertDatabaseHas('notifications', [
+            'notifiable_type' => User::class,
+            'notifiable_id' => $this->owner->id,
+            'type' => ApprovalRequestedNotification::class,
+        ]);
+        $this->assertDatabaseHas('notifications', [
+            'notifiable_type' => User::class,
+            'notifiable_id' => $this->manager->id,
+            'type' => ApprovalRequestedNotification::class,
+        ]);
     }
 }

@@ -325,7 +325,7 @@ const getStatusBadge = (status: string) => {
                                     {{ req.request_code }}
                                 </td>
                                 <td class="p-3 font-medium text-slate-700">
-                                    {{ req.from_branch?.name || 'Kho Tổng' }}
+                                    Kho Tổng độc lập
                                 </td>
                                 <td class="p-3 text-slate-600">
                                     {{ req.items?.length || 0 }} nguyên liệu
@@ -604,10 +604,7 @@ const getStatusBadge = (status: string) => {
                             </span>
                         </div>
                         <p class="mt-1 text-xs text-slate-300">
-                            Xuất từ:
-                            {{
-                                selectedRequest.from_branch?.name || 'Kho Tổng'
-                            }}
+                            Xuất từ: Kho Tổng độc lập
                         </p>
                     </div>
                     <button

@@ -2,18 +2,25 @@
 import { Head, router } from '@inertiajs/vue3';
 import axios from 'axios';
 import {
+    Activity,
     AlertCircle,
+    AlertTriangle,
+    ArrowUpRight,
+    BarChart3,
     Boxes,
     Building2,
+    CalendarDays,
     Check,
     CheckCircle2,
     Clock,
     DollarSign,
     Eye,
+    Lightbulb,
     PackageCheck,
     Save,
     Search,
     Truck,
+    TrendingUp,
     Warehouse,
     X,
     XCircle,
@@ -42,6 +49,7 @@ const props = defineProps<{
     canManageWarehouse: boolean;
     canApproveRequests: boolean;
     canDispatchRequests: boolean;
+    supplyAnalytics: any;
 }>();
 
 const activeTab = ref<
@@ -97,6 +105,44 @@ const stats = computed(() => ({
     completed: props.supplyRequests.filter((r) => r.status === 'completed')
         .length,
 }));
+
+const analytics = computed(() => props.supplyAnalytics);
+const maxDailyItems = computed(() =>
+    Math.max(...(analytics.value?.daily ?? []).map((day: any) => Number(day.items || 0)), 1),
+);
+
+const formatQuantity = (amount: number | string | null | undefined) =>
+    new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 3 }).format(
+        Number(amount || 0),
+    );
+
+const getPriorityBadge = (priority: string) => {
+    switch (priority) {
+        case 'urgent':
+            return {
+                label: 'Cần nhập gấp',
+                color: 'border-rose-200 bg-rose-50 text-rose-700',
+            };
+        case 'watch':
+            return {
+                label: 'Theo dõi',
+                color: 'border-amber-200 bg-amber-50 text-amber-700',
+            };
+        default:
+            return {
+                label: 'Ổn định',
+                color: 'border-emerald-200 bg-emerald-50 text-emerald-700',
+            };
+    }
+};
+
+const openAnalyticsRequest = (requestId: number) => {
+    const request = props.supplyRequests.find((item) => item.id === requestId);
+
+    if (request) {
+        openDetailModal(request);
+    }
+};
 
 const openDetailModal = (req: any) => {
     selectedRequest.value = JSON.parse(JSON.stringify(req));
@@ -255,22 +301,6 @@ const rejectRequest = async () => {
     }
 };
 
-const changeCentralWarehouse = async (branchId: number) => {
-    try {
-        const res = await axios.post(
-            '/api/supply-requests/set-central-branch',
-            { branch_id: branchId },
-        );
-
-        if (res.data.success) {
-            toast.success(res.data.message);
-            router.reload();
-        }
-    } catch (e: any) {
-        toast.error(e.response?.data?.message || 'Lỗi khi thiết lập Kho Tổng.');
-    }
-};
-
 const saveIngredientPrices = async () => {
     isSavingPrices.value = true;
 
@@ -324,42 +354,13 @@ const saveIngredientPrices = async () => {
                 </div>
             </div>
 
-            <!-- Warehouse Selector -->
-            <div
-                v-if="canManageWarehouse"
-                class="flex items-center gap-3 rounded-xl border border-white/20 bg-white/10 p-3 backdrop-blur-md"
-            >
+            <!-- Kho Tổng là kho độc lập, không phải một chi nhánh -->
+            <div class="flex items-center gap-3 rounded-xl border border-white/20 bg-white/10 p-3 backdrop-blur-md">
                 <Building2 class="h-5 w-5 text-indigo-300" />
                 <div class="text-xs">
-                    <div class="text-indigo-200">Chi nhánh Kho Tổng:</div>
-                    <select
-                        :value="centralBranch?.id"
-                        @change="
-                            changeCentralWarehouse(
-                                Number(
-                                    ($event.target as HTMLSelectElement).value,
-                                ),
-                            )
-                        "
-                        class="rounded border border-indigo-400/40 bg-slate-800 px-2 py-1 text-sm font-semibold text-white focus:outline-none"
-                    >
-                        <option v-for="b in branches" :key="b.id" :value="b.id">
-                            {{ b.name }}
-                            {{ b.is_central_warehouse ? '(Hiện tại)' : '' }}
-                        </option>
-                    </select>
-                </div>
-            </div>
-            <div
-                v-else
-                class="flex items-center gap-3 rounded-xl border border-white/20 bg-white/10 p-3 backdrop-blur-md"
-            >
-                <Building2 class="h-5 w-5 text-indigo-300" />
-                <div class="text-xs">
-                    <div class="text-indigo-200">Chi nhÃ¡nh Kho Tá»•ng:</div>
-                    <div class="font-semibold text-white">
-                        {{ centralBranch?.name || 'ChÆ°a thiáº¿t láº­p' }}
-                    </div>
+                    <div class="text-indigo-200">Kho xuất hàng</div>
+                    <div class="font-semibold text-white">Kho Tổng độc lập</div>
+                    <div class="mt-0.5 text-[10px] text-indigo-200/70">Điều phối riêng, không thuộc chi nhánh</div>
                 </div>
             </div>
         </div>
@@ -456,6 +457,246 @@ const saveIngredientPrices = async () => {
                 </CardContent>
             </Card>
         </div>
+
+        <!-- Owner supply intelligence -->
+        <section class="space-y-4">
+            <div class="flex flex-col justify-between gap-2 sm:flex-row sm:items-end">
+                <div>
+                    <p class="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.16em] text-indigo-600">
+                        <Activity class="h-4 w-4" /> Điều hành nhập hàng
+                    </p>
+                    <h2 class="mt-1 text-xl font-bold tracking-tight text-slate-900">
+                        Chủ doanh nghiệp cần biết gì hôm nay?
+                    </h2>
+                    <p class="mt-1 text-xs text-slate-500">
+                        Phân tích từ {{ analytics.period_days }} ngày yêu cầu cấp phát gần nhất; dự báo nhu cầu 7 ngày tới.
+                    </p>
+                </div>
+                <span class="text-[11px] text-slate-400">
+                    Cập nhật {{ formatDate(analytics.generated_at) }}
+                </span>
+            </div>
+
+            <div class="grid grid-cols-2 gap-3 lg:grid-cols-4">
+                <Card class="border-indigo-200 bg-indigo-50/60 shadow-sm">
+                    <CardContent class="p-4">
+                        <div class="flex items-start justify-between gap-2">
+                            <p class="text-[11px] font-bold uppercase tracking-wide text-indigo-700">Đơn gửi hôm nay</p>
+                            <CalendarDays class="h-4 w-4 text-indigo-500" />
+                        </div>
+                        <p class="mt-2 text-2xl font-bold text-indigo-950">{{ analytics.summary.today_requests }}</p>
+                        <p class="mt-1 text-[11px] text-indigo-700/80">
+                            {{ formatQuantity(analytics.summary.today_items) }} đơn vị · {{ formatCurrency(analytics.summary.today_value) }}
+                        </p>
+                    </CardContent>
+                </Card>
+                <Card class="border-amber-200 bg-amber-50/60 shadow-sm">
+                    <CardContent class="p-4">
+                        <div class="flex items-start justify-between gap-2">
+                            <p class="text-[11px] font-bold uppercase tracking-wide text-amber-700">Cần xử lý</p>
+                            <Clock class="h-4 w-4 text-amber-500" />
+                        </div>
+                        <p class="mt-2 text-2xl font-bold text-amber-950">{{ analytics.summary.today_pending }}</p>
+                        <p class="mt-1 text-[11px] text-amber-700/80">đơn đang chờ Kho Tổng duyệt</p>
+                    </CardContent>
+                </Card>
+                <Card class="border-emerald-200 bg-emerald-50/60 shadow-sm">
+                    <CardContent class="p-4">
+                        <div class="flex items-start justify-between gap-2">
+                            <p class="text-[11px] font-bold uppercase tracking-wide text-emerald-700">Nhu cầu 7 ngày</p>
+                            <TrendingUp class="h-4 w-4 text-emerald-500" />
+                        </div>
+                        <p class="mt-2 text-2xl font-bold text-emerald-950">{{ analytics.summary.last7_requests }}</p>
+                        <p class="mt-1 text-[11px] text-emerald-700/80">
+                            {{ formatQuantity(analytics.summary.last7_items) }} đơn vị · TB {{ analytics.summary.average_daily_requests }} đơn/ngày
+                        </p>
+                    </CardContent>
+                </Card>
+                <Card class="border-rose-200 bg-rose-50/60 shadow-sm">
+                    <CardContent class="p-4">
+                        <div class="flex items-start justify-between gap-2">
+                            <p class="text-[11px] font-bold uppercase tracking-wide text-rose-700">Cần nhập gấp</p>
+                            <AlertTriangle class="h-4 w-4 text-rose-500" />
+                        </div>
+                        <p class="mt-2 text-2xl font-bold text-rose-950">{{ analytics.summary.urgent_recommendations }}</p>
+                        <p class="mt-1 text-[11px] text-rose-700/80">nguyên liệu có rủi ro thiếu trong 7 ngày</p>
+                    </CardContent>
+                </Card>
+            </div>
+
+            <div class="grid gap-4 lg:grid-cols-3">
+                <Card class="border-slate-200 shadow-sm lg:col-span-2">
+                    <CardHeader class="border-b bg-slate-50/60 py-4">
+                        <CardTitle class="flex items-center gap-2 text-sm font-bold text-slate-900">
+                            <BarChart3 class="h-4 w-4 text-indigo-600" /> Nhịp gửi đơn 7 ngày qua
+                        </CardTitle>
+                        <CardDescription class="text-xs">Số đơn và tổng số lượng chi nhánh yêu cầu theo ngày.</CardDescription>
+                    </CardHeader>
+                    <CardContent class="p-4">
+                        <div class="flex h-44 items-end gap-2 border-b border-slate-200 px-1 pb-1 sm:gap-4">
+                            <div
+                                v-for="day in analytics.daily"
+                                :key="day.date"
+                                class="group flex h-full flex-1 flex-col items-center justify-end gap-2"
+                            >
+                                <div class="relative flex h-full w-full max-w-12 items-end justify-center">
+                                    <span class="absolute -top-5 text-[10px] font-semibold text-slate-500 opacity-0 transition group-hover:opacity-100">
+                                        {{ day.requests }} đơn
+                                    </span>
+                                    <div
+                                        class="w-full rounded-t-lg bg-gradient-to-t from-indigo-600 to-violet-400 transition group-hover:from-indigo-700 group-hover:to-violet-500"
+                                        :style="{ height: `${Math.max(8, (Number(day.items || 0) / maxDailyItems) * 100)}%` }"
+                                    ></div>
+                                </div>
+                                <span class="text-[10px] font-semibold text-slate-500">{{ day.label }}</span>
+                            </div>
+                        </div>
+                        <div class="mt-3 flex flex-wrap items-center gap-x-5 gap-y-1 text-[11px] text-slate-500">
+                            <span><strong class="text-slate-800">{{ formatCurrency(analytics.summary.last7_value) }}</strong> giá trị yêu cầu</span>
+                            <span><strong class="text-slate-800">{{ formatQuantity(analytics.summary.last7_items) }}</strong> đơn vị nguyên liệu</span>
+                            <span class="inline-flex items-center gap-1 text-indigo-600"><ArrowUpRight class="h-3.5 w-3.5" /> So sánh theo ngày</span>
+                        </div>
+                    </CardContent>
+                </Card>
+
+                <Card class="border-amber-200 bg-amber-50/30 shadow-sm">
+                    <CardHeader class="border-b border-amber-100 py-4">
+                        <CardTitle class="flex items-center gap-2 text-sm font-bold text-amber-950">
+                            <Lightbulb class="h-4 w-4 text-amber-500" /> Lời khuyên vận hành
+                        </CardTitle>
+                        <CardDescription class="text-xs">Các điểm cần chủ doanh nghiệp hoặc quản lý Kho Tổng quyết định.</CardDescription>
+                    </CardHeader>
+                    <CardContent class="space-y-3 p-4">
+                        <div
+                            v-for="insight in analytics.insights"
+                            :key="`${insight.type}-${insight.title}`"
+                            class="rounded-xl border border-amber-100 bg-white/80 p-3"
+                        >
+                            <p class="flex items-center gap-2 text-xs font-bold text-slate-900">
+                                <span
+                                    class="h-2 w-2 rounded-full"
+                                    :class="insight.type === 'danger' ? 'bg-rose-500' : insight.type === 'warning' ? 'bg-amber-500' : insight.type === 'success' ? 'bg-emerald-500' : 'bg-indigo-500'"
+                                ></span>
+                                {{ insight.title }}
+                            </p>
+                            <p class="mt-1 text-[11px] leading-relaxed text-slate-600">{{ insight.message }}</p>
+                        </div>
+                    </CardContent>
+                </Card>
+            </div>
+
+            <div class="grid gap-4 lg:grid-cols-2">
+                <Card class="border-slate-200 shadow-sm">
+                    <CardHeader class="border-b bg-slate-50/60 py-4">
+                        <CardTitle class="flex items-center gap-2 text-sm font-bold text-slate-900">
+                            <CalendarDays class="h-4 w-4 text-indigo-600" /> Đơn gửi về Kho hôm nay
+                        </CardTitle>
+                        <CardDescription class="text-xs">Bấm vào từng đơn để duyệt, điều chỉnh hoặc xuất giao.</CardDescription>
+                    </CardHeader>
+                    <CardContent class="p-0">
+                        <div v-if="analytics.today_requests.length === 0" class="p-8 text-center text-xs text-slate-400">
+                            Chưa có chi nhánh gửi đơn mới hôm nay.
+                        </div>
+                        <div v-else class="divide-y divide-slate-100">
+                            <button
+                                v-for="request in analytics.today_requests"
+                                :key="request.id"
+                                type="button"
+                                class="flex w-full items-center justify-between gap-3 p-3 text-left transition hover:bg-indigo-50/60"
+                                @click="openAnalyticsRequest(request.id)"
+                            >
+                                <span class="min-w-0">
+                                    <span class="flex items-center gap-2">
+                                        <span class="font-mono text-xs font-bold text-indigo-600">{{ request.request_code }}</span>
+                                        <span :class="['rounded-full border px-2 py-0.5 text-[10px] font-semibold', getStatusBadge(request.status).color]">
+                                            {{ getStatusBadge(request.status).label }}
+                                        </span>
+                                    </span>
+                                    <span class="mt-1 block truncate text-[11px] text-slate-600">{{ request.branch_name }} · {{ request.items }} nguyên liệu</span>
+                                </span>
+                                <span class="shrink-0 text-right">
+                                    <span class="block text-xs font-bold text-emerald-700">{{ formatCurrency(request.value) }}</span>
+                                    <span class="mt-1 block text-[10px] text-slate-400">{{ formatDate(request.created_at) }}</span>
+                                </span>
+                            </button>
+                        </div>
+                    </CardContent>
+                </Card>
+
+                <Card class="border-slate-200 shadow-sm">
+                    <CardHeader class="border-b bg-slate-50/60 py-4">
+                        <CardTitle class="flex items-center gap-2 text-sm font-bold text-slate-900">
+                            <TrendingUp class="h-4 w-4 text-emerald-600" /> Nguyên liệu được yêu cầu nhiều
+                        </CardTitle>
+                        <CardDescription class="text-xs">Xếp theo tổng số lượng trong {{ analytics.period_days }} ngày gần nhất.</CardDescription>
+                    </CardHeader>
+                    <CardContent class="p-0">
+                        <div v-if="analytics.top_ingredients.length === 0" class="p-8 text-center text-xs text-slate-400">
+                            Chưa đủ dữ liệu để phân tích nhu cầu.
+                        </div>
+                        <div v-else class="divide-y divide-slate-100">
+                            <div v-for="(item, index) in analytics.top_ingredients" :key="item.ingredient_id" class="flex items-center gap-3 p-3">
+                                <span class="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-indigo-50 text-xs font-bold text-indigo-600">{{ index + 1 }}</span>
+                                <div class="min-w-0 flex-1">
+                                    <p class="truncate text-xs font-bold text-slate-800">{{ item.name }}</p>
+                                    <p class="mt-0.5 text-[10px] text-slate-400">{{ item.request_count }} đơn · {{ formatCurrency(item.total_value) }}</p>
+                                </div>
+                                <p class="shrink-0 text-right text-xs font-bold text-slate-700">{{ formatQuantity(item.total_quantity) }} {{ item.unit_symbol }}</p>
+                            </div>
+                        </div>
+                    </CardContent>
+                </Card>
+            </div>
+
+            <Card class="border-rose-200 shadow-sm">
+                <CardHeader class="border-b bg-rose-50/40 py-4">
+                    <div class="flex flex-col justify-between gap-2 sm:flex-row sm:items-center">
+                        <div>
+                            <CardTitle class="flex items-center gap-2 text-sm font-bold text-slate-900">
+                                <AlertTriangle class="h-4 w-4 text-rose-600" /> Dự báo và đề xuất nhập Kho Tổng
+                            </CardTitle>
+                            <CardDescription class="text-xs">Ước tính dựa trên nhu cầu 28 ngày, đơn đang chờ cấp và mức tồn tối thiểu.</CardDescription>
+                        </div>
+                        <span class="text-[11px] font-semibold text-rose-700">Không tự động đặt hàng · cần xác nhận của chủ doanh nghiệp</span>
+                    </div>
+                </CardHeader>
+                <CardContent class="p-0">
+                    <div v-if="analytics.recommendations.length === 0" class="p-8 text-center text-xs text-slate-400">
+                        Tồn kho hiện đáp ứng được nhu cầu dự kiến.
+                    </div>
+                    <div v-else class="overflow-x-auto">
+                        <table class="w-full min-w-[760px] text-left text-xs">
+                            <thead class="border-b bg-slate-50 font-semibold text-slate-600">
+                                <tr>
+                                    <th class="p-3 pl-4">Nguyên liệu</th>
+                                    <th class="p-3 text-right">Tồn hiện tại</th>
+                                    <th class="p-3 text-right">Đơn đang chờ</th>
+                                    <th class="p-3 text-right">Dự báo 7 ngày</th>
+                                    <th class="p-3 text-right">Nên nhập thêm</th>
+                                    <th class="p-3">Khuyến nghị</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-100">
+                                <tr v-for="item in analytics.recommendations" :key="item.ingredient_id" class="hover:bg-rose-50/30">
+                                    <td class="p-3 pl-4">
+                                        <p class="font-bold text-slate-800">{{ item.name }}</p>
+                                        <p class="mt-0.5 text-[10px] text-slate-400">{{ item.sku || 'Chưa có SKU' }} · {{ item.coverage_days === null ? 'chưa đủ lịch sử' : `đủ khoảng ${item.coverage_days} ngày` }}</p>
+                                    </td>
+                                    <td class="p-3 text-right font-semibold text-slate-700">{{ formatQuantity(item.current_stock) }} {{ item.unit_symbol }}</td>
+                                    <td class="p-3 text-right text-amber-700">{{ formatQuantity(item.open_quantity) }}</td>
+                                    <td class="p-3 text-right text-indigo-700">{{ formatQuantity(item.forecast_7d) }}</td>
+                                    <td class="p-3 text-right font-bold text-rose-700">{{ formatQuantity(item.recommended_quantity) }} {{ item.unit_symbol }}<span class="block text-[10px] font-normal text-slate-400">{{ formatCurrency(item.estimated_cost) }}</span></td>
+                                    <td class="p-3">
+                                        <span :class="['rounded-full border px-2 py-1 text-[10px] font-semibold', getPriorityBadge(item.priority).color]">{{ getPriorityBadge(item.priority).label }}</span>
+                                        <p class="mt-1 max-w-xs text-[10px] leading-relaxed text-slate-500">{{ item.advice }}</p>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </CardContent>
+            </Card>
+        </section>
 
         <Card v-if="canManageWarehouse" class="border-slate-200 shadow-sm">
             <CardHeader class="border-b bg-slate-50/50 py-4">

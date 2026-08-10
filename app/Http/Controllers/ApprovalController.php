@@ -56,7 +56,7 @@ class ApprovalController extends Controller
 
     public function approve(Request $request, ApprovalRequest $approval): RedirectResponse
     {
-        abort_unless($request->user()->isOwner() || $request->user()->isSuperAdmin(), 403);
+        abort_unless($request->user()->hasRole('owner') || $request->user()->hasRole('manager') || $request->user()->isSuperAdmin() || $request->user()->can('approve_requests'), 403);
         abort_if($approval->restaurant_id !== $request->user()->restaurant_id, 403);
         abort_unless($approval->status === 'pending', 422);
 

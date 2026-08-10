@@ -59,10 +59,15 @@ class HandleInertiaRequests extends Middleware
                     ? Cache::remember(
                         "tenant_branches:v2:{$restaurant->id}:all",
                         300,
-                        fn () => $restaurant->branches()->select('id', 'name')->get()->toArray()
+                        fn () => $restaurant->branches()
+                            ->where('is_central_warehouse', false)
+                            ->select('id', 'name')
+                            ->get()
+                            ->toArray()
                     )
                     : ($tenantContext->isBranchScoped()
                         ? $restaurant->branches()
+                            ->where('is_central_warehouse', false)
                             ->whereKey($tenantContext->activeBranchId())
                             ->select('id', 'name')
                             ->get()

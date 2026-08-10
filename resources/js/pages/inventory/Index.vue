@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { Head, useForm, usePage, router } from '@inertiajs/vue3';
+import axios from 'axios';
 import {
     Package,
     Plus,
@@ -22,6 +23,9 @@ import {
     MapPin,
     Layers,
     CalendarCheck,
+    Warehouse,
+    Send,
+    Minus,
 } from 'lucide-vue-next';
 import {
     computed,
@@ -148,11 +152,40 @@ const props = defineProps<{
         opening_balance_pending: number;
         legacy_batches_pending: number;
     };
+    activeBranchId?: number | null;
+    activeBranchName?: string | null;
+    centralBranch?: { id: number; name: string } | null;
+    centralIngredients?: Array<{
+        id: number;
+        name: string;
+        sku?: string | null;
+        category_name?: string | null;
+        stock: number;
+        unit_cost: number;
+        unit_symbol: string;
+    }>;
+    branchReplenishmentSuggestions?: Array<{
+        ingredient_id: number;
+        name: string;
+        sku?: string | null;
+        category_name?: string | null;
+        unit_symbol: string;
+        current_stock: number;
+        min_stock_level: number;
+        reorder_level: number;
+        average_daily_usage: number;
+        forecast_7d: number;
+        suggested_quantity: number;
+        estimated_cost: number;
+        priority: 'urgent' | 'recommended' | 'stable';
+        reason: string;
+    }>;
+    canCreateSupplyRequests?: boolean;
 }>();
 
 // ── Tabs ──────────────────────────────────────────────────────────────────────
 const activeTab = ref<
-    'stock' | 'purchase' | 'waste' | 'reconcile' | 'planning'
+    'stock' | 'purchase' | 'central' | 'waste' | 'reconcile' | 'planning'
 >('stock');
 
 // ── Storage Type Filter & Ingredient Modal ──────────────────────────────────
@@ -285,6 +318,181 @@ const purchaseForm = useForm({
     expiry_date: '',
     invoice_file: null as File | null,
 });
+
+const centralIngredientSearch = ref('');
+const centralIngredientCategory = ref('all');
+const centralRequestStep = ref<'select' | 'details'>('select');
+const isSubmittingCentralRequest = ref(false);
+const centralRequestForm = ref({
+    requested_delivery_date: new Date().toISOString().slice(0, 10),
+    notes: '',
+    items: [] as Array<{ ingredient_id: number; quantity: number }>,
+});
+
+const filteredCentralIngredients = computed(() => {
+    const query = centralIngredientSearch.value.trim().toLowerCase();
+
+    return (props.centralIngredients ?? []).filter((ingredient) => {
+        if (
+            centralIngredientCategory.value !== 'all' &&
+            (ingredient.category_name || 'Khác') !== centralIngredientCategory.value
+        ) {
+            return false;
+        }
+
+        if (!query) {
+            return true;
+        }
+
+        return [ingredient.name, ingredient.sku, ingredient.category_name]
+            .filter(Boolean)
+            .join(' ')
+            .toLowerCase()
+            .includes(query);
+    });
+});
+
+const centralIngredientCategories = computed(() => [
+    'all',
+    ...Array.from(
+        new Set(
+            (props.centralIngredients ?? []).map(
+                (ingredient) => ingredient.category_name || 'Khác',
+            ),
+        ),
+    ),
+]);
+
+const getReplenishmentSuggestion = (ingredientId: number) =>
+    (props.branchReplenishmentSuggestions ?? []).find(
+        (suggestion) => suggestion.ingredient_id === ingredientId,
+    );
+
+const selectedCentralItems = computed(() =>
+    centralRequestForm.value.items
+        .map((item) => ({
+            ...item,
+            ingredient: (props.centralIngredients ?? []).find(
+                (ingredient) => ingredient.id === item.ingredient_id,
+            ),
+        }))
+        .filter((item) => item.ingredient),
+);
+
+const centralRequestTotal = computed(() =>
+    selectedCentralItems.value.reduce(
+        (total, item) => total + item.quantity * (item.ingredient?.unit_cost ?? 0),
+        0,
+    ),
+);
+
+const isCentralIngredientSelected = (ingredientId: number) =>
+    centralRequestForm.value.items.some((item) => item.ingredient_id === ingredientId);
+
+const getCentralIngredient = (ingredientId: number) =>
+    (props.centralIngredients ?? []).find((ingredient) => ingredient.id === ingredientId);
+
+const addCentralIngredient = (ingredient: NonNullable<typeof props.centralIngredients>[number]) => {
+    if (isCentralIngredientSelected(ingredient.id)) {
+        return;
+    }
+
+    centralRequestForm.value.items.push({
+        ingredient_id: ingredient.id,
+        quantity: Math.min(
+            getReplenishmentSuggestion(ingredient.id)?.suggested_quantity || 1,
+            ingredient.stock,
+        ),
+    });
+};
+
+const addSuggestedIngredient = (suggestion: NonNullable<typeof props.branchReplenishmentSuggestions>[number]) => {
+    const ingredient = getCentralIngredient(suggestion.ingredient_id);
+
+    if (! ingredient) {
+        toast.error(`${suggestion.name} hiện chưa có tồn kho tại Kho Tổng để giao.`);
+
+        return;
+    }
+
+    addCentralIngredient(ingredient);
+};
+
+const confirmCentralSelection = () => {
+    if (!centralRequestForm.value.items.length) {
+        toast.error('Vui lòng chọn ít nhất một nguyên liệu từ Kho Tổng.');
+
+        return;
+    }
+
+    centralRequestStep.value = 'details';
+};
+
+const returnToCentralSelection = () => {
+    centralRequestStep.value = 'select';
+};
+
+const removeCentralIngredient = (ingredientId: number) => {
+    centralRequestForm.value.items = centralRequestForm.value.items.filter(
+        (item) => item.ingredient_id !== ingredientId,
+    );
+};
+
+const clearCentralRequest = () => {
+    centralRequestStep.value = 'select';
+    centralIngredientSearch.value = '';
+    centralIngredientCategory.value = 'all';
+    centralRequestForm.value = {
+        requested_delivery_date: new Date().toISOString().slice(0, 10),
+        notes: '',
+        items: [],
+    };
+};
+
+const submitCentralRequest = async () => {
+    if (!props.activeBranchId) {
+        toast.error('Vui lòng chọn chi nhánh nhận hàng trước khi gửi yêu cầu.');
+
+        return;
+    }
+
+    if (!centralRequestForm.value.items.length) {
+        toast.error('Vui lòng chọn ít nhất một nguyên liệu từ Tổng kho.');
+
+        return;
+    }
+
+    const invalidItem = selectedCentralItems.value.find(
+        (item) => item.quantity <= 0 || item.quantity > (item.ingredient?.stock ?? 0),
+    );
+
+    if (invalidItem) {
+        toast.error(`Số lượng ${invalidItem.ingredient?.name} vượt quá tồn kho Tổng.`);
+
+        return;
+    }
+
+    isSubmittingCentralRequest.value = true;
+
+    try {
+        const response = await axios.post('/api/supply-requests', {
+            to_branch_id: props.activeBranchId,
+            requested_delivery_date: centralRequestForm.value.requested_delivery_date,
+            notes: centralRequestForm.value.notes || null,
+            items: centralRequestForm.value.items,
+        });
+
+        if (response.data.success) {
+            toast.success('Đã gửi danh sách nguyên liệu cho Tổng kho giao hàng.');
+            clearCentralRequest();
+            router.reload();
+        }
+    } catch (error: any) {
+        toast.error(error.response?.data?.message || 'Không thể gửi yêu cầu cấp hàng.');
+    } finally {
+        isSubmittingCentralRequest.value = false;
+    }
+};
 
 const purchaseFormCard = ref<HTMLElement | null>(null);
 const aiForecastCardHeight = ref<number | null>(null);
@@ -911,7 +1119,7 @@ const submitWaste = () => {
 
         <!-- Tabs -->
         <div
-            class="flex items-center gap-1 self-start rounded-xl border border-border bg-muted p-1"
+            class="flex flex-wrap items-center gap-1 self-start rounded-xl border border-border bg-muted p-1"
         >
             <button
                 @click="activeTab = 'stock'"
@@ -934,6 +1142,17 @@ const submitWaste = () => {
                 "
             >
                 <ShoppingCart class="size-3.5" />Nhập hàng
+            </button>
+            <button
+                @click="activeTab = 'central'"
+                class="flex cursor-pointer items-center gap-1.5 rounded-lg px-4 py-1.5 text-xs font-semibold transition-all"
+                :class="
+                    activeTab === 'central'
+                        ? 'bg-background text-foreground shadow-sm'
+                        : 'text-muted-foreground hover:text-foreground'
+                "
+            >
+                <Warehouse class="size-3.5 text-emerald-500" />Nhập từ Tổng kho
             </button>
             <button
                 @click="activeTab = 'waste'"
@@ -2031,6 +2250,329 @@ const submitWaste = () => {
                     </CardContent>
                 </Card>
             </div>
+        </template>
+
+        <!-- ══ TAB: NHẬP TỪ TỔNG KHO ══════════════════════════════════════════ -->
+        <template v-else-if="activeTab === 'central'">
+            <template v-if="centralRequestStep === 'select'">
+            <div class="grid animate-in gap-6 duration-200 fade-in lg:grid-cols-5">
+                <Card class="lg:col-span-3">
+                    <CardHeader class="border-b border-border pb-4">
+                        <div class="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
+                            <div>
+                                <CardTitle class="flex items-center gap-2 text-base font-bold">
+                                    <Warehouse class="size-5 text-emerald-500" />
+                                    Chọn nguyên liệu cần cấp
+                                </CardTitle>
+                                <CardDescription class="mt-1 text-xs">
+                                    Chọn nguyên liệu từ menu như khi nhân viên chọn món. Sau đó xác nhận để nhập thông tin gửi Kho Tổng.
+                                </CardDescription>
+                            </div>
+                            <a
+                                href="/inventory/branch-requisition"
+                                class="shrink-0 text-xs font-semibold text-indigo-600 hover:underline dark:text-indigo-400"
+                            >
+                                Xem lịch sử yêu cầu →
+                            </a>
+                        </div>
+                    </CardHeader>
+                    <CardContent class="space-y-4 pt-5">
+                        <div class="grid gap-3 sm:grid-cols-2">
+                            <div class="rounded-xl border border-emerald-500/20 bg-emerald-500/10 p-3">
+                                <p class="text-[10px] font-bold uppercase tracking-wide text-emerald-700 dark:text-emerald-300">
+                                    Kho xuất hàng
+                                </p>
+                                <p class="mt-1 text-sm font-bold text-foreground">
+                                    Kho Tổng độc lập
+                                </p>
+                                <p class="mt-1 text-[10px] text-muted-foreground">Không thuộc danh sách chi nhánh.</p>
+                            </div>
+                            <div class="rounded-xl border border-indigo-500/20 bg-indigo-500/10 p-3">
+                                <p class="text-[10px] font-bold uppercase tracking-wide text-indigo-700 dark:text-indigo-300">
+                                    Đề xuất nhập hàng AI
+                                </p>
+                                <p class="mt-1 text-sm font-bold text-foreground">
+                                    {{ (branchReplenishmentSuggestions ?? []).length }} nguyên liệu cần xem
+                                </p>
+                                <p class="mt-1 text-[10px] text-muted-foreground">Dựa trên tồn và mức sử dụng của {{ activeBranchName || 'chi nhánh hiện tại' }}.</p>
+                            </div>
+                        </div>
+
+                        <div v-if="(branchReplenishmentSuggestions ?? []).length > 0" class="rounded-2xl border border-violet-500/20 bg-violet-500/5 p-4">
+                            <div class="mb-3 flex items-center justify-between gap-3">
+                                <div>
+                                    <p class="flex items-center gap-2 text-xs font-bold text-violet-700 dark:text-violet-300">
+                                        <Sparkles class="size-4" /> Đề xuất AI cho {{ activeBranchName || 'chi nhánh hiện tại' }}
+                                    </p>
+                                    <p class="mt-1 text-[10px] text-muted-foreground">Ưu tiên nguyên liệu đang dưới định mức hoặc có tốc độ sử dụng cao.</p>
+                                </div>
+                                <span class="rounded-full bg-violet-500/10 px-2 py-1 text-[10px] font-semibold text-violet-600">{{ (branchReplenishmentSuggestions ?? []).length }} gợi ý</span>
+                            </div>
+                            <div class="grid gap-2 sm:grid-cols-2">
+                                <button
+                                    v-for="suggestion in (branchReplenishmentSuggestions ?? []).slice(0, 6)"
+                                    :key="suggestion.ingredient_id"
+                                    type="button"
+                                    class="flex items-center justify-between gap-3 rounded-xl border border-border bg-background/60 p-3 text-left transition hover:border-violet-400 hover:bg-violet-500/10"
+                                    @click="addSuggestedIngredient(suggestion)"
+                                >
+                                    <span class="min-w-0">
+                                        <span class="block truncate text-xs font-bold text-foreground">{{ suggestion.name }}</span>
+                                        <span class="mt-1 block text-[10px] text-muted-foreground">Tồn chi nhánh: {{ suggestion.current_stock }} {{ suggestion.unit_symbol }} · Nên nhập {{ suggestion.suggested_quantity }} {{ suggestion.unit_symbol }}</span>
+                                    </span>
+                                    <Plus class="size-4 shrink-0 text-violet-500" />
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="relative">
+                            <Search class="absolute top-2.5 left-3 size-4 text-muted-foreground" />
+                            <Input
+                                v-model="centralIngredientSearch"
+                                placeholder="Tìm nguyên liệu trong Tổng kho..."
+                                class="h-9 pl-9 text-xs"
+                            />
+                        </div>
+
+                        <div v-if="!canCreateSupplyRequests" class="rounded-xl border border-amber-300 bg-amber-50 p-4 text-xs text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/20 dark:text-amber-200">
+                            Tài khoản hiện tại chưa có quyền lập yêu cầu cấp hàng từ Tổng kho.
+                        </div>
+
+                        <div v-else-if="!centralBranch" class="rounded-xl border border-dashed border-rose-300 bg-rose-50 p-6 text-center text-xs text-rose-700 dark:border-rose-900 dark:bg-rose-950/20 dark:text-rose-300">
+                            Kho Tổng độc lập chưa sẵn sàng nhận yêu cầu. Vui lòng liên hệ quản trị hệ thống.
+                        </div>
+
+                        <div v-else-if="(centralIngredients ?? []).length === 0" class="rounded-xl border border-dashed border-border bg-muted/20 p-8 text-center text-xs text-muted-foreground">
+                            Tổng kho hiện chưa có nguyên liệu khả dụng để giao.
+                        </div>
+
+                        <div v-else class="space-y-3">
+                            <div class="flex flex-wrap gap-2">
+                                <button
+                                    v-for="category in centralIngredientCategories"
+                                    :key="category"
+                                    type="button"
+                                    class="rounded-full border px-3 py-1.5 text-[11px] font-semibold transition"
+                                    :class="centralIngredientCategory === category ? 'border-indigo-500 bg-indigo-500 text-white' : 'border-border bg-background text-muted-foreground hover:border-indigo-400 hover:text-foreground'"
+                                    @click="centralIngredientCategory = category"
+                                >
+                                    {{ category === 'all' ? 'Tất cả' : category }}
+                                </button>
+                            </div>
+                            <div class="grid max-h-[420px] gap-3 overflow-y-auto pr-1 sm:grid-cols-2 lg:grid-cols-3">
+                            <div
+                                v-for="ingredient in filteredCentralIngredients"
+                                :key="ingredient.id"
+                                class="group relative rounded-2xl border border-border bg-background/40 p-3 text-left transition hover:border-emerald-500/50 hover:bg-emerald-500/5"
+                            >
+                                <button type="button" class="w-full text-left" :disabled="isCentralIngredientSelected(ingredient.id)" @click="addCentralIngredient(ingredient)">
+                                    <span class="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-500/10 text-lg font-bold text-emerald-600">{{ ingredient.name.charAt(0).toUpperCase() }}</span>
+                                    <span class="block truncate text-sm font-bold text-foreground">{{ ingredient.name }}</span>
+                                    <span class="mt-1 block text-[10px] text-muted-foreground">{{ ingredient.category_name || 'Khác' }} · {{ ingredient.sku || 'Chưa có mã' }}</span>
+                                    <span class="mt-2 block text-xs font-semibold text-emerald-600 dark:text-emerald-400">Tồn Kho Tổng: {{ ingredient.stock }} {{ ingredient.unit_symbol }}</span>
+                                </button>
+                                <Button
+                                    v-if="isCentralIngredientSelected(ingredient.id)"
+                                    type="button"
+                                    size="sm"
+                                    variant="outline"
+                                    class="pointer-events-none absolute top-3 right-3 h-7 border-emerald-500/30 bg-emerald-500/10 px-2 text-[10px] text-emerald-600"
+                                >
+                                    Đã chọn
+                                </Button>
+                            </div>
+                            <p v-if="filteredCentralIngredients.length === 0" class="py-8 text-center text-xs text-muted-foreground">
+                                Không tìm thấy nguyên liệu phù hợp.
+                            </p>
+                            </div>
+                        </div>
+                    </CardContent>
+                </Card>
+
+                <Card class="h-fit lg:col-span-2">
+                    <CardHeader class="border-b border-border pb-4">
+                        <CardTitle class="flex items-center gap-2 text-base font-bold">
+                            <Send class="size-4 text-indigo-500" />
+                            Danh sách gửi Kho Tổng
+                        </CardTitle>
+                        <CardDescription class="text-xs">
+                            {{ centralRequestForm.items.length }} nguyên liệu được chọn
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent class="space-y-4 pt-5">
+                        <div v-if="centralRequestForm.items.length === 0" class="rounded-xl border border-dashed border-border bg-muted/20 p-8 text-center text-xs text-muted-foreground">
+                            Chọn nguyên liệu ở bên trái để thêm vào danh sách giao hàng.
+                        </div>
+
+                        <div v-else class="space-y-2">
+                            <div
+                                v-for="line in centralRequestForm.items"
+                                :key="line.ingredient_id"
+                                class="rounded-xl border border-border bg-background/50 p-3"
+                            >
+                                <div class="flex items-start justify-between gap-2">
+                                    <div class="min-w-0">
+                                        <p class="truncate text-xs font-bold text-foreground">
+                                            {{ getCentralIngredient(line.ingredient_id)?.name }}
+                                        </p>
+                                        <p class="mt-0.5 text-[10px] text-muted-foreground">
+                                            Tồn Tổng: {{ getCentralIngredient(line.ingredient_id)?.stock }}
+                                            {{ getCentralIngredient(line.ingredient_id)?.unit_symbol }}
+                                        </p>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        class="rounded-md p-1 text-muted-foreground hover:bg-rose-500/10 hover:text-rose-500"
+                                        title="Bỏ nguyên liệu"
+                                        @click="removeCentralIngredient(line.ingredient_id)"
+                                    >
+                                        <Trash2 class="size-3.5" />
+                                    </button>
+                                </div>
+                                <div class="mt-2 flex items-center gap-2">
+                                    <Minus class="size-3.5 text-muted-foreground" />
+                                    <Input
+                                        v-model.number="line.quantity"
+                                        type="number"
+                                        min="0.001"
+                                        step="0.001"
+                                        :max="getCentralIngredient(line.ingredient_id)?.stock"
+                                        class="h-8 text-xs"
+                                    />
+                                    <span class="shrink-0 text-[11px] text-muted-foreground">
+                                        {{ getCentralIngredient(line.ingredient_id)?.unit_symbol }}
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div v-if="centralRequestStep === 'details'" class="grid grid-cols-2 gap-3">
+                            <div class="space-y-1.5">
+                                <Label class="text-xs">Ngày dự kiến nhận</Label>
+                                <Input v-model="centralRequestForm.requested_delivery_date" type="date" class="h-9 text-xs" />
+                            </div>
+                            <div class="rounded-xl border border-indigo-500/20 bg-indigo-500/10 p-2.5 text-right">
+                                <p class="text-[10px] text-muted-foreground">Giá trị dự kiến</p>
+                                <p class="mt-1 text-sm font-bold text-indigo-600 dark:text-indigo-400">{{ vnd(centralRequestTotal) }}</p>
+                            </div>
+                        </div>
+
+                        <textarea
+                            v-if="centralRequestStep === 'details'"
+                            v-model="centralRequestForm.notes"
+                            rows="3"
+                            placeholder="Ghi chú cho Kho Tổng: thời gian cần hàng, lý do, yêu cầu đóng gói..."
+                            class="w-full rounded-xl border border-border bg-background px-3 py-2.5 text-xs text-foreground outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
+                        ></textarea>
+
+                        <div v-if="centralRequestStep === 'details'" class="flex items-center justify-between gap-2 border-t border-border pt-4">
+                            <Button type="button" variant="ghost" size="sm" class="text-xs" @click="clearCentralRequest">
+                                Xóa danh sách
+                            </Button>
+                            <Button
+                                type="button"
+                                size="sm"
+                                class="bg-emerald-600 text-xs text-white hover:bg-emerald-700"
+                                :disabled="isSubmittingCentralRequest || !centralRequestForm.items.length || !canCreateSupplyRequests"
+                                @click="submitCentralRequest"
+                            >
+                                <Send class="mr-1.5 size-3.5" />
+                                {{ isSubmittingCentralRequest ? 'Đang gửi...' : 'Gửi Kho Tổng giao hàng' }}
+                            </Button>
+                        </div>
+                        <div v-else class="flex items-center justify-between gap-2 border-t border-border pt-4">
+                            <Button type="button" variant="ghost" size="sm" class="text-xs" @click="clearCentralRequest">
+                                Xóa danh sách
+                            </Button>
+                            <Button type="button" size="sm" class="bg-indigo-600 text-xs text-white hover:bg-indigo-700" :disabled="!centralRequestForm.items.length || !canCreateSupplyRequests" @click="confirmCentralSelection">
+                                Xác nhận lựa chọn
+                                <ArrowDownToLine class="ml-1.5 size-3.5" />
+                            </Button>
+                        </div>
+                    </CardContent>
+                </Card>
+            </div>
+            </template>
+
+            <template v-else>
+                <Card class="animate-in duration-200 fade-in">
+                    <CardHeader class="border-b border-border pb-4">
+                        <div class="flex items-center justify-between gap-3">
+                            <div>
+                                <CardTitle class="flex items-center gap-2 text-base font-bold">
+                                    <Send class="size-5 text-indigo-500" />
+                                    Xác nhận thông tin gửi Kho Tổng
+                                </CardTitle>
+                                <CardDescription class="mt-1 text-xs">
+                                    Kiểm tra số lượng trước khi gửi yêu cầu cấp hàng cho {{ activeBranchName || 'chi nhánh đang chọn' }}.
+                                </CardDescription>
+                            </div>
+                            <span class="rounded-full bg-indigo-500/10 px-3 py-1 text-xs font-semibold text-indigo-600 dark:text-indigo-400">
+                                Bước 2/2
+                            </span>
+                        </div>
+                    </CardHeader>
+                    <CardContent class="grid gap-6 pt-5 lg:grid-cols-3">
+                        <div class="space-y-3 lg:col-span-2">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <p class="text-sm font-bold text-foreground">Nguyên liệu đã chọn</p>
+                                    <p class="text-xs text-muted-foreground">Có thể điều chỉnh số lượng theo nhu cầu thực tế.</p>
+                                </div>
+                                <Button type="button" variant="outline" size="sm" class="text-xs" @click="returnToCentralSelection">
+                                    Chọn thêm
+                                </Button>
+                            </div>
+                            <div class="grid gap-2 sm:grid-cols-2">
+                                <div
+                                    v-for="line in centralRequestForm.items"
+                                    :key="line.ingredient_id"
+                                    class="rounded-xl border border-border bg-background/50 p-3"
+                                >
+                                    <div class="flex items-start justify-between gap-2">
+                                        <div class="min-w-0">
+                                            <p class="truncate text-xs font-bold text-foreground">{{ getCentralIngredient(line.ingredient_id)?.name }}</p>
+                                            <p class="mt-0.5 text-[10px] text-muted-foreground">
+                                                Tồn Kho Tổng: {{ getCentralIngredient(line.ingredient_id)?.stock }} {{ getCentralIngredient(line.ingredient_id)?.unit_symbol }}
+                                            </p>
+                                        </div>
+                                        <button type="button" class="rounded-md p-1 text-muted-foreground hover:bg-rose-500/10 hover:text-rose-500" title="Bỏ nguyên liệu" @click="removeCentralIngredient(line.ingredient_id)">
+                                            <Trash2 class="size-3.5" />
+                                        </button>
+                                    </div>
+                                    <div class="mt-2 flex items-center gap-2">
+                                        <Label class="shrink-0 text-[10px]">Số lượng</Label>
+                                        <Input v-model.number="line.quantity" type="number" min="0.001" step="0.001" :max="getCentralIngredient(line.ingredient_id)?.stock" class="h-8 text-xs" />
+                                        <span class="shrink-0 text-[11px] text-muted-foreground">{{ getCentralIngredient(line.ingredient_id)?.unit_symbol }}</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="space-y-4 rounded-2xl border border-indigo-500/20 bg-indigo-500/5 p-4">
+                            <div>
+                                <p class="text-sm font-bold text-foreground">Thông tin giao hàng</p>
+                                <p class="mt-1 text-xs text-muted-foreground">Kho Tổng độc lập sẽ tiếp nhận và giao về chi nhánh.</p>
+                            </div>
+                            <div class="space-y-1.5">
+                                <Label class="text-xs">Ngày dự kiến nhận</Label>
+                                <Input v-model="centralRequestForm.requested_delivery_date" type="date" class="h-9 text-xs" />
+                            </div>
+                            <div class="rounded-xl border border-indigo-500/20 bg-background/50 p-3 text-right">
+                                <p class="text-[10px] text-muted-foreground">Giá trị dự kiến</p>
+                                <p class="mt-1 text-lg font-bold text-indigo-600 dark:text-indigo-400">{{ vnd(centralRequestTotal) }}</p>
+                            </div>
+                            <textarea v-model="centralRequestForm.notes" rows="4" placeholder="Ghi chú cho Kho Tổng: thời gian cần hàng, lý do, yêu cầu đóng gói..." class="w-full rounded-xl border border-border bg-background px-3 py-2.5 text-xs text-foreground outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"></textarea>
+                            <div class="flex items-center justify-between gap-2 border-t border-border pt-4">
+                                <Button type="button" variant="ghost" size="sm" class="text-xs" @click="returnToCentralSelection">Quay lại</Button>
+                                <Button type="button" size="sm" class="bg-emerald-600 text-xs text-white hover:bg-emerald-700" :disabled="isSubmittingCentralRequest || !centralRequestForm.items.length || !canCreateSupplyRequests" @click="submitCentralRequest">
+                                    <Send class="mr-1.5 size-3.5" />
+                                    {{ isSubmittingCentralRequest ? 'Đang gửi...' : 'Gửi Kho Tổng' }}
+                                </Button>
+                            </div>
+                        </div>
+                    </CardContent>
+                </Card>
+            </template>
         </template>
 
         <!-- ══ TAB: HAO HỤT ═══════════════════════════════════════════════════ -->

@@ -8,8 +8,10 @@ use App\Models\Restaurant;
 use App\Models\RestaurantBranch;
 use App\Models\Unit;
 use App\Models\User;
+use App\Notifications\SupplyRequestCreatedNotification;
 use App\Services\CentralWarehouseService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Notification;
 use Tests\TestCase;
 
 class SupplyRequestTest extends TestCase
@@ -103,6 +105,14 @@ class SupplyRequestTest extends TestCase
             'restaurant_id' => $restaurant->id,
             'branch_id' => $centralBranch->id,
         ]);
+        $warehouseStaff->assignRole('warehouse_staff');
+
+        $owner = User::factory()->create([
+            'restaurant_id' => $restaurant->id,
+        ]);
+        $owner->assignRole('owner');
+
+        Notification::fake();
 
         $service = app(CentralWarehouseService::class);
 
@@ -120,6 +130,25 @@ class SupplyRequestTest extends TestCase
 
         $this->assertEquals('pending', $supplyRequest->status);
         $this->assertEquals(5000000, $supplyRequest->total_amount);
+        Notification::assertSentTo($warehouseStaff, SupplyRequestCreatedNotification::class);
+        Notification::assertSentTo($owner, SupplyRequestCreatedNotification::class);
+
+        try {
+            $service->createSupplyRequest(
+                $restaurant->id,
+                $branch1->id,
+                $manager,
+                [
+                    ['ingredient_id' => $ingredient->id, 'quantity' => 101],
+                ],
+            );
+
+            $this->fail('Không thể tạo yêu cầu vượt quá tồn kho Tổng kho.');
+        } catch (\InvalidArgumentException $exception) {
+            $this->assertStringContainsString('không đủ', $exception->getMessage());
+        }
+
+        $this->assertDatabaseCount('central_supply_requests', 1);
 
         // 2. Central Warehouse approves request
         $approvedRequest = $service->approveSupplyRequest($supplyRequest, $warehouseStaff);

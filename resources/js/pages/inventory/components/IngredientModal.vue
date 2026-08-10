@@ -221,23 +221,31 @@ const submitForm = () => {
                             </div>
 
                             <div class="space-y-1.5">
-                                <Label class="text-xs font-semibold">Vị trí lưu trữ trong kho</Label>
+                                <Label class="text-xs font-semibold">Vị trí lưu trữ trong kho <span class="text-rose-500">*</span></Label>
                                 <Input
                                     v-model="form.storage_location"
                                     placeholder="Ví dụ: Tủ mát Bếp 1, Tủ đông A, Kho khô Kệ 2..."
+                                    required
                                 />
+                                <p v-if="form.errors.storage_location" class="text-[11px] text-rose-500">
+                                    {{ form.errors.storage_location }}
+                                </p>
                             </div>
                         </div>
 
                         <div class="grid grid-cols-2 gap-3">
                             <div class="space-y-1.5">
-                                <Label class="text-xs font-semibold">Số ngày HSD tiêu chuẩn</Label>
+                                <Label class="text-xs font-semibold">Số ngày HSD tiêu chuẩn <span class="text-rose-500">*</span></Label>
                                 <Input
                                     v-model="form.default_shelf_life_days"
                                     type="number"
                                     placeholder="Ví dụ: 3 (ngày)"
                                     min="1"
+                                    required
                                 />
+                                <p v-if="form.errors.default_shelf_life_days" class="text-[11px] text-rose-500">
+                                    {{ form.errors.default_shelf_life_days }}
+                                </p>
                             </div>
 
                             <div class="space-y-1.5">
