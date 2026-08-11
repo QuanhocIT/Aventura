@@ -20,6 +20,8 @@ class InventoryBatch extends Model
             'purchased_at' => 'date',
             'expiry_date' => 'date',
             'reconciled_at' => 'datetime',
+            'locked_at' => 'datetime',
+            'recall_requested_at' => 'datetime',
             'quantity_remaining' => 'decimal:3',
             'unit_cost' => 'decimal:2',
         ];
@@ -28,6 +30,11 @@ class InventoryBatch extends Model
     public function ingredient(): BelongsTo
     {
         return $this->belongsTo(Ingredient::class);
+    }
+
+    public function lockedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'locked_by');
     }
 
     public function supplier(): BelongsTo

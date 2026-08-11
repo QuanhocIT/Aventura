@@ -337,6 +337,8 @@ class InventoryService
             'unit_cost' => $wasteUnitCost,
             'total_cost' => $wasteCost,
             'notes' => $data['notes'] ?? null,
+            // Ảnh hàng hủy (bằng chứng) — tái dùng slot tệp đính kèm của giao dịch.
+            'invoice_file_url' => $data['photo_url'] ?? null,
             'occurred_at' => now(),
         ]);
         $this->recordBatchAllocations($transaction, $batchConsumption['allocations'], 'out');

@@ -109,9 +109,11 @@ class InventoryManagementController extends Controller
             ->keyBy('ingredient_id');
 
         $activeBatchesMap = InventoryBatch::where('restaurant_id', $user->restaurant_id)
-            ->whereIn('status', ['active', 'expired'])
+            // Gồm cả lô đã khóa/thu hồi để hiển thị trạng thái + cho phép mở khóa.
+            ->whereIn('status', ['active', 'expired', 'locked', 'recalled'])
             ->where('quantity_remaining', '>', 0)
             ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
+            ->with('lockedBy:id,name')
             ->orderBy('expiry_date', 'asc')
             ->get()
             ->groupBy('ingredient_id');
@@ -145,6 +147,10 @@ class InventoryManagementController extends Controller
                         'status' => $b->status,
                         'is_expiring_soon' => $b->status === 'active' && $diffDays !== null && $diffDays >= 0 && $diffDays <= 3,
                         'is_expired' => $b->status === 'expired' || ($diffDays !== null && $diffDays < 0),
+                        'is_locked' => $b->status === 'locked',
+                        'is_recalled' => $b->status === 'recalled',
+                        'lock_reason' => $b->lock_reason,
+                        'locked_by_name' => $b->lockedBy?->name,
                     ];
                 })->values();
 
@@ -1069,9 +1075,21 @@ class InventoryManagementController extends Controller
             'ingredient_id' => ['required', TenantRule::exists('ingredients')],
             'quantity' => ['required', 'numeric', 'min:0.001'],
             'employee_id' => ['nullable', TenantRule::exists('employees')],
-            'waste_category' => ['nullable', 'string', 'in:spoilage,expired,damaged,cooking_loss,theft,other'],
-            'notes' => ['nullable', 'string', 'max:500'],
+            // Lý do hao hụt BẮT BUỘC (chống lạm dụng báo hỏng khống). 'other' phải kèm ghi chú.
+            'waste_category' => ['required', 'string', 'in:spoilage,expired,damaged,cooking_loss,theft,other'],
+            'notes' => ['nullable', 'string', 'max:500', 'required_if:waste_category,other'],
+            // Ảnh hàng hủy BẮT BUỘC làm bằng chứng (chống báo hỏng khống).
+            'photo' => ['required', 'image', 'max:4096'],
         ]);
+
+        // Ảnh bằng chứng lưu disk 'local' (private). Tái dùng slot invoice_file_url
+        // của inventory_transactions (bảng đã partition — không thêm cột).
+        if ($request->hasFile('photo')) {
+            $data['photo_url'] = $request->file('photo')->store('waste_evidence', 'local');
+        }
+        // Bỏ đối tượng file khỏi $data trước khi lưu vào operation_data (JSON) —
+        // UploadedFile không encode được và sẽ làm hỏng bản ghi phê duyệt.
+        unset($data['photo']);
 
         $user = $request->user();
         $branchId = $this->requireActiveBranch($request);
@@ -1340,5 +1358,105 @@ class InventoryManagementController extends Controller
         abort_unless($request->user()->canAccessBranch($branchId), 403);
 
         return $branchId;
+    }
+
+    // ── Khóa lô & thu hồi ─────────────────────────────────────────────────────
+
+    private function assertBatchManager(\App\Models\User $user): void
+    {
+        abort_unless(
+            $user->isSuperAdmin() || $user->hasAnyRole(['owner', 'manager', 'warehouse_manager']),
+            403,
+            'Bạn không có quyền khóa/thu hồi lô nguyên liệu.'
+        );
+    }
+
+    /** Khóa một lô: không cho tiêu thụ nữa (consumeBatches bỏ qua lô không 'active'/'expired'). */
+    public function lockBatch(Request $request, InventoryBatch $batch): RedirectResponse
+    {
+        $user = $request->user();
+        $this->assertBatchManager($user);
+        abort_if($batch->restaurant_id !== $user->restaurant_id, 403);
+
+        if (in_array($batch->status, ['locked', 'recalled', 'depleted'], true)) {
+            return back()->with('error', 'Lô này đã bị khóa/thu hồi hoặc đã hết.');
+        }
+
+        $data = $request->validate(['reason' => ['required', 'string', 'min:5', 'max:255']]);
+
+        $batch->update([
+            'status' => 'locked',
+            'lock_reason' => $data['reason'],
+            'locked_by' => $user->id,
+            'locked_at' => now(),
+        ]);
+
+        AuditLog::log('inventory_batch_locked', 'updated', $batch, null, [
+            'batch_number' => $batch->batch_number,
+            'reason' => $data['reason'],
+            'by' => $user->name,
+        ]);
+
+        return back()->with('success', "Đã khóa lô {$batch->batch_number} — không thể dùng cho chế biến.");
+    }
+
+    /** Mở khóa lô (chỉ Chủ) — đưa lô trở lại sử dụng. */
+    public function unlockBatch(Request $request, InventoryBatch $batch): RedirectResponse
+    {
+        $user = $request->user();
+        abort_unless($user->isSuperAdmin() || $user->isOwner(), 403, 'Chỉ Chủ được mở khóa lô.');
+        abort_if($batch->restaurant_id !== $user->restaurant_id, 403);
+
+        if ($batch->status !== 'locked') {
+            return back()->with('error', 'Chỉ mở khóa được lô đang ở trạng thái khóa.');
+        }
+
+        $batch->update([
+            'status' => 'active',
+            'lock_reason' => null,
+            'locked_by' => null,
+            'locked_at' => null,
+        ]);
+
+        AuditLog::log('inventory_batch_unlocked', 'updated', $batch, null, ['by' => $user->name]);
+
+        return back()->with('success', "Đã mở khóa lô {$batch->batch_number}.");
+    }
+
+    /** Gửi yêu cầu kho thu hồi lô — báo Chủ và Trưởng kho, đưa lô ra khỏi sử dụng. */
+    public function requestBatchRecall(Request $request, InventoryBatch $batch): RedirectResponse
+    {
+        $user = $request->user();
+        $this->assertBatchManager($user);
+        abort_if($batch->restaurant_id !== $user->restaurant_id, 403);
+
+        if ($batch->status === 'recalled') {
+            return back()->with('error', 'Lô này đã được yêu cầu thu hồi.');
+        }
+
+        $data = $request->validate(['note' => ['nullable', 'string', 'max:255']]);
+
+        $batch->update([
+            'status' => 'recalled',
+            'recall_requested_at' => now(),
+            'recall_requested_by' => $user->id,
+            'recall_note' => $data['note'] ?? null,
+        ]);
+
+        // Báo Chủ + Trưởng kho để lên phương án xử lý.
+        $recipients = \App\Models\User::where('restaurant_id', $user->restaurant_id)
+            ->where('id', '!=', $user->id)
+            ->role(['owner', 'warehouse_manager'])
+            ->get();
+        foreach ($recipients as $r) {
+            $r->notify(new \App\Notifications\BatchRecallRequestedNotification($batch, $user->name));
+        }
+
+        AuditLog::log('inventory_batch_recall_requested', 'updated', $batch, null, [
+            'batch_number' => $batch->batch_number,
+            'by' => $user->name,
+        ]);
+
+        return back()->with('success', "Đã gửi yêu cầu thu hồi lô {$batch->batch_number} tới Chủ và Trưởng kho.");
     }
 }

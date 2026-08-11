@@ -78,10 +78,14 @@ type Ingredient = {
         purchased_at: string | null;
         expiry_date: string | null;
         raw_expiry: string | null;
-        status?: 'active' | 'expired' | 'depleted';
+        status?: 'active' | 'expired' | 'depleted' | 'locked' | 'recalled';
         days_remaining: number | null;
         is_expiring_soon: boolean;
         is_expired: boolean;
+        is_locked?: boolean;
+        is_recalled?: boolean;
+        lock_reason?: string | null;
+        locked_by_name?: string | null;
     }>;
 };
 type RecipeItem = {
@@ -600,6 +604,7 @@ const wasteForm = useForm({
     waste_category: 'spoilage',
     employee_id: '',
     notes: '',
+    photo: null as File | null,
 });
 
 // ── Reconcile State ────────────────────────────────────────────────────────────
@@ -992,12 +997,52 @@ const submitPurchase = () => {
 
 const submitWaste = () => {
     wasteForm.post('/inventory/waste', {
+        forceFormData: true, // có upload ảnh bằng chứng
         onSuccess: () => {
             toast.success(flashSuccess() ?? 'Đã ghi nhận hao hụt!');
             wasteForm.reset();
         },
         onError: () => toast.error('Có lỗi khi ghi nhận hao hụt.'),
     });
+};
+
+// ── Khóa lô / thu hồi ──────────────────────────────────────────────────────────
+const isOwnerRole = computed(() => {
+    const roles = ((page.props.auth as any)?.user?.roles ?? []) as string[];
+
+    return roles.includes('owner') || roles.includes('super_admin');
+});
+
+const lockBatch = (batchId: number) => {
+    const reason = window.prompt('Lý do khóa lô này (không cho dùng chế biến):', '');
+    if (reason === null) return;
+    if (reason.trim().length < 5) {
+        toast.error('Lý do khóa phải từ 5 ký tự.');
+
+        return;
+    }
+    router.post(
+        `/inventory/batches/${batchId}/lock`,
+        { reason: reason.trim() },
+        { preserveScroll: true, onSuccess: () => toast.success('Đã khóa lô.') },
+    );
+};
+
+const unlockBatch = (batchId: number) => {
+    router.post(
+        `/inventory/batches/${batchId}/unlock`,
+        {},
+        { preserveScroll: true, onSuccess: () => toast.success('Đã mở khóa lô.') },
+    );
+};
+
+const recallBatch = (batchId: number) => {
+    const note = window.prompt('Ghi chú yêu cầu thu hồi (gửi Chủ & Trưởng kho):', '') ?? '';
+    router.post(
+        `/inventory/batches/${batchId}/recall`,
+        { note: note.trim() },
+        { preserveScroll: true, onSuccess: () => toast.success('Đã gửi yêu cầu thu hồi.') },
+    );
 };
 </script>
 
@@ -1481,12 +1526,48 @@ const submitWaste = () => {
                                                     }}
                                                 </span>
                                             </div>
-                                            <span
-                                                class="font-bold text-slate-700 dark:text-slate-300"
-                                            >
-                                                {{ b.quantity_remaining }}
-                                                {{ ing.unit?.symbol ?? '' }}
-                                            </span>
+                                            <div class="flex items-center gap-1.5">
+                                                <span
+                                                    v-if="b.is_locked"
+                                                    class="rounded bg-orange-100 px-1 text-[9px] font-bold text-orange-700 dark:bg-orange-950 dark:text-orange-300"
+                                                    :title="b.lock_reason ?? ''"
+                                                    >🔒 Đã khóa</span
+                                                >
+                                                <span
+                                                    v-else-if="b.is_recalled"
+                                                    class="rounded bg-purple-100 px-1 text-[9px] font-bold text-purple-700 dark:bg-purple-950 dark:text-purple-300"
+                                                    >♻️ Thu hồi</span
+                                                >
+                                                <span
+                                                    class="font-bold text-slate-700 dark:text-slate-300"
+                                                >
+                                                    {{ b.quantity_remaining }}
+                                                    {{ ing.unit?.symbol ?? '' }}
+                                                </span>
+                                                <!-- Hành động khóa/thu hồi -->
+                                                <template v-if="b.status !== 'recalled'">
+                                                    <button
+                                                        v-if="!b.is_locked"
+                                                        type="button"
+                                                        @click="lockBatch(b.id)"
+                                                        class="rounded px-1 text-[9px] font-bold text-orange-600 hover:bg-orange-50 dark:hover:bg-orange-950/40"
+                                                        title="Khóa lô này"
+                                                    >Khóa</button>
+                                                    <button
+                                                        v-if="b.is_locked && isOwnerRole"
+                                                        type="button"
+                                                        @click="unlockBatch(b.id)"
+                                                        class="rounded px-1 text-[9px] font-bold text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/40"
+                                                        title="Mở khóa (chỉ Chủ)"
+                                                    >Mở</button>
+                                                    <button
+                                                        type="button"
+                                                        @click="recallBatch(b.id)"
+                                                        class="rounded px-1 text-[9px] font-bold text-purple-600 hover:bg-purple-50 dark:hover:bg-purple-950/40"
+                                                        title="Yêu cầu kho thu hồi"
+                                                    >Thu hồi</button>
+                                                </template>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
@@ -2673,6 +2754,35 @@ const submitWaste = () => {
                                     v-model="wasteForm.notes"
                                     placeholder="Ví dụ: Hư hỏng trong quá trình chế biến..."
                                 />
+                            </div>
+
+                            <!-- Ảnh hàng hủy (BẮT BUỘC — bằng chứng chống gian lận) -->
+                            <div class="space-y-1.5">
+                                <Label class="text-xs"
+                                    >Ảnh hàng hủy
+                                    <span class="text-rose-500">*</span></Label
+                                >
+                                <input
+                                    type="file"
+                                    accept="image/*"
+                                    required
+                                    @input="
+                                        wasteForm.photo =
+                                            ($event.target as HTMLInputElement)
+                                                .files?.[0] ?? null
+                                    "
+                                    class="w-full text-xs file:mr-3 file:rounded-lg file:border-0 file:bg-rose-100 file:px-3 file:py-2 file:text-xs file:font-bold file:text-rose-700 dark:file:bg-rose-950/40 dark:file:text-rose-300"
+                                />
+                                <p
+                                    v-if="wasteForm.errors.photo"
+                                    class="text-[11px] font-semibold text-rose-500"
+                                >
+                                    {{ wasteForm.errors.photo }}
+                                </p>
+                                <p v-else class="text-[10px] text-muted-foreground">
+                                    Chụp ảnh hàng thực tế bị hủy để chủ/quản lý đối
+                                    chiếu khi duyệt.
+                                </p>
                             </div>
 
                             <Button
