@@ -358,6 +358,34 @@ class SupplierController extends Controller
 
         $user = $request->user();
 
+        // 0. Nếu SẼ có chênh lệch (SL/giá lệch so với đơn đặt) thì BẮT BUỘC ảnh bằng
+        // chứng + lý do chênh lệch trước khi cho ghi nhận (chống gian lận nhận hàng).
+        $preInput = collect($request->input('items'))->keyBy('ingredient_id');
+        $willBeDiscrepant = false;
+        foreach ($purchaseOrder->items as $poItem) {
+            $inp = $preInput->get($poItem->ingredient_id);
+            if (! $inp) {
+                continue;
+            }
+            if (abs((float) $poItem->quantity_ordered - (float) $inp['quantity_received']) > 0.001
+                || abs((float) $poItem->price_per_unit - (float) $inp['invoice_price']) > 0.01) {
+                $willBeDiscrepant = true;
+                break;
+            }
+        }
+        if ($willBeDiscrepant) {
+            $errors = [];
+            if (! $request->hasFile('invoice_file') && ! $purchaseOrder->invoice_file_url) {
+                $errors['invoice_file'] = 'Có chênh lệch so với đơn đặt — bắt buộc đính kèm ảnh/hoá đơn làm bằng chứng.';
+            }
+            if (blank($request->input('mismatch_reason'))) {
+                $errors['mismatch_reason'] = 'Có chênh lệch so với đơn đặt — bắt buộc ghi lý do chênh lệch.';
+            }
+            if ($errors) {
+                throw \Illuminate\Validation\ValidationException::withMessages($errors);
+            }
+        }
+
         // 1. Upload invoice
         $invoiceUrl = $purchaseOrder->invoice_file_url;
         if ($request->hasFile('invoice_file')) {
@@ -468,6 +496,13 @@ class SupplierController extends Controller
                     'occurred_at' => now()->toIso8601String(),
                 ];
                 event(new FraudAlertTriggered($purchaseOrder->restaurant_id, $alertData));
+
+                // Biên bản: báo Chủ + Trưởng kho (thông báo lưu lại, không chỉ realtime).
+                \App\Models\User::where('restaurant_id', $purchaseOrder->restaurant_id)
+                    ->where('id', '!=', $user->id)
+                    ->role(['owner', 'warehouse_manager'])
+                    ->get()
+                    ->each(fn ($r) => $r->notify(new \App\Notifications\PurchaseDiscrepancyNotification($purchaseOrder, $discrepancies)));
 
             } else {
                 // Success: update status and add to inventory
