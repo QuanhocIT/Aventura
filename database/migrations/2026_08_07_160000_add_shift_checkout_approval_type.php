@@ -14,7 +14,7 @@ return new class extends Migration
         }
 
         if (DB::getDriverName() === 'mysql') {
-            DB::statement("ALTER TABLE approval_requests MODIFY operation_type VARCHAR(50) NOT NULL");
+            DB::statement('ALTER TABLE approval_requests MODIFY operation_type VARCHAR(50) NOT NULL');
         } else {
             Schema::table('approval_requests', function (Blueprint $table): void {
                 $table->string('operation_type', 50)->change();

@@ -2,6 +2,9 @@
 
 namespace App\Services;
 
+use App\Exceptions\AuthorityDeniedException;
+use App\Models\ApprovalDecision;
+use App\Models\ApprovalPolicy;
 use App\Models\ApprovalRequest;
 use App\Models\Employee;
 use App\Models\Ingredient;
@@ -18,7 +21,11 @@ use App\Models\ScheduleAssignment;
 use App\Models\SupplyRequest;
 use App\Models\User;
 use App\Notifications\ApprovalDecisionNotification;
+use App\Notifications\ApprovalEscalatedNotification;
 use App\Notifications\ApprovalRequestedNotification;
+use App\Notifications\DelegatedApprovalNotification;
+use App\Support\ApprovalOperations;
+use App\Support\AuthorityDecision;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
@@ -33,6 +40,7 @@ class ApprovalService
         private OrderRefundService $orderRefundService,
         private OrderItemCancellationService $orderItemCancellationService,
         private CentralWarehouseService $warehouseService,
+        private ApprovalAuthorityService $authorityService,
     ) {}
 
     /**
@@ -41,114 +49,307 @@ class ApprovalService
     public function submitRequest(string $operationType, array $data, User $requester): ApprovalRequest
     {
         $branchId = $data['branch_id'] ?? $requester->assignedBranchId();
+        $restaurantId = (int) $requester->restaurant_id;
+
+        // Chính sách được ghim ngay lúc tạo để giao diện biết trước ai sẽ xử lý.
+        // Thẩm quyền vẫn được kiểm lại lúc duyệt, vì chính sách có thể đổi.
+        $policy = ApprovalPolicy::resolve($restaurantId, $operationType, $branchId ? (int) $branchId : null);
+        $managerMayHandle = $policy?->manager_can_approve
+            && ! ApprovalOperations::isForbiddenForManager($operationType);
 
         $request = ApprovalRequest::create([
-            'restaurant_id' => $requester->restaurant_id,
+            'restaurant_id' => $restaurantId,
             'branch_id' => $branchId,
             'requester_id' => $requester->id,
+            'subject_employee_id' => $this->resolveSubjectEmployeeId($operationType, $data, $restaurantId),
             'operation_type' => $operationType,
             'operation_data' => $data,
-            'status' => 'pending',
+            'amount_involved' => ApprovalOperations::amountFor($operationType, $data),
+            'policy_id' => $policy?->id,
+            'required_authority' => $managerMayHandle
+                ? ApprovalRequest::AUTHORITY_MANAGER
+                : ApprovalRequest::AUTHORITY_OWNER,
+            'status' => ApprovalRequest::STATUS_PENDING,
         ]);
 
-        // Luôn gửi Owner để giám sát toàn chuỗi.
-        $owner = User::where('restaurant_id', $requester->restaurant_id)
-            ->role('owner')
-            ->first();
+        $this->notifyReviewers($request, $requester);
 
-        $recipientIds = collect([$owner?->id]);
-
-        // Gửi thêm cho quản lý được gán trực tiếp vào chi nhánh và các tài
-        // khoản manager có branch_id tương ứng. Dùng cả hai nguồn vì dữ liệu
-        // cũ có thể chỉ lưu một trong hai cách.
-        if ($branchId) {
-            $branch = RestaurantBranch::withoutGlobalScopes()
-                ->where('restaurant_id', $requester->restaurant_id)
-                ->find($branchId);
-
-            $recipientIds = $recipientIds->merge([$branch?->manager_user_id]);
-            $recipientIds = $recipientIds->merge(
-                User::role('manager')
-                    ->where('restaurant_id', $requester->restaurant_id)
-                    ->where('branch_id', $branchId)
-                    ->pluck('id'),
-            );
-        }
-
-        User::whereIn('id', $recipientIds->filter()->unique()->reject(fn ($id) => (int) $id === (int) $requester->id))
-            ->get()
-            ->each(fn (User $recipient) => $recipient->notify(new ApprovalRequestedNotification($request, $requester)));
-
-        Cache::forget("pending_approvals:{$requester->restaurant_id}");
+        $this->flushApprovalCaches($restaurantId, (int) $requester->id);
 
         return $request;
     }
 
     /**
-     * Owner phê duyệt → thực thi thao tác → thông báo requester.
+     * Phê duyệt → thực thi thao tác → ghi sổ → thông báo requester và Chủ.
+     *
+     * @throws AuthorityDeniedException khi người duyệt không đủ thẩm quyền
      */
     public function approve(ApprovalRequest $approval, User $reviewer): void
     {
-        if ($approval->operation_type === 'order_refund' && ! $reviewer->hasRole('owner')) {
-            throw new \Exception('Chỉ chủ doanh nghiệp mới được duyệt yêu cầu hoàn tiền.');
+        // Kiểm tra sơ bộ ngoài giao dịch để bắt được trường hợp cần đẩy lên Chủ:
+        // ghi nhận escalation phải nằm ngoài transaction, nếu không nó sẽ bị
+        // cuốn theo rollback khi ta ném lỗi.
+        $preCheck = $this->authorityService->decide($reviewer, $approval);
+
+        if (! $preCheck->allowed) {
+            if ($preCheck->shouldEscalate) {
+                $this->escalate($approval, $reviewer, $preCheck);
+            }
+
+            throw new AuthorityDeniedException($preCheck->reason ?? 'Bạn không có thẩm quyền phê duyệt yêu cầu này.');
         }
 
         DB::transaction(function () use ($approval, $reviewer) {
             // Khóa bi quan bản ghi phê duyệt để tránh chạy trùng lặp
             $lockedApproval = ApprovalRequest::where('id', $approval->id)->lockForUpdate()->firstOrFail();
-            if ($lockedApproval->status !== 'pending') {
-                throw new \Exception('Yêu cầu này đã được xử lý trước đó.');
+            if (! $lockedApproval->isOpen()) {
+                throw new \RuntimeException('Yêu cầu này đã được xử lý trước đó.');
             }
+
+            // Kiểm tra lần hai bên trong khóa. Điều kiện nghiệp vụ có thể đã đổi
+            // giữa hai lần kiểm — ví dụ bếp vừa bấm bắt đầu chế biến.
+            $decision = $this->authorityService->authorize($reviewer, $lockedApproval);
 
             $this->executeOperation($lockedApproval, $reviewer->id);
 
             $lockedApproval->update([
-                'status' => 'approved',
+                'status' => ApprovalRequest::STATUS_APPROVED,
                 'reviewer_id' => $reviewer->id,
+                'decided_by_role' => $this->primaryRole($reviewer),
                 'reviewed_at' => now(),
             ]);
+
+            $this->recordDecision($lockedApproval, $reviewer, 'approved', $decision);
         });
 
-        Cache::forget("pending_approvals:{$approval->restaurant_id}");
+        $this->flushApprovalCaches((int) $approval->restaurant_id, (int) $approval->requester_id);
 
-        $approval->requester?->notify(new ApprovalDecisionNotification($approval, 'approved'));
+        $approval->refresh();
+        $approval->requester?->notify(new ApprovalDecisionNotification($approval, 'approved', $reviewer));
+
+        // "Các phê duyệt này sẽ được ghi lại rồi báo về cho chủ quản biết rõ."
+        if ($preCheck->basis === AuthorityDecision::BASIS_DELEGATED) {
+            $this->notifyOwnersOfDelegatedDecision($approval, $reviewer, 'approved');
+        }
     }
 
     /**
-     * Owner từ chối → thông báo requester.
+     * Từ chối → ghi sổ → thông báo requester.
+     *
+     * @throws AuthorityDeniedException khi người duyệt không đủ thẩm quyền
      */
     public function reject(ApprovalRequest $approval, User $reviewer, string $reason): void
     {
         DB::transaction(function () use ($approval, $reviewer, $reason) {
             // Khóa bi quan bản ghi phê duyệt
             $lockedApproval = ApprovalRequest::where('id', $approval->id)->lockForUpdate()->firstOrFail();
-            if ($lockedApproval->status !== 'pending') {
-                throw new \Exception('Yêu cầu này đã được xử lý trước đó.');
+            if (! $lockedApproval->isOpen()) {
+                throw new \RuntimeException('Yêu cầu này đã được xử lý trước đó.');
             }
 
+            // Từ chối cũng là một quyết định có hệ quả (nhân viên bị ghi vắng
+            // ca, đơn hoàn tiền bị bác), nên vẫn phải qua kiểm tra thẩm quyền.
+            $decision = $this->authorityService->authorize($reviewer, $lockedApproval);
+
             $lockedApproval->update([
-                'status' => 'rejected',
+                'status' => ApprovalRequest::STATUS_REJECTED,
                 'reviewer_id' => $reviewer->id,
+                'decided_by_role' => $this->primaryRole($reviewer),
                 'reviewed_at' => now(),
                 'rejection_reason' => $reason,
             ]);
 
-            if ($approval->operation_type === 'shift_checkin' && ! empty($approval->operation_data['assignment_id'])) {
-                $assignment = ScheduleAssignment::withoutGlobalScopes()->find($approval->operation_data['assignment_id']);
-                if ($assignment && in_array($assignment->status, ['scheduled', 'pending_checkin'])) {
-                    $assignment->update(['status' => 'absent']);
-                }
-            } elseif ($approval->operation_type === 'shift_checkout' && ! empty($approval->operation_data['assignment_id'])) {
-                $assignment = ScheduleAssignment::withoutGlobalScopes()->find($approval->operation_data['assignment_id']);
-                if ($assignment && $assignment->status === 'pending_checkout') {
-                    $assignment->update(['status' => 'checked_in']);
-                }
-            }
+            $this->revertSideEffectsOnReject($lockedApproval);
+
+            $this->recordDecision($lockedApproval, $reviewer, 'rejected', $decision, $reason);
         });
 
-        Cache::forget("pending_approvals:{$approval->restaurant_id}");
+        $this->flushApprovalCaches((int) $approval->restaurant_id, (int) $approval->requester_id);
 
-        $approval->requester?->notify(new ApprovalDecisionNotification($approval, 'rejected'));
+        $approval->refresh();
+        $approval->requester?->notify(new ApprovalDecisionNotification($approval, 'rejected', $reviewer));
+
+        if ($approval->decided_by_role !== 'owner') {
+            $this->notifyOwnersOfDelegatedDecision($approval, $reviewer, 'rejected');
+        }
+    }
+
+    /**
+     * Đẩy yêu cầu lên Chủ doanh nghiệp khi Quản lý đúng vai nhưng vượt thẩm quyền.
+     *
+     * Yêu cầu không bị hủy — nó đổi trạng thái để biến mất khỏi hàng chờ của
+     * Quản lý và chỉ còn Chủ xử lý được.
+     */
+    public function escalate(ApprovalRequest $approval, User $actor, AuthorityDecision $decision): void
+    {
+        DB::transaction(function () use ($approval, $actor, $decision) {
+            $locked = ApprovalRequest::where('id', $approval->id)->lockForUpdate()->firstOrFail();
+
+            if ($locked->status !== ApprovalRequest::STATUS_PENDING) {
+                return;
+            }
+
+            $locked->update([
+                'status' => ApprovalRequest::STATUS_ESCALATED,
+                'escalated_at' => now(),
+                'escalation_reason' => $decision->reason,
+            ]);
+
+            $this->recordDecision($locked, $actor, 'escalated', $decision, $decision->reason);
+        });
+
+        $this->flushApprovalCaches((int) $approval->restaurant_id, (int) $approval->requester_id);
+
+        $approval->refresh();
+        $this->notifyOwners(
+            (int) $approval->restaurant_id,
+            fn (User $owner) => $owner->notify(new ApprovalEscalatedNotification($approval, $actor)),
+        );
+    }
+
+    /**
+     * Hoàn tác các thay đổi trạng thái đã đặt trước khi chờ duyệt.
+     */
+    private function revertSideEffectsOnReject(ApprovalRequest $approval): void
+    {
+        $assignmentId = $approval->operation_data['assignment_id'] ?? null;
+
+        if (! $assignmentId) {
+            return;
+        }
+
+        $assignment = ScheduleAssignment::withoutGlobalScopes()->find($assignmentId);
+
+        if (! $assignment) {
+            return;
+        }
+
+        if ($approval->operation_type === 'shift_checkin'
+            && in_array($assignment->status, ['scheduled', 'pending_checkin'], true)) {
+            $assignment->update(['status' => 'absent']);
+        } elseif ($approval->operation_type === 'shift_checkout'
+            && $assignment->status === 'pending_checkout') {
+            $assignment->update(['status' => 'checked_in']);
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Sổ phê duyệt & thông báo
+    // ─────────────────────────────────────────────────────────────────────────
+
+    private function recordDecision(
+        ApprovalRequest $approval,
+        User $actor,
+        string $decisionType,
+        AuthorityDecision $authority,
+        ?string $reason = null,
+    ): void {
+        ApprovalDecision::create([
+            'restaurant_id' => $approval->restaurant_id,
+            'branch_id' => $approval->branch_id,
+            'approval_request_id' => $approval->id,
+            'decided_by' => $actor->id,
+            'decided_by_name' => $actor->name,
+            'decided_by_role' => $this->primaryRole($actor),
+            'decision' => $decisionType,
+            'operation_type' => $approval->operation_type,
+            'amount_involved' => $approval->amount_involved,
+            'authority_basis' => $authority->basis,
+            'policy_snapshot' => $authority->policy?->snapshot(),
+            'reason' => $reason,
+            'ip_address' => request()?->ip(),
+            'user_agent' => mb_substr((string) request()?->userAgent(), 0, 255),
+        ]);
+    }
+
+    private function primaryRole(User $user): string
+    {
+        return $user->roles()->pluck('name')->first() ?? 'staff';
+    }
+
+    /**
+     * Gửi yêu cầu tới Chủ (giám sát toàn chuỗi) và Quản lý chi nhánh liên quan.
+     */
+    private function notifyReviewers(ApprovalRequest $request, User $requester): void
+    {
+        // Trước đây chỉ lấy owner đầu tiên; nhà hàng có nhiều tài khoản chủ sẽ
+        // có người không nhận được thông báo nào.
+        $recipientIds = User::where('restaurant_id', $requester->restaurant_id)
+            ->role('owner')
+            ->pluck('id');
+
+        // Gửi thêm cho quản lý được gán trực tiếp vào chi nhánh và các tài
+        // khoản manager có branch_id tương ứng. Dùng cả hai nguồn vì dữ liệu
+        // cũ có thể chỉ lưu một trong hai cách.
+        if ($request->branch_id) {
+            $branch = RestaurantBranch::withoutGlobalScopes()
+                ->where('restaurant_id', $requester->restaurant_id)
+                ->find($request->branch_id);
+
+            $recipientIds = $recipientIds
+                ->merge([$branch?->manager_user_id])
+                ->merge(
+                    User::role('manager')
+                        ->where('restaurant_id', $requester->restaurant_id)
+                        ->where('branch_id', $request->branch_id)
+                        ->pluck('id'),
+                );
+        }
+
+        User::whereIn('id', $recipientIds->filter()->unique()->reject(fn ($id) => (int) $id === (int) $requester->id))
+            ->get()
+            ->each(fn (User $recipient) => $recipient->notify(new ApprovalRequestedNotification($request, $requester)));
+    }
+
+    private function notifyOwnersOfDelegatedDecision(ApprovalRequest $approval, User $reviewer, string $decision): void
+    {
+        $this->notifyOwners(
+            (int) $approval->restaurant_id,
+            fn (User $owner) => $owner->notify(new DelegatedApprovalNotification($approval, $reviewer, $decision)),
+            exceptUserId: (int) $reviewer->id,
+        );
+    }
+
+    private function notifyOwners(int $restaurantId, \Closure $notify, ?int $exceptUserId = null): void
+    {
+        User::where('restaurant_id', $restaurantId)
+            ->role('owner')
+            ->when($exceptUserId, fn ($q) => $q->whereKeyNot($exceptUserId))
+            ->get()
+            ->each($notify);
+    }
+
+    /**
+     * Badge của Quản lý dùng khóa riêng theo từng người nên không xóa hết được
+     * từ đây; TTL 60 giây đã đủ để nó tự khớp lại.
+     */
+    private function flushApprovalCaches(int $restaurantId, ?int $requesterId = null): void
+    {
+        Cache::forget("pending_approvals:{$restaurantId}");
+
+        if ($requesterId) {
+            Cache::forget("my_open_requests:{$requesterId}");
+        }
+    }
+
+    /**
+     * Nhân viên chịu tác động, dùng để chặn tự duyệt gián tiếp.
+     *
+     * Chỉ nhận id thực sự thuộc nhà hàng này — dữ liệu thao tác đến từ nhiều
+     * luồng khác nhau và khóa ngoại sẽ nổ nếu id rác lọt qua.
+     */
+    private function resolveSubjectEmployeeId(string $operationType, array $data, int $restaurantId): ?int
+    {
+        $employeeId = ApprovalOperations::subjectEmployeeIdFor($operationType, $data);
+
+        if (! $employeeId) {
+            return null;
+        }
+
+        return Employee::withoutGlobalScopes()
+            ->where('restaurant_id', $restaurantId)
+            ->whereKey($employeeId)
+            ->value('id');
     }
 
     /**
