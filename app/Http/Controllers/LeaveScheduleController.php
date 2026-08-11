@@ -2,8 +2,12 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\AuditLog;
+use App\Models\Employee;
 use App\Models\LeaveRequest;
+use App\Models\ScheduleAssignment;
 use App\Models\ShiftSwap;
+use App\Models\User;
 use App\Services\LeaveRequestService;
 use App\Services\QuotaService;
 use App\Services\ScheduleAssignmentService;
@@ -157,6 +161,80 @@ class LeaveScheduleController extends Controller
         }
 
         return response()->json($result);
+    }
+
+    /**
+     * Thay ca KHẨN CẤP: nhân viên nghỉ đột xuất/không đến ca → quản lý xếp người thay
+     * ngay. Ca gốc đánh dấu vắng; ca thay được tạo, liên kết ngược và ghi lý do. Quản
+     * lý KHÔNG được tự xếp mình vào ca thay (chống tự duyệt tăng ca cho bản thân).
+     */
+    public function emergencyReplace(Request $request): RedirectResponse
+    {
+        $user = $request->user();
+        abort_unless($user->isSuperAdmin() || $user->hasAnyRole(['owner', 'manager']), 403);
+
+        $data = $request->validate([
+            'assignment_id' => ['required', 'integer', TenantRule::exists('schedule_assignments')],
+            'replacement_employee_id' => ['required', 'integer', TenantRule::exists('employees')],
+            'reason' => ['required', 'string', 'min:5', 'max:255'],
+        ]);
+
+        $original = ScheduleAssignment::where('restaurant_id', $user->restaurant_id)
+            ->findOrFail($data['assignment_id']);
+        abort_unless($user->canAccessBranch($original->branch_id), 403);
+
+        $replacement = Employee::where('restaurant_id', $user->restaurant_id)
+            ->findOrFail($data['replacement_employee_id']);
+
+        if ($replacement->id === $original->employee_id) {
+            return back()->withErrors(['replacement_employee_id' => 'Người thay phải khác người nghỉ.']);
+        }
+
+        // Guardrail: Quản lý (không phải Chủ) KHÔNG được tự xếp mình vào ca thay.
+        $isOwner = $user->isSuperAdmin() || $user->isOwner();
+        if (! $isOwner && $replacement->user_id === $user->id) {
+            return back()->withErrors([
+                'replacement_employee_id' => 'Quản lý không được tự xếp mình vào ca thay (tăng ca cho bản thân) — cần Chủ duyệt.',
+            ]);
+        }
+
+        try {
+            $newAssignment = \Illuminate\Support\Facades\DB::transaction(function () use ($original, $replacement, $data, $user) {
+                $original->update([
+                    'status' => 'absent',
+                    'notes' => trim(($original->notes ? $original->notes.' | ' : '').'Nghỉ đột xuất: '.$data['reason']),
+                ]);
+
+                return ScheduleAssignment::create([
+                    'restaurant_id' => $original->restaurant_id,
+                    'branch_id' => $original->branch_id,
+                    'employee_id' => $replacement->id,
+                    'shift_id' => $original->shift_id,
+                    'scheduled_date' => $original->scheduled_date,
+                    'status' => 'confirmed',
+                    'approved_by' => $user->id,
+                    'replaced_assignment_id' => $original->id,
+                    'replacement_reason' => $data['reason'],
+                    'notes' => 'Thay ca khẩn cấp cho '.($original->employee?->full_name ?? 'nhân viên nghỉ'),
+                ]);
+            });
+        } catch (\Throwable $e) {
+            return back()->with('error', 'Không thể xếp người thay: '.$e->getMessage());
+        }
+
+        // Báo Chủ để minh bạch (tránh manager lạm dụng xếp ca).
+        User::where('restaurant_id', $user->restaurant_id)->role('owner')
+            ->where('id', '!=', $user->id)->get()
+            ->each(fn (User $o) => $o->notify(new \App\Notifications\EmergencyShiftReplacedNotification($newAssignment, $user->name)));
+
+        AuditLog::log('shift_emergency_replaced', 'updated', $newAssignment, null, [
+            'replaced_assignment_id' => $original->id,
+            'replacement_employee_id' => $replacement->id,
+            'reason' => $data['reason'],
+            'by' => $user->name,
+        ]);
+
+        return back()->with('success', 'Đã xếp người thay ca khẩn cấp và báo Chủ.');
     }
 
     /**
