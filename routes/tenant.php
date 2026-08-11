@@ -2,12 +2,14 @@
 
 use App\Http\Controllers\ApiKeyController;
 use App\Http\Controllers\ApprovalController;
+use App\Http\Controllers\ApprovalPolicyController;
 use App\Http\Controllers\AttendanceController;
 use App\Http\Controllers\AuditLogController;
 use App\Http\Controllers\BIDashboardController;
 use App\Http\Controllers\BranchSwitchController;
 use App\Http\Controllers\BusinessGoalController;
 use App\Http\Controllers\CashFlowController;
+use App\Http\Controllers\CashHandoverController;
 use App\Http\Controllers\CdpController;
 use App\Http\Controllers\ChatbotController;
 use App\Http\Controllers\CompanyPolicyController;
@@ -25,6 +27,8 @@ use App\Http\Controllers\ExpenseController;
 use App\Http\Controllers\FeedbackController;
 use App\Http\Controllers\FraudController;
 use App\Http\Controllers\GeoAnalyticsController;
+use App\Http\Controllers\IncidentController;
+use App\Http\Controllers\StockTransferRequestController;
 use App\Http\Controllers\IntegrationSettingsController;
 use App\Http\Controllers\InternalTransferController;
 use App\Http\Controllers\InventoryManagementController;
@@ -35,6 +39,7 @@ use App\Http\Controllers\LeaveScheduleController;
 use App\Http\Controllers\LoyaltyController;
 use App\Http\Controllers\MenuEngineeringController;
 use App\Http\Controllers\MenuInsightController;
+use App\Http\Controllers\MyRequestsController;
 use App\Http\Controllers\OnboardingController;
 use App\Http\Controllers\OnlineStoreSettingsController;
 use App\Http\Controllers\OperationalAuditController;
@@ -55,6 +60,7 @@ use App\Http\Controllers\RfpController;
 use App\Http\Controllers\SalaryController;
 use App\Http\Controllers\ScheduleController;
 use App\Http\Controllers\ShiftClosingController;
+use App\Http\Controllers\ShiftHandoverController;
 use App\Http\Controllers\ShiftSwapController;
 use App\Http\Controllers\StaffQROrderController;
 use App\Http\Controllers\SupplierController;
@@ -102,6 +108,10 @@ Route::middleware(['auth', 'verified', 'tenant.subscription', 'tenant.ratelimit'
     Route::post('inventory/purchases', [InventoryManagementController::class, 'storePurchase'])->name('inventory.purchases.store');
     Route::post('inventory/waste', [InventoryManagementController::class, 'storeWaste'])->name('inventory.waste.store');
     Route::post('inventory/reconcile', [InventoryManagementController::class, 'reconcile'])->name('inventory.reconcile');
+    // Khóa lô / mở khóa / yêu cầu kho thu hồi.
+    Route::post('inventory/batches/{batch}/lock', [InventoryManagementController::class, 'lockBatch'])->name('inventory.batches.lock');
+    Route::post('inventory/batches/{batch}/unlock', [InventoryManagementController::class, 'unlockBatch'])->name('inventory.batches.unlock');
+    Route::post('inventory/batches/{batch}/recall', [InventoryManagementController::class, 'requestBatchRecall'])->name('inventory.batches.recall');
     Route::post('inventory/auto-po/generate', [PurchaseOrderController::class, 'generateAutoPo'])->name('inventory.auto-po.generate');
 
     Route::get('employees', [EmployeeManagementController::class, 'employeesPage'])->name('employees.index');
@@ -118,6 +128,8 @@ Route::middleware(['auth', 'verified', 'tenant.subscription', 'tenant.ratelimit'
     Route::post('employees/schedules/copy-last-week', [LeaveScheduleController::class, 'copyLastWeekSchedules'])->name('employees.schedules.copy-last-week');
     Route::post('employees/leaves', [LeaveScheduleController::class, 'storeLeaveRequest'])->name('employees.leaves.store');
     Route::get('employees/leaves/{leave}/replacements', [LeaveScheduleController::class, 'getReplacementSuggestions'])->name('employees.leaves.replacements');
+    // Thay ca khẩn cấp (nghỉ đột xuất) — quản lý xếp người thay, không tự xếp mình.
+    Route::post('employees/schedules/emergency-replace', [LeaveScheduleController::class, 'emergencyReplace'])->name('employees.schedules.emergency-replace');
     Route::patch('employees/leaves/{leave}/approve', [LeaveScheduleController::class, 'approveLeaveRequest'])->name('employees.leaves.approve');
     Route::patch('employees/leaves/{leave}/reject', [LeaveScheduleController::class, 'rejectLeaveRequest'])->name('employees.leaves.reject');
 
@@ -213,6 +225,16 @@ Route::middleware(['auth', 'verified', 'tenant.subscription', 'tenant.ratelimit'
         Route::post('/templates', [OperationsChecklistController::class, 'storeTemplate'])->name('templates.store');
         Route::delete('/templates/{template}', [OperationsChecklistController::class, 'destroyTemplate'])->name('templates.destroy');
         Route::get('/api/weekly-report', [OperationsChecklistController::class, 'weeklyReport'])->name('weekly-report');
+    });
+
+    // Bàn giao ca: tiền, hàng, thiết bị, sự cố, việc tồn trong một phiên.
+    Route::prefix('shift-handovers')->name('shift-handovers.')->group(function () {
+        Route::get('/', [ShiftHandoverController::class, 'index'])->name('index');
+        Route::post('/', [ShiftHandoverController::class, 'store'])->name('store');
+        Route::post('/{handover}/check', [ShiftHandoverController::class, 'checkItem'])->name('check');
+        Route::patch('/{handover}/submit', [ShiftHandoverController::class, 'submit'])->name('submit');
+        Route::patch('/{handover}/accept', [ShiftHandoverController::class, 'accept'])->name('accept');
+        Route::patch('/{handover}/dispute', [ShiftHandoverController::class, 'dispute'])->name('dispute');
     });
 
     // Quản Lý Hao Hụt & Lãng Phí (Waste Management)
@@ -343,6 +365,10 @@ Route::middleware(['auth', 'verified', 'tenant.subscription', 'tenant.ratelimit'
     Route::post('kitchen/products/{product}/pause', [KitchenController::class, 'pause'])->name('kitchen.products.pause');
     Route::post('kitchen/products/{product}/out-of-stock', [KitchenController::class, 'markOutOfStock'])->name('kitchen.products.out-of-stock');
     Route::post('kitchen/products/{product}/resume', [KitchenController::class, 'resume'])->name('kitchen.products.resume');
+    // Tạm ngưng món theo RIÊNG chi nhánh + duyệt mở lại.
+    Route::post('kitchen/products/{product}/pause-branch', [KitchenController::class, 'pauseBranch'])->name('kitchen.products.pause-branch');
+    Route::post('kitchen/products/{product}/request-reopen', [KitchenController::class, 'requestReopenBranch'])->name('kitchen.products.request-reopen');
+    Route::post('kitchen/products/{product}/approve-reopen', [KitchenController::class, 'approveReopenBranch'])->name('kitchen.products.approve-reopen');
 
     // Orders management
     Route::get('orders/create', [OrdersController::class, 'create'])->name('orders.create');
@@ -397,6 +423,8 @@ Route::middleware(['auth', 'verified', 'tenant.subscription', 'tenant.ratelimit'
 
         Route::post('/categories', [ExpenseController::class, 'storeCategory'])->name('categories.store');
         Route::delete('/categories/{category}', [ExpenseController::class, 'destroyCategory'])->name('categories.destroy');
+        // Chủ đặt hạn mức chi tiêu tháng theo chi nhánh.
+        Route::post('/branch-budget', [ExpenseController::class, 'storeBranchBudget'])->name('branch-budget.store');
     });
 
     // Quản lý Công nợ (Accounts Receivable / Payable)
@@ -426,9 +454,25 @@ Route::middleware(['auth', 'verified', 'tenant.subscription', 'tenant.ratelimit'
     Route::patch('salaries/{salary}/paid', [SalaryController::class, 'markPaid'])->name('salaries.paid');
     Route::post('salaries/{salary}/adjustments', [SalaryController::class, 'storeAdjustment'])->name('salaries.adjustments.store');
 
+    // Quỹ lương & bậc lương theo chi nhánh (chỉ Chủ doanh nghiệp)
+    Route::prefix('payroll-budget')->name('payroll-budget.')->group(function () {
+        Route::get('/', [\App\Http\Controllers\PayrollBudgetController::class, 'index'])->name('index');
+        Route::post('/budget', [\App\Http\Controllers\PayrollBudgetController::class, 'storeBudget'])->name('budget.store');
+        Route::post('/wage-tiers', [\App\Http\Controllers\PayrollBudgetController::class, 'storeWageTier'])->name('wage-tiers.store');
+        Route::delete('/wage-tiers/{wageTier}', [\App\Http\Controllers\PayrollBudgetController::class, 'destroyWageTier'])->name('wage-tiers.destroy');
+    });
+
     // Shift Closings — Chốt ca & Doanh thu gộp
     Route::get('shift-closings', [ShiftClosingController::class, 'index'])->name('shift-closings.index');
+    // Chủ cấu hình kiểm soát tiền mặt cuối ca (đếm mù, ngưỡng giải trình/ảnh, bàn giao).
+    Route::post('shift-closings/cash-control', [ShiftClosingController::class, 'updateCashControl'])->name('shift-closings.cash-control');
     Route::get('shift-closings/preview', [ShiftClosingController::class, 'preview'])->name('shift-closings.preview');
+    // Đếm tiền mù: nộp phiếu đếm rồi hệ thống mới lộ số kỳ vọng.
+    Route::post('shift-closings/count', [ShiftClosingController::class, 'countCash'])->name('shift-closings.count');
+    // Bàn giao tiền có chữ ký hai bên.
+    Route::post('cash-handovers', [CashHandoverController::class, 'store'])->name('cash-handovers.store');
+    Route::patch('cash-handovers/{handover}/acknowledge', [CashHandoverController::class, 'acknowledge'])->name('cash-handovers.acknowledge');
+    Route::patch('cash-handovers/{handover}/dispute', [CashHandoverController::class, 'dispute'])->name('cash-handovers.dispute');
     Route::post('shift-closings', [ShiftClosingController::class, 'store'])->name('shift-closings.store');
     Route::patch('shift-closings/{closing}/confirm', [ShiftClosingController::class, 'confirm'])->name('shift-closings.confirm');
     Route::patch('shift-closings/{closing}/dispute', [ShiftClosingController::class, 'dispute'])->name('shift-closings.dispute');
@@ -447,11 +491,22 @@ Route::middleware(['auth', 'verified', 'tenant.subscription', 'tenant.ratelimit'
     Route::post('fraud/violation', [FraudController::class, 'createViolation'])->name('fraud.violation.store');
     Route::post('fraud/verify-pin', [FraudController::class, 'verifyManagerPin'])->name('fraud.pin.verify');
 
+    // Yêu cầu của tôi — mọi vai trò đều xem được trạng thái yêu cầu mình đã gửi.
+    Route::get('my-requests', [MyRequestsController::class, 'index'])->name('my-requests.index');
+
     // Kiểm duyệt chéo (Cross-review)
     Route::middleware('role_or_permission:owner|manager|super_admin|approve_requests')->group(function () {
         Route::get('approvals', [ApprovalController::class, 'index'])->name('approvals.index');
         Route::patch('approvals/{approval}/approve', [ApprovalController::class, 'approve'])->name('approvals.approve');
         Route::patch('approvals/{approval}/reject', [ApprovalController::class, 'reject'])->name('approvals.reject');
+    });
+
+    // Sổ phê duyệt & ma trận thẩm quyền — chỉ Chủ doanh nghiệp.
+    Route::middleware('role:owner|super_admin')->group(function () {
+        Route::get('approvals/ledger', [ApprovalController::class, 'ledger'])->name('approvals.ledger');
+        Route::patch('approvals/decisions/{decision}/acknowledge', [ApprovalController::class, 'acknowledge'])->name('approvals.decisions.acknowledge');
+        Route::get('approvals/policies', [ApprovalPolicyController::class, 'index'])->name('approvals.policies.index');
+        Route::put('approvals/policies', [ApprovalPolicyController::class, 'update'])->name('approvals.policies.update');
     });
 
     // Quản lý phản hồi khách hàng (Owner & Manager)
@@ -462,6 +517,16 @@ Route::middleware(['auth', 'verified', 'tenant.subscription', 'tenant.ratelimit'
     Route::get('violations', [ViolationReportController::class, 'index'])->name('violations.index');
     Route::post('violations', [ViolationReportController::class, 'store'])->name('violations.store');
     Route::post('violations/{report}/resolve', [ViolationReportController::class, 'resolve'])->name('violations.resolve');
+    // Kháng cáo: nhân viên gửi đơn; Chủ xét duyệt.
+    Route::post('violations/{report}/appeal', [ViolationReportController::class, 'appeal'])->name('violations.appeal');
+    Route::post('violations/{report}/appeal/review', [ViolationReportController::class, 'reviewAppeal'])->name('violations.appeal.review');
+
+    // Sự cố khẩn cấp: mọi nhân viên được báo; Quản lý/Chủ tiếp nhận & đóng.
+    Route::get('incidents', [IncidentController::class, 'index'])->name('incidents.index');
+    Route::post('incidents', [IncidentController::class, 'store'])->name('incidents.store');
+    Route::post('incidents/{incident}/acknowledge', [IncidentController::class, 'acknowledge'])->name('incidents.acknowledge');
+    Route::post('incidents/{incident}/escalate', [IncidentController::class, 'escalate'])->name('incidents.escalate');
+    Route::post('incidents/{incident}/resolve', [IncidentController::class, 'resolve'])->name('incidents.resolve');
 
     // Quản lý Nhà cung cấp & Đơn PO (Dành cho nhà hàng)
     Route::get('suppliers', [SupplierController::class, 'index'])->name('suppliers.index');
@@ -485,6 +550,14 @@ Route::middleware(['auth', 'verified', 'tenant.subscription', 'tenant.ratelimit'
     Route::get('api/inventory/transfer-recommendations', [InternalTransferController::class, 'transferRecommendations'])->name('inventory.transfer-recommendations');
     Route::post('api/inventory/internal-transfers', [InternalTransferController::class, 'storeInternalTransfer'])->name('inventory.internal-transfers');
     Route::get('api/inventory/internal-transfers', [InternalTransferController::class, 'listInternalTransfers'])->name('inventory.internal-transfers.list');
+
+    // Điều chuyển liên chi nhánh có định tuyến của Chủ + bàn giao hai bước.
+    Route::get('inventory/transfers', [StockTransferRequestController::class, 'index'])->name('inventory.transfers');
+    Route::post('inventory/transfers', [StockTransferRequestController::class, 'store'])->name('inventory.transfers.store');
+    Route::post('inventory/transfers/{transfer}/route', [StockTransferRequestController::class, 'route'])->name('inventory.transfers.route');
+    Route::post('inventory/transfers/{transfer}/dispatch', [StockTransferRequestController::class, 'dispatch'])->name('inventory.transfers.dispatch');
+    Route::post('inventory/transfers/{transfer}/receive', [StockTransferRequestController::class, 'receive'])->name('inventory.transfers.receive');
+    Route::post('inventory/transfers/{transfer}/reject', [StockTransferRequestController::class, 'reject'])->name('inventory.transfers.reject');
 
     // Quản lý Tổng Kho & Yêu cầu cấp phát hàng hóa
     Route::middleware('role_or_permission:owner|super_admin|warehouse.view')->group(function () {

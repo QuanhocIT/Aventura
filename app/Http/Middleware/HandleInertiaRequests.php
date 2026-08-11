@@ -5,6 +5,7 @@ namespace App\Http\Middleware;
 use App\Models\ApprovalRequest;
 use App\Models\SubscriptionPlan;
 use App\Models\SystemMaintenanceSchedule;
+use App\Services\ApprovalAuthorityService;
 use App\Services\QuotaService;
 use App\Support\Tenant\TenantContext;
 use Illuminate\Http\Request;
@@ -159,13 +160,8 @@ class HandleInertiaRequests extends Middleware
             'roles' => $roles,
             'tenant' => $tenant,
             'available_plans' => $availablePlans,
-            'pendingApprovalCount' => $user?->hasRole('owner') && $user->restaurant_id
-                ? Cache::remember(
-                    "pending_approvals:{$user->restaurant_id}",
-                    60, // 1 phút
-                    fn () => ApprovalRequest::where('restaurant_id', $user->restaurant_id)->where('status', 'pending')->count()
-                )
-                : 0,
+            'pendingApprovalCount' => $this->pendingApprovalCount($user),
+            'myOpenRequestCount' => $this->myOpenRequestCount($user),
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
             'is_impersonating' => $request->session()->has('impersonate_original_user_id'),
             'impersonate_read_only' => $request->session()->has('impersonate_original_user_id') && (! $request->session()->get('impersonate_write_until') || now()->timestamp >= $request->session()->get('impersonate_write_until')),
@@ -184,5 +180,60 @@ class HandleInertiaRequests extends Middleware
                 ->first()?->only(['title', 'downtime_start', 'downtime_end', 'banner_message', 'status', 'services'])
             ),
         ];
+    }
+
+    /**
+     * Số yêu cầu đang chờ người này xử lý.
+     *
+     * Trước đây chỉ đếm cho Chủ, nên Quản lý chi nhánh không hề thấy badge dù
+     * đã có quyền duyệt. Quản lý chỉ đếm phần thuộc chi nhánh mình.
+     */
+    private function pendingApprovalCount(?object $user): int
+    {
+        if (! $user || ! $user->restaurant_id) {
+            return 0;
+        }
+
+        $isOwner = $user->isOwner() || $user->isSuperAdmin();
+
+        if (! $isOwner && ! $user->isBranchManager()) {
+            return 0;
+        }
+
+        $cacheKey = $isOwner
+            ? "pending_approvals:{$user->restaurant_id}"
+            : "pending_approvals:{$user->restaurant_id}:u{$user->id}";
+
+        return Cache::remember($cacheKey, 60, function () use ($user, $isOwner): int {
+            $query = ApprovalRequest::where('restaurant_id', $user->restaurant_id)
+                ->whereIn('status', [ApprovalRequest::STATUS_PENDING, ApprovalRequest::STATUS_ESCALATED]);
+
+            if (! $isOwner) {
+                // Yêu cầu đã đẩy lên Chủ thì không còn nằm trong việc của Quản lý.
+                $query->where('status', ApprovalRequest::STATUS_PENDING)
+                    ->whereIn('branch_id', app(ApprovalAuthorityService::class)->managedBranchIds($user));
+            }
+
+            return $query->count();
+        });
+    }
+
+    /**
+     * Số yêu cầu của chính người này còn đang chờ kết quả — áp dụng cho mọi vai trò.
+     */
+    private function myOpenRequestCount(?object $user): int
+    {
+        if (! $user || ! $user->restaurant_id) {
+            return 0;
+        }
+
+        return Cache::remember(
+            "my_open_requests:{$user->id}",
+            60,
+            fn () => ApprovalRequest::where('restaurant_id', $user->restaurant_id)
+                ->where('requester_id', $user->id)
+                ->whereIn('status', [ApprovalRequest::STATUS_PENDING, ApprovalRequest::STATUS_ESCALATED])
+                ->count()
+        );
     }
 }

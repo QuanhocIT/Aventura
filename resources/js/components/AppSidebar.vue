@@ -30,6 +30,12 @@ import {
     ScrollText,
     ShieldCheck,
     ShieldAlert,
+    Siren,
+    ArrowLeftRight,
+    BookLock,
+    SlidersHorizontal,
+    Inbox,
+    Handshake,
     Gift,
     Activity,
     Settings,
@@ -66,6 +72,9 @@ const page = usePage();
 const tenant = computed(() => page.props.tenant as any);
 const pendingApprovalCount = computed(
     () => (page.props.pendingApprovalCount as number) ?? 0,
+);
+const myOpenRequestCount = computed(
+    () => (page.props.myOpenRequestCount as number) ?? 0,
 );
 
 const isSubscriptionActive = computed(() => {
@@ -351,6 +360,12 @@ const ownerNav = computed<NavItem[]>(() => {
             feature: 'inventory_basic',
         },
         {
+            title: 'Điều chuyển kho',
+            href: '/inventory/transfers',
+            icon: ArrowLeftRight,
+            feature: 'inventory_basic',
+        },
+        {
             title: 'Hao hụt & Lãng phí',
             href: '/waste-management',
             icon: Trash2,
@@ -397,6 +412,16 @@ const ownerNav = computed<NavItem[]>(() => {
             href: '/approvals',
             icon: ShieldCheck,
             badge: pendingApprovalCount.value,
+        },
+        {
+            title: 'Quản lý đã duyệt gì',
+            href: '/approvals/ledger',
+            icon: BookLock,
+        },
+        {
+            title: 'Thẩm quyền phê duyệt',
+            href: '/approvals/policies',
+            icon: SlidersHorizontal,
         },
         {
             title: 'Bộ Quy định & Tiêu chuẩn',
@@ -524,6 +549,12 @@ const ownerNav = computed<NavItem[]>(() => {
             feature: 'inventory_basic',
         },
         {
+            title: 'Bàn giao ca',
+            href: '/shift-handovers',
+            icon: Handshake,
+            feature: 'inventory_basic',
+        },
+        {
             title: 'Quản lý dòng tiền',
             href: '/cash-flow',
             icon: Wallet,
@@ -560,6 +591,7 @@ const ownerNav = computed<NavItem[]>(() => {
             permission: 'view_violations',
             feature: 'fraud_detection',
         },
+        { title: 'Sự cố khẩn cấp', href: '/incidents', icon: Siren },
         { title: 'Sơ đồ bàn', href: '/tables', icon: Building2 },
         {
             title: 'Nhật ký hệ thống',
@@ -604,6 +636,12 @@ const managerNav = computed<NavItem[]>(() => {
             title: 'Kho nguyên liệu',
             href: '/inventory',
             icon: Package,
+            feature: 'inventory_basic',
+        },
+        {
+            title: 'Điều chuyển kho',
+            href: '/inventory/transfers',
+            icon: ArrowLeftRight,
             feature: 'inventory_basic',
         },
         {
@@ -693,6 +731,12 @@ const managerNav = computed<NavItem[]>(() => {
             feature: 'inventory_basic',
         },
         {
+            title: 'Bàn giao ca',
+            href: '/shift-handovers',
+            icon: Handshake,
+            feature: 'inventory_basic',
+        },
+        {
             title: 'Quản lý dòng tiền',
             href: '/cash-flow',
             icon: Wallet,
@@ -729,6 +773,19 @@ const managerNav = computed<NavItem[]>(() => {
             permission: 'view_violations',
             feature: 'fraud_detection',
         },
+        { title: 'Sự cố khẩn cấp', href: '/incidents', icon: Siren },
+        {
+            title: 'Phê duyệt',
+            href: '/approvals',
+            icon: ShieldCheck,
+            badge: pendingApprovalCount.value,
+        },
+        {
+            title: 'Yêu cầu của tôi',
+            href: '/my-requests',
+            icon: Inbox,
+            badge: myOpenRequestCount.value,
+        },
         { title: 'Tin tức', href: '/tin-tuc', icon: Newspaper },
         { title: 'Liên hệ & Hỗ trợ', href: '/support', icon: Headset },
     ];
@@ -759,12 +816,25 @@ const cashierNav = computed<NavItem[]>(() => {
             feature: 'inventory_basic',
         },
         {
+            title: 'Bàn giao ca',
+            href: '/shift-handovers',
+            icon: Handshake,
+            feature: 'inventory_basic',
+        },
+        {
             title: 'Lịch làm việc',
             href: '/schedules',
             icon: CalendarDays,
             feature: 'hr_timekeeping',
         },
         { title: 'Tố cáo ẩn danh', href: '/violations', icon: ShieldAlert },
+        { title: 'Sự cố khẩn cấp', href: '/incidents', icon: Siren },
+        {
+            title: 'Yêu cầu của tôi',
+            href: '/my-requests',
+            icon: Inbox,
+            badge: myOpenRequestCount.value,
+        },
     ];
 
     return nav.filter(
@@ -784,12 +854,25 @@ const waiterNav = computed<NavItem[]>(() => {
             feature: 'inventory_basic',
         },
         {
+            title: 'Bàn giao ca',
+            href: '/shift-handovers',
+            icon: Handshake,
+            feature: 'inventory_basic',
+        },
+        {
             title: 'Lịch làm việc',
             href: '/schedules',
             icon: CalendarDays,
             feature: 'hr_timekeeping',
         },
         { title: 'Tố cáo ẩn danh', href: '/violations', icon: ShieldAlert },
+        { title: 'Sự cố khẩn cấp', href: '/incidents', icon: Siren },
+        {
+            title: 'Yêu cầu của tôi',
+            href: '/my-requests',
+            icon: Inbox,
+            badge: myOpenRequestCount.value,
+        },
     ];
 
     return nav.filter(
@@ -818,8 +901,21 @@ const kitchenNav = computed<NavItem[]>(() => {
             icon: ClipboardCheck,
             feature: 'inventory_basic',
         },
+        {
+            title: 'Bàn giao ca',
+            href: '/shift-handovers',
+            icon: Handshake,
+            feature: 'inventory_basic',
+        },
         { title: 'Lịch sử đơn', href: '/orders', icon: ScrollText },
         { title: 'Tố cáo ẩn danh', href: '/violations', icon: ShieldAlert },
+        { title: 'Sự cố khẩn cấp', href: '/incidents', icon: Siren },
+        {
+            title: 'Yêu cầu của tôi',
+            href: '/my-requests',
+            icon: Inbox,
+            badge: myOpenRequestCount.value,
+        },
     ];
 
     return nav.filter(
@@ -853,6 +949,12 @@ const inventoryNav = computed<NavItem[]>(() => {
             href: '/schedules',
             icon: CalendarDays,
             feature: 'hr_timekeeping',
+        },
+        {
+            title: 'Yêu cầu của tôi',
+            href: '/my-requests',
+            icon: Inbox,
+            badge: myOpenRequestCount.value,
         },
     ];
 
