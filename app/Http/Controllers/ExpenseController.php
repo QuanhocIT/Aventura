@@ -153,6 +153,40 @@ class ExpenseController extends Controller
             'category_breakdown' => $categoryBreakdown,
         ];
 
+        // ── Hạn mức chi tiêu chi nhánh ───────────────────────────────────────────
+        $budgetService = app(\App\Services\ExpenseBudgetService::class);
+        $budgetMonth = \Illuminate\Support\Carbon::create((int) $year, (int) $month, 1);
+        $isOwner = $user->hasRole('owner') || $user->isSuperAdmin();
+
+        $expenseBudget = null;
+        if ($branchId) {
+            $b = $budgetService->budgetFor($restaurantId, $branchId, $budgetMonth);
+            $expenseBudget = [
+                'has_budget' => (bool) $b,
+                'budget_amount' => $b ? (float) $b->budget_amount : null,
+                'require_receipt' => $b ? (bool) $b->require_receipt : false,
+                'committed' => $budgetService->committedThisMonth($restaurantId, $branchId, $budgetMonth),
+                'remaining' => $budgetService->remaining($restaurantId, $branchId, $budgetMonth),
+                'month' => $budgetMonth->format('m/Y'),
+            ];
+        }
+
+        // Chủ: danh sách hạn mức mọi chi nhánh trong tháng để quản lý.
+        $branchBudgets = [];
+        if ($isOwner && $restaurant) {
+            foreach ($restaurant->branches()->get(['id', 'name']) as $br) {
+                $b = $budgetService->budgetFor($restaurantId, $br->id, $budgetMonth);
+                $branchBudgets[] = [
+                    'branch_id' => $br->id,
+                    'branch_name' => $br->name,
+                    'budget_amount' => $b ? (float) $b->budget_amount : null,
+                    'require_receipt' => $b ? (bool) $b->require_receipt : true,
+                    'committed' => $budgetService->committedThisMonth($restaurantId, $br->id, $budgetMonth),
+                    'remaining' => $budgetService->remaining($restaurantId, $br->id, $budgetMonth),
+                ];
+            }
+        }
+
         return Inertia::render('expenses/Index', [
             'expenses' => $expenses,
             'recurringExpenses' => $recurringExpenses,
@@ -171,7 +205,45 @@ class ExpenseController extends Controller
                 'scope' => $this->tenantContext->scope(),
                 'active_branch_id' => $branchId,
             ],
+            'expenseBudget' => $expenseBudget,
+            'branchBudgets' => $branchBudgets,
+            'canManageBudget' => $isOwner,
         ]);
+    }
+
+    /**
+     * Chủ đặt/cập nhật hạn mức chi tiêu tháng cho một chi nhánh.
+     */
+    public function storeBranchBudget(Request $request)
+    {
+        $user = $request->user();
+        abort_unless($user->hasRole('owner') || $user->isSuperAdmin(), 403, 'Chỉ Chủ được đặt hạn mức chi tiêu.');
+
+        $data = $request->validate([
+            'branch_id' => ['required', TenantRule::exists('restaurant_branches')],
+            'budget_amount' => ['required', 'numeric', 'min:0'],
+            'require_receipt' => ['sometimes', 'boolean'],
+            'effective_month' => ['nullable', 'date'],
+            'notes' => ['nullable', 'string', 'max:255'],
+        ]);
+
+        $month = \Illuminate\Support\Carbon::parse($data['effective_month'] ?? now())->startOfMonth();
+
+        \App\Models\BranchExpenseBudget::updateOrCreate(
+            [
+                'restaurant_id' => $user->restaurant_id,
+                'branch_id' => $data['branch_id'],
+                'effective_month' => $month->toDateString(),
+            ],
+            [
+                'budget_amount' => $data['budget_amount'],
+                'require_receipt' => (bool) ($data['require_receipt'] ?? true),
+                'notes' => $data['notes'] ?? null,
+                'created_by' => $user->id,
+            ]
+        );
+
+        return back()->with('success', 'Đã lưu hạn mức chi tiêu chi nhánh tháng '.$month->format('m/Y').'.');
     }
 
     /**
@@ -189,6 +261,33 @@ class ExpenseController extends Controller
             'invoice' => ['nullable', 'file', 'mimes:jpeg,png,jpg,pdf', 'max:5120'], // Max 5MB
         ]);
 
+        $user = $request->user();
+        $restaurantId = $user->restaurant_id;
+        $branchId = $this->tenantContext->activeBranchId();
+        $isOwner = $user->hasRole('owner') || $user->isSuperAdmin();
+
+        // ── Hạn mức chi tiêu chi nhánh (do Chủ đặt) ──────────────────────────────
+        // Quản lý: (1) BẮT BUỘC hoá đơn nếu hạn mức yêu cầu; (2) không được vượt hạn mức.
+        // Chủ: được phép vượt (tự chịu trách nhiệm) nhưng vẫn hiển thị cảnh báo ở UI.
+        $budgetService = app(\App\Services\ExpenseBudgetService::class);
+        $month = \Illuminate\Support\Carbon::parse($data['expense_date']);
+        $budget = $budgetService->budgetFor($restaurantId, $branchId, $month);
+
+        if (! $isOwner && $budget) {
+            if ($budget->require_receipt && ! $request->hasFile('invoice')) {
+                throw \Illuminate\Validation\ValidationException::withMessages([
+                    'invoice' => 'Chi nhánh này yêu cầu ĐÍNH KÈM HOÁ ĐƠN cho mọi khoản chi.',
+                ]);
+            }
+            if (! $budgetService->canFit($restaurantId, $branchId, (float) $data['amount'], $month)) {
+                $remaining = max(0.0, (float) $budgetService->remaining($restaurantId, $branchId, $month));
+                throw \Illuminate\Validation\ValidationException::withMessages([
+                    'amount' => 'Vượt hạn mức chi tiêu chi nhánh tháng '.$month->format('m/Y').'. Còn lại '
+                        .number_format($remaining).'đ, khoản này '.number_format((float) $data['amount']).'đ. Đề nghị Chủ tăng hạn mức.',
+                ]);
+            }
+        }
+
         $invoicePath = null;
         if ($request->hasFile('invoice')) {
             $path = $request->file('invoice')->store('invoices', 'public');
@@ -198,7 +297,7 @@ class ExpenseController extends Controller
         OperatingExpense::create([
             'restaurant_id' => $request->user()->restaurant_id,
             'branch_id' => $this->tenantContext->activeBranchId(),
-            'category_id' => $data['category_id'],
+            'category_id' => $data['category_id'] ?? null,
             'amount' => $data['amount'],
             'expense_date' => $data['expense_date'],
             'description' => $data['description'] ?? null,
