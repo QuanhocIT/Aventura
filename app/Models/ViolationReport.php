@@ -36,8 +36,14 @@ class ViolationReport extends Model
             'occurred_at' => 'datetime',
             'penalty_amount' => 'decimal:2',
             'is_anonymous' => 'boolean',
+            'appealed_at' => 'datetime',
+            'appeal_reviewed_at' => 'datetime',
+            'acknowledged_at' => 'datetime',
         ];
     }
+
+    /** Cửa sổ cho phép kháng cáo sau khi biên bản được xử lý (ngày). */
+    public const APPEAL_WINDOW_DAYS = 7;
 
     public function employee(): BelongsTo
     {
@@ -47,6 +53,23 @@ class ViolationReport extends Model
     public function reportedBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'reported_by');
+    }
+
+    public function appealReviewedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'appeal_reviewed_by');
+    }
+
+    /**
+     * Biên bản có được kháng cáo không: đã xử lý (resolved) và có phạt tiền,
+     * chưa từng kháng cáo, còn trong cửa sổ APPEAL_WINDOW_DAYS.
+     */
+    public function isAppealable(): bool
+    {
+        return $this->status === 'resolved'
+            && (float) $this->penalty_amount > 0
+            && $this->appeal_status === 'none'
+            && $this->updated_at?->greaterThanOrEqualTo(now()->subDays(self::APPEAL_WINDOW_DAYS));
     }
 
     public function salaryAdjustments(): HasMany
