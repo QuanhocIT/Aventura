@@ -218,6 +218,11 @@ class OrderAuditingAndFraudDetectionTest extends TestCase
 
     public function test_split_order_inflicts_negative_expected_cash_penalty_at_shift_closing(): void
     {
+        // Ca sáng 06:00–14:00, và khi chốt ca trực tiếp thì khoảng thống kê kết
+        // thúc đúng lúc bấm chốt. Không ghim giờ thì test này hỏng mỗi khi chạy
+        // trong khoảng 06:00–09:00 vì đơn lúc 09:00 nằm ngoài cửa sổ.
+        $this->travelTo(today()->setHour(13));
+
         // 1. Create a completed split order (not overridden yet)
         $order = Order::create([
             'restaurant_id' => $this->restaurant->id,

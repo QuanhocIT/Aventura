@@ -6,6 +6,7 @@ use App\Events\Kitchen\KitchenItemCancelled;
 use App\Models\ApprovalRequest;
 use App\Models\Order;
 use App\Models\OrderItem;
+use App\Models\Product;
 use App\Models\Restaurant;
 use App\Models\RestaurantBranch;
 use App\Models\RestaurantTable;
@@ -68,7 +69,44 @@ class OrderItemCancellationTest extends TestCase
         Event::assertDispatched(KitchenItemCancelled::class);
     }
 
-    public function test_started_item_requires_manager_approval_then_is_cancelled(): void
+    /**
+     * Món đã báo bếp nhưng bếp CHƯA bấm bắt đầu chế biến — Quản lý chi nhánh
+     * được quyền duyệt hủy ngay tại chỗ.
+     */
+    public function test_manager_can_approve_cancellation_before_kitchen_starts(): void
+    {
+        [$order, $item] = $this->makeOrderItem('pending');
+        $item->update(['status' => 'confirmed', 'started_preparing_at' => null]);
+
+        $this->actingAs($this->cashier)
+            ->post("/orders/{$order->id}/items/{$item->id}/cancel", [
+                'reason' => 'Khách đổi món',
+            ])
+            ->assertRedirect();
+
+        $approval = ApprovalRequest::where('operation_type', 'order_item_cancel')->first();
+
+        // Món chưa vào bếp có thể được hủy thẳng, khi đó không sinh yêu cầu nào.
+        if (! $approval) {
+            $this->assertSame('cancelled', $item->fresh()->status);
+
+            return;
+        }
+
+        $this->actingAs($this->manager)
+            ->patch("/approvals/{$approval->id}/approve")
+            ->assertRedirect();
+
+        $this->assertSame('approved', $approval->fresh()->status);
+        $this->assertSame('manager', $approval->fresh()->decided_by_role);
+        $this->assertSame('cancelled', $item->fresh()->status);
+    }
+
+    /**
+     * Bếp đã bấm bắt đầu chế biến — nguyên liệu đã tiêu hao, vượt thẩm quyền
+     * Quản lý. Yêu cầu phải tự đẩy lên Chủ doanh nghiệp thay vì nằm chờ.
+     */
+    public function test_manager_cannot_approve_after_kitchen_started_and_request_escalates(): void
     {
         [$order, $item] = $this->makeOrderItem('preparing');
         $item->update(['started_preparing_at' => now()]);
@@ -81,9 +119,25 @@ class OrderItemCancellationTest extends TestCase
 
         $approval = ApprovalRequest::where('operation_type', 'order_item_cancel')->firstOrFail();
         $this->assertSame('pending', $approval->status);
-        $this->assertSame('preparing', $item->fresh()->status);
 
+        // Quản lý bị chặn (403) nhưng yêu cầu vẫn được đẩy lên Chủ, không nằm chờ.
         $this->actingAs($this->manager)
+            ->patch("/approvals/{$approval->id}/approve")
+            ->assertForbidden();
+
+        $approval->refresh();
+        $this->assertSame(ApprovalRequest::STATUS_ESCALATED, $approval->status);
+        $this->assertSame('preparing', $item->fresh()->status, 'Món không được hủy khi Quản lý vượt quyền.');
+
+        // Chủ doanh nghiệp vẫn quyết được.
+        $owner = User::factory()->create([
+            'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
+            'status' => 'active',
+        ]);
+        $owner->assignRole(Role::findByName('owner', 'web'));
+
+        $this->actingAs($owner)
             ->patch("/approvals/{$approval->id}/approve")
             ->assertRedirect();
 
@@ -133,7 +187,7 @@ class OrderItemCancellationTest extends TestCase
             'subtotal' => 50000,
             'total_amount' => 50000,
         ]);
-        $product = \App\Models\Product::factory()->create([
+        $product = Product::factory()->create([
             'restaurant_id' => $this->restaurant->id,
             'branch_id' => $this->branch->id,
             'track_inventory' => false,

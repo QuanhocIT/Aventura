@@ -656,7 +656,9 @@ class OperationalImprovementsTest extends TestCase
             'total_cost' => 2000,
         ]);
 
-        // Giả lập giao hàng lệch giá (Listed 20, Invoice 25) -> Sẽ bị frozen
+        // Giả lập giao hàng lệch giá (Listed 20, Invoice 25) -> Sẽ bị frozen.
+        // Có chênh lệch nên BẮT BUỘC ảnh bằng chứng + lý do chênh lệch.
+        \Illuminate\Support\Facades\Storage::fake('public');
         $response = $this->post(route('suppliers.orders.verify', $po->id), [
             'items' => [
                 [
@@ -666,6 +668,8 @@ class OperationalImprovementsTest extends TestCase
                 ],
             ],
             'rating' => 5,
+            'invoice_file' => \Illuminate\Http\UploadedFile::fake()->image('invoice.jpg'),
+            'mismatch_reason' => 'Giao thiếu 10 và giá cao hơn báo giá',
         ]);
 
         $po->refresh();

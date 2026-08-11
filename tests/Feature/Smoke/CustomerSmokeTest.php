@@ -203,14 +203,23 @@ class CustomerSmokeTest extends TestCase
 
     public function test_public_reservation_booking(): void
     {
-        $res = $this->post("/r/{$this->rid}/reservations", [
+        // Nhà hàng nhiều chi nhánh BẮT BUỘC chọn chi nhánh khi đặt bàn (đúng nghiệp
+        // vụ). Lấy một chi nhánh active để test không phụ thuộc dữ liệu clone.
+        $branchId = DB::table('restaurant_branches')
+            ->where('restaurant_id', $this->rid)
+            ->where('status', 'active')
+            ->orderBy('id')
+            ->value('id');
+
+        $res = $this->post("/r/{$this->rid}/reservations", array_filter([
             'guest_name' => 'Khách Đặt Bàn',
             'guest_phone' => '0900000003',
             'reservation_date' => now()->addDay()->toDateString(),
             'reservation_time' => '18:30',
             'party_size' => 4,
             'source' => 'website',
-        ]);
+            'branch_id' => $branchId,
+        ], fn ($v) => $v !== null));
 
         $this->assertLessThan(500, $res->getStatusCode(),
             'Reservation 5xx: '.optional($res->exception)->getMessage());

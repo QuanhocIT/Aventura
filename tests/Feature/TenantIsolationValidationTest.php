@@ -6,6 +6,7 @@ use App\Models\AuditLog;
 use App\Models\BillingAdjustment;
 use App\Models\BillingInvoice;
 use App\Models\Concerns\BelongsToRestaurant;
+use App\Models\Concerns\BelongsToRestaurantOnly;
 use App\Models\MediaAsset;
 use App\Models\PlatformFeedback;
 use App\Models\Restaurant;
@@ -86,11 +87,15 @@ class TenantIsolationValidationTest extends TestCase
             // Nếu bảng trong DB thực tế có cột 'restaurant_id'
             if (Schema::hasColumn($tableName, 'restaurant_id')) {
                 $traits = array_keys($reflection->getTraits());
-                $usesTrait = in_array(BelongsToRestaurant::class, $traits, true);
+                // BelongsToRestaurantOnly cũng cách ly theo nhà hàng y hệt;
+                // nó chỉ bỏ phần tự điền branch_id, dành cho model mà branch_id
+                // NULL mang nghĩa "áp dụng toàn chuỗi".
+                $usesTrait = in_array(BelongsToRestaurant::class, $traits, true)
+                    || in_array(BelongsToRestaurantOnly::class, $traits, true);
 
                 $this->assertTrue(
                     $usesTrait,
-                    "CẢNH BÁO BẢO MẬT: Model [{$className}] có cột 'restaurant_id' trong bảng [{$tableName}] nhưng CHƯA sử dụng trait BelongsToRestaurant! Điều này dẫn tới nguy cơ rò rỉ dữ liệu chéo giữa các nhà hàng khách hàng."
+                    "CẢNH BÁO BẢO MẬT: Model [{$className}] có cột 'restaurant_id' trong bảng [{$tableName}] nhưng CHƯA sử dụng trait BelongsToRestaurant (hoặc BelongsToRestaurantOnly)! Điều này dẫn tới nguy cơ rò rỉ dữ liệu chéo giữa các nhà hàng khách hàng."
                 );
                 $checkedCount++;
             }

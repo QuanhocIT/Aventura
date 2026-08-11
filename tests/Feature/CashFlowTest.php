@@ -11,7 +11,6 @@ use App\Models\Restaurant;
 use App\Models\RestaurantBranch;
 use App\Models\Salary;
 use App\Models\ShiftClosing;
-use App\Models\SalaryAdjustment;
 use App\Models\User;
 use App\Models\WorkShift;
 use App\Services\MaterializedViewRefresher;
@@ -216,11 +215,20 @@ class CashFlowTest extends TestCase
 
         // Expected cash = 500k - 50k = 450k
 
-        // 3. Submit Shift Closing
+        // 3. Đếm tiền mù trước — chế độ này bật mặc định.
+        $count = $this->postJson(route('shift-closings.count'), [
+            'shift_id' => $this->shift->id,
+            'closing_date' => today()->toDateString(),
+            'denominations' => ['100000' => 4, '20000' => 2], // = 440.000
+        ])->json();
+
+        // 4. Submit Shift Closing
         $response = $this->post(route('shift-closings.store'), [
             'shift_id' => $this->shift->id,
             'closing_date' => today()->toDateString(),
             'actual_cash' => 440000, // actual cash counted
+            'cash_count_id' => $count['cash_count_id'],
+            'variance_explanation' => 'Hụt két 10k do trả nhầm tiền thừa.',
             'other_expense_amount' => 50000,
             'notes' => 'Hụt két 10k',
             'submit' => 1,
@@ -248,10 +256,18 @@ class CashFlowTest extends TestCase
     {
         $this->actingAs($this->cashier);
 
+        $count = $this->postJson(route('shift-closings.count'), [
+            'shift_id' => $this->shift->id,
+            'closing_date' => today()->toDateString(),
+            'denominations' => ['500000' => 1],
+        ])->json();
+
         $response = $this->post(route('shift-closings.store'), [
             'shift_id' => $this->shift->id,
             'closing_date' => today()->toDateString(),
             'actual_cash' => 500000,
+            'cash_count_id' => $count['cash_count_id'],
+            'variance_explanation' => 'Thiếu tiền mặt khi kiểm đếm cuối ca.',
             'actual_transfer_amount' => 120000,
             'responsibility_amount' => -10000,
             'responsibility_note' => 'Thiếu tiền mặt khi kiểm đếm cuối ca',

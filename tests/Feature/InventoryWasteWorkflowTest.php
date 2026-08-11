@@ -39,6 +39,7 @@ class InventoryWasteWorkflowTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+        \Illuminate\Support\Facades\Storage::fake('local');
 
         $ownerRole = Role::firstOrCreate(['name' => 'owner', 'guard_name' => 'web']);
         $managerRole = Role::firstOrCreate(['name' => 'manager', 'guard_name' => 'web']);
@@ -197,6 +198,7 @@ class InventoryWasteWorkflowTest extends TestCase
             'employee_id' => $this->employee->id,
             'waste_category' => 'expired',
             'notes' => 'Lô đã quá hạn, không quy trách nhiệm',
+            'photo' => \Illuminate\Http\UploadedFile::fake()->image('waste.jpg'),
         ]);
 
         $response->assertSessionHasNoErrors();
@@ -245,6 +247,7 @@ class InventoryWasteWorkflowTest extends TestCase
             'quantity' => 1,
             'waste_category' => 'damaged',
             'notes' => 'Hộp bị đổ trong lúc sơ chế',
+            'photo' => \Illuminate\Http\UploadedFile::fake()->image('waste.jpg'),
         ])->assertSessionHasNoErrors();
 
         $this->assertDatabaseHas('notifications', [

@@ -362,7 +362,7 @@ class SupplierB2BIntegrationTest extends TestCase
             'total_cost' => 5000,
         ]);
 
-        // Verify with price mismatch -> freezes
+        // Verify with price mismatch -> freezes (bắt buộc ảnh + lý do khi lệch).
         $response = $this->actingAs($this->owner)->post(route('suppliers.orders.verify', $po2->id), [
             'items' => [
                 [
@@ -371,6 +371,8 @@ class SupplierB2BIntegrationTest extends TestCase
                     'invoice_price' => 600, // discrepant!
                 ],
             ],
+            'invoice_file' => \Illuminate\Http\UploadedFile::fake()->image('inv.jpg'),
+            'mismatch_reason' => 'Giá hoá đơn cao hơn báo giá',
         ]);
 
         $po2->refresh();

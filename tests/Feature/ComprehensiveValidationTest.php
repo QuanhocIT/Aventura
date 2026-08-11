@@ -676,7 +676,9 @@ class ComprehensiveValidationTest extends TestCase
             'total_cost' => 100000,
         ]);
 
-        // Verify order with 120,000 price (20% variance)
+        // Verify order with 120,000 price (20% variance).
+        // Có chênh lệch nên bắt buộc ảnh bằng chứng + lý do.
+        \Illuminate\Support\Facades\Storage::fake('public');
         $responseVerify = $this->post(route('suppliers.orders.verify', $po->id), [
             'items' => [
                 [
@@ -686,6 +688,8 @@ class ComprehensiveValidationTest extends TestCase
                 ],
             ],
             'rating' => 5,
+            'invoice_file' => \Illuminate\Http\UploadedFile::fake()->image('inv.jpg'),
+            'mismatch_reason' => 'Giá cao hơn báo giá 20%',
         ]);
 
         $responseVerify->assertSessionHas('warning'); // failed match and frozen
