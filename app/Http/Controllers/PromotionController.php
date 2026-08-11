@@ -285,7 +285,10 @@ class PromotionController extends Controller
             }
         }
 
-        $isOwner = $user->can('approve_requests');
+        // can('approve_requests') cũng đúng với vai trò manager, nên dùng nó ở
+        // đây đồng nghĩa Quản lý tự duyệt được khuyến mãi của chính mình —
+        // trái với quy định "mã khuyến mãi toàn hệ thống không giao cho Quản lý".
+        $isOwner = $user->isOwner() || $user->isSuperAdmin();
 
         $promotion->update([
             'name' => $data['name'],
@@ -340,8 +343,14 @@ class PromotionController extends Controller
      */
     public function approve(Request $request, Promotion $promotion): RedirectResponse
     {
-        abort_unless($request->user()->can('approve_requests'), 403);
+        abort_unless($request->user()->isOwner() || $request->user()->isSuperAdmin(), 403);
         abort_if($promotion->restaurant_id !== $request->user()->restaurant_id, 403);
+        // Người tạo không tự duyệt chương trình của mình.
+        abort_if(
+            (int) $promotion->created_by === (int) $request->user()->id && ! $request->user()->isSuperAdmin(),
+            403,
+            'Bạn không thể tự duyệt chương trình khuyến mãi do chính mình tạo.',
+        );
 
         $promotion->update([
             'is_approved' => true,

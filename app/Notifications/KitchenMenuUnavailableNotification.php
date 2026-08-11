@@ -10,7 +10,7 @@ class KitchenMenuUnavailableNotification extends Notification
     use Queueable;
 
     /**
-     * @param array<int, string> $productNames
+     * @param  array<int, string>  $productNames
      */
     public function __construct(
         private array $productNames,

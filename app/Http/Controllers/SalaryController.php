@@ -9,6 +9,7 @@ use App\Models\SalaryAdjustment;
 use App\Models\User;
 use App\Notifications\SalaryDisputeNotification;
 use App\Notifications\SalaryReadyNotification;
+use App\Services\ApprovalAuthorityService;
 use App\Services\ApprovalService;
 use App\Services\QuotaService;
 use App\Services\SalaryService;
@@ -27,6 +28,7 @@ class SalaryController extends Controller
         private SalaryService $salaryService,
         private ApprovalService $approvalService,
         private TenantContext $tenantContext,
+        private ApprovalAuthorityService $authorityService,
     ) {}
 
     public function index(Request $request): Response
@@ -163,6 +165,13 @@ class SalaryController extends Controller
     {
         abort_unless($request->user()->can('manage_salary'), 403);
         $this->authorizeSalaryBranch($request->user(), $salary);
+        // Không ai được duyệt bảng lương của chính mình — kể cả Chủ, vì duyệt
+        // xong là kỳ lương bị khóa, không sửa lại được.
+        abort_if(
+            $this->authorityService->isSelf($request->user(), $salary->employee_id),
+            403,
+            'Bạn không thể duyệt bảng lương của chính mình.',
+        );
         abort_if($salary->status === 'paid', 422);
 
         $salary->update([
@@ -184,8 +193,20 @@ class SalaryController extends Controller
 
     public function markPaid(Request $request, Salary $salary): RedirectResponse
     {
-        abort_unless($request->user()->can('manage_salary') && $request->user()->can('approve_requests'), 403);
+        // Đánh dấu đã trả lương là xác nhận một khoản chi — thuộc nhóm việc
+        // không giao cho Quản lý chi nhánh.
+        abort_unless(
+            $request->user()->can('manage_salary')
+                && ($request->user()->isOwner() || $request->user()->isSuperAdmin()),
+            403,
+            'Chỉ Chủ doanh nghiệp mới được xác nhận đã chi trả lương.',
+        );
         $this->authorizeSalaryBranch($request->user(), $salary);
+        abort_if(
+            $this->authorityService->isSelf($request->user(), $salary->employee_id),
+            403,
+            'Bạn không thể xác nhận chi trả lương cho chính mình.',
+        );
         abort_unless($salary->status === 'approved', 422);
 
         $salary->update([
@@ -250,9 +271,10 @@ class SalaryController extends Controller
                     }
                 }
 
-                if (! $request->user()->can('approve_requests')) {
+                if (! $this->authorityService->canActDirectly($request->user(), 'salary_adjustment', $lockedSalary->branch_id)) {
                     $this->approvalService->submitRequest('salary_adjustment', array_merge($data, [
                         'salary_id' => $lockedSalary->id,
+                        'employee_id' => $lockedSalary->employee_id,
                     ]), $request->user());
                 } else {
                     $this->salaryService->addAdjustment($lockedSalary, array_merge($data, [
@@ -265,7 +287,9 @@ class SalaryController extends Controller
             return back()->withErrors(['amount' => $e->getMessage()]);
         }
 
-        return back()->with('success', $request->user()->can('approve_requests') ? 'Đã thêm điều chỉnh lương.' : 'Yêu cầu điều chỉnh lương đã gửi Chủ nhà hàng để phê duyệt.');
+        return back()->with('success', $this->authorityService->canActDirectly($request->user(), 'salary_adjustment')
+            ? 'Đã thêm điều chỉnh lương.'
+            : 'Yêu cầu điều chỉnh lương đã gửi Chủ nhà hàng để phê duyệt.');
     }
 
     /**
@@ -292,7 +316,7 @@ class SalaryController extends Controller
             ->when($this->tenantContext->activeBranchId(), fn ($q) => $q->where('branch_id', $this->tenantContext->activeBranchId()))
             ->get();
 
-        $canApprove = $request->user()->can('approve_requests');
+        $canApprove = $this->authorityService->canActDirectly($request->user(), 'salary_adjustment');
 
         // Check advances limits first
         if ($data['type'] === 'advance') {

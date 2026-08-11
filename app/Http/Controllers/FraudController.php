@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Employee;
 use App\Models\User;
 use App\Models\ViolationReport;
+use App\Services\ApprovalAuthorityService;
 use App\Services\ApprovalService;
 use App\Services\FraudDetectionService;
 use App\Services\QuotaService;
@@ -23,6 +24,7 @@ class FraudController extends Controller
         private SalaryService $salaryService,
         private ApprovalService $approvalService,
         private FraudDetectionService $fraudService,
+        private ApprovalAuthorityService $authorityService,
     ) {}
 
     public function index(Request $request): Response
@@ -135,7 +137,10 @@ class FraudController extends Controller
                 ->where('restaurant_id', $restaurantId)
                 ->findOrFail($data['employee_id']);
 
-            if ($user->can('approve_requests')) {
+            // Trước đây dùng can('approve_requests'), mà vai trò manager cũng có
+            // quyền đó — nên Quản lý tự áp khấu trừ lương được, trái với quy định
+            // "không duyệt lương, thưởng, phạt tiền".
+            if ($this->authorityService->canActDirectly($user, 'salary_adjustment', $employee->branch_id)) {
                 $salary = $this->salaryService->getOrCreateDraft(
                     $restaurantId,
                     $employee,
@@ -165,8 +170,9 @@ class FraudController extends Controller
             }
         }
 
-        $msg = $request->boolean('apply_deduction') && ! $user->can('approve_requests')
-            ? 'Đã ghi vi phạm. Yêu cầu khấu trừ lương đã gửi chủ nhà hàng để phê duyệt.'
+        $msg = $request->boolean('apply_deduction')
+            && ! $this->authorityService->canActDirectly($user, 'salary_adjustment', $violation->employee?->branch_id)
+            ? 'Đã ghi vi phạm. Yêu cầu khấu trừ lương đã gửi Chủ nhà hàng để phê duyệt.'
             : 'Đã ghi nhận vi phạm thành công.';
 
         return back()->with('success', $msg);
