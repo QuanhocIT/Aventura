@@ -19,6 +19,7 @@ class DatabaseSeeder extends Seeder
             SystemDemoSeeder::class,
             TenantDemoSeeder::class,
             RestaurantDemoSeeder::class,
+            ApprovalPolicySeeder::class,
             SuperAdminSeeder::class,
             SuperAdminBillingDemoSeeder::class,
             SuperAdminReferralDemoSeeder::class,
