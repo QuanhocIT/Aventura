@@ -413,6 +413,9 @@ class SecurityThreatController extends Controller
             return;
         }
 
+        // Cột occurrences được model cast sang int, nên KHÔNG dùng DB::raw (Eloquent
+        // sẽ cố ép Expression thành int khi cast → lỗi 500). Đã có $alert nên cộng
+        // trực tiếp từ giá trị hiện tại.
         $alert->update([
             'type' => $type,
             'severity' => $severity,
@@ -421,7 +424,7 @@ class SecurityThreatController extends Controller
             'context' => $context,
             'status' => 'open',
             'last_seen_at' => now(),
-            'occurrences' => DB::raw('occurrences + 1'),
+            'occurrences' => (int) ($alert->occurrences ?? 0) + 1,
             'resolved_at' => null,
             'resolved_by' => null,
         ]);
