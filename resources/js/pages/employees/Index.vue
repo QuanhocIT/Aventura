@@ -16,6 +16,7 @@ import {
     X,
     Trash2,
     Settings,
+    UserCog,
     RefreshCw,
     ArrowUpDown,
     Search,
@@ -115,6 +116,14 @@ const props = defineProps<{
     activeBranchId: number | null;
     branchScope: string;
     isBranchManager: boolean;
+    wageTiers?: Array<{
+        id: number;
+        name: string;
+        branch_id: number | null;
+        compensation_type: 'fixed' | 'hourly' | 'shift';
+        rate: number;
+        estimated_monthly: number;
+    }>;
 }>();
 
 const showAddEmployee = ref(false);
@@ -194,7 +203,48 @@ const employeeForm = useForm({
     citizen_id_back: null as File | null,
     hire_date: new Date().toISOString().split('T')[0],
     branch_id: props.branches[0]?.id ?? '',
+    wage_tier_id: '' as number | '',
 });
+
+// Bậc lương dùng được cho chi nhánh đang chọn: của chính chi nhánh đó hoặc toàn chuỗi.
+const availableWageTiers = computed(() => {
+    const bid = Number(employeeForm.branch_id) || null;
+
+    return (props.wageTiers ?? []).filter(
+        (t) => t.branch_id === null || t.branch_id === bid,
+    );
+});
+
+const compTypeLabel = (t: 'fixed' | 'hourly' | 'shift') =>
+    t === 'hourly' ? 'theo giờ' : t === 'shift' ? 'theo ca' : 'lương tháng';
+
+// Khi chọn bậc lương → KHOÁ mức lương theo bậc (đồng bộ với backend).
+watch(
+    () => employeeForm.wage_tier_id,
+    (val) => {
+        const tier = availableWageTiers.value.find((t) => t.id === Number(val));
+        if (tier) {
+            employeeForm.compensation_type = tier.compensation_type;
+            employeeForm.pay_rate = tier.rate;
+            employeeForm.base_salary = tier.rate;
+        }
+    },
+);
+
+// Đổi chi nhánh mà bậc đang chọn không còn hợp lệ → bỏ chọn.
+watch(
+    () => employeeForm.branch_id,
+    () => {
+        if (
+            employeeForm.wage_tier_id &&
+            !availableWageTiers.value.some((t) => t.id === Number(employeeForm.wage_tier_id))
+        ) {
+            employeeForm.wage_tier_id = '';
+        }
+    },
+);
+
+const wageLockedByTier = computed(() => !!employeeForm.wage_tier_id);
 
 const editForm = useForm({
     full_name: '',
@@ -507,6 +557,27 @@ const leaveForm = useForm({
     end_date: new Date().toISOString().split('T')[0],
     reason: '',
 });
+
+// ── Thay ca khẩn cấp ──────────────────────────────────────────────────────────
+const showEmergencyReplace = ref(false);
+const emergencyForm = useForm({
+    assignment_id: '' as number | '',
+    replacement_employee_id: '' as number | '',
+    reason: '',
+});
+const assignmentsWithId = computed(() =>
+    props.schedules.filter((a) => !!a.id),
+);
+function submitEmergencyReplace() {
+    if (emergencyForm.processing) return;
+    emergencyForm.post('/employees/schedules/emergency-replace', {
+        preserveScroll: true,
+        onSuccess: () => {
+            emergencyForm.reset();
+            showEmergencyReplace.value = false;
+        },
+    });
+}
 
 const leaveTypeLabels: Record<string, string> = {
     annual: 'Nghỉ phép năm',
@@ -1347,6 +1418,53 @@ const submitSwapReject = () => {
                             </div>
                         </div>
 
+                        <!-- Bậc lương do Chủ quy định (quỹ lương chi nhánh) -->
+                        <div
+                            v-if="(props.wageTiers ?? []).length || isBranchManager"
+                            class="grid gap-1.5 rounded-xl border border-emerald-100 bg-emerald-50/50 p-3.5 dark:border-emerald-950/40 dark:bg-emerald-950/20"
+                        >
+                            <Label
+                                class="text-xs font-bold text-emerald-700 dark:text-emerald-300"
+                                >Bậc lương do Chủ quy định
+                                <span v-if="isBranchManager" class="text-rose-500">*</span></Label
+                            >
+                            <select
+                                v-model="employeeForm.wage_tier_id"
+                                :required="isBranchManager"
+                                class="w-full rounded-md border border-slate-200 bg-background px-3 py-2 text-sm font-semibold text-slate-700 focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:outline-none"
+                            >
+                                <option v-if="!isBranchManager" value="">
+                                    — Nhập lương thủ công —
+                                </option>
+                                <option v-else value="" disabled>
+                                    — Chọn bậc lương —
+                                </option>
+                                <option
+                                    v-for="tier in availableWageTiers"
+                                    :key="tier.id"
+                                    :value="tier.id"
+                                >
+                                    {{ tier.name }} ·
+                                    {{ compTypeLabel(tier.compensation_type) }} ·
+                                    {{ tier.rate.toLocaleString('vi-VN') }}đ (≈
+                                    {{ tier.estimated_monthly.toLocaleString('vi-VN') }}đ/tháng)
+                                </option>
+                            </select>
+                            <p
+                                v-if="isBranchManager && !availableWageTiers.length"
+                                class="text-xs text-rose-500"
+                            >
+                                Chi nhánh chưa có bậc lương. Vui lòng đề nghị Chủ
+                                tạo bậc lương trước khi thêm nhân viên.
+                            </p>
+                            <p
+                                v-else-if="wageLockedByTier"
+                                class="text-xs text-emerald-600 dark:text-emerald-400"
+                            >
+                                🔒 Mức lương được khoá theo bậc — không sửa tay.
+                            </p>
+                        </div>
+
                         <!-- Cấu hình Hình thức trả lương & Mức lương -->
                         <div
                             class="grid grid-cols-2 gap-4 rounded-xl border border-indigo-100 bg-indigo-50/40 p-3.5 dark:border-indigo-950/40 dark:bg-indigo-950/20"
@@ -1358,7 +1476,8 @@ const submitSwapReject = () => {
                                 >
                                 <select
                                     v-model="employeeForm.compensation_type"
-                                    class="w-full rounded-md border border-slate-200 bg-background px-3 py-2 text-sm font-semibold text-slate-700 focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:outline-none"
+                                    :disabled="wageLockedByTier"
+                                    class="w-full rounded-md border border-slate-200 bg-background px-3 py-2 text-sm font-semibold text-slate-700 focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-60"
                                 >
                                     <option value="fixed">
                                         💼 Lương tháng cố định
@@ -1388,7 +1507,8 @@ const submitSwapReject = () => {
                                     v-model="employeeForm.base_salary"
                                     placeholder="Ví dụ: 8000000"
                                     required
-                                    class="h-9 font-mono text-xs font-bold text-indigo-600"
+                                    :disabled="wageLockedByTier"
+                                    class="h-9 font-mono text-xs font-bold text-indigo-600 disabled:opacity-60"
                                 />
                             </div>
                             <div
@@ -1407,7 +1527,8 @@ const submitSwapReject = () => {
                                     v-model="employeeForm.pay_rate"
                                     placeholder="Ví dụ: 25000"
                                     required
-                                    class="h-9 font-mono text-xs font-bold text-purple-600"
+                                    :disabled="wageLockedByTier"
+                                    class="h-9 font-mono text-xs font-bold text-purple-600 disabled:opacity-60"
                                 />
                             </div>
                             <div v-else class="grid gap-1.5">
@@ -1421,7 +1542,8 @@ const submitSwapReject = () => {
                                     v-model="employeeForm.pay_rate"
                                     placeholder="Ví dụ: 200000"
                                     required
-                                    class="h-9 font-mono text-xs font-bold text-amber-600"
+                                    :disabled="wageLockedByTier"
+                                    class="h-9 font-mono text-xs font-bold text-amber-600 disabled:opacity-60"
                                 />
                             </div>
                         </div>
@@ -2377,6 +2499,16 @@ const submitSwapReject = () => {
                             >
                                 <Sparkles class="size-3.5" />
                                 Thiết lập ca nhanh
+                            </Button>
+
+                            <Button
+                                @click="showEmergencyReplace = true"
+                                variant="outline"
+                                size="sm"
+                                class="flex h-8 shrink-0 items-center gap-1.5 border-rose-200 text-xs text-rose-600 hover:border-rose-300 hover:text-rose-700"
+                            >
+                                <UserCog class="size-3.5" />
+                                Thay ca khẩn cấp
                             </Button>
                         </div>
                     </CardHeader>
@@ -3749,5 +3881,51 @@ const submitSwapReject = () => {
             </Card>
         </div>
         </Teleport>
+
+        <!-- MODAL: THAY CA KHẨN CẤP -->
+        <div
+            v-if="showEmergencyReplace"
+            class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm"
+        >
+            <div class="w-full max-w-md rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl dark:border-slate-800 dark:bg-slate-900">
+                <div class="mb-3 flex items-center gap-2 border-b pb-3 text-sm font-extrabold tracking-wider text-rose-600 uppercase">
+                    <UserCog class="size-4.5" /> Thay ca khẩn cấp
+                </div>
+                <p class="mb-3 text-xs text-slate-500">
+                    Chọn ca của người nghỉ đột xuất và người vào thay. Ca gốc sẽ đánh dấu vắng; ca thay được ghi nhận và báo Chủ.
+                </p>
+                <form @submit.prevent="submitEmergencyReplace" class="flex flex-col gap-3">
+                    <div class="flex flex-col gap-1.5">
+                        <label class="text-xs font-bold text-slate-600 dark:text-slate-400">Ca cần thay (người nghỉ)</label>
+                        <select v-model="emergencyForm.assignment_id" required class="h-9 rounded-md border border-input bg-background px-3 text-sm">
+                            <option value="" disabled>— Chọn ca —</option>
+                            <option v-for="a in assignmentsWithId" :key="a.id" :value="a.id">
+                                {{ a.day }} · {{ a.employee_name }} · {{ a.shift_name }}
+                            </option>
+                        </select>
+                        <p v-if="emergencyForm.errors.assignment_id" class="text-[11px] font-semibold text-rose-500">{{ emergencyForm.errors.assignment_id }}</p>
+                    </div>
+                    <div class="flex flex-col gap-1.5">
+                        <label class="text-xs font-bold text-slate-600 dark:text-slate-400">Người vào thay</label>
+                        <select v-model="emergencyForm.replacement_employee_id" required class="h-9 rounded-md border border-input bg-background px-3 text-sm">
+                            <option value="" disabled>— Chọn nhân viên —</option>
+                            <option v-for="e in employees" :key="e.id" :value="e.id">{{ e.full_name }}</option>
+                        </select>
+                        <p v-if="emergencyForm.errors.replacement_employee_id" class="text-[11px] font-semibold text-rose-500">{{ emergencyForm.errors.replacement_employee_id }}</p>
+                    </div>
+                    <div class="flex flex-col gap-1.5">
+                        <label class="text-xs font-bold text-slate-600 dark:text-slate-400">Lý do</label>
+                        <Input v-model="emergencyForm.reason" required placeholder="VD: Nghỉ ốm đột xuất không báo trước" />
+                        <p v-if="emergencyForm.errors.reason" class="text-[11px] font-semibold text-rose-500">{{ emergencyForm.errors.reason }}</p>
+                    </div>
+                    <div class="flex justify-end gap-2 border-t pt-3">
+                        <Button type="button" variant="outline" @click="showEmergencyReplace = false" class="rounded-xl text-xs">Hủy</Button>
+                        <Button type="submit" :disabled="emergencyForm.processing" class="rounded-xl border-0 bg-rose-600 text-xs font-bold text-white hover:bg-rose-700">
+                            Xếp người thay
+                        </Button>
+                    </div>
+                </form>
+            </div>
+        </div>
     </div>
 </template>

@@ -374,6 +374,19 @@ class EmployeeManagementController extends Controller
             'activeBranchId' => $branchId,
             'branchScope' => $tenantContext->scope(),
             'isBranchManager' => $user->isBranchManager(),
+            // Bậc lương do Chủ quy định. Quản lý BẮT BUỘC chọn khi tạo nhân viên
+            // (không tự nhập mức). Kèm branch_id để frontend lọc theo chi nhánh.
+            'wageTiers' => \App\Models\WageTier::where('restaurant_id', $restaurant->id)
+                ->active()->orderBy('sort_order')->orderBy('name')
+                ->get(['id', 'name', 'branch_id', 'compensation_type', 'rate'])
+                ->map(fn ($t) => [
+                    'id' => $t->id,
+                    'name' => $t->name,
+                    'branch_id' => $t->branch_id,
+                    'compensation_type' => $t->compensation_type,
+                    'rate' => (float) $t->rate,
+                    'estimated_monthly' => $t->estimatedMonthly(),
+                ]),
         ]);
     }
 
@@ -409,6 +422,11 @@ class EmployeeManagementController extends Controller
                 'sometimes', 'nullable', 'integer',
                 Rule::exists('restaurant_branches', 'id')->where('restaurant_id', $user->restaurant_id),
             ],
+            // Bậc lương do Chủ quy định. Quản lý BẮT BUỘC chọn (không tự nhập mức).
+            'wage_tier_id' => [
+                'nullable', 'integer',
+                Rule::exists('wage_tiers', 'id')->where('restaurant_id', $user->restaurant_id),
+            ],
         ]);
 
         $this->assertRoleAssignmentAllowed($user, $data['role']);
@@ -427,6 +445,47 @@ class EmployeeManagementController extends Controller
         }
         if ($data['role'] === 'manager') {
             $this->assertManagerSlotAvailable($user->restaurant_id, $branchId);
+        }
+
+        // ── Bậc lương & Quỹ lương chi nhánh ───────────────────────────────────
+        // Nếu chọn bậc lương (do Chủ quy định) thì KHOÁ mức lương theo bậc.
+        $wageTier = null;
+        if (! empty($data['wage_tier_id'])) {
+            $wageTier = \App\Models\WageTier::where('restaurant_id', $user->restaurant_id)
+                ->where('id', $data['wage_tier_id'])
+                ->forBranch($branchId)->active()->first();
+            if (! $wageTier) {
+                throw ValidationException::withMessages(['wage_tier_id' => 'Bậc lương không hợp lệ cho chi nhánh này.']);
+            }
+            $data['compensation_type'] = $wageTier->compensation_type;
+            $data['pay_rate'] = (float) $wageTier->rate;
+            $data['base_salary'] = (float) $wageTier->rate;
+        }
+
+        // Quản lý (không phải Chủ) BẮT BUỘC chọn bậc lương — không tự nhập tuỳ ý —
+        // NHƯNG chỉ khi Chủ đã tạo sẵn bậc lương cho chi nhánh này. Nếu chưa có bậc
+        // nào thì không thể chặn Quản lý tuyển người (họ vẫn bị ràng buộc bởi quỹ).
+        $isOwner = $user->hasRole('owner') || $user->isSuperAdmin();
+        if (! $isOwner && ! $wageTier) {
+            $tiersAvailable = \App\Models\WageTier::where('restaurant_id', $user->restaurant_id)
+                ->forBranch($branchId)->active()->exists();
+            if ($tiersAvailable) {
+                throw ValidationException::withMessages([
+                    'wage_tier_id' => 'Quản lý phải chọn bậc lương do Chủ quy định (không tự nhập mức lương).',
+                ]);
+            }
+        }
+
+        // Chặn khi tổng lương chi nhánh vượt quỹ do Chủ đặt.
+        $budgets = app(\App\Services\PayrollBudgetService::class);
+        $monthlyWage = $wageTier
+            ? $wageTier->estimatedMonthly()
+            : $budgets->estimateMonthly($data['compensation_type'] ?? 'fixed', (float) ($data['pay_rate'] ?? 0), (float) ($data['base_salary'] ?? 0));
+        if (! $budgets->canFit($user->restaurant_id, $branchId, $monthlyWage)) {
+            $remaining = max(0.0, (float) $budgets->remaining($user->restaurant_id, $branchId));
+            throw ValidationException::withMessages([
+                'base_salary' => 'Vượt quỹ lương chi nhánh. Quỹ còn lại '.number_format($remaining).'đ, nhân viên này cần '.number_format($monthlyWage).'đ/tháng.',
+            ]);
         }
 
         // Disk 'local' (private) — KHÔNG dùng disk public: ảnh CCCD truy cập được
@@ -478,6 +537,7 @@ class EmployeeManagementController extends Controller
                     'compensation_type' => $data['compensation_type'] ?? 'fixed',
                     'pay_rate' => $data['pay_rate'] ?? 0,
                     'base_salary' => $data['base_salary'] ?? 0,
+                    'wage_tier_id' => $data['wage_tier_id'] ?? null,
                     'job_title' => $data['job_title'],
                     'employment_type' => 'full_time',
                     'status' => 'active',
