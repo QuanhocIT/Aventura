@@ -63,6 +63,40 @@ class OperationsChecklistTest extends TestCase
         ]);
     }
 
+    public function test_owner_creates_handover_checklist_assigned_to_branch(): void
+    {
+        $branch = \App\Models\RestaurantBranch::factory()->create([
+            'restaurant_id' => $this->restaurant->id,
+            'status' => 'active',
+        ]);
+        $otherBranch = \App\Models\RestaurantBranch::factory()->create([
+            'restaurant_id' => $this->restaurant->id,
+            'status' => 'active',
+        ]);
+
+        $this->actingAs($this->owner)->post('/operations-checklist/templates', [
+            'name' => 'Bàn giao ca tối',
+            'type' => 'handover',
+            'items' => [
+                ['title' => 'Đối chiếu tiền quỹ', 'requires_photo' => true],
+                ['title' => 'Bàn giao thiết bị & sự cố tồn', 'requires_photo' => false],
+            ],
+            'branch_ids' => [$branch->id],
+        ])->assertRedirect()->assertSessionHasNoErrors();
+
+        $template = ChecklistTemplate::where('restaurant_id', $this->restaurant->id)
+            ->where('type', 'handover')->where('name', 'Bàn giao ca tối')->first();
+        $this->assertNotNull($template);
+
+        // Chỉ gán đúng chi nhánh đã chọn.
+        $this->assertTrue($template->branches()->where('restaurant_branches.id', $branch->id)->exists());
+        $this->assertFalse($template->branches()->where('restaurant_branches.id', $otherBranch->id)->exists());
+
+        // scopeForBranch: chi nhánh được gán thấy mẫu; chi nhánh khác không thấy.
+        $this->assertTrue(ChecklistTemplate::forBranch($branch->id)->whereKey($template->id)->exists());
+        $this->assertFalse(ChecklistTemplate::forBranch($otherBranch->id)->whereKey($template->id)->exists());
+    }
+
     public function test_create_template_validates_items_required(): void
     {
         $this->actingAs($this->owner)->post('/operations-checklist/templates', [

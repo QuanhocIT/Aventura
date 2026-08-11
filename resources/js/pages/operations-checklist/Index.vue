@@ -44,6 +44,7 @@ const props = defineProps<{
     date: string;
     canComplete?: boolean;
     branchContext?: { scope: string; active_branch_id: number | null };
+    branches?: Array<{ id: number; name: string }>;
 }>();
 
 const page = usePage();
@@ -68,12 +69,14 @@ const typeLabel: Record<string, string> = {
     opening: 'Mở cửa',
     closing: 'Đóng cửa',
     attp: 'ATTP / Vệ sinh',
+    handover: 'Bàn giao ca',
     custom: 'Tùy chỉnh',
 };
 const typeColor: Record<string, string> = {
     opening: 'bg-green-100 text-green-800',
     closing: 'bg-blue-100 text-blue-800',
     attp: 'bg-red-100 text-red-800',
+    handover: 'bg-purple-100 text-purple-800',
     custom: 'bg-gray-100 text-gray-700',
 };
 
@@ -210,6 +213,7 @@ const createForm = useForm({
         title: string;
         requires_photo: boolean;
     }[],
+    branch_ids: [] as number[],
 });
 
 function addItem() {
@@ -605,8 +609,33 @@ const overallPercent = computed(() => {
                             <option value="opening">Mở cửa</option>
                             <option value="closing">Đóng cửa</option>
                             <option value="attp">ATTP / Vệ sinh</option>
+                            <option value="handover">Bàn giao ca</option>
                             <option value="custom">Tùy chỉnh</option>
                         </select>
+                    </div>
+                </div>
+
+                <!-- Áp dụng cho chi nhánh (bỏ trống = toàn chuỗi) -->
+                <div v-if="(props.branches?.length ?? 0) > 0" class="space-y-2">
+                    <Label>Áp dụng cho chi nhánh
+                        <span class="text-xs font-normal text-muted-foreground"
+                            >(bỏ trống = toàn chuỗi)</span
+                        ></Label
+                    >
+                    <div class="flex flex-wrap gap-2">
+                        <label
+                            v-for="br in props.branches"
+                            :key="br.id"
+                            class="flex cursor-pointer items-center gap-1.5 rounded-lg border border-border px-2.5 py-1 text-xs"
+                        >
+                            <input
+                                type="checkbox"
+                                :value="br.id"
+                                v-model="createForm.branch_ids"
+                                class="rounded"
+                            />
+                            {{ br.name }}
+                        </label>
                     </div>
                 </div>
 

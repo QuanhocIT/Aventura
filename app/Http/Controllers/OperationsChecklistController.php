@@ -11,6 +11,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -67,6 +68,10 @@ class OperationsChecklistController extends Controller
                 'scope' => $tenantContext->scope(),
                 'active_branch_id' => $branchId,
             ],
+            // Danh sách chi nhánh để Chủ gán mẫu checklist (bỏ trống = toàn chuỗi).
+            'branches' => $request->user()->restaurant
+                ? $request->user()->restaurant->branches()->where('status', 'active')->get(['id', 'name'])
+                : [],
         ]);
     }
 
@@ -167,12 +172,21 @@ class OperationsChecklistController extends Controller
     {
         $this->authorizeTemplateManagement($request);
 
+        $restaurantId = (int) $request->user()->restaurant_id;
+
         $data = $request->validate([
             'name' => ['required', 'string', 'max:255'],
-            'type' => ['required', 'in:opening,closing,attp,custom'],
+            'type' => ['required', 'in:opening,closing,attp,custom,handover'],
             'items' => ['required', 'array', 'min:1'],
             'items.*.title' => ['required', 'string', 'max:255'],
             'items.*.requires_photo' => ['boolean'],
+            // Bỏ trống = áp cho toàn chuỗi. Chủ chọn chi nhánh nào thì chỉ chi
+            // nhánh đó thấy mẫu này.
+            'branch_ids' => ['nullable', 'array'],
+            'branch_ids.*' => [
+                'integer',
+                Rule::exists('restaurant_branches', 'id')->where('restaurant_id', $restaurantId),
+            ],
         ]);
 
         $template = ChecklistTemplate::create([
@@ -190,6 +204,10 @@ class OperationsChecklistController extends Controller
                 'requires_photo' => $item['requires_photo'] ?? false,
                 'sort_order' => $idx,
             ]);
+        }
+
+        if (! empty($data['branch_ids'])) {
+            $template->branches()->sync($data['branch_ids']);
         }
 
         return back()->with('success', "Đã tạo checklist \"{$template->name}\" với ".count($data['items']).' mục.');
