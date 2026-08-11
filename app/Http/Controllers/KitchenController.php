@@ -9,6 +9,7 @@ use App\Models\AuditLog;
 use App\Models\Ingredient;
 use App\Models\OrderItem;
 use App\Models\Product;
+use App\Models\ProductBranchPause;
 use App\Models\RestaurantTable;
 use App\Services\InventoryAvailabilityService;
 use App\Services\QuotaService;
@@ -128,22 +129,47 @@ class KitchenController extends Controller
             ->with(['category', 'recipes.ingredient.unit'])
             ->get();
 
+        // Tính tồn/khả dụng theo chi nhánh — CHỈ khi đang xem một chi nhánh cụ thể.
+        // Chủ ở phạm vi "tất cả chi nhánh" có $branchId = null; TRƯỚC ĐÂY bị ép
+        // (int) null = 0 khiến refreshBranch chèn product_branch_stock_statuses với
+        // branch_id = 0 → vi phạm khóa ngoại (500). Không có chi nhánh thì bỏ qua
+        // tính khả dụng (món vẫn hiển thị, chỉ không có số suất theo chi nhánh).
         $availabilityService = app(InventoryAvailabilityService::class);
-        $availabilityService->refreshBranch($restaurantId, (int) $branchId, false);
-        $availability = $availabilityService->forProducts($products, $restaurantId, (int) $branchId);
+        $availability = collect();
+        // Tạm ngưng món theo RIÊNG chi nhánh hiện tại (cô lập, không dùng cờ chung).
+        $branchPauses = collect();
+        if ($branchId !== null && (int) $branchId > 0) {
+            $availabilityService->refreshBranch($restaurantId, (int) $branchId, false);
+            $availability = $availabilityService->forProducts($products, $restaurantId, (int) $branchId);
+            $branchPauses = ProductBranchPause::where('restaurant_id', $restaurantId)
+                ->where('branch_id', (int) $branchId)
+                ->activePause()
+                ->get()
+                ->keyBy('product_id');
+        }
 
-        $products = $products->map(fn ($p) => [
-            'id' => $p->id,
-            'name' => $p->name,
-            'price' => (float) $p->price,
-            'category_name' => $p->category?->name ?? 'Món khác',
-            'available_portions' => $availability->get($p->id)['available_portions'] ?? null,
-            'paused_until' => $p->paused_until ? $p->paused_until->toIso8601String() : null,
-            'out_of_stock_until' => $p->out_of_stock_until ? $p->out_of_stock_until->toIso8601String() : null,
-            'is_paused' => (bool) ($p->paused_until && $p->paused_until->isFuture()),
-            'is_out_of_stock' => (bool) (($availability->get($p->id)['is_sold_out'] ?? false)
-                || ($p->out_of_stock_until && $p->out_of_stock_until->isFuture())),
-        ])->all();
+        $products = $products->map(function ($p) use ($availability, $branchPauses) {
+            $bp = $branchPauses->get($p->id);
+            // Món coi là tạm ngưng nếu có cờ chung (cũ) HOẶC có tạm ngưng riêng chi nhánh.
+            $globalPaused = (bool) ($p->paused_until && $p->paused_until->isFuture());
+
+            return [
+                'id' => $p->id,
+                'name' => $p->name,
+                'price' => (float) $p->price,
+                'category_name' => $p->category?->name ?? 'Món khác',
+                'available_portions' => $availability->get($p->id)['available_portions'] ?? null,
+                'paused_until' => $p->paused_until ? $p->paused_until->toIso8601String() : null,
+                'pause_reason' => $bp?->reason ?? $p->pause_reason,
+                'out_of_stock_until' => $p->out_of_stock_until ? $p->out_of_stock_until->toIso8601String() : null,
+                'is_paused' => $globalPaused || $bp !== null,
+                // Tạm ngưng riêng theo chi nhánh + trạng thái duyệt mở lại.
+                'branch_paused' => $bp !== null,
+                'reopen_requested' => $bp?->status === 'reopen_requested',
+                'is_out_of_stock' => (bool) (($availability->get($p->id)['is_sold_out'] ?? false)
+                    || ($p->out_of_stock_until && $p->out_of_stock_until->isFuture())),
+            ];
+        })->all();
 
         $ingredients = Ingredient::where('restaurant_id', $restaurantId)
             ->when($branchId !== null, fn ($q) => $q->where('branch_id', $branchId))
@@ -364,12 +390,22 @@ class KitchenController extends Controller
 
         $validated = $request->validate([
             'minutes' => ['required', 'integer', 'min:1'],
+            'reason' => ['nullable', 'string', 'max:255'],
         ]);
 
         $product->update([
             'paused_until' => now()->addMinutes($validated['minutes']),
+            'pause_reason' => $validated['reason'] ?? null,
             'out_of_stock_until' => null,
             'out_of_stock_reason' => null,
+        ]);
+
+        // Ghi nhật ký tạm ngưng món để truy vết (ai, chi nhánh nào, lý do, bao lâu).
+        AuditLog::log('kitchen_product_paused', 'updated', $product, null, [
+            'branch_id' => app(TenantContext::class)->activeBranchId(),
+            'minutes' => $validated['minutes'],
+            'reason' => $validated['reason'] ?? null,
+            'by' => $user->name,
         ]);
 
         $this->broadcastSafely(
@@ -410,11 +446,22 @@ class KitchenController extends Controller
         abort_unless($user->can('manage_kitchen'), 403);
         abort_if($product->restaurant_id !== $user->restaurant_id, 403);
 
+        $wasPaused = $product->paused_until !== null || $product->out_of_stock_until !== null;
+
         $product->update([
             'paused_until' => null,
+            'pause_reason' => null,
             'out_of_stock_until' => null,
             'out_of_stock_reason' => null,
         ]);
+
+        // Mở lại bán món cũng được ghi nhật ký (truy vết "duyệt mở lại": ai mở, khi nào).
+        if ($wasPaused) {
+            AuditLog::log('kitchen_product_resumed', 'updated', $product, null, [
+                'branch_id' => app(TenantContext::class)->activeBranchId(),
+                'by' => $user->name,
+            ]);
+        }
 
         $this->broadcastSafely(
             new ProductStockUpdated($user->restaurant_id),
@@ -422,6 +469,103 @@ class KitchenController extends Controller
         );
 
         return back()->with('success', "Đã mở lại bán món {$product->name}!");
+    }
+
+    // ── Tạm ngưng món theo TỪNG CHI NHÁNH + duyệt mở lại ──────────────────────
+
+    /** Chi nhánh đang thao tác; bắt buộc có (tạm ngưng luôn thuộc một chi nhánh). */
+    private function requirePauseBranch(): int
+    {
+        $branchId = app(TenantContext::class)->activeBranchId();
+        abort_if($branchId === null, 422, 'Hãy chọn một chi nhánh cụ thể trước khi tạm ngưng món (không tạm ngưng ở phạm vi toàn chuỗi).');
+
+        return (int) $branchId;
+    }
+
+    /** Tạm ngưng bán món CHỈ ở chi nhánh hiện tại. */
+    public function pauseBranch(Request $request, Product $product): RedirectResponse
+    {
+        $user = $request->user();
+        abort_unless($user->can('manage_kitchen'), 403);
+        abort_if($product->restaurant_id !== $user->restaurant_id, 403);
+        $branchId = $this->requirePauseBranch();
+
+        $data = $request->validate([
+            'reason' => ['required', 'string', 'min:3', 'max:255'],
+            'minutes' => ['nullable', 'integer', 'min:1'],
+        ]);
+
+        $existing = ProductBranchPause::where('restaurant_id', $user->restaurant_id)
+            ->where('branch_id', $branchId)->where('product_id', $product->id)
+            ->activePause()->first();
+
+        $pausedUntil = ! empty($data['minutes']) ? now()->addMinutes($data['minutes']) : null;
+
+        if ($existing) {
+            $existing->update(['reason' => $data['reason'], 'paused_until' => $pausedUntil, 'paused_by' => $user->id]);
+            $pause = $existing;
+        } else {
+            $pause = ProductBranchPause::create([
+                'restaurant_id' => $user->restaurant_id,
+                'branch_id' => $branchId,
+                'product_id' => $product->id,
+                'reason' => $data['reason'],
+                'paused_until' => $pausedUntil,
+                'paused_by' => $user->id,
+                'status' => 'active',
+            ]);
+        }
+
+        AuditLog::log('kitchen_product_branch_paused', 'updated', $product, null, [
+            'branch_id' => $branchId, 'reason' => $data['reason'], 'by' => $user->name,
+        ]);
+        $this->broadcastSafely(new ProductStockUpdated($user->restaurant_id), 'product.stock_updated');
+
+        return back()->with('success', "Đã tạm ngưng bán món {$product->name} tại chi nhánh này.");
+    }
+
+    /** Nhân viên bếp ĐỀ NGHỊ mở lại (không tự mở) — chờ Quản lý/Chủ duyệt. */
+    public function requestReopenBranch(Request $request, Product $product): RedirectResponse
+    {
+        $user = $request->user();
+        abort_unless($user->can('manage_kitchen'), 403);
+        abort_if($product->restaurant_id !== $user->restaurant_id, 403);
+        $branchId = $this->requirePauseBranch();
+
+        $pause = ProductBranchPause::where('restaurant_id', $user->restaurant_id)
+            ->where('branch_id', $branchId)->where('product_id', $product->id)
+            ->where('status', 'active')->first();
+        if (! $pause) {
+            return back()->with('error', 'Món này không đang bị tạm ngưng tại chi nhánh.');
+        }
+
+        $pause->update(['status' => 'reopen_requested', 'reopen_requested_by' => $user->id, 'reopen_requested_at' => now()]);
+        AuditLog::log('kitchen_reopen_requested', 'updated', $product, null, ['branch_id' => $branchId, 'by' => $user->name]);
+
+        return back()->with('success', 'Đã gửi đề nghị mở lại món tới Quản lý/Chủ duyệt.');
+    }
+
+    /** Quản lý/Chủ DUYỆT mở lại món tại chi nhánh (gỡ tạm ngưng). */
+    public function approveReopenBranch(Request $request, Product $product): RedirectResponse
+    {
+        $user = $request->user();
+        abort_unless($user->isSuperAdmin() || $user->isOwner() || $user->isBranchManager(), 403, 'Chỉ Quản lý/Chủ được duyệt mở lại món.');
+        abort_if($product->restaurant_id !== $user->restaurant_id, 403);
+        $branchId = $this->requirePauseBranch();
+        abort_unless($user->canAccessBranch($branchId), 403);
+
+        $pause = ProductBranchPause::where('restaurant_id', $user->restaurant_id)
+            ->where('branch_id', $branchId)->where('product_id', $product->id)
+            ->whereIn('status', ['active', 'reopen_requested'])->first();
+        if (! $pause) {
+            return back()->with('error', 'Không có tạm ngưng nào để mở lại.');
+        }
+
+        $pause->update(['status' => 'reopened', 'reopened_by' => $user->id, 'reopened_at' => now()]);
+        AuditLog::log('kitchen_reopen_approved', 'updated', $product, null, ['branch_id' => $branchId, 'by' => $user->name]);
+        $this->broadcastSafely(new ProductStockUpdated($user->restaurant_id), 'product.stock_updated');
+
+        return back()->with('success', "Đã duyệt mở lại bán món {$product->name} tại chi nhánh.");
     }
 
     public function cancelItem(Request $request, OrderItem $item): RedirectResponse

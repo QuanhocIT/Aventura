@@ -60,9 +60,12 @@ interface Product {
     price: number;
     category_name: string;
     paused_until: string | null;
+    pause_reason?: string | null;
     out_of_stock_until: string | null;
     is_paused: boolean;
     is_out_of_stock: boolean;
+    branch_paused?: boolean;
+    reopen_requested?: boolean;
 }
 
 interface IngredientOption {
@@ -222,10 +225,14 @@ const submitCancelItem = () => {
 };
 
 // Product status actions
-const handlePauseProduct = (productId: number, minutes: number) => {
+const handlePauseProduct = (
+    productId: number,
+    minutes: number,
+    reason?: string,
+) => {
     router.post(
         `/kitchen/products/${productId}/pause`,
-        { minutes },
+        { minutes, reason: reason ?? null },
         {
             preserveScroll: true,
             preserveState: true,
@@ -255,6 +262,47 @@ const handleResumeProduct = (productId: number) => {
     );
 };
 
+// ── Tạm ngưng món theo RIÊNG chi nhánh + duyệt mở lại ──────────────────────────
+const isOwnerOrManager = computed(() => {
+    const roles = ((usePage().props.auth as any)?.user?.roles ?? []) as string[];
+
+    return roles.some((r) => ['owner', 'super_admin', 'manager'].includes(r));
+});
+
+// Tạm ngưng CHỈ ở chi nhánh hiện tại (kèm lý do bắt buộc).
+const pauseBranch = (product: Product, minutes?: number, reason?: string) => {
+    const finalReason =
+        reason ??
+        window.prompt(`Lý do tạm ngưng món "${product.name}" tại chi nhánh này:`, '') ??
+        '';
+    if (finalReason.trim().length < 3) {
+        toast.error('Cần nhập lý do tạm ngưng (tối thiểu 3 ký tự).');
+
+        return;
+    }
+    router.post(
+        `/kitchen/products/${product.id}/pause-branch`,
+        { reason: finalReason.trim(), minutes: minutes ?? null },
+        { preserveScroll: true, preserveState: true },
+    );
+};
+
+const requestReopen = (productId: number) => {
+    router.post(
+        `/kitchen/products/${productId}/request-reopen`,
+        {},
+        { preserveScroll: true, preserveState: true },
+    );
+};
+
+const approveReopen = (productId: number) => {
+    router.post(
+        `/kitchen/products/${productId}/approve-reopen`,
+        {},
+        { preserveScroll: true, preserveState: true },
+    );
+};
+
 const handlePauseCustom = (product: Product) => {
     const res = window.prompt(
         `Nhập số phút tạm dừng cho món "${product.name}":`,
@@ -273,7 +321,13 @@ const handlePauseCustom = (product: Product) => {
         return;
     }
 
-    handlePauseProduct(product.id, mins);
+    const reason =
+        window.prompt(
+            `Lý do tạm dừng món "${product.name}" (để trống nếu không có):`,
+            '',
+        ) ?? '';
+
+    handlePauseProduct(product.id, mins, reason.trim() || undefined);
 };
 
 const handleOutOfStockCustom = (product: Product) => {
@@ -2028,8 +2082,9 @@ onUnmounted(() => {
                                         <div
                                             class="flex items-center justify-between text-[11px] font-bold text-slate-500"
                                         >
-                                            <span>Mở bán lại sau:</span>
+                                            <span>{{ p.branch_paused ? 'Tạm ngưng (chi nhánh này):' : 'Mở bán lại sau:' }}</span>
                                             <span
+                                                v-if="!p.branch_paused"
                                                 class="flex animate-pulse items-center gap-1 font-black text-indigo-600 dark:text-indigo-400"
                                             >
                                                 <Clock class="size-3" />
@@ -2041,7 +2096,39 @@ onUnmounted(() => {
                                                 }}
                                             </span>
                                         </div>
+                                        <p
+                                            v-if="p.branch_paused && p.pause_reason"
+                                            class="text-[10px] text-slate-400"
+                                        >{{ p.pause_reason }}</p>
+
+                                        <!-- Tạm ngưng riêng chi nhánh: mở lại phải DUYỆT -->
+                                        <template v-if="p.branch_paused">
+                                            <div
+                                                v-if="p.reopen_requested"
+                                                class="rounded-lg bg-amber-50 px-2 py-1 text-center text-[10px] font-bold text-amber-700 dark:bg-amber-950/30 dark:text-amber-300"
+                                            >⏳ Đã đề nghị mở lại — chờ Quản lý/Chủ duyệt</div>
+                                            <Button
+                                                v-if="isOwnerOrManager"
+                                                size="sm"
+                                                class="flex h-8 w-full items-center justify-center gap-1 rounded-lg bg-emerald-600 text-xs font-bold text-white hover:bg-emerald-700"
+                                                @click="approveReopen(p.id)"
+                                            >
+                                                <RotateCcw class="size-3" /> Duyệt mở lại
+                                            </Button>
+                                            <Button
+                                                v-else-if="!p.reopen_requested"
+                                                size="sm"
+                                                variant="outline"
+                                                class="flex h-8 w-full items-center justify-center gap-1 rounded-lg text-xs font-bold text-amber-600"
+                                                @click="requestReopen(p.id)"
+                                            >
+                                                Đề nghị mở lại
+                                            </Button>
+                                        </template>
+
+                                        <!-- Tạm dừng chung / hết món: mở lại ngay -->
                                         <Button
+                                            v-else
                                             size="sm"
                                             class="flex h-8 w-full items-center justify-center gap-1 rounded-lg bg-indigo-600 text-xs font-bold text-white hover:bg-indigo-700"
                                             @click="handleResumeProduct(p.id)"
@@ -2062,48 +2149,34 @@ onUnmounted(() => {
                                                     size="sm"
                                                     variant="outline"
                                                     class="h-7 rounded-md p-0 text-[10px] font-bold"
-                                                    @click="
-                                                        handlePauseProduct(
-                                                            p.id,
-                                                            15,
-                                                        )
-                                                    "
+                                                    @click="pauseBranch(p, 15)"
                                                     >15p</Button
                                                 >
                                                 <Button
                                                     size="sm"
                                                     variant="outline"
                                                     class="h-7 rounded-md p-0 text-[10px] font-bold"
-                                                    @click="
-                                                        handlePauseProduct(
-                                                            p.id,
-                                                            30,
-                                                        )
-                                                    "
+                                                    @click="pauseBranch(p, 30)"
                                                     >30p</Button
                                                 >
                                                 <Button
                                                     size="sm"
                                                     variant="outline"
                                                     class="h-7 rounded-md p-0 text-[10px] font-bold"
-                                                    @click="
-                                                        handlePauseProduct(
-                                                            p.id,
-                                                            60,
-                                                        )
-                                                    "
+                                                    @click="pauseBranch(p, 60)"
                                                     >1h</Button
                                                 >
                                                 <Button
                                                     size="sm"
                                                     variant="outline"
                                                     class="h-7 rounded-md bg-slate-100 p-0 text-[10px] font-black dark:bg-slate-800"
-                                                    @click="
-                                                        handlePauseCustom(p)
-                                                    "
+                                                    @click="pauseBranch(p)"
                                                     >...</Button
                                                 >
                                             </div>
+                                            <p class="text-[9px] text-slate-400">
+                                                Chỉ tạm ngưng ở chi nhánh này · cần lý do
+                                            </p>
                                         </div>
 
                                         <div class="flex flex-col gap-1">
