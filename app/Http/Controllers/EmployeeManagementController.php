@@ -156,6 +156,7 @@ class EmployeeManagementController extends Controller
             'id' => $a->id,
             'day' => Carbon::parse($a->scheduled_date)->format('l'), // 'Monday', 'Tuesday', etc.
             'employee_name' => $a->employee?->full_name ?? 'Không rõ',
+            'branch_name' => $a->employee?->branch?->name ?? ($a->branch?->name ?? ''),
             'shift_name' => $a->shift?->name ? explode(' (', $a->shift->name)[0] : 'Ca Mới',
             'shift_id' => $a->shift_id,
             'start_time' => $a->shift?->start_time ? substr($a->shift->start_time, 0, 5) : '',

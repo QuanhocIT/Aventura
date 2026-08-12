@@ -9,6 +9,7 @@ use App\Support\Tenant\TenantContext;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
@@ -26,7 +27,7 @@ class OperationsChecklistController extends Controller
 
         $templates = ChecklistTemplate::where('restaurant_id', $restaurantId)
             ->where('is_active', true)
-            ->with('items')
+            ->with(['items', 'branches:id,name'])
             ->orderBy('sort_order')
             ->get();
 
@@ -72,6 +73,7 @@ class OperationsChecklistController extends Controller
             'branches' => $request->user()->restaurant
                 ? $request->user()->restaurant->branches()->where('status', 'active')->get(['id', 'name'])
                 : [],
+            'canManageTemplates' => $this->canManageTemplates($request->user()),
         ]);
     }
 
@@ -223,6 +225,74 @@ class OperationsChecklistController extends Controller
         return back()->with('success', 'Đã xóa checklist.');
     }
 
+    public function updateTemplate(Request $request, ChecklistTemplate $template): RedirectResponse
+    {
+        $this->authorizeTemplateManagement($request);
+        abort_unless($template->restaurant_id === $request->user()->restaurant_id, 403);
+
+        $restaurantId = (int) $request->user()->restaurant_id;
+        $data = $request->validate([
+            'name' => ['required', 'string', 'max:255'],
+            'type' => ['required', 'in:opening,closing,attp,custom,handover'],
+            'items' => ['required', 'array', 'min:1'],
+            'items.*.id' => ['nullable', 'integer', 'distinct'],
+            'items.*.title' => ['required', 'string', 'max:255'],
+            'items.*.requires_photo' => ['boolean'],
+            'branch_ids' => ['nullable', 'array'],
+            'branch_ids.*' => [
+                'integer',
+                Rule::exists('restaurant_branches', 'id')->where('restaurant_id', $restaurantId),
+            ],
+        ]);
+
+        DB::transaction(function () use ($template, $data): void {
+            $existingItems = $template->items()->get()->keyBy('id');
+            $keptItemIds = [];
+
+            foreach ($data['items'] as $index => $itemData) {
+                $itemId = $itemData['id'] ?? null;
+
+                if ($itemId !== null) {
+                    $item = $existingItems->get((int) $itemId);
+
+                    if (! $item) {
+                        throw ValidationException::withMessages([
+                            'items' => 'Một mục checklist không thuộc mẫu đang chỉnh sửa.',
+                        ]);
+                    }
+
+                    $item->update([
+                        'title' => $itemData['title'],
+                        'requires_photo' => $itemData['requires_photo'] ?? false,
+                        'sort_order' => $index,
+                    ]);
+                    $keptItemIds[] = $item->id;
+
+                    continue;
+                }
+
+                $newItem = $template->items()->create([
+                    'title' => $itemData['title'],
+                    'requires_photo' => $itemData['requires_photo'] ?? false,
+                    'sort_order' => $index,
+                ]);
+                $keptItemIds[] = $newItem->id;
+            }
+
+            $template->items()
+                ->when($keptItemIds !== [], fn ($query) => $query->whereNotIn('id', $keptItemIds))
+                ->delete();
+
+            $template->update([
+                'name' => $data['name'],
+                'type' => $data['type'],
+            ]);
+            $template->branches()->sync($data['branch_ids'] ?? []);
+        });
+
+        return back()->with('success', "Đã cập nhật checklist \"{$template->name}\".");
+    }
+
     public function weeklyReport(Request $request): JsonResponse
     {
         $restaurantId = $request->user()->restaurant_id;
@@ -268,10 +338,11 @@ class OperationsChecklistController extends Controller
     {
         $user = $request->user();
 
-        abort_unless(
-            $user->isSuperAdmin() || $user->hasAnyRole(['owner', 'manager']),
-            403,
-            'Chỉ Owner hoặc Manager mới được quản lý mẫu checklist.',
-        );
+        abort_unless($this->canManageTemplates($user), 403, 'Chỉ Owner hoặc Manager mới được quản lý mẫu checklist.');
+    }
+
+    private function canManageTemplates($user): bool
+    {
+        return $user->isSuperAdmin() || $user->hasAnyRole(['owner', 'manager']);
     }
 }

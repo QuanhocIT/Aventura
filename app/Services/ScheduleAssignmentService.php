@@ -272,18 +272,23 @@ class ScheduleAssignmentService
             return ['success' => false, 'field' => 'employee_name', 'message' => 'Nhân viên không tồn tại.'];
         }
 
-        $assignmentBranchId = (int) $employee->branch_id;
-        $activeBranchId = app(TenantContext::class)->activeBranchId();
-        if (! $assignmentBranchId || ($activeBranchId !== null && $assignmentBranchId !== $activeBranchId)) {
-            return ['success' => false, 'field' => 'employee_name', 'message' => 'NhÃ¢n viÃªn khÃ´ng thuá»™c chi nhÃ¡nh hiá»‡n táº¡i.'];
+        $tenantContext = app(TenantContext::class);
+        $activeBranchId = $tenantContext->activeBranchId();
+
+        $assignmentBranchId = (int) ($employee->branch_id ?: ($actingUser->branch_id ?: 0));
+        if ($tenantContext->isBranchScoped() && (int) $employee->branch_id !== (int) $activeBranchId) {
+            return ['success' => false, 'field' => 'employee_name', 'message' => 'Nhân viên không thuộc chi nhánh đang chọn.'];
         }
 
         $shift = null;
         if (! empty($data['shift_id'])) {
             $shift = WorkShift::where('restaurant_id', $actingUser->restaurant_id)
-                ->where(function ($q) {
-                    $branchId = app(TenantContext::class)->activeBranchId();
-                    $q->whereNull('branch_id')->orWhere('branch_id', $branchId);
+                ->when($tenantContext->isBranchScoped(), function ($q) use ($activeBranchId, $employee) {
+                    $q->where(function ($sub) use ($activeBranchId, $employee) {
+                        $sub->whereNull('branch_id')
+                            ->orWhere('branch_id', $activeBranchId)
+                            ->orWhere('branch_id', $employee->branch_id);
+                    });
                 })
                 ->find($data['shift_id']);
         }
@@ -291,9 +296,12 @@ class ScheduleAssignmentService
         if (! $shift && ! empty($data['shift_name'])) {
             $shiftName = $data['shift_name'];
             $shift = WorkShift::where('restaurant_id', $actingUser->restaurant_id)
-                ->where(function ($q) {
-                    $branchId = app(TenantContext::class)->activeBranchId();
-                    $q->whereNull('branch_id')->orWhere('branch_id', $branchId);
+                ->when($tenantContext->isBranchScoped(), function ($q) use ($activeBranchId, $employee) {
+                    $q->where(function ($sub) use ($activeBranchId, $employee) {
+                        $sub->whereNull('branch_id')
+                            ->orWhere('branch_id', $activeBranchId)
+                            ->orWhere('branch_id', $employee->branch_id);
+                    });
                 })
                 ->where(function ($q) use ($shiftName) {
                     $q->where('name', $shiftName)

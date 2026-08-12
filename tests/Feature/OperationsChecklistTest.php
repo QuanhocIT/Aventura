@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\ChecklistTemplate;
 use App\Models\Restaurant;
+use App\Models\RestaurantBranch;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Spatie\Permission\Models\Role;
@@ -65,11 +66,11 @@ class OperationsChecklistTest extends TestCase
 
     public function test_owner_creates_handover_checklist_assigned_to_branch(): void
     {
-        $branch = \App\Models\RestaurantBranch::factory()->create([
+        $branch = RestaurantBranch::factory()->create([
             'restaurant_id' => $this->restaurant->id,
             'status' => 'active',
         ]);
-        $otherBranch = \App\Models\RestaurantBranch::factory()->create([
+        $otherBranch = RestaurantBranch::factory()->create([
             'restaurant_id' => $this->restaurant->id,
             'status' => 'active',
         ]);
@@ -117,6 +118,86 @@ class OperationsChecklistTest extends TestCase
 
         $this->actingAs($this->owner)->delete("/operations-checklist/templates/{$template->id}")->assertRedirect();
         $this->assertDatabaseMissing('checklist_templates', ['id' => $template->id]);
+    }
+
+    public function test_owner_can_update_template_and_keep_existing_item_identity(): void
+    {
+        $template = ChecklistTemplate::create([
+            'restaurant_id' => $this->restaurant->id,
+            'name' => 'Mẫu cũ',
+            'type' => 'opening',
+            'sort_order' => 0,
+        ]);
+        $existingItem = $template->items()->create([
+            'title' => 'Kiểm tra cửa',
+            'requires_photo' => false,
+            'sort_order' => 0,
+        ]);
+        $removedItem = $template->items()->create([
+            'title' => 'Mục sẽ bỏ',
+            'requires_photo' => true,
+            'sort_order' => 1,
+        ]);
+
+        $this->actingAs($this->owner)
+            ->put("/operations-checklist/templates/{$template->id}", [
+                'name' => 'Mẫu mở cửa chuẩn',
+                'type' => 'closing',
+                'items' => [
+                    [
+                        'id' => $existingItem->id,
+                        'title' => 'Kiểm tra cửa và báo động',
+                        'requires_photo' => true,
+                    ],
+                    [
+                        'title' => 'Đối chiếu nhiệt độ tủ mát',
+                        'requires_photo' => false,
+                    ],
+                ],
+            ])
+            ->assertRedirect()
+            ->assertSessionHasNoErrors();
+
+        $this->assertDatabaseHas('checklist_templates', [
+            'id' => $template->id,
+            'name' => 'Mẫu mở cửa chuẩn',
+            'type' => 'closing',
+        ]);
+        $this->assertDatabaseHas('checklist_items', [
+            'id' => $existingItem->id,
+            'template_id' => $template->id,
+            'title' => 'Kiểm tra cửa và báo động',
+            'requires_photo' => true,
+        ]);
+        $this->assertDatabaseMissing('checklist_items', ['id' => $removedItem->id]);
+        $this->assertDatabaseHas('checklist_items', [
+            'template_id' => $template->id,
+            'title' => 'Đối chiếu nhiệt độ tủ mát',
+        ]);
+    }
+
+    public function test_owner_cannot_update_foreign_template(): void
+    {
+        $other = Restaurant::factory()->create();
+        $foreign = ChecklistTemplate::create([
+            'restaurant_id' => $other->id,
+            'name' => 'Mẫu nhà hàng khác',
+            'type' => 'custom',
+            'sort_order' => 0,
+        ]);
+
+        $this->actingAs($this->owner)
+            ->put("/operations-checklist/templates/{$foreign->id}", [
+                'name' => 'Không được sửa',
+                'type' => 'custom',
+                'items' => [['title' => 'Mục thử', 'requires_photo' => false]],
+            ])
+            ->assertNotFound();
+
+        $this->assertDatabaseHas('checklist_templates', [
+            'id' => $foreign->id,
+            'name' => 'Mẫu nhà hàng khác',
+        ]);
     }
 
     public function test_template_is_tenant_scoped(): void

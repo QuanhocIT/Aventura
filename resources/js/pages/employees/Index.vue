@@ -65,6 +65,7 @@ type Assignment = {
     id?: number;
     day: string;
     employee_name: string;
+    branch_name?: string | null;
     shift_name: string;
     shift_id?: number;
     start_time?: string;
@@ -333,6 +334,10 @@ const roleLabels: Record<string, string> = {
     kitchen: 'Đầu bếp/Bếp (Kitchen)',
     waiter: 'Nhân viên order',
     staff: 'Nhân viên phục vụ',
+    warehouse_manager: 'Trưởng Kho Tổng',
+    warehouse_staff: 'Nhân viên Kho Tổng',
+    inventory_staff: 'Nhân viên Kho Chi Nhánh',
+    operations_inspector: 'Giám sát / Thanh tra',
 };
 
 type RoleOption = { value: string; label: string; disabled?: boolean };
@@ -371,14 +376,18 @@ const editRoleOptions = computed(() => {
 });
 
 const roleColors: Record<string, string> = {
-    owner: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-400',
-    manager: 'bg-sky-100 text-sky-700 dark:bg-sky-950 dark:text-sky-400',
+    owner: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-400 border border-indigo-200/50',
+    manager: 'bg-sky-100 text-sky-700 dark:bg-sky-950 dark:text-sky-400 border border-sky-200/50',
     cashier:
-        'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400',
+        'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400 border border-emerald-200/50',
     kitchen:
-        'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-400',
-    waiter: 'bg-teal-100 text-teal-700 dark:bg-teal-950 dark:text-teal-400',
-    staff: 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-400',
+        'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-400 border border-amber-200/50',
+    waiter: 'bg-teal-100 text-teal-700 dark:bg-teal-950 dark:text-teal-400 border border-teal-200/50',
+    staff: 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-400 border border-slate-200/50',
+    warehouse_manager: 'bg-purple-100 text-purple-700 dark:bg-purple-950 dark:text-purple-300 border border-purple-200/50',
+    warehouse_staff: 'bg-violet-100 text-violet-700 dark:bg-violet-950 dark:text-violet-300 border border-violet-200/50',
+    inventory_staff: 'bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300 border border-blue-200/50',
+    operations_inspector: 'bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300 border border-rose-200/50',
 };
 
 const avatarColors = [
@@ -2119,10 +2128,15 @@ const submitSwapReject = () => {
                                             >
                                         </div>
                                         <p
-                                            class="mt-0.5 truncate text-xs text-muted-foreground"
+                                            class="mt-0.5 flex flex-wrap items-center gap-1.5 truncate text-xs text-muted-foreground"
                                         >
-                                            {{ emp.employee_code }} ·
-                                            {{ emp.job_title }}
+                                            <span>{{ emp.employee_code }} · {{ emp.job_title }}</span>
+                                            <span
+                                                v-if="emp.branch_name"
+                                                class="inline-flex items-center gap-0.5 rounded border border-slate-200/60 bg-slate-100 px-1.5 py-0.5 text-[9px] font-bold text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"
+                                            >
+                                                🏢 {{ emp.branch_name }}
+                                            </span>
                                         </p>
                                         <div
                                             class="mt-1 flex items-center gap-1.5 text-xs"
@@ -2674,8 +2688,8 @@ const submitSwapReject = () => {
                                                     '-' +
                                                     (s.shift_id ?? '')
                                                 "
-                                                class="group/assign relative flex items-center gap-1 rounded-md border border-indigo-100 bg-indigo-50/70 px-2 py-1 transition-all hover:bg-indigo-100 hover:shadow-xs dark:border-indigo-900/40 dark:bg-indigo-950/40 dark:hover:bg-indigo-900/60"
-                                                :title="`${s.employee_name} — ${s.shift_name}${s.start_time ? ' (' + s.start_time + ' - ' + s.end_time + ')' : ''}`"
+                                                class="group/assign relative flex flex-wrap items-center gap-1 rounded-md border border-indigo-100 bg-indigo-50/70 px-2 py-1 transition-all hover:bg-indigo-100 hover:shadow-xs dark:border-indigo-900/40 dark:bg-indigo-950/40 dark:hover:bg-indigo-900/60"
+                                                :title="`${s.employee_name}${s.branch_name ? ' [' + s.branch_name + ']' : ''} — ${s.shift_name}${s.start_time ? ' (' + s.start_time + ' - ' + s.end_time + ')' : ''}`"
                                             >
                                                 <span
                                                     class="size-1.5 rounded-full bg-indigo-600 dark:bg-indigo-400"
@@ -2684,6 +2698,12 @@ const submitSwapReject = () => {
                                                     class="text-[10px] font-bold text-slate-800 dark:text-slate-200"
                                                     >{{ s.employee_name }}</span
                                                 >
+                                                <span
+                                                    v-if="s.branch_name"
+                                                    class="rounded bg-indigo-100/90 px-1 py-0.2 text-[8px] font-extrabold text-indigo-700 dark:bg-indigo-900/70 dark:text-indigo-300"
+                                                >
+                                                    🏢 {{ s.branch_name }}
+                                                </span>
                                                 <span
                                                     class="font-mono text-[9px] text-slate-400"
                                                     >({{ s.shift_name }}<template v-if="s.start_time">: {{ s.start_time }}-{{ s.end_time }}</template>)</span
@@ -3322,11 +3342,11 @@ const submitSwapReject = () => {
                                     class="w-full rounded-md border border-slate-200 bg-background px-3 py-2 text-sm focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:outline-none"
                                 >
                                     <option
-                                        v-for="name in availableEmployeesList"
-                                        :key="name"
-                                        :value="name"
+                                        v-for="emp in employees"
+                                        :key="emp.id"
+                                        :value="emp.full_name"
                                     >
-                                        {{ name }}
+                                        {{ emp.full_name }} ({{ emp.job_title }}){{ emp.branch_name ? ' — 🏢 ' + emp.branch_name : '' }}
                                     </option>
                                 </select>
                             </div>

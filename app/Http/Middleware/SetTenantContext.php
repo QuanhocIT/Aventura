@@ -25,7 +25,11 @@ class SetTenantContext
 
         if ($user && $user->status === 'active') {
             if (! $request->is('logout') && ! $request->routeIs('logout')) {
-                if ($user->restaurant_id && ! $user->isExemptFromShiftLock()) {
+                if ($user->restaurant_id && $user->isExemptFromShiftLock()) {
+                    // Shift-independent roles must not inherit an expired shift
+                    // marker from a previous session or from an old assignment.
+                    session()->forget(['employee_id', 'shift_allowed_until']);
+                } elseif ($user->restaurant_id) {
                     if (! app()->runningUnitTests() || self::$enforceShiftLockInTests) {
                         // Fallback check to populate session data for pre-existing sessions or test settings
                         if (! session()->has('employee_id') || ! session()->has('shift_allowed_until')) {
@@ -73,6 +77,19 @@ class SetTenantContext
                 $validBranchId = $this->validActiveBranchId($requestedBranchId, $user->restaurant_id);
                 if ($validBranchId !== null) {
                     $tenantContext->setActiveBranchId($validBranchId);
+                } elseif ($assignedBranchId && ! $user->isOwner() && ! $user->isSuperAdmin()) {
+                    $validAssigned = $this->validActiveBranchId($assignedBranchId, $user->restaurant_id);
+                    if ($validAssigned !== null) {
+                        session([
+                            'active_branch_id' => $validAssigned,
+                            'active_branch_scope' => TenantContext::SCOPE_BRANCH,
+                        ]);
+                        $tenantContext->setActiveBranchId($validAssigned);
+                    } else {
+                        session()->forget('active_branch_id');
+                        session(['active_branch_scope' => TenantContext::SCOPE_ALL]);
+                        $tenantContext->setAllBranches();
+                    }
                 } else {
                     session()->forget('active_branch_id');
                     session(['active_branch_scope' => TenantContext::SCOPE_ALL]);

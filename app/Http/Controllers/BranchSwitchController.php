@@ -40,7 +40,6 @@ class BranchSwitchController extends Controller
         $branchId = (int) $data['branch_id'];
         $branchQuery = RestaurantBranch::query()
             ->whereKey($branchId)
-            ->where('is_central_warehouse', false)
             ->where('status', 'active');
 
         if (! $user->isSuperAdmin()) {
