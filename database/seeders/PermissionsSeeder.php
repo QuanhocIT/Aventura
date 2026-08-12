@@ -13,11 +13,14 @@ class PermissionsSeeder extends Seeder
     {
         // 1. Danh sách các quyền thực tế trong hệ thống Aventura
         $permissions = [
+            // ── Đặt hàng & Thanh toán ─────────────────────────────────────────
             'create_orders',
             'manage_orders',
             'split_orders',
             'process_payments',
             'override_split_penalty',
+
+            // ── Bếp & Nhà hàng ────────────────────────────────────────────────
             'manage_kitchen',
             'manage_employees',
             'manage_salary',
@@ -32,42 +35,97 @@ class PermissionsSeeder extends Seeder
             'view_violations',
             'report_violations',
             'manage_restaurant_settings',
+
+            // ── Tồn kho & Chi nhánh ───────────────────────────────────────────
             'adjust_inventory',
+            'inventory.count',            // Thực hiện kiểm kê tồn kho
+            'inventory.adjust.approve',   // Duyệt điều chỉnh tồn kho (khác người thực hiện)
+
+            // ── Kho Tổng: Trưởng Kho ─────────────────────────────────────────
+            'warehouse.view',
+            'warehouse.manage',
+            'warehouse.dashboard',        // Xem dashboard tổng hợp Kho Tổng
+            'warehouse.report',           // Xuất báo cáo tồn kho, giao hàng, sai lệch
+            'warehouse.audit',            // Xem nhật ký kiểm toán kho
+            'warehouse.receive',          // Nhập hàng vào Kho Tổng từ nhà cung cấp
+
+            // ── Kho Tổng: Quyền nhỏ thực thi & Duyệt ─────────────────────────
+            'warehouse.receive.submit',   // Nhận hàng thực tế / PO
+            'warehouse.putaway',          // Cất hàng vào vị trí
+            'warehouse.pick',             // Soạn hàng & quét mã lô/nguyên liệu
+            'warehouse.pack',             // Soạn hàng, quét mã lô, đóng gói
+            'warehouse.handover',         // Bàn giao hàng cho đơn vị vận chuyển
+            'inventory.count.execute',    // Thực hiện đếm kiểm kê thực tế
+            'inventory.adjust.request',   // Đề xuất điều chỉnh tồn kho
+            'warehouse.dispute.view',     // Xem hồ sơ tranh chấp thiếu/hỏng
+            'supply_requests.dispatch_approve', // Duyệt xuất kho (Trưởng kho/Owner)
+
+            // ── Kho Tổng: Quyền nhân viên vận hành mới ───────────────────────
+            'warehouse.scan',             // Quét mã QR/barcode nguyên liệu, lô, vị trí
+            'warehouse.incident.report',  // Báo sự cố, hỏng hóc, thiếu hụt
+            'warehouse.shift.handover',   // Bàn giao ca cuối làm việc
+            'warehouse.own_history.view', // Xem lịch sử thao tác của chính mình
+            'warehouse.receiving.create', // Tạo phiếu nhận hàng GRN
+            'warehouse.receiving.confirm', // Xác nhận phiếu nhận hàng
+
+            // ── Kho Tổng: Quyền Trưởng Kho bổ sung ──────────────────────────
+            'warehouse.task.assign',      // Phân công công việc cho nhân viên
+            'warehouse.kpi.view',         // Xem KPI nhân viên kho
+            'warehouse.location.manage',  // Quản lý vị trí kho và quy tắc vận hành
+            'warehouse.limit.configure',  // Cấu hình hạn mức chênh lệch theo doanh nghiệp
+            'warehouse.receiving.verify', // Xác minh phiếu nhận hàng (manager)
+
+            // ── Quy tắc Quản trị Kho ─────────────────────────────────────────
+            'warehouse_governance.view',
+            'warehouse_governance.manage',
+
+            // ── Yêu cầu cấp phát ─────────────────────────────────────────────
+            'supply_requests.view',
+            'supply_requests.create',
+            'supply_requests.approve',    // Duyệt đơn (phải khác người tạo)
+            'supply_requests.dispatch',   // Duyệt xuất kho (phải khác người soạn)
+            'supply_requests.receive',    // Xác nhận nhận hàng (phải khác người xuất)
+            'supply_requests.cancel',     // Hủy đơn chưa xuất
+            'supply_requests.partial',    // Cấp phát một phần / hỗ trợ backorder
+
+            // ── Quản lý đơn giá ──────────────────────────────────────────────
+            'price_management.view',
+            'price_management.manage',    // Thay đổi đơn giá nguyên liệu
+            'price_management.approve',   // Duyệt thay đổi giá vượt biên động (chỉ owner)
+
+            // ── Chính sách & Kiểm toán ───────────────────────────────────────
             'company_policies.view',
             'company_policies.manage',
             'operational_audit.view',
             'operational_audit.report',
             'operational_audit.approve',
-            'warehouse.view',
-            'warehouse.manage',
-            'warehouse_governance.view',
-            'warehouse_governance.manage',
+
+            // ── Nhà cung cấp ─────────────────────────────────────────────────
             'supplier.portal.view',
-            'supply_requests.view',
-            'supply_requests.create',
-            'supply_requests.approve',
-            'supply_requests.dispatch',
-            'supply_requests.receive',
         ];
 
         // Tạo các permissions nếu chưa tồn tại
         foreach ($permissions as $permissionName) {
             Permission::firstOrCreate([
-                'name' => $permissionName,
+                'name'       => $permissionName,
                 'guard_name' => 'web',
             ]);
         }
 
-        // 2. Lấy hoặc tạo role owner (Chủ nhà hàng) - Có đầy đủ quyền
+        // ─────────────────────────────────────────────────────────────────────
+        // 2. Chủ nhà hàng (owner) — toàn quyền
+        // ─────────────────────────────────────────────────────────────────────
         $ownerRole = Role::firstOrCreate([
-            'name' => 'owner',
+            'name'       => 'owner',
             'guard_name' => 'web',
         ]);
         $ownerRole->syncPermissions($permissions);
 
-        // 3. Lấy hoặc tạo role manager (Quản lý)
+        // ─────────────────────────────────────────────────────────────────────
+        // 3. Quản lý chi nhánh (manager) — điều hành chi nhánh, tạo và nhận hàng
+        // ─────────────────────────────────────────────────────────────────────
         $managerRole = Role::firstOrCreate([
-            'name' => 'manager',
+            'name'       => 'manager',
             'guard_name' => 'web',
         ]);
         $managerRole->syncPermissions([
@@ -84,16 +142,22 @@ class PermissionsSeeder extends Seeder
             'view_violations',
             'report_violations',
             'view_report',
+            'adjust_inventory',
+            'inventory.count',
             'company_policies.view',
             'operational_audit.view',
             'supply_requests.view',
             'supply_requests.create',
-            'supply_requests.receive',
+            'supply_requests.receive',    // Chi nhánh xác nhận nhận hàng
+            'supply_requests.cancel',     // Hủy đơn do mình tạo (còn pending)
+            'price_management.view',
         ]);
 
-        // 4. Lấy hoặc tạo role cashier (Thu ngân)
+        // ─────────────────────────────────────────────────────────────────────
+        // 4. Thu ngân (cashier)
+        // ─────────────────────────────────────────────────────────────────────
         $cashierRole = Role::firstOrCreate([
-            'name' => 'cashier',
+            'name'       => 'cashier',
             'guard_name' => 'web',
         ]);
         $cashierRole->syncPermissions([
@@ -104,9 +168,11 @@ class PermissionsSeeder extends Seeder
             'report_violations',
         ]);
 
-        // 5. Lấy hoặc tạo role kitchen (Bếp)
+        // ─────────────────────────────────────────────────────────────────────
+        // 5. Bếp (kitchen)
+        // ─────────────────────────────────────────────────────────────────────
         $kitchenRole = Role::firstOrCreate([
-            'name' => 'kitchen',
+            'name'       => 'kitchen',
             'guard_name' => 'web',
         ]);
         $kitchenRole->syncPermissions([
@@ -114,54 +180,122 @@ class PermissionsSeeder extends Seeder
             'report_violations',
         ]);
 
-        // 6. Lấy hoặc tạo role inventory_staff (Nhân viên kho)
+        // ─────────────────────────────────────────────────────────────────────
+        // 6. Nhân viên kho chi nhánh (inventory_staff)
+        // ─────────────────────────────────────────────────────────────────────
         $inventoryRole = Role::firstOrCreate([
-            'name' => 'inventory_staff',
+            'name'       => 'inventory_staff',
             'guard_name' => 'web',
         ]);
         $inventoryRole->syncPermissions([
             'view_violations',
             'report_violations',
             'adjust_inventory',
+            'inventory.count',
             'company_policies.view',
             'supply_requests.view',
             'supply_requests.create',
             'supply_requests.receive',
         ]);
 
-        // 6b. Role warehouse_manager (Trưởng Kho Tổng)
+        // ─────────────────────────────────────────────────────────────────────
+        // 6b. Trưởng Kho Tổng (warehouse_manager)
+        //     Quyền chính: xem toàn chuỗi, duyệt cấp phát, xử lý sai lệch,
+        //     duyệt kiểm kê, quản lý giá, xuất báo cáo
+        //     Bị chặn: tự tạo đơn rồi tự duyệt (enforcement ở middleware)
+        // ─────────────────────────────────────────────────────────────────────
         $warehouseManagerRole = Role::firstOrCreate([
-            'name' => 'warehouse_manager',
+            'name'       => 'warehouse_manager',
             'guard_name' => 'web',
         ]);
         $warehouseManagerRole->syncPermissions([
             'adjust_inventory',
+            'inventory.count',
+            'inventory.count.execute',
+            'inventory.adjust.request',
+            'inventory.adjust.approve',
             'company_policies.view',
             'warehouse.view',
             'warehouse.manage',
+            'warehouse.dashboard',
+            'warehouse.report',
+            'warehouse.audit',
+            'warehouse.receive',
+            'warehouse.receive.submit',
+            'warehouse.putaway',
+            'warehouse.pick',
+            'warehouse.pack',
+            'warehouse.handover',
+            'warehouse.dispute.view',
             'warehouse_governance.view',
             'warehouse_governance.manage',
             'supply_requests.view',
             'supply_requests.approve',
             'supply_requests.dispatch',
+            'supply_requests.dispatch_approve',
+            'supply_requests.cancel',
+            'supply_requests.partial',
+            'price_management.view',
+            'price_management.manage',
+            'operational_audit.view',
+            'view_violations',
+            // Quyền mới bổ sung
+            'warehouse.scan',
+            'warehouse.incident.report',
+            'warehouse.shift.handover',
+            'warehouse.own_history.view',
+            'warehouse.receiving.create',
+            'warehouse.receiving.confirm',
+            'warehouse.receiving.verify',
+            'warehouse.task.assign',
+            'warehouse.kpi.view',
+            'warehouse.location.manage',
+            'warehouse.limit.configure',
         ]);
 
-        // 6c. Role warehouse_staff (Nhân viên Kho Tổng)
+        // ─────────────────────────────────────────────────────────────────────
+        // 6c. Nhân viên Kho Tổng (warehouse_staff)
+        //     Quyền chính: nhập hàng thực tế, soạn hàng, quét mã, đóng gói, bàn giao, đếm kiểm kê
+        //     Không có: duyệt đơn, duyệt xuất, điều chỉnh tồn độc lập, sửa đơn giá
+        // ─────────────────────────────────────────────────────────────────────
         $warehouseStaffRole = Role::firstOrCreate([
-            'name' => 'warehouse_staff',
+            'name'       => 'warehouse_staff',
             'guard_name' => 'web',
         ]);
         $warehouseStaffRole->syncPermissions([
-            'adjust_inventory',
-            'company_policies.view',
+            // Xem & điều hướng
             'warehouse.view',
             'supply_requests.view',
-            'supply_requests.dispatch',
+            'company_policies.view',
+            'warehouse.own_history.view',
+            // Nhận hàng
+            'warehouse.receive.submit',
+            'warehouse.receiving.create',
+            'warehouse.receiving.confirm',
+            // Quét mã
+            'warehouse.scan',
+            // Vận hành kho
+            'warehouse.putaway',
+            'warehouse.pick',
+            'warehouse.pack',
+            'warehouse.handover',
+            // Kiểm kê
+            'inventory.count.execute',
+            // Đề xuất & báo cáo
+            'inventory.adjust.request',
+            'warehouse.incident.report',
+            // Bàn giao ca
+            'warehouse.shift.handover',
+            // Xem tranh chấp (chỉ xem, không tự đóng)
+            'warehouse.dispute.view',
         ]);
 
-        // 6d. Role operations_inspector (Giám sát viên Vận hành / Auditor)
+        // ─────────────────────────────────────────────────────────────────────
+        // 6d. Kiểm toán nội bộ (operations_inspector)
+        //     Chỉ xem, không sửa tồn; xuất báo cáo, truy vết
+        // ─────────────────────────────────────────────────────────────────────
         $inspectorRole = Role::firstOrCreate([
-            'name' => 'operations_inspector',
+            'name'       => 'operations_inspector',
             'guard_name' => 'web',
         ]);
         $inspectorRole->syncPermissions([
@@ -170,20 +304,28 @@ class PermissionsSeeder extends Seeder
             'company_policies.view',
             'operational_audit.view',
             'operational_audit.report',
+            'warehouse.report',
+            'warehouse.audit',
+            'supply_requests.view',
+            'price_management.view',
         ]);
 
-        // 6e. Role supplier (NhÃ  cung cáº¥p gá»‘c)
+        // ─────────────────────────────────────────────────────────────────────
+        // 6e. Nhà cung cấp (supplier)
+        // ─────────────────────────────────────────────────────────────────────
         $supplierRole = Role::firstOrCreate([
-            'name' => 'supplier',
+            'name'       => 'supplier',
             'guard_name' => 'web',
         ]);
         $supplierRole->syncPermissions([
             'supplier.portal.view',
         ]);
 
-        // 7. Lấy hoặc tạo role waiter (Nhân viên order)
+        // ─────────────────────────────────────────────────────────────────────
+        // 7. Nhân viên order (waiter)
+        // ─────────────────────────────────────────────────────────────────────
         $waiterRole = Role::firstOrCreate([
-            'name' => 'waiter',
+            'name'       => 'waiter',
             'guard_name' => 'web',
         ]);
         $waiterRole->syncPermissions([

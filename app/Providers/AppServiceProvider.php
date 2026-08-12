@@ -123,7 +123,7 @@ class AppServiceProvider extends ServiceProvider
             }
 
             $employee = $user->employee;
-            if ($employee) {
+            if ($employee && ! $user->isExemptFromShiftLock()) {
                 session([
                     'employee_id' => $employee->id,
                     'shift_allowed_until' => $employee->getShiftAllowedUntil(),

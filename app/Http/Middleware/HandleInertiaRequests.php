@@ -58,17 +58,15 @@ class HandleInertiaRequests extends Middleware
                 // Cache branches per restaurant (5 phút) — không query DB mỗi request
                 $branches = $user->canViewAllBranches()
                     ? Cache::remember(
-                        "tenant_branches:v2:{$restaurant->id}:all",
+                        "tenant_branches:v3:{$restaurant->id}:all",
                         300,
                         fn () => $restaurant->branches()
-                            ->where('is_central_warehouse', false)
                             ->select('id', 'name')
                             ->get()
                             ->toArray()
                     )
                     : ($tenantContext->isBranchScoped()
                         ? $restaurant->branches()
-                            ->where('is_central_warehouse', false)
                             ->whereKey($tenantContext->activeBranchId())
                             ->select('id', 'name')
                             ->get()
@@ -155,7 +153,10 @@ class HandleInertiaRequests extends Middleware
             'name' => config('app.name'),
             'auth' => [
                 'user' => $safeUser,
-                'shift_allowed_until' => session('shift_allowed_until'),
+                'shift_allowed_until' => $user && ! $user->isExemptFromShiftLock()
+                    ? session('shift_allowed_until')
+                    : null,
+                'shift_lock_exempt' => $user?->isExemptFromShiftLock() ?? false,
             ],
             'roles' => $roles,
             'tenant' => $tenant,

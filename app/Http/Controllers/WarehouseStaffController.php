@@ -1,0 +1,787 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use App\Models\AuditLog;
+use App\Models\Ingredient;
+use App\Models\Inventory;
+use App\Models\InventoryBatch;
+use App\Models\InventoryCountSession;
+use App\Models\InventoryTransaction;
+use App\Models\RestaurantBranch;
+use App\Models\SupplyRequest;
+use App\Models\WarehouseLocation;
+use App\Models\WarehouseReceivingVoucher;
+use App\Models\WarehouseReceivingVoucherItem;
+use App\Models\WarehouseShiftHandover;
+use App\Models\WarehouseTaskAssignment;
+use App\Services\CentralWarehouseService;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
+use Inertia\Inertia;
+use Inertia\Response;
+
+class WarehouseStaffController extends Controller
+{
+    public function __construct(
+        protected CentralWarehouseService $warehouseService,
+    ) {}
+
+    // ── 1. Trang Portal Nhân Viên Kho ────────────────────────────────────────
+
+    /**
+     * Render trang portal dành riêng cho nhân viên kho (mobile-first).
+     * Chỉ trả dữ liệu liên quan đến người dùng hiện tại.
+     */
+    public function staffPortalPage(Request $request): Response
+    {
+        $user         = $request->user();
+        $restaurantId = $user->restaurant_id;
+        $userId       = $user->id;
+
+        $centralBranch = $this->warehouseService->getCentralWarehouse($restaurantId);
+
+        // Task của tôi hôm nay + pending
+        $myTasks = WarehouseTaskAssignment::where('restaurant_id', $restaurantId)
+            ->myTasks($userId)
+            ->with(['supplyRequest.toBranch', 'receivingVoucher', 'assignee'])
+            ->orderByRaw("CASE status WHEN 'in_progress' THEN 0 WHEN 'assigned' THEN 1 WHEN 'completed' THEN 2 ELSE 3 END")
+            ->orderBy('due_at')
+            ->limit(50)
+            ->get();
+
+        $taskSummary = [
+            'total'       => $myTasks->count(),
+            'pending'     => $myTasks->whereIn('status', ['assigned'])->count(),
+            'in_progress' => $myTasks->where('status', 'in_progress')->count(),
+            'completed_today' => $myTasks->where('status', 'completed')
+                ->filter(fn ($t) => $t->completed_at?->isToday())
+                ->count(),
+            'overdue'     => $myTasks->filter(fn ($t) => $t->isOverdue())->count(),
+        ];
+
+        // Phiếu nhận hàng gần đây do tôi thực hiện
+        $myVouchers = WarehouseReceivingVoucher::where('restaurant_id', $restaurantId)
+            ->where('received_by', $userId)
+            ->with(['items.ingredient', 'verifiedBy'])
+            ->orderByDesc('id')
+            ->limit(20)
+            ->get();
+
+        // Bàn giao ca gần đây của tôi
+        $myHandovers = WarehouseShiftHandover::where('restaurant_id', $restaurantId)
+            ->where(fn ($q) => $q->where('handover_by', $userId)->orWhere('received_by', $userId))
+            ->with(['handoverBy', 'receivedBy'])
+            ->orderByDesc('id')
+            ->limit(10)
+            ->get();
+
+        // Vị trí kho
+        $locations = WarehouseLocation::where('restaurant_id', $restaurantId)
+            ->where('is_active', true)
+            ->orderBy('zone')
+            ->orderBy('code')
+            ->get();
+
+        // Nguyên liệu (cho form nhận hàng)
+        $ingredients = Ingredient::where('restaurant_id', $restaurantId)
+            ->with(['unit'])
+            ->orderBy('name')
+            ->get(['id', 'name', 'sku', 'average_cost', 'unit_id']);
+
+        $canManage = $user->isOwner() || $user->isSuperAdmin() || $user->can('warehouse.manage');
+
+        return Inertia::render('inventory/WarehouseStaffPortal', [
+            'centralBranch'     => $centralBranch,
+            'myTasks'           => $myTasks,
+            'taskSummary'       => $taskSummary,
+            'myVouchers'        => $myVouchers,
+            'myHandovers'       => $myHandovers,
+            'locations'         => $locations,
+            'ingredients'       => $ingredients,
+            'canManageWarehouse' => $canManage,
+            'currentUser'       => [
+                'id'         => $userId,
+                'name'       => $user->name,
+                'job_title'  => $user->employee?->job_title ?: 'Nhân viên Kho Tổng',
+                'avatar_url' => $user->avatar_url,
+            ],
+        ]);
+    }
+
+    // ── 2. Task Management ───────────────────────────────────────────────────
+
+    /**
+     * API: Task của tôi (grouped by status)
+     */
+    public function myTasks(Request $request): JsonResponse
+    {
+        $user = $request->user();
+        $tasks = WarehouseTaskAssignment::where('restaurant_id', $user->restaurant_id)
+            ->myTasks($user->id)
+            ->with(['supplyRequest.toBranch', 'receivingVoucher'])
+            ->orderByRaw("CASE status WHEN 'in_progress' THEN 0 WHEN 'assigned' THEN 1 WHEN 'completed' THEN 2 ELSE 3 END")
+            ->orderBy('due_at')
+            ->get()
+            ->map(fn ($t) => $this->formatTask($t));
+
+        return response()->json([
+            'tasks'   => $tasks,
+            'summary' => [
+                'total'       => $tasks->count(),
+                'in_progress' => $tasks->where('status', 'in_progress')->count(),
+                'assigned'    => $tasks->where('status', 'assigned')->count(),
+                'overdue'     => $tasks->filter(fn ($t) => $t['is_overdue'])->count(),
+                'completed_today' => $tasks->where('status', 'completed')
+                    ->filter(fn ($t) => isset($t['completed_at']) && \Carbon\Carbon::parse($t['completed_at'])->isToday())
+                    ->count(),
+            ],
+        ]);
+    }
+
+    /**
+     * Bắt đầu một task (set started_at, chuyển status thành in_progress)
+     */
+    public function startTask(Request $request, int $id): JsonResponse
+    {
+        $user = $request->user();
+        $task = WarehouseTaskAssignment::where('restaurant_id', $user->restaurant_id)
+            ->where('assigned_to', $user->id)
+            ->findOrFail($id);
+
+        abort_if($task->status === 'completed', 422, 'Task đã hoàn thành, không thể bắt đầu lại.');
+        abort_if($task->status === 'in_progress', 422, 'Task đang được thực hiện.');
+
+        $task->update([
+            'status'     => 'in_progress',
+            'started_at' => now(),
+        ]);
+
+        $this->logAudit($user, 'warehouse_task.start', $task, [
+            'task_type' => $task->task_type,
+            'task_id'   => $task->id,
+        ]);
+
+        return response()->json(['message' => 'Bắt đầu task thành công.', 'task' => $this->formatTask($task->fresh())]);
+    }
+
+    /**
+     * Hoàn thành một task + upload evidence
+     */
+    public function completeTask(Request $request, int $id): JsonResponse
+    {
+        $request->validate([
+            'result_notes' => 'nullable|string|max:1000',
+            'evidence'     => 'nullable|array',
+            'evidence.*'   => 'file|mimes:jpg,jpeg,png,pdf|max:10240',
+        ]);
+
+        $user = $request->user();
+        $task = WarehouseTaskAssignment::where('restaurant_id', $user->restaurant_id)
+            ->where('assigned_to', $user->id)
+            ->findOrFail($id);
+
+        abort_if($task->status === 'completed', 422, 'Task đã hoàn thành rồi.');
+
+        $evidencePaths = $task->evidence_paths ?? [];
+        if ($request->hasFile('evidence')) {
+            foreach ($request->file('evidence') as $file) {
+                $path = $file->store('warehouse/evidence/' . now()->format('Y/m'), 'public');
+                $evidencePaths[] = $path;
+            }
+        }
+
+        $task->update([
+            'status'        => 'completed',
+            'completed_at'  => now(),
+            'result_notes'  => $request->result_notes,
+            'evidence_paths' => $evidencePaths,
+        ]);
+
+        $this->logAudit($user, 'warehouse_task.complete', $task, [
+            'task_type'    => $task->task_type,
+            'result_notes' => $request->result_notes,
+            'evidence_count' => count($evidencePaths),
+        ]);
+
+        return response()->json(['message' => 'Task hoàn thành!', 'task' => $this->formatTask($task->fresh())]);
+    }
+
+    // ── 3. Phiếu Nhận Hàng (GRN) ────────────────────────────────────────────
+
+    /**
+     * Tạo phiếu nhận hàng mới
+     */
+    public function storeReceivingVoucher(Request $request): JsonResponse
+    {
+        $request->validate([
+            'received_at'         => 'required|date',
+            'supplier_id'         => 'nullable|integer',
+            'purchase_order_id'   => 'nullable|integer',
+            'notes'               => 'nullable|string|max:500',
+            'items'               => 'required|array|min:1',
+            'items.*.ingredient_id' => 'required|integer|exists:ingredients,id',
+            'items.*.expected_qty'  => 'required|numeric|min:0',
+            'items.*.actual_qty'    => 'required|numeric|min:0',
+            'items.*.unit_cost'     => 'nullable|numeric|min:0',
+            'items.*.lot_number'    => 'nullable|string|max:100',
+            'items.*.expiry_date'   => 'nullable|string|max:20',
+            'items.*.location_id'   => 'nullable|integer',
+            'items.*.discrepancy_reason' => 'nullable|string|max:500',
+            'evidence'            => 'nullable|array',
+            'evidence.*'          => 'file|mimes:jpg,jpeg,png,pdf|max:10240',
+        ]);
+
+        $user         = $request->user();
+        $restaurantId = $user->restaurant_id;
+
+        $centralBranch = $this->warehouseService->getCentralWarehouse($restaurantId);
+        abort_unless($centralBranch, 422, 'Chưa thiết lập Kho Tổng.');
+
+        return DB::transaction(function () use ($request, $user, $restaurantId, $centralBranch) {
+            // Upload ảnh bằng chứng
+            $evidencePaths = [];
+            if ($request->hasFile('evidence')) {
+                foreach ($request->file('evidence') as $file) {
+                    $evidencePaths[] = $file->store('warehouse/grn/' . now()->format('Y/m'), 'public');
+                }
+            }
+
+            $totalExpected    = 0;
+            $totalActual      = 0;
+            $hasDiscrepancy   = false;
+
+            // Tính tổng
+            foreach ($request->items as $item) {
+                $totalExpected += (float) $item['expected_qty'];
+                $totalActual   += (float) $item['actual_qty'];
+                if (abs((float) $item['expected_qty'] - (float) $item['actual_qty']) > 0.001) {
+                    $hasDiscrepancy = true;
+                }
+            }
+
+            $discrepancyQty = $totalActual - $totalExpected;
+            $status = $hasDiscrepancy ? 'discrepancy' : 'draft';
+
+            $voucher = WarehouseReceivingVoucher::create([
+                'restaurant_id'          => $restaurantId,
+                'branch_id'              => $centralBranch->id,
+                'received_by'            => $user->id,
+                'received_at'            => $request->received_at,
+                'supplier_id'            => $request->supplier_id,
+                'purchase_order_id'      => $request->purchase_order_id,
+                'status'                 => $status,
+                'total_expected_qty'     => $totalExpected,
+                'total_actual_qty'       => $totalActual,
+                'total_discrepancy_qty'  => $discrepancyQty,
+                'evidence_paths'         => $evidencePaths,
+                'notes'                  => $request->notes,
+            ]);
+
+            // Tạo items
+            foreach ($request->items as $item) {
+                $itemExpected = (float) $item['expected_qty'];
+                $itemActual   = (float) $item['actual_qty'];
+                $diff         = $itemActual - $itemExpected;
+
+                $itemStatus = 'ok';
+                if ($diff < -0.001) $itemStatus = 'short';
+                elseif ($diff > 0.001) $itemStatus = 'over';
+
+                WarehouseReceivingVoucherItem::create([
+                    'voucher_id'          => $voucher->id,
+                    'ingredient_id'       => $item['ingredient_id'],
+                    'expected_qty'        => $itemExpected,
+                    'actual_qty'          => $itemActual,
+                    'unit_cost'           => $item['unit_cost'] ?? 0,
+                    'item_status'         => $itemStatus,
+                    'discrepancy_reason'  => $item['discrepancy_reason'] ?? null,
+                    'lot_number'          => $item['lot_number'] ?? null,
+                    'expiry_date'         => $item['expiry_date'] ?? null,
+                    'location_id'         => $item['location_id'] ?? null,
+                ]);
+            }
+
+            $this->logAudit($user, 'warehouse.receiving.created', $voucher, [
+                'voucher_code'  => $voucher->voucher_code,
+                'has_discrepancy' => $hasDiscrepancy,
+                'total_items'   => count($request->items),
+            ]);
+
+            return response()->json([
+                'message' => 'Phiếu nhận hàng ' . $voucher->voucher_code . ' đã tạo thành công.',
+                'voucher' => $voucher->load(['items.ingredient', 'receivedBy']),
+            ], 201);
+        });
+    }
+
+    /**
+     * Xác nhận phiếu nhận hàng (không có chênh lệch hoặc đã giải trình)
+     */
+    public function confirmReceiving(Request $request, int $id): JsonResponse
+    {
+        $request->validate([
+            'notes' => 'nullable|string|max:500',
+        ]);
+
+        $user    = $request->user();
+        $voucher = WarehouseReceivingVoucher::where('restaurant_id', $user->restaurant_id)
+            ->where('received_by', $user->id)
+            ->whereIn('status', ['draft', 'discrepancy'])
+            ->findOrFail($id);
+
+        $voucher->update([
+            'status' => 'confirmed',
+            'notes'  => $request->notes ?? $voucher->notes,
+        ]);
+
+        $this->logAudit($user, 'warehouse.receiving.confirmed', $voucher, [
+            'voucher_code' => $voucher->voucher_code,
+        ]);
+
+        return response()->json(['message' => 'Phiếu nhận hàng đã được xác nhận.']);
+    }
+
+    /**
+     * Báo chênh lệch và yêu cầu xem xét
+     */
+    public function reportDiscrepancy(Request $request, int $id): JsonResponse
+    {
+        $request->validate([
+            'discrepancy_reason' => 'required|string|max:1000',
+            'evidence'           => 'nullable|array',
+            'evidence.*'         => 'file|mimes:jpg,jpeg,png,pdf|max:10240',
+        ]);
+
+        $user    = $request->user();
+        $voucher = WarehouseReceivingVoucher::where('restaurant_id', $user->restaurant_id)
+            ->where('received_by', $user->id)
+            ->findOrFail($id);
+
+        $evidencePaths = $voucher->evidence_paths ?? [];
+        if ($request->hasFile('evidence')) {
+            foreach ($request->file('evidence') as $file) {
+                $evidencePaths[] = $file->store('warehouse/grn-discrepancy/' . now()->format('Y/m'), 'public');
+            }
+        }
+
+        $voucher->update([
+            'status'              => 'pending_review',
+            'discrepancy_reason'  => $request->discrepancy_reason,
+            'evidence_paths'      => $evidencePaths,
+        ]);
+
+        $this->logAudit($user, 'warehouse.receiving.discrepancy_reported', $voucher, [
+            'voucher_code'        => $voucher->voucher_code,
+            'discrepancy_reason'  => $request->discrepancy_reason,
+        ]);
+
+        return response()->json(['message' => 'Chênh lệch đã được báo cáo, chờ Trưởng kho xử lý.']);
+    }
+
+    /**
+     * Xác nhận cất hàng (putaway) với vị trí cụ thể
+     */
+    public function confirmPutaway(Request $request, int $taskId): JsonResponse
+    {
+        $request->validate([
+            'location_id' => 'required|integer|exists:warehouse_locations,id',
+            'batch_id'    => 'nullable|integer',
+            'notes'       => 'nullable|string|max:500',
+            'scan_log'    => 'nullable|array',
+        ]);
+
+        $user = $request->user();
+        $task = WarehouseTaskAssignment::where('restaurant_id', $user->restaurant_id)
+            ->where('assigned_to', $user->id)
+            ->where('task_type', 'putaway')
+            ->findOrFail($taskId);
+
+        $scanLog = array_merge($task->scan_log ?? [], $request->scan_log ?? []);
+
+        $task->update([
+            'status'       => 'completed',
+            'completed_at' => now(),
+            'result_notes' => $request->notes,
+            'scan_log'     => $scanLog,
+        ]);
+
+        $this->logAudit($user, 'warehouse.putaway.confirmed', $task, [
+            'task_id'     => $task->id,
+            'location_id' => $request->location_id,
+            'scan_count'  => count($scanLog),
+        ]);
+
+        return response()->json(['message' => 'Cất hàng thành công!']);
+    }
+
+    // ── 4. Báo Sự Cố ─────────────────────────────────────────────────────────
+
+    /**
+     * Báo sự cố / hỏng hóc / thiếu hụt
+     */
+    public function reportIncident(Request $request): JsonResponse
+    {
+        $request->validate([
+            'incident_type'    => 'required|in:shortage,damage,expired,wrong_item,other',
+            'ingredient_id'    => 'nullable|integer|exists:ingredients,id',
+            'batch_id'         => 'nullable|integer',
+            'location_id'      => 'nullable|integer',
+            'description'      => 'required|string|max:2000',
+            'quantity_affected' => 'nullable|numeric|min:0',
+            'evidence'         => 'nullable|array',
+            'evidence.*'       => 'file|mimes:jpg,jpeg,png,pdf|max:10240',
+        ]);
+
+        $user         = $request->user();
+        $restaurantId = $user->restaurant_id;
+
+        $evidencePaths = [];
+        if ($request->hasFile('evidence')) {
+            foreach ($request->file('evidence') as $file) {
+                $evidencePaths[] = $file->store('warehouse/incidents/' . now()->format('Y/m'), 'public');
+            }
+        }
+
+        // Tạo incident task cho nhân viên (loại incident)
+        $task = WarehouseTaskAssignment::create([
+            'restaurant_id'  => $restaurantId,
+            'assigned_to'    => $user->id,
+            'assigned_by'    => $user->id,
+            'task_type'      => 'incident',
+            'status'         => 'in_progress',
+            'priority'       => 'high',
+            'notes'          => $request->description,
+            'evidence_paths' => $evidencePaths,
+            'started_at'     => now(),
+            'result_notes'   => json_encode([
+                'incident_type'     => $request->incident_type,
+                'ingredient_id'     => $request->ingredient_id,
+                'batch_id'          => $request->batch_id,
+                'location_id'       => $request->location_id,
+                'quantity_affected' => $request->quantity_affected,
+            ]),
+        ]);
+
+        $this->logAudit($user, 'warehouse.incident.reported', $task, [
+            'incident_type'    => $request->incident_type,
+            'description'      => $request->description,
+            'evidence_count'   => count($evidencePaths),
+        ]);
+
+        return response()->json([
+            'message' => 'Sự cố đã được báo cáo. Trưởng kho sẽ được thông báo.',
+            'task_id' => $task->id,
+        ], 201);
+    }
+
+    // ── 5. Bàn Giao Ca ───────────────────────────────────────────────────────
+
+    /**
+     * Xem bàn giao ca hiện tại / gần đây của tôi
+     */
+    public function myShiftHandover(Request $request): JsonResponse
+    {
+        $user = $request->user();
+
+        $handover = WarehouseShiftHandover::where('restaurant_id', $user->restaurant_id)
+            ->where(fn ($q) => $q->where('handover_by', $user->id)->orWhere('received_by', $user->id))
+            ->with(['handoverBy', 'receivedBy', 'branch'])
+            ->orderByDesc('id')
+            ->first();
+
+        // Task chưa hoàn thành của tôi (cho cảnh báo khi bàn giao ca)
+        $pendingTasks = WarehouseTaskAssignment::where('restaurant_id', $user->restaurant_id)
+            ->myTasks($user->id)
+            ->pending()
+            ->get(['id', 'task_type', 'status', 'due_at', 'notes']);
+
+        return response()->json([
+            'latest_handover' => $handover,
+            'pending_tasks'   => $pendingTasks,
+            'can_handover'    => $pendingTasks->isEmpty() || $pendingTasks->count() <= 3,
+        ]);
+    }
+
+    /**
+     * Nộp bàn giao ca cuối
+     */
+    public function submitShiftHandover(Request $request): JsonResponse
+    {
+        $request->validate([
+            'shift_date'   => 'required|date',
+            'shift_type'   => 'required|in:morning,afternoon,evening,night',
+            'shift_label'  => 'nullable|string|max:50',
+            'notes'        => 'nullable|string|max:2000',
+            'received_by'  => 'nullable|integer|exists:users,id',
+            'incidents_json' => 'nullable|array',
+        ]);
+
+        $user         = $request->user();
+        $restaurantId = $user->restaurant_id;
+
+        $centralBranch = $this->warehouseService->getCentralWarehouse($restaurantId);
+        abort_unless($centralBranch, 422, 'Chưa thiết lập Kho Tổng.');
+
+        // Task chưa hoàn thành
+        $pendingTasks = WarehouseTaskAssignment::where('restaurant_id', $restaurantId)
+            ->myTasks($user->id)
+            ->pending()
+            ->get();
+
+        // Kiểm tra tồn kho snapshot
+        $stockSnapshot = Inventory::where('restaurant_id', $restaurantId)
+            ->where('branch_id', $centralBranch->id)
+            ->with(['ingredient:id,name,sku'])
+            ->get(['ingredient_id', 'quantity_on_hand'])
+            ->map(fn ($inv) => [
+                'ingredient_id'   => $inv->ingredient_id,
+                'ingredient_name' => $inv->ingredient?->name,
+                'quantity_on_hand' => $inv->quantity_on_hand,
+            ]);
+
+        $isSystemLocked = $pendingTasks->count() > 5; // Ngưỡng cảnh báo: > 5 task chưa xong
+
+        $handover = WarehouseShiftHandover::create([
+            'restaurant_id'      => $restaurantId,
+            'branch_id'          => $centralBranch->id,
+            'shift_date'         => $request->shift_date,
+            'shift_type'         => $request->shift_type,
+            'shift_label'        => $request->shift_label,
+            'handover_by'        => $user->id,
+            'received_by'        => $request->received_by,
+            'status'             => $request->received_by ? 'pending' : 'draft',
+            'notes'              => $request->notes,
+            'open_tasks_json'    => $pendingTasks->map(fn ($t) => [
+                'id'        => $t->id,
+                'task_type' => $t->task_type,
+                'status'    => $t->status,
+                'due_at'    => $t->due_at?->toISOString(),
+            ])->values()->all(),
+            'incidents_json'     => $request->incidents_json ?? [],
+            'stock_snapshot_json' => $stockSnapshot->toArray(),
+            'is_system_locked'   => $isSystemLocked,
+            'lock_reason'        => $isSystemLocked
+                ? 'Còn ' . $pendingTasks->count() . ' task chưa hoàn thành trong ca.'
+                : null,
+            'pending_picks_count'     => $pendingTasks->where('task_type', 'picking')->count(),
+            'pending_deliveries_count' => $pendingTasks->where('task_type', 'handover')->count(),
+        ]);
+
+        $this->logAudit($user, 'warehouse.shift_handover.submitted', $handover, [
+            'shift_date'          => $request->shift_date,
+            'shift_type'          => $request->shift_type,
+            'pending_tasks_count' => $pendingTasks->count(),
+            'is_system_locked'    => $isSystemLocked,
+        ]);
+
+        return response()->json([
+            'message'          => 'Bàn giao ca đã được nộp.',
+            'handover'         => $handover,
+            'is_system_locked' => $isSystemLocked,
+            'pending_tasks'    => $pendingTasks->count(),
+        ], 201);
+    }
+
+    /**
+     * Người nhận ca xác nhận bàn giao
+     */
+    public function confirmShiftHandover(Request $request, int $id): JsonResponse
+    {
+        $request->validate([
+            'notes' => 'nullable|string|max:500',
+        ]);
+
+        $user     = $request->user();
+        $handover = WarehouseShiftHandover::where('restaurant_id', $user->restaurant_id)
+            ->where('received_by', $user->id)
+            ->where('status', 'pending')
+            ->findOrFail($id);
+
+        // Tạo hash xác nhận
+        $hash = hash('sha256', $user->id . '|' . $handover->id . '|' . now()->timestamp);
+
+        $handover->update([
+            'status'                => 'confirmed',
+            'signed_at'             => now(),
+            'acknowledgment_hash'   => $hash,
+            'notes'                 => ($handover->notes ?? '') . "\n[Người nhận ca]: " . ($request->notes ?? ''),
+        ]);
+
+        $this->logAudit($user, 'warehouse.shift_handover.confirmed', $handover, [
+            'handover_id'   => $handover->id,
+            'handover_by'   => $handover->handover_by,
+            'received_by'   => $user->id,
+            'hash'          => $hash,
+        ]);
+
+        return response()->json(['message' => 'Bàn giao ca đã được xác nhận.']);
+    }
+
+    // ── 6. Lịch Sử Của Tôi ───────────────────────────────────────────────────
+
+    /**
+     * Lịch sử thao tác của nhân viên (chỉ của mình)
+     */
+    public function myHistory(Request $request): JsonResponse
+    {
+        $user = $request->user();
+
+        $history = AuditLog::where('restaurant_id', $user->restaurant_id)
+            ->where('user_id', $user->id)
+            ->whereIn('action', [
+                'warehouse.receiving.created',
+                'warehouse.receiving.confirmed',
+                'warehouse.receiving.discrepancy_reported',
+                'warehouse.putaway.confirmed',
+                'warehouse.incident.reported',
+                'warehouse.shift_handover.submitted',
+                'warehouse.shift_handover.confirmed',
+                'warehouse_task.start',
+                'warehouse_task.complete',
+            ])
+            ->orderByDesc('id')
+            ->limit(100)
+            ->get(['id', 'action', 'metadata', 'created_at', 'ip_address']);
+
+        return response()->json(['history' => $history]);
+    }
+
+    // ── 7. Quét Mã ───────────────────────────────────────────────────────────
+
+    /**
+     * Resolve một mã quét (QR/barcode) → trả về metadata
+     */
+    public function scanCode(Request $request): JsonResponse
+    {
+        $request->validate([
+            'code' => 'required|string|max:200',
+        ]);
+
+        $code = trim($request->code);
+        $user = $request->user();
+        $restaurantId = $user->restaurant_id;
+
+        // Thử match ingredient SKU
+        $ingredient = Ingredient::where('restaurant_id', $restaurantId)
+            ->where('sku', $code)
+            ->with(['unit'])
+            ->first();
+
+        if ($ingredient) {
+            return response()->json([
+                'type'   => 'ingredient',
+                'id'     => $ingredient->id,
+                'name'   => $ingredient->name,
+                'sku'    => $ingredient->sku,
+                'unit'   => $ingredient->unit?->symbol,
+                'status' => 'found',
+            ]);
+        }
+
+        // Thử match batch code
+        $batch = InventoryBatch::where('restaurant_id', $restaurantId)
+            ->where('batch_number', $code)
+            ->with(['ingredient'])
+            ->first();
+
+        if ($batch) {
+            $batchStatus = 'ok';
+            if ($batch->is_locked) {
+                $batchStatus = 'locked';
+            } elseif ($batch->expiry_date && $batch->expiry_date < now()) {
+                $batchStatus = 'expired';
+            }
+
+            return response()->json([
+                'type'          => 'batch',
+                'id'            => $batch->id,
+                'batch_number'  => $batch->batch_number,
+                'ingredient_id' => $batch->ingredient_id,
+                'ingredient_name' => $batch->ingredient?->name,
+                'expiry_date'   => $batch->expiry_date,
+                'quantity'      => $batch->quantity,
+                'status'        => $batchStatus,
+                'is_locked'     => $batch->is_locked,
+                'warning'       => $batchStatus !== 'ok'
+                    ? ($batchStatus === 'locked' ? 'Lô này đã bị khóa!' : 'Lô này đã hết hạn!')
+                    : null,
+            ]);
+        }
+
+        // Thử match warehouse location code
+        $location = WarehouseLocation::where('restaurant_id', $restaurantId)
+            ->where('code', $code)
+            ->first();
+
+        if ($location) {
+            return response()->json([
+                'type'        => 'location',
+                'id'          => $location->id,
+                'code'        => $location->code,
+                'name'        => $location->name,
+                'zone'        => $location->zone,
+                'is_cold'     => $location->is_cold_storage ?? false,
+                'is_quarantine' => $location->is_quarantine ?? false,
+                'status'      => 'found',
+            ]);
+        }
+
+        return response()->json([
+            'type'    => 'unknown',
+            'code'    => $code,
+            'status'  => 'not_found',
+            'message' => 'Không tìm thấy mã: ' . $code,
+        ], 404);
+    }
+
+    // ── Helpers ───────────────────────────────────────────────────────────────
+
+    private function formatTask(WarehouseTaskAssignment $task): array
+    {
+        return [
+            'id'               => $task->id,
+            'task_type'        => $task->task_type,
+            'status'           => $task->status,
+            'priority'         => $task->priority,
+            'due_at'           => $task->due_at?->toISOString(),
+            'started_at'       => $task->started_at?->toISOString(),
+            'completed_at'     => $task->completed_at?->toISOString(),
+            'notes'            => $task->notes,
+            'result_notes'     => $task->result_notes,
+            'evidence_count'   => count($task->evidence_paths ?? []),
+            'is_overdue'       => $task->isOverdue(),
+            'duration_minutes' => $task->duration(),
+            'supply_request'   => $task->supplyRequest ? [
+                'id'           => $task->supplyRequest->id,
+                'request_code' => $task->supplyRequest->request_code,
+                'to_branch'    => $task->supplyRequest->toBranch?->name,
+                'status'       => $task->supplyRequest->status,
+            ] : null,
+        ];
+    }
+
+    private function logAudit($user, string $action, $model, array $metadata = []): void
+    {
+        try {
+            AuditLog::create([
+                'restaurant_id' => $user->restaurant_id,
+                'user_id'       => $user->id,
+                'action'        => $action,
+                'auditable_type' => get_class($model),
+                'auditable_id'  => $model->id,
+                'metadata'      => array_merge($metadata, [
+                    'ip_address'   => request()->ip(),
+                    'user_agent'   => substr(request()->userAgent() ?? '', 0, 255),
+                    'performed_at' => now()->toISOString(),
+                ]),
+                'ip_address'    => request()->ip(),
+            ]);
+        } catch (\Throwable $e) {
+            // Không để lỗi audit làm gián đoạn luồng nghiệp vụ
+        }
+    }
+}
+

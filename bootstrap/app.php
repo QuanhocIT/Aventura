@@ -13,6 +13,7 @@ use App\Http\Middleware\EnsureSecuritySessionFresh;
 use App\Http\Middleware\EnsureSuperAdminAccess;
 use App\Http\Middleware\HandleAppearance;
 use App\Http\Middleware\HandleInertiaRequests;
+use App\Http\Middleware\PreventSelfApproval;
 use App\Http\Middleware\RequireSuperAdminStepUp;
 use App\Http\Middleware\RequireSuperAdminTwoFactor;
 use App\Http\Middleware\SecurityFirewallMiddleware;
@@ -98,6 +99,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'superadmin.stepup' => RequireSuperAdminStepUp::class,
             'superadmin.ip_whitelist' => SuperAdminIpWhitelistMiddleware::class,
             'shift.schedule' => CheckShiftSchedule::class,
+            'prevent_self_approval' => PreventSelfApproval::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

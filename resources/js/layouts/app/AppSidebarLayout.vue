@@ -97,7 +97,10 @@ function openUpgradeModal() {
 }
 
 const shiftAllowedUntil = computed(
-    () => page.props.auth?.shift_allowed_until as number | null,
+    () =>
+        page.props.auth?.shift_lock_exempt
+            ? null
+            : (page.props.auth?.shift_allowed_until as number | null),
 );
 const currentTimeSec = ref(Math.floor(Date.now() / 1000));
 const showShiftExpiredModal = ref(false);

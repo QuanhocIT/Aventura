@@ -79,25 +79,33 @@ function save() {
 <template>
     <Head title="Thẩm quyền phê duyệt" />
 
-    <div class="mx-auto flex w-full max-w-5xl flex-col gap-6 p-6">
-        <div class="flex flex-col gap-1">
+    <div class="mx-auto flex w-full max-w-7xl flex-col gap-6 p-4 sm:p-6">
+        <div
+            class="flex flex-col gap-4 rounded-2xl border border-indigo-500/20 bg-gradient-to-r from-slate-950 via-slate-900 to-indigo-950/70 p-5 text-white shadow-xl sm:flex-row sm:items-center sm:p-6"
+        >
             <h1
-                class="flex items-center gap-2 text-xl font-bold tracking-tight text-slate-900 dark:text-slate-100"
+                class="flex items-center gap-3 text-xl font-bold tracking-tight text-white sm:text-2xl"
             >
-                <SlidersHorizontal class="h-5 w-5 text-indigo-600" />
+                <span
+                    class="flex size-12 shrink-0 items-center justify-center rounded-xl border border-indigo-400/30 bg-indigo-500/20"
+                >
+                    <SlidersHorizontal class="h-6 w-6 text-indigo-300" />
+                </span>
                 Thẩm quyền phê duyệt
             </h1>
-            <p class="text-sm text-slate-500 dark:text-slate-400">
+            <p class="text-xs text-indigo-100/75 sm:-mt-2 sm:pl-[60px]">
                 Quyết định loại việc nào Quản lý chi nhánh được tự duyệt, và
                 trong hạn mức bao nhiêu. Mọi quyết định của họ vẫn được ghi lại
                 và báo về cho bạn.
             </p>
         </div>
 
-        <Card>
-            <CardHeader>
-                <CardTitle class="text-base">Ủy quyền cho Quản lý</CardTitle>
-                <CardDescription>
+        <Card class="overflow-hidden border-border/80">
+            <CardHeader class="border-b border-border/80 bg-muted/20 py-5">
+                <CardTitle class="text-base font-bold"
+                    >Ủy quyền cho Quản lý</CardTitle
+                >
+                <CardDescription class="text-xs">
                     Bỏ trống hạn mức nghĩa là không giới hạn theo giá trị. Hạn
                     mức ngày và tháng được cộng dồn để chặn việc chia nhỏ nhiều
                     yêu cầu.
@@ -108,53 +116,47 @@ function save() {
                 <div class="overflow-x-auto">
                     <table class="w-full min-w-[720px] text-sm">
                         <thead>
-                            <tr
-                                class="border-y border-slate-200 bg-slate-50 dark:border-slate-800 dark:bg-slate-900/60"
-                            >
+                            <tr class="border-y border-border bg-muted/50">
                                 <th
-                                    class="px-4 py-2.5 text-left text-[10px] font-bold tracking-wider text-slate-500 uppercase"
+                                    class="px-4 py-2.5 text-left text-[10px] font-bold tracking-wider text-muted-foreground uppercase"
                                 >
                                     Loại thao tác
                                 </th>
                                 <th
-                                    class="px-3 py-2.5 text-center text-[10px] font-bold tracking-wider text-slate-500 uppercase"
+                                    class="px-3 py-2.5 text-center text-[10px] font-bold tracking-wider text-muted-foreground uppercase"
                                 >
                                     Quản lý duyệt
                                 </th>
                                 <th
-                                    class="px-3 py-2.5 text-right text-[10px] font-bold tracking-wider text-slate-500 uppercase"
+                                    class="px-3 py-2.5 text-right text-[10px] font-bold tracking-wider text-muted-foreground uppercase"
                                 >
                                     Mỗi lần
                                 </th>
                                 <th
-                                    class="px-3 py-2.5 text-right text-[10px] font-bold tracking-wider text-slate-500 uppercase"
+                                    class="px-3 py-2.5 text-right text-[10px] font-bold tracking-wider text-muted-foreground uppercase"
                                 >
                                     Mỗi ngày
                                 </th>
                                 <th
-                                    class="px-3 py-2.5 text-right text-[10px] font-bold tracking-wider text-slate-500 uppercase"
+                                    class="px-3 py-2.5 text-right text-[10px] font-bold tracking-wider text-muted-foreground uppercase"
                                 >
                                     Mỗi tháng
                                 </th>
                                 <th
-                                    class="px-3 py-2.5 text-center text-[10px] font-bold tracking-wider text-slate-500 uppercase"
+                                    class="px-3 py-2.5 text-center text-[10px] font-bold tracking-wider text-muted-foreground uppercase"
                                 >
                                     Chủ hậu kiểm
                                 </th>
                             </tr>
                         </thead>
-                        <tbody
-                            class="divide-y divide-slate-100 dark:divide-slate-800"
-                        >
+                        <tbody class="divide-y divide-border">
                             <tr
                                 v-for="(row, i) in form.policies"
                                 :key="`${row.operation_type}-${row.branch_id ?? 'all'}`"
-                                class="hover:bg-slate-50/60 dark:hover:bg-slate-900/40"
+                                class="transition-colors hover:bg-muted/30"
                             >
                                 <td class="px-4 py-2.5">
-                                    <div
-                                        class="font-medium text-slate-800 dark:text-slate-200"
-                                    >
+                                    <div class="font-medium text-foreground">
                                         {{ policies[i].operation_label }}
                                     </div>
                                     <div
@@ -174,7 +176,7 @@ function save() {
                                     <input
                                         v-model="row.manager_can_approve"
                                         type="checkbox"
-                                        class="h-4 w-4 rounded border-slate-300 accent-emerald-600"
+                                        class="h-4 w-4 rounded border-border accent-emerald-500"
                                     />
                                 </td>
                                 <td class="px-3 py-2.5">
@@ -186,7 +188,7 @@ function save() {
                                         min="0"
                                         placeholder="—"
                                         :disabled="!row.manager_can_approve"
-                                        class="w-28 rounded-lg border border-slate-200 px-2 py-1 text-right text-xs tabular-nums disabled:opacity-40 dark:border-slate-700 dark:bg-slate-900"
+                                        class="w-28 rounded-lg border border-input bg-background px-2 py-1 text-right text-xs text-foreground tabular-nums disabled:opacity-40"
                                     />
                                 </td>
                                 <td class="px-3 py-2.5">
@@ -196,7 +198,7 @@ function save() {
                                         min="0"
                                         placeholder="—"
                                         :disabled="!row.manager_can_approve"
-                                        class="w-28 rounded-lg border border-slate-200 px-2 py-1 text-right text-xs tabular-nums disabled:opacity-40 dark:border-slate-700 dark:bg-slate-900"
+                                        class="w-28 rounded-lg border border-input bg-background px-2 py-1 text-right text-xs text-foreground tabular-nums disabled:opacity-40"
                                     />
                                 </td>
                                 <td class="px-3 py-2.5">
@@ -208,7 +210,7 @@ function save() {
                                         min="0"
                                         placeholder="—"
                                         :disabled="!row.manager_can_approve"
-                                        class="w-28 rounded-lg border border-slate-200 px-2 py-1 text-right text-xs tabular-nums disabled:opacity-40 dark:border-slate-700 dark:bg-slate-900"
+                                        class="w-28 rounded-lg border border-input bg-background px-2 py-1 text-right text-xs text-foreground tabular-nums disabled:opacity-40"
                                     />
                                 </td>
                                 <td class="px-3 py-2.5 text-center">
@@ -216,7 +218,7 @@ function save() {
                                         v-model="row.requires_owner_countersign"
                                         type="checkbox"
                                         :disabled="!row.manager_can_approve"
-                                        class="h-4 w-4 rounded border-slate-300 accent-indigo-600 disabled:opacity-40"
+                                        class="h-4 w-4 rounded border-border accent-indigo-500 disabled:opacity-40"
                                     />
                                 </td>
                             </tr>
@@ -227,24 +229,26 @@ function save() {
         </Card>
 
         <div class="flex justify-end">
-            <Button :disabled="form.processing" class="gap-1.5" @click="save">
+            <Button
+                :disabled="form.processing"
+                class="gap-1.5 bg-indigo-600 text-white hover:bg-indigo-500"
+                @click="save"
+            >
                 <Save class="h-4 w-4" />
                 Lưu thay đổi
             </Button>
         </div>
 
         <!-- Ranh giới cứng -->
-        <Card
-            class="border-rose-200 bg-rose-50/40 dark:border-rose-900/40 dark:bg-rose-950/10"
-        >
+        <Card class="border-rose-500/20 bg-rose-950/10">
             <CardHeader>
                 <CardTitle
-                    class="flex items-center gap-2 text-base text-rose-700 dark:text-rose-400"
+                    class="flex items-center gap-2 text-base text-rose-300"
                 >
                     <Ban class="h-4 w-4" />
                     Không bao giờ giao cho Quản lý
                 </CardTitle>
-                <CardDescription>
+                <CardDescription class="text-xs">
                     Các thao tác dưới đây bị chặn ở tầng hệ thống. Không có công
                     tắc nào bật được, kể cả tài khoản Chủ doanh nghiệp.
                 </CardDescription>
@@ -254,7 +258,7 @@ function save() {
                     <li
                         v-for="f in forbiddenForManager"
                         :key="f.operation_type"
-                        class="inline-flex items-center gap-1.5 rounded-lg border border-rose-200 bg-white px-2.5 py-1 text-xs font-medium text-rose-700 dark:border-rose-900/40 dark:bg-slate-900 dark:text-rose-400"
+                        class="inline-flex items-center gap-1.5 rounded-lg border border-rose-900/50 bg-rose-950/20 px-2.5 py-1 text-xs font-medium text-rose-300"
                     >
                         <ShieldCheck class="h-3 w-3" />
                         {{ f.operation_label }}
