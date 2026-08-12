@@ -340,7 +340,12 @@ class SupplierController extends Controller
      */
     public function verifyOrder(Request $request, PurchaseOrder $purchaseOrder): RedirectResponse
     {
-        abort_unless($request->user()->hasAnyRole(['owner', 'manager', 'inventory_staff']), 403);
+        abort_unless(
+            $request->user()->hasAnyRole(['owner', 'manager', 'inventory_staff', 'warehouse_manager', 'warehouse_staff'])
+            || $request->user()->can('warehouse.receive.submit')
+            || $request->user()->can('warehouse.receive'),
+            403
+        );
         $this->authorizePurchaseOrderBranch($request->user(), $purchaseOrder);
 
         $maxSize = SystemSetting::get('upload_invoice_image_max', 4096);

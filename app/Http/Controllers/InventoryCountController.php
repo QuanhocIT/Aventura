@@ -1,0 +1,184 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use App\Models\InventoryCountSession;
+use App\Models\RestaurantBranch;
+use App\Services\InventoryCountService;
+use App\Support\TenantRule;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
+use Inertia\Inertia;
+use Inertia\Response;
+
+class InventoryCountController extends Controller
+{
+    public function __construct(
+        protected InventoryCountService $countService
+    ) {}
+
+    /**
+     * Trang Quản lý Phiên kiểm kê tồn kho (Inertia View)
+     */
+    public function page(Request $request): Response
+    {
+        $user = $request->user();
+        $restaurantId = $user->restaurant_id;
+
+        $branches = RestaurantBranch::where('restaurant_id', $restaurantId)
+            ->where('status', 'active')
+            ->when(! $user->canViewAllBranches(), fn ($q) => $q->whereKey($user->assignedBranchId()))
+            ->get();
+
+        $activeBranchId = $request->integer('branch_id') ?: ($user->assignedBranchId() ?: $branches->first()?->id);
+
+        $sessions = InventoryCountSession::where('restaurant_id', $restaurantId)
+            ->when($activeBranchId, fn ($q) => $q->where('branch_id', $activeBranchId))
+            ->with(['items.ingredient.unit', 'branch', 'countedBy', 'secondCountedBy', 'approver'])
+            ->orderByDesc('id')
+            ->get();
+
+        return Inertia::render('inventory/InventoryCount', [
+            'branches'       => $branches,
+            'activeBranchId' => $activeBranchId,
+            'countSessions'  => $sessions,
+            'canStartCount'  => $user->can('inventory.count') || $user->isOwner() || $user->isSuperAdmin(),
+            'canApprove'     => $user->can('inventory.adjust.approve') || $user->isOwner() || $user->isSuperAdmin(),
+        ]);
+    }
+
+    /**
+     * Bắt đầu phiên kiểm kê mới
+     */
+    public function store(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'branch_id'      => ['required', TenantRule::exists('restaurant_branches')],
+            'type'           => 'required|string|in:periodic,spot_check,abc_cycle',
+            'blind_count'    => 'nullable|boolean',
+            'ingredient_ids' => 'nullable|array',
+        ]);
+
+        $user = $request->user();
+
+        if (! $user->canAccessBranch((int) $data['branch_id'])) {
+            abort(403, 'Bạn chỉ có thể khởi tạo kiểm kê cho chi nhánh thuộc phạm vi quản lý.');
+        }
+
+        try {
+            $session = $this->countService->startCountSession(
+                $user->restaurant_id,
+                (int) $data['branch_id'],
+                $user,
+                $data['type'],
+                (bool) ($data['blind_count'] ?? false),
+                $data['ingredient_ids'] ?? null
+            );
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Đã khởi tạo phiên kiểm kê thành công.',
+                'data'    => $session,
+            ], 201);
+        } catch (\Throwable $e) {
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage(),
+            ], 422);
+        }
+    }
+
+    /**
+     * Ghi nhận kết quả đếm thực tế
+     */
+    public function submitCounts(Request $request, int $id): JsonResponse
+    {
+        $user = $request->user();
+        $session = InventoryCountSession::where('restaurant_id', $user->restaurant_id)->findOrFail($id);
+
+        $data = $request->validate([
+            'items'                    => 'required|array|min:1',
+            'items.*.id'               => 'required|integer',
+            'items.*.counted_quantity' => 'required|numeric|min:0',
+            'items.*.notes'            => 'nullable|string',
+            'is_second_counter'        => 'nullable|boolean',
+        ]);
+
+        try {
+            $updated = $this->countService->submitCounts(
+                $session,
+                $user,
+                $data['items'],
+                (bool) ($data['is_second_counter'] ?? false)
+            );
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Đã cập nhật số lượng kiểm đếm thành công.',
+                'data'    => $updated,
+            ]);
+        } catch (\Throwable $e) {
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage(),
+            ], 422);
+        }
+    }
+
+    /**
+     * Hoàn tất đếm & gửi duyệt
+     */
+    public function submitForApproval(Request $request, int $id): JsonResponse
+    {
+        $user = $request->user();
+        $session = InventoryCountSession::where('restaurant_id', $user->restaurant_id)->findOrFail($id);
+
+        $data = $request->validate([
+            'variance_photo_path' => 'nullable|string',
+            'notes'               => 'nullable|string',
+        ]);
+
+        try {
+            $updated = $this->countService->finalizeAndSubmitForApproval(
+                $session,
+                $data['variance_photo_path'] ?? null,
+                $data['notes'] ?? null
+            );
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Phiên kiểm kê đã được gửi duyệt thành công.',
+                'data'    => $updated,
+            ]);
+        } catch (\Throwable $e) {
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage(),
+            ], 422);
+        }
+    }
+
+    /**
+     * Phê duyệt phiên kiểm kê & tự động điều chỉnh tồn kho
+     */
+    public function approve(Request $request, int $id): JsonResponse
+    {
+        $user = $request->user();
+        $session = InventoryCountSession::where('restaurant_id', $user->restaurant_id)->findOrFail($id);
+
+        try {
+            $updated = $this->countService->approveCountSession($session, $user);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Đã phê duyệt kiểm kê và cập nhật tồn kho thành công.',
+                'data'    => $updated,
+            ]);
+        } catch (\Throwable $e) {
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage(),
+            ], 422);
+        }
+    }
+}

@@ -40,6 +40,41 @@ class Inventory extends Model
         return $this->hasMany(InventoryTransaction::class);
     }
 
+    /**
+     * Các reservation đang còn hiệu lực cho inventory record này.
+     * Chỉ tính theo (branch_id + ingredient_id) qua scope.
+     */
+    public function activeReservations(): HasMany
+    {
+        return $this->hasMany(InventoryReservation::class, 'ingredient_id', 'ingredient_id')
+            ->where('branch_id', $this->branch_id)
+            ->whereNull('released_at');
+    }
+
+    /**
+     * Tổng số lượng đang được giữ chỗ (chưa giải phóng, chưa hết hạn).
+     */
+    public function getQuantityReservedAttribute(): float
+    {
+        return (float) InventoryReservation::where('ingredient_id', $this->ingredient_id)
+            ->where('branch_id', $this->branch_id)
+            ->whereNull('released_at')
+            ->where(function ($q) {
+                $q->whereNull('expires_at')
+                  ->orWhere('expires_at', '>', now());
+            })
+            ->sum('quantity');
+    }
+
+    /**
+     * Tồn khả dụng = quantity_on_hand - quantity_reserved.
+     * Đây là số lượng thực sự có thể cấp phát thêm.
+     */
+    public function getQuantityAvailableAttribute(): float
+    {
+        return max(0, (float) $this->quantity_on_hand - $this->quantity_reserved);
+    }
+
     protected static function booted()
     {
         static::updated(function (Inventory $inventory) {

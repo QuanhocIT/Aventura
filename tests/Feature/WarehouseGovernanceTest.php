@@ -87,9 +87,13 @@ class WarehouseGovernanceTest extends TestCase
         $this->assertEquals('SEAL-998877', $dispatched->seal_code);
 
         // 3. Branch receives ONLY 7kg (missing 3kg salmon = 1,200,000 VND loss)
-        $completed = $service->receiveSupplyRequest($dispatched, $manager, [
-            ['id' => $dispatched->items->first()->id, 'received_quantity' => 7],
-        ]);
+        $completed = $service->receiveSupplyRequest(
+            $dispatched,
+            $manager,
+            [['id' => $dispatched->items->first()->id, 'received_quantity' => 7]],
+            '/uploads/receipts/proof_7kg.jpg',
+            '/uploads/signatures/sign_manager.png'
+        );
 
         $this->assertTrue($completed->discrepancy_flag);
 

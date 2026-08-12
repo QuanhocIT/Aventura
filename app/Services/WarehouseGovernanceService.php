@@ -106,8 +106,8 @@ class WarehouseGovernanceService
                     'received_quantity' => $receivedQty,
                     'discrepancy_quantity' => $discrepancyQty,
                     'financial_loss_amount' => $financialLoss,
-                    'responsible_type' => 'unknown',
-                    'responsible_user_id' => $request->dispatched_by, // Default suspect: warehouse dispatcher
+                    'responsible_type' => 'unassigned',
+                    'responsible_user_id' => null, // Không tự động quy trách nhiệm trước khi hoàn tất điều tra
                     'status' => 'open',
                     'dispute_reason' => "Chi nhánh nhận thiếu {$discrepancyQty} {$item->unit_symbol} theo đơn cấp phát {$request->request_code}.",
                 ]);

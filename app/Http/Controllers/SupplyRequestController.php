@@ -6,6 +6,7 @@ use App\Models\Ingredient;
 use App\Models\Inventory;
 use App\Models\RestaurantBranch;
 use App\Models\SupplyRequest;
+use App\Models\WarehouseTaskAssignment;
 use App\Models\User;
 use App\Services\ApprovalService;
 use App\Services\CentralWarehouseService;
@@ -48,6 +49,9 @@ class SupplyRequestController extends Controller
             ->with(['unit'])
             ->get();
 
+        $warehouseStaff = $this->getWarehouseStaff($restaurantId);
+        $warehouseTasks = $this->getWarehouseTasks($restaurantId);
+
         $supplyAnalytics = $this->buildSupplyRequestAnalytics(
             $requests,
             $branches,
@@ -63,6 +67,9 @@ class SupplyRequestController extends Controller
             'canManageWarehouse' => $isOwnerOrSuperAdmin || $user->can('warehouse.manage'),
             'canApproveRequests' => $isOwnerOrSuperAdmin || $user->can('supply_requests.approve'),
             'canDispatchRequests' => $isOwnerOrSuperAdmin || $user->can('supply_requests.dispatch'),
+            'warehouseStaff' => $warehouseStaff,
+            'warehouseTasks' => $warehouseTasks,
+            'warehouseTaskSummary' => $this->buildWarehouseTaskSummary($warehouseTasks),
             'supplyAnalytics' => $supplyAnalytics,
         ]);
     }
@@ -432,12 +439,13 @@ class SupplyRequestController extends Controller
     public function store(Request $request): JsonResponse
     {
         $data = $request->validate([
-            'to_branch_id' => ['required', TenantRule::exists('restaurant_branches')],
-            'items' => 'required|array|min:1',
-            'items.*.ingredient_id' => ['required', TenantRule::exists('ingredients'), 'distinct'],
-            'items.*.quantity' => 'required|numeric|gt:0',
+            'to_branch_id'            => ['required', TenantRule::exists('restaurant_branches')],
+            'items'                   => 'required|array|min:1',
+            'items.*.ingredient_id'   => ['required', TenantRule::exists('ingredients'), 'distinct'],
+            'items.*.quantity'        => 'required|numeric|gt:0',
             'requested_delivery_date' => 'nullable|date',
-            'notes' => 'nullable|string',
+            'notes'                   => 'nullable|string',
+            'overlimit_reason'        => 'nullable|string|max:500',
         ]);
 
         $user = $request->user();
@@ -453,13 +461,14 @@ class SupplyRequestController extends Controller
                 $user,
                 $data['items'],
                 $data['requested_delivery_date'] ?? null,
-                $data['notes'] ?? null
+                $data['notes'] ?? null,
+                $data['overlimit_reason'] ?? null
             );
 
             return response()->json([
                 'success' => true,
                 'message' => 'Đã gửi yêu cầu nhập hàng đến Kho Tổng thành công.',
-                'data' => $supplyRequest,
+                'data'    => $supplyRequest,
             ], 201);
         } catch (\Throwable $e) {
             return response()->json([
@@ -470,7 +479,7 @@ class SupplyRequestController extends Controller
     }
 
     /**
-     * Kho Tổng phê duyệt đơn
+     * Kho Tổng phê duyệt đơn & giữ chỗ tồn khả dụng
      */
     public function approve(Request $request, int $id): JsonResponse
     {
@@ -479,10 +488,10 @@ class SupplyRequestController extends Controller
         $this->authorizeSupplyRequestScope($user, $supplyRequest);
 
         $data = $request->validate([
-            'items' => 'nullable|array',
-            'items.*.id' => 'required_with:items|integer',
+            'items'                     => 'nullable|array',
+            'items.*.id'                => 'required_with:items|integer',
             'items.*.approved_quantity' => 'required_with:items|numeric|min:0',
-            'notes' => 'nullable|string',
+            'notes'                     => 'nullable|string',
         ]);
         $this->assertItemsBelongToSupplyRequest(
             $supplyRequest,
@@ -492,8 +501,8 @@ class SupplyRequestController extends Controller
         if (! $user->isOwner() && ! $user->isSuperAdmin()) {
             $this->approvalService->submitRequest('warehouse_supply_approve', [
                 'supply_request_id' => $supplyRequest->id,
-                'items' => $data['items'] ?? [],
-                'notes' => $data['notes'] ?? null,
+                'items'             => $data['items'] ?? [],
+                'notes'             => $data['notes'] ?? null,
             ], $user);
 
             return response()->json(['success' => true, 'message' => 'Yêu cầu duyệt đơn cấp phát đã gửi Chủ nhà hàng.'], 202);
@@ -509,8 +518,8 @@ class SupplyRequestController extends Controller
 
             return response()->json([
                 'success' => true,
-                'message' => 'Đã duyệt đơn cấp phát thành công.',
-                'data' => $updated,
+                'message' => 'Đã duyệt đơn cấp phát và khóa giữ chỗ tồn kho khả dụng.',
+                'data'    => $updated,
             ]);
         } catch (\Throwable $e) {
             return response()->json([
@@ -521,7 +530,73 @@ class SupplyRequestController extends Controller
     }
 
     /**
-     * Kho Tổng xuất kho giao hàng
+     * Soạn hàng tại Kho Tổng (Layer 1 - Quét mã lô FEFO & kiểm đếm)
+     */
+    public function prepare(Request $request, int $id): JsonResponse
+    {
+        $user = $request->user();
+        $supplyRequest = SupplyRequest::where('restaurant_id', $user->restaurant_id)->findOrFail($id);
+        $this->authorizeSupplyRequestScope($user, $supplyRequest);
+
+        $data = $request->validate([
+            'items'                              => 'required|array|min:1',
+            'items.*.id'                         => 'required|integer',
+            'items.*.actual_dispatched_quantity' => 'required|numeric|min:0',
+            'items.*.batch_id'                   => 'nullable|integer',
+            'items.*.warehouse_location_id'      => 'nullable|integer',
+            'items.*.non_fefo_reason'            => 'nullable|string',
+            'items.*.notes'                      => 'nullable|string',
+        ]);
+
+        try {
+            $updated = $this->warehouseService->prepareDispatch($supplyRequest, $user, $data['items']);
+
+            WarehouseTaskAssignment::where('restaurant_id', $user->restaurant_id)
+                ->where('supply_request_id', $supplyRequest->id)
+                ->where('task_type', 'picking')
+                ->whereIn('status', ['assigned', 'in_progress'])
+                ->update(['status' => 'completed']);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Đã hoàn thành bước soạn hàng. Đơn chuyển sang chờ Trưởng kho duyệt xuất.',
+                'data'    => $updated,
+            ]);
+        } catch (\Throwable $e) {
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage(),
+            ], 422);
+        }
+    }
+
+    /**
+     * Trưởng Kho Tổng phê duyệt số lượng xuất (Layer 2)
+     */
+    public function approveDispatch(Request $request, int $id): JsonResponse
+    {
+        $user = $request->user();
+        $supplyRequest = SupplyRequest::where('restaurant_id', $user->restaurant_id)->findOrFail($id);
+        $this->authorizeSupplyRequestScope($user, $supplyRequest);
+
+        try {
+            $updated = $this->warehouseService->approveDispatch($supplyRequest, $user);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Đã phê duyệt lệnh xuất kho. Sẵn sàng bàn giao vận chuyển.',
+                'data'    => $updated,
+            ]);
+        } catch (\Throwable $e) {
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage(),
+            ], 422);
+        }
+    }
+
+    /**
+     * Kho Tổng xuất kho bàn giao thực tế (Layer 3)
      */
     public function dispatch(Request $request, int $id): JsonResponse
     {
@@ -536,7 +611,7 @@ class SupplyRequestController extends Controller
         if (! $user->isOwner() && ! $user->isSuperAdmin()) {
             $this->approvalService->submitRequest('warehouse_supply_dispatch', [
                 'supply_request_id' => $supplyRequest->id,
-                'seal_code' => $request->seal_code,
+                'seal_code'         => $request->seal_code,
             ], $user);
 
             return response()->json(['success' => true, 'message' => 'Yêu cầu xuất kho đã gửi Chủ nhà hàng.'], 202);
@@ -545,10 +620,16 @@ class SupplyRequestController extends Controller
         try {
             $updated = $this->warehouseService->dispatchSupplyRequest($supplyRequest, $user, $request->seal_code);
 
+            WarehouseTaskAssignment::where('restaurant_id', $user->restaurant_id)
+                ->where('supply_request_id', $supplyRequest->id)
+                ->where('task_type', 'handover')
+                ->whereIn('status', ['assigned', 'in_progress'])
+                ->update(['status' => 'completed']);
+
             return response()->json([
                 'success' => true,
                 'message' => 'Đã xuất kho Tổng và tạo Phiếu giao hàng thành công.',
-                'data' => $updated,
+                'data'    => $updated,
             ]);
         } catch (\Throwable $e) {
             return response()->json([
@@ -559,7 +640,7 @@ class SupplyRequestController extends Controller
     }
 
     /**
-     * Chi nhánh xác nhận đã nhận hàng
+     * Chi nhánh xác nhận nhận hàng (Chống gian lận: bắt buộc kiểm đếm thực tế, ảnh, chữ ký)
      */
     public function receive(Request $request, int $id): JsonResponse
     {
@@ -568,26 +649,88 @@ class SupplyRequestController extends Controller
         abort_unless($user->canAccessBranch((int) $supplyRequest->to_branch_id), 403, 'Bạn chỉ có thể xác nhận hàng cho chi nhánh thuộc phạm vi tài khoản.');
 
         $data = $request->validate([
-            'items' => 'nullable|array',
-            'items.*.id' => 'required_with:items|integer',
+            'items'                     => 'nullable|array',
+            'items.*.id'                => 'required_with:items|integer',
             'items.*.received_quantity' => 'required_with:items|numeric|min:0',
+            'receipt_photo_path'        => 'nullable|string',
+            'receiver_signature_path'   => 'nullable|string',
+            'notes'                     => 'nullable|string',
         ]);
         $this->assertItemsBelongToSupplyRequest(
             $supplyRequest,
             collect($data['items'] ?? [])->pluck('id')->all()
         );
 
+        $hasShortage = false;
+        if (! empty($data['items'])) {
+            foreach ($supplyRequest->items as $item) {
+                foreach ($data['items'] as $recItem) {
+                    if ($recItem['id'] == $item->id && isset($recItem['received_quantity'])) {
+                        $dispatched = (float) $item->effective_dispatched_quantity;
+                        $received = (float) $recItem['received_quantity'];
+                        if ($received < $dispatched) {
+                            $hasShortage = true;
+                            break 2;
+                        }
+                    }
+                }
+            }
+        }
+
+        if ($hasShortage && (blank($data['receipt_photo_path'] ?? null) || blank($data['receiver_signature_path'] ?? null))) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Bắt buộc chụp ảnh thực tế và ký tên xác nhận khi số lượng thực nhận ít hơn số lượng Kho Tổng xuất.',
+                'error'   => 'evidence_required',
+            ], 422);
+        }
+
         try {
             $updated = $this->warehouseService->receiveSupplyRequest(
                 $supplyRequest,
                 $user,
-                $data['items'] ?? null
+                $data['items'] ?? null,
+                $data['receipt_photo_path'] ?? null,
+                $data['receiver_signature_path'] ?? null,
+                $data['notes'] ?? null
             );
+
+            $msg = $updated->status === SupplyRequest::STATUS_DISPUTED
+                ? 'Đã ghi nhận nhận hàng (Phát hiện hàng thiếu: Đã tự động tạo Hồ sơ tranh chấp).'
+                : 'Đã nghiệm thu và nhập hàng vào tồn kho Chi nhánh thành công.';
 
             return response()->json([
                 'success' => true,
-                'message' => 'Đã nghiệm thu và nhập hàng vào tồn kho Chi nhánh thành công.',
-                'data' => $updated,
+                'message' => $msg,
+                'data'    => $updated,
+            ]);
+        } catch (\Throwable $e) {
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage(),
+            ], 422);
+        }
+    }
+
+    /**
+     * Hủy đơn xin cấp phát
+     */
+    public function cancel(Request $request, int $id): JsonResponse
+    {
+        $user = $request->user();
+        $supplyRequest = SupplyRequest::where('restaurant_id', $user->restaurant_id)->findOrFail($id);
+
+        $request->validate([
+            'reason' => 'required|string|max:500',
+        ]);
+
+        try {
+            $updated = $this->warehouseService->cancelSupplyRequest($supplyRequest, $user, $request->reason);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Đã hủy đơn cấp phát và giải phóng giữ chỗ tồn kho.',
+                'data'    => $updated,
             ]);
         } catch (\Throwable $e) {
             return response()->json([
@@ -728,6 +871,208 @@ class SupplyRequestController extends Controller
         );
     }
 
+    /**
+     * Danh sách nhân viên Kho Tổng để Trưởng kho phân công theo ca việc.
+     */
+    private function getWarehouseStaff(int $restaurantId): array
+    {
+        return User::where('restaurant_id', $restaurantId)
+            ->where('status', 'active')
+            ->whereHas('roles', fn ($query) => $query->where('name', 'warehouse_staff'))
+            ->with(['roles', 'employee'])
+            ->orderBy('name')
+            ->get()
+            ->map(fn (User $staff): array => [
+                'id' => $staff->id,
+                'name' => $staff->name,
+                'email' => $staff->email,
+                'job_title' => $staff->employee?->job_title ?: 'Nhân viên Kho Tổng',
+                'employee_code' => $staff->employee?->employee_code,
+                'avatar_url' => $staff->avatar_url,
+            ])
+            ->values()
+            ->all();
+    }
+
+    private function getWarehouseTasks(int $restaurantId): array
+    {
+        return WarehouseTaskAssignment::where('restaurant_id', $restaurantId)
+            ->with([
+                'assignee.employee',
+                'supplyRequest.toBranch',
+            ])
+            ->orderByRaw("CASE status WHEN 'in_progress' THEN 0 WHEN 'assigned' THEN 1 WHEN 'completed' THEN 2 ELSE 3 END")
+            ->orderByDesc('created_at')
+            ->get()
+            ->map(fn (WarehouseTaskAssignment $task): array => [
+                'id' => $task->id,
+                'supply_request_id' => $task->supply_request_id,
+                'request_code' => $task->supplyRequest?->request_code,
+                'request_status' => $task->supplyRequest?->status,
+                'branch_name' => $task->supplyRequest?->toBranch?->name,
+                'task_type' => $task->task_type,
+                'status' => $task->status,
+                'priority' => $task->priority,
+                'assigned_to' => $task->assigned_to,
+                'assignee_name' => $task->assignee?->name,
+                'assignee_job_title' => $task->assignee?->employee?->job_title,
+                'due_at' => $task->due_at?->toISOString(),
+                'notes' => $task->notes,
+                'created_at' => $task->created_at?->toISOString(),
+            ])
+            ->values()
+            ->all();
+    }
+
+    private function buildWarehouseTaskSummary(array $tasks): array
+    {
+        return [
+            'total' => count($tasks),
+            'assigned' => count(array_filter($tasks, fn (array $task) => $task['status'] === 'assigned')),
+            'in_progress' => count(array_filter($tasks, fn (array $task) => $task['status'] === 'in_progress')),
+            'completed' => count(array_filter($tasks, fn (array $task) => $task['status'] === 'completed')),
+            'unassigned' => count(array_filter($tasks, fn (array $task) => empty($task['assigned_to']) && $task['status'] !== 'completed')),
+        ];
+    }
+
+    private function authorizeWarehouseTaskManager(User $user): void
+    {
+        abort_unless(
+            $user->isOwner() || $user->isSuperAdmin() || $user->can('warehouse.manage'),
+            403,
+            'Chỉ Trưởng kho Tổng mới có quyền điều phối nhân viên Kho Tổng.'
+        );
+    }
+
+    /**
+     * Trưởng kho giao một chặng việc cho nhân viên Kho Tổng.
+     */
+    public function assignWarehouseTask(Request $request): JsonResponse
+    {
+        $user = $request->user();
+        $this->authorizeWarehouseTaskManager($user);
+
+        $data = $request->validate([
+            'supply_request_id' => 'required|integer',
+            'assigned_to' => 'required|integer',
+            'task_type' => 'required|string|in:picking,handover',
+            'priority' => 'required|string|in:normal,high,urgent',
+            'due_at' => 'nullable|date',
+            'notes' => 'nullable|string|max:1000',
+        ]);
+
+        $supplyRequest = SupplyRequest::where('restaurant_id', $user->restaurant_id)
+            ->findOrFail((int) $data['supply_request_id']);
+
+        $assignee = User::where('restaurant_id', $user->restaurant_id)
+            ->where('status', 'active')
+            ->whereKey((int) $data['assigned_to'])
+            ->whereHas('roles', fn ($query) => $query->where('name', 'warehouse_staff'))
+            ->firstOrFail();
+
+        $allowedStatuses = $data['task_type'] === 'picking'
+            ? [SupplyRequest::STATUS_APPROVED, SupplyRequest::STATUS_PREPARING]
+            : [SupplyRequest::STATUS_DISPATCH_PENDING];
+
+        if (! in_array($supplyRequest->status, $allowedStatuses, true)) {
+            return response()->json([
+                'success' => false,
+                'message' => $data['task_type'] === 'picking'
+                    ? 'Đơn phải ở trạng thái Đã duyệt hoặc Đang soạn mới có thể giao việc soạn hàng.'
+                    : 'Đơn phải được Trưởng kho duyệt xuất trước khi giao việc bàn giao.',
+            ], 422);
+        }
+
+        $task = WarehouseTaskAssignment::updateOrCreate(
+            [
+                'restaurant_id' => $user->restaurant_id,
+                'supply_request_id' => $supplyRequest->id,
+                'task_type' => $data['task_type'],
+            ],
+            [
+                'assigned_to' => $assignee->id,
+                'assigned_by' => $user->id,
+                'status' => 'assigned',
+                'priority' => $data['priority'],
+                'due_at' => $data['due_at'] ?? $supplyRequest->requested_delivery_date,
+                'notes' => $data['notes'] ?? null,
+            ]
+        );
+
+        return response()->json([
+            'success' => true,
+            'message' => "Đã giao việc cho {$assignee->name}.",
+            'data' => $task->load(['assignee.employee', 'supplyRequest.toBranch']),
+        ]);
+    }
+
+    /**
+     * Nhân viên cập nhật tiến độ nhiệm vụ được giao.
+     */
+    public function updateWarehouseTaskStatus(Request $request, int $id): JsonResponse
+    {
+        $user = $request->user();
+        $task = WarehouseTaskAssignment::where('restaurant_id', $user->restaurant_id)->findOrFail($id);
+
+        $isManager = $user->isOwner() || $user->isSuperAdmin() || $user->can('warehouse.manage');
+        abort_unless($isManager || (int) $task->assigned_to === (int) $user->id, 403, 'Bạn không được cập nhật nhiệm vụ này.');
+
+        $data = $request->validate([
+            'status' => 'required|string|in:assigned,in_progress,completed,cancelled',
+        ]);
+
+        $task->update(['status' => $data['status']]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Đã cập nhật tiến độ nhiệm vụ Kho Tổng.',
+            'data' => $task->fresh(['assignee.employee', 'supplyRequest.toBranch']),
+        ]);
+    }
+
+    /**
+     * Lấy dữ liệu Bảng công việc Kho Tổng (Task Board) cho nhân viên kho
+     */
+    public function taskBoardData(Request $request): JsonResponse
+    {
+        $user = $request->user();
+        abort_unless($user->can('supply_requests.view') || $user->can('warehouse.view') || $user->isOwner() || $user->isSuperAdmin(), 403);
+
+        $restaurantId = $user->restaurant_id;
+
+        $pickingPending = SupplyRequest::where('restaurant_id', $restaurantId)
+            ->where('status', SupplyRequest::STATUS_APPROVED)
+            ->with(['items.ingredient.unit', 'items.batch', 'toBranch', 'creator'])
+            ->orderBy('requested_delivery_date')
+            ->get();
+
+        $dispatchApprovalPending = SupplyRequest::where('restaurant_id', $restaurantId)
+            ->where('status', SupplyRequest::STATUS_PREPARING)
+            ->with(['items.ingredient.unit', 'items.batch', 'toBranch', 'preparedBy'])
+            ->orderBy('prepared_at')
+            ->get();
+
+        $handoverPending = SupplyRequest::where('restaurant_id', $restaurantId)
+            ->where('status', SupplyRequest::STATUS_DISPATCH_PENDING)
+            ->with(['items.ingredient.unit', 'items.batch', 'toBranch', 'approver', 'preparedBy'])
+            ->orderBy('dispatch_approved_at')
+            ->get();
+
+        $warehouseTasks = $this->getWarehouseTasks($restaurantId);
+
+        return response()->json([
+            'success' => true,
+            'data'    => [
+                'picking_pending'           => $pickingPending,
+                'dispatch_approval_pending' => $dispatchApprovalPending,
+                'handover_pending'          => $handoverPending,
+                'assignments'               => $warehouseTasks,
+                'staff'                     => $this->getWarehouseStaff($restaurantId),
+                'summary'                   => $this->buildWarehouseTaskSummary($warehouseTasks),
+            ],
+        ]);
+    }
+
     private function assertItemsBelongToSupplyRequest(SupplyRequest $supplyRequest, array $itemIds): void
     {
         $ids = collect($itemIds)
@@ -749,5 +1094,41 @@ class SupplyRequestController extends Controller
                 'items' => 'Danh sach nguyen lieu xu ly khong khop voi don cap phat nay.',
             ]);
         }
+    }
+
+    public function smartAllocation(Request $request): JsonResponse
+    {
+        $user = $request->user();
+        $validated = $request->validate([
+            'supply_request_ids'   => 'required|array|min:1',
+            'supply_request_ids.*' => 'integer',
+        ]);
+
+        $suggestions = $this->warehouseService->suggestSmartAllocation($user->restaurant_id, $validated['supply_request_ids']);
+
+        return response()->json([
+            'success'     => true,
+            'suggestions' => $suggestions,
+        ]);
+    }
+
+    public function createBackorder(Request $request, int $id): JsonResponse
+    {
+        $user = $request->user();
+        $parentRequest = SupplyRequest::where('restaurant_id', $user->restaurant_id)->findOrFail($id);
+
+        $validated = $request->validate([
+            'shortage_items'                       => 'required|array|min:1',
+            'shortage_items.*.ingredient_id'       => 'required|integer',
+            'shortage_items.*.shortage_quantity'   => 'required|numeric|gt:0',
+        ]);
+
+        $backorder = $this->warehouseService->createBackorder($parentRequest, $validated['shortage_items'], $user);
+
+        return response()->json([
+            'success'   => true,
+            'message'   => "Đã tự động tạo Đơn giao bù #{$backorder->request_code}.",
+            'backorder' => $backorder,
+        ]);
     }
 }
