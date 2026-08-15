@@ -19,7 +19,9 @@ class OperationalInfringementReport extends Model
         return [
             'penalty_amount' => 'decimal:2',
             'infringement_date' => 'date',
+            'remediation_deadline' => 'date',
             'approved_at' => 'datetime',
+            'closed_at' => 'datetime',
         ];
     }
 
@@ -46,5 +48,15 @@ class OperationalInfringementReport extends Model
     public function approver(): BelongsTo
     {
         return $this->belongsTo(User::class, 'approved_by');
+    }
+
+    public function assignee(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'assigned_to');
+    }
+
+    public function closer(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'closed_by');
     }
 }

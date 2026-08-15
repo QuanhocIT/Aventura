@@ -102,7 +102,8 @@ class OperationalAuditController extends Controller
 
         $proofPhotoUrl = $request->input('proof_photo_url');
         if ($request->hasFile('proof_photo')) {
-            $proofPhotoUrl = '/storage/'.$request->file('proof_photo')->store('audit-proofs', 'public');
+            $path = $request->file('proof_photo')->store('audit-proofs', 'local');
+            $proofPhotoUrl = route('secure-files.download', ['path' => $path]);
         }
 
         $reportCode = 'INF-'.Carbon::now()->format('Ymd').'-'.str_pad((string) (OperationalInfringementReport::where('restaurant_id', $user->restaurant_id)->count() + 1), 4, '0', STR_PAD_LEFT);
