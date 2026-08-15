@@ -46,6 +46,10 @@ app = FastAPI(
 # Dependency bảo mật chung — áp dụng lên toàn bộ route POST
 _auth = [Depends(require_api_key)]
 
+@app.get("/health")
+def health_check():
+    return {"status": "ok", "service": "analytics_service"}
+
 @app.get("/")
 def read_root(request: Request):
     payload = {"status": "online", "service": "analytics_service"}
