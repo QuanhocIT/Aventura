@@ -140,11 +140,10 @@ class HandleInertiaRequests extends Middleware
             'referral_code' => $user->referral_code,
             'has_pin' => ! empty($user->pin_code), // chỉ gửi boolean, không gửi hash
             'two_factor_enabled' => ! empty($user->two_factor_confirmed_at),
-            'permissions' => Cache::remember(
-                "user_permissions:{$user->id}",
-                300,
-                fn () => $user->getAllPermissions()->pluck('name')->toArray()
-            ),
+            // Spatie already caches the permission graph. Do not add a second
+            // user-level cache here: role changes would otherwise leave the
+            // client with stale permissions for up to five minutes.
+            'permissions' => $user->getAllPermissions()->pluck('name')->toArray(),
             'roles' => $roles->toArray(),
         ] : null;
 
