@@ -188,7 +188,6 @@ class CashierDashboardController extends Controller
                 ->get();
 
             $availabilityService = app(InventoryAvailabilityService::class);
-            $availabilityService->refreshBranch($restaurant->id, (int) $branchId, false);
             $availability = $availabilityService->forProducts($products, $restaurant->id, (int) $branchId);
 
             $products = $products->map(fn ($p) => [

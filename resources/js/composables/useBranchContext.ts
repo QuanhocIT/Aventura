@@ -49,8 +49,17 @@ export function useBranchContext() {
             : (activeBranch.value?.name ?? 'Chi nhánh chưa xác định'),
     );
 
+    const canSelectBranch = computed(() =>
+        isOwner.value ||
+        roles.value.includes('operations_inspector') ||
+        roles.value.includes('compliance_auditor') ||
+        roles.value.includes('warehouse_manager') ||
+        roles.value.includes('accountant') ||
+        roles.value.includes('super_admin')
+    );
+
     const switchBranch = (branchId: number | null) => {
-        if (branchId === null && !isOwner.value) {
+        if (branchId === null && !canSelectBranch.value) {
             return;
         }
 
@@ -67,6 +76,7 @@ export function useBranchContext() {
         tenant,
         roles,
         isOwner,
+        canSelectBranch,
         branches,
         activeBranchId,
         activeBranch,

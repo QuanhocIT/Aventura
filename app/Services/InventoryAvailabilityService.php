@@ -201,6 +201,14 @@ class InventoryAvailabilityService
     }
 
     /**
+     * Dispatch background job to recalculate and persist branch menu status asynchronously.
+     */
+    public function refreshBranchAsync(int $restaurantId, int $branchId, bool $notify = true): void
+    {
+        \App\Jobs\RefreshBranchInventoryJob::dispatch($restaurantId, $branchId, $notify);
+    }
+
+    /**
      * Recalculate and persist branch menu status. Notifications are only sent
      * when a product transitions from available to sold out.
      */

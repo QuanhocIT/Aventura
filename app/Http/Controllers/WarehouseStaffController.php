@@ -188,7 +188,7 @@ class WarehouseStaffController extends Controller
         $evidencePaths = $task->evidence_paths ?? [];
         if ($request->hasFile('evidence')) {
             foreach ($request->file('evidence') as $file) {
-                $path = $file->store('warehouse/evidence/' . now()->format('Y/m'), 'public');
+                $path = $file->store('warehouse/evidence/' . now()->format('Y/m'), 'local');
                 $evidencePaths[] = $path;
             }
         }

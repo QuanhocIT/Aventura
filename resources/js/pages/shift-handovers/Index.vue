@@ -228,23 +228,34 @@ function submitDispute() {
 <template>
     <Head title="Bàn giao ca" />
 
-    <div class="mx-auto flex w-full max-w-5xl flex-col gap-6 p-6">
-        <div class="flex flex-col gap-1">
-            <h1
-                class="flex items-center gap-2 text-xl font-bold tracking-tight text-slate-900 dark:text-slate-100"
-            >
-                <Handshake class="h-5 w-5 text-indigo-600" />
-                Bàn giao ca
-            </h1>
-            <p class="text-sm text-slate-500 dark:text-slate-400">
-                Ghi nhận tiền, hàng, thiết bị, sự cố và công việc còn tồn trong
-                một phiên. Ca sau phải xác nhận thì phiên mới khép lại.
-            </p>
+    <div class="mx-auto flex w-full max-w-7xl flex-col gap-6 p-4 sm:p-6">
+        <div
+            class="flex flex-col gap-4 border-b border-slate-200/80 pb-5 sm:flex-row sm:items-center sm:justify-between dark:border-slate-800"
+        >
+            <div class="flex items-center gap-3">
+                <div
+                    class="flex size-12 items-center justify-center rounded-2xl border border-indigo-100 bg-indigo-50 text-indigo-600 shadow-sm dark:border-indigo-900/30 dark:bg-indigo-950/60 dark:text-indigo-400"
+                >
+                    <Handshake class="size-6" />
+                </div>
+                <div>
+                    <h1
+                        class="text-2xl font-bold tracking-tight text-slate-800 dark:text-slate-100"
+                    >
+                        Bàn giao ca
+                    </h1>
+                    <p class="text-sm text-slate-500 dark:text-slate-400">
+                        Ghi nhận tiền, hàng, thiết bị, sự cố và công việc còn
+                        tồn trong một phiên. Ca sau phải xác nhận thì phiên mới
+                        khép lại.
+                    </p>
+                </div>
+            </div>
         </div>
 
         <div
             v-if="!activeBranchId"
-            class="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 p-4 dark:border-amber-900/40 dark:bg-amber-950/20"
+            class="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 p-4 shadow-sm dark:border-amber-900/40 dark:bg-amber-950/20"
         >
             <AlertTriangle class="mt-0.5 size-4 shrink-0 text-amber-600" />
             <p class="text-xs font-semibold text-amber-800 dark:text-amber-300">
@@ -253,8 +264,8 @@ function submitDispute() {
         </div>
 
         <!-- Mở phiên mới -->
-        <Card v-else-if="!draftHandover">
-            <CardHeader>
+        <Card v-else-if="!draftHandover" class="overflow-hidden shadow-sm">
+            <CardHeader class="border-b bg-slate-50/50 dark:bg-slate-900/50">
                 <CardTitle class="text-base">Mở phiên bàn giao</CardTitle>
                 <CardDescription>
                     Chọn mẫu bàn giao áp dụng cho chi nhánh này.
@@ -296,8 +307,8 @@ function submitDispute() {
         </Card>
 
         <!-- Phiên đang lập: checklist -->
-        <Card v-else>
-            <CardHeader>
+        <Card v-else class="overflow-hidden shadow-sm">
+            <CardHeader class="border-b bg-slate-50/50 dark:bg-slate-900/50">
                 <CardTitle class="flex items-center gap-2 text-base">
                     <ListChecks class="h-4 w-4 text-indigo-600" />
                     Phiên đang lập
@@ -356,18 +367,26 @@ function submitDispute() {
         </Card>
 
         <!-- Lịch sử -->
-        <Card>
-            <CardHeader>
+        <Card class="overflow-hidden shadow-sm">
+            <CardHeader class="border-b bg-slate-50/50 dark:bg-slate-900/50">
                 <CardTitle class="text-base">Lịch sử bàn giao</CardTitle>
                 <CardDescription>{{ handovers.total }} phiên.</CardDescription>
             </CardHeader>
             <CardContent class="p-0">
                 <div
                     v-if="handovers.data.length === 0"
-                    class="flex flex-col items-center justify-center gap-3 py-16 text-slate-400"
+                    class="flex flex-col items-center justify-center gap-3 py-20 text-slate-400"
                 >
-                    <ClipboardCheck class="h-8 w-8" />
-                    <p class="text-sm font-medium">
+                    <div
+                        class="rounded-2xl border border-indigo-100 bg-indigo-50 p-4 dark:border-indigo-900/30 dark:bg-indigo-950/40"
+                    >
+                        <ClipboardCheck
+                            class="size-10 text-indigo-600 opacity-60 dark:text-indigo-400"
+                        />
+                    </div>
+                    <p
+                        class="text-center text-sm font-semibold text-slate-600 dark:text-slate-300"
+                    >
                         Chưa có phiên bàn giao nào.
                     </p>
                 </div>
@@ -379,7 +398,7 @@ function submitDispute() {
                     <li
                         v-for="h in handovers.data"
                         :key="h.id"
-                        class="flex flex-col gap-3 px-5 py-4 sm:flex-row sm:items-start sm:justify-between"
+                        class="flex flex-col gap-3 px-5 py-4 transition-colors hover:bg-slate-50/60 sm:flex-row sm:items-start sm:justify-between dark:hover:bg-slate-900/30"
                     >
                         <div class="min-w-0 flex-1">
                             <div class="flex flex-wrap items-center gap-2">

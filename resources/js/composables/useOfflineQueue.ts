@@ -41,9 +41,19 @@ const isOnline = ref(
 const activeConflicts = ref<ConflictResponse[]>([]);
 let initialized = false;
 
+const QUEUE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours TTL
+
 function readQueue(): QueuedRequest[] {
     try {
-        return JSON.parse(localStorage.getItem(STORAGE_KEY) ?? '[]');
+        const raw = localStorage.getItem(STORAGE_KEY) ?? '[]';
+        const parsed: QueuedRequest[] = JSON.parse(raw);
+        const now = Date.now();
+
+        // Lọc bỏ các request offline đã quá 24h (TTL Expiry)
+        return parsed.filter(item => {
+            const queuedTime = new Date(item.queuedAt).getTime();
+            return !isNaN(queuedTime) && (now - queuedTime) < QUEUE_TTL_MS;
+        });
     } catch {
         return [];
     }
