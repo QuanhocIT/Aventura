@@ -69,6 +69,22 @@ class OnlinePaymentWebhookController extends Controller
                 $order = Order::find($result->orderId);
 
                 if ($order && $order->payment_status !== 'paid') {
+                    $paidAmount = $result->amount ?? (float) $order->total_amount;
+
+                    if ($paidAmount < (float) $order->total_amount) {
+                        Log::warning("OnlinePaymentWebhook: {$gateway} callback amount ({$paidAmount}) less than order total ({$order->total_amount})", [
+                            'order_id' => $order->id,
+                        ]);
+
+                        return new PaymentCallbackResult(
+                            success: false,
+                            orderId: $result->orderId,
+                            transactionCode: $result->transactionCode,
+                            error: 'insufficient_amount',
+                            amount: $paidAmount
+                        );
+                    }
+
                     $systemUser = $order->cashier
                         ?? Restaurant::find($order->restaurant_id)?->owner
                         ?? User::where('restaurant_id', $order->restaurant_id)->first();
@@ -81,7 +97,7 @@ class OnlinePaymentWebhookController extends Controller
 
                     app(OrderService::class)->payOrder(
                         $order,
-                        ['payment_method' => $gateway, 'cash_received' => $order->total_amount, 'change_amount' => 0],
+                        ['payment_method' => $gateway, 'cash_received' => $paidAmount, 'change_amount' => max(0, $paidAmount - (float) $order->total_amount)],
                         $systemUser,
                         true
                     );

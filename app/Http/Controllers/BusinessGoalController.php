@@ -20,6 +20,8 @@ class BusinessGoalController extends Controller
 
     public function index(Request $request): Response
     {
+        abort_unless($request->user()->canManageGoals(), 403, 'Bạn không có quyền xem hoặc quản lý Mục tiêu kinh doanh.');
+
         $restaurant = $request->user()->restaurant;
         if (! $restaurant && ! $request->user()->hasRole('super_admin')) {
             abort(403, 'Không tìm thấy nhà hàng.');
@@ -58,6 +60,7 @@ class BusinessGoalController extends Controller
 
     public function store(Request $request): RedirectResponse
     {
+        abort_unless($request->user()->canManageGoals(), 403, 'Bạn không có quyền quản lý Mục tiêu kinh doanh.');
         $data = $request->validate([
             'title' => ['required', 'string', 'max:255'],
             'description' => ['nullable', 'string'],

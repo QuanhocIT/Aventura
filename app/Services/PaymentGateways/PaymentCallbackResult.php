@@ -9,5 +9,6 @@ class PaymentCallbackResult
         public readonly ?int $orderId,
         public readonly ?string $transactionCode,
         public readonly ?string $error = null,
+        public readonly ?float $amount = null,
     ) {}
 }

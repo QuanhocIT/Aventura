@@ -93,13 +93,14 @@ class DashboardSummaryService
                 ->where('status', 'open')
                 ->get();
 
-            $currentCash = 0.0;
-            foreach ($activeRegisters as $activeRegister) {
-                $totals = CashTransaction::where('cash_register_id', $activeRegister->id)
-                    ->selectRaw("SUM(CASE WHEN type = 'in' THEN amount ELSE 0 END) as total_in, SUM(CASE WHEN type = 'out' THEN amount ELSE 0 END) as total_out")
-                    ->first();
-                $currentCash += (float) $activeRegister->opening_balance + (float) ($totals->total_in ?? 0) - (float) ($totals->total_out ?? 0);
-            }
+            $activeRegisterIds = $activeRegisters->pluck('id')->toArray();
+            $openingBalanceTotal = (float) $activeRegisters->sum('opening_balance');
+
+            $totals = empty($activeRegisterIds) ? null : CashTransaction::whereIn('cash_register_id', $activeRegisterIds)
+                ->selectRaw("SUM(CASE WHEN type = 'in' THEN amount ELSE 0 END) as total_in, SUM(CASE WHEN type = 'out' THEN amount ELSE 0 END) as total_out")
+                ->first();
+
+            $currentCash = $openingBalanceTotal + (float) ($totals?->total_in ?? 0) - (float) ($totals?->total_out ?? 0);
 
             $sevenDaysAgo = now()->subDays(6)->startOfDay();
             $recentTransactions = CashTransaction::where('restaurant_id', $rid)

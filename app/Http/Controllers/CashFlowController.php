@@ -26,6 +26,7 @@ class CashFlowController extends Controller
     public function index(Request $request): Response
     {
         $user = $request->user();
+        abort_unless($user->hasAnyRole(['cashier', 'manager', 'owner', 'accountant', 'super_admin']) || $user->hasPermissionTo('cashflow.view'), 403, 'Bạn không có quyền truy cập thông tin dòng tiền.');
 
         $restaurant = $user->restaurant;
         if (! $restaurant && ! $request->user()->hasRole('super_admin')) {

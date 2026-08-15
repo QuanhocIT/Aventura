@@ -71,7 +71,6 @@ class OrdersController extends Controller
             ->get();
 
         $availabilityService = app(InventoryAvailabilityService::class);
-        $availabilityService->refreshBranch($restaurantId, (int) $branchId, false);
         $availability = $availabilityService->forProducts($products, $restaurantId, (int) $branchId);
 
         $products = $products->map(fn ($p) => [
@@ -241,7 +240,7 @@ class OrdersController extends Controller
             });
         }
 
-        $orders = $ordersQuery->get()->map(function ($o) {
+        $orders = $ordersQuery->paginate(50)->through(function ($o) {
             $items = $o->items
                 ->reject(fn ($item) => $item->status === 'cancelled')
                 ->values();

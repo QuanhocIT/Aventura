@@ -183,7 +183,46 @@ class User extends Authenticatable implements MustVerifyEmail
     {
         return $this->isSuperAdmin()
             || $this->isOwner()
-            || $this->hasAnyRole(['operations_inspector', 'warehouse_manager']);
+            || $this->hasAnyRole(['operations_inspector', 'compliance_auditor', 'warehouse_manager', 'accountant']);
+    }
+
+    public function canManageFinance(): bool
+    {
+        return $this->isSuperAdmin()
+            || $this->isOwner()
+            || $this->hasPermissionTo('finance.manage')
+            || $this->hasRole('accountant');
+    }
+
+    public function canViewFinance(): bool
+    {
+        return $this->canManageFinance()
+            || $this->hasPermissionTo('finance.view')
+            || $this->hasRole('manager');
+    }
+
+    public function canViewAnalytics(): bool
+    {
+        return $this->isSuperAdmin()
+            || $this->isOwner()
+            || $this->hasPermissionTo('analytics.view')
+            || $this->hasAnyRole(['manager', 'operations_inspector', 'compliance_auditor']);
+    }
+
+    public function canManageGoals(): bool
+    {
+        return $this->isSuperAdmin()
+            || $this->isOwner()
+            || $this->hasPermissionTo('goals.manage')
+            || $this->hasRole('manager');
+    }
+
+    public function canCloseInspection(): bool
+    {
+        return $this->isSuperAdmin()
+            || $this->isOwner()
+            || $this->hasPermissionTo('inspection.close')
+            || $this->hasRole('compliance_auditor');
     }
 
     public function canAccessBranch(?int $branchId): bool
