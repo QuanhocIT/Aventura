@@ -52,6 +52,7 @@ return Application::configure(basePath: dirname(__DIR__))
         (require __DIR__.'/../routes/schedule.php')($schedule);
     })
     ->withMiddleware(function (Middleware $middleware): void {
+        $middleware->prepend(\App\Http\Middleware\CorrelationIdMiddleware::class);
         $middleware->prepend(SecurityFirewallMiddleware::class);
         $middleware->prepend(ValidatePayloadSize::class);
 

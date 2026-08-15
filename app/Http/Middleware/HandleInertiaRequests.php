@@ -10,6 +10,7 @@ use App\Services\QuotaService;
 use App\Support\Tenant\TenantContext;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
+use Inertia\Inertia;
 use Inertia\Middleware;
 
 class HandleInertiaRequests extends Middleware
@@ -103,7 +104,9 @@ class HandleInertiaRequests extends Middleware
 
         // Super Admin không hiển thị subscription widget nên không cần đọc và
         // serialize toàn bộ danh sách plan vào mọi response Inertia.
-        $availablePlans = $isSuperAdmin ? [] : Cache::remember('subscription_plans_active', 3600, function () {
+        // Subscription plans chỉ cần thiết ở các trang thanh toán/nâng cấp/chọn nhà hàng
+        $needsPlans = $request->is('billing*') || $request->is('choose-restaurant*');
+        $availablePlans = ($isSuperAdmin || ! $needsPlans) ? [] : Cache::remember('subscription_plans_active', 3600, function () {
             return SubscriptionPlan::where('status', 'active')
                 ->orderBy('price')
                 ->get()
@@ -140,9 +143,6 @@ class HandleInertiaRequests extends Middleware
             'referral_code' => $user->referral_code,
             'has_pin' => ! empty($user->pin_code), // chỉ gửi boolean, không gửi hash
             'two_factor_enabled' => ! empty($user->two_factor_confirmed_at),
-            // Spatie already caches the permission graph. Do not add a second
-            // user-level cache here: role changes would otherwise leave the
-            // client with stale permissions for up to five minutes.
             'permissions' => $user->getAllPermissions()->pluck('name')->toArray(),
             'roles' => $roles->toArray(),
         ] : null;
@@ -160,8 +160,8 @@ class HandleInertiaRequests extends Middleware
             'roles' => $roles,
             'tenant' => $tenant,
             'available_plans' => $availablePlans,
-            'pendingApprovalCount' => $this->pendingApprovalCount($user),
-            'myOpenRequestCount' => $this->myOpenRequestCount($user),
+            'pendingApprovalCount' => Inertia::defer(fn () => $this->pendingApprovalCount($user)),
+            'myOpenRequestCount' => Inertia::defer(fn () => $this->myOpenRequestCount($user)),
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
             'is_impersonating' => $request->session()->has('impersonate_original_user_id'),
             'impersonate_read_only' => $request->session()->has('impersonate_original_user_id') && (! $request->session()->get('impersonate_write_until') || now()->timestamp >= $request->session()->get('impersonate_write_until')),
