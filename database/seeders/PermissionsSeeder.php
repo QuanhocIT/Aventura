@@ -102,6 +102,11 @@ class PermissionsSeeder extends Seeder
 
             // ── Nhà cung cấp ─────────────────────────────────────────────────
             'supplier.portal.view',
+
+            // ── Đào tạo & Thiết bị ─────────────────────────────────────────
+            'training.manage',
+            'equipment.manage',
+            'equipment.report',
         ];
 
         // Tạo các permissions nếu chưa tồn tại
@@ -151,6 +156,9 @@ class PermissionsSeeder extends Seeder
             'supply_requests.receive',    // Chi nhánh xác nhận nhận hàng
             'supply_requests.cancel',     // Hủy đơn do mình tạo (còn pending)
             'price_management.view',
+            'training.manage',
+            'equipment.manage',
+            'equipment.report',
         ]);
 
         // ─────────────────────────────────────────────────────────────────────
@@ -166,6 +174,7 @@ class PermissionsSeeder extends Seeder
             'process_payments',
             'manage_customers',
             'report_violations',
+            'equipment.report',
         ]);
 
         // ─────────────────────────────────────────────────────────────────────
@@ -178,6 +187,7 @@ class PermissionsSeeder extends Seeder
         $kitchenRole->syncPermissions([
             'manage_kitchen',
             'report_violations',
+            'equipment.report',
         ]);
 
         // ─────────────────────────────────────────────────────────────────────
@@ -196,6 +206,7 @@ class PermissionsSeeder extends Seeder
             'supply_requests.view',
             'supply_requests.create',
             'supply_requests.receive',
+            'equipment.report',
         ]);
 
         // ─────────────────────────────────────────────────────────────────────
@@ -251,6 +262,7 @@ class PermissionsSeeder extends Seeder
             'warehouse.kpi.view',
             'warehouse.location.manage',
             'warehouse.limit.configure',
+            'equipment.report',
         ]);
 
         // ─────────────────────────────────────────────────────────────────────
@@ -288,6 +300,7 @@ class PermissionsSeeder extends Seeder
             'warehouse.shift.handover',
             // Xem tranh chấp (chỉ xem, không tự đóng)
             'warehouse.dispute.view',
+            'equipment.report',
         ]);
 
         // ─────────────────────────────────────────────────────────────────────
@@ -332,6 +345,7 @@ class PermissionsSeeder extends Seeder
             'create_orders',
             'manage_customers',
             'report_violations',
+            'equipment.report',
         ]);
 
         // Xóa cache permission để đảm bảo cập nhật ngay lập tức

@@ -17,8 +17,8 @@ class AccountReceivable extends Model
     protected function casts(): array
     {
         return [
-            'amount' => 'encrypted',
-            'received_amount' => 'encrypted',
+            'amount' => 'decimal:2',
+            'received_amount' => 'decimal:2',
             'due_date' => 'date',
         ];
     }

@@ -46,8 +46,11 @@ use Spatie\Permission\Traits\HasRoles;
     'bank_account_number',
     'bank_account_name',
     'pin_code',
+    'must_change_password',
+    'activation_token',
+    'activation_expires_at',
 ])]
-#[Hidden(['password', 'two_factor_secret', 'two_factor_recovery_codes', 'remember_token'])]
+#[Hidden(['password', 'two_factor_secret', 'two_factor_recovery_codes', 'remember_token', 'activation_token'])]
 class User extends Authenticatable implements MustVerifyEmail
 {
     /** @use HasFactory<UserFactory> */
@@ -61,6 +64,8 @@ class User extends Authenticatable implements MustVerifyEmail
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
             'pin_code' => 'hashed',
+            'must_change_password' => 'boolean',
+            'activation_expires_at' => 'datetime',
             'two_factor_confirmed_at' => 'datetime',
             'last_login_at' => 'datetime',
             'force_logout_at' => 'datetime',
