@@ -26,29 +26,23 @@ class ProcessKpis extends Command
             $query->where('restaurant_id', $restaurantId);
         }
 
-        $employees = $query->with('role')->get();
-
-        if ($employees->isEmpty()) {
-            $this->info('No active employees found to calculate KPIs.');
-
-            return Command::SUCCESS;
-        }
-
         $processedCount = 0;
         $skippedCount = 0;
 
-        foreach ($employees as $employee) {
-            try {
-                $kpi = $kpiService->calculateKpi($employee, $period);
-                if ($kpi) {
-                    $processedCount++;
-                } else {
-                    $skippedCount++;
+        $query->with('role')->chunkById(100, function ($employees) use ($kpiService, $period, &$processedCount, &$skippedCount) {
+            foreach ($employees as $employee) {
+                try {
+                    $kpi = $kpiService->calculateKpi($employee, $period);
+                    if ($kpi) {
+                        $processedCount++;
+                    } else {
+                        $skippedCount++;
+                    }
+                } catch (\Throwable $e) {
+                    $this->error("Failed to calculate KPI for Employee ID {$employee->id}: ".$e->getMessage());
                 }
-            } catch (\Throwable $e) {
-                $this->error("Failed to calculate KPI for Employee ID {$employee->id}: ".$e->getMessage());
             }
-        }
+        });
 
         $this->info("Completed KPI processing. Calculated: {$processedCount}, Skipped/No-rule: {$skippedCount}.");
 

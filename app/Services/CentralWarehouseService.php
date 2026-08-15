@@ -90,6 +90,10 @@ class CentralWarehouseService
         ?string $notes = null,
         ?string $overlimitReason = null
     ): SupplyRequest {
+        if (! $creator->isSuperAdmin() && (int) $creator->restaurant_id !== $restaurantId) {
+            throw new InvalidArgumentException('Bạn không thể tạo đơn cấp phát cho nhà hàng khác.');
+        }
+
         $central = $this->getCentralWarehouse($restaurantId);
         if (! $central) {
             throw new InvalidArgumentException('Chưa thiết lập Tổng Kho cho nhà hàng.');
@@ -202,6 +206,9 @@ class CentralWarehouseService
      */
     public function approveSupplyRequest(SupplyRequest $request, User $approver, ?array $approvedItems = null, ?string $notes = null): SupplyRequest
     {
+        $this->assertSameRestaurant($request, $approver);
+        $this->assertNotSelfApproval($request, $approver, 'created_by', 'Bạn không thể tự duyệt đơn cấp phát do chính mình tạo.');
+
         if (! in_array($request->status, [SupplyRequest::STATUS_PENDING, 'draft'])) {
             throw new InvalidArgumentException('Chỉ có thể duyệt đơn ở trạng thái chờ duyệt.');
         }
@@ -271,6 +278,8 @@ class CentralWarehouseService
      */
     public function prepareDispatch(SupplyRequest $request, User $picker, array $pickedItems): SupplyRequest
     {
+        $this->assertSameRestaurant($request, $picker);
+
         if (! in_array($request->status, [SupplyRequest::STATUS_APPROVED, SupplyRequest::STATUS_PREPARING])) {
             throw new InvalidArgumentException('Chỉ đơn đã duyệt mới có thể soạn hàng.');
         }
@@ -345,6 +354,9 @@ class CentralWarehouseService
      */
     public function approveDispatch(SupplyRequest $request, User $manager): SupplyRequest
     {
+        $this->assertSameRestaurant($request, $manager);
+        $this->assertNotSelfApproval($request, $manager, 'prepared_by', 'Người soạn hàng không được tự duyệt số lượng xuất.');
+
         if ($request->status !== SupplyRequest::STATUS_PREPARING) {
             throw new InvalidArgumentException('Đơn hàng phải qua bước soạn hàng trước khi Trưởng kho duyệt xuất.');
         }
@@ -366,6 +378,10 @@ class CentralWarehouseService
         User $handoverPerson,
         ?string $sealCode = null
     ): SupplyRequest {
+        $this->assertSameRestaurant($request, $handoverPerson);
+        $this->assertNotSelfApproval($request, $handoverPerson, 'approved_by', 'Người duyệt đơn không được tự xuất kho.');
+        $this->assertNotSelfApproval($request, $handoverPerson, 'dispatch_approved_by', 'Người duyệt xuất không được tự bàn giao hàng.');
+
         if (! in_array($request->status, [SupplyRequest::STATUS_APPROVED, SupplyRequest::STATUS_PREPARING, SupplyRequest::STATUS_DISPATCH_PENDING])) {
             throw new InvalidArgumentException('Chỉ đơn đã soạn và duyệt xuất mới có thể xuất kho bàn giao.');
         }
@@ -459,69 +475,89 @@ class CentralWarehouseService
         ?string $signaturePath = null,
         ?string $notes = null
     ): SupplyRequest {
-        if (! in_array($request->status, [SupplyRequest::STATUS_DISPATCHED, SupplyRequest::STATUS_PARTIAL_RECEIVED])) {
+        $this->assertSameRestaurant($request, $receiver);
+        $this->assertNotSelfApproval($request, $receiver, 'dispatched_by', 'Người xuất kho không được tự xác nhận nhận hàng.');
+
+        if (! in_array($request->status, [SupplyRequest::STATUS_DISPATCHED, SupplyRequest::STATUS_PARTIAL_RECEIVED, SupplyRequest::STATUS_COMPLETED])) {
             throw new InvalidArgumentException('Chỉ đơn đang giao mới có thể xác nhận nhận hàng.');
         }
 
+        if ($request->status === SupplyRequest::STATUS_COMPLETED) {
+            return $request;
+        }
+
         return DB::transaction(function () use ($request, $receiver, $receivedItems, $receiptPhotoPath, $signaturePath, $notes) {
+            $lockedRequest = SupplyRequest::where('id', $request->id)->lockForUpdate()->firstOrFail();
             $hasShortage = false;
 
-            foreach ($request->items as $item) {
+            foreach ($lockedRequest->items as $item) {
+                $item->lockForUpdate();
                 $dispatchedQty = (float) $item->effective_dispatched_quantity;
-                $recQty        = $dispatchedQty; // Mặc định nếu không truyền array
+                $previouslyReceivedQty = (float) ($item->received_quantity ?? 0);
+                $targetTotalRecQty = $dispatchedQty; // Default if array empty
 
                 if (! empty($receivedItems)) {
                     foreach ($receivedItems as $recItem) {
                         if ($recItem['id'] == $item->id && isset($recItem['received_quantity'])) {
-                            $recQty = (float) $recItem['received_quantity'];
+                            $targetTotalRecQty = (float) $recItem['received_quantity'];
                             break;
                         }
                     }
                 }
 
-                if ($recQty > $dispatchedQty) {
-                    throw new InvalidArgumentException("Số lượng nhận ({$recQty}) không được vượt quá số lượng Kho Tổng đã xuất ({$dispatchedQty}) cho nguyên liệu #{$item->ingredient_id}.");
+                if ($targetTotalRecQty > $dispatchedQty) {
+                    throw new InvalidArgumentException("Số lượng nhận ({$targetTotalRecQty}) không được vượt quá số lượng Kho Tổng đã xuất ({$dispatchedQty}) cho nguyên liệu #{$item->ingredient_id}.");
                 }
 
-                if ($recQty < $dispatchedQty) {
+                if ($targetTotalRecQty < $previouslyReceivedQty) {
+                    throw new InvalidArgumentException("Số lượng nhận mới ({$targetTotalRecQty}) không được nhỏ hơn số lượng đã nhận trước đó ({$previouslyReceivedQty}).");
+                }
+
+                $incrementalQty = $targetTotalRecQty - $previouslyReceivedQty;
+
+                if ($targetTotalRecQty < $dispatchedQty) {
                     $hasShortage = true;
                 }
 
-                $item->update(['received_quantity' => $recQty]);
+                $item->update(['received_quantity' => $targetTotalRecQty]);
 
-                // Cộng vào tồn kho Chi Nhánh Nhận
-                $branchInventory = Inventory::firstOrCreate(
-                    [
-                        'restaurant_id' => $request->restaurant_id,
-                        'branch_id'     => $request->to_branch_id,
-                        'ingredient_id' => $item->ingredient_id,
-                    ],
-                    [
-                        'quantity_on_hand' => 0,
-                    ]
-                );
+                if ($incrementalQty > 0) {
+                    // Cộng phần nhận tăng thêm vào tồn kho Chi Nhánh Nhận
+                    $branchInventory = Inventory::firstOrCreate(
+                        [
+                            'restaurant_id' => $request->restaurant_id,
+                            'branch_id'     => $request->to_branch_id,
+                            'ingredient_id' => $item->ingredient_id,
+                        ],
+                        [
+                            'quantity_on_hand' => 0,
+                        ]
+                    );
 
-                $branchInventory->lockForUpdate();
-                $branchInventory->increment('quantity_on_hand', $recQty);
+                    $branchInventory->lockForUpdate();
+                    $branchInventory->increment('quantity_on_hand', $incrementalQty);
 
-                // Ghi Ledger Nhập Kho Chi Nhánh
-                InventoryTransaction::createWithIdempotency([
-                    'restaurant_id'   => $request->restaurant_id,
-                    'branch_id'       => $request->to_branch_id,
-                    'ingredient_id'   => $item->ingredient_id,
-                    'inventory_id'    => $branchInventory->id,
-                    'performed_by'    => $receiver->id,
-                    'type'            => 'transfer',
-                    'direction'       => 'in',
-                    'quantity'        => $recQty,
-                    'unit_cost'       => $item->unit_cost,
-                    'total_cost'      => round($item->unit_cost * $recQty, 2),
-                    'source_type'     => 'supply_request',
-                    'source_id'       => $request->id,
-                    'idempotency_key' => "receive_sr_{$request->id}_item_{$item->id}",
-                    'notes'           => "Nhập kho cấp phát từ Kho Tổng theo đơn {$request->request_code}",
-                    'occurred_at'     => now(),
-                ]);
+                    // Ghi Ledger Nhập Kho Chi Nhánh theo chênh lệch tăng thêm với idempotency key duy nhất
+                    $idempotencyKey = "receive_sr_{$request->id}_item_{$item->id}_prev_{$previouslyReceivedQty}_to_{$targetTotalRecQty}";
+
+                    InventoryTransaction::createWithIdempotency([
+                        'restaurant_id'   => $request->restaurant_id,
+                        'branch_id'       => $request->to_branch_id,
+                        'ingredient_id'   => $item->ingredient_id,
+                        'inventory_id'    => $branchInventory->id,
+                        'performed_by'    => $receiver->id,
+                        'type'            => 'transfer',
+                        'direction'       => 'in',
+                        'quantity'        => $incrementalQty,
+                        'unit_cost'       => $item->unit_cost,
+                        'total_cost'      => round($item->unit_cost * $incrementalQty, 2),
+                        'source_type'     => 'supply_request',
+                        'source_id'       => $request->id,
+                        'idempotency_key' => $idempotencyKey,
+                        'notes'           => "Nhập kho cấp phát từ Kho Tổng theo đơn {$request->request_code} (+{$incrementalQty})",
+                        'occurred_at'     => now(),
+                    ]);
+                }
             }
 
             if ($hasShortage && (blank($receiptPhotoPath) && blank($request->receipt_photo_path) || blank($signaturePath) && blank($request->receiver_signature_path))) {
@@ -578,6 +614,8 @@ class CentralWarehouseService
      */
     public function rejectSupplyRequest(SupplyRequest $request, User $user, string $reason): SupplyRequest
     {
+        $this->assertSameRestaurant($request, $user);
+
         if (in_array($request->status, [SupplyRequest::STATUS_COMPLETED, SupplyRequest::STATUS_DISPATCHED])) {
             throw new InvalidArgumentException('Không thể từ chối đơn hàng đã xuất kho hoặc hoàn thành.');
         }
@@ -596,6 +634,28 @@ class CentralWarehouseService
 
             return $request->fresh();
         });
+    }
+
+    private function assertSameRestaurant(SupplyRequest $request, User $actor): void
+    {
+        if ($actor->isSuperAdmin()) {
+            return;
+        }
+
+        if ((int) $actor->restaurant_id !== (int) $request->restaurant_id) {
+            throw new InvalidArgumentException('Bạn không thể thao tác trên đơn cấp phát của nhà hàng khác.');
+        }
+    }
+
+    private function assertNotSelfApproval(SupplyRequest $request, User $actor, string $field, string $message): void
+    {
+        if ($actor->isOwner() || $actor->isSuperAdmin()) {
+            return;
+        }
+
+        if ((int) $request->getAttribute($field) === (int) $actor->id) {
+            throw new InvalidArgumentException($message);
+        }
     }
 
     /**
@@ -770,4 +830,3 @@ class CentralWarehouseService
         ];
     }
 }
-

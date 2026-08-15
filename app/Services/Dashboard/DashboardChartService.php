@@ -174,7 +174,7 @@ class DashboardChartService
                 ->where('status', 'completed')
                 ->where('completed_at', '>=', $sevenDaysAgo)
                 ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
-                ->select('total_amount', 'completed_at')
+                ->select(['total_amount', 'completed_at'])
                 ->get();
 
             $shiftRevenue = [];
@@ -187,13 +187,16 @@ class DashboardChartService
                         ? $day->copy()->addDay()->setTimeFromTimeString($shift->end_time)
                         : $day->copy()->setTimeFromTimeString($shift->end_time);
 
-                    $rev = $orders->filter(function ($order) use ($start, $end) {
-                        return $order->completed_at >= $start && $order->completed_at <= $end;
-                    })->sum('total_amount');
+                    $sum = 0.0;
+                    foreach ($orders as $order) {
+                        if ($order->completed_at >= $start && $order->completed_at <= $end) {
+                            $sum += (float) $order->total_amount;
+                        }
+                    }
 
                     $row['days'][] = [
                         'date' => $day->format('d/m'),
-                        'revenue' => (float) $rev,
+                        'revenue' => $sum,
                     ];
                 }
                 $shiftRevenue[] = $row;

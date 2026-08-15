@@ -61,38 +61,38 @@ Artisan::command('system:audit-consistency', function () {
 
     // 2. Kiểm tra bảng lương vs adjustments
     $inconsistentSalaries = [];
-    $salaries = Salary::withoutGlobalScopes()
+    Salary::withoutGlobalScopes()
         ->with(['adjustments', 'employee'])
-        ->get();
+        ->chunkById(100, function ($salaries) use (&$inconsistentSalaries) {
+            foreach ($salaries as $salary) {
+                $adjustments = $salary->adjustments;
 
-    foreach ($salaries as $salary) {
-        $adjustments = $salary->adjustments;
+                $expectedBonuses = (float) $adjustments->where('type', 'bonus')->sum('amount');
+                $expectedDeductions = (float) $adjustments
+                    ->whereIn('type', ['penalty', 'cash_shortage', 'inventory_loss', 'violation', 'advance'])
+                    ->where('status', 'applied')
+                    ->sum('amount');
 
-        $expectedBonuses = (float) $adjustments->where('type', 'bonus')->sum('amount');
-        $expectedDeductions = (float) $adjustments
-            ->whereIn('type', ['penalty', 'cash_shortage', 'inventory_loss', 'violation', 'advance'])
-            ->where('status', 'applied')
-            ->sum('amount');
+                $expectedNet = max(0.0, (float) $salary->base_salary + $expectedBonuses - $expectedDeductions);
 
-        $expectedNet = max(0.0, (float) $salary->base_salary + $expectedBonuses - $expectedDeductions);
+                $bonusDiff = abs((float) $salary->bonus_amount - $expectedBonuses) > 0.01;
+                $deductionDiff = abs((float) $salary->deduction_amount - $expectedDeductions) > 0.01;
+                $netDiff = abs((float) $salary->net_salary - $expectedNet) > 0.01;
 
-        $bonusDiff = abs((float) $salary->bonus_amount - $expectedBonuses) > 0.01;
-        $deductionDiff = abs((float) $salary->deduction_amount - $expectedDeductions) > 0.01;
-        $netDiff = abs((float) $salary->net_salary - $expectedNet) > 0.01;
-
-        if ($bonusDiff || $deductionDiff || $netDiff) {
-            $inconsistentSalaries[] = [
-                'salary_id' => $salary->id,
-                'employee_name' => $salary->employee?->full_name ?? 'N/A',
-                'salary_bonus' => $salary->bonus_amount,
-                'expected_bonus' => $expectedBonuses,
-                'salary_deduction' => $salary->deduction_amount,
-                'expected_deduction' => $expectedDeductions,
-                'salary_net' => $salary->net_salary,
-                'expected_net' => $expectedNet,
-            ];
-        }
-    }
+                if ($bonusDiff || $deductionDiff || $netDiff) {
+                    $inconsistentSalaries[] = [
+                        'salary_id' => $salary->id,
+                        'employee_name' => $salary->employee?->full_name ?? 'N/A',
+                        'salary_bonus' => $salary->bonus_amount,
+                        'expected_bonus' => $expectedBonuses,
+                        'salary_deduction' => $salary->deduction_amount,
+                        'expected_deduction' => $expectedDeductions,
+                        'salary_net' => $salary->net_salary,
+                        'expected_net' => $expectedNet,
+                    ];
+                }
+            }
+        });
 
     // Báo cáo kết quả
     if (! empty($inconsistentOrders) || ! empty($inconsistentSalaries)) {
@@ -127,14 +127,15 @@ Artisan::command('system:audit-consistency', function () {
 Artisan::command('goals:sync', function () {
     $this->info('Starting business goals sync...');
 
-    $restaurants = Restaurant::where('status', 'active')->get();
     $tracker = app(GoalTrackingService::class);
-
     $totalSynced = 0;
-    foreach ($restaurants as $restaurant) {
-        $count = $tracker->syncAllActive($restaurant->id);
-        $totalSynced += $count;
-    }
+
+    Restaurant::where('status', 'active')->chunkById(50, function ($restaurants) use ($tracker, &$totalSynced) {
+        foreach ($restaurants as $restaurant) {
+            $count = $tracker->syncAllActive($restaurant->id);
+            $totalSynced += $count;
+        }
+    });
 
     $this->info("Completed business goals sync. Synced {$totalSynced} active goals across all restaurants.");
 })->purpose('Synchronize all active business goals/OKRs progress');

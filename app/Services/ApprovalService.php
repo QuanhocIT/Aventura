@@ -140,6 +140,19 @@ class ApprovalService
      */
     public function reject(ApprovalRequest $approval, User $reviewer, string $reason): void
     {
+        // Giống như phê duyệt, từ chối cũng là một quyết định có hậu quả.
+        // Kiểm tra trước transaction để escalation không bị rollback khi
+        // reviewer chỉ được phép đẩy yêu cầu lên Owner.
+        $preCheck = $this->authorityService->decide($reviewer, $approval);
+
+        if (! $preCheck->allowed) {
+            if ($preCheck->shouldEscalate) {
+                $this->escalate($approval, $reviewer, $preCheck);
+            }
+
+            throw new AuthorityDeniedException($preCheck->reason ?? 'Bạn không có thẩm quyền từ chối yêu cầu này.');
+        }
+
         DB::transaction(function () use ($approval, $reviewer, $reason) {
             // Khóa bi quan bản ghi phê duyệt
             $lockedApproval = ApprovalRequest::where('id', $approval->id)->lockForUpdate()->firstOrFail();
