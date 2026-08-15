@@ -67,10 +67,15 @@ class WarehouseTaskAssignmentTest extends TestCase
         ]);
         $staff->assignRole('warehouse_staff');
 
+        $requester = User::factory()->create([
+            'restaurant_id' => $restaurant->id,
+            'branch_id' => $branch->id,
+        ]);
+
         $supplyRequest = app(CentralWarehouseService::class)->createSupplyRequest(
             $restaurant->id,
             $branch->id,
-            $manager,
+            $requester,
             [['ingredient_id' => $ingredient->id, 'quantity' => 10]],
         );
         $approvedRequest = app(CentralWarehouseService::class)->approveSupplyRequest($supplyRequest, $manager);

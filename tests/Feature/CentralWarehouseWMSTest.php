@@ -89,10 +89,15 @@ class CentralWarehouseWMSTest extends TestCase
         $manager = User::factory()->create(['restaurant_id' => $restaurant->id]);
         $manager->assignRole('warehouse_manager');
 
+        $requester = User::factory()->create([
+            'restaurant_id' => $restaurant->id,
+            'branch_id' => $branch->id,
+        ]);
+
         $service = app(CentralWarehouseService::class);
 
         // 1. Create & Approve Supply Request
-        $request = $service->createSupplyRequest($restaurant->id, $branch->id, $manager, [
+        $request = $service->createSupplyRequest($restaurant->id, $branch->id, $requester, [
             ['ingredient_id' => $ingredient->id, 'quantity' => 10],
         ]);
         $approved = $service->approveSupplyRequest($request, $manager);

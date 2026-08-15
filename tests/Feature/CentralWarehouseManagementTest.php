@@ -165,7 +165,13 @@ class CentralWarehouseManagementTest extends TestCase
             ['ingredient_id' => $this->rawIngredient->id, 'quantity' => 20],
         ]);
 
-        $approved = $centralService->approveSupplyRequest($req, $this->manager);
+        $warehouseManager = User::factory()->create([
+            'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->centralWarehouse->id,
+        ]);
+        $warehouseManager->assignRole('warehouse_manager');
+
+        $approved = $centralService->approveSupplyRequest($req, $warehouseManager);
 
         $manifest = $manifestService->createManifest($this->restaurant->id, $this->centralWarehouse->id, [
             'route_name'         => 'Tuyến Q1 - Q3',

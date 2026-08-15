@@ -81,7 +81,7 @@ class WarehouseGovernanceTest extends TestCase
         );
 
         // 2. Central Warehouse approves & dispatches 10kg with Seal Code
-        $service->approveSupplyRequest($supplyRequest, $warehouseStaff);
+        $service->approveSupplyRequest($supplyRequest, $warehouseManager);
         $dispatched = $service->dispatchSupplyRequest($supplyRequest, $warehouseStaff, 'SEAL-998877');
 
         $this->assertEquals('SEAL-998877', $dispatched->seal_code);
