@@ -151,6 +151,10 @@ function clearAll() {
 }
 
 async function loadDatabaseNotifications() {
+    if (document.hidden) {
+        return;
+    }
+
     try {
         const response = await axios.get('/notifications');
         const notifications = response.data?.notifications ?? [];
@@ -169,12 +173,12 @@ async function loadDatabaseNotifications() {
             const created = items.value[0];
 
             if (created) {
-                created.serverId = notification.id;
-                created.time = notification.created_at || created.time;
+                created.serverId = String(notification.id);
+                created.read = Boolean(notification.read_at);
             }
         });
     } catch {
-        // Keep the bell usable when the endpoint is temporarily unavailable.
+        // Tránh log lỗi console liên tục khi mất mạng
     }
 }
 

@@ -107,6 +107,20 @@ class PermissionsSeeder extends Seeder
             'training.manage',
             'equipment.manage',
             'equipment.report',
+
+            // ── Quyền Quản trị Tài chính, Analytics, Goal, Flow & Inspection ──
+            'finance.view',
+            'finance.manage',
+            'analytics.view',
+            'goals.manage',
+            'cashflow.view',
+            'cashflow.manage',
+            'audit.read',
+            'audit.manage',
+            'branch.manage',
+            'warehouse.approve',
+            'warehouse.dispatch',
+            'inspection.close',
         ];
 
         // Tạo các permissions nếu chưa tồn tại
@@ -159,6 +173,12 @@ class PermissionsSeeder extends Seeder
             'training.manage',
             'equipment.manage',
             'equipment.report',
+            'finance.view',
+            'cashflow.view',
+            'cashflow.manage',
+            'branch.manage',
+            'goals.manage',
+            'analytics.view',
         ]);
 
         // ─────────────────────────────────────────────────────────────────────
@@ -175,6 +195,7 @@ class PermissionsSeeder extends Seeder
             'manage_customers',
             'report_violations',
             'equipment.report',
+            'cashflow.view',
         ]);
 
         // ─────────────────────────────────────────────────────────────────────
@@ -250,6 +271,8 @@ class PermissionsSeeder extends Seeder
             'price_management.manage',
             'operational_audit.view',
             'view_violations',
+            'warehouse.approve',
+            'warehouse.dispatch',
             // Quyền mới bổ sung
             'warehouse.scan',
             'warehouse.incident.report',
@@ -304,8 +327,7 @@ class PermissionsSeeder extends Seeder
         ]);
 
         // ─────────────────────────────────────────────────────────────────────
-        // 6d. Kiểm toán nội bộ (operations_inspector)
-        //     Chỉ xem, không sửa tồn; xuất báo cáo, truy vết
+        // 6d. Giám sát vận hành (operations_inspector)
         // ─────────────────────────────────────────────────────────────────────
         $inspectorRole = Role::firstOrCreate([
             'name'       => 'operations_inspector',
@@ -321,10 +343,47 @@ class PermissionsSeeder extends Seeder
             'warehouse.audit',
             'supply_requests.view',
             'price_management.view',
+            'analytics.view',
+            'audit.read',
         ]);
 
         // ─────────────────────────────────────────────────────────────────────
-        // 6e. Nhà cung cấp (supplier)
+        // 6e. Thanh tra độc lập (compliance_auditor)
+        // ─────────────────────────────────────────────────────────────────────
+        $auditorRole = Role::firstOrCreate([
+            'name'       => 'compliance_auditor',
+            'guard_name' => 'web',
+        ]);
+        $auditorRole->syncPermissions([
+            'view_violations',
+            'report_violations',
+            'company_policies.view',
+            'operational_audit.view',
+            'operational_audit.report',
+            'operational_audit.approve',
+            'audit.read',
+            'audit.manage',
+            'inspection.close',
+        ]);
+
+        // ─────────────────────────────────────────────────────────────────────
+        // 6f. Kế toán / Tài chính tập đoàn (accountant)
+        // ─────────────────────────────────────────────────────────────────────
+        $accountantRole = Role::firstOrCreate([
+            'name'       => 'accountant',
+            'guard_name' => 'web',
+        ]);
+        $accountantRole->syncPermissions([
+            'finance.view',
+            'finance.manage',
+            'cashflow.view',
+            'cashflow.manage',
+            'price_management.view',
+            'view_report',
+        ]);
+
+        // ─────────────────────────────────────────────────────────────────────
+        // 6g. Nhà cung cấp (supplier)
         // ─────────────────────────────────────────────────────────────────────
         $supplierRole = Role::firstOrCreate([
             'name'       => 'supplier',

@@ -346,6 +346,12 @@ const superAdminNav = computed<NavItem[]>(() => {
 const ownerNav = computed<NavItem[]>(() => {
     const nav = [
         { title: 'Tổng quan', href: '/dashboard', icon: LayoutGrid },
+        {
+            title: 'Trung tâm điều hành chuỗi',
+            href: '/enterprise/command-center',
+            icon: Activity,
+            feature: 'advanced_analytics',
+        },
         { title: 'Quản lý đơn hàng', href: '/orders', icon: ShoppingCart },
         { title: 'Thực đơn & Món', href: '/products', icon: UtensilsCrossed },
         {
@@ -441,21 +447,9 @@ const ownerNav = computed<NavItem[]>(() => {
             feature: 'inventory_basic',
         },
         {
-            title: 'Tồn kho & Nguyên vật liệu',
-            href: '/inventory',
-            icon: Package,
-            feature: 'inventory_basic',
-        },
-        {
             title: 'Kiểm kê & Điều chỉnh',
             href: '/inventory/count-sessions',
             icon: ClipboardCheck,
-            feature: 'inventory_basic',
-        },
-        {
-            title: 'Điều chuyển Nội bộ',
-            href: '/inventory/transfers',
-            icon: ArrowLeftRight,
             feature: 'inventory_basic',
         },
         {
@@ -474,12 +468,6 @@ const ownerNav = computed<NavItem[]>(() => {
             title: 'Thu hồi Lô Khẩn cấp',
             href: '/inventory/batch-recalls',
             icon: Siren,
-            feature: 'inventory_basic',
-        },
-        {
-            title: 'Đặt hàng Kho Tổng',
-            href: '/inventory/branch-requisition',
-            icon: ShoppingCart,
             feature: 'inventory_basic',
         },
         {
@@ -531,6 +519,12 @@ const ownerNav = computed<NavItem[]>(() => {
             permission: 'manage_salary',
             feature: 'hr_full',
         },
+        {
+            title: 'Quỹ lương & Ngân sách',
+            href: '/payroll-budget',
+            icon: Wallet,
+            feature: 'hr_full',
+        },
         { title: 'Khách hàng', href: '/customers', icon: Users },
         {
             title: 'Khách hàng thân thiết',
@@ -553,6 +547,16 @@ const ownerNav = computed<NavItem[]>(() => {
             title: 'Cài đặt & Tích hợp',
             href: '/settings/integrations',
             icon: Settings,
+        },
+        {
+            title: 'Quản trị chi nhánh',
+            href: '/settings/branches',
+            icon: Building2,
+        },
+        {
+            title: 'Thông tin nhà hàng',
+            href: '/settings/restaurant',
+            icon: Building2,
         },
         {
             title: 'Giới thiệu & Hoa hồng',
@@ -641,27 +645,89 @@ const ownerNav = computed<NavItem[]>(() => {
         { title: 'Liên hệ & Hỗ trợ', href: '/support', icon: Headset },
     ];
 
-    return nav.filter((item) => {
-        if (isOwner.value && item.href === '/inventory/branch-requisition') {
-            return false;
-        }
+    const sectionByHref: Record<string, string> = {
+        '/dashboard': 'overview',
+        '/enterprise/command-center': 'overview',
+        '/bi-dashboard': 'overview',
+        '/geo-analytics': 'overview',
+        '/business-goals': 'overview',
+        '/reports': 'overview',
+        '/ai-advisor': 'overview',
+        '/orders': 'sales',
+        '/tables': 'sales',
+        '/delivery': 'sales',
+        '/online-store': 'sales',
+        '/products': 'menu',
+        '/menu-engineering': 'menu',
+        '/inventory': 'supply',
+        '/inventory/transfers': 'supply',
+        '/waste-management': 'supply',
+        '/inventory/central-warehouse': 'supply',
+        '/inventory/count-sessions': 'supply',
+        '/inventory/central-kitchen': 'supply',
+        '/inventory/delivery-manifests': 'supply',
+        '/inventory/batch-recalls': 'supply',
+        '/inventory/warehouse-governance': 'supply',
+        '/suppliers': 'supply',
+        '/rfps': 'supply',
+        '/shift-closings': 'finance',
+        '/cash-flow': 'finance',
+        '/expenses': 'finance',
+        '/debts': 'finance',
+        '/billing/history': 'finance',
+        '/employees': 'people',
+        '/schedules': 'people',
+        '/salaries': 'people',
+        '/payroll-budget': 'people',
+        '/training': 'people',
+        '/kpis': 'people',
+        '/customers': 'customers',
+        '/loyalty': 'customers',
+        '/promotions': 'customers',
+        '/feedback': 'customers',
+        '/equipment': 'operations',
+        '/operations-checklist': 'operations',
+        '/operations/company-policies': 'operations',
+        '/shift-handovers': 'operations',
+        '/incidents': 'operations',
+        '/operation-policies': 'governance',
+        '/approvals': 'governance',
+        '/approvals/ledger': 'governance',
+        '/approvals/policies': 'governance',
+        '/operations/audit': 'governance',
+        '/fraud': 'governance',
+        '/violations': 'governance',
+        '/audit-logs': 'governance',
+        '/settings/branches': 'settings',
+        '/settings/restaurant': 'settings',
+        '/settings/integrations': 'settings',
+        '/settings/referrals': 'settings',
+        '/tin-tuc': 'settings',
+        '/support': 'settings',
+    };
 
-        if (isManager.value) {
-            if (item.href === '/fraud' || item.href === '/audit-logs') {
+    return nav
+        .filter((item) => {
+            if (isManager.value) {
+                if (item.href === '/fraud' || item.href === '/audit-logs') {
+                    return false;
+                }
+            }
+
+            if (item.permission && !can(item.permission)) {
                 return false;
             }
-        }
 
-        if (item.permission && !can(item.permission)) {
-            return false;
-        }
+            if (item.feature && !canFeature(item.feature as any)) {
+                return false;
+            }
 
-        if (item.feature && !canFeature(item.feature as any)) {
-            return false;
-        }
-
-        return true;
-    });
+            return true;
+        })
+        .map((item) => ({
+            ...item,
+            section: sectionByHref[String(item.href)],
+        }));
 });
 
 // ─── MANAGER MENU ─────────────────────────────────────────────────────────────

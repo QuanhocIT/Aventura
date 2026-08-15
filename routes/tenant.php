@@ -24,6 +24,7 @@ use App\Http\Controllers\Delivery\ShipperPwaController;
 use App\Http\Controllers\DeliveryManifestController;
 use App\Http\Controllers\EInvoiceController;
 use App\Http\Controllers\EmployeeManagementController;
+use App\Http\Controllers\EnterpriseCommandCenterController;
 use App\Http\Controllers\EmployeePortalController;
 use App\Http\Controllers\EquipmentController;
 use App\Http\Controllers\ExpenseController;
@@ -97,6 +98,8 @@ Route::middleware(['auth', 'verified', 'tenant.subscription', 'tenant.ratelimit'
     Route::post('support/tickets/{ticket}/replies', [SupportController::class, 'storeReply'])->name('support.tickets.replies.store');
 
     // Functional Pages for Guided Tours
+    Route::get('enterprise/command-center', [EnterpriseCommandCenterController::class, 'index'])->name('enterprise.command-center');
+
     Route::get('products', [ProductManagementController::class, 'productsPage'])->name('products.index');
     Route::get('api/products/menu-insights', [MenuInsightController::class, 'index'])->name('products.menu-insights');
     Route::get('api/analytics/weather-menu-forecast', [WeatherForecastController::class, 'index'])->name('analytics.weather-forecast');

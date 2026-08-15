@@ -37,7 +37,9 @@ use App\Models\Restaurant;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\Storage;
 use Laravel\Fortify\Http\Controllers\PasswordResetLinkController;
 
 Route::post('/forgot-password', [PasswordResetLinkController::class, 'store'])
@@ -76,15 +78,26 @@ Route::get('api/admin/tenant-health', function (Request $request) {
         ->select('id', 'name', 'plan_id', 'status', 'subscription_ends_at', 'trial_ends_at')
         ->latest('id')
         ->take(50)
-        ->get()
-        ->map(fn ($r) => [
-            'id' => $r->id,
-            'name' => $r->name,
-            'plan' => $r->plan?->name ?? 'N/A',
-            'status' => $r->status,
-            'expires' => $r->subscription_ends_at?->toDateString(),
-            'orders_30d' => Order::where('restaurant_id', $r->id)->where('created_at', '>=', now()->subDays(30))->count(),
-        ]);
+        ->get();
+
+    $restaurantIds = $restaurants->pluck('id')->toArray();
+    $orderCounts = empty($restaurantIds) ? [] : Order::whereIn('restaurant_id', $restaurantIds)
+        ->where('created_at', '>=', now()->subDays(30))
+        ->selectRaw('restaurant_id, count(*) as total')
+        ->groupBy('restaurant_id')
+        ->pluck('total', 'restaurant_id')
+        ->all();
+
+    $healthData = $restaurants->map(fn ($r) => [
+        'id' => $r->id,
+        'name' => $r->name,
+        'plan' => $r->plan?->name ?? 'N/A',
+        'status' => $r->status,
+        'expires' => $r->subscription_ends_at?->toDateString(),
+        'orders_30d' => (int) ($orderCounts[$r->id] ?? 0),
+    ]);
+
+    return response()->json($healthData);
 
     return response()->json(['tenants' => $restaurants, 'total' => Restaurant::count()]);
 })->middleware(['auth', 'verified'])->name('api.admin.tenant-health');
@@ -108,29 +121,74 @@ Route::get('api/docs', function () {
     ]);
 })->name('api.docs');
 
+// Liveness probe (chứng minh container app vẫn đang chạy)
 Route::get('api/health', function () {
-    $checks = [
-        'app' => true,
-        'database' => false,
-        'cache' => false,
-        'queue' => config('queue.default'),
+    return response()->json([
+        'status' => 'ok',
+        'app' => 'Aventura API',
         'time' => now()->toIso8601String(),
         'version' => app()->version(),
-    ];
-    try {
-        DB::select('SELECT 1');
-        $checks['database'] = true;
-    } catch (Throwable) {
-    }
-    try {
-        Cache::put('health_check', true, 5);
-        $checks['cache'] = Cache::get('health_check') === true;
-    } catch (Throwable) {
-    }
-    $healthy = $checks['app'] && $checks['database'] && $checks['cache'];
-
-    return response()->json($checks, $healthy ? 200 : 503);
+    ], 200);
 })->name('health');
+
+// Readiness probe (chứng minh toàn bộ dependency đã sẵn sàng phục vụ traffic)
+Route::get('api/ready', function () {
+    return Cache::remember('readiness_probe_status', 5, function () {
+        $checks = [
+            'database' => false,
+            'cache' => false,
+            'storage' => false,
+            'queue_driver' => config('queue.default'),
+            'services' => [
+                'email_service' => false,
+                'chatbot_service' => false,
+                'analytics_service' => false,
+                'meilisearch' => false,
+            ],
+            'time' => now()->toIso8601String(),
+        ];
+
+        try {
+            DB::select('SELECT 1');
+            $checks['database'] = true;
+        } catch (\Throwable) {}
+
+        try {
+            Cache::put('readiness_check', true, 5);
+            $checks['cache'] = Cache::get('readiness_check') === true;
+        } catch (\Throwable) {}
+
+        try {
+            $checks['storage'] = Storage::disk('local')->exists('.');
+        } catch (\Throwable) {}
+
+        // Check Python Microservices & Meilisearch
+        $microservices = [
+            'email_service' => env('EMAIL_SERVICE_URL', 'http://email-service:8001/health'),
+            'chatbot_service' => env('CHATBOT_SERVICE_URL', 'http://chatbot-service:8002/health'),
+            'analytics_service' => env('ANALYTICS_SERVICE_URL', 'http://analytics-service:8003/health'),
+            'meilisearch' => env('MEILISEARCH_HOST', 'http://meilisearch:7700').'/health',
+        ];
+
+        foreach ($microservices as $key => $url) {
+            try {
+                $response = Http::timeout(1)->get($url);
+                $checks['services'][$key] = $response->successful();
+            } catch (\Throwable) {
+                $checks['services'][$key] = false;
+            }
+        }
+
+        $allReady = $checks['database'] && $checks['cache'] && $checks['storage'];
+        $status = $allReady ? 200 : 503;
+
+        return response()->json([
+            'ready' => $allReady,
+            'status' => $allReady ? 'ready' : 'degraded',
+            'checks' => $checks,
+        ], $status);
+    });
+})->name('ready');
 
 Route::post('webhooks/payments', PaymentWebhookController::class)->name('billing.webhook');
 Route::post('api/webhooks/payments/vietqr', OrderPaymentWebhookController::class)->name('api.webhooks.payments.vietqr');

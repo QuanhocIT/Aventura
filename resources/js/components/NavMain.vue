@@ -17,11 +17,18 @@ const props = defineProps<{
 
 const { isCurrentUrl } = useCurrentUrl();
 
-// Nhóm định nghĩa phân loại tính năng
-const groupDefinitions = [
+// Nhóm định nghĩa phân loại tính năng. Các menu mới có thể truyền `section`
+// để được xếp nhóm chính xác; bộ lọc theo tiêu đề bên dưới chỉ là cơ chế dự phòng
+// cho các vai trò chưa khai báo metadata.
+const groupDefinitions: {
+    key: string;
+    label: string;
+    matches: (title: string, href: string) => boolean;
+}[] = [
     {
+        key: 'overview',
         label: 'Tổng quan & Phân tích',
-        matches: (title: string) =>
+        matches: (title, href) =>
             [
                 'Tổng quan',
                 'Trang chủ',
@@ -33,49 +40,60 @@ const groupDefinitions = [
                 'Doanh thu hệ thống',
                 'Revenue',
                 'Mục tiêu & OKR',
-                'Audit Log',
                 'Dự đoán rời bỏ',
                 'Strategic AI Advisor',
                 'Trợ lý AI Chiến lược',
-            ].some((p) => title.toLowerCase().includes(p.toLowerCase())),
+                'Trợ lý AI',
+                'Chẩn đoán trợ lý AI',
+                'Trung tâm điều hành',
+            ].some((p) => title.toLowerCase().includes(p.toLowerCase())) ||
+            href.includes('bi-dashboard') ||
+            href.includes('command-center'),
     },
     {
+        key: 'sales',
         label: 'Bán hàng & Phục vụ',
-        matches: (title: string) =>
+        matches: (title) =>
             [
-                'đơn hàng',
-                'đơn',
+                'quản lý đơn hàng',
                 'sơ đồ bàn',
                 'phục vụ',
                 'giao hàng',
-                'online',
+                'đặt hàng online',
+                'đặt bàn',
             ].some((p) => title.toLowerCase().includes(p.toLowerCase())),
     },
     {
+        key: 'menu',
         label: 'Thực đơn & Nhà bếp',
-        matches: (title: string) =>
-            ['thực đơn', 'món', 'menu', 'niêm yết'].some((p) =>
+        matches: (title) =>
+            ['thực đơn', 'món', 'menu', 'niêm yết', 'bếp'].some((p) =>
                 title.toLowerCase().includes(p.toLowerCase()),
             ),
     },
     {
-        label: 'Kho & Nhà cung cấp',
-        matches: (title: string) =>
+        key: 'supply',
+        label: 'Kho & Cung ứng',
+        matches: (title) =>
             [
                 'kho',
                 'tồn',
+                'nguyên vật liệu',
                 'nhập',
                 'hao hụt',
                 'lãng phí',
                 'nhà cung cấp',
                 'rfp',
-                'chốt ca',
-                'doanh thu ca',
+                'logistics',
+                'thu hồi lô',
+                'điều chuyển',
+                'cấp phát',
             ].some((p) => title.toLowerCase().includes(p.toLowerCase())),
     },
     {
-        label: 'Tài chính & Gói cước',
-        matches: (title: string) =>
+        key: 'finance',
+        label: 'Tài chính & Đối soát',
+        matches: (title) =>
             [
                 'dòng tiền',
                 'chi phí',
@@ -89,13 +107,17 @@ const groupDefinitions = [
                 'hoa hồng',
                 'referrals',
                 'hóa đơn',
+                'chốt ca',
+                'doanh thu ca',
+                'ngân sách',
                 'campaign-templates',
                 'chiến dịch theo mùa',
             ].some((p) => title.toLowerCase().includes(p.toLowerCase())),
     },
     {
-        label: 'Nhân sự & Ca làm',
-        matches: (title: string) =>
+        key: 'people',
+        label: 'Nhân sự & Hiệu suất',
+        matches: (title) =>
             [
                 'nhân sự',
                 'nhân viên',
@@ -109,8 +131,9 @@ const groupDefinitions = [
             ].some((p) => title.toLowerCase().includes(p.toLowerCase())),
     },
     {
-        label: 'Khách hàng & Marketing',
-        matches: (title: string) =>
+        key: 'customers',
+        label: 'Khách hàng & Tăng trưởng',
+        matches: (title) =>
             [
                 'khách hàng',
                 'thân thiết',
@@ -127,23 +150,58 @@ const groupDefinitions = [
             ].some((p) => title.toLowerCase().includes(p.toLowerCase())),
     },
     {
-        label: 'Hệ thống & Vận hành',
-        matches: (title: string) =>
+        key: 'operations',
+        label: 'Vận hành & An toàn',
+        matches: (title) =>
             [
-                'phân quyền',
                 'checklist',
                 'thiết bị',
+                'bàn giao ca',
+                'sự cố',
+                'quy định',
+                'tiêu chuẩn',
+                'thanh tra',
+                'biên bản',
+                'trung tâm vận hành',
+            ].some((p) => title.toLowerCase().includes(p.toLowerCase())),
+    },
+    {
+        key: 'governance',
+        label: 'Phê duyệt & Kiểm soát',
+        matches: (title) =>
+            [
+                'phân quyền',
+                'phê duyệt',
+                'đã duyệt',
+                'thẩm quyền',
                 'kiểm toán',
+                'gian lận',
                 'vi phạm',
                 'tố cáo',
-                'phê duyệt',
+                'nhật ký',
+                'audit log',
+            ].some((p) => title.toLowerCase().includes(p.toLowerCase())),
+    },
+    {
+        key: 'settings',
+        label: 'Cài đặt & Hỗ trợ',
+        matches: (title) =>
+            [
+                'chi nhánh',
+                'cài đặt',
+                'tích hợp',
+                'giới thiệu',
+                'hoa hồng',
+                'tin tức',
+                'liên hệ',
                 'hỗ trợ',
-                'devops',
-                'chatbot',
-                'tài khoản',
-                'accounts',
                 'cấu hình',
                 'settings',
+                'nhà hàng',
+                'tài khoản',
+                'accounts',
+                'devops',
+                'chatbot',
                 'giám sát',
                 'monitor',
                 'bảo trì',
@@ -154,8 +212,6 @@ const groupDefinitions = [
                 'meilisearch',
                 'firewall',
                 'tường lửa',
-                'nhà hàng',
-                'giám sát tài nguyên',
                 'trung tâm bảo mật',
             ].some((p) => title.toLowerCase().includes(p.toLowerCase())),
     },
@@ -181,17 +237,19 @@ const groupedSections = computed(() => {
     };
 
     props.items.forEach((item) => {
-        let matched = false;
+        const matchedSection = item.section
+            ? groupDefinitions.find((def) => def.key === item.section)
+            : groupDefinitions.find((def) =>
+                  def.matches(item.title, String(item.href)),
+              );
 
-        for (let i = 0; i < groupDefinitions.length; i++) {
-            if (groupDefinitions[i].matches(item.title)) {
-                sections[i].items.push(item);
-                matched = true;
-                break;
-            }
-        }
+        if (matchedSection) {
+            const section = sections.find(
+                (candidate) => candidate.label === matchedSection.label,
+            );
 
-        if (!matched) {
+            section?.items.push(item);
+        } else {
             unmatchedSection.items.push(item);
         }
     });
