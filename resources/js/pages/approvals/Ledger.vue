@@ -75,71 +75,118 @@ function acknowledge(decision: Decision) {
 <template>
     <Head title="Sổ phê duyệt" />
 
-    <div class="mx-auto flex w-full max-w-6xl flex-col gap-6 p-6">
-        <div class="flex flex-col gap-1">
-            <h1
-                class="flex items-center gap-2 text-xl font-bold tracking-tight text-slate-900 dark:text-slate-100"
-            >
-                <BookLock class="h-5 w-5 text-violet-600" />
-                Quản lý đã duyệt gì
-            </h1>
-            <p class="text-sm text-slate-500 dark:text-slate-400">
-                Mọi quyết định Quản lý chi nhánh tự xử lý theo thẩm quyền được
-                ủy quyền. Bản ghi không thể sửa hay xóa.
-            </p>
+    <div class="mx-auto flex w-full max-w-7xl flex-col gap-6 p-4 sm:p-6">
+        <div
+            class="flex flex-col gap-4 border-b border-slate-200/80 pb-5 sm:flex-row sm:items-center sm:justify-between dark:border-slate-800"
+        >
+            <div class="flex items-center gap-3">
+                <div
+                    class="flex size-12 items-center justify-center rounded-2xl border border-violet-100 bg-violet-50 text-violet-600 shadow-sm dark:border-violet-900/30 dark:bg-violet-950/60 dark:text-violet-400"
+                >
+                    <BookLock class="size-6" />
+                </div>
+                <div>
+                    <h1
+                        class="text-2xl font-bold tracking-tight text-slate-800 dark:text-slate-100"
+                    >
+                        Quản lý đã duyệt gì
+                    </h1>
+                    <p class="text-sm text-slate-500 dark:text-slate-400">
+                        Mọi quyết định Quản lý chi nhánh tự xử lý theo thẩm
+                        quyền được ủy quyền. Bản ghi không thể sửa hay xóa.
+                    </p>
+                </div>
+            </div>
         </div>
 
         <div class="grid grid-cols-1 gap-3 sm:grid-cols-3">
-            <div
-                class="rounded-xl border border-amber-200 bg-amber-50 p-4 dark:border-amber-900/40 dark:bg-amber-950/20"
+            <Card
+                class="border-amber-100 shadow-sm transition hover:-translate-y-0.5 dark:border-amber-950/20"
             >
-                <div
-                    class="text-2xl font-bold text-amber-700 tabular-nums dark:text-amber-400"
+                <CardHeader
+                    class="flex flex-row items-center justify-between pb-2"
                 >
-                    {{ summary.awaiting_review }}
-                </div>
-                <div
-                    class="mt-1 text-[10px] font-semibold tracking-wide text-amber-600/80 uppercase dark:text-amber-500/80"
-                >
-                    Chờ bạn xem xét
-                </div>
-            </div>
-            <div
-                class="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900"
+                    <CardDescription
+                        class="text-xs font-bold tracking-wider text-amber-500 uppercase"
+                    >
+                        Chờ bạn xem xét
+                    </CardDescription>
+                    <BookLock class="size-4 text-amber-500" />
+                </CardHeader>
+                <CardContent class="pb-3">
+                    <p
+                        class="text-2xl font-black text-amber-600 tabular-nums dark:text-amber-400"
+                    >
+                        {{ summary.awaiting_review }}
+                    </p>
+                    <p class="mt-0.5 text-xs text-muted-foreground">
+                        quyết định cần ghi nhận
+                    </p>
+                </CardContent>
+            </Card>
+            <Card
+                class="border-indigo-100 shadow-sm transition hover:-translate-y-0.5 dark:border-indigo-950/20"
             >
-                <div
-                    class="text-2xl font-bold text-slate-900 tabular-nums dark:text-slate-100"
+                <CardHeader
+                    class="flex flex-row items-center justify-between pb-2"
                 >
-                    {{ summary.this_month }}
-                </div>
-                <div
-                    class="mt-1 text-[10px] font-semibold tracking-wide text-slate-400 uppercase"
-                >
-                    Quyết định tháng này
-                </div>
-            </div>
-            <div
-                class="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900"
+                    <CardDescription
+                        class="text-xs font-bold tracking-wider text-indigo-500 uppercase"
+                    >
+                        Quyết định tháng này
+                    </CardDescription>
+                    <ShieldCheck class="size-4 text-indigo-500" />
+                </CardHeader>
+                <CardContent class="pb-3">
+                    <p
+                        class="text-2xl font-black text-indigo-600 tabular-nums dark:text-indigo-400"
+                    >
+                        {{ summary.this_month }}
+                    </p>
+                    <p class="mt-0.5 text-xs text-muted-foreground">
+                        đã được ghi nhận
+                    </p>
+                </CardContent>
+            </Card>
+            <Card
+                class="border-slate-200 shadow-sm transition hover:-translate-y-0.5 dark:border-slate-800"
             >
-                <div
-                    class="text-2xl font-bold text-slate-900 tabular-nums dark:text-slate-100"
+                <CardHeader
+                    class="flex flex-row items-center justify-between pb-2"
                 >
-                    {{ currency.format(summary.amount_this_month) }}đ
-                </div>
-                <div
-                    class="mt-1 text-[10px] font-semibold tracking-wide text-slate-400 uppercase"
-                >
-                    Giá trị đã duyệt tháng này
-                </div>
-            </div>
+                    <CardDescription
+                        class="text-xs font-bold tracking-wider text-slate-500 uppercase"
+                    >
+                        Giá trị đã duyệt tháng này
+                    </CardDescription>
+                    <ShieldCheck class="size-4 text-slate-500" />
+                </CardHeader>
+                <CardContent class="pb-3">
+                    <p
+                        class="text-2xl font-black text-slate-800 tabular-nums dark:text-slate-100"
+                    >
+                        {{ currency.format(summary.amount_this_month) }}đ
+                    </p>
+                    <p class="mt-0.5 text-xs text-muted-foreground">
+                        tổng giá trị quyết định
+                    </p>
+                </CardContent>
+            </Card>
         </div>
 
-        <Card>
+        <Card class="overflow-hidden shadow-sm">
             <CardHeader
-                class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between"
+                class="flex flex-col gap-3 border-b bg-slate-50/50 pb-4 lg:flex-row lg:items-center lg:justify-between dark:bg-slate-900/50"
             >
                 <div>
-                    <CardTitle class="text-base">Sổ phê duyệt</CardTitle>
+                    <CardTitle
+                        class="flex items-center gap-1.5 text-base font-bold"
+                    >
+                        <BookLock
+                            class="size-4 text-violet-600 dark:text-violet-400"
+                        />
+                        Sổ phê duyệt
+                    </CardTitle>
                     <CardDescription
                         >{{ decisions.total }} quyết định được ghi
                         nhận.</CardDescription
@@ -148,7 +195,7 @@ function acknowledge(decision: Decision) {
 
                 <div class="flex flex-wrap items-center gap-2">
                     <select
-                        class="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium dark:border-slate-700 dark:bg-slate-900"
+                        class="h-9 rounded-lg border border-slate-200 bg-background px-2.5 text-xs font-medium dark:border-slate-700"
                         :value="filters.branch_id ?? ''"
                         @change="
                             applyFilter(
@@ -164,7 +211,7 @@ function acknowledge(decision: Decision) {
                     </select>
 
                     <select
-                        class="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium dark:border-slate-700 dark:bg-slate-900"
+                        class="h-9 rounded-lg border border-slate-200 bg-background px-2.5 text-xs font-medium dark:border-slate-700"
                         :value="filters.decided_by ?? ''"
                         @change="
                             applyFilter(
@@ -188,7 +235,7 @@ function acknowledge(decision: Decision) {
                             )
                         "
                         :class="[
-                            'rounded-lg px-3 py-1.5 text-xs font-bold transition-colors',
+                            'h-9 rounded-lg px-3 text-xs font-bold transition-colors',
                             filters.unreviewed
                                 ? 'bg-amber-500 text-white'
                                 : 'border border-slate-200 text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300',
@@ -202,10 +249,18 @@ function acknowledge(decision: Decision) {
             <CardContent class="p-0">
                 <div
                     v-if="decisions.data.length === 0"
-                    class="flex flex-col items-center justify-center gap-3 py-16 text-slate-400"
+                    class="flex flex-col items-center justify-center gap-3 py-20 text-slate-400"
                 >
-                    <BookLock class="h-8 w-8" />
-                    <p class="text-sm font-medium">
+                    <div
+                        class="rounded-2xl border border-violet-100 bg-violet-50 p-4 dark:border-violet-900/30 dark:bg-violet-950/40"
+                    >
+                        <BookLock
+                            class="size-10 text-violet-600 opacity-60 dark:text-violet-400"
+                        />
+                    </div>
+                    <p
+                        class="text-center text-sm font-semibold text-slate-600 dark:text-slate-300"
+                    >
                         Chưa có quyết định ủy quyền nào được ghi nhận.
                     </p>
                 </div>
@@ -217,7 +272,7 @@ function acknowledge(decision: Decision) {
                     <li
                         v-for="d in decisions.data"
                         :key="d.id"
-                        class="px-5 py-4"
+                        class="px-5 py-4 transition-colors hover:bg-slate-50/60 dark:hover:bg-slate-900/30"
                     >
                         <div
                             class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between"
