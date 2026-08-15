@@ -13,6 +13,7 @@ use App\Models\SystemSetting;
 use App\Models\Unit;
 use App\Notifications\ProductRecipeRequiredNotification;
 use App\Support\Tenant\TenantContext;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
@@ -383,5 +384,72 @@ class ProductManagementController extends Controller
 
         Cache::forget("restaurant_{$restaurantId}_products");
         Cache::forget("restaurant_{$restaurantId}_categories");
+    }
+
+    /**
+     * Tự động phát hiện và tạm ngưng bán các món dùng nguyên liệu sắp hết/hết hàng.
+     */
+    public function pauseProductsWithLowStockIngredients(Request $request): JsonResponse
+    {
+        $user = $request->user();
+        abort_unless($user->can('manage_products') || $user->hasAnyRole(['cashier', 'manager', 'owner', 'super_admin']), 403);
+
+        $restaurantId = $user->restaurant_id;
+        $context = app(TenantContext::class);
+        $branchId = $context->activeBranchId();
+
+        $lowStockIngredientIds = Ingredient::where('restaurant_id', $restaurantId)
+            ->whereHas('inventories', function ($inv) use ($branchId) {
+                $inv->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
+                    ->whereRaw('inventories.quantity_on_hand <= ingredients.min_stock_level');
+            })
+            ->pluck('id');
+
+        if ($lowStockIngredientIds->isEmpty()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Không tìm thấy nguyên liệu nào hết hoặc dưới định mức tồn kho.',
+            ], 422);
+        }
+
+        $productIdsToPause = ProductRecipe::where('restaurant_id', $restaurantId)
+            ->whereIn('ingredient_id', $lowStockIngredientIds)
+            ->pluck('product_id')
+            ->unique();
+
+        $affectedProducts = Product::where('restaurant_id', $restaurantId)
+            ->whereIn('id', $productIdsToPause)
+            ->where('is_active', true)
+            ->get();
+
+        if ($affectedProducts->isEmpty()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Tất cả các món liên quan đến nguyên liệu thiếu đã tạm ngưng trước đó.',
+            ], 422);
+        }
+
+        $pausedCount = 0;
+        foreach ($affectedProducts as $product) {
+            $product->update(['is_active' => false]);
+            $pausedCount++;
+        }
+
+        $this->forgetCatalogCaches($restaurantId, $context, $branchId);
+
+        \App\Models\AuditLog::log(
+            'products_paused_low_stock_ingredients',
+            'updated',
+            $affectedProducts->first(),
+            null,
+            ['paused_count' => $pausedCount]
+        );
+
+        return response()->json([
+            'success' => true,
+            'message' => "Đã tạm ngưng bán thành công {$pausedCount} món do thiếu nguyên liệu.",
+            'paused_count' => $pausedCount,
+            'paused_products' => $affectedProducts->pluck('name'),
+        ]);
     }
 }

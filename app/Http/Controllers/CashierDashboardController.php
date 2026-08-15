@@ -114,9 +114,6 @@ class CashierDashboardController extends Controller
 
                     if ($activeOrders->isNotEmpty()) {
                         $status = 'occupied';
-                        if ($t->status !== 'occupied') {
-                            $t->update(['status' => 'occupied']);
-                        }
 
                         $primaryOrder = $activeOrders->sortByDesc('updated_at')->first();
                         $totalSubtotal = (float) $activeOrders->sum('subtotal');

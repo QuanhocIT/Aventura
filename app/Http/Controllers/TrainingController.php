@@ -7,6 +7,7 @@ use App\Models\TrainingEnrollment;
 use App\Models\TrainingLesson;
 use App\Models\TrainingQuiz;
 use App\Models\TrainingQuizAttempt;
+use App\Models\Employee;
 use App\Services\QuotaService;
 use App\Support\TenantRule;
 use Illuminate\Http\JsonResponse;
@@ -62,6 +63,8 @@ class TrainingController extends Controller
 
     public function storeCourse(Request $request): RedirectResponse
     {
+        $this->authorizeManagement($request);
+
         $data = $request->validate([
             'title' => ['required', 'string', 'max:255'],
             'description' => ['nullable', 'string'],
@@ -84,6 +87,9 @@ class TrainingController extends Controller
 
     public function storeLesson(Request $request, TrainingCourse $course): RedirectResponse
     {
+        $this->authorizeManagement($request);
+        $this->assertCourseBelongsToTenant($request, $course);
+
         $data = $request->validate([
             'title' => ['required', 'string', 'max:255'],
             'content_type' => ['required', 'in:text,video,pdf,link'],
@@ -112,6 +118,9 @@ class TrainingController extends Controller
 
     public function storeQuiz(Request $request, TrainingCourse $course): RedirectResponse
     {
+        $this->authorizeManagement($request);
+        $this->assertCourseBelongsToTenant($request, $course);
+
         $data = $request->validate([
             'title' => ['required', 'string', 'max:255'],
             'pass_score' => ['required', 'integer', 'min:1', 'max:100'],
@@ -135,11 +144,26 @@ class TrainingController extends Controller
 
     public function enrollEmployee(Request $request): RedirectResponse
     {
+        $this->authorizeManagement($request);
+
         $data = $request->validate([
             'course_id' => ['required', "exists:training_courses,id,restaurant_id,{$request->user()->restaurant_id}"],
             'employee_ids' => ['required', 'array', 'min:1'],
             'employee_ids.*' => ["exists:employees,id,restaurant_id,{$request->user()->restaurant_id}"],
         ]);
+
+        $employees = Employee::query()
+            ->where('restaurant_id', $request->user()->restaurant_id)
+            ->whereIn('id', $data['employee_ids'])
+            ->get(['id', 'branch_id']);
+
+        abort_unless(
+            $request->user()->isSuperAdmin()
+                || $request->user()->canViewAllBranches()
+                || $employees->every(fn (Employee $employee): bool => $request->user()->canAccessBranch((int) $employee->branch_id)),
+            403,
+            'Bạn chỉ có thể ghi danh nhân viên thuộc chi nhánh được phân công.'
+        );
 
         $enrolled = 0;
         foreach ($data['employee_ids'] as $empId) {
@@ -168,7 +192,22 @@ class TrainingController extends Controller
             'lesson_id' => ['required', 'exists:training_lessons,id'],
         ]);
 
-        $enrollment = TrainingEnrollment::findOrFail($data['enrollment_id']);
+        $enrollment = TrainingEnrollment::query()
+            ->where('restaurant_id', $request->user()->restaurant_id)
+            ->with('employee')
+            ->findOrFail($data['enrollment_id']);
+        $this->authorizeEnrollmentParticipant($request, $enrollment);
+
+        $lesson = TrainingLesson::query()
+            ->whereKey($data['lesson_id'])
+            ->whereHas('course', fn ($query) => $query->where('restaurant_id', $request->user()->restaurant_id))
+            ->firstOrFail();
+
+        abort_unless(
+            (int) $lesson->course_id === (int) $enrollment->course_id,
+            422,
+            'Bài học không thuộc khóa đào tạo của đăng ký này.'
+        );
         $completed = $enrollment->completed_lessons ?? [];
 
         if (! in_array($data['lesson_id'], $completed)) {
@@ -192,8 +231,22 @@ class TrainingController extends Controller
             'answers' => ['required', 'array'],
         ]);
 
-        $enrollment = TrainingEnrollment::findOrFail($data['enrollment_id']);
-        $quiz = TrainingQuiz::findOrFail($data['quiz_id']);
+        $enrollment = TrainingEnrollment::query()
+            ->where('restaurant_id', $request->user()->restaurant_id)
+            ->with('employee')
+            ->findOrFail($data['enrollment_id']);
+        $this->authorizeEnrollmentParticipant($request, $enrollment);
+
+        $quiz = TrainingQuiz::query()
+            ->whereKey($data['quiz_id'])
+            ->whereHas('course', fn ($query) => $query->where('restaurant_id', $request->user()->restaurant_id))
+            ->firstOrFail();
+
+        abort_unless(
+            (int) $quiz->course_id === (int) $enrollment->course_id,
+            422,
+            'Bài kiểm tra không thuộc khóa đào tạo của đăng ký này.'
+        );
 
         // Atomic check with lock to prevent race condition on max_attempts
         $attempts = DB::transaction(function () use ($enrollment, $quiz) {
@@ -247,10 +300,49 @@ class TrainingController extends Controller
         ]);
     }
 
-    public function destroyCourse(TrainingCourse $course): RedirectResponse
+    public function destroyCourse(Request $request, TrainingCourse $course): RedirectResponse
     {
+        $this->authorizeManagement($request);
+        $this->assertCourseBelongsToTenant($request, $course);
+
         $course->delete();
 
         return back()->with('success', 'Đã xóa khóa đào tạo.');
+    }
+
+    private function authorizeManagement(Request $request): void
+    {
+        $user = $request->user();
+
+        abort_unless(
+            $user && ($user->isOwner() || $user->isSuperAdmin() || $user->can('training.manage')),
+            403,
+            'Bạn không có quyền quản lý đào tạo.'
+        );
+    }
+
+    private function assertCourseBelongsToTenant(Request $request, TrainingCourse $course): void
+    {
+        abort_unless(
+            $request->user()->isSuperAdmin()
+                || (int) $course->restaurant_id === (int) $request->user()->restaurant_id,
+            404,
+            'Không tìm thấy khóa đào tạo.'
+        );
+    }
+
+    private function authorizeEnrollmentParticipant(Request $request, TrainingEnrollment $enrollment): void
+    {
+        $user = $request->user();
+
+        if ($user->isOwner() || $user->isSuperAdmin() || $user->can('training.manage')) {
+            return;
+        }
+
+        abort_unless(
+            (int) $enrollment->employee?->user_id === (int) $user->id,
+            403,
+            'Bạn chỉ có thể cập nhật tiến độ đào tạo của chính mình.'
+        );
     }
 }

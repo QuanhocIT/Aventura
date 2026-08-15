@@ -50,6 +50,8 @@ class EquipmentController extends Controller
 
     public function store(Request $request): RedirectResponse
     {
+        $this->authorizeManagement($request);
+
         $data = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'category' => ['required', 'in:kitchen,refrigeration,cleaning,pos,hvac,furniture,other'],
@@ -73,6 +75,8 @@ class EquipmentController extends Controller
 
     public function update(Request $request, Equipment $equipment): RedirectResponse
     {
+        $this->authorizeManagement($request);
+
         $data = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'category' => ['required', 'in:kitchen,refrigeration,cleaning,pos,hvac,furniture,other'],
@@ -89,6 +93,8 @@ class EquipmentController extends Controller
 
     public function reportIssue(Request $request): RedirectResponse
     {
+        $this->authorizeReporting($request);
+
         $data = $request->validate([
             'equipment_id' => ['required', TenantRule::exists('equipment')],
             'title' => ['required', 'string', 'max:255'],
@@ -117,6 +123,8 @@ class EquipmentController extends Controller
 
     public function completeLog(Request $request, EquipmentMaintenanceLog $log): RedirectResponse
     {
+        $this->authorizeManagement($request);
+
         $data = $request->validate([
             'cost' => ['nullable', 'numeric', 'min:0'],
         ]);
@@ -132,10 +140,34 @@ class EquipmentController extends Controller
         return back()->with('success', 'Đã hoàn thành bảo trì.');
     }
 
-    public function destroy(Equipment $equipment): RedirectResponse
+    public function destroy(Request $request, Equipment $equipment): RedirectResponse
     {
+        $this->authorizeManagement($request);
+
         $equipment->delete();
 
         return back()->with('success', 'Đã xóa thiết bị.');
+    }
+
+    private function authorizeManagement(Request $request): void
+    {
+        $user = $request->user();
+
+        abort_unless(
+            $user && ($user->isOwner() || $user->isSuperAdmin() || $user->can('equipment.manage')),
+            403,
+            'Bạn không có quyền quản lý thiết bị.'
+        );
+    }
+
+    private function authorizeReporting(Request $request): void
+    {
+        $user = $request->user();
+
+        abort_unless(
+            $user && ($user->isOwner() || $user->isSuperAdmin() || $user->can('equipment.report') || $user->can('equipment.manage')),
+            403,
+            'Bạn không có quyền báo cáo sự cố thiết bị.'
+        );
     }
 }

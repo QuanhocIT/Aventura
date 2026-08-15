@@ -181,4 +181,51 @@ class InventoryCountController extends Controller
             ], 422);
         }
     }
+
+    public function quickCountPreset(Request $request): JsonResponse
+    {
+        $user = $request->user();
+        $restaurantId = $user->restaurant_id;
+
+        $data = $request->validate([
+            'branch_id' => ['required', TenantRule::exists('restaurant_branches')],
+            'preset' => ['required', 'string', 'in:low_stock,high_value,expiring_soon,used_today'],
+            'blind_count' => ['nullable', 'boolean'],
+        ]);
+
+        $branchId = (int) $data['branch_id'];
+        $query = \App\Models\Ingredient::where('restaurant_id', $restaurantId);
+
+        match ($data['preset']) {
+            'low_stock' => $query->whereHas('inventories', fn ($inv) => $inv->where('branch_id', $branchId)->whereRaw('inventories.quantity_on_hand <= ingredients.min_stock_level')),
+            'high_value' => $query->where('average_cost', '>=', 50000)->orderByDesc('average_cost')->limit(20),
+            'expiring_soon' => $query->whereHas('batches', fn ($b) => $b->where('expiration_date', '<=', now()->addDays(3))),
+            'used_today' => $query->whereHas('movements', fn ($m) => $m->whereDate('created_at', today())),
+            default => null,
+        };
+
+        $ingredientIds = $query->pluck('id')->all();
+
+        if (empty($ingredientIds)) {
+            return response()->json([
+                'success' => false,
+                'message' => "Không tìm thấy nguyên liệu phù hợp với bộ lọc kiểm kê nhanh '{$data['preset']}'.",
+            ], 422);
+        }
+
+        $session = $this->countService->startCountSession(
+            $restaurantId,
+            (int) $data['branch_id'],
+            $user,
+            'spot_check',
+            (bool) ($data['blind_count'] ?? false),
+            $ingredientIds,
+        );
+
+        return response()->json([
+            'success' => true,
+            'message' => "Đã tạo phiên kiểm kê nhanh '{$data['preset']}' thành công với ".count($ingredientIds)." nguyên liệu.",
+            'data' => $session,
+        ]);
+    }
 }

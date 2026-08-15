@@ -47,6 +47,7 @@ class ApprovalController extends Controller
         match ($statusFilter) {
             'all' => null,
             'open' => $query->open(),
+            'overdue' => $query->open()->where('created_at', '<=', now()->subHours(24)),
             default => $query->where('status', $statusFilter),
         };
 
@@ -204,6 +205,69 @@ class ApprovalController extends Controller
         }
 
         return back()->with('success', 'Đã ghi nhận xem xét.');
+    }
+
+    public function batchApproveLowRisk(Request $request)
+    {
+        $user = $request->user();
+        abort_unless($this->canReview($user), 403);
+
+        $restaurantId = $user->restaurant_id;
+        $seesAllBranches = $user->isOwner() || $user->isSuperAdmin();
+
+        $query = ApprovalRequest::forRestaurant($restaurantId)->open();
+        if (! $seesAllBranches) {
+            $query->forBranches($this->authorityService->managedBranchIds($user));
+        }
+
+        $requests = $query->get();
+
+        $approvedCount = 0;
+        $skippedCount = 0;
+
+        foreach ($requests as $req) {
+            $decision = $this->authorityService->decide($user, $req);
+            if (! $decision->allowed) {
+                $skippedCount++;
+                continue;
+            }
+
+            // Low-risk operations check: amount_involved null or <= 100,000 VND
+            $isLowRiskType = in_array($req->operation_type, [
+                'discount_small',
+                'leave_request_short',
+                'ingredient_transfer_small',
+                'menu_item_pause',
+            ], true) || ($req->amount_involved !== null && (float) $req->amount_involved <= 100000);
+
+            if (! $isLowRiskType) {
+                $skippedCount++;
+                continue;
+            }
+
+            try {
+                $this->approvalService->approve($req, $user);
+                $approvedCount++;
+            } catch (\Throwable $e) {
+                $skippedCount++;
+            }
+        }
+
+        $message = "Đã duyệt hàng loạt {$approvedCount} yêu cầu rủi ro thấp.";
+        if ($skippedCount > 0) {
+            $message .= " Đã bỏ qua {$skippedCount} yêu cầu rủi ro cao/vượt thẩm quyền.";
+        }
+
+        if ($request->wantsJson()) {
+            return response()->json([
+                'success' => true,
+                'message' => $message,
+                'approved_count' => $approvedCount,
+                'skipped_count' => $skippedCount,
+            ]);
+        }
+
+        return back()->with('success', $message);
     }
 
     private function ledgerSummary(int $restaurantId): array

@@ -664,4 +664,61 @@ class AttendanceController extends Controller
 
         return back()->with('success', '🚀 Đã gửi yêu cầu xác nhận hết ca tới Chủ doanh nghiệp! Vui lòng chờ Chủ quán phê duyệt.');
     }
+
+    /**
+     * Duyệt chấm công nhanh các ca trực không có bất thường/vi phạm.
+     */
+    public function batchApproveNormal(Request $request)
+    {
+        $user = $request->user();
+        abort_unless($user->can('manage_attendance') || $user->hasAnyRole(['manager', 'owner', 'super_admin']), 403);
+
+        $restaurantId = $user->restaurant_id;
+        $branchId = app(\App\Support\Tenant\TenantContext::class)->activeBranchId();
+
+        $assignments = ScheduleAssignment::where('restaurant_id', $restaurantId)
+            ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
+            ->whereIn('status', ['checked_in', 'completed'])
+            ->whereNull('approved_by')
+            ->whereNotNull('check_in_at')
+            ->get();
+
+        if ($assignments->isEmpty()) {
+            $msg = 'Không có bản ghi chấm công nào chờ duyệt.';
+            return $request->wantsJson() ? response()->json(['success' => false, 'message' => $msg], 422) : back()->withErrors(['attendance' => $msg]);
+        }
+
+        $approvedCount = 0;
+        foreach ($assignments as $sa) {
+            $hasViolation = ViolationReport::where('restaurant_id', $restaurantId)
+                ->where('employee_id', $sa->employee_id)
+                ->whereDate('occurred_at', $sa->scheduled_date)
+                ->where('status', 'open')
+                ->exists();
+
+            if ($hasViolation) {
+                continue;
+            }
+
+            $sa->update([
+                'approved_by' => $user->id,
+            ]);
+            $approvedCount++;
+        }
+
+        if ($approvedCount > 0) {
+            \App\Models\AuditLog::log(
+                'attendance_batch_approved',
+                'updated',
+                $assignments->first(),
+                null,
+                ['approved_count' => $approvedCount]
+            );
+        }
+
+        $msg = "Đã duyệt chấm công nhanh cho {$approvedCount} ca trực bình thường.";
+        return $request->wantsJson()
+            ? response()->json(['success' => true, 'message' => $msg, 'approved_count' => $approvedCount])
+            : back()->with('success', $msg);
+    }
 }

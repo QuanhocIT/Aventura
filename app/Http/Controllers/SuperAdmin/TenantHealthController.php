@@ -37,7 +37,7 @@ class TenantHealthController extends Controller
             ->orderBy('id')
             ->get();
 
-        $users = User::with(['roles', 'employee'])
+        $users = User::with(['roles', 'employee', 'restaurant'])
             ->whereNotNull('restaurant_id')
             ->get();
 

@@ -478,6 +478,74 @@ class SupplyRequestController extends Controller
         }
     }
 
+    public function quickRecommendedRequest(Request $request): JsonResponse
+    {
+        $user = $request->user();
+        $restaurantId = $user->restaurant_id;
+
+        $data = $request->validate([
+            'branch_id' => ['required', TenantRule::exists('restaurant_branches')],
+            'notes' => 'nullable|string',
+        ]);
+
+        $branchId = (int) $data['branch_id'];
+        if (! $user->canAccessBranch($branchId)) {
+            abort(403, 'Bạn chỉ có thể lập đơn cấp phát cho chi nhánh thuộc phạm vi tài khoản.');
+        }
+
+        $ingredients = \App\Models\Ingredient::where('restaurant_id', $restaurantId)
+            ->whereHas('inventories', function ($inv) use ($branchId) {
+                $inv->where('branch_id', $branchId)
+                    ->whereRaw('inventories.quantity_on_hand <= ingredients.min_stock_level');
+            })
+            ->get();
+
+        if ($ingredients->isEmpty()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Tồn kho chi nhánh vẫn đủ định mức, không có nguyên liệu nào cần cấp thêm.',
+            ], 422);
+        }
+
+        $items = [];
+        foreach ($ingredients as $ing) {
+            $inv = \App\Models\Inventory::where('branch_id', $branchId)->where('ingredient_id', $ing->id)->first();
+            $qtyOnHand = $inv ? (float) $inv->quantity_on_hand : 0.0;
+            $min = (float) $ing->min_stock_level;
+            $optimal = ($min > 0) ? ($min * 2) : 10.0;
+            $qtyNeeded = max(1.0, $optimal - $qtyOnHand);
+
+            $items[] = [
+                'ingredient_id' => $ing->id,
+                'quantity' => $qtyNeeded,
+            ];
+        }
+
+        try {
+            $this->warehouseService->ensureCentralWarehouse($restaurantId);
+
+            $supplyRequest = $this->warehouseService->createSupplyRequest(
+                $restaurantId,
+                $branchId,
+                $user,
+                $items,
+                now()->addDay()->toDateString(),
+                $data['notes'] ?? 'Tự động lập đơn đề xuất cấp hàng theo tồn kho định mức'
+            );
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Đã tự động tạo phiếu đề xuất cấp hàng gồm '.count($items).' nguyên liệu đang thiếu.',
+                'data' => $supplyRequest,
+            ], 201);
+        } catch (\Throwable $e) {
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage(),
+            ], 422);
+        }
+    }
+
     /**
      * Kho Tổng phê duyệt đơn & giữ chỗ tồn khả dụng
      */
@@ -498,7 +566,7 @@ class SupplyRequestController extends Controller
             collect($data['items'] ?? [])->pluck('id')->all()
         );
 
-        if (! $user->isOwner() && ! $user->isSuperAdmin()) {
+        if (! $this->canApproveSupplyRequests($user)) {
             $this->approvalService->submitRequest('warehouse_supply_approve', [
                 'supply_request_id' => $supplyRequest->id,
                 'items'             => $data['items'] ?? [],
@@ -608,7 +676,7 @@ class SupplyRequestController extends Controller
         $supplyRequest = SupplyRequest::where('restaurant_id', $user->restaurant_id)->findOrFail($id);
         $this->authorizeSupplyRequestScope($user, $supplyRequest);
 
-        if (! $user->isOwner() && ! $user->isSuperAdmin()) {
+        if (! $this->canDispatchSupplyRequests($user)) {
             $this->approvalService->submitRequest('warehouse_supply_dispatch', [
                 'supply_request_id' => $supplyRequest->id,
                 'seal_code'         => $request->seal_code,
@@ -753,7 +821,7 @@ class SupplyRequestController extends Controller
             'reason' => 'required|string|max:500',
         ]);
 
-        if (! $user->isOwner() && ! $user->isSuperAdmin()) {
+        if (! $this->canApproveSupplyRequests($user)) {
             $this->approvalService->submitRequest('warehouse_supply_reject', [
                 'supply_request_id' => $supplyRequest->id,
                 'reason' => $request->reason,
@@ -856,6 +924,21 @@ class SupplyRequestController extends Controller
     {
         return $user->canViewAllBranches()
             || $user->hasAnyRole(['warehouse_manager', 'warehouse_staff']);
+    }
+
+    private function canApproveSupplyRequests(User $user): bool
+    {
+        return $user->isOwner()
+            || $user->isSuperAdmin()
+            || $user->can('supply_requests.approve');
+    }
+
+    private function canDispatchSupplyRequests(User $user): bool
+    {
+        return $user->isOwner()
+            || $user->isSuperAdmin()
+            || $user->can('supply_requests.dispatch')
+            || $user->can('warehouse.handover');
     }
 
     private function authorizeSupplyRequestScope(User $user, SupplyRequest $supplyRequest): void

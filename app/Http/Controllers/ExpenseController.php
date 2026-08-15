@@ -317,6 +317,10 @@ class ExpenseController extends Controller
         abort_if($expense->restaurant_id !== $request->user()->restaurant_id, 403);
         abort_unless($request->user()->canAccessBranch($expense->branch_id), 403);
 
+        if (in_array($expense->status, ['approved', 'paid'])) {
+            abort(403, 'Chi phí đã được phê duyệt hoặc thanh toán không thể sửa trực tiếp. Hãy tạo chứng từ đảo hoặc điều chỉnh.');
+        }
+
         $data = $request->validate([
             'category_id' => ['nullable', TenantRule::exists('expense_categories')],
             'amount' => ['required', 'numeric', 'min:0'],
@@ -326,13 +330,12 @@ class ExpenseController extends Controller
         ]);
 
         if ($request->hasFile('invoice')) {
-            // Delete old invoice file if exists
             if ($expense->invoice_path && str_starts_with($expense->invoice_path, '/storage/')) {
                 $oldPath = str_replace('/storage/', '', $expense->invoice_path);
                 Storage::disk('public')->delete($oldPath);
             }
-            $path = $request->file('invoice')->store('invoices', 'public');
-            $data['invoice_path'] = '/storage/'.$path;
+            $path = $request->file('invoice')->store('invoices', 'local');
+            $data['invoice_path'] = $path;
         }
 
         unset($data['invoice']);
@@ -342,14 +345,15 @@ class ExpenseController extends Controller
         return back()->with('success', 'Đã cập nhật thông tin chi phí.');
     }
 
-    /**
-     * Delete an operating expense.
-     */
     public function destroy(Request $request, OperatingExpense $expense)
     {
         abort_unless($request->user()->hasAnyRole(['owner', 'manager']), 403);
         abort_if($expense->restaurant_id !== $request->user()->restaurant_id, 403);
         abort_unless($request->user()->canAccessBranch($expense->branch_id), 403);
+
+        if (in_array($expense->status, ['approved', 'paid'])) {
+            abort(403, 'Chi phí đã được phê duyệt hoặc thanh toán không thể xóa trực tiếp. Hãy tạo chứng từ đảo hoặc điều chỉnh.');
+        }
 
         if ($expense->invoice_path && str_starts_with($expense->invoice_path, '/storage/')) {
             $oldPath = str_replace('/storage/', '', $expense->invoice_path);
@@ -359,6 +363,20 @@ class ExpenseController extends Controller
         $expense->delete();
 
         return back()->with('success', 'Đã xóa khoản chi phí thành công.');
+    }
+
+    public function approveExpense(Request $request, OperatingExpense $expense)
+    {
+        abort_unless($request->user()->hasAnyRole(['owner', 'manager']), 403);
+        abort_if($expense->restaurant_id !== $request->user()->restaurant_id, 403);
+        abort_unless($request->user()->canAccessBranch($expense->branch_id), 403);
+
+        $expense->update([
+            'status' => 'approved',
+            'approved_by' => $request->user()->id,
+        ]);
+
+        return back()->with('success', 'Đã phê duyệt chứng từ chi phí thành công.');
     }
 
     /**

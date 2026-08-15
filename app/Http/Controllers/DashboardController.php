@@ -282,14 +282,12 @@ class DashboardController extends Controller
                         ->get()
                         ->keyBy('branch_id');
 
-                    $cogsByBranch = OrderItem::whereHas('order', function ($q) use ($rid, $branchIds) {
-                        $q->where('restaurant_id', $rid)
-                            ->whereIn('branch_id', $branchIds)
-                            ->where('status', 'completed')
-                            ->whereBetween('created_at', [today()->startOfDay(), today()->endOfDay()]);
-                    })
-                        ->join('orders', 'order_items.order_id', '=', 'orders.id')
+                    $cogsByBranch = OrderItem::join('orders', 'order_items.order_id', '=', 'orders.id')
                         ->join('products', 'order_items.product_id', '=', 'products.id')
+                        ->where('orders.restaurant_id', $rid)
+                        ->whereIn('orders.branch_id', $branchIds)
+                        ->where('orders.status', 'completed')
+                        ->whereBetween('orders.created_at', [today()->startOfDay(), today()->endOfDay()])
                         ->groupBy('orders.branch_id')
                         ->selectRaw('orders.branch_id, SUM(order_items.quantity * products.cost_price) as total_cogs')
                         ->pluck('total_cogs', 'branch_id');
@@ -435,12 +433,8 @@ class DashboardController extends Controller
                     $activeOrder = $t->activeOrder;
                     if ($activeOrder) {
                         $status = 'occupied';
-                        if ($t->status !== 'occupied') {
-                            $t->update(['status' => 'occupied']);
-                        }
                     } elseif ($status === 'occupied') {
                         $status = 'available';
-                        $t->update(['status' => 'available']);
                     }
 
                     return [

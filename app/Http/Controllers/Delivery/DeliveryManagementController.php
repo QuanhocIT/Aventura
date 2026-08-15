@@ -370,4 +370,49 @@ class DeliveryManagementController extends Controller
             'failed_yesterday' => $failedYesterday,
         ];
     }
+
+    /**
+     * Cập nhật trạng thái "Đã lấy tất cả" cho toàn bộ điểm trong một batch giao hàng.
+     */
+    public function markAllPickedUp(Request $request, DeliveryBatch $batch): JsonResponse
+    {
+        $user = $request->user();
+        abort_unless($user->can('manage_orders') || $user->hasAnyRole(['shipper', 'cashier', 'manager', 'owner', 'super_admin']), 403);
+
+        if ((int) $batch->restaurant_id !== (int) $user->restaurant_id && ! $user->isSuperAdmin()) {
+            abort(403, 'Đợt giao hàng không thuộc nhà hàng của bạn.');
+        }
+
+        $batch->loadMissing('items');
+
+        $updatedCount = 0;
+        foreach ($batch->items as $item) {
+            if ($item->status !== 'completed' && $item->status !== 'failed') {
+                $item->update([
+                    'status' => 'in_transit',
+                    'picked_up_at' => now(),
+                ]);
+                $updatedCount++;
+            }
+        }
+
+        $batch->update([
+            'status' => 'in_transit',
+            'dispatched_at' => $batch->dispatched_at ?? now(),
+        ]);
+
+        \App\Models\AuditLog::log(
+            'delivery_batch_all_picked_up',
+            'updated',
+            $batch,
+            null,
+            ['picked_up_count' => $updatedCount]
+        );
+
+        return response()->json([
+            'success' => true,
+            'message' => "Đã xác nhận lấy hàng thành công cho toàn bộ {$updatedCount} điểm giao trong chuyến.",
+            'picked_up_count' => $updatedCount,
+        ]);
+    }
 }

@@ -129,9 +129,9 @@ class CdpController extends Controller
             ->join('customer_rfm_analysis', 'customers.id', '=', 'customer_rfm_analysis.customer_id')
             ->where('customer_rfm_analysis.rfm_segment', $segment)
             ->select('customers.*', 'customer_rfm_analysis.rfm_score_code', 'customer_rfm_analysis.monetary_amount', 'customer_rfm_analysis.frequency_count', 'customer_rfm_analysis.recency_days')
-            ->latest()
-            ->get()
-            ->map(fn ($c) => [
+            ->latest('customers.id')
+            ->paginate(50)
+            ->through(fn ($c) => [
                 'id' => $c->id,
                 'customer_code' => 'KH-'.str_pad($c->id, 5, '0', STR_PAD_LEFT),
                 'full_name' => $c->full_name,
@@ -147,8 +147,7 @@ class CdpController extends Controller
 
         return response()->json([
             'success' => true,
-            'segment' => $segment,
-            'customers' => $customers,
+            'data' => $customers,
         ]);
     }
 
@@ -217,10 +216,9 @@ class CdpController extends Controller
                 $q->where('rfm_segment', $data['segment']);
             });
         }
-        $customers = $query->get();
-        $targetCount = $customers->count();
+        $targetCount = $query->count();
 
-        return DB::transaction(function () use ($data, $restaurantId, $customers, $targetCount, $request) {
+        return DB::transaction(function () use ($data, $restaurantId, $targetCount, $request, $query) {
             // If channel is discount/voucher, create a real promotion record
             if ($data['channel_type'] === 'discount' && ! empty($data['voucher_code'])) {
                 // Check if promotion with this code already exists for this restaurant
@@ -259,15 +257,22 @@ class CdpController extends Controller
                 'created_by' => $request->user()->id,
             ]);
 
-            // Create log for each customer
-            foreach ($customers as $customer) {
-                CustomerCampaignLog::create([
-                    'campaign_id' => $campaign->id,
-                    'customer_id' => $customer->id,
-                    'status' => 'sent',
-                    'sent_at' => now(),
-                ]);
-            }
+            // Bulk create logs for targeted customers in chunks
+            $query->chunkById(250, function ($customersChunk) use ($campaign) {
+                $now = now();
+                $records = [];
+                foreach ($customersChunk as $customer) {
+                    $records[] = [
+                        'campaign_id' => $campaign->id,
+                        'customer_id' => $customer->id,
+                        'status' => 'sent',
+                        'sent_at' => $now,
+                        'created_at' => $now,
+                        'updated_at' => $now,
+                    ];
+                }
+                CustomerCampaignLog::insert($records);
+            });
 
             return response()->json([
                 'success' => true,

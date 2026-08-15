@@ -996,4 +996,107 @@ class OrdersController extends Controller
 
         return back()->with('success', 'Đã gửi yêu cầu hoàn tiền đến chủ doanh nghiệp để phê duyệt.');
     }
+
+    public function batchApproveQrOrders(Request $request): JsonResponse|RedirectResponse
+    {
+        $user = $request->user();
+        abort_unless($user->can('manage_orders') || $user->hasAnyRole(['cashier', 'manager', 'owner']), 403);
+
+        $restaurantId = $user->restaurant_id;
+        $branchId = app(TenantContext::class)->activeBranchId();
+
+        $ids = $request->input('temporary_order_ids');
+
+        $query = TemporaryOrder::where('restaurant_id', $restaurantId)
+            ->where('status', 'pending')
+            ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
+            ->when(! empty($ids) && is_array($ids), fn ($q) => $q->whereIn('id', $ids));
+
+        $tempOrders = $query->get();
+
+        if ($tempOrders->isEmpty()) {
+            $msg = 'Không có đơn hàng QR nào đang chờ duyệt.';
+            return $request->wantsJson() ? response()->json(['success' => false, 'message' => $msg], 422) : back()->withErrors(['qr' => $msg]);
+        }
+
+        $approvedCount = 0;
+        $overdueOrders = [];
+
+        foreach ($tempOrders as $tempOrder) {
+            $createdAt = $tempOrder->created_at ? \Carbon\Carbon::parse($tempOrder->created_at) : now();
+            $minutesAgo = $createdAt->diffInMinutes(now());
+
+            if ($minutesAgo > 30) {
+                $overdueOrders[] = [
+                    'id' => $tempOrder->id,
+                    'order_number' => 'QR-TEMP-'.$tempOrder->id,
+                    'created_at' => $createdAt->format('H:i - d/m/Y'),
+                    'minutes_ago' => $minutesAgo,
+                ];
+                continue;
+            }
+
+            try {
+                DB::transaction(function () use ($tempOrder, $user) {
+                    $tempOrder->update(['status' => 'approved']);
+
+                    $order = Order::create([
+                        'restaurant_id' => $tempOrder->restaurant_id,
+                        'branch_id' => $tempOrder->branch_id,
+                        'table_id' => $tempOrder->table_id,
+                        'order_number' => 'ORD-QR-'.str_pad($tempOrder->id, 6, '0', STR_PAD_LEFT),
+                        'status' => 'preparing',
+                        'payment_status' => 'unpaid',
+                        'channel' => 'qr',
+                        'fulfillment_status' => 'preparing',
+                        'total_amount' => $tempOrder->total_amount,
+                        'subtotal' => $tempOrder->total_amount,
+                        'note' => $tempOrder->notes ?? null,
+                        'created_at' => now(),
+                    ]);
+
+                    foreach (($tempOrder->cart_data ?? []) as $item) {
+                        OrderItem::create([
+                            'restaurant_id' => $tempOrder->restaurant_id,
+                            'order_id' => $order->id,
+                            'product_id' => $item['product_id'] ?? null,
+                            'quantity' => (float) ($item['quantity'] ?? 1),
+                            'unit_price' => (float) ($item['unit_price'] ?? 0),
+                            'line_total' => (float) ($item['line_total'] ?? 0),
+                            'notes' => $item['notes'] ?? null,
+                            'sent_to_kitchen_at' => now(),
+                        ]);
+                    }
+
+                    AuditLog::log(
+                        'qr_order_batch_approved',
+                        'created',
+                        $order,
+                        null,
+                        ['temporary_order_id' => $tempOrder->id]
+                    );
+                });
+
+                $approvedCount++;
+            } catch (\Throwable $e) {
+                \Illuminate\Support\Facades\Log::error("batchApproveQrOrders failed for temp order #{$tempOrder->id}: ".$e->getMessage());
+            }
+        }
+
+        $message = "Đã duyệt hàng loạt {$approvedCount} đơn QR và đẩy xuống Bếp thành công.";
+        if (! empty($overdueOrders)) {
+            $message .= ' Có '.count($overdueOrders).' đơn chờ quá 30 phút cần xử lý riêng.';
+        }
+
+        if ($request->wantsJson()) {
+            return response()->json([
+                'success' => true,
+                'message' => $message,
+                'approved_count' => $approvedCount,
+                'overdue_orders' => $overdueOrders,
+            ]);
+        }
+
+        return back()->with('success', $message);
+    }
 }

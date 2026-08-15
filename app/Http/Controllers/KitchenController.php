@@ -14,6 +14,7 @@ use App\Models\RestaurantTable;
 use App\Services\InventoryAvailabilityService;
 use App\Services\QuotaService;
 use App\Support\Tenant\TenantContext;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -247,6 +248,32 @@ class KitchenController extends Controller
         );
 
         return back()->with('success', 'Đã đánh dấu bếp bắt đầu chế biến món!');
+    }
+
+    public function notifyWaiterOverdue(Request $request, OrderItem $item): JsonResponse|RedirectResponse
+    {
+        $user = $request->user();
+        abort_unless($user->can('manage_kitchen'), 403);
+        abort_if($item->restaurant_id !== $user->restaurant_id, 403);
+
+        $order = $item->order;
+        $tableName = $order?->table?->name ?? 'Bàn chưa xác định';
+
+        event(new \App\Events\Kitchen\KitchenWaiterCalled(
+            $user->restaurant_id,
+            $order?->id ?? 0,
+            $order?->order_number ?? 'ORD-000',
+            $tableName,
+            $item->product?->name ?? 'Món ăn',
+            "Món [{$item->product?->name}] cho bàn {$tableName} bị trễ SLA. Vui lòng hỗ trợ!"
+        ));
+
+        $msg = "Đã gửi thông báo hỗ trợ cho phục vụ bàn {$tableName}!";
+        if ($request->wantsJson()) {
+            return response()->json(['success' => true, 'message' => $msg]);
+        }
+
+        return back()->with('success', $msg);
     }
 
     public function prepare(Request $request, OrderItem $item): RedirectResponse

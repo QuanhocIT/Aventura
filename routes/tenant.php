@@ -205,21 +205,41 @@ Route::middleware(['auth', 'verified', 'tenant.subscription', 'tenant.ratelimit'
     // Quản Lý Thiết Bị & Bảo Trì
     Route::prefix('equipment')->name('equipment.')->group(function () {
         Route::get('/', [EquipmentController::class, 'index'])->name('index');
-        Route::post('/', [EquipmentController::class, 'store'])->name('store');
-        Route::patch('/{equipment}', [EquipmentController::class, 'update'])->name('update');
-        Route::delete('/{equipment}', [EquipmentController::class, 'destroy'])->name('destroy');
-        Route::post('/report-issue', [EquipmentController::class, 'reportIssue'])->name('report');
-        Route::post('/logs/{log}/complete', [EquipmentController::class, 'completeLog'])->name('logs.complete');
+        Route::post('/', [EquipmentController::class, 'store'])
+            ->middleware('role_or_permission:owner|super_admin|equipment.manage')
+            ->name('store');
+        Route::patch('/{equipment}', [EquipmentController::class, 'update'])
+            ->middleware('role_or_permission:owner|super_admin|equipment.manage')
+            ->name('update');
+        Route::delete('/{equipment}', [EquipmentController::class, 'destroy'])
+            ->middleware('role_or_permission:owner|super_admin|equipment.manage')
+            ->name('destroy');
+        Route::post('/report-issue', [EquipmentController::class, 'reportIssue'])
+            ->middleware('role_or_permission:owner|super_admin|equipment.report|equipment.manage')
+            ->name('report');
+        Route::post('/logs/{log}/complete', [EquipmentController::class, 'completeLog'])
+            ->middleware('role_or_permission:owner|super_admin|equipment.manage')
+            ->name('logs.complete');
     });
 
     // Đào Tạo & Onboarding Nhân Viên
     Route::prefix('training')->name('training.')->group(function () {
         Route::get('/', [TrainingController::class, 'index'])->name('index');
-        Route::post('/courses', [TrainingController::class, 'storeCourse'])->name('courses.store');
-        Route::delete('/courses/{course}', [TrainingController::class, 'destroyCourse'])->name('courses.destroy');
-        Route::post('/courses/{course}/lessons', [TrainingController::class, 'storeLesson'])->name('lessons.store');
-        Route::post('/courses/{course}/quizzes', [TrainingController::class, 'storeQuiz'])->name('quizzes.store');
-        Route::post('/enroll', [TrainingController::class, 'enrollEmployee'])->name('enroll');
+        Route::post('/courses', [TrainingController::class, 'storeCourse'])
+            ->middleware('role_or_permission:owner|super_admin|training.manage')
+            ->name('courses.store');
+        Route::delete('/courses/{course}', [TrainingController::class, 'destroyCourse'])
+            ->middleware('role_or_permission:owner|super_admin|training.manage')
+            ->name('courses.destroy');
+        Route::post('/courses/{course}/lessons', [TrainingController::class, 'storeLesson'])
+            ->middleware('role_or_permission:owner|super_admin|training.manage')
+            ->name('lessons.store');
+        Route::post('/courses/{course}/quizzes', [TrainingController::class, 'storeQuiz'])
+            ->middleware('role_or_permission:owner|super_admin|training.manage')
+            ->name('quizzes.store');
+        Route::post('/enroll', [TrainingController::class, 'enrollEmployee'])
+            ->middleware('role_or_permission:owner|super_admin|training.manage')
+            ->name('enroll');
         Route::post('/complete-lesson', [TrainingController::class, 'completeLesson'])->name('complete-lesson');
         Route::post('/submit-quiz', [TrainingController::class, 'submitQuiz'])->name('submit-quiz');
     });
@@ -489,7 +509,11 @@ Route::middleware(['auth', 'verified', 'tenant.subscription', 'tenant.ratelimit'
     Route::get('cash-flow', [CashFlowController::class, 'index'])->name('cash-flow.index');
     Route::post('cash-flow/registers', [CashFlowController::class, 'openRegister'])->name('cash-flow.registers.open');
     Route::post('cash-flow/transactions', [CashFlowController::class, 'storeTransaction'])->name('cash-flow.transactions.store');
+    Route::post('cash-flow/transactions/{transaction}/reversal', [CashFlowController::class, 'reversalTransaction'])->name('cash-flow.transactions.reversal');
     Route::get('cash-flow/forecast', [CashFlowController::class, 'getForecast'])->name('cash-flow.forecast');
+
+    // Secure File Downloads
+    Route::get('secure-files/download', [\App\Http\Controllers\SecureFileController::class, 'download'])->name('secure-files.download');
 
     // Support booking demo
     Route::post('support/bookings', [SupportController::class, 'storeBooking'])->name('support.bookings.store');
@@ -758,6 +782,22 @@ Route::middleware(['auth', 'verified', 'tenant.subscription', 'tenant.ratelimit'
             Route::post('/swaps/{swap}/respond', [EmployeePortalController::class, 'respondSwap'])->name('swaps.respond');
             Route::post('/notifications/read-all', [EmployeePortalController::class, 'readAllNotifications'])->name('notifications.read-all');
         });
+
+    // Quick Actions API Routes (Batch 1)
+    Route::post('reservations/{reservation}/auto-assign', [TableReservationController::class, 'autoAssignTable'])->name('reservations.auto-assign');
+    Route::post('orders/batch-approve-qr', [OrdersController::class, 'batchApproveQrOrders'])->name('orders.batch-approve-qr');
+    Route::post('inventory/counts/quick-preset', [InventoryCountController::class, 'quickCountPreset'])->name('inventory.counts.quick-preset');
+    Route::post('supply-requests/quick-recommended', [SupplyRequestController::class, 'quickRecommendedRequest'])->name('supply-requests.quick-recommended');
+    Route::post('kitchen/items/{item}/notify-waiter', [KitchenController::class, 'notifyWaiterOverdue'])->name('kitchen.items.notify-waiter');
+    Route::post('approvals/batch-approve-low-risk', [ApprovalController::class, 'batchApproveLowRisk'])->name('approvals.batch-approve-low-risk');
+
+    // Quick Actions API Routes (Batch 2)
+    Route::post('attendance/batch-approve-normal', [AttendanceController::class, 'batchApproveNormal'])->name('attendance.batch-approve-normal');
+    Route::post('warehouse/tasks/quick-auto-assign', [WarehouseStaffController::class, 'quickAutoAssignTasks'])->name('warehouse.tasks.quick-auto-assign');
+    Route::post('delivery/batches/{batch}/mark-all-picked-up', [\App\Http\Controllers\Delivery\DeliveryManagementController::class, 'markAllPickedUp'])->name('delivery.batches.mark-all-picked-up');
+    Route::post('products/toggle-out-of-stock-ingredients', [ProductManagementController::class, 'pauseProductsWithLowStockIngredients'])->name('products.toggle-out-of-stock-ingredients');
+    Route::post('feedback/{feedback}/quick-template-reply', [FeedbackController::class, 'quickTemplateReply'])->name('feedback.quick-template-reply');
+    Route::post('purchase-orders/send-delivery-reminder', [PurchaseOrderController::class, 'sendDeliveryReminder'])->name('purchase-orders.send-delivery-reminder');
 
     // Chi nhánh làm việc
     Route::post('branch/switch', [BranchSwitchController::class, 'switchBranch'])->name('branch.switch');

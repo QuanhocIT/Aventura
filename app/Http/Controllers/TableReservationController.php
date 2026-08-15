@@ -220,6 +220,62 @@ class TableReservationController extends Controller
         return back()->with('success', "Đã dẫn khách {$reservation->guest_name} vào bàn.");
     }
 
+    public function autoAssignTable(Request $request, TableReservation $reservation): JsonResponse|RedirectResponse
+    {
+        $user = $request->user();
+        abort_unless($user->can('manage_orders') || $user->can('approve_requests'), 403);
+
+        $restaurantId = $user->restaurant_id;
+        if ($reservation->restaurant_id !== $restaurantId) {
+            abort(403);
+        }
+
+        $branchId = app(TenantContext::class)->activeBranchId() ?? $reservation->branch_id;
+
+        $table = RestaurantTable::where('restaurant_id', $restaurantId)
+            ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
+            ->where('status', 'available')
+            ->where('capacity', '>=', $reservation->party_size)
+            ->orderBy('capacity', 'asc')
+            ->first();
+
+        if (! $table) {
+            if ($request->wantsJson()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => "Không tìm thấy bàn trống phù hợp cho {$reservation->party_size} khách tại chi nhánh.",
+                ], 422);
+            }
+
+            return back()->withErrors(['table_id' => "Không tìm thấy bàn trống phù hợp cho {$reservation->party_size} khách."]);
+        }
+
+        $reservation->update([
+            'table_id' => $table->id,
+            'status' => 'confirmed',
+            'confirmed_by' => $user->id,
+        ]);
+
+        AuditLog::log(
+            'reservation_auto_assigned',
+            'updated',
+            $reservation,
+            null,
+            ['table_id' => $table->id, 'table_name' => $table->name]
+        );
+
+        if ($request->wantsJson()) {
+            return response()->json([
+                'success' => true,
+                'message' => "Đã tự động xếp bàn [{$table->name}] cho khách {$reservation->guest_name}!",
+                'table_name' => $table->name,
+                'reservation' => $reservation,
+            ]);
+        }
+
+        return back()->with('success', "Đã tự động xếp bàn [{$table->name}] cho khách {$reservation->guest_name}!");
+    }
+
     /**
      * Hủy đặt bàn.
      */

@@ -21,6 +21,7 @@ use Carbon\CarbonInterface;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Str;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -357,7 +358,7 @@ class FeedbackController extends Controller
 
         // 3. Dự phòng lấy từ TenantContext hoặc tham số truyền lên
         if (! $restaurantId) {
-            $restaurantId = $data['restaurant_id'] ?? app(TenantContext::class)->getRestaurantId();
+            $restaurantId = $data['restaurant_id'] ?? app(TenantContext::class)->restaurantId();
         }
 
         if (! $restaurantId) {
@@ -640,5 +641,71 @@ class FeedbackController extends Controller
             ->filter()
             ->values()
             ->toArray();
+    }
+
+    /**
+     * Xử lý phản hồi khách hàng theo các mẫu nhanh (Xin lỗi + Voucher, Đổi món, Chuyển Quản lý).
+     */
+    public function quickTemplateReply(Request $request, CustomerFeedback $feedback): JsonResponse
+    {
+        $user = $request->user();
+        abort_unless($user->can('manage_feedback') || $user->hasAnyRole(['cashier', 'manager', 'owner', 'super_admin']), 403);
+
+        if ((int) $feedback->restaurant_id !== (int) $user->restaurant_id && ! $user->isSuperAdmin()) {
+            abort(403, 'Phản hồi khách hàng không thuộc nhà hàng của bạn.');
+        }
+
+        $data = $request->validate([
+            'template_type' => 'required|string|in:apology_voucher,exchange_item,escalate_manager',
+            'custom_note' => 'nullable|string|max:500',
+        ]);
+
+        $voucherCode = null;
+        $status = 'resolved';
+        $replyText = '';
+
+        switch ($data['template_type']) {
+            case 'apology_voucher':
+                $voucherCode = 'APOLOGY-'.strtoupper(Str::random(6));
+                $replyText = "Thành thật xin lỗi quý khách về trải nghiệm chưa tốt. Nhà hàng xin gửi tặng quý khách mã voucher giảm giá 15% cho lần ghé thăm tiếp theo: [{$voucherCode}].";
+                break;
+            case 'exchange_item':
+                $replyText = "Thành thật xin lỗi quý khách. Nhân viên nhà hàng sẽ hỗ trợ đổi món mới ngay lập tức cho quý khách!";
+                break;
+            case 'escalate_manager':
+                $status = 'escalated';
+                $replyText = "Đã chuyển phản hồi của quý khách lên Quản lý / Chủ nhà hàng để kiểm tra và xử lý thỏa đáng.";
+                break;
+        }
+
+        if (! empty($data['custom_note'])) {
+            $replyText .= " (Ghi chú thêm: {$data['custom_note']})";
+        }
+
+        $feedback->update([
+            'status' => $status,
+            'compensation_voucher' => $voucherCode,
+            'resolution_notes' => $replyText,
+        ]);
+
+        AuditLog::log(
+            'feedback_template_replied',
+            'updated',
+            $feedback,
+            null,
+            [
+                'template_type' => $data['template_type'],
+                'voucher_code' => $voucherCode,
+                'status' => $status,
+            ]
+        );
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Đã xử lý phản hồi khách hàng theo mẫu thành công.',
+            'status' => $status,
+            'reply_text' => $replyText,
+            'voucher_code' => $voucherCode,
+        ]);
     }
 }

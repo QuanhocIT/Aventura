@@ -503,16 +503,21 @@ class EmployeeManagementController extends Controller
 
         try {
             [$newUser, $newEmployee] = DB::transaction(function () use ($data, $user, $branchId, $frontUrl, $backUrl): array {
-                // Mật khẩu mặc định là 'password', tài khoản kích hoạt ngay để đăng nhập.
+                $randomPassword = Str::random(12);
+                $activationToken = Str::random(40);
+
                 $newUser = User::create([
                     'name' => $data['name'],
                     'email' => $data['email'],
-                    'password' => bcrypt('password'),
+                    'password' => bcrypt($randomPassword),
                     'phone' => $data['phone'],
                     'restaurant_id' => $user->restaurant_id,
                     'branch_id' => $branchId ?: null,
                     'status' => 'active',
-                    'email_verified_at' => now(),
+                    'email_verified_at' => null,
+                    'must_change_password' => true,
+                    'activation_token' => $activationToken,
+                    'activation_expires_at' => now()->addDays(7),
                 ]);
 
                 $role = Role::firstOrCreate([
@@ -1152,6 +1157,58 @@ class EmployeeManagementController extends Controller
         if (array_key_exists('branch_id', $data)) {
             $employeeData['branch_id'] = $newBranchId;
         }
+
+        $salaryChanged = isset($data['base_salary']) || isset($data['pay_rate']) || isset($data['compensation_type']);
+        if ($salaryChanged) {
+            $isOwner = $user->isOwner() || $user->hasRole('owner');
+            $newBase = isset($data['base_salary']) ? (float) $data['base_salary'] : (float) $employee->base_salary;
+            $newRate = isset($data['pay_rate']) ? (float) $data['pay_rate'] : (float) $employee->pay_rate;
+            $newType = $data['compensation_type'] ?? $employee->compensation_type;
+
+            if ($isOwner) {
+                DB::table('salary_change_requests')->insert([
+                    'restaurant_id' => $user->restaurant_id,
+                    'branch_id' => $newBranchId,
+                    'employee_id' => $employee->id,
+                    'old_base_salary' => (float) $employee->base_salary,
+                    'new_base_salary' => $newBase,
+                    'old_pay_rate' => (float) $employee->pay_rate,
+                    'new_pay_rate' => $newRate,
+                    'old_compensation_type' => $employee->compensation_type,
+                    'new_compensation_type' => $newType,
+                    'effective_date' => now()->toDateString(),
+                    'proposed_by' => $user->id,
+                    'approved_by' => $user->id,
+                    'status' => 'approved',
+                    'notes' => 'Chủ nhà hàng phê duyệt điều chỉnh trực tiếp',
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]);
+            } else {
+                DB::table('salary_change_requests')->insert([
+                    'restaurant_id' => $user->restaurant_id,
+                    'branch_id' => $newBranchId,
+                    'employee_id' => $employee->id,
+                    'old_base_salary' => (float) $employee->base_salary,
+                    'new_base_salary' => $newBase,
+                    'old_pay_rate' => (float) $employee->pay_rate,
+                    'new_pay_rate' => $newRate,
+                    'old_compensation_type' => $employee->compensation_type,
+                    'new_compensation_type' => $newType,
+                    'effective_date' => now()->toDateString(),
+                    'proposed_by' => $user->id,
+                    'status' => 'pending',
+                    'notes' => 'Quản lý gửi đề xuất điều chỉnh lương, chờ Chủ nhà hàng phê duyệt',
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]);
+
+                unset($employeeData['base_salary']);
+                unset($employeeData['pay_rate']);
+                unset($employeeData['compensation_type']);
+            }
+        }
+
         $employee->update($employeeData);
         $employee->save();
 

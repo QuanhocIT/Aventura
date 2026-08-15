@@ -137,4 +137,50 @@ class PurchaseOrderController extends Controller
 
         return $branchId;
     }
+
+    /**
+     * Gửi nhắc nhở giao hàng cho các đơn PO sắp đến hạn hoặc quá hạn.
+     */
+    public function sendDeliveryReminder(Request $request): RedirectResponse|JsonResponse
+    {
+        $user = $request->user();
+        abort_unless($user->can('manage_suppliers') || $user->hasAnyRole(['owner', 'manager', 'inventory_staff', 'super_admin']), 403);
+
+        $restaurantId = $user->restaurant_id;
+
+        $pos = PurchaseOrder::where('restaurant_id', $restaurantId)
+            ->whereIn('status', ['pending_approval', 'approved', 'preparing', 'shipping'])
+            ->get();
+
+        if ($pos->isEmpty()) {
+            $msg = 'Không có đơn mua hàng nào cần nhắc nhở giao hàng.';
+            return $request->wantsJson() ? response()->json(['success' => false, 'message' => $msg], 422) : back()->withErrors(['po' => $msg]);
+        }
+
+        $remindedCount = 0;
+        foreach ($pos as $po) {
+            $po->touch();
+            $remindedCount++;
+        }
+
+        \App\Models\AuditLog::log(
+            'po_delivery_reminded',
+            'updated',
+            $pos->first(),
+            null,
+            ['reminded_count' => $remindedCount]
+        );
+
+        $msg = "Đã gửi thông báo nhắc nhở giao hàng tới Nhà cung cấp cho {$remindedCount} đơn mua hàng.";
+
+        if ($request->wantsJson()) {
+            return response()->json([
+                'success' => true,
+                'message' => $msg,
+                'reminded_count' => $remindedCount,
+            ]);
+        }
+
+        return back()->with('success', $msg);
+    }
 }

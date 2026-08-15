@@ -133,6 +133,8 @@ class CashFlowController extends Controller
     public function openRegister(Request $request): RedirectResponse
     {
         $user = $request->user();
+        abort_unless($user->hasAnyRole(['cashier', 'manager', 'owner']), 403, 'Chỉ thu ngân, quản lý hoặc chủ nhà hàng mới có quyền mở két tiền.');
+
         $restaurantId = $user->restaurant_id;
         $branchId = $this->requireActiveBranch($user);
 
@@ -174,6 +176,8 @@ class CashFlowController extends Controller
     public function storeTransaction(Request $request): RedirectResponse
     {
         $user = $request->user();
+        abort_unless($user->hasAnyRole(['cashier', 'manager', 'owner']), 403, 'Chỉ thu ngân, quản lý hoặc chủ nhà hàng mới có quyền ghi nhận giao dịch tiền mặt.');
+
         $restaurantId = $user->restaurant_id;
         $branchId = $this->requireActiveBranch($user);
 
@@ -182,6 +186,8 @@ class CashFlowController extends Controller
             'amount' => ['required', 'numeric', 'min:1'],
             'notes' => ['required', 'string', 'max:500'],
             'source' => ['required', 'string', 'in:expense,other'],
+            'voucher_code' => ['nullable', 'string', 'max:100'],
+            'is_approved' => ['nullable', 'boolean'],
         ]);
 
         $activeRegister = CashRegister::where('restaurant_id', $restaurantId)
@@ -193,15 +199,27 @@ class CashFlowController extends Controller
             return back()->withErrors(['amount' => 'Chưa có két tiền nào được mở. Vui lòng mở két tiền mặt trước khi tạo giao dịch.']);
         }
 
-        // For out/expense transactions, we can perform budget alert checking
+        // Check receipt / voucher requirement for out/expense transactions
+        if ($data['type'] === 'out' && empty($data['voucher_code']) && empty($data['notes'])) {
+            return back()->withErrors(['voucher_code' => 'Khoản chi tiền mặt phải có chứng từ hoặc ghi chú chi tiết.']);
+        }
+
+        // Budget overrun enforcement for cash out/expenses
         if ($data['type'] === 'out' && $activeRegister->expense_budget > 0) {
             $existingOut = (float) CashTransaction::where('cash_register_id', $activeRegister->id)
                 ->where('type', 'out')
                 ->sum('amount');
             if ($existingOut + $data['amount'] > $activeRegister->expense_budget) {
-                // We let them save, but we will show alerts elsewhere. We can append a warning note
-                $data['notes'] .= ' [Vượt ngân sách chi tiêu ca]';
+                if (! $user->hasAnyRole(['manager', 'owner']) && empty($data['is_approved'])) {
+                    return back()->withErrors(['amount' => 'Khoản chi vượt quá ngân sách ca (tối đa '.number_format($activeRegister->expense_budget).'đ). Yêu cầu phê duyệt từ Quản lý hoặc Chủ nhà hàng.']);
+                }
+                $data['notes'] .= ' [Đã phê duyệt vượt ngân sách]';
             }
+        }
+
+        $notes = $data['notes'];
+        if (! empty($data['voucher_code'])) {
+            $notes .= ' [Mã chứng từ: '.$data['voucher_code'].']';
         }
 
         CashTransaction::create([
@@ -211,7 +229,7 @@ class CashFlowController extends Controller
             'type' => $data['type'],
             'amount' => $data['amount'],
             'source' => $data['source'],
-            'notes' => $data['notes'],
+            'notes' => $notes,
             'created_by' => $user->id,
             'occurred_at' => now(),
         ]);
@@ -219,6 +237,34 @@ class CashFlowController extends Controller
         $msg = $data['type'] === 'out' ? 'Ghi nhận khoản chi tiền mặt thành công.' : 'Ghi nhận khoản thu tiền mặt thành công.';
 
         return redirect()->route('cash-flow.index')->with('success', $msg);
+    }
+
+    public function reversalTransaction(Request $request, CashTransaction $transaction): RedirectResponse
+    {
+        $user = $request->user();
+        abort_unless($user->hasAnyRole(['cashier', 'manager', 'owner']), 403, 'Bạn không có quyền đảo giao dịch tiền mặt.');
+        abort_if($transaction->restaurant_id !== $user->restaurant_id, 403);
+        $branchId = $this->requireActiveBranch($user);
+
+        if ($transaction->source === 'reversal') {
+            return back()->withErrors(['transaction' => 'Không thể tạo giao dịch đảo cho một giao dịch đảo khác.']);
+        }
+
+        $oppositeType = $transaction->type === 'in' ? 'out' : 'in';
+
+        CashTransaction::create([
+            'restaurant_id' => $user->restaurant_id,
+            'branch_id' => $branchId,
+            'cash_register_id' => $transaction->cash_register_id,
+            'type' => $oppositeType,
+            'amount' => $transaction->amount,
+            'source' => 'reversal',
+            'notes' => 'Đảo giao dịch #'.$transaction->id.': '.$transaction->notes,
+            'created_by' => $user->id,
+            'occurred_at' => now(),
+        ]);
+
+        return redirect()->route('cash-flow.index')->with('success', 'Đã tạo giao dịch đảo thành công.');
     }
 
     public function getForecast(Request $request): JsonResponse

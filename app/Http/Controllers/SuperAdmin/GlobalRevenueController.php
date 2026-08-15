@@ -271,27 +271,35 @@ class GlobalRevenueController extends Controller
             $query->where('orders.restaurant_id', $restaurantFilter);
         }
 
-        $orders = $query->orderBy('created_at', 'desc')->get();
-
-        $lines = [];
-        $lines[] = 'Mã đơn hàng;Nhà hàng;Mã nhà hàng;Gói cước;Số tiền (VND);Thời gian hoàn thành';
-
-        foreach ($orders as $order) {
-            $lines[] = implode(';', [
-                '"'.str_replace('"', '""', $order->order_number ?? $order->id).'"',
-                '"'.str_replace('"', '""', $order->restaurant?->name ?? '—').'"',
-                '"'.str_replace('"', '""', $order->restaurant?->code ?? '—').'"',
-                '"'.str_replace('"', '""', $order->restaurant?->plan?->name ?? 'Miễn Phí').'"',
-                '"'.(int) $order->total_amount.'"',
-                '"'.$order->created_at->format('Y-m-d H:i:s').'"',
-            ]);
-        }
-
-        $csv = "\xEF\xBB\xBF".implode("\r\n", $lines);
-
-        return response($csv, 200, [
+        $headers = [
             'Content-Type' => 'text/csv; charset=UTF-8',
             'Content-Disposition' => 'attachment; filename=baocao-doanhthu-'.now()->format('Ymd-His').'.csv',
-        ]);
+            'Pragma' => 'no-cache',
+            'Cache-Control' => 'must-revalidate, post-check=0, pre-check=0',
+            'Expires' => '0',
+        ];
+
+        $callback = function () use ($query) {
+            $file = fopen('php://output', 'w');
+            fputs($file, "\xEF\xBB\xBF");
+            fputcsv($file, ['Mã đơn hàng', 'Nhà hàng', 'Mã nhà hàng', 'Gói cước', 'Số tiền (VND)', 'Thời gian hoàn thành'], ';');
+
+            $query->orderBy('id', 'desc')->chunkById(250, function ($orders) use ($file) {
+                foreach ($orders as $order) {
+                    fputcsv($file, [
+                        $order->order_number ?? $order->id,
+                        $order->restaurant?->name ?? '—',
+                        $order->restaurant?->code ?? '—',
+                        $order->restaurant?->plan?->name ?? 'Miễn Phí',
+                        (int) $order->total_amount,
+                        $order->created_at->format('Y-m-d H:i:s'),
+                    ], ';');
+                }
+            });
+
+            fclose($file);
+        };
+
+        return response()->stream($callback, 200, $headers);
     }
 }

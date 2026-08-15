@@ -153,8 +153,6 @@ class AuditLogController extends Controller
             $query->where('created_at', '<=', $request->to.' 23:59:59');
         }
 
-        $logs = $query->get();
-
         $headers = [
             'Content-type' => 'text/csv; charset=utf-8',
             'Content-Disposition' => 'attachment; filename=audit-logs-'.now()->format('YmdHis').'.csv',
@@ -163,7 +161,7 @@ class AuditLogController extends Controller
             'Expires' => '0',
         ];
 
-        $callback = function () use ($logs) {
+        $callback = function () use ($query) {
             $file = fopen('php://output', 'w');
             fprintf($file, chr(0xEF).chr(0xBB).chr(0xBF)); // BOM for Excel
 
@@ -194,19 +192,22 @@ class AuditLogController extends Controller
                 'seed_demo_order' => 'Seed đơn demo',
             ];
 
-            foreach ($logs as $l) {
-                fputcsv($file, [
-                    $l->id,
-                    $l->created_at->format('d/m/Y H:i:s'),
-                    $l->user?->name ?? 'Hệ thống',
-                    $l->user_role ?? 'N/A',
-                    $eventLabels[$l->event] ?? $l->event,
-                    $actionLabels[$l->action] ?? $l->action,
-                    $l->subject_type ? class_basename($l->subject_type) : '—',
-                    $l->subject_id ?? '—',
-                    $l->ip_address ?? '—',
-                ]);
-            }
+            $query->orderBy('id', 'desc')->chunkById(250, function ($logs) use ($file, $eventLabels, $actionLabels) {
+                foreach ($logs as $l) {
+                    fputcsv($file, [
+                        $l->id,
+                        $l->created_at->format('d/m/Y H:i:s'),
+                        $l->user?->name ?? 'Hệ thống',
+                        $l->user_role ?? 'N/A',
+                        $eventLabels[$l->event] ?? $l->event,
+                        $actionLabels[$l->action] ?? $l->action,
+                        $l->subject_type ? class_basename($l->subject_type) : '—',
+                        $l->subject_id ?? '—',
+                        $l->ip_address ?? '—',
+                    ]);
+                }
+            });
+
             fclose($file);
         };
 

@@ -45,14 +45,18 @@ class DebtController extends Controller
         }
 
         $restaurantId = $user->restaurant_id;
+        $branchId = $this->tenantContext->activeBranchId()
+            ?? ($user->isOwner() ? null : $user->assignedBranchId());
 
         // Statistics
         $totalReceivable = (float) AccountReceivable::where('restaurant_id', $restaurantId)
+            ->when($branchId !== null, fn ($q) => $q->where('branch_id', $branchId))
             ->where('status', '!=', 'paid')
             ->selectRaw('SUM(amount - received_amount) as total')
             ->value('total') ?? 0.0;
 
         $totalPayable = (float) AccountPayable::where('restaurant_id', $restaurantId)
+            ->when($branchId !== null, fn ($q) => $q->where('branch_id', $branchId))
             ->where('status', '!=', 'paid')
             ->selectRaw('SUM(amount - paid_amount) as total')
             ->value('total') ?? 0.0;
@@ -60,12 +64,14 @@ class DebtController extends Controller
         $today = now()->startOfDay();
 
         $overdueReceivable = (float) AccountReceivable::where('restaurant_id', $restaurantId)
+            ->when($branchId !== null, fn ($q) => $q->where('branch_id', $branchId))
             ->where('status', '!=', 'paid')
             ->where('due_date', '<', $today)
             ->selectRaw('SUM(amount - received_amount) as total')
             ->value('total') ?? 0.0;
 
         $overduePayable = (float) AccountPayable::where('restaurant_id', $restaurantId)
+            ->when($branchId !== null, fn ($q) => $q->where('branch_id', $branchId))
             ->where('status', '!=', 'paid')
             ->where('due_date', '<', $today)
             ->selectRaw('SUM(amount - paid_amount) as total')
@@ -73,6 +79,7 @@ class DebtController extends Controller
 
         // Receivables Aging Analysis
         $receivables = AccountReceivable::where('restaurant_id', $restaurantId)
+            ->when($branchId !== null, fn ($q) => $q->where('branch_id', $branchId))
             ->where('status', '!=', 'paid')
             ->get();
 
@@ -108,6 +115,7 @@ class DebtController extends Controller
 
         // Payables Aging Analysis
         $payables = AccountPayable::where('restaurant_id', $restaurantId)
+            ->when($branchId !== null, fn ($q) => $q->where('branch_id', $branchId))
             ->where('status', '!=', 'paid')
             ->get();
 
@@ -144,6 +152,7 @@ class DebtController extends Controller
         // Pagination and Filters for Payables List
         $payableStatus = $request->input('payable_status');
         $payablesQuery = AccountPayable::where('restaurant_id', $restaurantId)
+            ->when($branchId !== null, fn ($q) => $q->where('branch_id', $branchId))
             ->with(['supplier', 'purchaseOrder']);
         if ($payableStatus) {
             $payablesQuery->where('status', $payableStatus);
@@ -153,6 +162,7 @@ class DebtController extends Controller
         // Pagination and Filters for Receivables List
         $receivableStatus = $request->input('receivable_status');
         $receivablesQuery = AccountReceivable::where('restaurant_id', $restaurantId)
+            ->when($branchId !== null, fn ($q) => $q->where('branch_id', $branchId))
             ->with(['customer', 'order']);
         if ($receivableStatus) {
             $receivablesQuery->where('status', $receivableStatus);
@@ -363,6 +373,11 @@ class DebtController extends Controller
             'is_b2b' => ['required', 'boolean'],
             'credit_limit' => ['required', 'numeric', 'min:0'],
         ]);
+
+        $maxManagerLimit = 20000000.0; // 20,000,000 VND
+        if ((float) $data['credit_limit'] > $maxManagerLimit && ! $user->hasAnyRole(['owner', 'super_admin'])) {
+            return back()->withErrors(['credit_limit' => 'Hạn mức công nợ vượt ngưỡng 20.000.000đ yêu cầu phê duyệt từ Chủ nhà hàng.']);
+        }
 
         $customer->update([
             'is_vip' => $data['is_vip'],

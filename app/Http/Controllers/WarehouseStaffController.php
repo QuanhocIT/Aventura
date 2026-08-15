@@ -783,5 +783,82 @@ class WarehouseStaffController extends Controller
             // Không để lỗi audit làm gián đoạn luồng nghiệp vụ
         }
     }
+
+    /**
+     * Phân công soạn hàng/nhiệm vụ kho nhanh theo tải công việc.
+     */
+    public function quickAutoAssignTasks(Request $request): JsonResponse
+    {
+        $user = $request->user();
+        abort_unless($user->can('manage_warehouse') || $user->hasAnyRole(['warehouse_manager', 'manager', 'owner', 'super_admin']), 403);
+
+        $restaurantId = $user->restaurant_id;
+
+        $unassignedTasks = WarehouseTaskAssignment::where('restaurant_id', $restaurantId)
+            ->where(function ($q) {
+                $q->whereNull('assigned_to')
+                  ->orWhere('status', 'pending');
+            })
+            ->orderBy('due_at', 'asc')
+            ->get();
+
+        if ($unassignedTasks->isEmpty()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Không có nhiệm vụ kho nào đang chờ phân công.',
+            ], 422);
+        }
+
+        // Lấy danh sách nhân viên kho active
+        $warehouseStaff = \App\Models\User::where('restaurant_id', $restaurantId)
+            ->where('is_active', true)
+            ->whereHas('roles', function ($q) {
+                $q->whereIn('name', ['warehouse_staff', 'warehouse_manager', 'manager', 'owner']);
+            })
+            ->get();
+
+        if ($warehouseStaff->isEmpty()) {
+            $warehouseStaff = collect([$user]);
+        }
+
+        // Đếm công việc hiện tại của từng nhân viên
+        $staffWorkload = [];
+        foreach ($warehouseStaff as $staffUser) {
+            $count = WarehouseTaskAssignment::where('restaurant_id', $restaurantId)
+                ->where('assigned_to', $staffUser->id)
+                ->whereIn('status', ['assigned', 'in_progress'])
+                ->count();
+            $staffWorkload[$staffUser->id] = $count;
+        }
+
+        $assignedCount = 0;
+        foreach ($unassignedTasks as $task) {
+            // Chọn nhân viên có ít task nhất
+            asort($staffWorkload);
+            $bestStaffId = array_key_first($staffWorkload);
+
+            $task->update([
+                'assigned_to' => $bestStaffId,
+                'status' => 'assigned',
+            ]);
+
+            $staffWorkload[$bestStaffId]++;
+            $assignedCount++;
+        }
+
+        AuditLog::log(
+            'warehouse_tasks_auto_assigned',
+            'updated',
+            $unassignedTasks->first(),
+            null,
+            ['assigned_count' => $assignedCount]
+        );
+
+        return response()->json([
+            'success' => true,
+            'message' => "Đã tự động phân công thành công {$assignedCount} nhiệm vụ kho cho nhân viên.",
+            'assigned_count' => $assignedCount,
+        ]);
+    }
 }
 
