@@ -115,27 +115,46 @@ class DatabaseBackupService
             unlink($tempFile);
         }
 
-        // Xác định Cloud Storage S3 có được cấu hình đúng
+        // Tính SHA-256 checksum của file backup trước khi upload
+        $checksum = hash_file('sha256', $gzFile);
+
         $disk = 'local';
         $destination = 'backups/'.$filename.'.gz';
         $uploadedToS3 = false;
+        $s3Required = app()->environment('production') || config('backup.s3_required', false);
 
         if ($this->isS3Configured()) {
             try {
                 $fileStream = fopen($gzFile, 'r');
                 Storage::disk('s3')->put($destination, $fileStream);
-                fclose($fileStream);
+                if (is_resource($fileStream)) {
+                    fclose($fileStream);
+                }
                 $disk = 's3';
                 $uploadedToS3 = true;
             } catch (\Exception $e) {
-                Log::warning('Failed to upload backup to S3: '.$e->getMessage().'. Saving locally instead.');
+                Log::emergency('MÃ SỰ CỐ BACKUP: Không thể tải bản sao lưu lên S3 Off-site: '.$e->getMessage());
+                if ($s3Required) {
+                    if (file_exists($gzFile)) {
+                        unlink($gzFile);
+                    }
+                    throw new \RuntimeException('Sao lưu thất bại: S3 Off-site storage bắt buộc đối với môi trường Production nhưng tải lên không thành công: '.$e->getMessage());
+                }
             }
+        } elseif ($s3Required) {
+            if (file_exists($gzFile)) {
+                unlink($gzFile);
+            }
+            Log::emergency('MÃ SỰ CỐ BACKUP: S3 Off-site chưa được cấu hình cho môi trường Production!');
+            throw new \RuntimeException('Sao lưu thất bại: Môi trường Production bắt buộc phải cấu hình AWS S3 / Remote Storage.');
         }
 
         if (! $uploadedToS3) {
             $fileStream = fopen($gzFile, 'r');
             Storage::disk('local')->put($destination, $fileStream);
-            fclose($fileStream);
+            if (is_resource($fileStream)) {
+                fclose($fileStream);
+            }
             $disk = 'local';
         }
 
@@ -152,6 +171,7 @@ class DatabaseBackupService
             'size' => $size,
             'size_mb' => round($size / (1024 * 1024), 2),
             'path' => $destination,
+            'checksum_sha256' => $checksum,
             'created_at' => now()->toDateTimeString(),
         ];
     }

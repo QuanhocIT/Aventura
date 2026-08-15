@@ -30,14 +30,53 @@ use Illuminate\Support\Facades\Log;
  * Xem SCHEDULER_RESTORE.md để biết trình tự bật khuyến nghị.
  */
 return function (Schedule $schedule): void {
+    // Task logger helper
+    $logRun = function (string $taskName, callable $callback) {
+        $startTime = microtime(true);
+        $runId = null;
+        try {
+            $run = \App\Models\ScheduledTaskRun::create([
+                'task_name' => $taskName,
+                'started_at' => now(),
+                'status' => 'running',
+            ]);
+            $runId = $run->id;
+        } catch (\Throwable) {}
+
+        try {
+            $callback();
+            $durationMs = (int) round((microtime(true) - $startTime) * 1000);
+            if ($runId) {
+                \App\Models\ScheduledTaskRun::where('id', $runId)->update([
+                    'finished_at' => now(),
+                    'status' => 'success',
+                    'duration_ms' => $durationMs,
+                ]);
+            }
+        } catch (\Throwable $e) {
+            $durationMs = (int) round((microtime(true) - $startTime) * 1000);
+            if ($runId) {
+                \App\Models\ScheduledTaskRun::where('id', $runId)->update([
+                    'finished_at' => now(),
+                    'status' => 'failed',
+                    'error_message' => $e->getMessage(),
+                    'duration_ms' => $durationMs,
+                ]);
+            }
+            throw $e;
+        }
+    };
+
     // Operations Center heartbeat: proves that the Laravel scheduler itself is ticking,
     // independently from the health checks it runs.
-    $schedule->call(function (): void {
-        $path = storage_path('framework/scheduler-heartbeat.json');
-        @file_put_contents($path, json_encode([
-            'last_run_at' => now()->toIso8601String(),
-            'pid' => getmypid(),
-        ], JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
+    $schedule->call(function () use ($logRun): void {
+        $logRun('operations-center-heartbeat', function () {
+            $path = storage_path('framework/scheduler-heartbeat.json');
+            @file_put_contents($path, json_encode([
+                'last_run_at' => now()->toIso8601String(),
+                'pid' => getmypid(),
+            ], JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
+        });
     })->everyMinute()->name('operations-center-heartbeat')->withoutOverlapping();
 
     // ── Nhóm việc đã và đang chạy ổn định (giữ nguyên từ routes/console.php cũ) ──
