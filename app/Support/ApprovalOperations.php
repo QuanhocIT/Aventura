@@ -56,6 +56,7 @@ final class ApprovalOperations
         'warehouse_set_central',
         'warehouse_price_update',
         'product_base_price_update',
+        'inventory_recipe_save',
         'promotion_chain_wide',
         'coupon_chain_wide',
 

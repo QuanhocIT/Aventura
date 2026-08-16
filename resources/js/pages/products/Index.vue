@@ -50,6 +50,7 @@ const props = defineProps<{
     activeBranchId: number | null;
     branchScope: string;
     canCreateShared: boolean;
+    canManagePrices: boolean;
 }>();
 
 // ── AI Menu Insights ──────────────────────────────────────────────────────────
@@ -460,8 +461,12 @@ const submitEdit = () => {
         {
             _method: 'PATCH',
             name: editForm.name,
-            price: editForm.price,
-            is_processed: editForm.is_processed,
+            ...(props.canManagePrices ? {
+                price: editForm.price,
+                is_processed: editForm.is_processed,
+                earn_points: editForm.earn_points,
+                redeem_points: editForm.redeem_points,
+            } : {}),
             category_id: editForm.category_id,
             description: editForm.description,
             image: editForm.image,
@@ -568,6 +573,7 @@ const toggleAvailability = (p: Product) => {
                 </Button>
                 <Button
                     id="btn-add-product"
+                    v-if="canManagePrices"
                     @click="showAddProduct = true"
                     class="bg-rose-650 h-10 cursor-pointer rounded-xl text-xs font-bold text-white shadow-sm hover:bg-rose-700"
                 >
@@ -1783,6 +1789,7 @@ const toggleAvailability = (p: Product) => {
                                             </button>
 
                                             <button
+                                                v-if="canManagePrices"
                                                 @click="confirmDelete(p)"
                                                 class="shrink-0 cursor-pointer rounded-lg border border-border bg-card p-1.5 text-muted-foreground transition-all hover:bg-rose-500/10 hover:text-rose-500"
                                                 title="Xóa món ăn khỏi thực đơn"
@@ -1844,6 +1851,7 @@ const toggleAvailability = (p: Product) => {
                                     đặt hàng qua QR hoặc thu ngân tạo hóa đơn.
                                 </p>
                                 <Button
+                                    v-if="canManagePrices"
                                     class="bg-rose-650 mt-4 cursor-pointer rounded-xl font-bold text-white shadow-xs hover:bg-rose-700"
                                     size="sm"
                                     @click="showAddProduct = true"
@@ -2366,7 +2374,7 @@ const toggleAvailability = (p: Product) => {
                             >
                             <div class="grid grid-cols-2 gap-3">
                                 <div
-                                    @click="editForm.is_processed = false"
+                                    @click="canManagePrices && (editForm.is_processed = false)"
                                     :class="[
                                         'cursor-pointer rounded-xl border p-3 transition-all',
                                         !editForm.is_processed
@@ -2388,7 +2396,7 @@ const toggleAvailability = (p: Product) => {
                                 </div>
 
                                 <div
-                                    @click="editForm.is_processed = true"
+                                    @click="canManagePrices && (editForm.is_processed = true)"
                                     :class="[
                                         'cursor-pointer rounded-xl border p-3 transition-all',
                                         editForm.is_processed
@@ -2458,8 +2466,12 @@ const toggleAvailability = (p: Product) => {
                                 type="number"
                                 v-model="editForm.price"
                                 required
+                                :disabled="!canManagePrices"
                                 class="rounded-xl"
                             />
+                            <p v-if="!canManagePrices" class="text-[10px] text-amber-700 dark:text-amber-300">
+                                Giá bán và dữ liệu ảnh hưởng giá vốn chỉ Chủ doanh nghiệp được thay đổi.
+                            </p>
                         </div>
                         <div
                             class="grid grid-cols-2 gap-3 rounded-xl border border-amber-200/60 bg-amber-50/50 p-3 dark:border-amber-900/40 dark:bg-amber-950/20"

@@ -75,6 +75,16 @@ class PermissionsSeeder extends Seeder
             'warehouse.limit.configure',  // Cấu hình hạn mức chênh lệch theo doanh nghiệp
             'warehouse.receiving.verify', // Xác minh phiếu nhận hàng (manager)
 
+            // ── Kho Tổng: Quyền Quản lý Đội ngũ Kho Tổng ─────────────────────
+            'warehouse.staff.view',
+            'warehouse.staff.assignment.manage',
+            'warehouse.staff.schedule.manage',
+            'warehouse.staff.attendance.view',
+            'warehouse.staff.attendance.manage',
+            'warehouse.staff.leave.approve',
+            'warehouse.staff.kpi.view',
+            'warehouse.staff.incident.manage',
+
             // ── Quy tắc Quản trị Kho ─────────────────────────────────────────
             'warehouse_governance.view',
             'warehouse_governance.manage',
@@ -268,7 +278,6 @@ class PermissionsSeeder extends Seeder
             'supply_requests.cancel',
             'supply_requests.partial',
             'price_management.view',
-            'price_management.manage',
             'operational_audit.view',
             'view_violations',
             'warehouse.approve',
@@ -279,13 +288,19 @@ class PermissionsSeeder extends Seeder
             'warehouse.shift.handover',
             'warehouse.own_history.view',
             'warehouse.receiving.create',
-            'warehouse.receiving.confirm',
-            'warehouse.receiving.verify',
             'warehouse.task.assign',
             'warehouse.kpi.view',
             'warehouse.location.manage',
             'warehouse.limit.configure',
             'equipment.report',
+            'warehouse.staff.view',
+            'warehouse.staff.assignment.manage',
+            'warehouse.staff.schedule.manage',
+            'warehouse.staff.attendance.view',
+            'warehouse.staff.attendance.manage',
+            'warehouse.staff.leave.approve',
+            'warehouse.staff.kpi.view',
+            'warehouse.staff.incident.manage',
         ]);
 
         // ─────────────────────────────────────────────────────────────────────
@@ -306,7 +321,6 @@ class PermissionsSeeder extends Seeder
             // Nhận hàng
             'warehouse.receive.submit',
             'warehouse.receiving.create',
-            'warehouse.receiving.confirm',
             // Quét mã
             'warehouse.scan',
             // Vận hành kho
@@ -360,7 +374,6 @@ class PermissionsSeeder extends Seeder
             'company_policies.view',
             'operational_audit.view',
             'operational_audit.report',
-            'operational_audit.approve',
             'audit.read',
             'audit.manage',
             'inspection.close',

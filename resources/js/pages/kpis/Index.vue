@@ -29,6 +29,9 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { confirmDialog } from '@/composables/useConfirm';
+import { index, recalculate, finalize } from '@/routes/kpis';
+import { update as updateMetric } from '@/routes/kpis/metrics';
+import { store as storeReview } from '@/routes/kpis/reviews';
 import AppLayout from '@/layouts/AppLayout.vue';
 
 defineOptions({ layout: AppLayout });
@@ -123,7 +126,7 @@ const activeTab = ref<'leaderboard' | 'performance' | 'reviews' | 'settings'>(
 const selectedPeriod = ref(props.period);
 
 const changePeriod = () => {
-    router.visit(route('kpis.index'), {
+    router.visit(index.url(), {
         data: { period: selectedPeriod.value },
         preserveState: true,
         preserveScroll: true,
@@ -135,7 +138,7 @@ const isRecalculating = ref(false);
 const triggerRecalculate = () => {
     isRecalculating.value = true;
     router.post(
-        route('kpis.recalculate'),
+        recalculate.url(),
         { period: selectedPeriod.value },
         {
             onSuccess: () => {
@@ -168,7 +171,7 @@ const finalizeKpi = async (kpiId: number) => {
 
     isFinalizing.value = kpiId;
     router.post(
-        route('kpis.finalize', kpiId),
+        finalize.url(kpiId),
         {},
         {
             onSuccess: () => {
@@ -205,7 +208,7 @@ const reviewForm = useForm({
 });
 
 const submitReview = () => {
-    reviewForm.post(route('kpis.reviews.store'), {
+    reviewForm.post(storeReview.url(), {
         onSuccess: () => {
             toast.success('Đã gửi phiếu đánh giá 360° thành công!');
             isReviewModalOpen.value = false;
@@ -239,7 +242,7 @@ const updateConfig = () => {
         return;
     }
 
-    configForm.post(route('kpis.metrics.update', activeConfigEdit.value.id), {
+    configForm.post(updateMetric.url(activeConfigEdit.value.id), {
         onSuccess: () => {
             toast.success('Đã cập nhật cấu hình chỉ tiêu KPI thành công!');
             activeConfigEdit.value = null;

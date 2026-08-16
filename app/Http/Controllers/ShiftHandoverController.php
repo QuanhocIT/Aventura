@@ -73,7 +73,7 @@ class ShiftHandoverController extends Controller
                 ->get(['id', 'name']),
             'colleagues' => $branchId
                 ? User::where('restaurant_id', $restaurantId)
-                    ->whereKeyNot($user->id)
+                    ->where('id', '!=', $user->id)
                     ->where('status', 'active')
                     ->get(['id', 'name'])
                 : collect(),

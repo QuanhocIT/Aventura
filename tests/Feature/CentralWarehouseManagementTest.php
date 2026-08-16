@@ -17,6 +17,7 @@ use App\Services\CentralWarehouseService;
 use App\Services\DeliveryManifestService;
 use App\Services\BatchRecallService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
 class CentralWarehouseManagementTest extends TestCase
@@ -65,6 +66,7 @@ class CentralWarehouseManagementTest extends TestCase
             'restaurant_id' => $this->restaurant->id,
             'branch_id'     => $this->centralWarehouse->id,
         ]);
+        $this->manager->assignRole(Role::firstOrCreate(['name' => 'owner', 'guard_name' => 'web']));
 
         $this->rawIngredient = Ingredient::create([
             'restaurant_id' => $this->restaurant->id,

@@ -634,6 +634,8 @@ class OrderService
                 }
             }
 
+            $discount = min(max(0.0, $discount), (float) $subtotal);
+
             $order->update([
                 'subtotal' => $subtotal,
                 'discount_amount' => $discount,

@@ -195,7 +195,7 @@ class OrdersController extends Controller
                         'longitude' => $data['delivery_lng'] ?? null,
                         'delivery_fee' => $data['delivery_fee'] ?? 0,
                         'cod_amount' => $data['cod_amount'] ?? 0,
-                        'notes' => $data['delivery_notes'] ?? null,
+                        'delivery_notes' => $data['delivery_notes'] ?? null,
                         'delivery_status' => 'pending',
                     ]);
                 }
@@ -240,6 +240,10 @@ class OrdersController extends Controller
             });
         }
 
+        // The Orders page performs its own 10-item client-side pagination and
+        // consumes `orders` as a plain array. Passing the paginator object
+        // directly makes Vue call array methods on LengthAwarePaginator and
+        // leaves the page blank at runtime.
         $orders = $ordersQuery->paginate(50)->through(function ($o) {
             $items = $o->items
                 ->reject(fn ($item) => $item->status === 'cancelled')
@@ -317,10 +321,10 @@ class OrdersController extends Controller
                 'fee' => (float) $o->deliveryDetail->delivery_fee,
                 'cod' => (float) $o->deliveryDetail->cod_amount,
                 'status' => $o->deliveryDetail->delivery_status,
-                'notes' => $o->deliveryDetail->notes,
+                'notes' => $o->deliveryDetail->delivery_notes,
             ] : null,
             ];
-        });
+        })->items();
 
         $summary = $this->orderRepository->getSummaryStats($restaurantId, $dateFilter, $isKitchenOnly, $branchId);
         $summary['ready'] = $this->orderRepository->getOrdersQuery($restaurantId, [
@@ -590,6 +594,12 @@ class OrdersController extends Controller
             'bypass_code' => ['nullable', 'string'],
         ]);
 
+        if (array_key_exists('discount_amount', $data)
+            && ! $user->isOwner()
+            && ! $user->isSuperAdmin()) {
+            return back()->withErrors(['discount_amount' => 'Manual discount requires owner approval.']);
+        }
+
         if (isset($data['guests_count']) && $order->table_id) {
             $table = RestaurantTable::where('restaurant_id', $order->restaurant_id)
                 ->where('branch_id', $order->branch_id)
@@ -612,22 +622,21 @@ class OrdersController extends Controller
             foreach ($data['items'] as $itemData) {
                 if (! empty($itemData['product_id'])) {
                     $prod = $products->get($itemData['product_id']);
-                    if ($prod && isset($itemData['unit_price']) && (float) $itemData['unit_price'] < (float) $prod->price) {
-                        if (! $user->can('approve_requests')) {
-                            $approvingUser = User::validateManagerBypass($data['bypass_code'] ?? '', $order->restaurant_id);
-                            if (! $approvingUser) {
-                                return back()->withErrors(['items' => 'Giảm giá món ăn trực tiếp yêu cầu quyền phê duyệt của quản lý hoặc chưa cấu hình mã phê duyệt.']);
-                            }
-                            // Ghi log bypass giảm giá món trực tiếp
-                            AuditLog::log('price_discount_bypass', 'updated', $order, null, [
-                                'product_id' => $prod->id,
-                                'original_price' => $prod->price,
-                                'new_price' => $itemData['unit_price'],
-                                'bypass_code_used' => true,
-                                'approved_by_user_id' => $approvingUser->id,
-                                'approved_by_user_name' => $approvingUser->name,
-                            ]);
+                    if ($prod && isset($itemData['unit_price']) && (float) $itemData['unit_price'] !== (float) $prod->price
+                        && ! $user->isOwner() && ! $user->isSuperAdmin()) {
+                        $approvingUser = User::validateManagerBypass($data['bypass_code'] ?? '', $order->restaurant_id);
+                        if (! $approvingUser || (! $approvingUser->isOwner() && ! $approvingUser->isSuperAdmin())) {
+                            return back()->withErrors(['items' => 'Thay Ä‘á»•i Ä‘Æ¡n giÃ¡ mÃ³n trá»±c tiáº¿p yÃªu cáº§u mÃ£ phÃª duyá»‡t cá»§a Chá»§ doanh nghiá»‡p.']);
                         }
+                        // Ghi log bypass thay Ä‘á»•i Ä‘Æ¡n giÃ¡ mÃ³n
+                        AuditLog::log('price_discount_bypass', 'updated', $order, null, [
+                            'product_id' => $prod->id,
+                            'original_price' => $prod->price,
+                            'new_price' => $itemData['unit_price'],
+                            'bypass_code_used' => true,
+                            'approved_by_user_id' => $approvingUser->id,
+                            'approved_by_user_name' => $approvingUser->name,
+                        ]);
                     }
                 }
             }

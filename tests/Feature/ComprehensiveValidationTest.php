@@ -707,7 +707,7 @@ class ComprehensiveValidationTest extends TestCase
         $manager->assignRole($managerRole);
 
         $responseReleaseManager = $this->actingAs($manager)->post(route('suppliers.orders.release-escrow', $po->id));
-        $responseReleaseManager->assertSessionHasErrors(['error']);
+        $responseReleaseManager->assertForbidden();
 
         // Try as owner
         $responseReleaseOwner = $this->actingAs($this->owner)->post(route('suppliers.orders.release-escrow', $po->id));

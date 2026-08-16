@@ -89,6 +89,7 @@ class ProductManagementController extends Controller
             'activeBranchId' => $context->activeBranchId(),
             'branchScope' => $context->scope(),
             'canCreateShared' => $user->isOwner(),
+            'canManagePrices' => $user->isOwner() || $user->isSuperAdmin(),
         ]);
     }
 
@@ -131,7 +132,11 @@ class ProductManagementController extends Controller
     public function storeProduct(Request $request): RedirectResponse
     {
         $user = $request->user();
-        abort_unless($user->hasAnyRole(['owner', 'manager']), 403);
+        abort_unless(
+            $user->isOwner() || $user->isSuperAdmin(),
+            403,
+            'Chỉ Chủ doanh nghiệp mới được tạo món cùng giá bán chính thức.'
+        );
 
         $maxSize = SystemSetting::get('upload_menu_image_max', 2048);
         $data = $request->validate([
@@ -201,6 +206,17 @@ class ProductManagementController extends Controller
         $user = $request->user();
         abort_if($product->restaurant_id !== $user->restaurant_id, 403);
         abort_unless($user->canAccessBranch($product->branch_id), 403);
+
+        // is_processed quyết định món có đi qua BOM/COGS hay không, nên cũng
+        // là một thay đổi tài chính chứ không chỉ là thuộc tính hiển thị.
+        $financialFields = ['price', 'earn_points', 'redeem_points', 'is_processed'];
+        if (array_intersect($financialFields, array_keys($request->all()))) {
+            abort_unless(
+                $user->isOwner() || $user->isSuperAdmin(),
+                403,
+                'Chỉ Chủ doanh nghiệp mới được thay đổi giá bán hoặc chính sách điểm.'
+            );
+        }
 
         $maxSize = SystemSetting::get('upload_menu_image_max', 2048);
         $data = $request->validate([
@@ -313,6 +329,11 @@ class ProductManagementController extends Controller
     public function destroyProduct(Request $request, Product $product): RedirectResponse
     {
         $user = $request->user();
+        abort_unless(
+            $user->isOwner() || $user->isSuperAdmin(),
+            403,
+            'Chỉ Chủ doanh nghiệp mới được xóa món khỏi thực đơn chính thức.'
+        );
         abort_if($product->restaurant_id !== $user->restaurant_id, 403);
         abort_unless($user->canAccessBranch($product->branch_id), 403);
 

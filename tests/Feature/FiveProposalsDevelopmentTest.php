@@ -371,7 +371,7 @@ class FiveProposalsDevelopmentTest extends TestCase
             $managerUser = User::factory()->create(['restaurant_id' => $this->restaurant->id, 'branch_id' => $this->branch->id, 'status' => 'active']);
             $managerUser->assignRole($managerRole);
         }
-        $managerUser->update(['pin_code' => '8888']);
+        $this->owner->update(['pin_code' => '8888']);
 
         $response = $this->postJson(route('promotions.apply'), [
             'order_id' => $order->id,

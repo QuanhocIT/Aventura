@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\User;
 use App\Models\WarehouseFraudCase;
 use App\Services\WarehouseFraudDetectionService;
+use App\Support\TenantRule;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -43,7 +44,7 @@ class WarehouseFraudCaseController extends Controller
         abort_unless($user->can('warehouse_governance.manage') || $user->isOwner() || $user->isSuperAdmin(), 403);
 
         $data = $request->validate([
-            'assigned_to' => 'required|integer|exists:users,id',
+            'assigned_to' => ['required', 'integer', TenantRule::exists('users')],
             'deadline_at' => 'nullable|date',
         ]);
 

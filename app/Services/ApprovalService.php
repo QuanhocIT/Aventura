@@ -327,7 +327,7 @@ class ApprovalService
     {
         User::where('restaurant_id', $restaurantId)
             ->role('owner')
-            ->when($exceptUserId, fn ($q) => $q->whereKeyNot($exceptUserId))
+            ->when($exceptUserId, fn ($q) => $q->where('id', '!=', $exceptUserId))
             ->get()
             ->each($notify);
     }

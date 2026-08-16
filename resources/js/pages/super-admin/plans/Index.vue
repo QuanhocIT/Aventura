@@ -32,6 +32,7 @@ import {
 } from 'lucide-vue-next';
 import { ref, computed } from 'vue';
 import { PageHeader, StatusBadge } from '@/components/super-admin';
+import { store } from '@/routes/superadmin/plans';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -203,7 +204,7 @@ const createForm = useForm({
 });
 
 function submitCreate() {
-    createForm.post(route('superadmin.plans.store'), {
+    createForm.post(store.url(), {
         onSuccess: () => {
             isCreating.value = false;
             createForm.reset();

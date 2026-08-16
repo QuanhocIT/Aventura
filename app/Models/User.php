@@ -49,6 +49,9 @@ use Spatie\Permission\Traits\HasRoles;
     'must_change_password',
     'activation_token',
     'activation_expires_at',
+    'supervisor_user_id',
+    'warehouse_branch_id',
+    'warehouse_staff_status',
 ])]
 #[Hidden(['password', 'two_factor_secret', 'two_factor_recovery_codes', 'remember_token', 'activation_token'])]
 class User extends Authenticatable implements MustVerifyEmail
@@ -223,6 +226,39 @@ class User extends Authenticatable implements MustVerifyEmail
             || $this->isOwner()
             || $this->hasPermissionTo('inspection.close')
             || $this->hasRole('compliance_auditor');
+    }
+
+    public function isWarehouseManager(): bool
+    {
+        return $this->isSuperAdmin() || $this->isOwner() || $this->hasRole('warehouse_manager');
+    }
+
+    public function isWarehouseStaff(): bool
+    {
+        return $this->hasRole('warehouse_staff');
+    }
+
+    public function canManageWarehouseStaff(): bool
+    {
+        return $this->isSuperAdmin()
+            || $this->isOwner()
+            || $this->hasPermissionTo('warehouse.staff.view')
+            || $this->hasRole('warehouse_manager');
+    }
+
+    public function supervisor(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'supervisor_user_id');
+    }
+
+    public function subordinates(): HasMany
+    {
+        return $this->hasMany(User::class, 'supervisor_user_id');
+    }
+
+    public function warehouseBranch(): BelongsTo
+    {
+        return $this->belongsTo(RestaurantBranch::class, 'warehouse_branch_id');
     }
 
     public function canAccessBranch(?int $branchId): bool

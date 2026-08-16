@@ -654,6 +654,10 @@ class ShiftClosingController extends Controller
             'submit' => ['nullable', 'in:0,1'],
         ]);
 
+        if (! $user->isOwner() && ! $user->isSuperAdmin()) {
+            unset($data['responsibility_amount'], $data['other_expense_amount']);
+        }
+
         $restaurantId = $user->restaurant_id;
 
         $branchId = $this->resolveOperationalBranch($user);
@@ -737,10 +741,12 @@ class ShiftClosingController extends Controller
                 $cashDifference = (float) $data['actual_cash'] - $expectedCashForSlip;
                 $transferDifference = $actualTransfer - $transferAmountForSlip;
                 $totalDifference = $cashDifference + $transferDifference;
-                $responsibilityAmount = array_key_exists('responsibility_amount', $data)
+                $isFinancialAuthority = $user->isOwner() || $user->isSuperAdmin();
+                $responsibilityAmount = $isFinancialAuthority
+                    && array_key_exists('responsibility_amount', $data)
                     && ! is_null($data['responsibility_amount'])
                     ? (float) $data['responsibility_amount']
-                    : $totalDifference;
+                    : ($isFinancialAuthority ? $totalDifference : min(0.0, $totalDifference));
 
                 if (! $isAreaScoped && $calculated['split_penalty_total'] > 0) {
                     $notes = trim(($notes ?? '')."\n[Khấu trừ đơn tách] Phạt đơn tách chưa đối soát: -".number_format($calculated['split_penalty_total']).'đ');

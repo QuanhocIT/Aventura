@@ -56,7 +56,7 @@ final class ApprovalPolicyDefaults
         'inventory_stocktake' => ['manager_can_approve' => true],
         'inventory_create' => ['manager_can_approve' => true],
         'inventory_update' => ['manager_can_approve' => true],
-        'inventory_recipe_save' => ['manager_can_approve' => true],
+        'inventory_recipe_save' => ['manager_can_approve' => false],
         'supply_request' => ['manager_can_approve' => true],
 
         // ── Chấm công trong ca ───────────────────────────────────────────────

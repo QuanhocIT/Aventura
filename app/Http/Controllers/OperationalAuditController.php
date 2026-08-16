@@ -52,7 +52,7 @@ class OperationalAuditController extends Controller
             'policies' => $policies,
             'branches' => $branches,
             'employees' => $employees,
-            'isOwner' => $isOwnerOrSuperAdmin || $user->can('operational_audit.approve'),
+            'isOwner' => $isOwnerOrSuperAdmin,
             'isInspector' => $isOwnerOrSuperAdmin || $user->can('operational_audit.report'),
         ]);
     }
@@ -135,7 +135,7 @@ class OperationalAuditController extends Controller
     public function approveReport(Request $request, int $id): JsonResponse
     {
         $user = $request->user();
-        if (! ($user->isOwner() || $user->isSuperAdmin() || $user->can('operational_audit.approve'))) {
+        if (! ($user->isOwner() || $user->isSuperAdmin())) {
             return response()->json(['success' => false, 'message' => 'Chỉ Chủ doanh nghiệp mới có quyền phê duyệt biên bản phạt.'], 403);
         }
 
@@ -165,7 +165,7 @@ class OperationalAuditController extends Controller
     public function rejectReport(Request $request, int $id): JsonResponse
     {
         $user = $request->user();
-        if (! ($user->isOwner() || $user->isSuperAdmin() || $user->can('operational_audit.approve'))) {
+        if (! ($user->isOwner() || $user->isSuperAdmin())) {
             return response()->json(['success' => false, 'message' => 'Chỉ Chủ doanh nghiệp mới có quyền từ chối biên bản phạt.'], 403);
         }
 

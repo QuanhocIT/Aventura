@@ -208,6 +208,7 @@ class CdpController extends Controller
         ]);
 
         $restaurantId = $request->user()->restaurant_id;
+        $isOwner = $request->user()->isOwner() || $request->user()->isSuperAdmin();
 
         // Query customers in the target segment
         $query = Customer::where('restaurant_id', $restaurantId);
@@ -218,7 +219,7 @@ class CdpController extends Controller
         }
         $targetCount = $query->count();
 
-        return DB::transaction(function () use ($data, $restaurantId, $targetCount, $request, $query) {
+        return DB::transaction(function () use ($data, $restaurantId, $targetCount, $request, $query, $isOwner) {
             // If channel is discount/voucher, create a real promotion record
             if ($data['channel_type'] === 'discount' && ! empty($data['voucher_code'])) {
                 // Check if promotion with this code already exists for this restaurant
@@ -238,9 +239,9 @@ class CdpController extends Controller
                         'start_date' => now(),
                         'end_date' => now()->addDays(30),
                         'is_active' => true,
-                        'is_approved' => true,
+                        'is_approved' => $isOwner,
                         'created_by' => $request->user()->id,
-                        'approved_by' => $request->user()->id,
+                        'approved_by' => $isOwner ? $request->user()->id : null,
                     ]);
                 }
             }
