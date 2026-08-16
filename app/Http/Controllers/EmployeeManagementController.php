@@ -33,7 +33,7 @@ class EmployeeManagementController extends Controller
 {
     use PasswordValidationRules;
 
-    private const BRANCH_MANAGER_STAFF_ROLES = ['cashier', 'waiter', 'kitchen'];
+    private const BRANCH_MANAGER_STAFF_ROLES = ['cashier', 'waiter', 'kitchen', 'shipper'];
 
     /**
      * Trang Nhân sự & Lịch biểu (Dành cho Day 3).
@@ -44,6 +44,15 @@ class EmployeeManagementController extends Controller
         $this->authorizeEmployeeManagement($user);
         $tenantContext = app(TenantContext::class);
         $branchId = $tenantContext->activeBranchId();
+        $isBranchManager = $user->isBranchManager();
+        $isWarehouseManager = $user->hasRole('warehouse_manager') && ! $user->isOwner() && ! $user->isSuperAdmin();
+        $centralWarehouse = $isWarehouseManager
+            ? app(\App\Services\CentralWarehouseService::class)->getCentralWarehouse((int) $user->restaurant_id)
+            : null;
+        $payrollBranchId = $isWarehouseManager
+            ? ($user->warehouse_branch_id ?: $centralWarehouse?->id ?: $branchId)
+            : $branchId;
+        $viewBranchId = $payrollBranchId ?: $branchId;
 
         $restaurant = $user->restaurant;
         if (! $restaurant && ! $request->user()->hasRole('super_admin')) {
@@ -62,7 +71,16 @@ class EmployeeManagementController extends Controller
         $canViewSensitivePii = $user->hasAnyRole(['owner', 'manager']) || $user->hasRole('super_admin');
 
         $employees = Employee::where('restaurant_id', $user->restaurant_id)
-            ->when($tenantContext->isBranchScoped(), fn ($q) => $q->where('branch_id', $branchId))
+            ->when($tenantContext->isBranchScoped() && ! $isWarehouseManager, fn ($q) => $q->where('branch_id', $branchId))
+            ->when($isWarehouseManager && $payrollBranchId, fn ($q) => $q->where(function ($scope) use ($payrollBranchId) {
+                $scope->where('branch_id', $payrollBranchId)
+                    ->orWhereExists(function ($userQuery) use ($payrollBranchId) {
+                        $userQuery->select(DB::raw('1'))
+                            ->from('users')
+                            ->whereColumn('users.id', 'employees.user_id')
+                            ->where('users.warehouse_branch_id', $payrollBranchId);
+                    });
+            }))
             ->when($restaurant?->owner_user_id, fn ($q, $ownerUserId) => $q->where(function ($ownerQuery) use ($ownerUserId) {
                 $ownerQuery->whereNull('user_id')->orWhere('user_id', '!=', $ownerUserId);
             }))
@@ -371,10 +389,15 @@ class EmployeeManagementController extends Controller
             'dailyForecasts' => $dailyForecasts,
             'branches' => $user->isOwner()
                 ? $restaurant->branches()->where('status', 'active')->get(['id', 'name'])
-                : $restaurant->branches()->whereKey($branchId)->get(['id', 'name']),
-            'activeBranchId' => $branchId,
+                : $restaurant->branches()->whereKey($viewBranchId)->get(['id', 'name']),
+            'activeBranchId' => $viewBranchId,
             'branchScope' => $tenantContext->scope(),
-            'isBranchManager' => $user->isBranchManager(),
+            'isBranchManager' => $isBranchManager,
+            'isWarehouseManager' => $isWarehouseManager,
+            'canManagePayrollBudget' => $user->isOwner() || $user->isSuperAdmin(),
+            'payrollBudget' => ($isBranchManager || $isWarehouseManager || ($user->isOwner() && $viewBranchId)) && $viewBranchId
+                ? app(\App\Services\PayrollBudgetService::class)->summary((int) $user->restaurant_id, (int) $viewBranchId)
+                : null,
             // Bậc lương do Chủ quy định. Quản lý BẮT BUỘC chọn khi tạo nhân viên
             // (không tự nhập mức). Kèm branch_id để frontend lọc theo chi nhánh.
             'wageTiers' => \App\Models\WageTier::where('restaurant_id', $restaurant->id)
@@ -412,7 +435,7 @@ class EmployeeManagementController extends Controller
             'compensation_type' => ['sometimes', 'string', 'in:fixed,hourly,shift'],
             'pay_rate' => ['nullable', 'numeric', 'min:0'],
             'base_salary' => ['required', 'numeric', 'min:0'],
-            'role' => ['required', 'string', 'in:cashier,kitchen,manager,waiter,inventory_staff,warehouse_staff,warehouse_manager,operations_inspector'],
+            'role' => ['required', 'string', 'in:cashier,kitchen,manager,waiter,shipper,inventory_staff,warehouse_staff,warehouse_manager,operations_inspector'],
             'job_title' => ['required', 'string', 'max:100'],
             // TRƯỚC ĐÂY KHÔNG CÓ — employees.branch_id/users.branch_id không
             // bao giờ được ghi, khiến việc gán nhân viên theo chi nhánh không
@@ -441,8 +464,22 @@ class EmployeeManagementController extends Controller
         if (! $user->canAccessBranch($branchId)) {
             throw ValidationException::withMessages(['branch_id' => 'Bạn không có quyền gán nhân viên vào chi nhánh này.']);
         }
-        if ($tenantContext->isBranchScoped() && $branchId !== $tenantContext->activeBranchId()) {
+        if ($tenantContext->isBranchScoped()
+            && $branchId !== $tenantContext->activeBranchId()
+            && $data['role'] !== 'warehouse_staff') {
             throw ValidationException::withMessages(['branch_id' => 'Chi nhánh nhân viên phải trùng chi nhánh hiện tại.']);
+        }
+        $isOwner = $user->isOwner() || $user->isSuperAdmin();
+        if ($data['role'] === 'warehouse_staff') {
+            $centralBranch = app(\App\Services\CentralWarehouseService::class)->getCentralWarehouse((int) $user->restaurant_id);
+            if (! $centralBranch) {
+                throw ValidationException::withMessages(['branch_id' => 'Chưa thiết lập chi nhánh Kho Tổng cho nhà hàng.']);
+            }
+
+            // Nhân sự Kho Tổng luôn thuộc ngân sách của Kho Tổng, kể cả khi
+            // tài khoản quản lý đang ở trạng thái "toàn bộ chi nhánh".
+            $branchId = (int) $centralBranch->id;
+            $data['branch_id'] = $branchId;
         }
         if ($data['role'] === 'manager') {
             $this->assertManagerSlotAvailable($user->restaurant_id, $branchId);
@@ -466,7 +503,6 @@ class EmployeeManagementController extends Controller
         // Quản lý (không phải Chủ) BẮT BUỘC chọn bậc lương — không tự nhập tuỳ ý —
         // NHƯNG chỉ khi Chủ đã tạo sẵn bậc lương cho chi nhánh này. Nếu chưa có bậc
         // nào thì không thể chặn Quản lý tuyển người (họ vẫn bị ràng buộc bởi quỹ).
-        $isOwner = $user->hasRole('owner') || $user->isSuperAdmin();
         if (! $isOwner && ! $wageTier) {
             $tiersAvailable = \App\Models\WageTier::where('restaurant_id', $user->restaurant_id)
                 ->forBranch($branchId)->active()->exists();
@@ -479,6 +515,12 @@ class EmployeeManagementController extends Controller
 
         // Chặn khi tổng lương chi nhánh vượt quỹ do Chủ đặt.
         $budgets = app(\App\Services\PayrollBudgetService::class);
+        $budget = $budgets->budgetFor($user->restaurant_id, $branchId);
+        if (! $isOwner && ! $budget) {
+            throw ValidationException::withMessages([
+                'base_salary' => 'Chủ doanh nghiệp chưa cấp quỹ lương cho chi nhánh này. Vui lòng liên hệ Chủ doanh nghiệp.',
+            ]);
+        }
         $monthlyWage = $wageTier
             ? $wageTier->estimatedMonthly()
             : $budgets->estimateMonthly($data['compensation_type'] ?? 'fixed', (float) ($data['pay_rate'] ?? 0), (float) ($data['base_salary'] ?? 0));
@@ -506,6 +548,8 @@ class EmployeeManagementController extends Controller
                 $randomPassword = Str::random(12);
                 $activationToken = Str::random(40);
 
+                $centralBranch = app(\App\Services\CentralWarehouseService::class)->getCentralWarehouse($user->restaurant_id);
+
                 $newUser = User::create([
                     'name' => $data['name'],
                     'email' => $data['email'],
@@ -513,6 +557,7 @@ class EmployeeManagementController extends Controller
                     'phone' => $data['phone'],
                     'restaurant_id' => $user->restaurant_id,
                     'branch_id' => $branchId ?: null,
+                    'warehouse_branch_id' => ($data['role'] === 'warehouse_staff' && $centralBranch) ? $centralBranch->id : null,
                     'status' => 'active',
                     'email_verified_at' => null,
                     'must_change_password' => true,
@@ -650,6 +695,21 @@ class EmployeeManagementController extends Controller
         abort_unless($user->isOwner() || $user->isSuperAdmin() || $user->canAccessBranch((int) $employee->branch_id), 403);
 
         $newStatus = $employee->status === 'active' ? 'inactive' : 'active';
+        if ($newStatus === 'active') {
+            $budgetBranchId = (int) ($employee->branch_id ?: $employee->user?->warehouse_branch_id ?: 0);
+            $budgets = app(\App\Services\PayrollBudgetService::class);
+            $budget = $budgets->budgetFor((int) $user->restaurant_id, $budgetBranchId);
+            if (! ($user->isOwner() || $user->isSuperAdmin()) && ! $budget) {
+                throw ValidationException::withMessages([
+                    'status' => 'Chủ doanh nghiệp chưa cấp quỹ lương cho chi nhánh này. Vui lòng liên hệ Chủ doanh nghiệp.',
+                ]);
+            }
+            if ($budget && ! $budgets->canFit((int) $user->restaurant_id, $budgetBranchId, $budgets->monthlyWageOf($employee))) {
+                throw ValidationException::withMessages([
+                    'status' => 'Không thể kích hoạt nhân viên vì tổng lương sẽ vượt quỹ lương được cấp.',
+                ]);
+            }
+        }
         $employee->update(['status' => $newStatus]);
 
         if ($employee->user) {
@@ -1093,7 +1153,7 @@ class EmployeeManagementController extends Controller
             'full_name' => ['sometimes', 'string', 'max:255'],
             'phone' => ['sometimes', 'nullable', 'string', 'max:20'],
             'job_title' => ['sometimes', 'string', 'max:100'],
-            'role' => ['sometimes', 'string', 'in:cashier,kitchen,manager,waiter,inventory_staff,warehouse_staff,warehouse_manager,operations_inspector'],
+            'role' => ['sometimes', 'string', 'in:cashier,kitchen,manager,waiter,shipper,inventory_staff,warehouse_staff,warehouse_manager,operations_inspector'],
             'compensation_type' => ['sometimes', 'string', 'in:fixed,hourly,shift'],
             'pay_rate' => ['sometimes', 'numeric', 'min:0'],
             'base_salary' => ['sometimes', 'numeric', 'min:0'],
@@ -1121,10 +1181,6 @@ class EmployeeManagementController extends Controller
             if ($tenantContext->isBranchScoped() && $newBranchId !== $tenantContext->activeBranchId()) {
                 throw ValidationException::withMessages(['branch_id' => 'Chi nhánh nhân viên phải trùng chi nhánh hiện tại.']);
             }
-        }
-
-        if ($employee->user) {
-            $employee->user->update(['branch_id' => $newBranchId]);
         }
 
         if ($request->hasFile('citizen_id_front')) {
@@ -1159,12 +1215,36 @@ class EmployeeManagementController extends Controller
         }
 
         $salaryChanged = isset($data['base_salary']) || isset($data['pay_rate']) || isset($data['compensation_type']);
-        if ($salaryChanged) {
-            $isOwner = $user->isOwner() || $user->hasRole('owner');
-            $newBase = isset($data['base_salary']) ? (float) $data['base_salary'] : (float) $employee->base_salary;
-            $newRate = isset($data['pay_rate']) ? (float) $data['pay_rate'] : (float) $employee->pay_rate;
-            $newType = $data['compensation_type'] ?? $employee->compensation_type;
+        $isOwner = $user->isOwner() || $user->isSuperAdmin();
+        $newBase = isset($data['base_salary']) ? (float) $data['base_salary'] : (float) $employee->base_salary;
+        $newRate = isset($data['pay_rate']) ? (float) $data['pay_rate'] : (float) $employee->pay_rate;
+        $newType = $data['compensation_type'] ?? $employee->compensation_type;
+        $branchChanged = array_key_exists('branch_id', $data) && $newBranchId !== $oldBranchId;
+        $newStatus = $data['status'] ?? $employee->status;
+        $newBudgetBranchId = $newBranchId ?: (int) ($employee->user?->warehouse_branch_id ?: 0);
 
+        // Chủ doanh nghiệp vẫn phải tuân thủ quỹ đã cấp khi điều chỉnh trực tiếp
+        // lương hoặc chuyển một nhân sự đang hoạt động sang chi nhánh khác.
+        if ($isOwner && $newStatus === 'active' && ($salaryChanged || $branchChanged || (array_key_exists('status', $data) && $data['status'] === 'active'))) {
+            $budgets = app(\App\Services\PayrollBudgetService::class);
+            $budget = $budgets->budgetFor((int) $user->restaurant_id, $newBudgetBranchId);
+            if ($budget) {
+                $committed = $budgets->committedMonthlyWages((int) $user->restaurant_id, $newBudgetBranchId);
+                $oldBudgetBranchId = $oldBranchId ?: (int) ($employee->user?->warehouse_branch_id ?: 0);
+                if ($employee->status === 'active' && $oldBudgetBranchId === $newBudgetBranchId) {
+                    $committed -= $budgets->monthlyWageOf($employee);
+                }
+
+                $newMonthlyWage = $budgets->estimateMonthly($newType, $newRate, $newBase);
+                if ($committed + $newMonthlyWage > (float) $budget->budget_amount + 0.01) {
+                    throw ValidationException::withMessages([
+                        'base_salary' => 'Điều chỉnh này làm tổng lương vượt quỹ được cấp. Quỹ còn lại '.number_format(max(0.0, (float) $budget->budget_amount - $committed)).'đ.',
+                    ]);
+                }
+            }
+        }
+
+        if ($salaryChanged) {
             if ($isOwner) {
                 DB::table('salary_change_requests')->insert([
                     'restaurant_id' => $user->restaurant_id,
@@ -1207,6 +1287,10 @@ class EmployeeManagementController extends Controller
                 unset($employeeData['pay_rate']);
                 unset($employeeData['compensation_type']);
             }
+        }
+
+        if ($employee->user) {
+            $employee->user->update(['branch_id' => $newBranchId]);
         }
 
         $employee->update($employeeData);
@@ -1344,19 +1428,31 @@ class EmployeeManagementController extends Controller
 
     private function authorizeEmployeeManagement(User $user): void
     {
-        abort_unless($user->isSuperAdmin() || $user->can('manage_employees'), 403, 'Bạn không có quyền quản lý nhân viên.');
+        abort_unless(
+            $user->isSuperAdmin() || $user->can('manage_employees') || $user->hasRole('warehouse_manager'),
+            403,
+            'Bạn không có quyền quản lý nhân viên.'
+        );
     }
 
     private function assertRoleAssignmentAllowed(User $user, string $role, ?string $existingRole = null): void
     {
-        if (
-            $user->isBranchManager()
-            && ! in_array($role, self::BRANCH_MANAGER_STAFF_ROLES, true)
-            && $role !== $existingRole
-        ) {
-            throw ValidationException::withMessages([
-                'role' => 'Tài khoản quản lý chỉ được tạo hoặc phân quyền cho Thu ngân, Nhân viên Order và Nhân viên Bếp.',
-            ]);
+        $isOwnerOrAdmin = $user->isSuperAdmin() || $user->isOwner();
+
+        if (! $isOwnerOrAdmin) {
+            if ($user->hasRole('warehouse_manager')) {
+                if ($role !== 'warehouse_staff' && $role !== $existingRole) {
+                    throw ValidationException::withMessages([
+                        'role' => 'Tài khoản Trưởng kho tổng chỉ được phép tạo hoặc phân quyền nhân sự với vai trò Nhân viên Kho Tổng.',
+                    ]);
+                }
+            } elseif ($user->isBranchManager()) {
+                if (! in_array($role, self::BRANCH_MANAGER_STAFF_ROLES, true) && $role !== $existingRole) {
+                    throw ValidationException::withMessages([
+                        'role' => 'Tài khoản quản lý chỉ được tạo hoặc phân quyền cho Thu ngân, Nhân viên Order và Nhân viên Bếp.',
+                    ]);
+                }
+            }
         }
     }
 }
