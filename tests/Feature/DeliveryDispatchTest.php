@@ -270,6 +270,14 @@ class DeliveryDispatchTest extends TestCase
         // Shipper (chính chủ) giao xong đơn → batch tự chuyển completed, order completed
         $item = $batch->items()->first();
         $this->actingAs($this->shipperUser($shipper))
+            ->postJson("/delivery/api/shipper/batches/{$batch->id}/accept")
+            ->assertOk();
+
+        $this->actingAs($this->shipperUser($shipper))
+            ->postJson("/delivery/api/shipper/items/{$item->id}/status", ['status' => 'picked_up'])
+            ->assertOk();
+
+        $this->actingAs($this->shipperUser($shipper))
             ->postJson("/delivery/api/shipper/items/{$item->id}/status", ['status' => 'delivered'])
             ->assertOk();
 
@@ -410,5 +418,40 @@ class DeliveryDispatchTest extends TestCase
         $this->assertCount(1, $response->json());
         $this->assertArrayHasKey('score', $response->json()[0]);
         $this->assertArrayHasKey('available_slots', $response->json()[0]);
+    }
+
+    public function test_shipper_cannot_update_a_batch_before_accepting_it(): void
+    {
+        $shipper = $this->makeShipper();
+        $order = $this->makeDeliveryOrder(10.80, 106.72);
+
+        $this->actingAs($this->owner)->postJson('/delivery/api/batches', [
+            'shipper_id' => $shipper->id,
+            'order_ids' => [$order->id],
+        ])->assertStatus(201);
+
+        $batch = DeliveryBatch::first();
+        $this->actingAs($this->owner)
+            ->postJson("/delivery/api/batches/{$batch->id}/dispatch")
+            ->assertOk();
+
+        $item = $batch->items()->first();
+        $this->actingAs($this->shipperUser($shipper))
+            ->postJson("/delivery/api/shipper/items/{$item->id}/status", ['status' => 'picked_up'])
+            ->assertStatus(422);
+
+        $this->assertSame('pending', $item->refresh()->status);
+    }
+
+    public function test_delivery_manager_api_rejects_unprivileged_tenant_user(): void
+    {
+        $user = User::factory()->create([
+            'restaurant_id' => $this->restaurant->id,
+            'status' => 'active',
+        ]);
+
+        $this->actingAs($user)
+            ->getJson('/delivery/api/stats')
+            ->assertForbidden();
     }
 }

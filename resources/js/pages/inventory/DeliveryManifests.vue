@@ -27,6 +27,8 @@ defineOptions({ layout: AppLayout });
 const props = defineProps<{
     manifests: Array<any>;
     approvedRequests: Array<any>;
+    canCreateManifest: boolean;
+    canDispatchManifest: boolean;
 }>();
 const isProcessing = ref(false);
 const form = ref({
@@ -44,16 +46,23 @@ const totalRequests = computed(() => props.approvedRequests.length);
 
 const toggleRequest = (id: number) => {
     const index = form.value.supply_request_ids.indexOf(id);
-    if (index >= 0) form.value.supply_request_ids.splice(index, 1);
-    else form.value.supply_request_ids.push(id);
+
+    if (index >= 0) {
+        form.value.supply_request_ids.splice(index, 1);
+    } else {
+        form.value.supply_request_ids.push(id);
+    }
 };
 
 const createManifest = async () => {
     if (!form.value.supply_request_ids.length) {
         toast.error('Hãy chọn ít nhất một đơn đã duyệt để gom chuyến xe.');
+
         return;
     }
+
     isProcessing.value = true;
+
     try {
         await axios.post('/api/delivery-manifests', form.value);
         toast.success('Đã tạo chuyến xe và master packing list.');
@@ -72,8 +81,13 @@ const dispatchManifest = async (manifest: any) => {
         'Nhập mã niêm phong của chuyến xe:',
         manifest.seal_code || 'SEAL-',
     );
-    if (!sealCode) return;
+
+    if (!sealCode) {
+        return;
+    }
+
     isProcessing.value = true;
+
     try {
         await axios.post(`/api/delivery-manifests/${manifest.id}/dispatch`, {
             seal_code: sealCode,
@@ -88,9 +102,6 @@ const dispatchManifest = async (manifest: any) => {
         isProcessing.value = false;
     }
 };
-
-const formatDate = (value: string | null | undefined) =>
-    value ? new Date(value).toLocaleString('vi-VN') : '-';
 </script>
 
 <template>
@@ -120,7 +131,7 @@ const formatDate = (value: string | null | undefined) =>
         </div>
 
         <div class="grid gap-4 lg:grid-cols-[390px_1fr]">
-            <Card class="border-violet-500/20">
+            <Card v-if="canCreateManifest" class="border-violet-500/20">
                 <CardHeader
                     class="border-b border-violet-500/10 bg-violet-950/10"
                     ><CardTitle class="flex items-center gap-2 text-base"
@@ -300,7 +311,10 @@ const formatDate = (value: string | null | undefined) =>
                                 </td>
                                 <td class="p-3 pr-4 text-right">
                                     <Button
-                                        v-if="manifest.status !== 'dispatched'"
+                                        v-if="
+                                            canDispatchManifest &&
+                                            manifest.status !== 'dispatched'
+                                        "
                                         size="sm"
                                         :disabled="isProcessing"
                                         class="h-7 bg-violet-600 text-[10px] text-white hover:bg-violet-700"

@@ -18,6 +18,20 @@ class DeliveryManifestService
     public function createManifest(int $restaurantId, int $fromBranchId, array $data, User $creator): DeliveryManifest
     {
         return DB::transaction(function () use ($restaurantId, $fromBranchId, $data, $creator) {
+            if ((int) $creator->restaurant_id !== $restaurantId) {
+                throw new InvalidArgumentException('Tài khoản không thuộc nhà hàng của chuyến xe.');
+            }
+
+            $central = app(CentralWarehouseService::class)->getCentralWarehouse($restaurantId);
+            if (! $central || (int) $fromBranchId !== (int) $central->id) {
+                throw new InvalidArgumentException('Chuyến xe chỉ được tạo từ Kho Tổng đang hoạt động.');
+            }
+
+            $requestIds = array_values(array_unique(array_map('intval', $data['supply_request_ids'] ?? [])));
+            if (count($requestIds) !== count($data['supply_request_ids'] ?? [])) {
+                throw new InvalidArgumentException('Mỗi đơn cấp phát chỉ được chọn một lần.');
+            }
+
             $code = 'MNF-'.Carbon::now()->format('Ymd').'-'.str_pad((string) (DeliveryManifest::where('restaurant_id', $restaurantId)->count() + 1), 4, '0', STR_PAD_LEFT);
 
             $manifest = DeliveryManifest::create([
@@ -35,10 +49,21 @@ class DeliveryManifestService
                 'notes'                  => $data['notes'] ?? null,
             ]);
 
-            if (! empty($data['supply_request_ids'])) {
+            if (! empty($requestIds)) {
                 $order = 1;
-                foreach ($data['supply_request_ids'] as $requestId) {
-                    $supplyRequest = SupplyRequest::where('restaurant_id', $restaurantId)->findOrFail($requestId);
+                foreach ($requestIds as $requestId) {
+                    $supplyRequest = SupplyRequest::where('restaurant_id', $restaurantId)
+                        ->where('from_branch_id', $central->id)
+                        ->whereIn('status', [
+                            SupplyRequest::STATUS_APPROVED,
+                            SupplyRequest::STATUS_PREPARING,
+                            SupplyRequest::STATUS_DISPATCH_PENDING,
+                        ])
+                        ->find($requestId);
+
+                    if (! $supplyRequest) {
+                        throw new InvalidArgumentException('Đơn cấp phát không thuộc Kho Tổng hoặc chưa ở trạng thái sẵn sàng gom chuyến.');
+                    }
 
                     DeliveryManifestItem::create([
                         'delivery_manifest_id' => $manifest->id,
@@ -58,6 +83,7 @@ class DeliveryManifestService
      */
     public function getMasterPackingList(DeliveryManifest $manifest): array
     {
+        $this->assertManifestScope($manifest);
         $manifest->load(['items.supplyRequest.items.ingredient']);
 
         $summary = [];
@@ -65,7 +91,11 @@ class DeliveryManifestService
         foreach ($manifest->items as $manifestItem) {
             $req = $manifestItem->supplyRequest;
             if (! $req) {
-                continue;
+                throw new InvalidArgumentException('Chuyến xe có đơn cấp phát không còn tồn tại.');
+            }
+            if ((int) $req->restaurant_id !== (int) $manifest->restaurant_id
+                || (int) $req->from_branch_id !== (int) $manifest->from_branch_id) {
+                throw new InvalidArgumentException('Đơn cấp phát trong chuyến xe không cùng phạm vi Kho Tổng.');
             }
 
             foreach ($req->items as $item) {
@@ -100,6 +130,8 @@ class DeliveryManifestService
      */
     public function dispatchManifest(DeliveryManifest $manifest, User $user, ?string $sealCode = null): DeliveryManifest
     {
+        $this->assertManifestScope($manifest, $user);
+
         if (in_array($manifest->status, [DeliveryManifest::STATUS_DISPATCHED, DeliveryManifest::STATUS_COMPLETED])) {
             throw new InvalidArgumentException('Chuyến xe này đã được xuất bến.');
         }
@@ -108,15 +140,21 @@ class DeliveryManifestService
             $centralService = app(CentralWarehouseService::class);
             $effectiveSeal  = $sealCode ?: $manifest->seal_code;
 
+            $manifest->loadMissing('items.supplyRequest');
+
             foreach ($manifest->items as $manifestItem) {
                 $req = $manifestItem->supplyRequest;
                 if (! $req) {
-                    continue;
+                    throw new InvalidArgumentException('Chuyến xe có đơn cấp phát không còn tồn tại.');
                 }
 
-                if (in_array($req->status, [SupplyRequest::STATUS_APPROVED, SupplyRequest::STATUS_PREPARING, SupplyRequest::STATUS_DISPATCH_PENDING])) {
-                    $centralService->dispatchSupplyRequest($req, $user, $effectiveSeal);
+                if ((int) $req->restaurant_id !== (int) $manifest->restaurant_id
+                    || (int) $req->from_branch_id !== (int) $manifest->from_branch_id
+                    || ! in_array($req->status, [SupplyRequest::STATUS_APPROVED, SupplyRequest::STATUS_PREPARING, SupplyRequest::STATUS_DISPATCH_PENDING])) {
+                    throw new InvalidArgumentException('Chuyến xe chứa đơn cấp phát không hợp lệ hoặc đã được xử lý.');
                 }
+
+                $centralService->dispatchSupplyRequest($req, $user, $effectiveSeal);
 
                 $manifestItem->update(['status' => 'loaded']);
             }
@@ -130,5 +168,17 @@ class DeliveryManifestService
 
             return $manifest->fresh(['items.supplyRequest', 'dispatchedBy']);
         });
+    }
+
+    private function assertManifestScope(DeliveryManifest $manifest, ?User $actor = null): void
+    {
+        if ($actor && (int) $actor->restaurant_id !== (int) $manifest->restaurant_id) {
+            throw new InvalidArgumentException('Tài khoản không thuộc nhà hàng của chuyến xe.');
+        }
+
+        $central = app(CentralWarehouseService::class)->getCentralWarehouse((int) $manifest->restaurant_id);
+        if (! $central || (int) $manifest->from_branch_id !== (int) $central->id) {
+            throw new InvalidArgumentException('Chuyến xe không thuộc Kho Tổng đang hoạt động.');
+        }
     }
 }

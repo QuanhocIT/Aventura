@@ -10,22 +10,30 @@ use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
 use App\Models\SupplyRequest;
+use App\Services\CentralWarehouseService;
 
 class DeliveryManifestController extends Controller
 {
     public function __construct(
-        protected DeliveryManifestService $manifestService
+        protected DeliveryManifestService $manifestService,
+        protected CentralWarehouseService $warehouseService
     ) {}
 
     public function page(Request $request): Response
     {
         $user = $request->user();
+        $this->authorizeWarehouseView($user);
+        $centralBranch = $this->warehouseService->getCentralWarehouse($user->restaurant_id);
         $manifests = DeliveryManifest::where('restaurant_id', $user->restaurant_id)
+            ->when($centralBranch, fn ($query) => $query->where('from_branch_id', $centralBranch->id))
+            ->when(! $centralBranch, fn ($query) => $query->whereRaw('1 = 0'))
             ->with(['items.supplyRequest.toBranch', 'creator', 'dispatchedBy'])
             ->orderBy('id', 'desc')
             ->get();
 
         $approvedRequests = SupplyRequest::where('restaurant_id', $user->restaurant_id)
+            ->when($centralBranch, fn ($query) => $query->where('from_branch_id', $centralBranch->id))
+            ->when(! $centralBranch, fn ($query) => $query->whereRaw('1 = 0'))
             ->whereIn('status', [SupplyRequest::STATUS_APPROVED, SupplyRequest::STATUS_PREPARING])
             ->with(['toBranch', 'items.ingredient'])
             ->orderBy('id', 'desc')
@@ -34,13 +42,19 @@ class DeliveryManifestController extends Controller
         return Inertia::render('inventory/DeliveryManifests', [
             'manifests'        => $manifests,
             'approvedRequests' => $approvedRequests,
+            'canCreateManifest' => $this->canCreateManifest($user),
+            'canDispatchManifest' => $this->canDispatchManifest($user),
         ]);
     }
 
     public function index(Request $request): JsonResponse
     {
         $user = $request->user();
+        $this->authorizeWarehouseView($user);
+        $centralBranch = $this->warehouseService->getCentralWarehouse($user->restaurant_id);
         $manifests = DeliveryManifest::where('restaurant_id', $user->restaurant_id)
+            ->when($centralBranch, fn ($query) => $query->where('from_branch_id', $centralBranch->id))
+            ->when(! $centralBranch, fn ($query) => $query->whereRaw('1 = 0'))
             ->with(['items.supplyRequest.toBranch', 'creator', 'dispatchedBy'])
             ->orderBy('id', 'desc')
             ->get();
@@ -51,7 +65,7 @@ class DeliveryManifestController extends Controller
     public function store(Request $request): JsonResponse
     {
         $user = $request->user();
-        $fromBranchId = $request->input('from_branch_id', $user->branch_id);
+        $this->authorizeManifestCreate($user);
 
         $validated = $request->validate([
             'route_name'             => 'nullable|string|max:150',
@@ -62,10 +76,13 @@ class DeliveryManifestController extends Controller
             'scheduled_dispatch_at'  => 'nullable|date',
             'notes'                  => 'nullable|string',
             'supply_request_ids'     => 'required|array|min:1',
-            'supply_request_ids.*'   => 'integer',
+            'supply_request_ids.*'   => ['integer', 'distinct'],
         ]);
 
-        $manifest = $this->manifestService->createManifest($user->restaurant_id, (int) $fromBranchId, $validated, $user);
+        $centralBranch = $this->warehouseService->getCentralWarehouse($user->restaurant_id);
+        abort_unless($centralBranch, 422, 'Nhà hàng chưa cấu hình Kho Tổng đang hoạt động.');
+
+        $manifest = $this->manifestService->createManifest($user->restaurant_id, (int) $centralBranch->id, $validated, $user);
 
         return response()->json([
             'message'  => 'Tạo chuyến xe giao hàng thành công.',
@@ -76,7 +93,12 @@ class DeliveryManifestController extends Controller
     public function packingList(Request $request, int $id): JsonResponse
     {
         $user = $request->user();
-        $manifest = DeliveryManifest::where('restaurant_id', $user->restaurant_id)->findOrFail($id);
+        $this->authorizeWarehouseView($user);
+        $centralBranch = $this->warehouseService->getCentralWarehouse($user->restaurant_id);
+        $manifest = DeliveryManifest::where('restaurant_id', $user->restaurant_id)
+            ->when($centralBranch, fn ($query) => $query->where('from_branch_id', $centralBranch->id))
+            ->when(! $centralBranch, fn ($query) => $query->whereRaw('1 = 0'))
+            ->findOrFail($id);
 
         $packingList = $this->manifestService->getMasterPackingList($manifest);
 
@@ -89,7 +111,12 @@ class DeliveryManifestController extends Controller
     public function dispatch(Request $request, int $id): JsonResponse
     {
         $user = $request->user();
-        $manifest = DeliveryManifest::where('restaurant_id', $user->restaurant_id)->findOrFail($id);
+        $this->authorizeManifestDispatch($user);
+        $centralBranch = $this->warehouseService->getCentralWarehouse($user->restaurant_id);
+        $manifest = DeliveryManifest::where('restaurant_id', $user->restaurant_id)
+            ->when($centralBranch, fn ($query) => $query->where('from_branch_id', $centralBranch->id))
+            ->when(! $centralBranch, fn ($query) => $query->whereRaw('1 = 0'))
+            ->findOrFail($id);
 
         $validated = $request->validate([
             'seal_code' => 'nullable|string|max:50',
@@ -101,5 +128,51 @@ class DeliveryManifestController extends Controller
             'message'  => "Đã xuất bến chuyến xe #{$dispatched->manifest_code}.",
             'manifest' => $dispatched,
         ]);
+    }
+
+    private function authorizeWarehouseView($user): void
+    {
+        abort_unless(
+            $user->isOwner() || $user->isSuperAdmin() || $user->hasRole('warehouse_manager') || $user->hasRole('warehouse_staff') || $user->can('warehouse.view'),
+            403,
+            'Bạn không có quyền xem chuyến xe Kho Tổng.'
+        );
+    }
+
+    private function authorizeWarehouseManage($user): void
+    {
+        abort_unless(
+            $user->isOwner() || $user->isSuperAdmin() || $user->hasRole('warehouse_manager') || $user->can('warehouse.manage') || $user->can('warehouse.handover'),
+            403,
+            'Bạn không có quyền điều phối chuyến xe Kho Tổng.'
+        );
+    }
+
+    private function authorizeManifestCreate($user): void
+    {
+        abort_unless(
+            $user->isOwner() || $user->isSuperAdmin() || $user->hasRole('warehouse_manager') || $user->can('warehouse.manage'),
+            403,
+            'Bạn không có quyền tạo chuyến xe Kho Tổng.'
+        );
+    }
+
+    private function authorizeManifestDispatch($user): void
+    {
+        abort_unless(
+            $user->isOwner() || $user->isSuperAdmin() || $user->hasRole('warehouse_manager') || $user->can('warehouse.manage') || $user->can('warehouse.handover'),
+            403,
+            'Bạn không có quyền xuất bến chuyến xe Kho Tổng.'
+        );
+    }
+
+    private function canCreateManifest($user): bool
+    {
+        return $user->isOwner() || $user->isSuperAdmin() || $user->hasRole('warehouse_manager') || $user->can('warehouse.manage');
+    }
+
+    private function canDispatchManifest($user): bool
+    {
+        return $user->isOwner() || $user->isSuperAdmin() || $user->hasRole('warehouse_manager') || $user->can('warehouse.manage') || $user->can('warehouse.handover');
     }
 }

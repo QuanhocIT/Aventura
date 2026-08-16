@@ -92,6 +92,7 @@ interface ActiveBatch {
     total_orders: number;
     estimated_duration_minutes: number | null;
     dispatched_at: string | null;
+    accepted_at: string | null;
     optimized_route: any[] | null;
     items: BatchItem[];
 }
@@ -126,6 +127,7 @@ interface SuggestedShipper {
 interface Stats {
     pending_orders: number;
     active_shippers: number;
+    registered_shippers?: number;
     active_batches: number;
     delivered_today: number;
     failed_today: number;
