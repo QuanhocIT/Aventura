@@ -122,13 +122,18 @@ class SalaryController extends Controller
             'totals' => $totals,
             'period' => $period,
             'branches' => $branches,
-            'canApprove' => $user->hasAnyRole(['owner', 'manager']),
+            'canApprove' => $user->isOwner() || $user->isSuperAdmin(),
         ]);
     }
 
     public function bulkApprove(Request $request): RedirectResponse
     {
-        abort_unless($request->user()->can('manage_salary'), 403);
+        abort_unless(
+            $request->user()->can('manage_salary')
+                && ($request->user()->isOwner() || $request->user()->isSuperAdmin()),
+            403,
+            'Chỉ Chủ doanh nghiệp mới được duyệt bảng lương.'
+        );
 
         $data = $request->validate([
             'salary_ids' => ['required', 'array', 'min:1'],
@@ -163,7 +168,12 @@ class SalaryController extends Controller
 
     public function approve(Request $request, Salary $salary): RedirectResponse
     {
-        abort_unless($request->user()->can('manage_salary'), 403);
+        abort_unless(
+            $request->user()->can('manage_salary')
+                && ($request->user()->isOwner() || $request->user()->isSuperAdmin()),
+            403,
+            'Chỉ Chủ doanh nghiệp mới được duyệt bảng lương.'
+        );
         $this->authorizeSalaryBranch($request->user(), $salary);
         // Không ai được duyệt bảng lương của chính mình — kể cả Chủ, vì duyệt
         // xong là kỳ lương bị khóa, không sửa lại được.

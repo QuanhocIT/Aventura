@@ -66,6 +66,13 @@ class PayrollBudgetController extends Controller
             'notes' => ['nullable', 'string', 'max:500'],
         ]);
 
+        $committed = $this->budgets->committedMonthlyWages($user->restaurant_id, (int) $data['branch_id']);
+        if ((float) $data['budget_amount'] + 0.01 < $committed) {
+            return back()->withErrors([
+                'budget_amount' => 'Quỹ lương không được thấp hơn tổng lương nhân viên đang hoạt động: '.number_format($committed).'đ.',
+            ]);
+        }
+
         BranchPayrollBudget::updateOrCreate(
             [
                 'restaurant_id' => $user->restaurant_id,

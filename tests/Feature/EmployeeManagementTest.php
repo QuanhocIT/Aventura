@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\Employee;
+use App\Models\BranchPayrollBudget;
 use App\Models\Restaurant;
 use App\Models\RestaurantBranch;
 use App\Models\User;
@@ -155,6 +156,13 @@ class EmployeeManagementTest extends TestCase
         ]);
         $manager->assignRole('manager');
 
+        BranchPayrollBudget::create([
+            'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $branch->id,
+            'effective_month' => now()->startOfMonth(),
+            'budget_amount' => 50000000,
+        ]);
+
         $allowedResponse = $this->actingAs($manager)
             ->withSession(['active_branch_id' => $branch->id])
             ->post('/employees', $this->validEmployeePayload([
@@ -181,6 +189,30 @@ class EmployeeManagementTest extends TestCase
         $this->assertDatabaseMissing('users', [
             'email' => 'warehouse-manager-created@example.com',
         ]);
+    }
+
+    public function test_branch_manager_cannot_create_staff_before_owner_grants_payroll_budget(): void
+    {
+        $branch = RestaurantBranch::factory()->create([
+            'restaurant_id' => $this->restaurant->id,
+        ]);
+        $manager = User::factory()->create([
+            'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $branch->id,
+            'status' => 'active',
+        ]);
+        $manager->assignRole('manager');
+
+        $response = $this->actingAs($manager)
+            ->withSession(['active_branch_id' => $branch->id])
+            ->from('/employees')
+            ->post('/employees', $this->validEmployeePayload([
+                'email' => 'blocked-before-budget@example.com',
+                'branch_id' => $branch->id,
+            ]));
+
+        $response->assertRedirect('/employees')->assertSessionHasErrors('base_salary');
+        $this->assertDatabaseMissing('users', ['email' => 'blocked-before-budget@example.com']);
     }
 
     public function test_create_employee_requires_cccd_images(): void

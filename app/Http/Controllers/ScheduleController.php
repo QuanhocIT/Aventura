@@ -750,7 +750,7 @@ class ScheduleController extends Controller
      */
     public function updateSettings(Request $request): RedirectResponse
     {
-        abort_unless($request->user()->hasAnyRole(['owner', 'manager']), 403);
+        abort_unless($request->user()->isOwner() || $request->user()->isSuperAdmin(), 403);
 
         $data = $request->validate([
             'grace_period_minutes' => ['required', 'integer', 'min:0', 'max:120'],

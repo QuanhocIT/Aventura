@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\BranchPayrollBudget;
 use App\Models\Employee;
+use App\Models\RestaurantBranch;
 use App\Models\WageTier;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Carbon;
@@ -40,12 +41,53 @@ class PayrollBudgetService
     /** Tổng lương tháng đã cam kết cho nhân viên đang hoạt động của một chi nhánh. */
     public function committedMonthlyWages(int $restaurantId, ?int $branchId): float
     {
+        if (! $branchId) {
+            return 0.0;
+        }
+
+        $branch = RestaurantBranch::withoutGlobalScopes()
+            ->where('restaurant_id', $restaurantId)
+            ->find($branchId);
+
         return Employee::withoutGlobalScopes()
             ->where('restaurant_id', $restaurantId)
-            ->where('branch_id', $branchId)
+            ->where(function ($query) use ($branchId, $branch) {
+                $query->where('branch_id', $branchId);
+
+                // Legacy Kho Tổng staff may have only users.warehouse_branch_id
+                // populated. Count them in the central warehouse budget too.
+                if ($branch?->is_central_warehouse || $branch?->warehouse_type === 'central') {
+                    $query->orWhereExists(function ($userQuery) use ($branchId) {
+                        $userQuery->select('users.id')
+                            ->from('users')
+                            ->whereColumn('users.id', 'employees.user_id')
+                            ->where('users.warehouse_branch_id', $branchId);
+                    });
+                }
+            })
             ->where('status', 'active')
             ->get()
             ->sum(fn (Employee $e) => $this->monthlyWageOf($e));
+    }
+
+    public function summary(int $restaurantId, ?int $branchId, ?CarbonInterface $month = null): array
+    {
+        $budget = $this->budgetFor($restaurantId, $branchId, $month);
+        $committed = $this->committedMonthlyWages($restaurantId, $branchId);
+        $amount = $budget ? (float) $budget->budget_amount : null;
+        $remaining = $amount === null ? null : $amount - $committed;
+
+        return [
+            'branch_id' => $branchId,
+            'branch_name' => $budget?->branch?->name
+                ?? ($branchId ? RestaurantBranch::withoutGlobalScopes()->find($branchId)?->name : null),
+            'month' => ($month ?? Carbon::now())->copy()->startOfMonth()->format('m/Y'),
+            'budget_amount' => $amount,
+            'committed' => $committed,
+            'remaining' => $remaining,
+            'over_budget' => $remaining !== null && $remaining < -0.01,
+            'configured' => $budget !== null,
+        ];
     }
 
     public function budgetFor(int $restaurantId, ?int $branchId, ?CarbonInterface $month = null): ?BranchPayrollBudget

@@ -569,7 +569,9 @@ class AttendanceController extends Controller
             'description' => $description,
             'penalty_amount' => $penaltyAmount,
             'occurred_at' => $sa->scheduled_date ? Carbon::parse($sa->scheduled_date)->toDateString().' '.now()->format('H:i:s') : now(),
-            'status' => 'resolved', // Đã phê duyệt và áp dụng trực tiếp lên bảng lương nháp
+            'status' => $request->user()->isOwner() || $request->user()->isSuperAdmin()
+                ? 'resolved'
+                : 'open',
             'is_anonymous' => false,
         ]);
     }

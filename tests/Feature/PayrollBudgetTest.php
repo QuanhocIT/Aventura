@@ -11,6 +11,7 @@ use App\Models\WageTier;
 use App\Services\PayrollBudgetService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
+use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
@@ -79,6 +80,64 @@ class PayrollBudgetTest extends TestCase
             'name' => 'Phục vụ ca ngày',
             'compensation_type' => 'shift',
         ]);
+    }
+
+    public function test_employee_page_exposes_budget_to_branch_manager(): void
+    {
+        $permission = Permission::firstOrCreate(['name' => 'manage_employees', 'guard_name' => 'web']);
+        $managerRole = Role::findByName('manager', 'web');
+        $managerRole->givePermissionTo($permission);
+        $manager = User::factory()->create([
+            'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
+            'status' => 'active',
+        ]);
+        $manager->assignRole($managerRole);
+
+        BranchPayrollBudget::create([
+            'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
+            'effective_month' => Carbon::now()->startOfMonth(),
+            'budget_amount' => 20000000,
+        ]);
+        Employee::factory()->create([
+            'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
+            'status' => 'active',
+            'base_salary' => 8000000,
+            'compensation_type' => 'fixed',
+        ]);
+
+        $response = $this->actingAs($manager)
+            ->withSession(['active_branch_id' => $this->branch->id])
+            ->get('/employees');
+
+        $response->assertOk();
+        $props = $response->original->getData()['page']['props'];
+        $budget = $props['payrollBudget'];
+        $this->assertSame($this->branch->id, (int) $budget['branch_id']);
+        $this->assertTrue($budget['configured']);
+        $this->assertEqualsWithDelta(20000000, (float) $budget['budget_amount'], 0.01);
+        $this->assertEqualsWithDelta(12000000, (float) $budget['remaining'], 0.01);
+    }
+
+    public function test_owner_cannot_lower_budget_below_active_payroll(): void
+    {
+        Employee::factory()->create([
+            'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
+            'status' => 'active',
+            'base_salary' => 8000000,
+            'compensation_type' => 'fixed',
+        ]);
+
+        $response = $this->actingAs($this->owner)->from('/payroll-budget')->post('/payroll-budget/budget', [
+            'branch_id' => $this->branch->id,
+            'budget_amount' => 7000000,
+        ]);
+
+        $response->assertRedirect('/payroll-budget')->assertSessionHasErrors('budget_amount');
+        $this->assertDatabaseCount('branch_payroll_budgets', 0);
     }
 
     public function test_service_computes_committed_and_blocks_over_budget(): void
