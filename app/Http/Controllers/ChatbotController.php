@@ -157,6 +157,8 @@ class ChatbotController extends Controller
             'found' => $result['found'] ?? false,
             'answer' => $result['answer'] ?? '',
             'suggestions' => $result['suggestions'] ?? [],
+            'service_available' => $result['service_available'] ?? true,
+            'error_code' => $result['error_code'] ?? null,
         ]);
     }
 }

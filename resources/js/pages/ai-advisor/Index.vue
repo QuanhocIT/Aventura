@@ -14,6 +14,7 @@ import {
 } from 'lucide-vue-next';
 import { ref, computed, onMounted, nextTick } from 'vue';
 import { Button } from '@/components/ui/button';
+import { advisorHistory, advisorMessage } from '@/routes/chatbot';
 import {
     Card,
     CardContent,
@@ -93,9 +94,10 @@ onMounted(async () => {
 async function loadHistory(session: string): Promise<boolean> {
     try {
         const res = await fetch(
-            `${route('chatbot.advisor-history')}?session_id=${encodeURIComponent(session)}`,
+            advisorHistory.url({ query: { session_id: session } }),
             {
                 headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                credentials: 'same-origin',
             },
         );
 
@@ -165,10 +167,11 @@ async function sendMessage() {
     isLoading.value = true;
 
     try {
-        const res = await fetch(route('chatbot.advisor-message'), {
+        const res = await fetch(advisorMessage.url(), {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
+                Accept: 'application/json',
                 'X-Requested-With': 'XMLHttpRequest',
                 'X-CSRF-TOKEN':
                     (
@@ -177,31 +180,50 @@ async function sendMessage() {
                         ) as HTMLMetaElement
                     )?.content ?? '',
             },
+            credentials: 'same-origin',
             body: JSON.stringify({
                 session_id: sessionId.value,
                 message: text,
             }),
         });
 
-        if (res.ok) {
-            const data = await res.json();
+        const data = await res.json().catch(() => ({}));
+
+        if (!res.ok) {
+            const message =
+                res.status === 419
+                    ? 'Phiên đăng nhập đã hết hạn. Vui lòng tải lại trang rồi thử lại.'
+                    : res.status === 403
+                      ? 'Tài khoản hiện tại không có quyền sử dụng Trợ lý AI Chiến lược.'
+                      : data.message ||
+                        `Máy chủ Laravel trả lỗi HTTP ${res.status}.`;
+
             messages.value.push({
                 id: crypto.randomUUID(),
                 role: 'bot',
-                content:
-                    data.answer ??
-                    'Xin lỗi, tôi không thể xử lý câu trả lời lúc này.',
+                content: `⚠️ ${message}`,
                 timestamp: new Date().toISOString(),
             });
-        } else {
-            throw new Error();
+
+            return;
         }
+
+        messages.value.push({
+            id: crypto.randomUUID(),
+            role: 'bot',
+            content:
+                data.service_available === false
+                    ? `⚠️ ${data.answer ?? 'Chatbot Service hiện không khả dụng.'}`
+                    : data.answer ??
+                      'Xin lỗi, tôi không thể xử lý câu trả lời lúc này.',
+            timestamp: new Date().toISOString(),
+        });
     } catch {
         messages.value.push({
             id: crypto.randomUUID(),
             role: 'bot',
             content:
-                '❌ Có lỗi kết nối đến máy chủ AI. Vui lòng kiểm tra lại dịch vụ Python microservice.',
+                '⚠️ Không thể kết nối đến máy chủ Laravel. Vui lòng kiểm tra mạng hoặc tải lại trang.',
             timestamp: new Date().toISOString(),
         });
     } finally {

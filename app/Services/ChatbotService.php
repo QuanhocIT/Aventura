@@ -31,6 +31,8 @@ class ChatbotService
                 'confidence' => 0.0,
                 'suggestions' => [],
                 'under_maintenance' => true,
+                'service_available' => false,
+                'error_code' => 'maintenance',
             ];
         }
 
@@ -58,7 +60,16 @@ class ChatbotService
                     throw new \RuntimeException("Chatbot service trả lỗi HTTP {$response->status()}");
                 }
 
-                return $response->json();
+                $payload = $response->json();
+
+                if (! is_array($payload)) {
+                    throw new \RuntimeException('Chatbot service trả về dữ liệu không hợp lệ.');
+                }
+
+                return array_merge($payload, [
+                    'service_available' => true,
+                    'error_code' => null,
+                ]);
             },
             function () {
                 return $this->unavailableResponse();
@@ -141,11 +152,18 @@ class ChatbotService
                 'confidence' => 0.0,
                 'suggestions' => [],
                 'under_maintenance' => true,
+                'service_available' => false,
+                'error_code' => 'maintenance',
             ];
         }
 
-        if (empty($this->baseUrl)) {
-            return $this->unavailableResponse();
+        // Nếu Python service chưa cấu hình hoặc circuit breaker đang OPEN,
+        // dùng AdvisorQueryEngine nội tại để trả lời từ DB Laravel.
+        $pythonAvailable = ! empty($this->baseUrl)
+            && app(CircuitBreaker::class)->for('chatbot_service')->isAvailable();
+
+        if (! $pythonAvailable) {
+            return $this->localAdvisorFallback($message, $restaurantId);
         }
 
         return app(CircuitBreaker::class)->for('chatbot_service')->attempt(
@@ -167,12 +185,44 @@ class ChatbotService
                     throw new \RuntimeException("Advisor-chat trả lỗi HTTP {$response->status()}");
                 }
 
-                return $response->json();
+                $payload = $response->json();
+
+                if (! is_array($payload)) {
+                    throw new \RuntimeException('Advisor service trả về dữ liệu không hợp lệ.');
+                }
+
+                return array_merge($payload, [
+                    'service_available' => true,
+                    'error_code' => null,
+                ]);
             },
-            function () {
-                return $this->unavailableResponse();
-            }
+            // Fallback khi Python service lỗi: dùng engine nội tại
+            fn () => $this->localAdvisorFallback($message, $restaurantId)
         );
+    }
+
+    /**
+     * Xử lý câu hỏi chiến lược trực tiếp từ DB Laravel (không cần Python service).
+     */
+    private function localAdvisorFallback(string $message, int $restaurantId): array
+    {
+        try {
+            return app(AdvisorQueryEngine::class, ['restaurantId' => $restaurantId])->handle($message);
+        } catch (\Throwable $e) {
+            Log::error('AdvisorQueryEngine: lỗi xử lý câu hỏi', ['error' => $e->getMessage()]);
+
+            return [
+                'found' => false,
+                'answer' => "⚠️ Đã xảy ra lỗi khi truy vấn dữ liệu. Vui lòng thử lại.\n\n_Chi tiết: " . $e->getMessage() . '_',
+                'knowledge_id' => null,
+                'matched_question' => null,
+                'category' => null,
+                'confidence' => 0.0,
+                'suggestions' => [],
+                'service_available' => true,
+                'error_code' => 'query_error',
+            ];
+        }
     }
 
     public function reloadCache(): bool
@@ -244,12 +294,14 @@ class ChatbotService
     {
         return [
             'found' => false,
-            'answer' => 'Xin lỗi, trợ lý đang tạm thời không khả dụng. Vui lòng thử lại sau hoặc liên hệ hỗ trợ trực tiếp.',
+            'answer' => 'Trợ lý AI hiện chưa kết nối được với Chatbot Service. Vui lòng thử lại sau ít phút hoặc khởi động dịch vụ AI trên máy chủ.',
             'knowledge_id' => null,
             'matched_question' => null,
             'category' => null,
             'confidence' => 0.0,
             'suggestions' => [],
+            'service_available' => false,
+            'error_code' => 'service_unavailable',
         ];
     }
 }

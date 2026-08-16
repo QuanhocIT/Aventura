@@ -1,7 +1,10 @@
 <script setup lang="ts">
 import { Head, router, useForm, usePage } from '@inertiajs/vue3';
+import axios from 'axios';
 import {
     BarChart3,
+    Building2,
+    Clock3,
     TrendingUp,
     TrendingDown,
     Minus,
@@ -11,6 +14,8 @@ import {
     Square,
     Loader2,
     Sparkles,
+    ShoppingCart,
+    Users,
 } from 'lucide-vue-next';
 import { computed, ref, watch } from 'vue';
 import { toast } from 'vue-sonner';
@@ -28,6 +33,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { confirmDialog } from '@/composables/useConfirm';
 import AppLayout from '@/layouts/AppLayout.vue';
+import { behavior as behaviorRoute } from '@/routes/menu-engineering';
 
 defineOptions({ layout: AppLayout });
 
@@ -47,11 +53,98 @@ interface ScoringItem {
     weekly_avg: number;
 }
 
+interface BehaviorItem {
+    product_id: number;
+    name: string;
+    category_name: string;
+    qty: number;
+    order_count: number;
+    revenue: number;
+    margin: number;
+    previous_qty: number;
+    change_qty: number;
+    change_percent: number;
+    trend: 'up' | 'down' | 'stable';
+    quantity_share: number;
+}
+
+interface BehaviorAnalytics {
+    period: {
+        days: number;
+        from: string;
+        to: string;
+        previous_from: string;
+        previous_to: string;
+    };
+    summary: {
+        orders: number;
+        previous_orders: number;
+        items: number;
+        revenue: number;
+        avg_order_value: number;
+        unique_products: number;
+        rising_products: number;
+        falling_products: number;
+        orders_change_percent: number;
+    };
+    top_dishes: BehaviorItem[];
+    rising: BehaviorItem[];
+    falling: BehaviorItem[];
+    branch_breakdown: {
+        branch_id: number | null;
+        branch_name: string;
+        orders: number;
+        items: number;
+        revenue: number;
+        avg_order_value: number;
+    }[];
+    categories: {
+        category: string;
+        items: number;
+        revenue: number;
+        products: number;
+        top_product: string | null;
+    }[];
+    dayparts: {
+        key: string;
+        label: string;
+        orders: number;
+        revenue: number;
+        share: number;
+    }[];
+    channels: {
+        channel: string;
+        orders: number;
+        revenue: number;
+        avg_order_value: number;
+    }[];
+    pairs: {
+        item_a: string;
+        item_b: string;
+        co_occurrence: number;
+        support: number;
+        confidence: number;
+        lift: number;
+    }[];
+    customer_habits: {
+        identified_customers: number;
+        repeat_customers: number;
+        repeat_rate: number;
+        avg_orders_per_customer: number;
+        avg_items_per_order: number;
+        new_or_returning_signal: string;
+        previous_identified_customers: number;
+    };
+}
+
 const props = defineProps<{
     scoring: ScoringItem[];
     bcgData?: any[];
     priceTests: any[];
+    canManagePrices: boolean;
     days: number;
+    branches?: { id: number; name: string }[];
+    branchContext?: { scope: string; active_branch_id: number | null };
 }>();
 
 const page = usePage();
@@ -79,7 +172,49 @@ const bcgStats = computed(() => {
     };
 });
 
-const activeTab = ref<'scoring' | 'ab-test' | 'schedule'>('scoring');
+const activeTab = ref<'scoring' | 'behavior' | 'ab-test' | 'schedule'>('scoring');
+
+const behaviorData = ref<BehaviorAnalytics | null>(null);
+const behaviorLoading = ref(false);
+const behaviorError = ref('');
+const behaviorDays = ref(props.days || 30);
+
+const formatMoney = (value: number) => `${Number(value || 0).toLocaleString('vi-VN')}đ`;
+const formatMetric = (value: number) => Number(value || 0).toLocaleString('vi-VN');
+
+async function loadBehaviorAnalytics(force = false) {
+    if (behaviorLoading.value || (!force && behaviorData.value)) {
+        return;
+    }
+
+    behaviorLoading.value = true;
+    behaviorError.value = '';
+
+    try {
+        const response = await axios.get(behaviorRoute.url(), {
+            params: { days: behaviorDays.value },
+        });
+        behaviorData.value = response.data as BehaviorAnalytics;
+    } catch (error: any) {
+        behaviorError.value =
+            error?.response?.data?.error ||
+            'Không thể tải dữ liệu xu hướng. Vui lòng thử lại.';
+    } finally {
+        behaviorLoading.value = false;
+    }
+}
+
+watch(activeTab, (tab) => {
+    if (tab === 'behavior') {
+        loadBehaviorAnalytics();
+    }
+});
+
+watch(behaviorDays, () => {
+    if (activeTab.value === 'behavior') {
+        loadBehaviorAnalytics(true);
+    }
+});
 
 // BCG Matrix View state and coordinate math helpers
 const scoringViewMode = ref<'bcg' | 'table'>('bcg');
@@ -368,6 +503,7 @@ const needsAttention = computed(
             <button
                 v-for="tab in [
                     { key: 'scoring', label: 'Menu Scoring' },
+                    { key: 'behavior', label: 'Xu hướng & thói quen' },
                     { key: 'ab-test', label: 'A/B Testing giá' },
                     { key: 'schedule', label: 'Lịch menu theo giờ/mùa' },
                 ]"
@@ -1027,10 +1163,264 @@ const needsAttention = computed(
             </Card>
         </div>
 
+        <!-- Tab: Trend & customer behavior -->
+        <div v-if="activeTab === 'behavior'" class="animate-fade-in space-y-4">
+            <div class="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
+                <div>
+                    <h3 class="text-sm font-bold text-foreground">
+                        Xu hướng gọi món & thói quen khách hàng
+                    </h3>
+                    <p class="text-xs text-muted-foreground">
+                        So sánh kỳ hiện tại với {{ behaviorDays }} ngày trước đó. Mọi số liệu bám theo phạm vi chi nhánh đang chọn.
+                    </p>
+                </div>
+                <div class="flex items-center gap-2">
+                    <select
+                        v-model.number="behaviorDays"
+                        class="h-9 rounded-lg border border-border bg-background px-3 text-xs"
+                    >
+                        <option :value="7">7 ngày</option>
+                        <option :value="30">30 ngày</option>
+                        <option :value="90">90 ngày</option>
+                        <option :value="180">180 ngày</option>
+                    </select>
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        class="cursor-pointer gap-1.5"
+                        :disabled="behaviorLoading"
+                        @click="loadBehaviorAnalytics(true)"
+                    >
+                        <Loader2 v-if="behaviorLoading" class="size-3.5 animate-spin" />
+                        <Sparkles v-else class="size-3.5" />
+                        Cập nhật
+                    </Button>
+                </div>
+            </div>
+
+            <Card v-if="behaviorLoading" class="py-16">
+                <CardContent class="flex items-center justify-center gap-2 text-sm text-muted-foreground">
+                    <Loader2 class="size-5 animate-spin" /> Đang phân tích dữ liệu đơn hàng...
+                </CardContent>
+            </Card>
+
+            <Card v-else-if="behaviorError" class="border-rose-500/30">
+                <CardContent class="flex items-center justify-between gap-3 p-5 text-sm text-rose-500">
+                    <span>{{ behaviorError }}</span>
+                    <Button size="sm" variant="outline" class="cursor-pointer" @click="loadBehaviorAnalytics(true)">
+                        Thử lại
+                    </Button>
+                </CardContent>
+            </Card>
+
+            <template v-else-if="behaviorData">
+                <div class="grid grid-cols-2 gap-3 lg:grid-cols-4">
+                    <Card>
+                        <CardContent class="p-4">
+                            <div class="mb-2 flex items-center justify-between text-xs text-muted-foreground">
+                                <span>Đơn hoàn tất</span><ShoppingCart class="size-4 text-violet-500" />
+                            </div>
+                            <p class="text-xl font-bold">{{ formatMetric(behaviorData.summary.orders) }}</p>
+                            <p class="mt-1 text-[10px]" :class="behaviorData.summary.orders_change_percent >= 0 ? 'text-emerald-500' : 'text-rose-500'">
+                                {{ behaviorData.summary.orders_change_percent >= 0 ? '+' : '' }}{{ behaviorData.summary.orders_change_percent }}% so với kỳ trước
+                            </p>
+                        </CardContent>
+                    </Card>
+                    <Card>
+                        <CardContent class="p-4">
+                            <div class="mb-2 flex items-center justify-between text-xs text-muted-foreground">
+                                <span>Món được gọi</span><BarChart3 class="size-4 text-blue-500" />
+                            </div>
+                            <p class="text-xl font-bold">{{ formatMetric(behaviorData.summary.items) }}</p>
+                            <p class="mt-1 text-[10px] text-muted-foreground">{{ behaviorData.summary.unique_products }} món có phát sinh</p>
+                        </CardContent>
+                    </Card>
+                    <Card>
+                        <CardContent class="p-4">
+                            <div class="mb-2 flex items-center justify-between text-xs text-muted-foreground">
+                                <span>Doanh thu</span><TrendingUp class="size-4 text-emerald-500" />
+                            </div>
+                            <p class="text-xl font-bold">{{ formatMoney(behaviorData.summary.revenue) }}</p>
+                            <p class="mt-1 text-[10px] text-muted-foreground">TB {{ formatMoney(behaviorData.summary.avg_order_value) }}/đơn</p>
+                        </CardContent>
+                    </Card>
+                    <Card>
+                        <CardContent class="p-4">
+                            <div class="mb-2 flex items-center justify-between text-xs text-muted-foreground">
+                                <span>Xu hướng ròng</span><TrendingUp class="size-4 text-amber-500" />
+                            </div>
+                            <p class="text-xl font-bold text-emerald-500">{{ behaviorData.summary.rising_products }} tăng</p>
+                            <p class="mt-1 text-[10px] text-rose-500">{{ behaviorData.summary.falling_products }} món đang giảm</p>
+                        </CardContent>
+                    </Card>
+                </div>
+
+                <div class="grid gap-4 lg:grid-cols-3">
+                    <Card>
+                        <CardContent class="p-4">
+                            <div class="mb-3 flex items-center justify-between">
+                                <h4 class="text-sm font-bold">Món được gọi nhiều nhất</h4>
+                                <Badge variant="secondary">Top 12</Badge>
+                            </div>
+                            <div v-if="behaviorData.top_dishes.length" class="space-y-3">
+                                <div v-for="(item, index) in behaviorData.top_dishes" :key="item.product_id" class="flex items-center gap-3">
+                                    <span class="w-5 text-center text-xs font-bold text-muted-foreground">{{ index + 1 }}</span>
+                                    <div class="min-w-0 flex-1">
+                                        <div class="flex items-center justify-between gap-2 text-xs">
+                                            <span class="truncate font-semibold">{{ item.name }}</span>
+                                            <span class="shrink-0 font-bold">{{ formatMetric(item.qty) }}</span>
+                                        </div>
+                                        <div class="mt-1 h-1.5 overflow-hidden rounded-full bg-muted">
+                                            <div class="h-full rounded-full bg-violet-500" :style="{ width: `${Math.min(100, item.quantity_share * 3)}%` }"></div>
+                                        </div>
+                                        <p class="mt-1 text-[10px] text-muted-foreground">{{ item.category_name }} · {{ item.quantity_share }}% tổng lượt gọi</p>
+                                    </div>
+                                </div>
+                            </div>
+                            <p v-else class="py-8 text-center text-xs text-muted-foreground">Chưa có đơn hoàn tất trong kỳ.</p>
+                        </CardContent>
+                    </Card>
+
+                    <Card class="border-emerald-500/20">
+                        <CardContent class="p-4">
+                            <div class="mb-3 flex items-center justify-between">
+                                <h4 class="text-sm font-bold text-emerald-600 dark:text-emerald-400">Đang được gọi nhiều lên</h4>
+                                <TrendingUp class="size-4 text-emerald-500" />
+                            </div>
+                            <div v-if="behaviorData.rising.length" class="space-y-3">
+                                <div v-for="item in behaviorData.rising" :key="`up-${item.product_id}`" class="flex items-start justify-between gap-3 border-b border-border/50 pb-2 last:border-0">
+                                    <div class="min-w-0">
+                                        <p class="truncate text-xs font-semibold">{{ item.name }}</p>
+                                        <p class="text-[10px] text-muted-foreground">{{ formatMetric(item.previous_qty) }} → {{ formatMetric(item.qty) }} lượt</p>
+                                    </div>
+                                    <span class="shrink-0 text-xs font-bold text-emerald-500">+{{ item.change_percent }}%</span>
+                                </div>
+                            </div>
+                            <p v-else class="py-8 text-center text-xs text-muted-foreground">Chưa phát hiện món tăng trưởng.</p>
+                        </CardContent>
+                    </Card>
+
+                    <Card class="border-rose-500/20">
+                        <CardContent class="p-4">
+                            <div class="mb-3 flex items-center justify-between">
+                                <h4 class="text-sm font-bold text-rose-600 dark:text-rose-400">Đang được gọi ít đi</h4>
+                                <TrendingDown class="size-4 text-rose-500" />
+                            </div>
+                            <div v-if="behaviorData.falling.length" class="space-y-3">
+                                <div v-for="item in behaviorData.falling" :key="`down-${item.product_id}`" class="flex items-start justify-between gap-3 border-b border-border/50 pb-2 last:border-0">
+                                    <div class="min-w-0">
+                                        <p class="truncate text-xs font-semibold">{{ item.name }}</p>
+                                        <p class="text-[10px] text-muted-foreground">{{ formatMetric(item.previous_qty) }} → {{ formatMetric(item.qty) }} lượt</p>
+                                    </div>
+                                    <span class="shrink-0 text-xs font-bold text-rose-500">{{ item.change_percent }}%</span>
+                                </div>
+                            </div>
+                            <p v-else class="py-8 text-center text-xs text-muted-foreground">Chưa phát hiện món giảm trưởng.</p>
+                        </CardContent>
+                    </Card>
+                </div>
+
+                <div class="grid gap-4 lg:grid-cols-2">
+                    <Card>
+                        <CardContent class="p-4">
+                            <div class="mb-3 flex items-center justify-between">
+                                <h4 class="flex items-center gap-2 text-sm font-bold"><Building2 class="size-4 text-violet-500" /> So sánh theo chi nhánh</h4>
+                                <span class="text-[10px] text-muted-foreground">{{ behaviorData.branch_breakdown.length }} chi nhánh</span>
+                            </div>
+                            <div class="overflow-x-auto">
+                                <table class="w-full text-xs">
+                                    <thead class="border-b text-left text-muted-foreground"><tr><th class="pb-2">Chi nhánh</th><th class="pb-2 text-right">Đơn</th><th class="pb-2 text-right">Lượt gọi</th><th class="pb-2 text-right">Doanh thu</th></tr></thead>
+                                    <tbody>
+                                        <tr v-for="branch in behaviorData.branch_breakdown" :key="branch.branch_id ?? 'unassigned'" class="border-b border-border/40 last:border-0">
+                                            <td class="py-2 font-medium">{{ branch.branch_name }}</td>
+                                            <td class="py-2 text-right">{{ formatMetric(branch.orders) }}</td>
+                                            <td class="py-2 text-right">{{ formatMetric(branch.items) }}</td>
+                                            <td class="py-2 text-right font-medium">{{ formatMoney(branch.revenue) }}</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                            <p v-if="!behaviorData.branch_breakdown.length" class="py-6 text-center text-xs text-muted-foreground">Chưa có dữ liệu chi nhánh.</p>
+                        </CardContent>
+                    </Card>
+
+                    <Card>
+                        <CardContent class="p-4">
+                            <div class="mb-3 flex items-center justify-between">
+                                <h4 class="flex items-center gap-2 text-sm font-bold"><Users class="size-4 text-blue-500" /> Thói quen khách hàng</h4>
+                                <Badge variant="secondary">{{ behaviorData.customer_habits.identified_customers }} khách định danh</Badge>
+                            </div>
+                            <div class="grid grid-cols-3 gap-2">
+                                <div class="rounded-lg bg-muted/50 p-3"><p class="text-[10px] text-muted-foreground">Khách quay lại</p><p class="mt-1 text-lg font-bold">{{ behaviorData.customer_habits.repeat_customers }}</p></div>
+                                <div class="rounded-lg bg-muted/50 p-3"><p class="text-[10px] text-muted-foreground">Tỷ lệ quay lại</p><p class="mt-1 text-lg font-bold text-emerald-500">{{ behaviorData.customer_habits.repeat_rate }}%</p></div>
+                                <div class="rounded-lg bg-muted/50 p-3"><p class="text-[10px] text-muted-foreground">Món/đơn</p><p class="mt-1 text-lg font-bold">{{ behaviorData.customer_habits.avg_items_per_order }}</p></div>
+                            </div>
+                            <p class="mt-4 rounded-lg border border-blue-500/20 bg-blue-500/5 p-3 text-xs leading-relaxed text-muted-foreground">{{ behaviorData.customer_habits.new_or_returning_signal }}</p>
+                        </CardContent>
+                    </Card>
+                </div>
+
+                <div class="grid gap-4 lg:grid-cols-3">
+                    <Card>
+                        <CardContent class="p-4">
+                            <h4 class="mb-3 flex items-center gap-2 text-sm font-bold"><Clock3 class="size-4 text-amber-500" /> Khung giờ gọi nhiều</h4>
+                            <div class="space-y-3">
+                                <div v-for="slot in behaviorData.dayparts" :key="slot.key">
+                                    <div class="mb-1 flex justify-between text-xs"><span>{{ slot.label }}</span><span class="font-semibold">{{ slot.orders }} đơn</span></div>
+                                    <div class="h-2 overflow-hidden rounded-full bg-muted"><div class="h-full rounded-full bg-amber-500" :style="{ width: `${slot.share}%` }"></div></div>
+                                </div>
+                            </div>
+                        </CardContent>
+                    </Card>
+                    <Card>
+                        <CardContent class="p-4">
+                            <h4 class="mb-3 text-sm font-bold">Kênh đặt hàng</h4>
+                            <div class="space-y-2">
+                                <div v-for="channel in behaviorData.channels" :key="channel.channel" class="flex items-center justify-between rounded-lg bg-muted/40 px-3 py-2 text-xs">
+                                    <span class="font-medium">{{ channel.channel }}</span><span>{{ channel.orders }} đơn · {{ formatMoney(channel.revenue) }}</span>
+                                </div>
+                            </div>
+                            <p v-if="!behaviorData.channels.length" class="py-6 text-center text-xs text-muted-foreground">Chưa có dữ liệu kênh.</p>
+                        </CardContent>
+                    </Card>
+                    <Card>
+                        <CardContent class="p-4">
+                            <h4 class="mb-3 text-sm font-bold">Nhóm món nổi bật</h4>
+                            <div class="space-y-2">
+                                <div v-for="category in behaviorData.categories" :key="category.category" class="flex items-center justify-between border-b border-border/50 pb-2 text-xs last:border-0">
+                                    <div><p class="font-medium">{{ category.category }}</p><p class="text-[10px] text-muted-foreground">Top: {{ category.top_product || '—' }}</p></div>
+                                    <span class="font-bold">{{ formatMetric(category.items) }}</span>
+                                </div>
+                            </div>
+                        </CardContent>
+                    </Card>
+                </div>
+
+                <Card>
+                    <CardContent class="p-4">
+                        <h4 class="mb-1 flex items-center gap-2 text-sm font-bold"><ShoppingCart class="size-4 text-violet-500" /> Các món thường được gọi cùng</h4>
+                        <p class="mb-3 text-xs text-muted-foreground">Gợi ý combo dựa trên số đơn có cùng hai món và chỉ số lift.</p>
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-xs">
+                                <thead class="border-b text-left text-muted-foreground"><tr><th class="pb-2">Cặp món</th><th class="pb-2 text-right">Cùng gọi</th><th class="pb-2 text-right">Confidence</th><th class="pb-2 text-right">Lift</th></tr></thead>
+                                <tbody>
+                                    <tr v-for="pair in behaviorData.pairs" :key="`${pair.item_a}-${pair.item_b}`" class="border-b border-border/40 last:border-0">
+                                        <td class="py-2 font-medium">{{ pair.item_a }} + {{ pair.item_b }}</td><td class="py-2 text-right">{{ pair.co_occurrence }} đơn</td><td class="py-2 text-right">{{ pair.confidence }}%</td><td class="py-2 text-right font-bold text-violet-500">{{ pair.lift }}x</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        <p v-if="!behaviorData.pairs.length" class="py-6 text-center text-xs text-muted-foreground">Chưa đủ dữ liệu để phát hiện cặp món.</p>
+                    </CardContent>
+                </Card>
+            </template>
+        </div>
+
         <!-- Tab: A/B Testing -->
         <div v-if="activeTab === 'ab-test'" class="animate-fade-in space-y-4">
             <div class="flex justify-end">
                 <Button
+                    v-if="canManagePrices"
                     @click="openCreateTest()"
                     class="cursor-pointer gap-1.5 rounded-xl bg-violet-600 px-4 py-2 text-xs font-semibold text-white transition hover:bg-violet-700 active:scale-95"
                 >
@@ -1085,7 +1475,7 @@ const needsAttention = computed(
                             >{{ test.status }}</Badge
                         >
                         <Button
-                            v-if="test.status === 'running'"
+                            v-if="canManagePrices && test.status === 'running'"
                             variant="outline"
                             size="sm"
                             @click="completeTest(test)"
@@ -1094,7 +1484,7 @@ const needsAttention = computed(
                             <Square class="mr-1 size-3.5" /> Kết thúc
                         </Button>
                         <Button
-                            v-if="test.status === 'running'"
+                            v-if="canManagePrices && test.status === 'running'"
                             variant="ghost"
                             size="sm"
                             class="cursor-pointer text-red-500"

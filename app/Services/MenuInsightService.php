@@ -4,8 +4,12 @@ namespace App\Services;
 
 use App\Models\MenuPriceTest;
 use App\Support\Tenant\TenantContext;
+use Carbon\Carbon;
+use Carbon\CarbonInterface;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 class MenuInsightService
 {
@@ -251,6 +255,474 @@ class MenuInsightService
                 ];
             })->sortByDesc('composite_score')->values()->all();
         });
+    }
+
+    /**
+     * Phân tích xu hướng bán món và thói quen gọi món.
+     *
+     * Kỳ hiện tại được so sánh với một kỳ liền trước có cùng số ngày. Dữ liệu
+     * được đọc từ cả bảng đơn hiện tại và bảng archive để báo cáo không bị hụt
+     * khi đơn cũ đã được chuyển sang lưu trữ.
+     */
+    public function getBehaviorAnalytics(int $restaurantId, int $days = 30, ?int $branchId = null): array
+    {
+        $days = max(1, min(365, $days));
+        $currentTo = now();
+        $currentFrom = $currentTo->copy()->subDays($days);
+        $previousTo = $currentFrom->copy();
+        $previousFrom = $previousTo->copy()->subDays($days);
+
+        $currentProducts = $this->fetchProductStats($restaurantId, $currentFrom, $currentTo, $branchId);
+        $previousProducts = $this->fetchProductStats($restaurantId, $previousFrom, $previousTo, $branchId);
+        $currentMap = $currentProducts->keyBy('product_id');
+        $previousMap = $previousProducts->keyBy('product_id');
+
+        $totalCurrentQty = (float) $currentProducts->sum('qty');
+        $totalCurrentRevenue = (float) $currentProducts->sum('revenue');
+        $currentOrders = $this->fetchOrderFacts($restaurantId, $currentFrom, $currentTo, $branchId);
+        $previousOrders = $this->fetchOrderFacts($restaurantId, $previousFrom, $previousTo, $branchId);
+
+        // Giữ lại cả món chỉ xuất hiện ở kỳ trước để nhận diện món đã giảm
+        // về 0 lượt gọi, thay vì vô tình loại món đó khỏi danh sách cảnh báo.
+        $allProductIds = $currentProducts->pluck('product_id')
+            ->merge($previousProducts->pluck('product_id'))
+            ->unique()
+            ->values();
+        $menu = $allProductIds
+            ->map(function (int $productId) use ($currentMap, $previousMap, $totalCurrentQty): array {
+                $item = $currentMap->get($productId) ?? array_merge(
+                    $previousMap->get($productId),
+                    ['qty' => 0, 'revenue' => 0, 'order_count' => 0],
+                );
+                $previous = $previousMap->get($item['product_id']);
+                $previousQty = (float) ($previous['qty'] ?? 0);
+                $changeQty = $item['qty'] - $previousQty;
+                $changePercent = $previousQty > 0
+                    ? ($changeQty / $previousQty) * 100
+                    : ($item['qty'] > 0 ? 100 : 0);
+
+                return array_merge($item, [
+                    'previous_qty' => $this->roundMetric($previousQty),
+                    'change_qty' => $this->roundMetric($changeQty),
+                    'change_percent' => round($changePercent, 1),
+                    'trend' => $changeQty > 0 ? 'up' : ($changeQty < 0 ? 'down' : 'stable'),
+                    'quantity_share' => $totalCurrentQty > 0
+                        ? round(($item['qty'] / $totalCurrentQty) * 100, 1)
+                        : 0,
+                ]);
+            })
+            ->sortByDesc('qty')
+            ->values();
+
+        $rising = $menu
+            ->filter(fn (array $item): bool => $item['change_qty'] > 0)
+            ->sortByDesc(fn (array $item): array => [$item['change_percent'], $item['change_qty']])
+            ->take(8)
+            ->values()
+            ->all();
+        $falling = $menu
+            ->filter(fn (array $item): bool => $item['change_qty'] < 0)
+            ->sortBy(fn (array $item): array => [$item['change_percent'], $item['change_qty']])
+            ->take(8)
+            ->values()
+            ->all();
+
+        $branchBreakdown = $this->fetchBranchBreakdown($restaurantId, $currentFrom, $currentTo, $branchId);
+        $periodProducts = $menu->take(12)->values();
+        $topProductIds = $periodProducts->pluck('product_id')->all();
+        $pairs = $this->buildCoOrderPairs($currentOrders, $topProductIds);
+        $habits = $this->buildCustomerHabits($currentOrders, $previousOrders, $menu);
+        $dayparts = $this->buildDaypartBreakdown($currentOrders);
+        $channels = $this->buildChannelBreakdown($currentOrders);
+        $categories = $this->buildCategoryBreakdown($menu);
+
+        return [
+            'period' => [
+                'days' => $days,
+                'from' => $currentFrom->toDateString(),
+                'to' => $currentTo->toDateString(),
+                'previous_from' => $previousFrom->toDateString(),
+                'previous_to' => $previousTo->toDateString(),
+            ],
+            'summary' => [
+                'orders' => count($currentOrders),
+                'previous_orders' => count($previousOrders),
+                'items' => $this->roundMetric($totalCurrentQty),
+                'revenue' => round($totalCurrentRevenue, 2),
+                'avg_order_value' => count($currentOrders) > 0
+                    ? round($totalCurrentRevenue / count($currentOrders), 2)
+                    : 0,
+                'unique_products' => $menu->count(),
+                'rising_products' => count($rising),
+                'falling_products' => count($falling),
+                'orders_change_percent' => $this->percentageChange(count($previousOrders), count($currentOrders)),
+            ],
+            'top_dishes' => $periodProducts->all(),
+            'rising' => $rising,
+            'falling' => $falling,
+            'branch_breakdown' => $branchBreakdown,
+            'categories' => $categories,
+            'dayparts' => $dayparts,
+            'channels' => $channels,
+            'pairs' => $pairs,
+            'customer_habits' => $habits,
+        ];
+    }
+
+    /**
+     * @return Collection<int, array<string, mixed>>
+     */
+    private function fetchProductStats(
+        int $restaurantId,
+        CarbonInterface $from,
+        CarbonInterface $to,
+        ?int $branchId,
+    ) {
+        $rows = collect();
+        $queries = [['items' => 'order_items', 'orders' => 'orders']];
+
+        if (Schema::hasTable('order_items_archive') && Schema::hasTable('orders_archive')) {
+            $queries[] = ['items' => 'order_items_archive', 'orders' => 'orders_archive'];
+        }
+
+        foreach ($queries as $tables) {
+            $query = DB::table($tables['items'].' as oi')
+                ->join($tables['orders'].' as o', 'oi.order_id', '=', 'o.id')
+                ->join('products as p', 'oi.product_id', '=', 'p.id')
+                ->leftJoin('product_categories as pc', 'p.category_id', '=', 'pc.id')
+                ->where('o.restaurant_id', $restaurantId)
+                ->where('o.status', 'completed')
+                ->whereBetween('o.completed_at', [$from, $to])
+                ->where('oi.status', '!=', 'cancelled')
+                ->when($branchId !== null, fn ($q) => $q->where('o.branch_id', $branchId))
+                ->select([
+                    'oi.product_id', 'p.name', 'p.price', 'p.cost_price', 'pc.name as category_name',
+                    DB::raw('SUM(oi.quantity) as qty'),
+                    DB::raw('SUM(oi.line_total) as revenue'),
+                    DB::raw('COUNT(DISTINCT oi.order_id) as order_count'),
+                ])
+                ->groupBy('oi.product_id', 'p.name', 'p.price', 'p.cost_price', 'pc.name')
+                ->get();
+
+            foreach ($query as $row) {
+                $key = (int) $row->product_id;
+                $existing = $rows->get($key, [
+                    'product_id' => $key,
+                    'name' => (string) $row->name,
+                    'price' => (float) $row->price,
+                    'cost_price' => (float) ($row->cost_price ?? 0),
+                    'category_name' => $row->category_name ?: 'Khác',
+                    'qty' => 0.0, 'revenue' => 0.0, 'order_count' => 0,
+                ]);
+                $existing['qty'] += (float) $row->qty;
+                $existing['revenue'] += (float) $row->revenue;
+                $existing['order_count'] += (int) $row->order_count;
+                $rows->put($key, $existing);
+            }
+        }
+
+        return $rows->map(function (array $item): array {
+            $item['qty'] = $this->roundMetric($item['qty']);
+            $item['revenue'] = round($item['revenue'], 2);
+            $item['order_count'] = (int) $item['order_count'];
+            $price = (float) $item['price'];
+            $cost = (float) $item['cost_price'];
+            $item['margin'] = $price > 0 ? round((($price - $cost) / $price) * 100, 1) : 0;
+
+            return $item;
+        })->sortByDesc('qty')->values();
+    }
+
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    private function fetchOrderFacts(
+        int $restaurantId,
+        CarbonInterface $from,
+        CarbonInterface $to,
+        ?int $branchId,
+    ): array {
+        $facts = collect();
+        $queries = [['items' => 'order_items', 'orders' => 'orders']];
+
+        if (Schema::hasTable('order_items_archive') && Schema::hasTable('orders_archive')) {
+            $queries[] = ['items' => 'order_items_archive', 'orders' => 'orders_archive'];
+        }
+
+        foreach ($queries as $tables) {
+            $rows = DB::table($tables['items'].' as oi')
+                ->join($tables['orders'].' as o', 'oi.order_id', '=', 'o.id')
+                ->join('products as p', 'oi.product_id', '=', 'p.id')
+                ->where('o.restaurant_id', $restaurantId)
+                ->where('o.status', 'completed')
+                ->whereBetween('o.completed_at', [$from, $to])
+                ->where('oi.status', '!=', 'cancelled')
+                ->when($branchId !== null, fn ($q) => $q->where('o.branch_id', $branchId))
+                ->select([
+                    'o.id as order_id', 'o.branch_id', 'o.customer_id', 'o.channel',
+                    'o.total_amount', 'o.completed_at', 'oi.product_id', 'p.name as product_name', 'oi.quantity',
+                ])
+                ->orderBy('o.completed_at')
+                ->limit(50000)
+                ->get();
+
+            foreach ($rows as $row) {
+                $orderId = (int) $row->order_id;
+                $fact = $facts->get($orderId, [
+                    'order_id' => $orderId,
+                    'branch_id' => $row->branch_id ? (int) $row->branch_id : null,
+                    'customer_id' => $row->customer_id ? (int) $row->customer_id : null,
+                    'channel' => (string) ($row->channel ?: 'other'),
+                    'total_amount' => (float) $row->total_amount,
+                    'completed_at' => $row->completed_at,
+                    'items' => [],
+                ]);
+                $fact['items'][] = [
+                    'product_id' => (int) $row->product_id,
+                    'name' => (string) $row->product_name,
+                    'quantity' => (float) $row->quantity,
+                ];
+                $facts->put($orderId, $fact);
+            }
+        }
+
+        return $facts->values()->all();
+    }
+
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    private function fetchBranchBreakdown(
+        int $restaurantId,
+        CarbonInterface $from,
+        CarbonInterface $to,
+        ?int $branchId,
+    ): array {
+        $rows = collect();
+        $queries = [['items' => 'order_items', 'orders' => 'orders']];
+
+        if (Schema::hasTable('order_items_archive') && Schema::hasTable('orders_archive')) {
+            $queries[] = ['items' => 'order_items_archive', 'orders' => 'orders_archive'];
+        }
+
+        foreach ($queries as $tables) {
+            $query = DB::table($tables['items'].' as oi')
+                ->join($tables['orders'].' as o', 'oi.order_id', '=', 'o.id')
+                ->leftJoin('restaurant_branches as b', 'o.branch_id', '=', 'b.id')
+                ->where('o.restaurant_id', $restaurantId)
+                ->where('o.status', 'completed')
+                ->whereBetween('o.completed_at', [$from, $to])
+                ->where('oi.status', '!=', 'cancelled')
+                ->when($branchId !== null, fn ($q) => $q->where('o.branch_id', $branchId))
+                ->select([
+                    'o.branch_id',
+                    DB::raw("COALESCE(b.name, 'Chưa gán chi nhánh') as branch_name"),
+                    DB::raw('COUNT(DISTINCT o.id) as orders'),
+                    DB::raw('SUM(oi.quantity) as items'),
+                    DB::raw('SUM(oi.line_total) as revenue'),
+                ])
+                ->groupBy('o.branch_id', 'b.name')
+                ->get();
+
+            foreach ($query as $row) {
+                $key = $row->branch_id ? (int) $row->branch_id : 0;
+                $existing = $rows->get($key, [
+                    'branch_id' => $key ?: null,
+                    'branch_name' => (string) $row->branch_name,
+                    'orders' => 0, 'items' => 0.0, 'revenue' => 0.0,
+                ]);
+                $existing['orders'] += (int) $row->orders;
+                $existing['items'] += (float) $row->items;
+                $existing['revenue'] += (float) $row->revenue;
+                $rows->put($key, $existing);
+            }
+        }
+
+        return $rows->map(function (array $item): array {
+            $item['items'] = $this->roundMetric($item['items']);
+            $item['revenue'] = round($item['revenue'], 2);
+            $item['avg_order_value'] = $item['orders'] > 0
+                ? round($item['revenue'] / $item['orders'], 2) : 0;
+
+            return $item;
+        })->sortByDesc('revenue')->values()->all();
+    }
+
+    /**
+     * @param  array<int, array<string, mixed>>  $orders
+     * @param  array<int, int>  $topProductIds
+     * @return array<int, array<string, mixed>>
+     */
+    private function buildCoOrderPairs(array $orders, array $topProductIds): array
+    {
+        if (empty($topProductIds)) {
+            return [];
+        }
+
+        $topIds = array_fill_keys(array_map('intval', $topProductIds), true);
+        $pairCounts = [];
+        $itemCounts = [];
+        $orderCount = count($orders);
+        $nameById = [];
+
+        foreach ($orders as $order) {
+            $items = collect($order['items'])
+                ->filter(fn (array $item): bool => isset($topIds[$item['product_id']]))
+                ->unique('product_id')
+                ->values();
+            foreach ($items as $item) {
+                $id = (int) $item['product_id'];
+                $itemCounts[$id] = ($itemCounts[$id] ?? 0) + 1;
+                $nameById[$id] = $item['name'];
+            }
+            for ($i = 0; $i < $items->count(); $i++) {
+                for ($j = $i + 1; $j < $items->count(); $j++) {
+                    $a = min((int) $items[$i]['product_id'], (int) $items[$j]['product_id']);
+                    $b = max((int) $items[$i]['product_id'], (int) $items[$j]['product_id']);
+                    $key = $a.':'.$b;
+                    $pairCounts[$key] = ($pairCounts[$key] ?? 0) + 1;
+                }
+            }
+        }
+
+        return collect($pairCounts)
+            ->map(function (int $count, string $key) use ($itemCounts, $nameById, $orderCount): array {
+                [$a, $b] = array_map('intval', explode(':', $key));
+                $support = $orderCount > 0 ? $count / $orderCount : 0;
+                $confidence = ($itemCounts[$a] ?? 0) > 0 ? $count / $itemCounts[$a] : 0;
+                $expected = $orderCount > 0 ? ($itemCounts[$b] ?? 0) / $orderCount : 0;
+
+                return [
+                    'item_a' => $nameById[$a] ?? 'Món #'.$a,
+                    'item_b' => $nameById[$b] ?? 'Món #'.$b,
+                    'product_a_id' => $a,
+                    'product_b_id' => $b,
+                    'co_occurrence' => $count,
+                    'support' => round($support * 100, 1),
+                    'confidence' => round($confidence * 100, 1),
+                    'lift' => $expected > 0 ? round($confidence / $expected, 2) : 0,
+                ];
+            })
+            ->sortByDesc(fn (array $pair): array => [$pair['lift'], $pair['co_occurrence']])
+            ->take(8)->values()->all();
+    }
+
+    /**
+     * @param  array<int, array<string, mixed>>  $orders
+     * @return array<string, mixed>
+     */
+    private function buildCustomerHabits(array $orders, array $previousOrders, $menu): array
+    {
+        $customerCounts = collect($orders)
+            ->filter(fn (array $order): bool => $order['customer_id'] !== null)
+            ->countBy('customer_id');
+        $identifiedCustomers = $customerCounts->count();
+        $repeatCustomers = $customerCounts->filter(fn (int $count): bool => $count >= 2)->count();
+        $totalItems = (float) $menu->sum('qty');
+
+        return [
+            'identified_customers' => $identifiedCustomers,
+            'repeat_customers' => $repeatCustomers,
+            'repeat_rate' => $identifiedCustomers > 0
+                ? round(($repeatCustomers / $identifiedCustomers) * 100, 1) : 0,
+            'avg_orders_per_customer' => $identifiedCustomers > 0
+                ? round(count($orders) / $identifiedCustomers, 1) : 0,
+            'avg_items_per_order' => count($orders) > 0 ? round($totalItems / count($orders), 1) : 0,
+            'new_or_returning_signal' => $repeatCustomers > 0
+                ? 'Có nhóm khách quay lại; nên tạo ưu đãi cá nhân hóa theo món ưa thích.'
+                : 'Chưa đủ khách định danh để kết luận tỷ lệ quay lại.',
+            'previous_identified_customers' => collect($previousOrders)
+                ->filter(fn (array $order): bool => $order['customer_id'] !== null)
+                ->pluck('customer_id')->unique()->count(),
+        ];
+    }
+
+    /**
+     * @param  array<int, array<string, mixed>>  $orders
+     * @return array<int, array<string, mixed>>
+     */
+    private function buildDaypartBreakdown(array $orders): array
+    {
+        $labels = [
+            'morning' => 'Sáng (06–11h)', 'lunch' => 'Trưa (11–14h)',
+            'afternoon' => 'Chiều (14–17h)', 'dinner' => 'Tối (17–22h)',
+            'late' => 'Đêm (22–06h)',
+        ];
+        $stats = collect(array_keys($labels))->mapWithKeys(fn (string $key): array => [$key => [
+            'key' => $key, 'label' => $labels[$key], 'orders' => 0, 'revenue' => 0.0,
+        ]]);
+
+        foreach ($orders as $order) {
+            $hour = (int) Carbon::parse($order['completed_at'])->hour;
+            $key = match (true) {
+                $hour >= 6 && $hour < 11 => 'morning',
+                $hour >= 11 && $hour < 14 => 'lunch',
+                $hour >= 14 && $hour < 17 => 'afternoon',
+                $hour >= 17 && $hour < 22 => 'dinner',
+                default => 'late',
+            };
+            $item = $stats->get($key);
+            $item['orders']++;
+            $item['revenue'] += (float) $order['total_amount'];
+            $stats->put($key, $item);
+        }
+
+        $maxOrders = max(1, (int) $stats->max('orders'));
+
+        return $stats->map(function (array $item) use ($maxOrders): array {
+            $item['revenue'] = round($item['revenue'], 2);
+            $item['share'] = round(($item['orders'] / $maxOrders) * 100, 1);
+
+            return $item;
+        })->values()->all();
+    }
+
+    /**
+     * @param  array<int, array<string, mixed>>  $orders
+     * @return array<int, array<string, mixed>>
+     */
+    private function buildChannelBreakdown(array $orders): array
+    {
+        return collect($orders)->groupBy('channel')->map(function ($items, string $channel): array {
+            return [
+                'channel' => $channel,
+                'orders' => $items->count(),
+                'revenue' => round((float) $items->sum('total_amount'), 2),
+                'avg_order_value' => $items->count() > 0
+                    ? round((float) $items->sum('total_amount') / $items->count(), 2) : 0,
+            ];
+        })->sortByDesc('orders')->values()->all();
+    }
+
+    /**
+     * @param  Collection<int, array<string, mixed>>  $menu
+     * @return array<int, array<string, mixed>>
+     */
+    private function buildCategoryBreakdown($menu): array
+    {
+        return $menu->groupBy('category_name')->map(function ($items, string $category): array {
+            return [
+                'category' => $category,
+                'items' => $this->roundMetric((float) $items->sum('qty')),
+                'revenue' => round((float) $items->sum('revenue'), 2),
+                'products' => $items->count(),
+                'top_product' => $items->sortByDesc('qty')->first()['name'] ?? null,
+            ];
+        })->sortByDesc('items')->values()->take(8)->all();
+    }
+
+    private function percentageChange(float|int $previous, float|int $current): float
+    {
+        if ($previous <= 0) {
+            return $current > 0 ? 100 : 0;
+        }
+
+        return round((($current - $previous) / $previous) * 100, 1);
+    }
+
+    private function roundMetric(float $value): int|float
+    {
+        return fmod($value, 1.0) === 0.0 ? (int) $value : round($value, 2);
     }
 
     /**
