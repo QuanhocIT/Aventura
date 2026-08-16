@@ -5,6 +5,7 @@ import {
     Users,
     Plus,
     Calendar,
+    Wallet,
     CheckCircle2,
     AlertCircle,
     Sparkles,
@@ -83,6 +84,16 @@ type Swap = {
     receiver_shift: string;
     receiver_date: string;
 };
+type PayrollBudget = {
+    branch_id: number | null;
+    branch_name: string | null;
+    month: string;
+    budget_amount: number | null;
+    committed: number;
+    remaining: number | null;
+    over_budget: boolean;
+    configured: boolean;
+};
 
 const props = defineProps<{
     employees: Employee[];
@@ -117,6 +128,9 @@ const props = defineProps<{
     activeBranchId: number | null;
     branchScope: string;
     isBranchManager: boolean;
+    isWarehouseManager?: boolean;
+    canManagePayrollBudget?: boolean;
+    payrollBudget?: PayrollBudget | null;
     wageTiers?: Array<{
         id: number;
         name: string;
@@ -126,6 +140,9 @@ const props = defineProps<{
         estimated_monthly: number;
     }>;
 }>();
+
+const formatVnd = (amount: number) =>
+    `${Math.round(amount).toLocaleString('vi-VN')}đ`;
 
 const showAddEmployee = ref(false);
 const editingEmployee = ref<Employee | null>(null);
@@ -224,6 +241,7 @@ watch(
     () => employeeForm.wage_tier_id,
     (val) => {
         const tier = availableWageTiers.value.find((t) => t.id === Number(val));
+
         if (tier) {
             employeeForm.compensation_type = tier.compensation_type;
             employeeForm.pay_rate = tier.rate;
@@ -332,6 +350,7 @@ const roleLabels: Record<string, string> = {
     manager: 'Quản lý',
     cashier: 'Thu ngân (Cashier)',
     kitchen: 'Đầu bếp/Bếp (Kitchen)',
+    shipper: 'Nhân viên giao hàng (Shipper)',
     waiter: 'Nhân viên order',
     staff: 'Nhân viên phục vụ',
     warehouse_manager: 'Trưởng Kho Tổng',
@@ -348,19 +367,41 @@ const allRoleOptions: RoleOption[] = [
     { value: 'kitchen', label: 'Nhà bếp (Chuẩn bị món)' },
     { value: 'manager', label: 'Quản lý cửa hàng (Chi nhánh)' },
     { value: 'waiter', label: 'Nhân viên order (Phục vụ)' },
+    { value: 'shipper', label: 'Nhân viên giao hàng (Shipper)' },
     { value: 'inventory_staff', label: 'Nhân viên Kho Chi Nhánh' },
     { value: 'warehouse_staff', label: 'Nhân viên Kho Tổng' },
     { value: 'warehouse_manager', label: 'Trưởng Kho Tổng' },
     { value: 'operations_inspector', label: 'Giám sát viên Vận hành / Thanh tra' },
 ];
 
-const createRoleOptions = computed(() =>
-    props.isBranchManager
-        ? allRoleOptions.filter((option) => managerAllowedRoles.includes(option.value))
-        : allRoleOptions,
-);
+const createRoleOptions = computed(() => {
+    if (props.isWarehouseManager) {
+        return allRoleOptions.filter((option) => option.value === 'warehouse_staff');
+    }
+
+    if (props.isBranchManager) {
+        return allRoleOptions.filter((option) => managerAllowedRoles.includes(option.value));
+    }
+
+    return allRoleOptions;
+});
 
 const editRoleOptions = computed(() => {
+    if (props.isWarehouseManager) {
+        if (editForm.role === 'warehouse_staff') {
+            return createRoleOptions.value;
+        }
+
+        return [
+            {
+                value: editForm.role,
+                label: `${roleLabels[editForm.role] ?? editForm.role} (Đang giữ nguyên)`,
+                disabled: true,
+            },
+            ...createRoleOptions.value,
+        ];
+    }
+
     if (!props.isBranchManager || !editForm.role || managerAllowedRoles.includes(editForm.role)) {
         return createRoleOptions.value;
     }
@@ -373,6 +414,24 @@ const editRoleOptions = computed(() => {
         },
         ...createRoleOptions.value,
     ];
+});
+
+watch(
+    () => props.isWarehouseManager,
+    (isWM) => {
+        if (isWM) {
+            employeeForm.role = 'warehouse_staff';
+            employeeForm.job_title = 'Nhân viên Kho Tổng';
+        }
+    },
+    { immediate: true },
+);
+
+watch(showAddEmployee, (val) => {
+    if (val && props.isWarehouseManager) {
+        employeeForm.role = 'warehouse_staff';
+        employeeForm.job_title = 'Nhân viên Kho Tổng';
+    }
 });
 
 const roleColors: Record<string, string> = {
@@ -388,6 +447,7 @@ const roleColors: Record<string, string> = {
     warehouse_staff: 'bg-violet-100 text-violet-700 dark:bg-violet-950 dark:text-violet-300 border border-violet-200/50',
     inventory_staff: 'bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300 border border-blue-200/50',
     operations_inspector: 'bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300 border border-rose-200/50',
+    shipper: 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300 border border-amber-200/50',
 };
 
 const avatarColors = [
@@ -578,7 +638,10 @@ const assignmentsWithId = computed(() =>
     props.schedules.filter((a) => !!a.id),
 );
 function submitEmergencyReplace() {
-    if (emergencyForm.processing) return;
+    if (emergencyForm.processing) {
+        return;
+    }
+
     emergencyForm.post('/employees/schedules/emergency-replace', {
         preserveScroll: true,
         onSuccess: () => {
@@ -1282,6 +1345,52 @@ const submitSwapReject = () => {
             </Button>
         </div>
 
+        <!-- Quỹ lương được Chủ doanh nghiệp cấp cho phạm vi hiện tại -->
+        <Card
+            v-if="props.payrollBudget && (props.isBranchManager || props.isWarehouseManager || props.canManagePayrollBudget)"
+            class="border-amber-200 bg-amber-50/60 shadow-sm dark:border-amber-900/60 dark:bg-amber-950/20"
+        >
+            <div class="flex flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                <div class="flex items-center gap-2 text-sm font-semibold text-amber-900 dark:text-amber-200">
+                    <Wallet class="size-4 shrink-0" />
+                    <span>Quỹ lương</span>
+                    <span class="font-normal text-amber-800/75 dark:text-amber-200/70">
+                        {{ props.payrollBudget.branch_name || 'Phạm vi hiện tại' }} · {{ props.payrollBudget.month }}
+                    </span>
+                </div>
+                <div class="flex flex-wrap items-center gap-x-5 gap-y-1 text-sm">
+                    <span>
+                        <span class="text-muted-foreground">Quỹ:</span>
+                        <strong class="ml-1 text-amber-900 dark:text-amber-100">
+                        {{ props.payrollBudget.configured && props.payrollBudget.budget_amount !== null ? formatVnd(props.payrollBudget.budget_amount) : 'Chưa được cấp' }}
+                        </strong>
+                    </span>
+                    <span>
+                        <span class="text-muted-foreground">Đã dùng:</span>
+                        <strong class="ml-1 text-slate-900 dark:text-slate-100">
+                        {{ formatVnd(props.payrollBudget.committed) }}
+                        </strong>
+                    </span>
+                    <span>
+                        <span class="text-muted-foreground">Còn lại:</span>
+                        <strong
+                            class="ml-1"
+                        :class="!props.payrollBudget.configured || props.payrollBudget.over_budget ? 'text-rose-600' : 'text-emerald-600'"
+                        >
+                        {{ !props.payrollBudget.configured ? 'Chưa cấp quỹ' : props.payrollBudget.over_budget ? `Vượt ${formatVnd(Math.abs(props.payrollBudget.remaining ?? 0))}` : formatVnd(props.payrollBudget.remaining ?? 0) }}
+                        </strong>
+                    </span>
+                    <a
+                        v-if="props.canManagePayrollBudget"
+                        href="/payroll-budget"
+                        class="font-semibold text-indigo-600 hover:underline dark:text-indigo-400"
+                    >
+                        Thiết lập
+                    </a>
+                </div>
+            </div>
+        </Card>
+
         <!-- Add Employee Form Modal Overlay -->
         <Teleport to="body">
             <div
@@ -1394,7 +1503,13 @@ const submitSwapReject = () => {
                                     >Phân quyền hệ thống</Label
                                 >
                                 <p
-                                    v-if="props.isBranchManager"
+                                    v-if="props.isWarehouseManager"
+                                    class="text-xs text-amber-600 dark:text-amber-400"
+                                >
+                                    Trưởng kho tổng chỉ được phép tạo Nhân viên Kho Tổng.
+                                </p>
+                                <p
+                                    v-else-if="props.isBranchManager"
                                     class="text-xs text-amber-600 dark:text-amber-400"
                                 >
                                     Quản lý chỉ được tạo Thu ngân, Order hoặc Bếp.
