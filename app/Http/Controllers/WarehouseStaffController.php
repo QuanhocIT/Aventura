@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\AuditLog;
 use App\Models\Ingredient;
 use App\Models\Inventory;
+use App\Models\InventoryBatchAllocation;
 use App\Models\InventoryBatch;
 use App\Models\InventoryCountSession;
 use App\Models\InventoryTransaction;
@@ -15,7 +16,9 @@ use App\Models\WarehouseReceivingVoucher;
 use App\Models\WarehouseReceivingVoucherItem;
 use App\Models\WarehouseShiftHandover;
 use App\Models\WarehouseTaskAssignment;
+use App\Models\User;
 use App\Services\CentralWarehouseService;
+use App\Support\TenantRule;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -46,6 +49,13 @@ class WarehouseStaffController extends Controller
         // Task của tôi hôm nay + pending
         $myTasks = WarehouseTaskAssignment::where('restaurant_id', $restaurantId)
             ->myTasks($userId)
+            ->when($centralBranch, fn ($query) => $query->where(function ($scope) use ($centralBranch) {
+                $scope->whereHas('supplyRequest', fn ($request) => $request->where('from_branch_id', $centralBranch->id))
+                    ->orWhereHas('receivingVoucher', fn ($voucher) => $voucher->where('branch_id', $centralBranch->id))
+                    ->orWhere(function ($unlinked) {
+                        $unlinked->whereNull('supply_request_id')->whereNull('receiving_voucher_id');
+                    });
+            }), fn ($query) => $query->whereRaw('1 = 0'))
             ->with(['supplyRequest.toBranch', 'receivingVoucher', 'assignee'])
             ->orderByRaw("CASE status WHEN 'in_progress' THEN 0 WHEN 'assigned' THEN 1 WHEN 'completed' THEN 2 ELSE 3 END")
             ->orderBy('due_at')
@@ -65,6 +75,7 @@ class WarehouseStaffController extends Controller
         // Phiếu nhận hàng gần đây do tôi thực hiện
         $myVouchers = WarehouseReceivingVoucher::where('restaurant_id', $restaurantId)
             ->where('received_by', $userId)
+            ->when($centralBranch, fn ($query) => $query->where('branch_id', $centralBranch->id))
             ->with(['items.ingredient', 'verifiedBy'])
             ->orderByDesc('id')
             ->limit(20)
@@ -73,20 +84,21 @@ class WarehouseStaffController extends Controller
         // Bàn giao ca gần đây của tôi
         $myHandovers = WarehouseShiftHandover::where('restaurant_id', $restaurantId)
             ->where(fn ($q) => $q->where('handover_by', $userId)->orWhere('received_by', $userId))
+            ->when($centralBranch, fn ($query) => $query->where('branch_id', $centralBranch->id))
             ->with(['handoverBy', 'receivedBy'])
             ->orderByDesc('id')
             ->limit(10)
             ->get();
 
         // Vị trí kho
-        $locations = WarehouseLocation::where('restaurant_id', $restaurantId)
-            ->where('is_active', true)
+        $locations = $this->centralLocationQuery($restaurantId, $centralBranch?->id)
+            ->where('status', 'active')
             ->orderBy('zone')
-            ->orderBy('code')
+            ->orderBy('location_code')
             ->get();
 
         // Nguyên liệu (cho form nhận hàng)
-        $ingredients = Ingredient::where('restaurant_id', $restaurantId)
+        $ingredients = $this->centralIngredientQuery($restaurantId, $centralBranch?->id)
             ->with(['unit'])
             ->orderBy('name')
             ->get(['id', 'name', 'sku', 'average_cost', 'unit_id']);
@@ -121,6 +133,17 @@ class WarehouseStaffController extends Controller
         $user = $request->user();
         $tasks = WarehouseTaskAssignment::where('restaurant_id', $user->restaurant_id)
             ->myTasks($user->id)
+            ->when(
+                $centralBranch = $this->warehouseService->getCentralWarehouse($user->restaurant_id),
+                fn ($query, $central) => $query->where(function ($scope) use ($central) {
+                    $scope->whereHas('supplyRequest', fn ($request) => $request->where('from_branch_id', $central->id))
+                        ->orWhereHas('receivingVoucher', fn ($voucher) => $voucher->where('branch_id', $central->id))
+                        ->orWhere(function ($unlinked) {
+                            $unlinked->whereNull('supply_request_id')->whereNull('receiving_voucher_id');
+                        });
+                }),
+                fn ($query) => $query->whereRaw('1 = 0'),
+            )
             ->with(['supplyRequest.toBranch', 'receivingVoucher'])
             ->orderByRaw("CASE status WHEN 'in_progress' THEN 0 WHEN 'assigned' THEN 1 WHEN 'completed' THEN 2 ELSE 3 END")
             ->orderBy('due_at')
@@ -147,8 +170,16 @@ class WarehouseStaffController extends Controller
     public function startTask(Request $request, int $id): JsonResponse
     {
         $user = $request->user();
+        $centralBranch = $this->warehouseService->getCentralWarehouse($user->restaurant_id);
         $task = WarehouseTaskAssignment::where('restaurant_id', $user->restaurant_id)
             ->where('assigned_to', $user->id)
+            ->where(function ($scope) use ($centralBranch) {
+                $scope->when($centralBranch, fn ($query) => $query->whereHas('supplyRequest', fn ($request) => $request->where('from_branch_id', $centralBranch->id))
+                    ->orWhereHas('receivingVoucher', fn ($voucher) => $voucher->where('branch_id', $centralBranch->id))
+                    ->orWhere(function ($unlinked) {
+                        $unlinked->whereNull('supply_request_id')->whereNull('receiving_voucher_id');
+                    }), fn ($query) => $query->whereRaw('1 = 0'));
+            })
             ->findOrFail($id);
 
         abort_if($task->status === 'completed', 422, 'Task đã hoàn thành, không thể bắt đầu lại.');
@@ -179,8 +210,16 @@ class WarehouseStaffController extends Controller
         ]);
 
         $user = $request->user();
+        $centralBranch = $this->warehouseService->getCentralWarehouse($user->restaurant_id);
         $task = WarehouseTaskAssignment::where('restaurant_id', $user->restaurant_id)
             ->where('assigned_to', $user->id)
+            ->where(function ($scope) use ($centralBranch) {
+                $scope->when($centralBranch, fn ($query) => $query->whereHas('supplyRequest', fn ($request) => $request->where('from_branch_id', $centralBranch->id))
+                    ->orWhereHas('receivingVoucher', fn ($voucher) => $voucher->where('branch_id', $centralBranch->id))
+                    ->orWhere(function ($unlinked) {
+                        $unlinked->whereNull('supply_request_id')->whereNull('receiving_voucher_id');
+                    }), fn ($query) => $query->whereRaw('1 = 0'));
+            })
             ->findOrFail($id);
 
         abort_if($task->status === 'completed', 422, 'Task đã hoàn thành rồi.');
@@ -218,17 +257,17 @@ class WarehouseStaffController extends Controller
     {
         $request->validate([
             'received_at'         => 'required|date',
-            'supplier_id'         => 'nullable|integer',
-            'purchase_order_id'   => 'nullable|integer',
+            'supplier_id'         => ['nullable', 'integer', TenantRule::exists('suppliers')],
+            'purchase_order_id'   => ['nullable', 'integer', TenantRule::exists('purchase_orders')],
             'notes'               => 'nullable|string|max:500',
             'items'               => 'required|array|min:1',
-            'items.*.ingredient_id' => 'required|integer|exists:ingredients,id',
+            'items.*.ingredient_id' => ['required', 'integer', TenantRule::exists('ingredients')],
             'items.*.expected_qty'  => 'required|numeric|min:0',
             'items.*.actual_qty'    => 'required|numeric|min:0',
             'items.*.unit_cost'     => 'nullable|numeric|min:0',
             'items.*.lot_number'    => 'nullable|string|max:100',
             'items.*.expiry_date'   => 'nullable|string|max:20',
-            'items.*.location_id'   => 'nullable|integer',
+            'items.*.location_id'   => ['nullable', 'integer', TenantRule::exists('warehouse_locations')],
             'items.*.discrepancy_reason' => 'nullable|string|max:500',
             'evidence'            => 'nullable|array',
             'evidence.*'          => 'file|mimes:jpg,jpeg,png,pdf|max:10240',
@@ -239,6 +278,34 @@ class WarehouseStaffController extends Controller
 
         $centralBranch = $this->warehouseService->getCentralWarehouse($restaurantId);
         abort_unless($centralBranch, 422, 'Chưa thiết lập Kho Tổng.');
+
+        $ingredientIds = collect($request->input('items', []))
+            ->pluck('ingredient_id')
+            ->filter()
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values();
+        abort_unless(
+            $this->centralIngredientQuery($restaurantId, $centralBranch->id)
+                ->whereIn('id', $ingredientIds)
+                ->count() === $ingredientIds->count(),
+            422,
+            'Phiáº¿u nháº­n hÃ ng chá»‰ Ä‘Æ°á»£c phÃ©p dÃ¹ng nguyÃªn liá»‡u toÃ n chuá»—i hoáº·c thuá»™c Kho Tá»•ng.'
+        );
+
+        $locationIds = collect($request->input('items', []))
+            ->pluck('location_id')
+            ->filter()
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values();
+        abort_unless(
+            $this->centralLocationQuery($restaurantId, $centralBranch->id)
+                ->whereIn('id', $locationIds)
+                ->count() === $locationIds->count(),
+            422,
+            'Vá»‹ trÃ­ cất hÃ ng pháº£i thuá»™c Kho Tá»•ng.'
+        );
 
         return DB::transaction(function () use ($request, $user, $restaurantId, $centralBranch) {
             // Upload ảnh bằng chứng
@@ -322,20 +389,123 @@ class WarehouseStaffController extends Controller
      */
     public function confirmReceiving(Request $request, int $id): JsonResponse
     {
+        abort_unless(
+            $request->user()->isOwner() || $request->user()->isSuperAdmin(),
+            403,
+            'Chá»‰ Chá»§ doanh nghiá»‡p má»›i Ä‘Æ°á»£c xÃ¡c nháº­n phiáº¿u nháº­n vÃ  chÃ´t giÃ¡ vá»‘n.'
+        );
+
         $request->validate([
             'notes' => 'nullable|string|max:500',
         ]);
 
         $user    = $request->user();
+        $centralBranch = $this->warehouseService->getCentralWarehouse($user->restaurant_id);
+        abort_unless($centralBranch, 422, 'Chưa thiết lập Kho Tổng.');
+        $canVerifyAny = true;
+
         $voucher = WarehouseReceivingVoucher::where('restaurant_id', $user->restaurant_id)
-            ->where('received_by', $user->id)
-            ->whereIn('status', ['draft', 'discrepancy'])
+            ->where('branch_id', $centralBranch->id)
+            ->when(! $canVerifyAny, fn ($query) => $query->where('received_by', $user->id))
+            ->whereIn('status', ['draft', 'discrepancy', 'pending_review'])
             ->findOrFail($id);
 
-        $voucher->update([
-            'status' => 'confirmed',
-            'notes'  => $request->notes ?? $voucher->notes,
-        ]);
+        DB::transaction(function () use ($voucher, $user, $centralBranch, $canVerifyAny, $request): void {
+            $voucher->loadMissing('items');
+
+            foreach ($voucher->items as $voucherItem) {
+                $actualQty = (float) $voucherItem->actual_qty;
+                if ($actualQty <= 0) {
+                    continue;
+                }
+
+                $ingredient = $this->centralIngredientQuery($user->restaurant_id, $centralBranch->id)
+                    ->findOrFail($voucherItem->ingredient_id);
+
+                $inventory = Inventory::where('restaurant_id', $user->restaurant_id)
+                    ->where('branch_id', $voucher->branch_id)
+                    ->where('ingredient_id', $ingredient->id)
+                    ->lockForUpdate()
+                    ->first();
+
+                if (! $inventory) {
+                    $inventory = Inventory::create([
+                        'restaurant_id' => $user->restaurant_id,
+                        'branch_id' => $voucher->branch_id,
+                        'ingredient_id' => $ingredient->id,
+                        'quantity_on_hand' => 0,
+                        'theoretical_quantity' => 0,
+                        'last_cost' => 0,
+                    ]);
+                    $inventory = Inventory::whereKey($inventory->id)->lockForUpdate()->firstOrFail();
+                }
+
+                $unitCost = (float) ($voucherItem->unit_cost ?: $ingredient->average_cost ?: 0);
+                $oldQty = (float) $inventory->quantity_on_hand;
+                $oldAverageCost = (float) ($ingredient->average_cost ?: $inventory->last_cost ?: $unitCost);
+                $newAverageCost = ($oldQty + $actualQty) > 0
+                    ? (($oldQty * $oldAverageCost) + ($actualQty * $unitCost)) / ($oldQty + $actualQty)
+                    : $unitCost;
+
+                $transaction = InventoryTransaction::createWithIdempotency([
+                    'restaurant_id' => $user->restaurant_id,
+                    'branch_id' => $voucher->branch_id,
+                    'ingredient_id' => $ingredient->id,
+                    'inventory_id' => $inventory->id,
+                    'supplier_id' => $voucher->supplier_id,
+                    'performed_by' => $user->id,
+                    'type' => 'purchase',
+                    'direction' => 'in',
+                    'quantity' => $actualQty,
+                    'unit_cost' => $unitCost,
+                    'total_cost' => round($actualQty * $unitCost, 2),
+                    'source_type' => 'warehouse_receiving_voucher',
+                    'source_id' => $voucher->id,
+                    'idempotency_key' => "grn_{$voucher->id}_item_{$voucherItem->id}",
+                    'notes' => "Nhập hàng theo phiếu {$voucher->voucher_code}",
+                    'occurred_at' => $voucher->received_at ?: now(),
+                ]);
+
+                $inventory->update([
+                    'quantity_on_hand' => $oldQty + $actualQty,
+                    'theoretical_quantity' => (float) ($inventory->theoretical_quantity ?? $oldQty) + $actualQty,
+                    'last_cost' => $unitCost,
+                ]);
+                $ingredient->update(['average_cost' => round($newAverageCost, 2)]);
+
+                $batch = InventoryBatch::create([
+                    'restaurant_id' => $user->restaurant_id,
+                    'branch_id' => $voucher->branch_id,
+                    'ingredient_id' => $ingredient->id,
+                    'batch_number' => $voucherItem->lot_number ?: $voucher->voucher_code.'-'.$voucherItem->id,
+                    'quantity_remaining' => $actualQty,
+                    'unit_cost' => $unitCost,
+                    'purchased_at' => optional($voucher->received_at)->toDateString() ?: now()->toDateString(),
+                    'expiry_date' => $voucherItem->expiry_date ?: null,
+                    'supplier_id' => $voucher->supplier_id,
+                    'status' => 'active',
+                ]);
+
+                InventoryBatchAllocation::create([
+                    'restaurant_id' => $user->restaurant_id,
+                    'branch_id' => $voucher->branch_id,
+                    'inventory_batch_id' => $batch->id,
+                    'inventory_transaction_id' => $transaction->id,
+                    'direction' => 'in',
+                    'quantity' => $actualQty,
+                    'unit_cost' => $unitCost,
+                ]);
+
+                $voucherItem->update(['batch_id' => $batch->id]);
+            }
+
+            $voucher->update([
+                'status' => 'confirmed',
+                'notes' => $request->notes ?? $voucher->notes,
+                'verified_by' => $canVerifyAny ? $user->id : $voucher->verified_by,
+                'verified_at' => $canVerifyAny ? now() : $voucher->verified_at,
+            ]);
+        });
 
         $this->logAudit($user, 'warehouse.receiving.confirmed', $voucher, [
             'voucher_code' => $voucher->voucher_code,
@@ -356,7 +526,10 @@ class WarehouseStaffController extends Controller
         ]);
 
         $user    = $request->user();
+        $centralBranch = $this->warehouseService->getCentralWarehouse($user->restaurant_id);
+        abort_unless($centralBranch, 422, 'Chưa thiết lập Kho Tổng.');
         $voucher = WarehouseReceivingVoucher::where('restaurant_id', $user->restaurant_id)
+            ->where('branch_id', $centralBranch->id)
             ->where('received_by', $user->id)
             ->findOrFail($id);
 
@@ -399,6 +572,25 @@ class WarehouseStaffController extends Controller
             ->where('task_type', 'putaway')
             ->findOrFail($taskId);
 
+        $centralBranch = $this->warehouseService->getCentralWarehouse($user->restaurant_id);
+        abort_unless($centralBranch, 422, 'Chưa thiết lập Kho Tổng.');
+        abort_unless(
+            $task->receiving_voucher_id === null
+                || WarehouseReceivingVoucher::where('restaurant_id', $user->restaurant_id)
+                    ->where('branch_id', $centralBranch->id)
+                    ->whereKey($task->receiving_voucher_id)
+                    ->exists(),
+            403,
+            'Task cất hàng không thuộc Kho Tổng.'
+        );
+        abort_unless(
+            $centralBranch && $this->centralLocationQuery($user->restaurant_id, $centralBranch->id)
+                ->whereKey((int) $request->location_id)
+                ->exists(),
+            422,
+            'Vá»‹ trÃ­ cất hÃ ng khÃ´ng thuá»™c Kho Tá»•ng.'
+        );
+
         $scanLog = array_merge($task->scan_log ?? [], $request->scan_log ?? []);
 
         $task->update([
@@ -426,7 +618,7 @@ class WarehouseStaffController extends Controller
     {
         $request->validate([
             'incident_type'    => 'required|in:shortage,damage,expired,wrong_item,other',
-            'ingredient_id'    => 'nullable|integer|exists:ingredients,id',
+            'ingredient_id'    => ['nullable', 'integer', TenantRule::exists('ingredients')],
             'batch_id'         => 'nullable|integer',
             'location_id'      => 'nullable|integer',
             'description'      => 'required|string|max:2000',
@@ -437,6 +629,40 @@ class WarehouseStaffController extends Controller
 
         $user         = $request->user();
         $restaurantId = $user->restaurant_id;
+
+        $centralBranch = $this->warehouseService->getCentralWarehouse($restaurantId);
+        abort_unless($centralBranch, 422, 'Chưa thiết lập Kho Tổng.');
+
+        if ($request->filled('ingredient_id')) {
+            abort_unless(
+                $centralBranch && $this->centralIngredientQuery($restaurantId, $centralBranch->id)
+                    ->whereKey((int) $request->ingredient_id)
+                    ->exists(),
+                422,
+                'NguyÃªn liá»‡u báo sá»± cá»‘ pháº£i thuá»™c Kho Tá»•ng hoáº·c catalog toÃ n chuá»—i.'
+            );
+        }
+
+        if ($request->filled('batch_id')) {
+            $batch = InventoryBatch::where('restaurant_id', $restaurantId)
+                ->where('branch_id', $centralBranch?->id)
+                ->findOrFail((int) $request->batch_id);
+            abort_unless(
+                ! $request->filled('ingredient_id') || (int) $batch->ingredient_id === (int) $request->ingredient_id,
+                422,
+                'Lô hàng không khớp với nguyên liệu báo sự cố.'
+            );
+        }
+
+        if ($request->filled('location_id')) {
+            abort_unless(
+                $centralBranch && $this->centralLocationQuery($restaurantId, $centralBranch->id)
+                    ->whereKey((int) $request->location_id)
+                    ->exists(),
+                422,
+                'Vá»‹ trÃ­ báo sá»± cá»‘ pháº£i thuá»™c Kho Tá»•ng.'
+            );
+        }
 
         $evidencePaths = [];
         if ($request->hasFile('evidence')) {
@@ -485,9 +711,12 @@ class WarehouseStaffController extends Controller
     public function myShiftHandover(Request $request): JsonResponse
     {
         $user = $request->user();
+        $centralBranch = $this->warehouseService->getCentralWarehouse($user->restaurant_id);
+        abort_unless($centralBranch, 422, 'Chưa thiết lập Kho Tổng.');
 
         $handover = WarehouseShiftHandover::where('restaurant_id', $user->restaurant_id)
             ->where(fn ($q) => $q->where('handover_by', $user->id)->orWhere('received_by', $user->id))
+            ->where('branch_id', $centralBranch->id)
             ->with(['handoverBy', 'receivedBy', 'branch'])
             ->orderByDesc('id')
             ->first();
@@ -495,6 +724,13 @@ class WarehouseStaffController extends Controller
         // Task chưa hoàn thành của tôi (cho cảnh báo khi bàn giao ca)
         $pendingTasks = WarehouseTaskAssignment::where('restaurant_id', $user->restaurant_id)
             ->myTasks($user->id)
+            ->where(function ($scope) use ($centralBranch) {
+                $scope->whereHas('supplyRequest', fn ($request) => $request->where('from_branch_id', $centralBranch->id))
+                    ->orWhereHas('receivingVoucher', fn ($voucher) => $voucher->where('branch_id', $centralBranch->id))
+                    ->orWhere(function ($unlinked) {
+                        $unlinked->whereNull('supply_request_id')->whereNull('receiving_voucher_id');
+                    });
+            })
             ->pending()
             ->get(['id', 'task_type', 'status', 'due_at', 'notes']);
 
@@ -515,7 +751,7 @@ class WarehouseStaffController extends Controller
             'shift_type'   => 'required|in:morning,afternoon,evening,night',
             'shift_label'  => 'nullable|string|max:50',
             'notes'        => 'nullable|string|max:2000',
-            'received_by'  => 'nullable|integer|exists:users,id',
+            'received_by'  => ['nullable', 'integer', TenantRule::exists('users')],
             'incidents_json' => 'nullable|array',
         ]);
 
@@ -525,9 +761,29 @@ class WarehouseStaffController extends Controller
         $centralBranch = $this->warehouseService->getCentralWarehouse($restaurantId);
         abort_unless($centralBranch, 422, 'Chưa thiết lập Kho Tổng.');
 
+        if ($request->filled('received_by')) {
+            $recipient = User::where('restaurant_id', $restaurantId)
+                ->where('status', 'active')
+                ->whereKey((int) $request->received_by)
+                ->whereHas('roles', fn ($query) => $query->whereIn('name', ['warehouse_manager', 'warehouse_staff']))
+                ->where(function ($query) use ($centralBranch) {
+                    $query->where('warehouse_branch_id', $centralBranch->id)
+                        ->orWhere('branch_id', $centralBranch->id);
+                })
+                ->exists();
+            abort_unless($recipient, 422, 'Người nhận ca phải là nhân sự Kho Tổng đang hoạt động.');
+        }
+
         // Task chưa hoàn thành
         $pendingTasks = WarehouseTaskAssignment::where('restaurant_id', $restaurantId)
             ->myTasks($user->id)
+            ->where(function ($scope) use ($centralBranch) {
+                $scope->whereHas('supplyRequest', fn ($request) => $request->where('from_branch_id', $centralBranch->id))
+                    ->orWhereHas('receivingVoucher', fn ($voucher) => $voucher->where('branch_id', $centralBranch->id))
+                    ->orWhere(function ($unlinked) {
+                        $unlinked->whereNull('supply_request_id')->whereNull('receiving_voucher_id');
+                    });
+            })
             ->pending()
             ->get();
 
@@ -595,8 +851,11 @@ class WarehouseStaffController extends Controller
         ]);
 
         $user     = $request->user();
+        $centralBranch = $this->warehouseService->getCentralWarehouse($user->restaurant_id);
+        abort_unless($centralBranch, 422, 'Chưa thiết lập Kho Tổng.');
         $handover = WarehouseShiftHandover::where('restaurant_id', $user->restaurant_id)
             ->where('received_by', $user->id)
+            ->where('branch_id', $centralBranch->id)
             ->where('status', 'pending')
             ->findOrFail($id);
 
@@ -665,7 +924,8 @@ class WarehouseStaffController extends Controller
         $restaurantId = $user->restaurant_id;
 
         // Thử match ingredient SKU
-        $ingredient = Ingredient::where('restaurant_id', $restaurantId)
+        $centralBranch = $this->warehouseService->getCentralWarehouse($restaurantId);
+        $ingredient = $this->centralIngredientQuery($restaurantId, $centralBranch?->id)
             ->where('sku', $code)
             ->with(['unit'])
             ->first();
@@ -683,6 +943,7 @@ class WarehouseStaffController extends Controller
 
         // Thử match batch code
         $batch = InventoryBatch::where('restaurant_id', $restaurantId)
+            ->when($centralBranch, fn ($query) => $query->where('branch_id', $centralBranch->id), fn ($query) => $query->whereRaw('1 = 0'))
             ->where('batch_number', $code)
             ->with(['ingredient'])
             ->first();
@@ -712,7 +973,7 @@ class WarehouseStaffController extends Controller
         }
 
         // Thử match warehouse location code
-        $location = WarehouseLocation::where('restaurant_id', $restaurantId)
+        $location = $this->centralLocationQuery($restaurantId, $centralBranch?->id)
             ->where('code', $code)
             ->first();
 
@@ -738,6 +999,28 @@ class WarehouseStaffController extends Controller
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────
+
+    private function centralIngredientQuery(int $restaurantId, ?int $centralBranchId)
+    {
+        return Ingredient::where('restaurant_id', $restaurantId)
+            ->when(
+                $centralBranchId,
+                fn ($query) => $query->where(fn ($scope) => $scope
+                    ->whereNull('branch_id')
+                    ->orWhere('branch_id', $centralBranchId)),
+                fn ($query) => $query->whereRaw('1 = 0'),
+            );
+    }
+
+    private function centralLocationQuery(int $restaurantId, ?int $centralBranchId)
+    {
+        return WarehouseLocation::where('restaurant_id', $restaurantId)
+            ->when(
+                $centralBranchId,
+                fn ($query) => $query->where('branch_id', $centralBranchId),
+                fn ($query) => $query->whereRaw('1 = 0'),
+            );
+    }
 
     private function formatTask(WarehouseTaskAssignment $task): array
     {
@@ -793,8 +1076,17 @@ class WarehouseStaffController extends Controller
         abort_unless($user->can('manage_warehouse') || $user->hasAnyRole(['warehouse_manager', 'manager', 'owner', 'super_admin']), 403);
 
         $restaurantId = $user->restaurant_id;
+        $centralBranch = $this->warehouseService->getCentralWarehouse($restaurantId);
+        abort_unless($centralBranch, 422, 'Nhà hàng chưa cấu hình Kho Tổng đang hoạt động.');
 
         $unassignedTasks = WarehouseTaskAssignment::where('restaurant_id', $restaurantId)
+            ->where(function ($scope) use ($centralBranch) {
+                $scope->whereHas('supplyRequest', fn ($request) => $request->where('from_branch_id', $centralBranch->id))
+                    ->orWhereHas('receivingVoucher', fn ($voucher) => $voucher->where('branch_id', $centralBranch->id))
+                    ->orWhere(function ($unlinked) {
+                        $unlinked->whereNull('supply_request_id')->whereNull('receiving_voucher_id');
+                    });
+            })
             ->where(function ($q) {
                 $q->whereNull('assigned_to')
                   ->orWhere('status', 'pending');
@@ -811,14 +1103,19 @@ class WarehouseStaffController extends Controller
 
         // Lấy danh sách nhân viên kho active
         $warehouseStaff = \App\Models\User::where('restaurant_id', $restaurantId)
-            ->where('is_active', true)
-            ->whereHas('roles', function ($q) {
-                $q->whereIn('name', ['warehouse_staff', 'warehouse_manager', 'manager', 'owner']);
+            ->where('status', 'active')
+            ->whereHas('roles', fn ($q) => $q->where('name', 'warehouse_staff'))
+            ->where(function ($scope) use ($centralBranch) {
+                $scope->where('warehouse_branch_id', $centralBranch->id)
+                    ->orWhere('branch_id', $centralBranch->id);
             })
             ->get();
 
         if ($warehouseStaff->isEmpty()) {
-            $warehouseStaff = collect([$user]);
+            return response()->json([
+                'success' => false,
+                'message' => 'Kho Tổng chưa có nhân viên warehouse_staff đang hoạt động để nhận việc.',
+            ], 422);
         }
 
         // Đếm công việc hiện tại của từng nhân viên
@@ -826,6 +1123,13 @@ class WarehouseStaffController extends Controller
         foreach ($warehouseStaff as $staffUser) {
             $count = WarehouseTaskAssignment::where('restaurant_id', $restaurantId)
                 ->where('assigned_to', $staffUser->id)
+                ->where(function ($scope) use ($centralBranch) {
+                    $scope->whereHas('supplyRequest', fn ($request) => $request->where('from_branch_id', $centralBranch->id))
+                        ->orWhereHas('receivingVoucher', fn ($voucher) => $voucher->where('branch_id', $centralBranch->id))
+                        ->orWhere(function ($unlinked) {
+                            $unlinked->whereNull('supply_request_id')->whereNull('receiving_voucher_id');
+                        });
+                })
                 ->whereIn('status', ['assigned', 'in_progress'])
                 ->count();
             $staffWorkload[$staffUser->id] = $count;
@@ -861,4 +1165,3 @@ class WarehouseStaffController extends Controller
         ]);
     }
 }
-

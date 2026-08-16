@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Head, router } from '@inertiajs/vue3';
+import { Head, Link, router } from '@inertiajs/vue3';
 import axios from 'axios';
 import {
     Activity,
@@ -16,7 +16,9 @@ import {
     Clock,
     DollarSign,
     Eye,
+    FileDown,
     Lightbulb,
+    MapPin,
     PackageCheck,
     Save,
     Search,
@@ -56,10 +58,24 @@ const props = defineProps<{
     warehouseTasks: Array<any>;
     warehouseTaskSummary: any;
     supplyAnalytics: any;
+    centralWarehouseAnalytics?: any;
+    receivingVouchers?: Array<any>;
+    receivingSummary?: any;
+    inventorySummary?: any;
+    warehouseLocations?: Array<any>;
 }>();
 
 const activeTab = ref<
-    'all' | 'pending' | 'approved' | 'preparing' | 'dispatch_pending_approval' | 'dispatched' | 'completed' | 'task_board'
+    'all'
+    | 'pending'
+    | 'approved'
+    | 'preparing'
+    | 'dispatch_pending_approval'
+    | 'dispatched'
+    | 'partial_received'
+    | 'disputed'
+    | 'completed'
+    | 'task_board'
 >('all');
 const searchQuery = ref('');
 const selectedBranchFilter = ref<number | string>('all');
@@ -142,8 +158,62 @@ const stats = computed(() => ({
     preparing: props.supplyRequests.filter((r) => r.status === 'preparing').length,
     dispatch_pending: props.supplyRequests.filter((r) => r.status === 'dispatch_pending_approval').length,
     dispatched: props.supplyRequests.filter((r) => r.status === 'dispatched').length,
+    partial_received: props.supplyRequests.filter((r) => r.status === 'partial_received').length,
+    disputed: props.supplyRequests.filter((r) => r.status === 'disputed').length,
     completed: props.supplyRequests.filter((r) => r.status === 'completed').length,
 }));
+
+const operationalSummary = computed(() => props.supplyAnalytics?.operations ?? {});
+const warehouseKpi = computed(() => props.centralWarehouseAnalytics ?? {});
+const receivingVouchers = computed(() => props.receivingVouchers ?? []);
+const inventorySummary = computed(() => props.inventorySummary ?? {});
+const locations = ref<Array<any>>([...(props.warehouseLocations ?? [])]);
+const isLocationModalOpen = ref(false);
+const isSavingLocation = ref(false);
+const locationForm = ref({
+    branch_id: props.centralBranch?.id ?? '',
+    zone: '',
+    rack: '',
+    shelf: '',
+    bin: '',
+    location_code: '',
+    is_cold_storage: false,
+    is_quarantine: false,
+});
+
+const openLocationModal = () => {
+    isLocationModalOpen.value = true;
+};
+
+const saveLocation = async () => {
+    if (!locationForm.value.zone || !locationForm.value.location_code) {
+        toast.error('Vui lòng nhập khu vực và mã vị trí kho.');
+        return;
+    }
+
+    isSavingLocation.value = true;
+    try {
+        const res = await axios.post('/api/warehouse-locations', locationForm.value);
+        if (res.data.success) {
+            locations.value.push(res.data.data);
+            toast.success(res.data.message || 'Đã tạo vị trí kho.');
+            locationForm.value = {
+                branch_id: props.centralBranch?.id ?? '',
+                zone: '',
+                rack: '',
+                shelf: '',
+                bin: '',
+                location_code: '',
+                is_cold_storage: false,
+                is_quarantine: false,
+            };
+        }
+    } catch (e: any) {
+        toast.error(e.response?.data?.message || 'Không thể tạo vị trí kho.');
+    } finally {
+        isSavingLocation.value = false;
+    }
+};
 
 const openPickingModal = (req: any) => {
     selectedRequest.value = req;
@@ -284,6 +354,18 @@ const formatDate = (dt: string) => {
     });
 };
 
+const getRequestQuantitySummary = (request: any) => {
+    const items = request?.items ?? [];
+    const dispatched = items.reduce((sum: number, item: any) => sum + Number(item.actual_dispatched_quantity ?? item.approved_quantity ?? item.requested_quantity ?? 0), 0);
+    const received = items.reduce((sum: number, item: any) => sum + Number(item.received_quantity ?? 0), 0);
+
+    return {
+        dispatched,
+        received,
+        shortage: items.reduce((sum: number, item: any) => sum + Math.max(0, Number(item.actual_dispatched_quantity ?? item.approved_quantity ?? item.requested_quantity ?? 0) - Number(item.received_quantity ?? 0)), 0),
+    };
+};
+
 const getStatusBadge = (status: string) => {
     switch (status) {
         case 'pending':
@@ -296,6 +378,16 @@ const getStatusBadge = (status: string) => {
                 label: 'Đã duyệt (Chờ xuất)',
                 color: 'border-blue-300 bg-blue-100 text-blue-800 dark:border-blue-900/50 dark:bg-blue-950/30 dark:text-blue-300',
             };
+        case 'preparing':
+            return {
+                label: 'Dang soan hang',
+                color: 'border-indigo-300 bg-indigo-100 text-indigo-800 dark:border-indigo-900/50 dark:bg-indigo-950/30 dark:text-indigo-300',
+            };
+        case 'dispatch_pending_approval':
+            return {
+                label: 'Cho duyet xuat',
+                color: 'border-violet-300 bg-violet-100 text-violet-800 dark:border-violet-900/50 dark:bg-violet-950/30 dark:text-violet-300',
+            };
         case 'dispatched':
             return {
                 label: 'Đang giao hàng',
@@ -305,6 +397,21 @@ const getStatusBadge = (status: string) => {
             return {
                 label: 'Hoàn thành',
                 color: 'border-emerald-300 bg-emerald-100 text-emerald-800 dark:border-emerald-900/50 dark:bg-emerald-950/30 dark:text-emerald-300',
+            };
+        case 'partial_received':
+            return {
+                label: 'Nhan mot phan',
+                color: 'border-orange-300 bg-orange-100 text-orange-800 dark:border-orange-900/50 dark:bg-orange-950/30 dark:text-orange-300',
+            };
+        case 'disputed':
+            return {
+                label: 'Dang tranh chap',
+                color: 'border-rose-300 bg-rose-100 text-rose-800 dark:border-rose-900/50 dark:bg-rose-950/30 dark:text-rose-300',
+            };
+        case 'cancelled':
+            return {
+                label: 'Da huy',
+                color: 'border-slate-300 bg-slate-100 text-slate-800 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300',
             };
         case 'rejected':
             return {
@@ -416,6 +523,87 @@ const rejectRequest = async () => {
     } finally {
         isProcessing.value = false;
     }
+};
+
+const cancelRequest = async () => {
+    if (!selectedRequest.value) {
+        return;
+    }
+
+    const reason = prompt('Nhập lý do hủy đơn cấp phát:');
+    if (!reason) {
+        return;
+    }
+
+    isProcessing.value = true;
+    try {
+        const res = await axios.post(`/api/supply-requests/${selectedRequest.value.id}/cancel`, { reason });
+        if (res.data.success) {
+            toast.success(res.data.message || 'Đã hủy đơn cấp phát.');
+            isDetailModalOpen.value = false;
+            router.reload();
+        }
+    } catch (e: any) {
+        toast.error(e.response?.data?.message || 'Không thể hủy đơn cấp phát.');
+    } finally {
+        isProcessing.value = false;
+    }
+};
+
+const createBackorder = async () => {
+    if (!selectedRequest.value) {
+        return;
+    }
+
+    const shortageItems = selectedRequest.value.items
+        .map((item: any) => {
+            const dispatched = Number(item.actual_dispatched_quantity ?? item.approved_quantity ?? item.requested_quantity ?? 0);
+            const received = Number(item.received_quantity ?? 0);
+            return {
+                ingredient_id: Number(item.ingredient_id),
+                shortage_quantity: Math.max(0, dispatched - received),
+            };
+        })
+        .filter((item: any) => item.shortage_quantity > 0);
+
+    if (!shortageItems.length) {
+        toast.info('Đơn này chưa có số lượng thiếu để tạo đơn giao bù.');
+        return;
+    }
+
+    if (!confirm('Tạo đơn giao bù cho toàn bộ số lượng còn thiếu?')) {
+        return;
+    }
+
+    isProcessing.value = true;
+    try {
+        const res = await axios.post(`/api/supply-requests/${selectedRequest.value.id}/create-backorder`, { shortage_items: shortageItems });
+        if (res.data.success) {
+            toast.success(res.data.message || 'Đã tạo đơn giao bù.');
+            isDetailModalOpen.value = false;
+            router.reload();
+        }
+    } catch (e: any) {
+        toast.error(e.response?.data?.message || 'Không thể tạo đơn giao bù.');
+    } finally {
+        isProcessing.value = false;
+    }
+};
+
+const confirmReceivingVoucher = async (voucher: any) => {
+    try {
+        const res = await axios.post(`/api/warehouse/receiving-vouchers/${voucher.id}/confirm`, {
+            notes: 'Đã được Trưởng kho Tổng xác minh trên cockpit.',
+        });
+        toast.success(res.data.message || 'Đã xác minh phiếu nhập.');
+        router.reload();
+    } catch (e: any) {
+        toast.error(e.response?.data?.message || 'Không thể xác minh phiếu nhập.');
+    }
+};
+
+const exportWarehouseReport = () => {
+    window.location.href = '/inventory/central-warehouse/export';
 };
 
 const taskTypeLabel = (type: string) =>
@@ -713,6 +901,10 @@ const submitRecall = async () => {
     <Head title="Trung tâm Điều phối Kho Tổng" />
 
     <div class="mx-auto w-full max-w-7xl space-y-6 p-4 sm:p-6">
+        <div class="flex items-center justify-between gap-3 text-xs">
+            <Link href="/inventory/central-warehouse" class="inline-flex items-center gap-1 font-semibold text-indigo-300 hover:text-indigo-200">← Tổng quan Kho Tổng</Link>
+            <span class="rounded-full border border-indigo-500/20 bg-indigo-950/10 px-3 py-1 text-indigo-300">Workspace: Đơn cấp phát</span>
+        </div>
         <!-- Header Section -->
         <div
             class="flex flex-col gap-4 rounded-2xl bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 p-6 text-white shadow-xl md:flex-row md:items-center md:justify-between"
@@ -749,6 +941,36 @@ const submitRecall = async () => {
                     </div>
                 </div>
             </div>
+        </div>
+
+        <div class="flex flex-wrap items-center justify-end gap-2">
+            <Button
+                v-if="false && canManageWarehouse"
+                variant="outline"
+                size="sm"
+                class="gap-1.5 text-xs"
+                @click="exportWarehouseReport"
+            >
+                <FileDown class="h-4 w-4" /> Xuất báo cáo CSV
+            </Button>
+            <Button
+                v-if="false && locations.length"
+                variant="outline"
+                size="sm"
+                class="gap-1.5 text-xs"
+                @click="openLocationModal"
+            >
+                <MapPin class="h-4 w-4" /> {{ locations.length }} vị trí kho
+            </Button>
+            <Button
+                v-if="false && canManageWarehouse"
+                variant="outline"
+                size="sm"
+                class="gap-1.5 text-xs"
+                @click="openLocationModal"
+            >
+                <MapPin class="h-4 w-4" /> Thêm vị trí
+            </Button>
         </div>
 
         <!-- Metrics Overview -->
@@ -850,8 +1072,147 @@ const submitRecall = async () => {
             </Card>
         </div>
 
+        <!-- Operational cockpit -->
+        <section v-if="false" class="space-y-4">
+            <div class="flex flex-col justify-between gap-2 sm:flex-row sm:items-end">
+                <div>
+                    <p class="text-xs font-bold uppercase tracking-[0.16em] text-indigo-600">Cockpit vận hành</p>
+                    <h2 class="mt-1 text-xl font-bold tracking-tight text-foreground">Việc Trưởng kho cần xử lý ngay</h2>
+                    <p class="mt-1 text-xs text-muted-foreground">Đơn quá hạn, nhận hàng, tồn kho và tranh chấp được gom vào một màn hình.</p>
+                </div>
+                <div class="text-[11px] text-muted-foreground">Cập nhật theo dữ liệu hiện tại</div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-8">
+                <button type="button" class="rounded-xl border border-amber-500/20 bg-amber-950/10 p-3 text-left" @click="activeTab = 'pending'">
+                    <p class="text-[10px] font-semibold uppercase text-amber-300">Chờ duyệt</p>
+                    <p class="mt-1 text-xl font-bold text-amber-100">{{ stats.pending }}</p>
+                </button>
+                <button type="button" class="rounded-xl border border-rose-500/20 bg-rose-950/10 p-3 text-left" @click="searchQuery = ''; activeTab = 'all'">
+                    <p class="text-[10px] font-semibold uppercase text-rose-300">Quá hạn</p>
+                    <p class="mt-1 text-xl font-bold text-rose-100">{{ operationalSummary.overdue_requests || 0 }}</p>
+                </button>
+                <button type="button" class="rounded-xl border border-indigo-500/20 bg-indigo-950/10 p-3 text-left" @click="activeTab = 'preparing'">
+                    <p class="text-[10px] font-semibold uppercase text-indigo-300">Đang soạn</p>
+                    <p class="mt-1 text-xl font-bold text-indigo-100">{{ stats.preparing }}</p>
+                </button>
+                <button type="button" class="rounded-xl border border-violet-500/20 bg-violet-950/10 p-3 text-left" @click="activeTab = 'dispatch_pending_approval'">
+                    <p class="text-[10px] font-semibold uppercase text-violet-300">Chờ duyệt xuất</p>
+                    <p class="mt-1 text-xl font-bold text-violet-100">{{ stats.dispatch_pending }}</p>
+                </button>
+                <button type="button" class="rounded-xl border border-orange-500/20 bg-orange-950/10 p-3 text-left" @click="activeTab = 'partial_received'">
+                    <p class="text-[10px] font-semibold uppercase text-orange-300">Nhận một phần</p>
+                    <p class="mt-1 text-xl font-bold text-orange-100">{{ stats.partial_received }}</p>
+                </button>
+                <button type="button" class="rounded-xl border border-rose-500/20 bg-rose-950/10 p-3 text-left" @click="activeTab = 'disputed'">
+                    <p class="text-[10px] font-semibold uppercase text-rose-300">Tranh chấp</p>
+                    <p class="mt-1 text-xl font-bold text-rose-100">{{ stats.disputed }}</p>
+                </button>
+                <div class="rounded-xl border border-emerald-500/20 bg-emerald-950/10 p-3">
+                    <p class="text-[10px] font-semibold uppercase text-emerald-300">Fill rate</p>
+                    <p class="mt-1 text-xl font-bold text-emerald-100">{{ operationalSummary.fill_rate_percent ?? 100 }}%</p>
+                </div>
+                <div class="rounded-xl border border-sky-500/20 bg-sky-950/10 p-3">
+                    <p class="text-[10px] font-semibold uppercase text-sky-300">Tồn thấp</p>
+                    <p class="mt-1 text-xl font-bold text-sky-100">{{ inventorySummary.low_stock_count || 0 }}</p>
+                </div>
+            </div>
+
+            <Card v-if="operationalSummary.branch_operations?.length" class="border-border shadow-sm">
+                <CardHeader class="border-b border-border bg-muted/20 py-3">
+                    <CardTitle class="text-sm font-bold text-foreground">SLA theo chi nhánh</CardTitle>
+                    <CardDescription class="text-xs">Chọn một dòng để lọc ngay các yêu cầu của chi nhánh cần ưu tiên.</CardDescription>
+                </CardHeader>
+                <CardContent class="p-0">
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left text-xs">
+                            <thead class="border-b border-border bg-muted/50 text-muted-foreground">
+                                <tr>
+                                    <th class="p-3">Chi nhánh</th>
+                                    <th class="p-3 text-right">Đơn mở</th>
+                                    <th class="p-3 text-right">Quá hạn</th>
+                                    <th class="p-3 text-right">Tranh chấp</th>
+                                    <th class="p-3 text-right">Fill rate</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-border">
+                                <tr
+                                    v-for="branch in operationalSummary.branch_operations"
+                                    :key="branch.id"
+                                    class="cursor-pointer hover:bg-muted/30"
+                                    @click="selectedBranchFilter = branch.id; activeTab = 'all'"
+                                >
+                                    <td class="p-3 font-semibold text-foreground">{{ branch.name }}</td>
+                                    <td class="p-3 text-right text-indigo-300">{{ branch.open_requests }}</td>
+                                    <td class="p-3 text-right text-rose-400">{{ branch.overdue_requests }}</td>
+                                    <td class="p-3 text-right text-orange-300">{{ branch.disputed_requests }}</td>
+                                    <td class="p-3 text-right font-bold" :class="branch.fill_rate_percent < 90 ? 'text-rose-400' : 'text-emerald-400'">{{ branch.fill_rate_percent }}%</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </CardContent>
+            </Card>
+
+            <div class="grid gap-4 xl:grid-cols-[1.25fr_1fr]">
+                <Card class="border-border shadow-sm">
+                    <CardHeader class="border-b border-border bg-muted/20 py-3">
+                        <CardTitle class="text-sm font-bold text-foreground">Phiếu nhập cần xác minh</CardTitle>
+                        <CardDescription class="text-xs">GRN có chênh lệch phải được Trưởng kho xem xét trước khi đóng.</CardDescription>
+                    </CardHeader>
+                    <CardContent class="p-0">
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-left text-xs">
+                                <thead class="border-b border-border bg-muted/50 text-muted-foreground">
+                                    <tr>
+                                        <th class="p-3">Mã phiếu</th>
+                                        <th class="p-3">Người nhận</th>
+                                        <th class="p-3">Ngày nhận</th>
+                                        <th class="p-3 text-right">Chênh lệch</th>
+                                        <th class="p-3 text-right">Xử lý</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-border">
+                                    <tr v-if="receivingVouchers.filter((voucher) => ['discrepancy', 'pending_review'].includes(voucher.status)).length === 0">
+                                        <td colspan="5" class="p-5 text-center text-muted-foreground">Không có phiếu nhập đang chờ xử lý.</td>
+                                    </tr>
+                                    <tr v-for="voucher in receivingVouchers.filter((item) => ['discrepancy', 'pending_review'].includes(item.status)).slice(0, 8)" :key="voucher.id">
+                                        <td class="p-3 font-mono font-bold text-indigo-400">{{ voucher.voucher_code }}</td>
+                                        <td class="p-3 font-medium text-foreground">{{ voucher.received_by?.name || '-' }}</td>
+                                        <td class="p-3 text-muted-foreground">{{ formatDate(voucher.received_at) }}</td>
+                                        <td class="p-3 text-right font-bold text-rose-400">{{ formatQuantity(Math.abs(Number(voucher.total_discrepancy_qty || 0))) }}</td>
+                                        <td class="p-3 text-right">
+                                            <Button size="sm" class="h-7 bg-indigo-600 text-[10px] text-white hover:bg-indigo-700" @click="confirmReceivingVoucher(voucher)">Xác minh</Button>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </CardContent>
+                </Card>
+
+                <Card class="border-border shadow-sm">
+                    <CardHeader class="border-b border-border bg-muted/20 py-3">
+                        <CardTitle class="text-sm font-bold text-foreground">Sức khỏe tồn Kho Tổng</CardTitle>
+                        <CardDescription class="text-xs">Giá trị tồn và các tín hiệu cần kiểm tra trong ngày.</CardDescription>
+                    </CardHeader>
+                    <CardContent class="grid grid-cols-2 gap-3 p-4 text-xs">
+                        <div class="rounded-lg border border-border bg-muted/20 p-3"><span class="text-muted-foreground">Mặt hàng</span><strong class="mt-1 block text-lg text-foreground">{{ inventorySummary.ingredient_count || 0 }}</strong></div>
+                        <div class="rounded-lg border border-border bg-muted/20 p-3"><span class="text-muted-foreground">Số lượng tồn</span><strong class="mt-1 block text-lg text-foreground">{{ formatQuantity(inventorySummary.on_hand_quantity || 0) }}</strong></div>
+                        <div class="rounded-lg border border-border bg-muted/20 p-3"><span class="text-muted-foreground">Giá trị tồn</span><strong class="mt-1 block text-sm text-emerald-400">{{ formatCurrency(inventorySummary.on_hand_value || 0) }}</strong></div>
+                        <div class="rounded-lg border border-border bg-muted/20 p-3"><span class="text-muted-foreground">Lô sắp hết hạn</span><strong class="mt-1 block text-lg text-amber-300">{{ inventorySummary.expiring_soon_count || 0 }}</strong></div>
+                        <div class="rounded-lg border border-border bg-muted/20 p-3"><span class="text-muted-foreground">Vị trí cách ly</span><strong class="mt-1 block text-lg text-rose-300">{{ inventorySummary.quarantine_location_count || 0 }}</strong></div>
+                        <div class="rounded-lg border border-border bg-muted/20 p-3"><span class="text-muted-foreground">Vị trí hoạt động</span><strong class="mt-1 block text-lg text-sky-300">{{ inventorySummary.location_count || locations.length }}</strong></div>
+                        <div class="rounded-lg border border-border bg-muted/20 p-3"><span class="text-muted-foreground">FEFO tuân thủ</span><strong class="mt-1 block text-lg text-indigo-300">{{ warehouseKpi.fefo_compliance ?? 100 }}%</strong></div>
+                        <div class="rounded-lg border border-border bg-muted/20 p-3"><span class="text-muted-foreground">OTIF tháng</span><strong class="mt-1 block text-lg text-emerald-300">{{ warehouseKpi.otif_percent ?? 100 }}%</strong></div>
+                        <div class="col-span-2 rounded-lg border border-indigo-500/20 bg-indigo-950/10 p-3 text-indigo-200">{{ receivingSummary?.today || 0 }} phiếu nhập hôm nay · {{ receivingSummary?.pending_review || 0 }} phiếu cần kiểm tra · {{ receivingSummary?.discrepancy_quantity || 0 }} đơn vị chênh lệch.</div>
+                    </CardContent>
+                </Card>
+            </div>
+        </section>
+
         <!-- Owner supply intelligence -->
-        <section class="space-y-4">
+        <section v-if="false" class="space-y-4">
             <div
                 class="flex flex-col justify-between gap-2 sm:flex-row sm:items-end"
             >
@@ -1332,7 +1693,7 @@ const submitRecall = async () => {
             </Card>
         </section>
 
-        <Card v-if="canManageWarehouse" class="border-border shadow-sm">
+        <Card v-if="false && canManageWarehouse" class="border-border shadow-sm">
             <CardHeader class="border-b border-border bg-muted/20 py-4">
                 <div class="flex items-center justify-between gap-3">
                     <div>
@@ -1420,7 +1781,7 @@ const submitRecall = async () => {
         </Card>
 
         <!-- Warehouse staff coordination -->
-        <Card class="border-indigo-500/20 shadow-sm">
+        <Card v-if="false" class="border-indigo-500/20 shadow-sm">
             <CardHeader class="border-b border-indigo-500/10 bg-indigo-950/10 py-4">
                 <div class="flex flex-col justify-between gap-3 lg:flex-row lg:items-center">
                     <div>
@@ -1550,12 +1911,28 @@ const submitRecall = async () => {
             </CardContent>
         </Card>
 
+        <Card class="border-sky-500/20 bg-sky-950/5 shadow-sm">
+            <CardContent class="flex flex-col justify-between gap-3 p-4 sm:flex-row sm:items-center">
+                <div>
+                    <p class="flex items-center gap-2 text-sm font-bold text-foreground"><UserRound class="h-4 w-4 text-sky-300" /> Giao việc cho đội ngũ Kho Tổng</p>
+                    <p class="mt-1 text-xs text-muted-foreground">Quản lý nhân sự, tải việc và KPI đã được tách sang workspace riêng.</p>
+                </div>
+                <Link href="/warehouse/team"><Button variant="outline" size="sm" class="gap-1.5 text-xs text-sky-300">Mở Đội ngũ Kho Tổng <ArrowUpRight class="h-3.5 w-3.5" /></Button></Link>
+            </CardContent>
+        </Card>
+
         <!-- Filter & Search Bar -->
         <Card class="border-border">
             <CardContent
                 class="flex flex-col items-center justify-between gap-4 p-4 md:flex-row"
             >
                 <!-- Status Tabs -->
+                <div class="flex flex-wrap gap-1">
+                    <button @click="activeTab = 'preparing'" :class="['rounded-lg px-3 py-1.5 text-xs font-semibold transition', activeTab === 'preparing' ? 'bg-background text-indigo-300 shadow-sm' : 'text-muted-foreground hover:text-foreground']">Đang soạn ({{ stats.preparing }})</button>
+                    <button @click="activeTab = 'dispatch_pending_approval'" :class="['rounded-lg px-3 py-1.5 text-xs font-semibold transition', activeTab === 'dispatch_pending_approval' ? 'bg-background text-violet-300 shadow-sm' : 'text-muted-foreground hover:text-foreground']">Chờ duyệt xuất ({{ stats.dispatch_pending }})</button>
+                    <button @click="activeTab = 'partial_received'" :class="['rounded-lg px-3 py-1.5 text-xs font-semibold transition', activeTab === 'partial_received' ? 'bg-background text-orange-300 shadow-sm' : 'text-muted-foreground hover:text-foreground']">Nhận một phần ({{ stats.partial_received }})</button>
+                    <button @click="activeTab = 'disputed'" :class="['rounded-lg px-3 py-1.5 text-xs font-semibold transition', activeTab === 'disputed' ? 'bg-background text-rose-300 shadow-sm' : 'text-muted-foreground hover:text-foreground']">Tranh chấp ({{ stats.disputed }})</button>
+                </div>
                 <div
                     class="flex w-full flex-wrap gap-1 rounded-xl bg-muted p-1 md:w-auto"
                 >
@@ -1797,6 +2174,13 @@ const submitRecall = async () => {
                     </div>
 
                     <!-- Items List -->
+                    <div v-if="['dispatched', 'partial_received', 'disputed', 'completed'].includes(selectedRequest.status)" class="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                        <div class="rounded-lg border border-border bg-muted/20 p-3"><span class="text-muted-foreground">Đã xuất</span><strong class="mt-1 block text-lg text-indigo-300">{{ formatQuantity(getRequestQuantitySummary(selectedRequest).dispatched) }}</strong></div>
+                        <div class="rounded-lg border border-border bg-muted/20 p-3"><span class="text-muted-foreground">Đã nhận</span><strong class="mt-1 block text-lg text-emerald-300">{{ formatQuantity(getRequestQuantitySummary(selectedRequest).received) }}</strong></div>
+                        <div class="rounded-lg border border-border bg-muted/20 p-3"><span class="text-muted-foreground">Còn thiếu</span><strong class="mt-1 block text-lg text-orange-300">{{ formatQuantity(getRequestQuantitySummary(selectedRequest).shortage) }}</strong></div>
+                        <div class="rounded-lg border border-border bg-muted/20 p-3"><span class="text-muted-foreground">Người nhận</span><strong class="mt-1 block truncate text-xs text-foreground">{{ selectedRequest.receiver?.name || 'Chưa xác nhận' }}</strong></div>
+                    </div>
+
                     <div>
                         <h4
                             class="mb-3 flex items-center justify-between text-sm font-bold text-foreground"
@@ -1912,6 +2296,26 @@ const submitRecall = async () => {
                     </div>
 
                     <div class="flex items-center gap-2">
+                        <Button
+                            v-if="['pending', 'approved', 'preparing'].includes(selectedRequest.status) && canManageWarehouse"
+                            @click="cancelRequest"
+                            variant="outline"
+                            size="sm"
+                            :disabled="isProcessing"
+                            class="gap-1 text-xs text-rose-400"
+                        >
+                            Hủy đơn
+                        </Button>
+                        <Button
+                            v-if="['partial_received', 'disputed'].includes(selectedRequest.status) && canManageWarehouse"
+                            @click="createBackorder"
+                            variant="outline"
+                            size="sm"
+                            :disabled="isProcessing"
+                            class="gap-1 text-xs text-orange-400"
+                        >
+                            Tạo giao bù
+                        </Button>
                         <Button
                             v-if="
                                 selectedRequest.status === 'pending' &&
@@ -2407,6 +2811,99 @@ const submitRecall = async () => {
                 </div>
                 <div class="flex items-center justify-end gap-3 border-t bg-muted/20 px-6 py-4">
                     <Button @click="isRecallModalOpen = false" variant="outline" size="sm">Đóng</Button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Warehouse locations modal -->
+        <div
+            v-if="isLocationModalOpen"
+            class="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur-sm"
+        >
+            <div class="flex max-h-[88vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-sky-500/30 bg-card shadow-2xl">
+                <div class="flex items-center justify-between border-b border-border bg-sky-950/40 px-5 py-4">
+                    <div>
+                        <h3 class="flex items-center gap-2 text-base font-bold text-foreground">
+                            <MapPin class="h-5 w-5 text-sky-300" /> Vị trí Kho Tổng
+                        </h3>
+                        <p class="mt-1 text-[11px] text-sky-200/80">Quản lý zone, rack, kệ, bin và khu vực lạnh/cách ly.</p>
+                    </div>
+                    <button type="button" @click="isLocationModalOpen = false" class="rounded-lg p-1 text-muted-foreground hover:text-foreground">
+                        <X class="h-5 w-5" />
+                    </button>
+                </div>
+
+                <div class="grid flex-1 gap-5 overflow-y-auto p-5 lg:grid-cols-[1fr_1.2fr]">
+                    <div v-if="canManageWarehouse" class="space-y-3 rounded-xl border border-border bg-muted/20 p-4">
+                        <h4 class="text-xs font-bold uppercase tracking-wider text-sky-300">Tạo vị trí mới</h4>
+                        <div class="grid gap-3 sm:grid-cols-2">
+                            <div>
+                                <label class="mb-1 block text-[11px] font-semibold text-muted-foreground">Khu vực / Zone</label>
+                                <Input v-model="locationForm.zone" placeholder="VD: KHO KHÔ" class="h-8 text-xs" />
+                            </div>
+                            <div>
+                                <label class="mb-1 block text-[11px] font-semibold text-muted-foreground">Mã vị trí</label>
+                                <Input v-model="locationForm.location_code" placeholder="VD: KHO-KHO-A01" class="h-8 text-xs" />
+                            </div>
+                            <div>
+                                <label class="mb-1 block text-[11px] font-semibold text-muted-foreground">Rack</label>
+                                <Input v-model="locationForm.rack" placeholder="A" class="h-8 text-xs" />
+                            </div>
+                            <div>
+                                <label class="mb-1 block text-[11px] font-semibold text-muted-foreground">Kệ / Shelf</label>
+                                <Input v-model="locationForm.shelf" placeholder="01" class="h-8 text-xs" />
+                            </div>
+                            <div>
+                                <label class="mb-1 block text-[11px] font-semibold text-muted-foreground">Bin</label>
+                                <Input v-model="locationForm.bin" placeholder="01" class="h-8 text-xs" />
+                            </div>
+                        </div>
+                        <div class="space-y-2 text-xs text-muted-foreground">
+                            <label class="flex items-center gap-2"><input v-model="locationForm.is_cold_storage" type="checkbox" class="rounded border-input" /> Kho lạnh</label>
+                            <label class="flex items-center gap-2"><input v-model="locationForm.is_quarantine" type="checkbox" class="rounded border-input" /> Khu cách ly</label>
+                        </div>
+                        <Button @click="saveLocation" :disabled="isSavingLocation" size="sm" class="w-full bg-sky-600 text-white hover:bg-sky-700">
+                            {{ isSavingLocation ? 'Đang lưu...' : 'Lưu vị trí kho' }}
+                        </Button>
+                    </div>
+
+                    <div class="min-w-0">
+                        <div class="mb-2 flex items-center justify-between">
+                            <h4 class="text-xs font-bold uppercase tracking-wider text-foreground">Danh sách vị trí</h4>
+                            <span class="text-[11px] text-muted-foreground">{{ locations.length }} vị trí</span>
+                        </div>
+                        <div class="max-h-[45vh] overflow-auto rounded-xl border border-border">
+                            <table class="w-full text-left text-xs">
+                                <thead class="sticky top-0 border-b border-border bg-muted/80 text-muted-foreground">
+                                    <tr>
+                                        <th class="p-3">Mã</th>
+                                        <th class="p-3">Zone</th>
+                                        <th class="p-3">Cấu trúc</th>
+                                        <th class="p-3 text-right">Loại</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-border">
+                                    <tr v-if="locations.length === 0">
+                                        <td colspan="4" class="p-5 text-center text-muted-foreground">Chưa có vị trí kho.</td>
+                                    </tr>
+                                    <tr v-for="location in locations" :key="location.id" class="hover:bg-muted/20">
+                                        <td class="p-3 font-mono font-bold text-sky-300">{{ location.location_code }}</td>
+                                        <td class="p-3 text-foreground">{{ location.zone }}</td>
+                                        <td class="p-3 text-muted-foreground">{{ [location.rack, location.shelf, location.bin].filter(Boolean).join(' / ') || '-' }}</td>
+                                        <td class="p-3 text-right text-[10px] font-semibold uppercase">
+                                            <span v-if="location.is_quarantine" class="text-rose-400">Cách ly</span>
+                                            <span v-else-if="location.is_cold_storage" class="text-cyan-300">Kho lạnh</span>
+                                            <span v-else class="text-emerald-400">Thường</span>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="flex justify-end border-t border-border bg-muted/20 px-5 py-4">
+                    <Button @click="isLocationModalOpen = false" variant="outline" size="sm">Đóng</Button>
                 </div>
             </div>
         </div>

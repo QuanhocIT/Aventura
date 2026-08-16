@@ -4,9 +4,13 @@ namespace App\Http\Controllers;
 
 use App\Models\Ingredient;
 use App\Models\Inventory;
+use App\Models\InventoryBatch;
+use App\Models\InventoryReservation;
 use App\Models\RestaurantBranch;
 use App\Models\SupplyRequest;
 use App\Models\WarehouseTaskAssignment;
+use App\Models\WarehouseLocation;
+use App\Models\WarehouseReceivingVoucher;
 use App\Models\User;
 use App\Services\ApprovalService;
 use App\Services\CentralWarehouseService;
@@ -30,27 +34,247 @@ class SupplyRequestController extends Controller
      */
     public function centralWarehousePage(Request $request): Response
     {
+        $props = $this->centralWarehouseProps($request);
+
+        return Inertia::render('inventory/CentralWarehouseOverview', [
+            'centralBranch' => $props['centralBranch'],
+            'supplyAnalytics' => $props['supplyAnalytics'],
+            'centralWarehouseAnalytics' => $props['centralWarehouseAnalytics'],
+            'receivingSummary' => $props['receivingSummary'],
+            'inventorySummary' => $props['inventorySummary'],
+        ]);
+    }
+
+    /**
+     * Danh sách tồn kho thực tế của riêng Kho Tổng.
+     *
+     * Màn này không dùng TenantContext đang được chọn trên header. Trưởng
+     * kho có thể xem toàn chuỗi, nhưng tồn kho cần luôn cố định ở kho nguồn
+     * để không vô tình đọc nhầm tồn của một chi nhánh đang được chọn.
+     */
+    public function centralWarehouseInventoryPage(Request $request): Response
+    {
+        $props = $this->centralWarehouseProps($request);
+
+        return Inertia::render('inventory/CentralWarehouseInventory', [
+            'centralBranch' => $props['centralBranch'],
+            'centralStockItems' => $props['centralStockItems'],
+            'inventorySummary' => $props['inventorySummary'],
+        ]);
+    }
+
+    /**
+     * Workspace riêng cho quy trình duyệt - soạn - xuất đơn cấp phát.
+     */
+    public function centralWarehouseRequestsPage(Request $request): Response
+    {
+        return Inertia::render('inventory/CentralWarehouse', $this->centralWarehouseProps($request));
+    }
+
+    /**
+     * Workspace riêng cho bảng giá nguyên liệu Kho Tổng.
+     */
+    public function centralWarehousePricesPage(Request $request): Response
+    {
+        $user = $request->user();
+        $centralBranch = $this->warehouseService->getCentralWarehouse($user->restaurant_id);
+
+        return Inertia::render('inventory/CentralWarehousePrices', [
+            'ingredients' => $this->centralIngredientQuery($user->restaurant_id, $centralBranch?->id)
+                ->with('unit')
+                ->orderBy('name')
+                ->get(),
+            // Giá vốn Kho Tổng là dữ liệu tài chính dùng chung toàn chuỗi.
+            // Trưởng kho chỉ được xem; chỉ Chủ/Super Admin được thay đổi.
+            'canManageWarehouse' => $user->isOwner() || $user->isSuperAdmin(),
+        ]);
+    }
+
+    /**
+     * Workspace riêng cho tiếp nhận hàng và phiếu GRN.
+     */
+    public function centralWarehouseReceivingPage(Request $request): Response
+    {
+        $props = $this->centralWarehouseProps($request);
+
+        return Inertia::render('inventory/CentralWarehouseReceiving', [
+            'centralBranch' => $props['centralBranch'],
+            'receivingVouchers' => $props['receivingVouchers'],
+            'receivingSummary' => $props['receivingSummary'],
+            'inventorySummary' => $props['inventorySummary'],
+            'warehouseLocations' => $props['warehouseLocations'],
+            'canManageWarehouse' => $props['canManageWarehouse'],
+        ]);
+    }
+
+    private function centralIngredientQuery(int $restaurantId, ?int $centralBranchId)
+    {
+        return Ingredient::where('restaurant_id', $restaurantId)
+            ->when(
+                $centralBranchId,
+                fn ($query) => $query->where(fn ($scope) => $scope
+                    ->whereNull('branch_id')
+                    ->orWhere('branch_id', $centralBranchId)),
+                fn ($query) => $query->whereRaw('1 = 0'),
+            );
+    }
+
+    private function centralWarehouseProps(Request $request): array
+    {
         $user = $request->user();
         $restaurantId = $user->restaurant_id;
         $isOwnerOrSuperAdmin = $user->isOwner() || $user->isSuperAdmin();
 
         $centralBranch = $this->warehouseService->getCentralWarehouse($restaurantId);
         $branches = RestaurantBranch::where('restaurant_id', $restaurantId)
-            ->where('is_central_warehouse', false)
+            ->when($centralBranch, fn ($query) => $query->where('id', '!=', $centralBranch->id), fn ($query) => $query->whereRaw('1 = 0'))
             ->where('status', 'active')
             ->get();
 
         $requests = SupplyRequest::where('restaurant_id', $restaurantId)
+            ->when($centralBranch, fn ($query) => $query->where('from_branch_id', $centralBranch->id), fn ($query) => $query->whereRaw('1 = 0'))
             ->with(['items.ingredient.unit', 'fromBranch', 'toBranch', 'creator', 'approver', 'dispatcher', 'receiver'])
             ->orderByDesc('id')
             ->get();
 
-        $ingredients = Ingredient::where('restaurant_id', $restaurantId)
+        $ingredients = $this->centralIngredientQuery($restaurantId, $centralBranch?->id)
             ->with(['unit'])
             ->get();
 
         $warehouseStaff = $this->getWarehouseStaff($restaurantId);
         $warehouseTasks = $this->getWarehouseTasks($restaurantId);
+
+        $receivingVouchers = WarehouseReceivingVoucher::where('restaurant_id', $restaurantId)
+            ->when($centralBranch, fn ($query) => $query->where('branch_id', $centralBranch->id))
+            ->with(['items.ingredient.unit', 'receivedBy', 'verifiedBy'])
+            ->orderByDesc('received_at')
+            ->limit(40)
+            ->get();
+
+        $centralInventory = $centralBranch
+            ? Inventory::where('restaurant_id', $restaurantId)
+                ->where('branch_id', $centralBranch->id)
+                ->with('ingredient.unit')
+                ->get()
+            : collect();
+
+        // Chỉ lấy catalog dùng được tại Kho Tổng. Nguyên liệu riêng của các
+        // chi nhánh khác không được xuất hiện trong màn tồn Kho Tổng.
+        $centralCatalogIngredients = $ingredients;
+
+        $centralBatches = $centralBranch
+            ? InventoryBatch::where('restaurant_id', $restaurantId)
+                ->where('branch_id', $centralBranch->id)
+                ->where('quantity_remaining', '>', 0)
+                ->get()
+            : collect();
+
+        $reservedByIngredient = $centralBranch
+            ? InventoryReservation::where('restaurant_id', $restaurantId)
+                ->where('branch_id', $centralBranch->id)
+                ->whereNull('released_at')
+                ->where(fn ($query) => $query
+                    ->whereNull('expires_at')
+                    ->orWhere('expires_at', '>', now()))
+                ->selectRaw('ingredient_id, SUM(quantity) as quantity_reserved')
+                ->groupBy('ingredient_id')
+                ->pluck('quantity_reserved', 'ingredient_id')
+            : collect();
+
+        $batchesByIngredient = $centralBatches->groupBy('ingredient_id');
+        $inventoryByIngredient = $centralInventory->keyBy('ingredient_id');
+        $today = now()->startOfDay();
+
+        $centralStockItems = $centralCatalogIngredients->map(function (Ingredient $ingredient) use ($inventoryByIngredient, $reservedByIngredient, $batchesByIngredient, $today): array {
+            $inventory = $inventoryByIngredient->get($ingredient->id);
+            $onHand = (float) ($inventory?->quantity_on_hand ?? 0);
+            $theoretical = (float) ($inventory?->theoretical_quantity ?? $onHand);
+            $reserved = (float) ($reservedByIngredient->get($ingredient->id, 0));
+            $available = max(0, $onHand - $reserved);
+            $minimum = (float) ($ingredient->min_stock_level ?? 0);
+            $batches = $batchesByIngredient->get($ingredient->id, collect())
+                ->sortBy(fn (InventoryBatch $batch) => $batch->expiry_date?->timestamp ?? PHP_INT_MAX)
+                ->map(function (InventoryBatch $batch) use ($today): array {
+                    $daysRemaining = $batch->expiry_date
+                        ? $today->diffInDays($batch->expiry_date->startOfDay(), false)
+                        : null;
+                    $isExpired = $batch->status === 'expired' || ($daysRemaining !== null && $daysRemaining < 0);
+
+                    return [
+                        'id' => $batch->id,
+                        'batch_number' => $batch->batch_code ?: $batch->batch_number ?: 'Không có mã lô',
+                        'quantity_remaining' => (float) $batch->quantity_remaining,
+                        'unit_cost' => (float) $batch->unit_cost,
+                        'purchased_at' => $batch->purchased_at?->format('d/m/Y'),
+                        'expiry_date' => $batch->expiry_date?->format('d/m/Y'),
+                        'raw_expiry_date' => $batch->expiry_date?->toDateString(),
+                        'days_remaining' => $daysRemaining,
+                        'status' => $batch->status,
+                        'is_expired' => $isExpired,
+                        'is_expiring_soon' => ! $isExpired && $batch->status === 'active' && $daysRemaining !== null && $daysRemaining <= 3,
+                    ];
+                })
+                ->values();
+
+            $hasExpiringBatch = $batches->contains(fn (array $batch): bool => $batch['is_expiring_soon']);
+            $hasLockedBatch = $batches->contains(fn (array $batch): bool => in_array($batch['status'], ['locked', 'recalled'], true));
+            $status = $onHand <= 0
+                ? 'out'
+                : ($minimum > 0 && $onHand <= $minimum ? 'low' : ($hasExpiringBatch ? 'expiring' : ($hasLockedBatch ? 'locked' : 'normal')));
+
+            return [
+                'id' => $ingredient->id,
+                'inventory_id' => $inventory?->id,
+                'name' => $ingredient->name,
+                'sku' => $ingredient->sku,
+                'category_name' => $ingredient->category_name,
+                'storage_type' => $ingredient->storage_type ?? 'dry',
+                'storage_type_label' => $ingredient->storage_type_label,
+                'unit_symbol' => $ingredient->unit?->symbol ?? 'đv',
+                'on_hand' => $onHand,
+                'theoretical' => $theoretical,
+                'variance' => round($theoretical - $onHand, 3),
+                'reserved' => $reserved,
+                'available' => $available,
+                'min_stock_level' => $minimum,
+                'reorder_level' => (float) ($ingredient->reorder_level ?? 0),
+                'average_cost' => (float) ($ingredient->average_cost ?? $inventory?->last_cost ?? 0),
+                'stock_value' => round($onHand * (float) ($ingredient->average_cost ?? $inventory?->last_cost ?? 0), 2),
+                'status' => $status,
+                'last_counted_at' => $inventory?->last_counted_at?->format('d/m/Y H:i'),
+                'batches' => $batches,
+            ];
+        })->values();
+
+        $centralLocations = $centralBranch
+            ? WarehouseLocation::where('restaurant_id', $restaurantId)
+                ->where('branch_id', $centralBranch->id)
+                ->where('status', 'active')
+                ->orderBy('zone')
+                ->orderBy('location_code')
+                ->get()
+            : collect();
+
+        $inventorySummary = [
+            'ingredient_count' => $centralStockItems->count(),
+            'on_hand_quantity' => round((float) $centralStockItems->sum('on_hand'), 3),
+            'on_hand_value' => round((float) $centralStockItems->sum('stock_value'), 2),
+            'reserved_quantity' => round((float) $centralStockItems->sum('reserved'), 3),
+            'available_quantity' => round((float) $centralStockItems->sum('available'), 3),
+            'low_stock_count' => $centralStockItems->whereIn('status', ['out', 'low'])->count(),
+            'expiring_soon_count' => $centralBatches->filter(fn ($batch) => $batch->expiry_date && $batch->expiry_date->between(now()->startOfDay(), now()->addDays(3)->endOfDay()) && $batch->status === 'active')->count(),
+            'locked_batch_count' => $centralBatches->whereIn('status', ['locked', 'recalled'])->count(),
+            'location_count' => $centralLocations->count(),
+            'quarantine_location_count' => $centralLocations->where('is_quarantine', true)->count(),
+        ];
+
+        $receivingSummary = [
+            'total' => $receivingVouchers->count(),
+            'today' => $receivingVouchers->filter(fn ($voucher) => $voucher->received_at?->isToday())->count(),
+            'pending_review' => $receivingVouchers->whereIn('status', ['discrepancy', 'pending_review'])->count(),
+            'confirmed' => $receivingVouchers->where('status', 'confirmed')->count(),
+            'discrepancy_quantity' => round((float) $receivingVouchers->sum(fn ($voucher) => abs((float) $voucher->total_discrepancy_qty)), 3),
+        ];
 
         $supplyAnalytics = $this->buildSupplyRequestAnalytics(
             $requests,
@@ -59,7 +283,7 @@ class SupplyRequestController extends Controller
             $centralBranch,
         );
 
-        return Inertia::render('inventory/CentralWarehouse', [
+        return [
             'centralBranch' => $centralBranch,
             'branches' => $branches,
             'supplyRequests' => $requests,
@@ -71,7 +295,65 @@ class SupplyRequestController extends Controller
             'warehouseTasks' => $warehouseTasks,
             'warehouseTaskSummary' => $this->buildWarehouseTaskSummary($warehouseTasks),
             'supplyAnalytics' => $supplyAnalytics,
-        ]);
+            'centralWarehouseAnalytics' => $this->warehouseService->getCentralWarehouseAnalytics($restaurantId),
+            'receivingVouchers' => $receivingVouchers,
+            'receivingSummary' => $receivingSummary,
+            'inventorySummary' => $inventorySummary,
+            'warehouseLocations' => $centralLocations,
+            'centralStockItems' => $centralStockItems,
+        ];
+    }
+
+    /**
+     * Xuất sổ điều phối cấp phát để Trưởng kho đối soát ngoài hệ thống.
+     */
+    public function export(Request $request)
+    {
+        $user = $request->user();
+        abort_unless(
+            $user->isOwner() || $user->isSuperAdmin() || $user->can('warehouse.report'),
+            403,
+            'Bạn không có quyền xuất báo cáo Kho Tổng.'
+        );
+
+        $requests = SupplyRequest::where('restaurant_id', $user->restaurant_id)
+            ->when(
+                $this->warehouseService->getCentralWarehouse($user->restaurant_id),
+                fn ($query, $central) => $query->where('from_branch_id', $central->id),
+                fn ($query) => $query->whereRaw('1 = 0'),
+            )
+            ->with(['toBranch', 'creator', 'items.ingredient.unit'])
+            ->orderByDesc('id')
+            ->get();
+
+        $filename = 'bao-cao-kho-tong-'.now()->format('Ymd-His').'.csv';
+
+        return response()->streamDownload(function () use ($requests): void {
+            $handle = fopen('php://output', 'w');
+            fwrite($handle, "\xEF\xBB\xBF");
+            fputcsv($handle, ['Mã đơn', 'Chi nhánh', 'Trạng thái', 'Người lập', 'Ngày tạo', 'Ngày cần giao', 'Ngày xuất', 'Ngày nhận', 'Giá trị', 'Số dòng', 'Số lượng yêu cầu', 'Số lượng đã nhận']);
+
+            foreach ($requests as $request) {
+                $requested = (float) $request->items->sum(fn ($item) => (float) $item->requested_quantity);
+                $received = (float) $request->items->sum(fn ($item) => (float) ($item->received_quantity ?? 0));
+                fputcsv($handle, [
+                    $request->request_code,
+                    $request->toBranch?->name,
+                    $request->status,
+                    $request->creator?->name,
+                    optional($request->created_at)->format('d/m/Y H:i'),
+                    optional($request->requested_delivery_date)->format('d/m/Y H:i'),
+                    optional($request->dispatched_at)->format('d/m/Y H:i'),
+                    optional($request->received_at)->format('d/m/Y H:i'),
+                    $request->total_amount,
+                    $request->items->count(),
+                    $requested,
+                    $received,
+                ]);
+            }
+
+            fclose($handle);
+        }, $filename, ['Content-Type' => 'text/csv; charset=UTF-8']);
     }
 
     /**
@@ -330,6 +612,39 @@ class SupplyRequestController extends Controller
             'created_at' => $request->created_at?->toISOString(),
         ])->values()->all();
 
+        $terminalStatuses = [
+            SupplyRequest::STATUS_COMPLETED,
+            SupplyRequest::STATUS_REJECTED,
+            SupplyRequest::STATUS_CANCELLED,
+        ];
+        $operationalOpen = $requests->filter(fn ($request) => ! in_array($request->status, $terminalStatuses, true));
+        $overdueRequests = $operationalOpen->filter(fn ($request) => $request->requested_delivery_date && $request->requested_delivery_date->isPast());
+        $dueTodayRequests = $operationalOpen->filter(fn ($request) => $request->requested_delivery_date && $request->requested_delivery_date->isToday());
+        $receivingRequests = $requests->filter(fn ($request) => in_array($request->status, [
+            SupplyRequest::STATUS_DISPATCHED,
+            SupplyRequest::STATUS_PARTIAL_RECEIVED,
+            SupplyRequest::STATUS_DISPUTED,
+        ], true));
+        $dispatchedQuantity = (float) $receivingRequests->sum(fn ($request) => $request->items->sum(fn ($item) => $item->effective_dispatched_quantity));
+        $receivedQuantity = (float) $receivingRequests->sum(fn ($request) => $request->items->sum(fn ($item) => (float) ($item->received_quantity ?? 0)));
+
+        $branchOperations = $branches->map(function (RestaurantBranch $branch) use ($requests, $terminalStatuses): array {
+            $branchRequests = $requests->where('to_branch_id', $branch->id);
+            $open = $branchRequests->filter(fn ($request) => ! in_array($request->status, $terminalStatuses, true));
+            $overdue = $open->filter(fn ($request) => $request->requested_delivery_date && $request->requested_delivery_date->isPast());
+            $dispatched = (float) $branchRequests->sum(fn ($request) => $request->items->sum(fn ($item) => $item->effective_dispatched_quantity));
+            $received = (float) $branchRequests->sum(fn ($request) => $request->items->sum(fn ($item) => (float) ($item->received_quantity ?? 0)));
+
+            return [
+                'id' => $branch->id,
+                'name' => $branch->name,
+                'open_requests' => $open->count(),
+                'overdue_requests' => $overdue->count(),
+                'disputed_requests' => $branchRequests->where('status', SupplyRequest::STATUS_DISPUTED)->count(),
+                'fill_rate_percent' => $dispatched > 0 ? round(($received / $dispatched) * 100, 1) : 100.0,
+            ];
+        })->sortByDesc(fn ($row) => [$row['overdue_requests'], $row['open_requests']])->values()->all();
+
         return [
             'period_days' => 28,
             'generated_at' => $now->toISOString(),
@@ -343,6 +658,12 @@ class SupplyRequestController extends Controller
                 'last7_value' => round((float) $last7Requests->sum(fn ($request) => (float) $request->total_amount), 2),
                 'average_daily_requests' => round($last7Requests->count() / 7, 1),
                 'urgent_recommendations' => $urgentCount,
+                'open_requests' => $operationalOpen->count(),
+                'overdue_requests' => $overdueRequests->count(),
+                'due_today_requests' => $dueTodayRequests->count(),
+                'receiving_requests' => $receivingRequests->count(),
+                'disputed_requests' => $requests->where('status', SupplyRequest::STATUS_DISPUTED)->count(),
+                'fill_rate_percent' => $dispatchedQuantity > 0 ? round(($receivedQuantity / $dispatchedQuantity) * 100, 1) : 100.0,
             ],
             'daily' => $daily,
             'branches' => $branchStats,
@@ -350,6 +671,15 @@ class SupplyRequestController extends Controller
             'recommendations' => array_slice($recommendations, 0, 10),
             'insights' => $insights,
             'today_requests' => $todayList,
+            'operations' => [
+                'open_requests' => $operationalOpen->count(),
+                'overdue_requests' => $overdueRequests->count(),
+                'due_today_requests' => $dueTodayRequests->count(),
+                'receiving_requests' => $receivingRequests->count(),
+                'disputed_requests' => $requests->where('status', SupplyRequest::STATUS_DISPUTED)->count(),
+                'fill_rate_percent' => $dispatchedQuantity > 0 ? round(($receivedQuantity / $dispatchedQuantity) * 100, 1) : 100.0,
+                'branch_operations' => $branchOperations,
+            ],
         ];
     }
 
@@ -364,7 +694,7 @@ class SupplyRequestController extends Controller
 
         $centralBranch = $this->warehouseService->getCentralWarehouse($restaurantId);
         $branches = RestaurantBranch::where('restaurant_id', $restaurantId)
-            ->where('is_central_warehouse', false)
+            ->when($centralBranch, fn ($query) => $query->where('id', '!=', $centralBranch->id), fn ($query) => $query->whereRaw('1 = 0'))
             ->where('status', 'active')
             ->when(! $user->canViewAllBranches(), fn ($q) => $q->whereKey($user->assignedBranchId()))
             ->get();
@@ -385,7 +715,7 @@ class SupplyRequestController extends Controller
             ->orderByDesc('id')
             ->get();
 
-        $ingredients = Ingredient::where('restaurant_id', $restaurantId)
+        $ingredients = $this->centralIngredientQuery($restaurantId, $centralBranch?->id)
             ->with(['unit'])
             ->get();
 
@@ -417,6 +747,11 @@ class SupplyRequestController extends Controller
 
         if ($request->filled('branch_id')) {
             $query->where('to_branch_id', $request->branch_id);
+        }
+
+        if ($user->hasAnyRole(['warehouse_manager', 'warehouse_staff'])) {
+            $centralBranch = $this->warehouseService->getCentralWarehouse($restaurantId);
+            $query->when($centralBranch, fn ($scope) => $scope->where('from_branch_id', $centralBranch->id), fn ($scope) => $scope->whereRaw('1 = 0'));
         }
 
         if (! $this->canViewAllSupplyRequests($user)) {
@@ -481,6 +816,11 @@ class SupplyRequestController extends Controller
     public function quickRecommendedRequest(Request $request): JsonResponse
     {
         $user = $request->user();
+        abort_unless(
+            $user->isOwner() || $user->isSuperAdmin() || $user->can('supply_requests.create'),
+            403,
+            'Bạn không có quyền tạo đề xuất cấp phát nhanh.'
+        );
         $restaurantId = $user->restaurant_id;
 
         $data = $request->validate([
@@ -493,7 +833,8 @@ class SupplyRequestController extends Controller
             abort(403, 'Bạn chỉ có thể lập đơn cấp phát cho chi nhánh thuộc phạm vi tài khoản.');
         }
 
-        $ingredients = \App\Models\Ingredient::where('restaurant_id', $restaurantId)
+        $centralBranch = $this->warehouseService->getCentralWarehouse($restaurantId);
+        $ingredients = $this->centralIngredientQuery($restaurantId, $centralBranch?->id)
             ->whereHas('inventories', function ($inv) use ($branchId) {
                 $inv->where('branch_id', $branchId)
                     ->whereRaw('inventories.quantity_on_hand <= ingredients.min_stock_level');
@@ -788,6 +1129,23 @@ class SupplyRequestController extends Controller
         $user = $request->user();
         $supplyRequest = SupplyRequest::where('restaurant_id', $user->restaurant_id)->findOrFail($id);
 
+        $canCancelChainwide = $user->isOwner()
+            || $user->isSuperAdmin()
+            || $user->hasRole('warehouse_manager')
+            || $user->can('warehouse.manage');
+        abort_unless(
+            $canCancelChainwide || $user->can('supply_requests.cancel'),
+            403,
+            'Bạn không có quyền hủy đơn cấp phát.'
+        );
+        if (! $canCancelChainwide) {
+            abort_unless(
+                $user->canAccessBranch((int) $supplyRequest->to_branch_id),
+                403,
+                'Bạn chỉ có thể hủy đơn cấp phát của chi nhánh được phân công.'
+            );
+        }
+
         $request->validate([
             'reason' => 'required|string|max:500',
         ]);
@@ -884,6 +1242,12 @@ class SupplyRequestController extends Controller
      */
     public function updateIngredientPrices(Request $request): JsonResponse
     {
+        abort_unless(
+            $request->user()->isOwner() || $request->user()->isSuperAdmin(),
+            403,
+            'Chỉ Chủ doanh nghiệp mới được thiết lập giá vốn nguyên liệu toàn chuỗi.'
+        );
+
         $data = $request->validate([
             'prices' => 'required|array|min:1',
             'prices.*.ingredient_id' => ['required', TenantRule::exists('ingredients')],
@@ -891,6 +1255,17 @@ class SupplyRequestController extends Controller
         ]);
 
         $user = $request->user();
+        $centralBranch = $this->warehouseService->getCentralWarehouse($user->restaurant_id);
+        $centralIngredientQuery = fn () => $this->centralIngredientQuery($user->restaurant_id, $centralBranch?->id);
+
+        foreach ($data['prices'] as $index => $priceRow) {
+            if (! $centralIngredientQuery()->whereKey((int) $priceRow['ingredient_id'])->exists()) {
+                throw ValidationException::withMessages([
+                    "prices.{$index}.ingredient_id" => 'Chá»‰ Ä‘Æ°á»£c cáº­p nháº­t giÃ¡ nguyÃªn liá»‡u thuá»™c Kho Tá»•ng hoáº·c catalog toÃ n chuá»—i.',
+                ]);
+            }
+        }
+
         if (! $user->isOwner() && ! $user->isSuperAdmin()) {
             $this->approvalService->submitRequest('warehouse_price_update', $data, $user);
 
@@ -899,7 +1274,7 @@ class SupplyRequestController extends Controller
         $updatedIds = [];
 
         foreach ($data['prices'] as $priceRow) {
-            $ingredient = Ingredient::where('restaurant_id', $user->restaurant_id)
+            $ingredient = $centralIngredientQuery()
                 ->whereKey((int) $priceRow['ingredient_id'])
                 ->firstOrFail();
 
@@ -913,7 +1288,7 @@ class SupplyRequestController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Đã cập nhật đơn giá nguyên liệu đồng bộ toàn chuỗi.',
-            'data' => Ingredient::where('restaurant_id', $user->restaurant_id)
+            'data' => $centralIngredientQuery()
                 ->whereIn('id', $updatedIds)
                 ->with('unit')
                 ->get(),
@@ -979,7 +1354,17 @@ class SupplyRequestController extends Controller
 
     private function getWarehouseTasks(int $restaurantId): array
     {
+        $centralBranch = $this->warehouseService->getCentralWarehouse($restaurantId);
+
         return WarehouseTaskAssignment::where('restaurant_id', $restaurantId)
+            ->when($centralBranch, fn ($query) => $query->where(function ($scope) use ($centralBranch) {
+                $scope->whereHas('supplyRequest', fn ($request) => $request->where('from_branch_id', $centralBranch->id))
+                    ->orWhereHas('receivingVoucher', fn ($voucher) => $voucher->where('branch_id', $centralBranch->id))
+                    ->orWhere(function ($unlinked) {
+                        $unlinked->whereNull('supply_request_id')->whereNull('receiving_voucher_id');
+                    });
+            }))
+            ->when(! $centralBranch, fn ($query) => $query->whereRaw('1 = 0'))
             ->with([
                 'assignee.employee',
                 'supplyRequest.toBranch',
@@ -1045,12 +1430,20 @@ class SupplyRequestController extends Controller
         ]);
 
         $supplyRequest = SupplyRequest::where('restaurant_id', $user->restaurant_id)
+            ->where('from_branch_id', $this->warehouseService->getCentralWarehouse($user->restaurant_id)?->id)
             ->findOrFail((int) $data['supply_request_id']);
+
+        $centralBranch = $this->warehouseService->getCentralWarehouse($user->restaurant_id);
+        abort_unless($centralBranch, 422, 'Nhà hàng chưa cấu hình Kho Tổng đang hoạt động.');
 
         $assignee = User::where('restaurant_id', $user->restaurant_id)
             ->where('status', 'active')
             ->whereKey((int) $data['assigned_to'])
             ->whereHas('roles', fn ($query) => $query->where('name', 'warehouse_staff'))
+            ->where(function ($query) use ($centralBranch) {
+                $query->where('warehouse_branch_id', $centralBranch->id)
+                    ->orWhere('branch_id', $centralBranch->id);
+            })
             ->firstOrFail();
 
         $allowedStatuses = $data['task_type'] === 'picking'
@@ -1122,20 +1515,24 @@ class SupplyRequestController extends Controller
         abort_unless($user->can('supply_requests.view') || $user->can('warehouse.view') || $user->isOwner() || $user->isSuperAdmin(), 403);
 
         $restaurantId = $user->restaurant_id;
+        $centralBranch = $this->warehouseService->getCentralWarehouse($restaurantId);
 
         $pickingPending = SupplyRequest::where('restaurant_id', $restaurantId)
+            ->when($centralBranch, fn ($query) => $query->where('from_branch_id', $centralBranch->id), fn ($query) => $query->whereRaw('1 = 0'))
             ->where('status', SupplyRequest::STATUS_APPROVED)
             ->with(['items.ingredient.unit', 'items.batch', 'toBranch', 'creator'])
             ->orderBy('requested_delivery_date')
             ->get();
 
         $dispatchApprovalPending = SupplyRequest::where('restaurant_id', $restaurantId)
+            ->when($centralBranch, fn ($query) => $query->where('from_branch_id', $centralBranch->id), fn ($query) => $query->whereRaw('1 = 0'))
             ->where('status', SupplyRequest::STATUS_PREPARING)
             ->with(['items.ingredient.unit', 'items.batch', 'toBranch', 'preparedBy'])
             ->orderBy('prepared_at')
             ->get();
 
         $handoverPending = SupplyRequest::where('restaurant_id', $restaurantId)
+            ->when($centralBranch, fn ($query) => $query->where('from_branch_id', $centralBranch->id), fn ($query) => $query->whereRaw('1 = 0'))
             ->where('status', SupplyRequest::STATUS_DISPATCH_PENDING)
             ->with(['items.ingredient.unit', 'items.batch', 'toBranch', 'approver', 'preparedBy'])
             ->orderBy('dispatch_approved_at')

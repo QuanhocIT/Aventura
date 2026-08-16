@@ -24,6 +24,7 @@ class CentralWarehouseService
     public function getCentralWarehouse(int $restaurantId): ?RestaurantBranch
     {
         return RestaurantBranch::where('restaurant_id', $restaurantId)
+            ->where('status', 'active')
             ->where(function ($q) {
                 $q->where('is_central_warehouse', true)
                   ->orWhere('warehouse_type', 'central');
@@ -105,6 +106,12 @@ class CentralWarehouseService
 
         $branch = RestaurantBranch::where('restaurant_id', $restaurantId)->findOrFail($toBranchId);
 
+        $this->assertCentralIngredients(
+            $restaurantId,
+            (int) $central->id,
+            collect($items)->pluck('ingredient_id')
+        );
+
         // ── Anti-Duplicate Check ───────────────────────────────────────────────
         // Chống tạo nhiều đơn trùng lắp từ cùng một chi nhánh trong 10 phút
         $recentDuplicate = SupplyRequest::where('restaurant_id', $restaurantId)
@@ -147,8 +154,8 @@ class CentralWarehouseService
             $totalAmount = 0;
 
             foreach ($items as $itemData) {
-                $ingredient = Ingredient::where('restaurant_id', $restaurantId)
-                    ->where('id', $itemData['ingredient_id'])
+                $ingredient = $this->centralIngredientQuery($restaurantId, (int) $central->id)
+                    ->whereKey($itemData['ingredient_id'])
                     ->firstOrFail();
 
                 $unitCost = (float) ($ingredient->average_cost ?? 0);
@@ -212,6 +219,16 @@ class CentralWarehouseService
         if (! in_array($request->status, [SupplyRequest::STATUS_PENDING, 'draft'])) {
             throw new InvalidArgumentException('Chỉ có thể duyệt đơn ở trạng thái chờ duyệt.');
         }
+
+        $central = $this->getCentralWarehouse($request->restaurant_id);
+        if (! $central || (int) $request->from_branch_id !== (int) $central->id) {
+            throw new InvalidArgumentException('Đơn cấp phát không xuất phát từ Kho Tổng hiện tại.');
+        }
+        $this->assertCentralIngredients(
+            $request->restaurant_id,
+            (int) $central->id,
+            $request->items->pluck('ingredient_id')
+        );
 
         return DB::transaction(function () use ($request, $approver, $approvedItems, $notes) {
             $totalAmount = 0;
@@ -283,6 +300,16 @@ class CentralWarehouseService
         if (! in_array($request->status, [SupplyRequest::STATUS_APPROVED, SupplyRequest::STATUS_PREPARING])) {
             throw new InvalidArgumentException('Chỉ đơn đã duyệt mới có thể soạn hàng.');
         }
+
+        $central = $this->getCentralWarehouse($request->restaurant_id);
+        if (! $central || (int) $request->from_branch_id !== (int) $central->id) {
+            throw new InvalidArgumentException('Đơn cấp phát không xuất phát từ Kho Tổng hiện tại.');
+        }
+        $this->assertCentralIngredients(
+            $request->restaurant_id,
+            (int) $central->id,
+            $request->items->pluck('ingredient_id')
+        );
 
         return DB::transaction(function () use ($request, $picker, $pickedItems) {
             foreach ($pickedItems as $picked) {
@@ -357,6 +384,11 @@ class CentralWarehouseService
         $this->assertSameRestaurant($request, $manager);
         $this->assertNotSelfApproval($request, $manager, 'prepared_by', 'Người soạn hàng không được tự duyệt số lượng xuất.');
 
+        $central = $this->getCentralWarehouse($request->restaurant_id);
+        if (! $central || (int) $request->from_branch_id !== (int) $central->id) {
+            throw new InvalidArgumentException('Đơn cấp phát không xuất phát từ Kho Tổng hiện tại.');
+        }
+
         if ($request->status !== SupplyRequest::STATUS_PREPARING) {
             throw new InvalidArgumentException('Đơn hàng phải qua bước soạn hàng trước khi Trưởng kho duyệt xuất.');
         }
@@ -386,6 +418,16 @@ class CentralWarehouseService
             throw new InvalidArgumentException('Chỉ đơn đã soạn và duyệt xuất mới có thể xuất kho bàn giao.');
         }
 
+        $central = $this->getCentralWarehouse($request->restaurant_id);
+        if (! $central || (int) $request->from_branch_id !== (int) $central->id) {
+            throw new InvalidArgumentException('Đơn cấp phát không xuất phát từ Kho Tổng hiện tại.');
+        }
+        $this->assertCentralIngredients(
+            $request->restaurant_id,
+            (int) $central->id,
+            $request->items->pluck('ingredient_id')
+        );
+
         $rules = app(WarehouseGovernanceService::class)->getRules($request->restaurant_id);
         if ($rules->require_seal_code_on_dispatch && blank($sealCode) && blank($request->seal_code)) {
             throw new InvalidArgumentException('Vui lòng nhập mã niêm phong trước khi xuất kho giao hàng.');
@@ -413,7 +455,10 @@ class CentralWarehouseService
 
                     // Trừ tồn theo lô nếu có chọn lô
                     if ($item->batch_id) {
-                        $batch = InventoryBatch::where('id', $item->batch_id)
+                        $batch = InventoryBatch::where('restaurant_id', $request->restaurant_id)
+                            ->where('branch_id', $request->from_branch_id)
+                            ->where('ingredient_id', $item->ingredient_id)
+                            ->whereKey($item->batch_id)
                             ->lockForUpdate()
                             ->first();
 
@@ -477,6 +522,16 @@ class CentralWarehouseService
     ): SupplyRequest {
         $this->assertSameRestaurant($request, $receiver);
         $this->assertNotSelfApproval($request, $receiver, 'dispatched_by', 'Người xuất kho không được tự xác nhận nhận hàng.');
+
+        $central = $this->getCentralWarehouse($request->restaurant_id);
+        if (! $central || (int) $request->from_branch_id !== (int) $central->id) {
+            throw new InvalidArgumentException('Đơn cấp phát không xuất phát từ Kho Tổng hiện tại.');
+        }
+        $this->assertCentralIngredients(
+            $request->restaurant_id,
+            (int) $central->id,
+            $request->items->pluck('ingredient_id')
+        );
 
         if (! in_array($request->status, [SupplyRequest::STATUS_DISPATCHED, SupplyRequest::STATUS_PARTIAL_RECEIVED, SupplyRequest::STATUS_COMPLETED])) {
             throw new InvalidArgumentException('Chỉ đơn đang giao mới có thể xác nhận nhận hàng.');
@@ -590,6 +645,12 @@ class CentralWarehouseService
      */
     public function cancelSupplyRequest(SupplyRequest $request, User $user, string $reason): SupplyRequest
     {
+        $this->assertSameRestaurant($request, $user);
+        $central = $this->getCentralWarehouse((int) $request->restaurant_id);
+        if (! $central || (int) $request->from_branch_id !== (int) $central->id) {
+            throw new InvalidArgumentException('Chỉ được hủy đơn cấp phát xuất từ Kho Tổng.');
+        }
+
         if (! $request->canBeCancelled()) {
             throw new InvalidArgumentException('Không thể hủy đơn hàng đã xuất kho hoặc đã hoàn tất.');
         }
@@ -636,6 +697,27 @@ class CentralWarehouseService
         });
     }
 
+    private function centralIngredientQuery(int $restaurantId, int $centralBranchId)
+    {
+        return Ingredient::where('restaurant_id', $restaurantId)
+            ->where(fn ($query) => $query
+                ->whereNull('branch_id')
+                ->orWhere('branch_id', $centralBranchId));
+    }
+
+    private function assertCentralIngredients(int $restaurantId, int $centralBranchId, iterable $ingredientIds): void
+    {
+        $ids = collect($ingredientIds)
+            ->filter()
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values();
+
+        if ($this->centralIngredientQuery($restaurantId, $centralBranchId)->whereIn('id', $ids)->count() !== $ids->count()) {
+            throw new InvalidArgumentException('Đơn cấp phát chứa nguyên liệu ngoài phạm vi Kho Tổng.');
+        }
+    }
+
     private function assertSameRestaurant(SupplyRequest $request, User $actor): void
     {
         if ($actor->isSuperAdmin()) {
@@ -670,6 +752,7 @@ class CentralWarehouseService
 
         $requests = SupplyRequest::where('restaurant_id', $restaurantId)
             ->whereIn('id', $supplyRequestIds)
+            ->where('from_branch_id', $central->id)
             ->whereIn('status', [SupplyRequest::STATUS_PENDING, SupplyRequest::STATUS_APPROVED])
             ->with(['items.ingredient', 'toBranch'])
             ->get();
@@ -677,6 +760,12 @@ class CentralWarehouseService
         if ($requests->isEmpty()) {
             return [];
         }
+
+        $this->assertCentralIngredients(
+            $restaurantId,
+            (int) $central->id,
+            $requests->flatMap(fn (SupplyRequest $request) => $request->items->pluck('ingredient_id'))
+        );
 
         // Gom tổng nhu cầu theo từng ingredient_id
         $totalDemandByIngredient = [];
@@ -742,10 +831,28 @@ class CentralWarehouseService
      */
     public function createBackorder(SupplyRequest $parentRequest, array $shortageItems, User $user): SupplyRequest
     {
-        return DB::transaction(function () use ($parentRequest, $shortageItems, $user) {
+        $this->assertSameRestaurant($parentRequest, $user);
+        $central = $this->getCentralWarehouse($parentRequest->restaurant_id);
+        if (! $central || (int) $parentRequest->from_branch_id !== (int) $central->id) {
+            throw new InvalidArgumentException('Đơn giao bù không xuất phát từ Kho Tổng hiện tại.');
+        }
+        $this->assertCentralIngredients(
+            $parentRequest->restaurant_id,
+            (int) $central->id,
+            collect($shortageItems)->where('shortage_quantity', '>', 0)->pluck('ingredient_id')
+        );
+
+        return DB::transaction(function () use ($parentRequest, $shortageItems, $user, $central) {
             $restaurantId = $parentRequest->restaurant_id;
 
             $requestCode = $parentRequest->request_code . '-BO';
+
+            $existingBackorder = SupplyRequest::where('restaurant_id', $restaurantId)
+                ->where('request_code', $requestCode)
+                ->first();
+            if ($existingBackorder) {
+                return $existingBackorder->load(['items.ingredient', 'fromBranch', 'toBranch']);
+            }
 
             $backorder = SupplyRequest::create([
                 'restaurant_id'           => $restaurantId,
@@ -768,7 +875,9 @@ class CentralWarehouseService
                     continue;
                 }
 
-                $ingredient = Ingredient::where('restaurant_id', $restaurantId)->findOrFail($sItem['ingredient_id']);
+                $ingredient = $this->centralIngredientQuery($restaurantId, (int) $central->id)
+                    ->whereKey($sItem['ingredient_id'])
+                    ->firstOrFail();
                 $unitCost   = (float) ($ingredient->average_cost ?? 0);
                 $lineCost   = round($unitCost * $shortageQty, 2);
                 $totalAmount += $lineCost;
@@ -797,24 +906,31 @@ class CentralWarehouseService
     public function getCentralWarehouseAnalytics(int $restaurantId): array
     {
         $startOfMonth = now()->startOfMonth();
+        $central = $this->getCentralWarehouse($restaurantId);
 
         $totalRequests = SupplyRequest::where('restaurant_id', $restaurantId)
+            ->when($central, fn ($query) => $query->where('from_branch_id', $central->id), fn ($query) => $query->whereRaw('1 = 0'))
             ->where('created_at', '>=', $startOfMonth)
             ->count();
 
         $completedRequests = SupplyRequest::where('restaurant_id', $restaurantId)
+            ->when($central, fn ($query) => $query->where('from_branch_id', $central->id), fn ($query) => $query->whereRaw('1 = 0'))
             ->where('created_at', '>=', $startOfMonth)
             ->where('status', SupplyRequest::STATUS_COMPLETED)
             ->count();
 
         $fillRate = $totalRequests > 0 ? round(($completedRequests / $totalRequests) * 100, 1) : 100.0;
 
-        $itemsCount = SupplyRequestItem::whereHas('supplyRequest', function ($q) use ($restaurantId, $startOfMonth) {
-            $q->where('restaurant_id', $restaurantId)->where('created_at', '>=', $startOfMonth);
+        $itemsCount = SupplyRequestItem::whereHas('supplyRequest', function ($q) use ($restaurantId, $startOfMonth, $central) {
+            $q->where('restaurant_id', $restaurantId)
+                ->when($central, fn ($query) => $query->where('from_branch_id', $central->id), fn ($query) => $query->whereRaw('1 = 0'))
+                ->where('created_at', '>=', $startOfMonth);
         })->count();
 
-        $nonFefoCount = SupplyRequestItem::whereHas('supplyRequest', function ($q) use ($restaurantId, $startOfMonth) {
-            $q->where('restaurant_id', $restaurantId)->where('created_at', '>=', $startOfMonth);
+        $nonFefoCount = SupplyRequestItem::whereHas('supplyRequest', function ($q) use ($restaurantId, $startOfMonth, $central) {
+            $q->where('restaurant_id', $restaurantId)
+                ->when($central, fn ($query) => $query->where('from_branch_id', $central->id), fn ($query) => $query->whereRaw('1 = 0'))
+                ->where('created_at', '>=', $startOfMonth);
         })->whereNotNull('non_fefo_reason')->count();
 
         $fefoCompliance = $itemsCount > 0 ? round((( $itemsCount - $nonFefoCount ) / $itemsCount) * 100, 1) : 100.0;
