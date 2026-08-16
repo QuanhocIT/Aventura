@@ -112,6 +112,7 @@ const props = defineProps<{
     payables: PaginatedList<AccountPayable>;
     receivables: PaginatedList<AccountReceivable>;
     customers: PaginatedList<Customer>;
+    canManageDebt: boolean;
     filters: {
         payable_status: string;
         receivable_status: string;
@@ -762,7 +763,7 @@ function getPercentage(value: number, total: number) {
                                 </td>
                                 <td class="p-3 text-center">
                                     <Button
-                                        v-if="p.status !== 'paid'"
+                                        v-if="canManageDebt && p.status !== 'paid'"
                                         @click="openPayModal(p)"
                                         size="sm"
                                         class="h-7 rounded-md bg-indigo-600 px-2.5 text-[10px] font-bold text-white hover:bg-indigo-700"
@@ -938,7 +939,7 @@ function getPercentage(value: number, total: number) {
                                 </td>
                                 <td class="p-3 text-center">
                                     <Button
-                                        v-if="r.status !== 'paid'"
+                                        v-if="canManageDebt && r.status !== 'paid'"
                                         @click="openCollectModal(r)"
                                         size="sm"
                                         class="h-7 rounded-md bg-emerald-600 px-2.5 text-[10px] font-bold text-white hover:bg-emerald-700"
@@ -1092,6 +1093,7 @@ function getPercentage(value: number, total: number) {
                                 </td>
                                 <td class="p-3 text-center">
                                     <button
+                                        v-if="canManageDebt"
                                         @click="openCreditModal(c)"
                                         class="cursor-pointer rounded-sm p-1 text-slate-500 hover:bg-slate-100 hover:text-indigo-600 dark:hover:bg-slate-800"
                                         title="Sửa hạn mức"

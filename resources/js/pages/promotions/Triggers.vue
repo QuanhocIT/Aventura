@@ -41,6 +41,7 @@ const props = defineProps<{
         created_at: string;
     }>;
     eventTypes: Record<string, string>;
+    canManageDiscounts: boolean;
 }>();
 
 const showCreate = ref(false);
@@ -88,7 +89,7 @@ const eventEmojis: Record<string, string> = {
                     nhật, lên VIP...
                 </p>
             </div>
-            <Button @click="showCreate = true" class="gap-1.5"
+            <Button v-if="canManageDiscounts" @click="showCreate = true" class="gap-1.5"
                 ><Plus class="size-4" /> Tạo trigger</Button
             >
         </div>

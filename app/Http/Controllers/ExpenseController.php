@@ -208,6 +208,7 @@ class ExpenseController extends Controller
             'expenseBudget' => $expenseBudget,
             'branchBudgets' => $branchBudgets,
             'canManageBudget' => $isOwner,
+            'canManageExpenses' => $isOwner,
         ]);
     }
 
@@ -251,7 +252,7 @@ class ExpenseController extends Controller
      */
     public function store(Request $request)
     {
-        abort_unless($request->user()->hasAnyRole(['owner', 'manager']), 403);
+        $this->authorizeExpenseMutation($request);
 
         $data = $request->validate([
             'category_id' => ['nullable', TenantRule::exists('expense_categories')],
@@ -313,7 +314,7 @@ class ExpenseController extends Controller
      */
     public function update(Request $request, OperatingExpense $expense)
     {
-        abort_unless($request->user()->hasAnyRole(['owner', 'manager']), 403);
+        $this->authorizeExpenseMutation($request);
         abort_if($expense->restaurant_id !== $request->user()->restaurant_id, 403);
         abort_unless($request->user()->canAccessBranch($expense->branch_id), 403);
 
@@ -347,7 +348,7 @@ class ExpenseController extends Controller
 
     public function destroy(Request $request, OperatingExpense $expense)
     {
-        abort_unless($request->user()->hasAnyRole(['owner', 'manager']), 403);
+        $this->authorizeExpenseMutation($request);
         abort_if($expense->restaurant_id !== $request->user()->restaurant_id, 403);
         abort_unless($request->user()->canAccessBranch($expense->branch_id), 403);
 
@@ -367,7 +368,7 @@ class ExpenseController extends Controller
 
     public function approveExpense(Request $request, OperatingExpense $expense)
     {
-        abort_unless($request->user()->hasAnyRole(['owner', 'manager']), 403);
+        $this->authorizeExpenseMutation($request);
         abort_if($expense->restaurant_id !== $request->user()->restaurant_id, 403);
         abort_unless($request->user()->canAccessBranch($expense->branch_id), 403);
 
@@ -384,7 +385,7 @@ class ExpenseController extends Controller
      */
     public function storeRecurring(Request $request)
     {
-        abort_unless($request->user()->hasAnyRole(['owner', 'manager']), 403);
+        $this->authorizeExpenseMutation($request);
 
         $data = $request->validate([
             'category_id' => ['required', TenantRule::exists('expense_categories')],
@@ -417,7 +418,7 @@ class ExpenseController extends Controller
      */
     public function updateRecurring(Request $request, RecurringExpense $recurring)
     {
-        abort_unless($request->user()->hasAnyRole(['owner', 'manager']), 403);
+        $this->authorizeExpenseMutation($request);
         abort_if($recurring->restaurant_id !== $request->user()->restaurant_id, 403);
         abort_unless($request->user()->canAccessBranch($recurring->branch_id), 403);
 
@@ -442,7 +443,7 @@ class ExpenseController extends Controller
      */
     public function destroyRecurring(Request $request, RecurringExpense $recurring)
     {
-        abort_unless($request->user()->hasAnyRole(['owner', 'manager']), 403);
+        $this->authorizeExpenseMutation($request);
         abort_if($recurring->restaurant_id !== $request->user()->restaurant_id, 403);
         abort_unless($request->user()->canAccessBranch($recurring->branch_id), 403);
 
@@ -484,5 +485,19 @@ class ExpenseController extends Controller
         $category->delete();
 
         return back()->with('success', 'Đã xóa danh mục chi phí tùy chỉnh.');
+    }
+
+    /**
+     * Chi phí vận hành là sổ tài chính, không phải dữ liệu vận hành của
+     * Quản lý chi nhánh. Nhân viên chỉ được xem và báo cáo; Chủ doanh nghiệp
+     * là người duy nhất ghi/sửa/xóa số tiền hoặc lịch chi phí.
+     */
+    private function authorizeExpenseMutation(Request $request): void
+    {
+        abort_unless(
+            $request->user()->isOwner() || $request->user()->isSuperAdmin(),
+            403,
+            'Chỉ Chủ doanh nghiệp mới được ghi nhận hoặc thay đổi chi phí vận hành.'
+        );
     }
 }

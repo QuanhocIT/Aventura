@@ -10,6 +10,7 @@ import {
     Clock,
 } from 'lucide-vue-next';
 import { ref } from 'vue';
+import { store } from '@/routes/supplier/catalog';
 
 const props = defineProps<{
     supplier: any;
@@ -52,7 +53,7 @@ const openEditModal = (item: any) => {
 };
 
 const saveItem = () => {
-    form.post(route('supplier.catalog.store'), {
+    form.post(store.url(), {
         onSuccess: () => {
             showModal.value = false;
             form.reset();

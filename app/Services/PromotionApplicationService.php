@@ -96,7 +96,7 @@ class PromotionApplicationService
             if ($suspicious) {
                 $approvingUser = User::validateManagerBypass($bypassCode ?? '', $restaurantId);
 
-                if (! $approvingUser) {
+                if (! $approvingUser || (! $approvingUser->isOwner() && ! $approvingUser->isSuperAdmin())) {
                     return [
                         'success' => false,
                         'status' => 'requires_bypass',

@@ -42,12 +42,14 @@ class PromotionTriggerController extends Controller
         return Inertia::render('promotions/Triggers', [
             'triggers' => $triggers,
             'eventTypes' => $eventTypes,
+            'canManageDiscounts' => $user->isOwner() || $user->isSuperAdmin(),
         ]);
     }
 
     public function store(Request $request)
     {
         $user = $request->user();
+        abort_unless($user->isOwner() || $user->isSuperAdmin(), 403);
         $data = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'event_type' => ['required', 'in:first_order,birthday,inactive_30_days,loyalty_tier_upgrade,order_milestone'],
@@ -70,6 +72,9 @@ class PromotionTriggerController extends Controller
 
     public function update(Request $request, PromotionTrigger $trigger)
     {
+        abort_unless($request->user()->isOwner() || $request->user()->isSuperAdmin(), 403);
+        abort_if($trigger->restaurant_id !== $request->user()->restaurant_id, 403);
+
         $data = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'event_type' => ['required', 'in:first_order,birthday,inactive_30_days,loyalty_tier_upgrade,order_milestone'],
@@ -87,15 +92,21 @@ class PromotionTriggerController extends Controller
         return back()->with('success', 'Đã cập nhật trigger.');
     }
 
-    public function destroy(PromotionTrigger $trigger)
+    public function destroy(Request $request, PromotionTrigger $trigger)
     {
+        abort_unless($request->user()->isOwner() || $request->user()->isSuperAdmin(), 403);
+        abort_if($trigger->restaurant_id !== $request->user()->restaurant_id, 403);
+
         $trigger->delete();
 
         return back()->with('success', 'Đã xóa trigger.');
     }
 
-    public function toggleActive(PromotionTrigger $trigger)
+    public function toggleActive(Request $request, PromotionTrigger $trigger)
     {
+        abort_unless($request->user()->isOwner() || $request->user()->isSuperAdmin(), 403);
+        abort_if($trigger->restaurant_id !== $request->user()->restaurant_id, 403);
+
         $trigger->update(['is_active' => ! $trigger->is_active]);
 
         return back()->with('success', $trigger->is_active ? 'Đã kích hoạt.' : 'Đã tắt.');

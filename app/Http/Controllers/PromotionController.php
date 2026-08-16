@@ -104,6 +104,7 @@ class PromotionController extends Controller
             'fraudAlerts' => $fraudAlerts,
             'voucherLogs' => $voucherLogs,
             'products' => $products,
+            'canManagePrices' => $user->isOwner() || $user->isSuperAdmin(),
         ]);
     }
 
@@ -114,7 +115,7 @@ class PromotionController extends Controller
     public function storeCombo(Request $request): RedirectResponse
     {
         $user = $request->user();
-        abort_unless($user->can('manage_orders'), 403);
+        abort_unless($user->isOwner() || $user->isSuperAdmin(), 403);
 
         $restaurantId = $user->restaurant_id;
 
@@ -315,7 +316,7 @@ class PromotionController extends Controller
     public function destroy(Request $request, Promotion $promotion): RedirectResponse
     {
         $user = $request->user();
-        abort_unless($user->can('manage_orders'), 403);
+        abort_unless($user->isOwner() || $user->isSuperAdmin(), 403);
         abort_if($promotion->restaurant_id !== $user->restaurant_id, 403);
 
         $promotion->delete();
@@ -328,7 +329,7 @@ class PromotionController extends Controller
      */
     public function toggleActive(Request $request, Promotion $promotion): RedirectResponse
     {
-        abort_unless($request->user()->can('manage_orders'), 403);
+        abort_unless($request->user()->isOwner() || $request->user()->isSuperAdmin(), 403);
         abort_if($promotion->restaurant_id !== $request->user()->restaurant_id, 403);
 
         $promotion->update([

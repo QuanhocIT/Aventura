@@ -90,6 +90,11 @@ class SupplierCatalogIdorTest extends TestCase
 
         $ingredient->refresh();
         $this->assertSame('Gạo ST25', $ingredient->name);
-        $this->assertEquals(18000, (float) $ingredient->average_cost);
+        $this->assertEquals(15000, (float) $ingredient->average_cost);
+        $this->assertDatabaseHas('supplier_price_histories', [
+            'supplier_id' => $supplier->id,
+            'ingredient_id' => $ingredient->id,
+            'price' => 18000,
+        ]);
     }
 }

@@ -8,6 +8,7 @@ import {
 } from 'lucide-vue-next';
 import { computed, onMounted, onUnmounted, ref } from 'vue';
 import { toast } from 'vue-sonner';
+import { updateStatus } from '@/routes/supplier/orders';
 
 const props = defineProps<{
     orders: any[];
@@ -82,7 +83,7 @@ const submitWorkflow = () => {
     }
 
     router.post(
-        route('supplier.orders.update-status', selectedOrder.value.id),
+        updateStatus.url(selectedOrder.value.id),
         formData as any,
         {
             onSuccess: () => {

@@ -14,6 +14,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { bid } from '@/routes/supplier/rfps';
 
 const props = defineProps<{
     rfps: any[];
@@ -73,7 +74,7 @@ const calculateTotal = computed(() => {
 });
 
 const submitBid = (rfpId: number) => {
-    bidForm.post(route('supplier.rfps.bid', rfpId), {
+    bidForm.post(bid.url(rfpId), {
         onSuccess: () => {
             activeRfpId.value = null;
             toast.success('Đã nộp hồ sơ báo giá thầu thành công.');

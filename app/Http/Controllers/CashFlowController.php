@@ -211,7 +211,7 @@ class CashFlowController extends Controller
                 ->where('type', 'out')
                 ->sum('amount');
             if ($existingOut + $data['amount'] > $activeRegister->expense_budget) {
-                if (! $user->hasAnyRole(['manager', 'owner']) && empty($data['is_approved'])) {
+                if (! $user->isOwner() && ! $user->isSuperAdmin()) {
                     return back()->withErrors(['amount' => 'Khoản chi vượt quá ngân sách ca (tối đa '.number_format($activeRegister->expense_budget).'đ). Yêu cầu phê duyệt từ Quản lý hoặc Chủ nhà hàng.']);
                 }
                 $data['notes'] .= ' [Đã phê duyệt vượt ngân sách]';
@@ -243,7 +243,7 @@ class CashFlowController extends Controller
     public function reversalTransaction(Request $request, CashTransaction $transaction): RedirectResponse
     {
         $user = $request->user();
-        abort_unless($user->hasAnyRole(['cashier', 'manager', 'owner']), 403, 'Bạn không có quyền đảo giao dịch tiền mặt.');
+        abort_unless($user->isOwner() || $user->isSuperAdmin(), 403, 'Chỉ Chủ doanh nghiệp mới được đảo giao dịch tiền mặt.');
         abort_if($transaction->restaurant_id !== $user->restaurant_id, 403);
         $branchId = $this->requireActiveBranch($user);
 

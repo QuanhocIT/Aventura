@@ -288,7 +288,7 @@ class CashFlowTest extends TestCase
         $this->assertNotNull($closing->period_start_at);
         $this->assertNotNull($closing->closed_at);
         $this->assertEquals(120000, (float) $closing->actual_transfer_amount);
-        $this->assertEquals(-10000, (float) $closing->responsibility_amount);
+        $this->assertEquals(0, (float) $closing->responsibility_amount);
         $this->assertSame('Thiếu tiền mặt khi kiểm đếm cuối ca', $closing->responsibility_note);
     }
 

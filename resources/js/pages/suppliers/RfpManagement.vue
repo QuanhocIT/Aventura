@@ -25,6 +25,8 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { confirmDialog } from '@/composables/useConfirm';
+import { store, close } from '@/routes/rfps';
+import { accept } from '@/routes/rfps/bids';
 
 const props = defineProps<{
     rfps: any[];
@@ -105,7 +107,7 @@ const removeRfpItem = (index: number | string) => {
 };
 
 const submitRfp = () => {
-    rfpForm.post(route('rfps.store'), {
+    rfpForm.post(store.url(), {
         onSuccess: () => {
             showCreateModal.value = false;
             rfpForm.reset();
@@ -122,7 +124,7 @@ const closeRfp = async (rfpId: number) => {
             variant: 'default',
         })
     ) {
-        router.post(route('rfps.close', rfpId));
+        router.post(close.url(rfpId));
     }
 };
 
@@ -135,7 +137,7 @@ const acceptBid = async (bidId: number) => {
             variant: 'default',
         })
     ) {
-        router.post(route('rfps.bids.accept', bidId));
+        router.post(accept.url(bidId));
     }
 };
 

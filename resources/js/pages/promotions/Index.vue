@@ -98,6 +98,7 @@ const props = defineProps<{
     fraudAlerts: FraudAlert[];
     voucherLogs: VoucherLog[];
     products: ProductOption[];
+    canManagePrices: boolean;
     auth: {
         user: {
             id: number;
@@ -532,6 +533,7 @@ onMounted(() => {
                                     </td>
                                     <td class="p-4">
                                         <button
+                                            v-if="canManagePrices"
                                             @click="toggleActive(p)"
                                             :class="[
                                                 'rounded px-2 py-0.5 text-[10px] font-bold transition-all',
@@ -580,6 +582,7 @@ onMounted(() => {
                                     <td class="p-4">
                                         <div class="flex items-center gap-1.5">
                                             <button
+                                                v-if="canManagePrices"
                                                 @click="openEditPromotion(p)"
                                                 class="cursor-pointer rounded-lg p-1.5 text-slate-500 transition-colors hover:bg-indigo-50 hover:text-indigo-600 dark:hover:bg-indigo-950/30"
                                                 title="Chỉnh sửa"
@@ -587,6 +590,7 @@ onMounted(() => {
                                                 <Pencil class="size-3.5" />
                                             </button>
                                             <button
+                                                v-if="canManagePrices"
                                                 @click="
                                                     confirmDeletePromotion(p)
                                                 "
@@ -839,6 +843,7 @@ onMounted(() => {
 
                                 <!-- Action button -->
                                 <Button
+                                    v-if="canManagePrices"
                                     @click="openQuickCombo(rule)"
                                     class="flex h-8 w-full items-center justify-center gap-1.5 bg-slate-800 text-[10px] font-bold text-white transition-all group-hover:bg-indigo-600 group-hover:text-white hover:bg-slate-900"
                                 >

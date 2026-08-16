@@ -131,6 +131,7 @@ const props = defineProps<{
         remaining: number | null;
     }>;
     canManageBudget?: boolean;
+    canManageExpenses?: boolean;
 }>();
 
 // --- HẠN MỨC CHI TIÊU CHI NHÁNH ---
@@ -151,7 +152,10 @@ const openBudgetFor = (b: {
     showBudgetPanel.value = true;
 };
 const submitBudget = () => {
-    if (budgetForm.processing) return;
+    if (budgetForm.processing) {
+        return;
+    }
+
     budgetForm.post('/expenses/branch-budget', {
         preserveScroll: true,
         onSuccess: () => {
@@ -515,7 +519,7 @@ const chartMaxVal = computed(() => {
             <!-- Page Action Buttons based on active tab -->
             <div class="flex items-center gap-2">
                 <Button
-                    v-if="activeTab === 'expenses'"
+                    v-if="activeTab === 'expenses' && props.canManageExpenses"
                     @click="openNewExpenseModal"
                     class="h-9 bg-amber-600 text-xs font-bold text-white hover:bg-amber-700"
                 >
@@ -523,7 +527,7 @@ const chartMaxVal = computed(() => {
                     Ghi nhận chi phí
                 </Button>
                 <Button
-                    v-if="activeTab === 'recurring'"
+                    v-if="activeTab === 'recurring' && props.canManageExpenses"
                     @click="openNewRecurringModal"
                     class="h-9 bg-indigo-600 text-xs font-bold text-white hover:bg-indigo-700"
                 >
@@ -531,7 +535,7 @@ const chartMaxVal = computed(() => {
                     Tạo chi phí định kỳ
                 </Button>
                 <Button
-                    v-if="activeTab === 'categories'"
+                    v-if="activeTab === 'categories' && props.canManageExpenses"
                     @click="showCategoryModal = true"
                     class="h-9 bg-slate-800 text-xs font-bold text-white hover:bg-slate-900 dark:bg-slate-700 dark:hover:bg-slate-600"
                 >
@@ -1121,6 +1125,7 @@ const chartMaxVal = computed(() => {
                                         class="flex items-center justify-center gap-1.5"
                                     >
                                         <button
+                                            v-if="props.canManageExpenses"
                                             @click="openEditExpenseModal(e)"
                                             class="dark:hover:text-slate-350 cursor-pointer rounded-sm p-1 text-slate-500 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-800"
                                             title="Sửa chi phí"
@@ -1128,6 +1133,7 @@ const chartMaxVal = computed(() => {
                                             <Edit2 class="size-3.5" />
                                         </button>
                                         <button
+                                            v-if="props.canManageExpenses"
                                             @click="deleteExpense(e)"
                                             class="cursor-pointer rounded-sm p-1 text-rose-500 hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-950/25"
                                             title="Xóa chi phí"
@@ -1249,6 +1255,7 @@ const chartMaxVal = computed(() => {
                                 <td class="p-3 text-center">
                                     <!-- Switch / Toggle Status -->
                                     <button
+                                        v-if="props.canManageExpenses"
                                         @click="toggleRecurringStatus(r)"
                                         :class="[
                                             'relative h-5 w-10 cursor-pointer rounded-full p-0.5 outline-hidden transition-all',
@@ -1272,6 +1279,7 @@ const chartMaxVal = computed(() => {
                                         class="flex items-center justify-center gap-1.5"
                                     >
                                         <button
+                                            v-if="props.canManageExpenses"
                                             @click="openEditRecurringModal(r)"
                                             class="cursor-pointer rounded-sm p-1 text-slate-500 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-800"
                                             title="Sửa"
@@ -1279,6 +1287,7 @@ const chartMaxVal = computed(() => {
                                             <Edit2 class="size-3.5" />
                                         </button>
                                         <button
+                                            v-if="props.canManageExpenses"
                                             @click="deleteRecurring(r)"
                                             class="cursor-pointer rounded-sm p-1 text-rose-500 hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-950/25"
                                             title="Xóa"

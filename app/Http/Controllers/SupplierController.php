@@ -863,7 +863,7 @@ class SupplierController extends Controller
      */
     public function releaseEscrow(Request $request, PurchaseOrder $purchaseOrder): RedirectResponse
     {
-        abort_unless($request->user()->hasAnyRole(['owner', 'manager']) && $purchaseOrder->restaurant_id === $request->user()->restaurant_id, 403);
+        abort_unless(($request->user()->isOwner() || $request->user()->isSuperAdmin()) && $purchaseOrder->restaurant_id === $request->user()->restaurant_id, 403);
         $this->authorizePurchaseOrderBranch($request->user(), $purchaseOrder);
         abort_unless($purchaseOrder->payment_status === 'escrow_locked', 400);
 
@@ -890,7 +890,7 @@ class SupplierController extends Controller
      */
     public function refundEscrow(Request $request, PurchaseOrder $purchaseOrder): RedirectResponse
     {
-        abort_unless($request->user()->hasAnyRole(['owner', 'manager']) && $purchaseOrder->restaurant_id === $request->user()->restaurant_id, 403);
+        abort_unless(($request->user()->isOwner() || $request->user()->isSuperAdmin()) && $purchaseOrder->restaurant_id === $request->user()->restaurant_id, 403);
         $this->authorizePurchaseOrderBranch($request->user(), $purchaseOrder);
         abort_unless($purchaseOrder->payment_status === 'escrow_locked', 400);
 

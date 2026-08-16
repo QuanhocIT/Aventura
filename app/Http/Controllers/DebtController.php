@@ -197,6 +197,7 @@ class DebtController extends Controller
                 'receivable_status' => $receivableStatus ?? '',
                 'customer_search' => $customerSearch ?? '',
             ],
+            'canManageDebt' => $user->isOwner() || $user->isSuperAdmin(),
         ]);
     }
 
@@ -206,7 +207,7 @@ class DebtController extends Controller
     public function paySupplier(Request $request, AccountPayable $payable): RedirectResponse
     {
         $user = $request->user();
-        abort_unless($user->hasAnyRole(['owner', 'manager']), 403);
+        abort_unless($user->isOwner() || $user->isSuperAdmin(), 403);
         abort_if($payable->restaurant_id !== $user->restaurant_id, 403);
         $branchId = $this->resolveOperationalBranch($user);
         abort_if($payable->purchaseOrder?->branch_id !== null && (int) $payable->purchaseOrder->branch_id !== $branchId, 403);
@@ -283,7 +284,7 @@ class DebtController extends Controller
     public function collectCustomer(Request $request, AccountReceivable $receivable): RedirectResponse
     {
         $user = $request->user();
-        abort_unless($user->hasAnyRole(['owner', 'manager']), 403);
+        abort_unless($user->isOwner() || $user->isSuperAdmin(), 403);
         abort_if($receivable->restaurant_id !== $user->restaurant_id, 403);
         $branchId = $this->resolveOperationalBranch($user);
         abort_if($receivable->order?->branch_id !== null && (int) $receivable->order->branch_id !== $branchId, 403);
@@ -365,7 +366,7 @@ class DebtController extends Controller
     public function updateCustomerCredit(Request $request, Customer $customer): RedirectResponse
     {
         $user = $request->user();
-        abort_unless($user->hasAnyRole(['owner', 'manager']), 403);
+        abort_unless($user->isOwner() || $user->isSuperAdmin(), 403);
         abort_if($customer->restaurant_id !== $user->restaurant_id, 403);
 
         $data = $request->validate([

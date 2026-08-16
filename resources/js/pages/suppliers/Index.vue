@@ -47,6 +47,30 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { confirmDialog } from '@/composables/useConfirm';
+import {
+    autoReplenish as autoReplenishRoute,
+    draftPoBulk,
+    ocrInvoice,
+    placeOrder as placeSupplierOrder,
+    priceAnalytics as supplierPriceAnalytics,
+    replenishCockpit,
+    sla as supplierSlaRoute,
+    slaDashboard,
+    store as storeSupplier,
+    update as updateSupplier,
+    destroy as destroySupplier,
+} from '@/routes/suppliers';
+import {
+    approve as approvePurchaseOrder,
+    releaseEscrow as releaseEscrowRoute,
+    refundEscrow as refundEscrowRoute,
+    verify as verifyPurchaseOrder,
+} from '@/routes/suppliers/orders';
+import {
+    internalTransfers as createInternalTransfer,
+    transferRecommendations as transferRecommendationsRoute,
+} from '@/routes/inventory';
+import { list as listInternalTransfers } from '@/routes/inventory/internal-transfers';
 
 const props = defineProps<{
     suppliers: any[];
@@ -199,7 +223,7 @@ const fetchCockpitData = async () => {
     loadingCockpit.value = true;
 
     try {
-        const res = await fetch(route('suppliers.replenish-cockpit'));
+        const res = await fetch(replenishCockpit.url());
         const data = await res.json();
         cockpitRecommendations.value = data.recommendations || [];
         // By default, select all recommendations that have a supplier
@@ -257,7 +281,7 @@ const submitBulkDraftPo = async () => {
         })
     ) {
         router.post(
-            route('suppliers.draft-po-bulk'),
+            draftPoBulk.url(),
             {
                 items: itemsToSend,
             },
@@ -280,7 +304,7 @@ const fetchSlaDashboard = async () => {
     selectedSupplier.value = null;
 
     try {
-        const res = await fetch(route('suppliers.sla-dashboard'));
+        const res = await fetch(slaDashboard.url());
         slaDashboardData.value = await res.json();
     } catch (e) {
         console.error(e);
@@ -327,7 +351,7 @@ const fetchSla = async () => {
 
     try {
         const res = await fetch(
-            route('suppliers.sla', selectedSupplier.value.id),
+            supplierSlaRoute.url(selectedSupplier.value.id),
         );
         slaData.value = await res.json();
     } catch (e) {
@@ -369,14 +393,14 @@ const openEditModal = (supplier: any) => {
 
 const saveSupplier = () => {
     if (supplierForm.id) {
-        supplierForm.patch(route('suppliers.update', supplierForm.id), {
+        supplierForm.patch(updateSupplier.url(supplierForm.id), {
             onSuccess: () => {
                 showEditModal.value = false;
                 supplierForm.reset();
             },
         });
     } else {
-        supplierForm.post(route('suppliers.store'), {
+        supplierForm.post(storeSupplier.url(), {
             onSuccess: () => {
                 showAddModal.value = false;
                 supplierForm.reset();
@@ -392,7 +416,7 @@ const deleteSupplier = async (supplier: any) => {
             description: `Bạn có chắc chắn muốn xóa nhà cung cấp "${supplier.name}"?`,
         })
     ) {
-        router.delete(route('suppliers.destroy', supplier.id));
+        router.delete(destroySupplier.url(supplier.id));
     }
 };
 
@@ -406,7 +430,7 @@ const triggerAutoReplenish = async () => {
         })
     ) {
         router.post(
-            route('suppliers.auto-replenish'),
+            autoReplenishRoute.url(),
             {},
             {
                 onSuccess: () => {
@@ -575,7 +599,7 @@ const removePoItem = (index: number | string) => {
 void removePoItem;
 
 const submitPo = () => {
-    poForm.post(route('suppliers.place-order', selectedSupplier.value.id), {
+    poForm.post(placeSupplierOrder.url(selectedSupplier.value.id), {
         onSuccess: () => {
             showPoModal.value = false;
             activeTab.value = 'pos';
@@ -584,7 +608,7 @@ const submitPo = () => {
 };
 
 const approvePo = (po: any) => {
-    router.post(route('suppliers.orders.approve', po.id));
+    router.post(approvePurchaseOrder.url(po.id));
 };
 
 const releaseEscrow = async (po: any) => {
@@ -595,7 +619,7 @@ const releaseEscrow = async (po: any) => {
             variant: 'default',
         })
     ) {
-        router.post(route('suppliers.orders.release-escrow', po.id));
+        router.post(releaseEscrowRoute.url(po.id));
     }
 };
 
@@ -607,7 +631,7 @@ const refundEscrow = async (po: any) => {
             variant: 'default',
         })
     ) {
-        router.post(route('suppliers.orders.refund-escrow', po.id));
+        router.post(refundEscrowRoute.url(po.id));
     }
 };
 
@@ -689,7 +713,7 @@ const submitVerification = () => {
     }
 
     router.post(
-        route('suppliers.orders.verify', selectedPo.value.id),
+        verifyPurchaseOrder.url(selectedPo.value.id),
         formData as any,
         {
             onSuccess: () => {
@@ -709,7 +733,7 @@ const fetchAnalytics = async () => {
 
     try {
         const res = await fetch(
-            route('suppliers.price-analytics', {
+            supplierPriceAnalytics.url({
                 supplier: selectedSupplier.value?.id || 0,
                 ingredient: selectedIngredient.value?.id || 0,
             }),
@@ -761,7 +785,7 @@ const handleFileUpload = async (e: Event) => {
         }));
         formData.append('po_items', JSON.stringify(contextItems));
 
-        const res = await fetch(route('suppliers.ocr-invoice'), {
+        const res = await fetch(ocrInvoice.url(), {
             method: 'POST',
             body: formData,
             headers: {
@@ -823,8 +847,8 @@ const fetchTransfers = async () => {
 
     try {
         const [recRes, logRes] = await Promise.all([
-            fetch(route('inventory.transfer-recommendations')),
-            fetch(route('inventory.internal-transfers.list')),
+            fetch(transferRecommendationsRoute.url()),
+            fetch(listInternalTransfers.url()),
         ]);
         const recData = await recRes.json();
         const logData = await logRes.json();
@@ -851,7 +875,7 @@ const executeTransfer = async (rec: any) => {
     }
 
     router.post(
-        route('inventory.internal-transfers'),
+        createInternalTransfer.url(),
         {
             from_branch_id: rec.from_branch_id,
             to_branch_id: rec.to_branch_id,
@@ -887,7 +911,7 @@ const submitManualTransfer = () => {
         return;
     }
 
-    transferForm.post(route('inventory.internal-transfers'), {
+    transferForm.post(createInternalTransfer.url(), {
         onSuccess: () => {
             showManualTransferModal.value = false;
             transferForm.reset();
