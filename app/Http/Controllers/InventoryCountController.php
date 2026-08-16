@@ -31,6 +31,11 @@ class InventoryCountController extends Controller
             ->get();
 
         $activeBranchId = $request->integer('branch_id') ?: ($user->assignedBranchId() ?: $branches->first()?->id);
+        abort_unless(
+            ! $activeBranchId || $branches->contains('id', (int) $activeBranchId),
+            403,
+            'Bạn chỉ có thể xem phiên kiểm kê trong phạm vi chi nhánh được phân công.'
+        );
 
         $sessions = InventoryCountSession::where('restaurant_id', $restaurantId)
             ->when($activeBranchId, fn ($q) => $q->where('branch_id', $activeBranchId))
@@ -95,6 +100,7 @@ class InventoryCountController extends Controller
     {
         $user = $request->user();
         $session = InventoryCountSession::where('restaurant_id', $user->restaurant_id)->findOrFail($id);
+        $this->authorizeSessionBranch($user, $session);
 
         $data = $request->validate([
             'items'                    => 'required|array|min:1',
@@ -132,6 +138,7 @@ class InventoryCountController extends Controller
     {
         $user = $request->user();
         $session = InventoryCountSession::where('restaurant_id', $user->restaurant_id)->findOrFail($id);
+        $this->authorizeSessionBranch($user, $session);
 
         $data = $request->validate([
             'variance_photo_path' => 'nullable|string',
@@ -165,6 +172,7 @@ class InventoryCountController extends Controller
     {
         $user = $request->user();
         $session = InventoryCountSession::where('restaurant_id', $user->restaurant_id)->findOrFail($id);
+        $this->authorizeSessionBranch($user, $session);
 
         try {
             $updated = $this->countService->approveCountSession($session, $user);
@@ -185,6 +193,11 @@ class InventoryCountController extends Controller
     public function quickCountPreset(Request $request): JsonResponse
     {
         $user = $request->user();
+        abort_unless(
+            $user->isOwner() || $user->isSuperAdmin() || $user->can('inventory.count'),
+            403,
+            'Bạn không có quyền tạo kiểm kê nhanh.'
+        );
         $restaurantId = $user->restaurant_id;
 
         $data = $request->validate([
@@ -194,13 +207,16 @@ class InventoryCountController extends Controller
         ]);
 
         $branchId = (int) $data['branch_id'];
-        $query = \App\Models\Ingredient::where('restaurant_id', $restaurantId);
+        abort_unless($user->canAccessBranch($branchId), 403, 'Bạn không có quyền kiểm kê chi nhánh này.');
+
+        $query = \App\Models\Ingredient::where('restaurant_id', $restaurantId)
+            ->where(fn ($scope) => $scope->whereNull('branch_id')->orWhere('branch_id', $branchId));
 
         match ($data['preset']) {
             'low_stock' => $query->whereHas('inventories', fn ($inv) => $inv->where('branch_id', $branchId)->whereRaw('inventories.quantity_on_hand <= ingredients.min_stock_level')),
             'high_value' => $query->where('average_cost', '>=', 50000)->orderByDesc('average_cost')->limit(20),
-            'expiring_soon' => $query->whereHas('batches', fn ($b) => $b->where('expiration_date', '<=', now()->addDays(3))),
-            'used_today' => $query->whereHas('movements', fn ($m) => $m->whereDate('created_at', today())),
+            'expiring_soon' => $query->whereHas('batches', fn ($b) => $b->where('branch_id', $branchId)->where('expiry_date', '<=', now()->addDays(3))),
+            'used_today' => $query->whereHas('transactions', fn ($m) => $m->where('branch_id', $branchId)->whereDate('created_at', today())),
             default => null,
         };
 
@@ -227,5 +243,14 @@ class InventoryCountController extends Controller
             'message' => "Đã tạo phiên kiểm kê nhanh '{$data['preset']}' thành công với ".count($ingredientIds)." nguyên liệu.",
             'data' => $session,
         ]);
+    }
+
+    private function authorizeSessionBranch($user, InventoryCountSession $session): void
+    {
+        abort_unless(
+            $user->canAccessBranch((int) $session->branch_id),
+            403,
+            'Bạn không có quyền thao tác phiên kiểm kê của chi nhánh này.'
+        );
     }
 }

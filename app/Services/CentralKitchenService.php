@@ -23,7 +23,24 @@ class CentralKitchenService
      */
     public function createBom(int $restaurantId, array $data, User $creator): CentralBom
     {
+        if (! $creator->isOwner() && ! $creator->isSuperAdmin()) {
+            throw new InvalidArgumentException('Chá»‰ Chá»§ doanh nghiá»‡p má»›i Ä‘Æ°á»£c thiáº¿t láº­p BOM.');
+        }
+
+        if ((int) $creator->restaurant_id !== $restaurantId) {
+            throw new InvalidArgumentException('Tài khoản không thuộc nhà hàng của BOM.');
+        }
+
         return DB::transaction(function () use ($restaurantId, $data, $creator) {
+            $centralBranchId = $this->centralBranchId($restaurantId);
+            $ingredientIds = collect([$data['output_ingredient_id']])
+                ->merge(collect($data['items'])->pluck('input_ingredient_id'))
+                ->map(fn ($id) => (int) $id)
+                ->unique();
+            if ($this->centralIngredientQuery($restaurantId, $centralBranchId)->whereIn('id', $ingredientIds)->count() !== $ingredientIds->count()) {
+                throw new InvalidArgumentException('Nguyên liệu BOM không thuộc nhà hàng hiện tại.');
+            }
+
             $bomCode = 'BOM-'.strtoupper(substr(md5(uniqid()), 0, 6));
 
             $bom = CentralBom::create([
@@ -57,7 +74,20 @@ class CentralKitchenService
      */
     public function createWorkOrder(int $restaurantId, int $branchId, array $data, User $creator): WorkOrder
     {
+        if ((int) $creator->restaurant_id !== $restaurantId) {
+            throw new InvalidArgumentException('Tài khoản không thuộc nhà hàng của lệnh sơ chế.');
+        }
+
         return DB::transaction(function () use ($restaurantId, $branchId, $data, $creator) {
+            $centralBranchId = $this->centralBranchId($restaurantId);
+            if ($branchId !== $centralBranchId) {
+                throw new InvalidArgumentException('Lá»‡nh sÆ¡ cháº¿ chá»‰ Ä‘Æ°á»£c thá»±c hiá»‡n táº¡i Kho Tá»•ng.');
+            }
+
+            if (! $this->centralIngredientQuery($restaurantId, $centralBranchId)->whereKey($data['output_ingredient_id'])->exists()) {
+                throw new InvalidArgumentException('Thành phẩm sơ chế không thuộc nhà hàng hiện tại.');
+            }
+
             $code = 'WO-'.Carbon::now()->format('Ymd').'-'.str_pad((string) (WorkOrder::where('restaurant_id', $restaurantId)->count() + 1), 4, '0', STR_PAD_LEFT);
 
             $bom = null;
@@ -80,6 +110,13 @@ class CentralKitchenService
             ]);
 
             if ($bom) {
+                $bomIngredientIds = collect([$bom->output_ingredient_id])
+                    ->merge($bom->items->pluck('input_ingredient_id'))
+                    ->map(fn ($id) => (int) $id)
+                    ->unique();
+                if ($this->centralIngredientQuery($restaurantId, $centralBranchId)->whereIn('id', $bomIngredientIds)->count() !== $bomIngredientIds->count()) {
+                    throw new InvalidArgumentException('BOM Ä‘Æ°á»£c chá»n cÃ³ nguyÃªn liá»‡u ngoÃ i pháº¡m vi Kho Tá»•ng.');
+                }
                 $multiplier = (float) $data['target_quantity'] / (float) ($bom->standard_output_qty > 0 ? $bom->standard_output_qty : 1);
                 foreach ($bom->items as $bomItem) {
                     $plannedQty = round((float) $bomItem->required_quantity * $multiplier, 4);
@@ -91,6 +128,16 @@ class CentralKitchenService
                     ]);
                 }
             } elseif (! empty($data['items'])) {
+                $manualIngredientIds = collect($data['items'])
+                    ->pluck('input_ingredient_id')
+                    ->map(fn ($id) => (int) $id)
+                    ->unique();
+                if ($this->centralIngredientQuery($restaurantId, $centralBranchId)
+                    ->whereIn('id', $manualIngredientIds)
+                    ->count() !== $manualIngredientIds->count()) {
+                    throw new InvalidArgumentException('Nguyên liệu lệnh sơ chế không thuộc nhà hàng hiện tại.');
+                }
+
                 foreach ($data['items'] as $itemData) {
                     WorkOrderItem::create([
                         'work_order_id'        => $workOrder->id,
@@ -111,8 +158,28 @@ class CentralKitchenService
      */
     public function executeWorkOrder(WorkOrder $workOrder, User $user, float $actualYieldQty, ?float $actualWastageQty = null, ?array $usedItems = null): WorkOrder
     {
+        if ((int) $workOrder->restaurant_id !== (int) $user->restaurant_id) {
+            throw new InvalidArgumentException('Tài khoản không thuộc nhà hàng của lệnh sơ chế.');
+        }
+
+        $centralBranchId = $this->centralBranchId($workOrder->restaurant_id);
+        if ((int) $workOrder->branch_id !== $centralBranchId) {
+            throw new InvalidArgumentException('Lá»‡nh sÆ¡ cháº¿ khÃ´ng thuá»™c Kho Tá»•ng.');
+        }
+
         if ($workOrder->status === WorkOrder::STATUS_COMPLETED) {
             throw new InvalidArgumentException('Đơn sản xuất này đã hoàn thành trước đó.');
+        }
+
+        $workOrder->loadMissing('items');
+        $workOrderIngredientIds = collect([$workOrder->output_ingredient_id])
+            ->merge($workOrder->items->pluck('input_ingredient_id'))
+            ->map(fn ($id) => (int) $id)
+            ->unique();
+        if ($this->centralIngredientQuery($workOrder->restaurant_id, $centralBranchId)
+            ->whereIn('id', $workOrderIngredientIds)
+            ->count() !== $workOrderIngredientIds->count()) {
+            throw new InvalidArgumentException('Lệnh sơ chế chứa nguyên liệu ngoài phạm vi Kho Tổng.');
         }
 
         return DB::transaction(function () use ($workOrder, $user, $actualYieldQty, $actualWastageQty, $usedItems) {
@@ -131,7 +198,7 @@ class CentralKitchenService
                 $actualUsed = is_array($itemInput) ? (float) ($itemInput['actual_used_quantity'] ?? $item->planned_quantity) : (float) $item->actual_used_quantity;
                 $batchId    = is_array($itemInput) ? ($itemInput['batch_id'] ?? $item->batch_id) : $item->batch_id;
 
-                $ingredient = Ingredient::findOrFail($item->input_ingredient_id);
+                $ingredient = Ingredient::where('restaurant_id', $restaurantId)->findOrFail($item->input_ingredient_id);
                 $unitCost   = (float) ($ingredient->average_cost ?? 0);
                 $lineCost   = round($unitCost * $actualUsed, 2);
                 $totalRawCost += $lineCost;
@@ -158,7 +225,11 @@ class CentralKitchenService
                 $inventory->decrement('quantity_on_hand', $actualUsed);
 
                 if ($batchId) {
-                    $batch = InventoryBatch::lockForUpdate()->find($batchId);
+                    $batch = InventoryBatch::where('restaurant_id', $restaurantId)
+                        ->where('branch_id', $branchId)
+                        ->where('ingredient_id', $item->input_ingredient_id)
+                        ->lockForUpdate()
+                        ->find($batchId);
                     if ($batch) {
                         $batch->decrement('quantity_remaining', $actualUsed);
                     }
@@ -248,5 +319,30 @@ class CentralKitchenService
 
             return $workOrder->fresh(['outputIngredient', 'createdBatch', 'items.inputIngredient']);
         });
+    }
+
+    private function centralBranchId(int $restaurantId): int
+    {
+        $centralBranchId = RestaurantBranch::where('restaurant_id', $restaurantId)
+            ->where(function ($query) {
+                $query->where('is_central_warehouse', true)
+                    ->orWhere('warehouse_type', 'central');
+            })
+            ->where('status', 'active')
+            ->value('id');
+
+        if (! $centralBranchId) {
+            throw new InvalidArgumentException('ChÆ°a thiáº¿t láº­p Kho Tá»•ng.');
+        }
+
+        return (int) $centralBranchId;
+    }
+
+    private function centralIngredientQuery(int $restaurantId, int $centralBranchId)
+    {
+        return Ingredient::where('restaurant_id', $restaurantId)
+            ->where(fn ($query) => $query
+                ->whereNull('branch_id')
+                ->orWhere('branch_id', $centralBranchId));
     }
 }

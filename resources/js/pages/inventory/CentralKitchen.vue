@@ -29,6 +29,7 @@ const props = defineProps<{
     boms: Array<any>;
     workOrders: Array<any>;
     ingredients: Array<any>;
+    canManageWarehouse: boolean;
 }>();
 
 const isProcessing = ref(false);
@@ -54,13 +55,20 @@ const formatDate = (value: string | null | undefined) =>
     value ? new Date(value).toLocaleString('vi-VN') : '-';
 
 const statusLabel = (status: string) => {
-    if (status === 'completed') return 'Hoàn tất';
-    if (status === 'in_progress') return 'Đang sơ chế';
+    if (status === 'completed') {
+return 'Hoàn tất';
+}
+
+    if (status === 'in_progress') {
+return 'Đang sơ chế';
+}
+
     return 'Chờ thực hiện';
 };
 
 const createWorkOrder = async () => {
     isProcessing.value = true;
+
     try {
         await axios.post('/api/central-kitchen/work-orders', {
             ...form.value,
@@ -85,15 +93,21 @@ const executeWorkOrder = async (order: any) => {
         `Nhập sản lượng thực tế của ${order.output_ingredient?.name || 'thành phẩm'}:`,
         order.target_quantity,
     );
-    if (!value) return;
+
+    if (!value) {
+return;
+}
 
     const quantity = Number(value);
+
     if (!Number.isFinite(quantity) || quantity <= 0) {
         toast.error('Sản lượng thực tế không hợp lệ.');
+
         return;
     }
 
     isProcessing.value = true;
+
     try {
         await axios.post(
             `/api/central-kitchen/work-orders/${order.id}/execute`,
@@ -141,7 +155,7 @@ const executeWorkOrder = async (order: any) => {
         </div>
 
         <div class="grid gap-4 lg:grid-cols-[360px_1fr]">
-            <Card class="border-amber-500/20">
+            <Card v-if="canManageWarehouse" class="border-amber-500/20">
                 <CardHeader
                     class="border-b border-amber-500/10 bg-amber-950/10"
                 >
@@ -328,7 +342,10 @@ const executeWorkOrder = async (order: any) => {
                                     </td>
                                     <td class="p-3 pr-4 text-right">
                                         <Button
-                                            v-if="order.status !== 'completed'"
+                                            v-if="
+                                                canManageWarehouse &&
+                                                order.status !== 'completed'
+                                            "
                                             size="sm"
                                             class="h-7 bg-amber-600 text-[10px] text-white hover:bg-amber-700"
                                             @click="executeWorkOrder(order)"

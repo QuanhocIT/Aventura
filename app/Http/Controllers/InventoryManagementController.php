@@ -53,12 +53,21 @@ class InventoryManagementController extends Controller
     /**
      * Trang Kho nguyên liệu & Định lượng (Dành cho Day 2).
      */
-    public function inventoryPage(Request $request): Response
+    public function inventoryPage(Request $request): Response|RedirectResponse
     {
-        abort_unless($request->user()->hasAnyRole(['owner', 'manager', 'inventory_staff', 'warehouse_manager', 'warehouse_staff']), 403);
+        $user = $request->user();
 
-        $restaurant = $request->user()->restaurant;
-        if (! $restaurant && ! $request->user()->hasRole('super_admin')) {
+        // Kho Tổng có workspace riêng cố định theo central warehouse. Không
+        // để tài khoản vận hành rơi vào màn nguyên liệu/công thức theo scope
+        // chi nhánh, vì scope trên header có thể đang trỏ sang nơi khác.
+        if ($user->hasAnyRole(['warehouse_manager', 'warehouse_staff'])) {
+            return redirect()->route('inventory.central-warehouse.stock');
+        }
+
+        abort_unless($user->hasAnyRole(['owner', 'manager', 'inventory_staff']), 403);
+
+        $restaurant = $user->restaurant;
+        if (! $restaurant && ! $user->hasRole('super_admin')) {
             abort(403, 'Không tìm thấy nhà hàng.');
         }
         $restaurant?->loadMissing('plan');
@@ -71,7 +80,6 @@ class InventoryManagementController extends Controller
             ]);
         }
 
-        $user = $request->user();
         // TRƯỚC ĐÂY KHÔNG LỌC CHI NHÁNH: mọi truy vấn dưới đây chỉ where
         // restaurant_id, bỏ qua branch_id dù các bảng liên quan đều có cột này
         // — owner chuyển chi nhánh nhưng vẫn thấy tồn kho/nguyên liệu MỌI chi nhánh.
@@ -732,7 +740,7 @@ class InventoryManagementController extends Controller
     {
         abort_unless($request->user()->hasAnyRole(['owner', 'manager', 'inventory_staff', 'warehouse_manager', 'warehouse_staff']), 403);
 
-        $branchId = $this->requireActiveBranch($request);
+        $branchId = $this->requireInventoryOperationBranch($request);
 
         $maxSize = SystemSetting::get('upload_invoice_image_max', 4096);
         $data = $request->validate([
@@ -809,7 +817,7 @@ class InventoryManagementController extends Controller
             DB::transaction(function () use ($user, $ingredientId, $newQty, $newCost, $data) {
                 // Lock the ingredient row to prevent average cost recalculation collisions
                 $ingredient = Ingredient::where('restaurant_id', $user->restaurant_id)
-                    ->where('branch_id', $data['branch_id'])
+                    ->where(fn ($scope) => $scope->whereNull('branch_id')->orWhere('branch_id', $data['branch_id']))
                     ->where('id', $ingredientId)
                     ->lockForUpdate()
                     ->firstOrFail();
@@ -907,11 +915,13 @@ class InventoryManagementController extends Controller
     {
         $user = $request->user();
         $restaurantId = $user->restaurant_id;
-        $branchId = $this->tenantContext->activeBranchId();
+        $branchId = $user->hasAnyRole(['warehouse_manager', 'warehouse_staff'])
+            ? $this->requireInventoryOperationBranch($request)
+            : $this->tenantContext->activeBranchId();
 
         // Lấy tất cả nguyên liệu của nhà hàng
         $ingredients = Ingredient::where('restaurant_id', $restaurantId)
-            ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
+            ->when($branchId, fn ($q) => $q->where(fn ($scope) => $scope->whereNull('branch_id')->orWhere('branch_id', $branchId)))
             ->with(['unit'])
             ->get();
 
@@ -1092,13 +1102,13 @@ class InventoryManagementController extends Controller
         unset($data['photo']);
 
         $user = $request->user();
-        $branchId = $this->requireActiveBranch($request);
+        $branchId = $this->requireInventoryOperationBranch($request);
         $data['branch_id'] = $branchId;
 
         // Gửi kèm thông tin dễ đọc để chủ/quản lý có thể xác nhận mà không
         // phải tra ngược ingredient_id trong màn hình Phê duyệt.
         $ingredient = Ingredient::where('restaurant_id', $user->restaurant_id)
-            ->where('branch_id', $branchId)
+            ->where(fn ($scope) => $scope->whereNull('branch_id')->orWhere('branch_id', $branchId))
             ->with('unit')
             ->findOrFail($data['ingredient_id']);
         $data['ingredient_name'] = $ingredient->name;
@@ -1127,7 +1137,7 @@ class InventoryManagementController extends Controller
                 }
 
                 $ingredient = Ingredient::where('restaurant_id', $user->restaurant_id)
-                    ->where('branch_id', $data['branch_id'])
+                    ->where(fn ($scope) => $scope->whereNull('branch_id')->orWhere('branch_id', $data['branch_id']))
                     ->findOrFail($data['ingredient_id']);
                 $wasteQty = (float) $transaction->quantity;
                 $wasteCost = (float) $transaction->total_cost;
@@ -1170,7 +1180,7 @@ class InventoryManagementController extends Controller
             'Bạn không có quyền điều chỉnh tồn kho.'
         );
 
-        $branchId = $this->requireActiveBranch($request);
+        $branchId = $this->requireInventoryOperationBranch($request);
 
         $data = $request->validate([
             'reconcile_items' => ['required', 'array'],
@@ -1199,7 +1209,7 @@ class InventoryManagementController extends Controller
 
                     // Lock ingredient and inventory
                     $ingredient = Ingredient::where('restaurant_id', $user->restaurant_id)
-                        ->where('branch_id', $branchId)
+                        ->where(fn ($scope) => $scope->whereNull('branch_id')->orWhere('branch_id', $branchId))
                         ->where('id', $ingredientId)
                         ->lockForUpdate()
                         ->firstOrFail();
@@ -1360,6 +1370,20 @@ class InventoryManagementController extends Controller
         return $branchId;
     }
 
+    private function requireInventoryOperationBranch(Request $request): int
+    {
+        $user = $request->user();
+
+        if ($user->hasAnyRole(['warehouse_manager', 'warehouse_staff'])) {
+            $centralBranch = $this->centralWarehouseService->getCentralWarehouse($user->restaurant_id);
+            abort_unless($centralBranch, 422, 'Nhà hàng chưa cấu hình Kho Tổng đang hoạt động.');
+
+            return (int) $centralBranch->id;
+        }
+
+        return $this->requireActiveBranch($request);
+    }
+
     // ── Khóa lô & thu hồi ─────────────────────────────────────────────────────
 
     private function assertBatchManager(\App\Models\User $user): void
@@ -1371,12 +1395,29 @@ class InventoryManagementController extends Controller
         );
     }
 
+    private function assertBatchBranchScope(\App\Models\User $user, InventoryBatch $batch): void
+    {
+        if ($user->hasAnyRole(['warehouse_manager', 'warehouse_staff'])) {
+            $centralBranch = $this->centralWarehouseService->getCentralWarehouse($user->restaurant_id);
+            abort_unless(
+                $centralBranch && (int) $batch->branch_id === (int) $centralBranch->id,
+                403,
+                'Tài khoản Kho Tổng chỉ được thao tác lô hàng tại Kho Tổng.'
+            );
+
+            return;
+        }
+
+        abort_unless($user->canAccessBranch((int) $batch->branch_id), 403, 'Bạn không có quyền thao tác lô hàng của chi nhánh này.');
+    }
+
     /** Khóa một lô: không cho tiêu thụ nữa (consumeBatches bỏ qua lô không 'active'/'expired'). */
     public function lockBatch(Request $request, InventoryBatch $batch): RedirectResponse
     {
         $user = $request->user();
         $this->assertBatchManager($user);
         abort_if($batch->restaurant_id !== $user->restaurant_id, 403);
+        $this->assertBatchBranchScope($user, $batch);
 
         if (in_array($batch->status, ['locked', 'recalled', 'depleted'], true)) {
             return back()->with('error', 'Lô này đã bị khóa/thu hồi hoặc đã hết.');

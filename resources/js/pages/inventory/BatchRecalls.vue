@@ -26,6 +26,7 @@ defineOptions({ layout: AppLayout });
 const props = defineProps<{
     recallOrders: Array<any>;
     activeBatches: Array<any>;
+    canManageWarehouse: boolean;
 }>();
 const isProcessing = ref(false);
 const form = ref({
@@ -51,9 +52,12 @@ const statusLabel = (status: string) =>
 const submitRecall = async () => {
     if (!form.value.batch_id || !form.value.reason.trim()) {
         toast.error('Vui lòng chọn lô hàng và nhập lý do thu hồi.');
+
         return;
     }
+
     isProcessing.value = true;
+
     try {
         await axios.post('/api/batch-recalls/initiate', {
             ...form.value,
@@ -75,8 +79,13 @@ const completeRecall = async (recall: any) => {
         'Nhập ghi chú xử lý hoàn tất:',
         recall.resolution_notes || '',
     );
-    if (notes === null) return;
+
+    if (notes === null) {
+return;
+}
+
     isProcessing.value = true;
+
     try {
         await axios.post(`/api/batch-recalls/${recall.id}/complete`, {
             resolution_notes: notes,
@@ -122,7 +131,7 @@ const completeRecall = async (recall: any) => {
         </div>
 
         <div class="grid gap-4 lg:grid-cols-[380px_1fr]">
-            <Card class="border-rose-500/20"
+            <Card v-if="canManageWarehouse" class="border-rose-500/20"
                 ><CardHeader class="border-b border-rose-500/10 bg-rose-950/10"
                     ><CardTitle
                         class="flex items-center gap-2 text-base text-rose-200"
@@ -277,7 +286,10 @@ const completeRecall = async (recall: any) => {
                                     </td>
                                     <td class="p-3 pr-4 text-right">
                                         <Button
-                                            v-if="recall.status !== 'completed'"
+                                            v-if="
+                                                canManageWarehouse &&
+                                                recall.status !== 'completed'
+                                            "
                                             size="sm"
                                             :disabled="isProcessing"
                                             class="h-7 bg-emerald-600 text-[10px] text-white hover:bg-emerald-700"

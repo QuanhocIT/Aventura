@@ -7,6 +7,7 @@ use App\Models\Inventory;
 use App\Models\InventoryCountItem;
 use App\Models\InventoryCountSession;
 use App\Models\InventoryTransaction;
+use App\Models\RestaurantBranch;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 use InvalidArgumentException;
@@ -25,6 +26,16 @@ class InventoryCountService
         ?array $ingredientIds = null
     ): InventoryCountSession {
         return DB::transaction(function () use ($restaurantId, $branchId, $creator, $type, $blindCount, $ingredientIds) {
+            if ((int) $creator->restaurant_id !== $restaurantId || ! $creator->canAccessBranch($branchId)) {
+                throw new InvalidArgumentException('Tài khoản không được phép kiểm kê chi nhánh này.');
+            }
+            if (! RestaurantBranch::where('restaurant_id', $restaurantId)
+                ->where('status', 'active')
+                ->whereKey($branchId)
+                ->exists()) {
+                throw new InvalidArgumentException('Chi nhánh kiểm kê không tồn tại hoặc đã ngừng hoạt động.');
+            }
+
             $session = InventoryCountSession::create([
                 'restaurant_id' => $restaurantId,
                 'branch_id'     => $branchId,
@@ -62,6 +73,8 @@ class InventoryCountService
 
     public function submitCounts(InventoryCountSession $session, User $user, array $countedItems): InventoryCountSession
     {
+        $this->assertSessionScope($session, $user);
+
         if ($session->status !== 'in_progress') {
             throw new InvalidArgumentException('Chỉ có thể nhập số lượng đếm khi phiên kiểm kê đang diễn ra.');
         }
@@ -167,6 +180,8 @@ class InventoryCountService
      */
     public function approveCountSession(InventoryCountSession $session, User $approver): InventoryCountSession
     {
+        $this->assertSessionScope($session, $approver);
+
         if ($session->status !== 'pending_approval') {
             throw new InvalidArgumentException('Chỉ phiên kiểm kê ở trạng thái chờ duyệt mới có thể phê duyệt.');
         }
@@ -234,5 +249,17 @@ class InventoryCountService
 
             return $session->fresh(['items.ingredient.unit', 'approver']);
         });
+    }
+
+    private function assertSessionScope(InventoryCountSession $session, User $user): void
+    {
+        if ((int) $session->restaurant_id !== (int) $user->restaurant_id
+            || ! $user->canAccessBranch((int) $session->branch_id)
+            || ! RestaurantBranch::where('restaurant_id', $session->restaurant_id)
+                ->where('status', 'active')
+                ->whereKey($session->branch_id)
+                ->exists()) {
+            throw new InvalidArgumentException('Phiên kiểm kê không thuộc phạm vi tài khoản hoặc chi nhánh đã ngừng hoạt động.');
+        }
     }
 }

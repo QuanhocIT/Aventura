@@ -5,6 +5,8 @@ namespace App\Http\Controllers;
 use App\Models\CentralBom;
 use App\Models\WorkOrder;
 use App\Services\CentralKitchenService;
+use App\Services\CentralWarehouseService;
+use App\Models\RestaurantBranch;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -15,23 +17,27 @@ use App\Models\Ingredient;
 class CentralKitchenController extends Controller
 {
     public function __construct(
-        protected CentralKitchenService $kitchenService
+        protected CentralKitchenService $kitchenService,
+        protected CentralWarehouseService $warehouseService
     ) {}
 
     public function page(Request $request): Response
     {
         $user = $request->user();
-        $boms = CentralBom::where('restaurant_id', $user->restaurant_id)
+        $this->authorizeWarehouseView($user);
+        $centralBranch = $this->centralBranch($user->restaurant_id);
+        $boms = $this->centralBomsQuery($user->restaurant_id, $centralBranch?->id)
             ->with(['outputIngredient.unit', 'items.inputIngredient.unit'])
             ->orderBy('id', 'desc')
             ->get();
 
         $workOrders = WorkOrder::where('restaurant_id', $user->restaurant_id)
+            ->when($centralBranch, fn ($query) => $query->where('branch_id', $centralBranch->id), fn ($query) => $query->whereRaw('1 = 0'))
             ->with(['outputIngredient.unit', 'createdBatch', 'items.inputIngredient.unit', 'branch', 'producer'])
             ->orderBy('id', 'desc')
             ->get();
 
-        $ingredients = Ingredient::where('restaurant_id', $user->restaurant_id)
+        $ingredients = $this->centralIngredientQuery($user->restaurant_id, $centralBranch?->id)
             ->with(['unit'])
             ->get();
 
@@ -39,13 +45,16 @@ class CentralKitchenController extends Controller
             'boms'        => $boms,
             'workOrders'  => $workOrders,
             'ingredients' => $ingredients,
+            'canManageWarehouse' => $this->canManageWarehouse($user),
         ]);
     }
 
     public function getBoms(Request $request): JsonResponse
     {
         $user = $request->user();
-        $boms = CentralBom::where('restaurant_id', $user->restaurant_id)
+        $this->authorizeWarehouseView($user);
+        $centralBranch = $this->centralBranch($user->restaurant_id);
+        $boms = $this->centralBomsQuery($user->restaurant_id, $centralBranch?->id)
             ->with(['outputIngredient', 'items.inputIngredient'])
             ->orderBy('id', 'desc')
             ->get();
@@ -56,6 +65,7 @@ class CentralKitchenController extends Controller
     public function storeBom(Request $request): JsonResponse
     {
         $user = $request->user();
+        abort_unless($user->isOwner() || $user->isSuperAdmin(), 403, 'Chá»‰ Chá»§ doanh nghiá»‡p má»›i Ä‘Æ°á»£c thiáº¿t láº­p Ä‘á»‹nh má»©c BOM vÃ  giÃ¡ vá»‘n sÆ¡ cháº¿.');
         $validated = $request->validate([
             'name'                    => 'required|string|max:255',
             'output_ingredient_id'   => 'required|integer',
@@ -80,7 +90,10 @@ class CentralKitchenController extends Controller
     public function getWorkOrders(Request $request): JsonResponse
     {
         $user = $request->user();
+        $this->authorizeWarehouseView($user);
+        $centralBranch = $this->centralBranch($user->restaurant_id);
         $workOrders = WorkOrder::where('restaurant_id', $user->restaurant_id)
+            ->when($centralBranch, fn ($query) => $query->where('branch_id', $centralBranch->id), fn ($query) => $query->whereRaw('1 = 0'))
             ->with(['outputIngredient', 'createdBatch', 'items.inputIngredient', 'branch', 'producer'])
             ->orderBy('id', 'desc')
             ->get();
@@ -91,7 +104,11 @@ class CentralKitchenController extends Controller
     public function storeWorkOrder(Request $request): JsonResponse
     {
         $user = $request->user();
-        $branchId = $request->input('branch_id', $user->branch_id);
+        $this->authorizeWarehouseManage($user);
+        $centralBranch = $this->warehouseService->getCentralWarehouse($user->restaurant_id);
+        abort_unless($centralBranch, 422, 'Chưa thiết lập Kho Tổng.');
+        $branchId = $request->input('branch_id', $centralBranch->id);
+        abort_unless((int) $branchId === (int) $centralBranch->id, 422, 'Lệnh sơ chế chỉ được thực hiện tại Kho Tổng.');
 
         $validated = $request->validate([
             'output_ingredient_id' => 'required|integer',
@@ -114,7 +131,12 @@ class CentralKitchenController extends Controller
     public function executeWorkOrder(Request $request, int $id): JsonResponse
     {
         $user = $request->user();
-        $workOrder = WorkOrder::where('restaurant_id', $user->restaurant_id)->findOrFail($id);
+        $this->authorizeWarehouseManage($user);
+        $centralBranch = $this->centralBranch($user->restaurant_id);
+        abort_unless($centralBranch, 422, 'ChÆ°a thiáº¿t láº­p Kho Tá»•ng.');
+        $workOrder = WorkOrder::where('restaurant_id', $user->restaurant_id)
+            ->where('branch_id', $centralBranch->id)
+            ->findOrFail($id);
 
         $validated = $request->validate([
             'actual_yield_quantity'   => 'required|numeric|gt:0',
@@ -134,5 +156,62 @@ class CentralKitchenController extends Controller
             'message'    => "Hoàn tất sơ chế đơn #{$executed->work_order_code}. Đã nhập kho lô mới {$executed->created_batch_code}.",
             'work_order' => $executed,
         ]);
+    }
+
+    private function centralBranch(int $restaurantId): ?RestaurantBranch
+    {
+        return $this->warehouseService->getCentralWarehouse($restaurantId);
+    }
+
+    private function centralIngredientQuery(int $restaurantId, ?int $centralBranchId)
+    {
+        return Ingredient::where('restaurant_id', $restaurantId)
+            ->when(
+                $centralBranchId,
+                fn ($query) => $query->where(fn ($scope) => $scope
+                    ->whereNull('branch_id')
+                    ->orWhere('branch_id', $centralBranchId)),
+                fn ($query) => $query->whereRaw('1 = 0'),
+            );
+    }
+
+    private function centralBomsQuery(int $restaurantId, ?int $centralBranchId)
+    {
+        $query = CentralBom::where('restaurant_id', $restaurantId);
+
+        if (! $centralBranchId) {
+            return $query->whereRaw('1 = 0');
+        }
+
+        return $query
+            ->whereHas('outputIngredient', fn ($ingredient) => $ingredient
+                ->whereNull('branch_id')
+                ->orWhere('branch_id', $centralBranchId))
+            ->whereDoesntHave('items.inputIngredient', fn ($ingredient) => $ingredient
+                ->whereNotNull('branch_id')
+                ->where('branch_id', '!=', $centralBranchId));
+    }
+
+    private function canManageWarehouse($user): bool
+    {
+        return $user->isOwner() || $user->isSuperAdmin() || $user->hasRole('warehouse_manager') || $user->can('warehouse.manage');
+    }
+
+    private function authorizeWarehouseView($user): void
+    {
+        abort_unless(
+            $user->isOwner() || $user->isSuperAdmin() || $user->hasRole('warehouse_manager') || $user->can('warehouse.view'),
+            403,
+            'Bạn không có quyền xem nghiệp vụ Kho Tổng.'
+        );
+    }
+
+    private function authorizeWarehouseManage($user): void
+    {
+        abort_unless(
+            $this->canManageWarehouse($user),
+            403,
+            'Bạn không có quyền điều hành Kho Tổng.'
+        );
     }
 }
