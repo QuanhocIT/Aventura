@@ -147,6 +147,65 @@ class TableReservationTest extends TestCase
         $this->actingAs($this->owner)->get('/reservations')->assertOk();
     }
 
+    public function test_owner_can_record_a_phone_reservation_for_a_branch(): void
+    {
+        $this->makeTable();
+
+        $date = today()->addDay()->toDateString();
+
+        $this->actingAs($this->owner)
+            ->post('/reservations', [
+                'branch_id' => $this->branch->id,
+                'guest_name' => 'Khách gọi đến nhà hàng',
+                'guest_phone' => '0909988776',
+                'reservation_date' => $date,
+                'reservation_time' => '18:30',
+                'party_size' => 3,
+                'special_requests' => 'Bàn yên tĩnh',
+            ])
+            ->assertRedirect();
+
+        $this->assertDatabaseHas('table_reservations', [
+            'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
+            'guest_phone' => '0909988776',
+            'source' => 'phone',
+            'status' => 'pending',
+        ]);
+    }
+
+    public function test_branch_manager_can_view_and_record_reservations_only_for_assigned_branch(): void
+    {
+        $this->makeTable();
+
+        $manager = User::factory()->create([
+            'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
+            'status' => 'active',
+        ]);
+        $manager->assignRole(Role::findByName('manager', 'web'));
+        $this->branch->update(['manager_user_id' => $manager->id]);
+
+        $this->actingAs($manager)->get('/reservations')->assertOk();
+
+        $this->actingAs($manager)
+            ->post('/reservations', [
+                'guest_name' => 'Khách của chi nhánh',
+                'guest_phone' => '0909111222',
+                'reservation_date' => today()->addDay()->toDateString(),
+                'reservation_time' => '19:00',
+                'party_size' => 2,
+            ])
+            ->assertRedirect();
+
+        $this->assertDatabaseHas('table_reservations', [
+            'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
+            'guest_phone' => '0909111222',
+            'source' => 'phone',
+        ]);
+    }
+
     public function test_owner_can_confirm_reservation_and_assign_table(): void
     {
         $table = $this->makeTable();
@@ -162,6 +221,38 @@ class TableReservationTest extends TestCase
         $this->assertNotNull($reservation->confirmed_at);
         $this->assertSame($this->owner->id, (int) $reservation->confirmed_by);
         $this->assertSame('reserved', $table->refresh()->status);
+    }
+
+    public function test_owner_can_auto_assign_a_suitable_table(): void
+    {
+        $table = $this->makeTable('Bàn 4 chỗ');
+        $reservation = $this->makeReservation(['party_size' => 3]);
+
+        $this->actingAs($this->owner)
+            ->post("/reservations/{$reservation->id}/auto-assign")
+            ->assertRedirect();
+
+        $reservation->refresh();
+        $table->refresh();
+
+        $this->assertSame('confirmed', $reservation->status);
+        $this->assertSame($table->id, (int) $reservation->table_id);
+        $this->assertSame('reserved', $table->status);
+        $this->assertNotNull($reservation->confirmed_at);
+    }
+
+    public function test_cannot_confirm_with_a_table_that_is_too_small(): void
+    {
+        $table = $this->makeTable('Bàn nhỏ');
+        $table->update(['capacity' => 2]);
+        $reservation = $this->makeReservation(['party_size' => 4]);
+
+        $this->actingAs($this->owner)
+            ->post("/reservations/{$reservation->id}/confirm", ['table_id' => $table->id])
+            ->assertSessionHasErrors(['table_id']);
+
+        $this->assertSame('pending', $reservation->refresh()->status);
+        $this->assertSame('available', $table->refresh()->status);
     }
 
     public function test_cannot_assign_same_table_twice_in_overlapping_window(): void
@@ -214,6 +305,22 @@ class TableReservationTest extends TestCase
         $this->assertSame('seated', $reservation->status);
         $this->assertNotNull($reservation->seated_at);
         $this->assertSame('occupied', $table->status);
+    }
+
+    public function test_completing_a_seated_reservation_releases_the_table(): void
+    {
+        $table = $this->makeTable('Bàn hoàn tất', 'occupied');
+        $reservation = $this->makeReservation([
+            'status' => 'seated',
+            'table_id' => $table->id,
+        ]);
+
+        $this->actingAs($this->owner)
+            ->post("/reservations/{$reservation->id}/complete")
+            ->assertRedirect();
+
+        $this->assertSame('completed', $reservation->refresh()->status);
+        $this->assertSame('available', $table->refresh()->status);
     }
 
     public function test_cannot_seat_unconfirmed_reservation(): void
