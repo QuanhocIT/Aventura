@@ -21,11 +21,12 @@ class WageTier extends Model
     public const SHIFTS_PER_MONTH = 26;
 
     protected $fillable = [
-        'restaurant_id', 'branch_id', 'name', 'compensation_type', 'rate', 'is_active', 'sort_order',
+        'restaurant_id', 'branch_id', 'name', 'compensation_type', 'rate', 'revenue_percent', 'is_active', 'sort_order',
     ];
 
     protected $casts = [
         'rate' => 'decimal:2',
+        'revenue_percent' => 'decimal:2',
         'is_active' => 'boolean',
     ];
 

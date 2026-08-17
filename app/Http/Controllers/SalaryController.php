@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\ApprovalRequest;
+use App\Models\Employee;
 use App\Models\RestaurantBranch;
 use App\Models\Salary;
 use App\Models\SalaryAdjustment;
@@ -19,6 +20,7 @@ use Carbon\Carbon;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -53,7 +55,7 @@ class SalaryController extends Controller
 
         $restaurantId = $user->restaurant_id;
 
-        $period = $request->input('period', today()->format('Y-m'));
+        $period = $request->validate(['period' => ['nullable', 'date_format:Y-m']])['period'] ?? today()->format('Y-m');
         [$year, $month] = explode('-', $period);
 
         $periodStart = Carbon::createFromDate($year, $month, 1)->startOfMonth()->toDateString();
@@ -69,7 +71,7 @@ class SalaryController extends Controller
             ->where('pay_period_start', $periodStart)
             ->where('pay_period_end', $periodEnd)
             ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
-            ->with(['employee:id,employee_code,full_name,job_title,employment_type,compensation_type,pay_rate,base_salary,branch_id', 'employee.trustScore', 'adjustments'])
+            ->with(['employee:id,employee_code,full_name,job_title,employment_type,compensation_type,pay_rate,base_salary,branch_id', 'employee.trustScore', 'adjustments', 'approvedBy:id,name'])
             ->get()
             ->map(function (Salary $s) {
                 $breakdown = $this->salaryService->getSalaryCalculationDetails($s);
@@ -92,6 +94,8 @@ class SalaryController extends Controller
                     'net_salary' => (float) $s->net_salary,
                     'status' => $s->status,
                     'paid_at' => $s->paid_at?->format('d/m/Y H:i'),
+                    'approved_by_name' => $s->approvedBy?->name,
+                    'created_at' => $s->created_at?->format('d/m/Y H:i'),
                     'breakdown' => $breakdown,
                     'adjustments' => $s->adjustments->map(fn (SalaryAdjustment $a) => [
                         'id' => $a->id,
@@ -116,6 +120,16 @@ class SalaryController extends Controller
         $branches = RestaurantBranch::where('restaurant_id', $restaurantId)
             ->when(! $user->canViewAllBranches(), fn ($q) => $q->where('id', $branchId))
             ->get(['id', 'name']);
+        $eligibleEmployees = Employee::withoutGlobalScopes()
+            ->where('restaurant_id', $restaurantId)
+            ->where('status', 'active')
+            ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
+            ->count();
+        $statusCounts = [
+            'draft' => $salaries->where('status', 'draft')->count(),
+            'approved' => $salaries->where('status', 'approved')->count(),
+            'paid' => $salaries->where('status', 'paid')->count(),
+        ];
 
         return Inertia::render('salaries/Index', [
             'salaries' => $salaries,
@@ -123,6 +137,13 @@ class SalaryController extends Controller
             'period' => $period,
             'branches' => $branches,
             'canApprove' => $user->isOwner() || $user->isSuperAdmin(),
+            'generation' => [
+                'eligible_employees' => $eligibleEmployees,
+                'salary_rows' => $salaries->count(),
+                'status_counts' => $statusCounts,
+                'period_start' => $periodStart,
+                'period_end' => $periodEnd,
+            ],
         ]);
     }
 
@@ -154,14 +175,18 @@ class SalaryController extends Controller
     {
         abort_unless($request->user()->can('manage_salary'), 403);
 
-        $period = $request->input('period', today()->format('Y-m'));
+        $period = $request->validate(['period' => ['nullable', 'date_format:Y-m']])['period'] ?? today()->format('Y-m');
         $result = $this->salaryService->generateMonthlyDrafts(
             $request->user()->restaurant_id,
             $period,
             $this->tenantContext->activeBranchId(),
         );
 
-        $msg = "Đã tạo {$result['created']} bảng lương, bỏ qua {$result['skipped']} (đã tồn tại).";
+        $msg = "Đã tạo {$result['created']} bảng lương mới, tính lại {$result['updated']} bản nháp";
+        if (($result['locked'] ?? 0) > 0) {
+            $msg .= ", giữ nguyên {$result['locked']} bảng đã duyệt/đã trả";
+        }
+        $msg .= '.';
 
         return back()->with('success', $msg);
     }
@@ -182,7 +207,9 @@ class SalaryController extends Controller
             403,
             'Bạn không thể duyệt bảng lương của chính mình.',
         );
-        abort_if($salary->status === 'paid', 422);
+        abort_unless($salary->status === 'draft', 422, 'Chỉ bảng lương bản nháp mới được duyệt.');
+
+        $salary = $this->salaryService->refreshDraftSalary($salary);
 
         $salary->update([
             'status' => 'approved',
@@ -240,7 +267,7 @@ class SalaryController extends Controller
     {
         abort_unless($request->user()->can('manage_salary'), 403);
         $this->authorizeSalaryBranch($request->user(), $salary);
-        abort_if($salary->status === 'paid', 422);
+        abort_unless($salary->status === 'draft', 422, 'Chỉ bảng lương bản nháp mới được điều chỉnh.');
 
         $data = $request->validate([
             'type' => ['required', 'in:bonus,penalty,violation,advance'],
@@ -316,6 +343,16 @@ class SalaryController extends Controller
             'amount' => ['required', 'numeric', 'min:0.01'],
             'reason' => ['required', 'string', 'max:500'],
         ]);
+        $requestedIds = collect($data['salary_ids'])->map(fn ($id) => (int) $id)->unique()->values();
+        $draftCount = Salary::withoutGlobalScopes()
+            ->where('restaurant_id', $request->user()->restaurant_id)
+            ->whereIn('id', $requestedIds)
+            ->where('status', 'draft')
+            ->when($this->tenantContext->activeBranchId(), fn ($q) => $q->where('branch_id', $this->tenantContext->activeBranchId()))
+            ->count();
+        if ($draftCount !== $requestedIds->count()) {
+            throw ValidationException::withMessages(['salary_ids' => 'Chỉ bảng lương bản nháp trong phạm vi hiện tại mới được điều chỉnh.']);
+        }
 
         // Eager-load employee: trước đây $salary->employee trong vòng lặp bên dưới
         // bắn 1 query/bảng lương (N+1) khi điều chỉnh lương hàng loạt.
@@ -323,6 +360,7 @@ class SalaryController extends Controller
             ->with('employee')
             ->where('restaurant_id', $request->user()->restaurant_id)
             ->whereIn('id', $data['salary_ids'])
+            ->where('status', 'draft')
             ->when($this->tenantContext->activeBranchId(), fn ($q) => $q->where('branch_id', $this->tenantContext->activeBranchId()))
             ->get();
 

@@ -82,6 +82,61 @@ class PayrollBudgetTest extends TestCase
         ]);
     }
 
+    public function test_owner_can_edit_pause_and_reactivate_wage_tier(): void
+    {
+        $tier = WageTier::create([
+            'restaurant_id' => $this->restaurant->id,
+            'name' => 'Phục vụ cũ',
+            'compensation_type' => 'fixed',
+            'rate' => 7000000,
+            'is_active' => true,
+        ]);
+
+        $this->actingAs($this->owner)->put("/payroll-budget/wage-tiers/{$tier->id}", [
+            'name' => 'Phục vụ ca ngày',
+            'compensation_type' => 'shift',
+            'rate' => 250000,
+            'branch_id' => $this->branch->id,
+            'is_active' => true,
+        ])->assertRedirect();
+
+        $this->assertDatabaseHas('wage_tiers', [
+            'id' => $tier->id,
+            'name' => 'Phục vụ ca ngày',
+            'compensation_type' => 'shift',
+            'branch_id' => $this->branch->id,
+        ]);
+
+        $this->actingAs($this->owner)->patch("/payroll-budget/wage-tiers/{$tier->id}/toggle")
+            ->assertRedirect();
+        $this->assertDatabaseHas('wage_tiers', ['id' => $tier->id, 'is_active' => false]);
+
+        $this->actingAs($this->owner)->patch("/payroll-budget/wage-tiers/{$tier->id}/toggle")
+            ->assertRedirect();
+        $this->assertDatabaseHas('wage_tiers', ['id' => $tier->id, 'is_active' => true]);
+    }
+
+    public function test_manager_cannot_edit_wage_tier(): void
+    {
+        $manager = User::factory()->create(['restaurant_id' => $this->restaurant->id, 'status' => 'active']);
+        $manager->assignRole('manager');
+        $tier = WageTier::create([
+            'restaurant_id' => $this->restaurant->id,
+            'name' => 'Bậc được bảo vệ',
+            'compensation_type' => 'fixed',
+            'rate' => 7000000,
+            'is_active' => true,
+        ]);
+
+        $this->actingAs($manager)->put("/payroll-budget/wage-tiers/{$tier->id}", [
+            'name' => 'Bậc bị sửa',
+            'compensation_type' => 'fixed',
+            'rate' => 1,
+        ])->assertForbidden();
+        $this->actingAs($manager)->patch("/payroll-budget/wage-tiers/{$tier->id}/toggle")
+            ->assertForbidden();
+    }
+
     public function test_employee_page_exposes_budget_to_branch_manager(): void
     {
         $permission = Permission::firstOrCreate(['name' => 'manage_employees', 'guard_name' => 'web']);
