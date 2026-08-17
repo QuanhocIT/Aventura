@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Order;
 use App\Models\Product;
 use App\Models\ProductCategory;
+use App\Models\ProductRecipe;
 use App\Models\Promotion;
 use App\Services\AnalyticsServiceClient;
 use App\Services\CircuitBreaker;
@@ -127,8 +128,8 @@ class PromotionController extends Controller
             'notes' => ['nullable', 'string', 'max:1000'],
         ]);
 
-        $itemA = Product::where('restaurant_id', $restaurantId)->findOrFail($data['item_a_id']);
-        $itemB = Product::where('restaurant_id', $restaurantId)->findOrFail($data['item_b_id']);
+        $itemA = Product::where('restaurant_id', $restaurantId)->with('recipes')->findOrFail($data['item_a_id']);
+        $itemB = Product::where('restaurant_id', $restaurantId)->with('recipes')->findOrFail($data['item_b_id']);
 
         if ((float) $data['combo_price'] >= ((float) $itemA->price + (float) $itemB->price)) {
             return back()->withErrors(['combo_price' => 'Giá combo phải rẻ hơn tổng giá bán lẻ của các món thành phần ('.number_format((float) $itemA->price + (float) $itemB->price).'đ).']);
@@ -144,7 +145,7 @@ class PromotionController extends Controller
             ]
         );
 
-        Product::create([
+        $comboProduct = Product::create([
             'restaurant_id' => $restaurantId,
             'category_id' => $comboCategory->id,
             'code' => 'COMBO-'.Str::upper(Str::random(6)),
@@ -154,8 +155,21 @@ class PromotionController extends Controller
             'description' => $data['notes'] ?? "Combo gồm {$itemA->name} và {$itemB->name}.",
             'is_active' => true,
             'is_available' => true,
-            'track_inventory' => false,
+            'track_inventory' => (bool) ($itemA->track_inventory || $itemB->track_inventory),
         ]);
+
+        // Tự động sao chép định lượng (BOM) từ 2 món thành phần sang combo
+        $allRecipes = $itemA->recipes->concat($itemB->recipes);
+        foreach ($allRecipes as $recipe) {
+            ProductRecipe::create([
+                'restaurant_id' => $restaurantId,
+                'product_id' => $comboProduct->id,
+                'ingredient_id' => $recipe->ingredient_id,
+                'unit_id' => $recipe->unit_id,
+                'quantity' => (float) $recipe->quantity,
+                'waste_rate' => (float) ($recipe->waste_rate ?? 0),
+            ]);
+        }
 
         return back()->with('success', "Đã tạo Combo \"{$data['name']}\" và thêm vào thực đơn ở nhóm \"Combo\".");
     }

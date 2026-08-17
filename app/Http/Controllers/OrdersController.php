@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Events\Customer\TemporaryOrderUpdated;
 use App\Models\AccountReceivable;
 use App\Models\AuditLog;
 use App\Models\ApprovalRequest;
@@ -1016,7 +1017,8 @@ class OrdersController extends Controller
         $ids = $request->input('temporary_order_ids');
 
         $query = TemporaryOrder::where('restaurant_id', $restaurantId)
-            ->where('status', 'pending')
+            ->whereIn('status', ['waiting_verification', 'pending', 'escalated'])
+            ->where('awaiting_customer_confirmation', false)
             ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
             ->when(! empty($ids) && is_array($ids), fn ($q) => $q->whereIn('id', $ids));
 
@@ -1046,43 +1048,80 @@ class OrdersController extends Controller
 
             try {
                 DB::transaction(function () use ($tempOrder, $user) {
-                    $tempOrder->update(['status' => 'approved']);
+                    $lockedTempOrder = TemporaryOrder::where('id', $tempOrder->id)->lockForUpdate()->firstOrFail();
 
-                    $order = Order::create([
-                        'restaurant_id' => $tempOrder->restaurant_id,
-                        'branch_id' => $tempOrder->branch_id,
-                        'table_id' => $tempOrder->table_id,
-                        'order_number' => 'ORD-QR-'.str_pad($tempOrder->id, 6, '0', STR_PAD_LEFT),
-                        'status' => 'preparing',
-                        'payment_status' => 'unpaid',
-                        'channel' => 'qr',
-                        'fulfillment_status' => 'preparing',
-                        'total_amount' => $tempOrder->total_amount,
-                        'subtotal' => $tempOrder->total_amount,
-                        'note' => $tempOrder->notes ?? null,
-                        'created_at' => now(),
-                    ]);
-
-                    foreach (($tempOrder->cart_data ?? []) as $item) {
-                        OrderItem::create([
-                            'restaurant_id' => $tempOrder->restaurant_id,
-                            'order_id' => $order->id,
-                            'product_id' => $item['product_id'] ?? null,
-                            'quantity' => (float) ($item['quantity'] ?? 1),
-                            'unit_price' => (float) ($item['unit_price'] ?? 0),
-                            'line_total' => (float) ($item['line_total'] ?? 0),
-                            'notes' => $item['notes'] ?? null,
-                            'sent_to_kitchen_at' => now(),
-                        ]);
+                    if (! in_array($lockedTempOrder->status, ['waiting_verification', 'pending', 'escalated'], true)
+                        || $lockedTempOrder->awaiting_customer_confirmation) {
+                        return;
                     }
+
+                    $customerId = null;
+                    $customer = null;
+                    if ($lockedTempOrder->customer_phone) {
+                        $customer = Customer::firstOrCreate(
+                            [
+                                'restaurant_id' => $lockedTempOrder->restaurant_id,
+                                'phone' => $lockedTempOrder->customer_phone,
+                            ],
+                            [
+                                'full_name' => $lockedTempOrder->customer_name ?: 'Khách gọi món QR',
+                                'branch_id' => $lockedTempOrder->branch_id,
+                            ]
+                        );
+                        $customerId = $customer->id;
+                        $customer = Customer::where('id', $customerId)->lockForUpdate()->firstOrFail();
+                    }
+
+                    if ($lockedTempOrder->redeem_points > 0 && (! $customer || $customer->loyalty_points < $lockedTempOrder->redeem_points)) {
+                        throw new \Exception('Khách hàng không đủ điểm tích lũy để thực hiện quy đổi.');
+                    }
+
+                    $orderData = [
+                        'table_id' => $lockedTempOrder->table_id,
+                        'customer_id' => $customerId,
+                        'channel' => 'qr',
+                        'note' => "Đơn QR-Order [Duyệt hàng loạt bởi: {$user->name}]",
+                        'items' => collect($lockedTempOrder->cart_data)->map(fn ($item) => [
+                            'product_id' => $item['product_id'],
+                            'quantity' => (float) $item['quantity'],
+                            'notes' => $item['notes'] ?? null,
+                        ])->toArray(),
+                    ];
+
+                    $order = $this->orderService->createOrder($orderData, $user, false);
+                    $order->update(['channel' => 'qr']);
+
+                    if ($lockedTempOrder->redeem_points > 0 && $customer) {
+                        $discountValue = app(LoyaltyService::class)->redeemPoints($customer, $lockedTempOrder->redeem_points, $order);
+                        if ($discountValue > 0) {
+                            $newDiscount = $order->discount_amount + $discountValue;
+                            $newTotal = max(0.0, $order->subtotal - $newDiscount);
+                            $order->update([
+                                'discount_amount' => $newDiscount,
+                                'total_amount' => $newTotal,
+                                'note' => ($order->note ? $order->note.' ' : '')."[Quy đổi {$lockedTempOrder->redeem_points} điểm: -".number_format($discountValue).'đ]',
+                            ]);
+                        }
+                    }
+
+                    $lockedTempOrder->update([
+                        'status' => 'confirmed',
+                        'order_id' => $order->id,
+                    ]);
 
                     AuditLog::log(
                         'qr_order_batch_approved',
                         'created',
                         $order,
                         null,
-                        ['temporary_order_id' => $tempOrder->id]
+                        ['temporary_order_id' => $lockedTempOrder->id]
                     );
+
+                    try {
+                        event(new TemporaryOrderUpdated($lockedTempOrder->fresh()));
+                    } catch (\Throwable $e) {
+                        \Illuminate\Support\Facades\Log::warning('Broadcast batch temporary order updated failed: '.$e->getMessage());
+                    }
                 });
 
                 $approvedCount++;

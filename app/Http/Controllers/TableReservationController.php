@@ -383,9 +383,26 @@ class TableReservationController extends Controller
                 }
 
                 $branchId = app(TenantContext::class)->activeBranchId() ?? $lockedReservation->branch_id;
+
+                $reservationDateTime = Carbon::parse(
+                    $lockedReservation->reservation_date->toDateString().' '.$lockedReservation->reservation_time
+                );
+                $windowStart = $reservationDateTime->copy()->subMinutes(90)->format('H:i:s');
+                $windowEnd = $reservationDateTime->copy()->addMinutes(90)->format('H:i:s');
+
+                $conflictingTableIds = TableReservation::where('restaurant_id', $restaurantId)
+                    ->where('reservation_date', $lockedReservation->reservation_date)
+                    ->whereNotNull('table_id')
+                    ->whereBetween('reservation_time', [$windowStart, $windowEnd])
+                    ->whereIn('status', ['confirmed', 'seated'])
+                    ->where('id', '!=', $lockedReservation->id)
+                    ->pluck('table_id')
+                    ->all();
+
                 $tableQuery = RestaurantTable::where('restaurant_id', $restaurantId)
                     ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
-                    ->where('status', 'available')
+                    ->where('status', '!=', 'inactive')
+                    ->whereNotIn('id', $conflictingTableIds)
                     ->where('capacity', '>=', $lockedReservation->party_size)
                     ->orderBy('capacity', 'asc')
                     ->lockForUpdate();
@@ -393,7 +410,7 @@ class TableReservationController extends Controller
                 $table = $tableQuery->first();
 
                 if (! $table) {
-                    throw new \Exception("Không tìm thấy bàn trống phù hợp cho {$lockedReservation->party_size} khách tại chi nhánh.");
+                    throw new \Exception("Không tìm thấy bàn trống phù hợp cho {$lockedReservation->party_size} khách tại chi nhánh trong khung giờ này.");
                 }
 
                 $lockedReservation->update([
@@ -421,16 +438,18 @@ class TableReservationController extends Controller
             return back()->withErrors(['table_id' => $e->getMessage()]);
         }
 
+        $tableName = $table?->name ?? '—';
+
         if ($request->wantsJson()) {
             return response()->json([
                 'success' => true,
-                'message' => "Đã tự động xếp bàn [{$table->name}] cho khách {$reservation->guest_name}!",
-                'table_name' => $table->name,
+                'message' => "Đã tự động xếp bàn [{$tableName}] cho khách {$reservation->guest_name}!",
+                'table_name' => $tableName,
                 'reservation' => $reservation,
             ]);
         }
 
-        return back()->with('success', "Đã tự động xếp bàn [{$table->name}] cho khách {$reservation->guest_name}!");
+        return back()->with('success', "Đã tự động xếp bàn [{$tableName}] cho khách {$reservation->guest_name}!");
     }
 
     /**

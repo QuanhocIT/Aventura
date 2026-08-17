@@ -147,10 +147,6 @@ class StockTransferRequestController extends Controller
         abort_if($transfer->restaurant_id !== $user->restaurant_id, 403);
         abort_unless($user->canAccessBranch($transfer->from_branch_id), 403, 'Bạn không thuộc chi nhánh cấp hàng.');
 
-        if ($transfer->status !== 'routed') {
-            return back()->with('error', 'Yêu cầu chưa được định tuyến hoặc đã xuất.');
-        }
-
         $data = $request->validate([
             'quantity_dispatched' => ['required', 'numeric', 'min:0.001', 'max:'.((float) $transfer->quantity_requested)],
         ]);
@@ -158,9 +154,14 @@ class StockTransferRequestController extends Controller
 
         try {
             DB::transaction(function () use ($transfer, $user, $qty) {
-                $invFrom = Inventory::where('restaurant_id', $transfer->restaurant_id)
-                    ->where('branch_id', $transfer->from_branch_id)
-                    ->where('ingredient_id', $transfer->ingredient_id)
+                $lockedTransfer = StockTransferRequest::where('id', $transfer->id)->lockForUpdate()->firstOrFail();
+                if ($lockedTransfer->status !== 'routed') {
+                    throw new \RuntimeException('Yêu cầu chưa được định tuyến hoặc đã xuất.');
+                }
+
+                $invFrom = Inventory::where('restaurant_id', $lockedTransfer->restaurant_id)
+                    ->where('branch_id', $lockedTransfer->from_branch_id)
+                    ->where('ingredient_id', $lockedTransfer->ingredient_id)
                     ->lockForUpdate()->first();
 
                 if (! $invFrom || (float) $invFrom->quantity_on_hand < $qty) {
@@ -171,19 +172,19 @@ class StockTransferRequestController extends Controller
                 $invFrom->decrement('theoretical_quantity', $qty);
 
                 InventoryTransaction::create([
-                    'restaurant_id' => $transfer->restaurant_id,
-                    'branch_id' => $transfer->from_branch_id,
-                    'ingredient_id' => $transfer->ingredient_id,
+                    'restaurant_id' => $lockedTransfer->restaurant_id,
+                    'branch_id' => $lockedTransfer->from_branch_id,
+                    'ingredient_id' => $lockedTransfer->ingredient_id,
                     'inventory_id' => $invFrom->id,
                     'performed_by' => $user->id,
                     'type' => 'adjustment', 'direction' => 'out',
                     'quantity' => $qty, 'unit_cost' => $invFrom->last_cost,
                     'total_cost' => $qty * (float) $invFrom->last_cost,
-                    'notes' => 'Điều chuyển #'.$transfer->id.': xuất sang chi nhánh nhận (mã '.$transfer->handover_code.')',
+                    'notes' => 'Điều chuyển #'.$lockedTransfer->id.': xuất sang chi nhánh nhận (mã '.$lockedTransfer->handover_code.')',
                     'occurred_at' => now(),
                 ]);
 
-                $transfer->update([
+                $lockedTransfer->update([
                     'status' => 'dispatched',
                     'quantity_dispatched' => $qty,
                     'dispatched_by' => $user->id,
@@ -208,10 +209,6 @@ class StockTransferRequestController extends Controller
         abort_if($transfer->restaurant_id !== $user->restaurant_id, 403);
         abort_unless($user->canAccessBranch($transfer->to_branch_id), 403, 'Bạn không thuộc chi nhánh nhận.');
 
-        if ($transfer->status !== 'dispatched') {
-            return back()->with('error', 'Hàng chưa được xuất hoặc đã nhận.');
-        }
-
         // Người nhận phải KHÁC người xuất (bàn giao hai người).
         if ($transfer->dispatched_by === $user->id) {
             return back()->withErrors(['handover_code' => 'Người nhận phải khác người xuất hàng.']);
@@ -226,16 +223,21 @@ class StockTransferRequestController extends Controller
 
         try {
             DB::transaction(function () use ($transfer, $user, $qty) {
-                $invTo = Inventory::where('restaurant_id', $transfer->restaurant_id)
-                    ->where('branch_id', $transfer->to_branch_id)
-                    ->where('ingredient_id', $transfer->ingredient_id)
+                $lockedTransfer = StockTransferRequest::where('id', $transfer->id)->lockForUpdate()->firstOrFail();
+                if ($lockedTransfer->status !== 'dispatched') {
+                    throw new \RuntimeException('Hàng chưa được xuất hoặc đã nhận.');
+                }
+
+                $invTo = Inventory::where('restaurant_id', $lockedTransfer->restaurant_id)
+                    ->where('branch_id', $lockedTransfer->to_branch_id)
+                    ->where('ingredient_id', $lockedTransfer->ingredient_id)
                     ->lockForUpdate()->first();
 
                 if (! $invTo) {
                     $invTo = Inventory::create([
-                        'restaurant_id' => $transfer->restaurant_id,
-                        'branch_id' => $transfer->to_branch_id,
-                        'ingredient_id' => $transfer->ingredient_id,
+                        'restaurant_id' => $lockedTransfer->restaurant_id,
+                        'branch_id' => $lockedTransfer->to_branch_id,
+                        'ingredient_id' => $lockedTransfer->ingredient_id,
                         'quantity_on_hand' => 0, 'theoretical_quantity' => 0, 'last_cost' => 0,
                     ]);
                 }
@@ -244,19 +246,19 @@ class StockTransferRequestController extends Controller
                 $invTo->increment('theoretical_quantity', $qty);
 
                 InventoryTransaction::create([
-                    'restaurant_id' => $transfer->restaurant_id,
-                    'branch_id' => $transfer->to_branch_id,
-                    'ingredient_id' => $transfer->ingredient_id,
+                    'restaurant_id' => $lockedTransfer->restaurant_id,
+                    'branch_id' => $lockedTransfer->to_branch_id,
+                    'ingredient_id' => $lockedTransfer->ingredient_id,
                     'inventory_id' => $invTo->id,
                     'performed_by' => $user->id,
                     'type' => 'adjustment', 'direction' => 'in',
                     'quantity' => $qty, 'unit_cost' => $invTo->last_cost,
                     'total_cost' => $qty * (float) $invTo->last_cost,
-                    'notes' => 'Điều chuyển #'.$transfer->id.': nhận từ chi nhánh cấp (mã '.$transfer->handover_code.')',
+                    'notes' => 'Điều chuyển #'.$lockedTransfer->id.': nhận từ chi nhánh cấp (mã '.$lockedTransfer->handover_code.')',
                     'occurred_at' => now(),
                 ]);
 
-                $transfer->update([
+                $lockedTransfer->update([
                     'status' => 'received',
                     'quantity_received' => $qty,
                     'received_by' => $user->id,

@@ -148,7 +148,7 @@ class SalaryService
             $regularSeconds += $regularDuration;
         }
 
-        $regularHours = ($regularSeconds + $unapprovedOtSeconds) / 3600;
+        $regularHours = $regularSeconds / 3600;
         $otHours = $paidOtSeconds / 3600;
 
         return [
@@ -884,7 +884,7 @@ class SalaryService
         } elseif ($compType === 'hourly') {
             $formulaText = '('.number_format($regularHours, 2).'h giờ thường × '.number_format($payRate).' đ/h) + ('.number_format($otHours, 2).'h OT được duyệt × '.number_format($payRate)." đ/h × {$otMultiplier}) = ".number_format($salary->base_salary).' đ';
             if ($unapprovedOtHours > 0) {
-                $formulaText .= ' | '.number_format($unapprovedOtHours, 2).'h ngoài ca chưa duyệt tính theo giờ thường';
+                $formulaText .= ' | '.number_format($unapprovedOtHours, 2).'h ngoài ca chưa được duyệt OT (không tính lương)';
             }
         } elseif ($compType === 'shift') {
             $formulaText = "{$completedShiftsCount} ca hoàn thành × ".number_format($payRate).' đ/ca = '.number_format($salary->base_salary).' đ';

@@ -170,11 +170,22 @@ class PromotionApplicationService
                 $discountAmount = min($discountAmount, $remaining);
             }
 
-            // 5. Cập nhật Order
+            if (str_contains($order->note ?? '', '[Đã áp mã voucher: '.$promotion->code)) {
+                return [
+                    'success' => false,
+                    'status' => 'error',
+                    'message' => 'Mã khuyến mãi này đã được áp dụng cho đơn hàng.',
+                ];
+            }
+
+            // 5. Cập nhật Order (cộng dồn với giảm giá hợp lệ đã có như Loyalty/VIP)
+            $existingDiscount = (float) ($order->discount_amount ?? 0);
+            $newTotalDiscount = min($subtotal, $existingDiscount + $discountAmount);
+
             $order->update([
-                'discount_amount' => $discountAmount,
-                'total_amount' => max(0.0, $subtotal - $discountAmount),
-                'note' => ($order->note ? $order->note.' ' : '').'[Đã áp mã voucher: '.$promotion->code.']',
+                'discount_amount' => $newTotalDiscount,
+                'total_amount' => max(0.0, $subtotal - $newTotalDiscount),
+                'note' => ($order->note ? $order->note.' ' : '').'[Đã áp mã voucher: '.$promotion->code.': -'.number_format($discountAmount).'đ]',
             ]);
 
             // Cập nhật bộ đếm Cache thời gian thực (chống Race Condition)

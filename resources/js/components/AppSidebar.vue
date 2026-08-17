@@ -1351,8 +1351,8 @@ const footerNavItems: NavItem[] = [];
             <NavMain
                 v-if="mainNavItems.length"
                 :items="mainNavItems"
-                :collapsible-groups="isOwner"
-                :enable-search="isOwner"
+                :collapsible-groups="isOwner || isManager"
+                :enable-search="isOwner || isManager"
             />
             <div v-else class="px-4 py-6 text-xs text-muted-foreground">
                 Không có menu khả dụng cho tài khoản này.

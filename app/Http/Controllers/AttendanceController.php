@@ -37,8 +37,12 @@ class AttendanceController extends Controller
             return back()->withErrors(['feature' => 'Gói dịch vụ hiện tại không hỗ trợ tính năng Chấm công. Vui lòng nâng cấp gói.']);
         }
 
-        // 1. Geolocation (GPS) Validation
-        if ($restaurant && $restaurant->latitude && $restaurant->longitude) {
+        // 1. Geolocation (GPS) Validation - Ưu tiên tọa độ của chi nhánh nhân viên làm việc
+        $targetLat = $employee->branch?->latitude ?? $restaurant?->latitude;
+        $targetLng = $employee->branch?->longitude ?? $restaurant?->longitude;
+        $allowedRadius = $employee->branch?->checkin_radius_meters ?? ($restaurant?->checkin_radius_meters ?? 100);
+
+        if ($targetLat && $targetLng) {
             $clientLat = $request->input('latitude');
             $clientLng = $request->input('longitude');
             $isMock = $request->input('is_mock');
@@ -57,8 +61,8 @@ class AttendanceController extends Controller
             }
 
             $earthRadius = 6371000; // in meters
-            $latFrom = deg2rad($restaurant->latitude);
-            $lonFrom = deg2rad($restaurant->longitude);
+            $latFrom = deg2rad($targetLat);
+            $lonFrom = deg2rad($targetLng);
             $latTo = deg2rad(floatval($clientLat));
             $lonTo = deg2rad(floatval($clientLng));
 
@@ -69,9 +73,8 @@ class AttendanceController extends Controller
                 cos($latFrom) * cos($latTo) * pow(sin($lonDelta / 2), 2)));
             $distance = $angle * $earthRadius;
 
-            $allowedRadius = $restaurant->checkin_radius_meters ?? 100;
             if ($distance > $allowedRadius) {
-                return back()->withErrors(['email' => 'Check-in thất bại: Bạn đang ở cách xa nhà hàng ('.round($distance).'m). Khoảng cách cho phép là dưới '.$allowedRadius.'m.']);
+                return back()->withErrors(['email' => 'Check-in thất bại: Bạn đang ở cách xa địa điểm làm việc ('.round($distance).'m). Khoảng cách cho phép là dưới '.$allowedRadius.'m.']);
             }
         }
 
@@ -268,8 +271,12 @@ class AttendanceController extends Controller
 
         $restaurant = $employee->restaurant;
 
-        // Geolocation (GPS) Validation
-        if ($restaurant && $restaurant->latitude && $restaurant->longitude) {
+        // Geolocation (GPS) Validation - Ưu tiên tọa độ của chi nhánh nhân viên làm việc
+        $targetLat = $employee->branch?->latitude ?? $restaurant?->latitude;
+        $targetLng = $employee->branch?->longitude ?? $restaurant?->longitude;
+        $allowedRadius = $employee->branch?->checkin_radius_meters ?? ($restaurant?->checkin_radius_meters ?? 100);
+
+        if ($targetLat && $targetLng) {
             $clientLat = $request->input('latitude');
             $clientLng = $request->input('longitude');
             $isMock = $request->input('is_mock');
@@ -288,8 +295,8 @@ class AttendanceController extends Controller
             }
 
             $earthRadius = 6371000; // in meters
-            $latFrom = deg2rad($restaurant->latitude);
-            $lonFrom = deg2rad($restaurant->longitude);
+            $latFrom = deg2rad($targetLat);
+            $lonFrom = deg2rad($targetLng);
             $latTo = deg2rad(floatval($clientLat));
             $lonTo = deg2rad(floatval($clientLng));
 
@@ -300,9 +307,8 @@ class AttendanceController extends Controller
                 cos($latFrom) * cos($latTo) * pow(sin($lonDelta / 2), 2)));
             $distance = $angle * $earthRadius;
 
-            $allowedRadius = $restaurant->checkin_radius_meters ?? 100;
             if ($distance > $allowedRadius) {
-                return back()->withErrors(['email' => 'Check-out thất bại: Bạn đang ở cách xa nhà hàng ('.round($distance).'m). Khoảng cách cho phép là dưới '.$allowedRadius.'m.']);
+                return back()->withErrors(['email' => 'Check-out thất bại: Bạn đang ở cách xa địa điểm làm việc ('.round($distance).'m). Khoảng cách cho phép là dưới '.$allowedRadius.'m.']);
             }
         }
 
@@ -318,6 +324,8 @@ class AttendanceController extends Controller
         DB::transaction(function () use (&$sa, &$alreadyCheckedOut, &$exceededMaxEarly, &$exceededEarlyMinutes, &$isEarlyAndViolating, &$earlyMinutes, $employee, $now, $restaurant) {
             $sa = ScheduleAssignment::where('employee_id', $employee->id)
                 ->where('status', 'checked_in')
+                ->whereDate('scheduled_date', '<=', today())
+                ->orderByDesc('scheduled_date')
                 ->lockForUpdate()
                 ->with('shift')
                 ->first();
