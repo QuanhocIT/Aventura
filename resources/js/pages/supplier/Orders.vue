@@ -8,6 +8,7 @@ import {
 } from 'lucide-vue-next';
 import { computed, onMounted, onUnmounted, ref } from 'vue';
 import { toast } from 'vue-sonner';
+import BackButton from '@/components/BackButton.vue';
 import { updateStatus } from '@/routes/supplier/orders';
 
 const props = defineProps<{
@@ -186,6 +187,7 @@ const printOrderSlip = () => {
     <div class="mx-auto max-w-7xl space-y-6 px-6 py-8 text-slate-100">
         <!-- Header -->
         <div class="border-b border-slate-800 pb-6">
+            <BackButton fallback-href="/supplier/dashboard" label="Trang chủ" class="mb-3" />
             <h1
                 class="bg-gradient-to-r from-emerald-400 to-teal-300 bg-clip-text text-3xl font-extrabold tracking-tight text-transparent"
             >

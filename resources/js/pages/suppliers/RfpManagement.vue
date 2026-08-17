@@ -16,6 +16,7 @@ import {
     Sparkles,
 } from 'lucide-vue-next';
 import { computed, ref, watch } from 'vue';
+import BackButton from '@/components/BackButton.vue';
 import { Button } from '@/components/ui/button';
 import {
     Card,
@@ -185,6 +186,7 @@ const getStatusLabel = (status: string) => {
             class="flex flex-col gap-4 border-b pb-5 sm:flex-row sm:items-center sm:justify-between"
         >
             <div class="flex items-center gap-3">
+                <BackButton fallback-href="/suppliers" label="Nhà cung cấp" />
                 <div
                     class="flex h-11 w-11 items-center justify-center rounded-2xl bg-emerald-500/10 text-emerald-500"
                 >

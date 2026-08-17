@@ -10,6 +10,7 @@ import {
     Clock,
 } from 'lucide-vue-next';
 import { ref } from 'vue';
+import BackButton from '@/components/BackButton.vue';
 import { store } from '@/routes/supplier/catalog';
 
 const props = defineProps<{
@@ -94,6 +95,7 @@ const openAnalyticsModal = async (item: any) => {
             class="flex flex-col gap-4 border-b border-slate-800 pb-6 sm:flex-row sm:items-center sm:justify-between"
         >
             <div>
+                <BackButton fallback-href="/supplier/dashboard" label="Trang chủ" class="mb-3" />
                 <h1
                     class="bg-gradient-to-r from-emerald-400 to-teal-300 bg-clip-text text-3xl font-extrabold tracking-tight text-transparent"
                 >

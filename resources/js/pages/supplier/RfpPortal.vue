@@ -10,6 +10,7 @@ import {
 } from 'lucide-vue-next';
 import { computed, ref } from 'vue';
 import { toast } from 'vue-sonner';
+import BackButton from '@/components/BackButton.vue';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -122,6 +123,7 @@ const getStatusLabel = (status: string) => {
             class="flex flex-col gap-4 border-b pb-5 sm:flex-row sm:items-center sm:justify-between"
         >
             <div class="flex items-center gap-3">
+                <BackButton fallback-href="/supplier/dashboard" label="Trang chủ" />
                 <div
                     class="flex h-11 w-11 items-center justify-center rounded-2xl bg-emerald-500/10 text-emerald-500"
                 >
