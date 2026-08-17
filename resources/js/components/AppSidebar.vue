@@ -354,6 +354,7 @@ const ownerNav = computed<NavItem[]>(() => {
             feature: 'advanced_analytics',
         },
         { title: 'Quản lý đơn hàng', href: '/orders', icon: ShoppingCart },
+        { title: 'Đặt bàn', href: '/reservations', icon: CalendarDays },
         { title: 'Thực đơn & Món', href: '/products', icon: UtensilsCrossed },
         {
             title: 'Phân tích thực đơn',
@@ -652,6 +653,7 @@ const ownerNav = computed<NavItem[]>(() => {
             title: 'Kiểm toán Gian lận',
             href: '/fraud',
             icon: ShieldAlert,
+            permission: 'view_fraud_detection',
             feature: 'fraud_detection',
         },
         {
@@ -683,6 +685,7 @@ const ownerNav = computed<NavItem[]>(() => {
         '/reports': 'overview',
         '/ai-advisor': 'overview',
         '/orders': 'sales',
+        '/reservations': 'sales',
         '/tables': 'sales',
         '/delivery': 'sales',
         '/online-store': 'sales',
@@ -765,6 +768,7 @@ const managerNav = computed<NavItem[]>(() => {
     const nav = [
         { title: 'Tổng quan', href: '/dashboard', icon: LayoutGrid },
         { title: 'Đơn hàng hôm nay', href: '/orders', icon: ShoppingCart },
+        { title: 'Đặt bàn', href: '/reservations', icon: CalendarDays },
         {
             title: 'Kho nguyên liệu',
             href: '/inventory',
@@ -897,6 +901,7 @@ const managerNav = computed<NavItem[]>(() => {
             title: 'Kiểm toán Gian lận',
             href: '/fraud',
             icon: ShieldAlert,
+            permission: 'view_fraud_detection',
             feature: 'fraud_detection',
         },
         {

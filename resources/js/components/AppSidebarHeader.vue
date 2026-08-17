@@ -3,6 +3,7 @@ import { Link, usePage } from '@inertiajs/vue3';
 import { AlertTriangle, Bell, BookOpen, Star } from 'lucide-vue-next';
 import { computed, ref } from 'vue';
 import AppearanceToggleInline from '@/components/AppearanceToggleInline.vue';
+import BackButton from '@/components/BackButton.vue';
 import BranchContextSelector from '@/components/BranchContextSelector.vue';
 import Breadcrumbs from '@/components/Breadcrumbs.vue';
 import PlatformFeedbackModal from '@/components/PlatformFeedbackModal.vue';
@@ -87,6 +88,13 @@ const showPolicyModal = ref(false);
     >
         <div class="flex items-center gap-2">
             <SidebarTrigger class="-ml-1" />
+            <BackButton
+                variant="ghost"
+                size="sm"
+                :show-label="false"
+                class="h-8 w-8 p-0 text-muted-foreground hover:text-foreground"
+                label="Quay lại trang trước"
+            />
             <template v-if="breadcrumbs && breadcrumbs.length > 0">
                 <Breadcrumbs :breadcrumbs="breadcrumbs" />
             </template>

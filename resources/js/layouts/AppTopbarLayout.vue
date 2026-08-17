@@ -132,6 +132,16 @@ function isActiveNav(href: string): boolean {
 }
 
 const handleLogout = () => {
+    try {
+        Object.keys(localStorage).forEach((key) => {
+            if (key.startsWith('aventura_advisor_session')) {
+                localStorage.removeItem(key);
+            }
+        });
+    } catch {
+        // Ignore
+    }
+
     router.flushAll();
     router.post(
         '/logout',
