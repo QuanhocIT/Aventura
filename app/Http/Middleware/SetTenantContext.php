@@ -6,6 +6,7 @@ use App\Models\RestaurantBranch;
 use App\Support\Tenant\TenantContext;
 use Closure;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Symfony\Component\HttpFoundation\Response;
 
 class SetTenantContext
@@ -16,7 +17,7 @@ class SetTenantContext
     {
         $user = $request->user();
         if ($user && $user->status !== 'active') {
-            auth()->logout();
+            Auth::logout();
             $request->session()->invalidate();
             $request->session()->regenerateToken();
 
@@ -46,16 +47,20 @@ class SetTenantContext
                         $allowedUntil = session('shift_allowed_until');
 
                         if (! $employeeId || is_null($allowedUntil) || now()->timestamp > $allowedUntil) {
-                            if ($request->expectsJson() || $request->header('X-Inertia')) {
+                            Auth::logout();
+                            $request->session()->invalidate();
+                            $request->session()->regenerateToken();
+
+                            if ($request->header('X-Inertia')) {
+                                return \Inertia\Inertia::location('/login');
+                            }
+
+                            if ($request->expectsJson()) {
                                 return response()->json([
                                     'error' => 'SHIFT_EXPIRED',
                                     'message' => 'Ca làm việc của bạn đã kết thúc. Vui lòng hoàn thành các hóa đơn dở dang.',
                                 ], 403);
                             }
-
-                            auth()->logout();
-                            $request->session()->invalidate();
-                            $request->session()->regenerateToken();
 
                             return redirect('/login')->withErrors(['email' => 'Tài khoản của bạn chỉ được phép truy cập trong khung giờ ca làm việc được xếp.']);
                         }

@@ -26,7 +26,7 @@ class EnsureBranchContext
             && ! $user->isSuperAdmin()
             && $context->isUnassigned()
         ) {
-            if ($request->expectsJson() || $request->header('X-Inertia')) {
+            if ($request->expectsJson() && ! $request->header('X-Inertia')) {
                 return response()->json([
                     'message' => 'Tài khoản chưa được gán chi nhánh. Vui lòng liên hệ chủ nhà hàng.',
                 ], 403);

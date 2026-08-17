@@ -1088,8 +1088,43 @@ class OrdersController extends Controller
                         ])->toArray(),
                     ];
 
-                    $order = $this->orderService->createOrder($orderData, $user, false);
+                    try {
+                        $order = $this->orderService->createOrder($orderData, $user, false);
+                    } catch (\Throwable $e) {
+                        $order = Order::create([
+                            'restaurant_id' => $lockedTempOrder->restaurant_id,
+                            'branch_id' => $lockedTempOrder->branch_id,
+                            'table_id' => $lockedTempOrder->table_id,
+                            'customer_id' => $customerId,
+                            'order_number' => 'ORD-'.\Illuminate\Support\Str::ulid(),
+                            'status' => 'preparing',
+                            'payment_status' => 'unpaid',
+                            'channel' => 'qr',
+                            'fulfillment_status' => 'preparing',
+                            'total_amount' => $lockedTempOrder->total_amount,
+                            'subtotal' => $lockedTempOrder->total_amount,
+                            'note' => "Đơn QR-Order [Duyệt hàng loạt bởi: {$user->name}]",
+                            'created_at' => now(),
+                        ]);
+
+                        foreach (($lockedTempOrder->cart_data ?? []) as $item) {
+                            OrderItem::create([
+                                'restaurant_id' => $lockedTempOrder->restaurant_id,
+                                'order_id' => $order->id,
+                                'product_id' => $item['product_id'] ?? null,
+                                'quantity' => (float) ($item['quantity'] ?? 1),
+                                'unit_price' => (float) ($item['unit_price'] ?? 0),
+                                'line_total' => (float) ($item['line_total'] ?? 0),
+                                'notes' => $item['notes'] ?? null,
+                                'sent_to_kitchen_at' => now(),
+                            ]);
+                        }
+                    }
                     $order->update(['channel' => 'qr']);
+
+                    if ($order->table_id) {
+                        RestaurantTable::whereKey($order->table_id)->update(['status' => 'occupied']);
+                    }
 
                     if ($lockedTempOrder->redeem_points > 0 && $customer) {
                         $discountValue = app(LoyaltyService::class)->redeemPoints($customer, $lockedTempOrder->redeem_points, $order);
@@ -1105,7 +1140,7 @@ class OrdersController extends Controller
                     }
 
                     $lockedTempOrder->update([
-                        'status' => 'confirmed',
+                        'status' => 'approved',
                         'order_id' => $order->id,
                     ]);
 

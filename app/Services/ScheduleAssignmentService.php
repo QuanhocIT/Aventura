@@ -272,6 +272,20 @@ class ScheduleAssignmentService
             return ['success' => false, 'field' => 'employee_name', 'message' => 'Nhân viên không tồn tại.'];
         }
 
+        // Chống tự xếp ca (Separation of Duties): Quản lý chi nhánh không thể tự xếp ca cho chính mình
+        if (! $actingUser->hasAnyRole(['owner', 'super_admin']) && $actingUser->hasRole('manager')) {
+            $isSelf = ($employee->user_id && (int) $employee->user_id === (int) $actingUser->id)
+                || ($employee->email && strtolower($employee->email) === strtolower($actingUser->email));
+
+            if ($isSelf) {
+                return [
+                    'success' => false,
+                    'field' => 'employee_name',
+                    'message' => 'Quản lý chi nhánh không được phép tự xếp ca cho chính mình. Lịch trực của Quản lý phải do Chủ nhà hàng (Owner) xếp.',
+                ];
+            }
+        }
+
         $tenantContext = app(TenantContext::class);
         $activeBranchId = $tenantContext->activeBranchId();
 
@@ -392,6 +406,20 @@ class ScheduleAssignmentService
 
         if (! $employee) {
             return ['success' => false, 'field' => 'employee_name', 'message' => 'Nhân viên không tồn tại.'];
+        }
+
+        // Chống tự hủy ca (Separation of Duties): Quản lý chi nhánh không thể tự hủy ca của chính mình
+        if (! $actingUser->hasAnyRole(['owner', 'super_admin']) && $actingUser->hasRole('manager')) {
+            $isSelf = ($employee->user_id && (int) $employee->user_id === (int) $actingUser->id)
+                || ($employee->email && strtolower($employee->email) === strtolower($actingUser->email));
+
+            if ($isSelf) {
+                return [
+                    'success' => false,
+                    'field' => 'employee_name',
+                    'message' => 'Quản lý chi nhánh không được phép tự hủy ca làm việc của chính mình.',
+                ];
+            }
         }
 
         $startOfWeek = Carbon::now()->startOfWeek(Carbon::MONDAY);

@@ -31,7 +31,11 @@ class EnsureSecuritySessionFresh
             $request->session()->invalidate();
             $request->session()->regenerateToken();
 
-            if ($request->expectsJson() || $request->header('X-Inertia')) {
+            if ($request->header('X-Inertia')) {
+                return \Inertia\Inertia::location('/login');
+            }
+
+            if ($request->expectsJson()) {
                 return response()->json([
                     'message' => 'Phiên đăng nhập đã bị thu hồi. Vui lòng đăng nhập lại.',
                     'security_session_revoked' => true,

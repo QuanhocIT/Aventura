@@ -250,20 +250,18 @@ watch(
     },
 );
 
-// Đổi chi nhánh mà bậc đang chọn không còn hợp lệ → bỏ chọn.
+// Tự động gán bậc lương hợp lệ khi mở hoặc đổi chi nhánh
 watch(
-    () => employeeForm.branch_id,
-    () => {
-        if (
-            employeeForm.wage_tier_id &&
-            !availableWageTiers.value.some((t) => t.id === Number(employeeForm.wage_tier_id))
-        ) {
+    availableWageTiers,
+    (tiers) => {
+        if (tiers.length > 0 && (!employeeForm.wage_tier_id || !tiers.some((t) => t.id === Number(employeeForm.wage_tier_id)))) {
+            employeeForm.wage_tier_id = tiers[0].id;
+        } else if (tiers.length === 0) {
             employeeForm.wage_tier_id = '';
         }
     },
+    { immediate: true },
 );
-
-const wageLockedByTier = computed(() => !!employeeForm.wage_tier_id);
 
 const editForm = useForm({
     full_name: '',
@@ -285,6 +283,7 @@ const editForm = useForm({
 
 const availableEditWageTiers = computed(() => {
     const bid = Number(editForm.branch_id) || null;
+
     return (props.wageTiers ?? []).filter(
         (t) => t.branch_id === null || t.branch_id === bid,
     );
@@ -300,6 +299,7 @@ watch(
         const tier = availableEditWageTiers.value.find(
             (t) => t.id === Number(val),
         );
+
         if (tier) {
             editForm.compensation_type = tier.compensation_type;
             editForm.pay_rate = tier.rate;
@@ -1090,6 +1090,13 @@ const submitAssignment = async () => {
             onSuccess: () => {
                 showAssignModal.value = false;
             },
+            onError: (errors: Record<string, string>) => {
+                const msg = Object.values(errors)[0];
+
+                if (msg) {
+                    import('vue-sonner').then((m) => m.toast.error(msg));
+                }
+            },
         },
     );
 };
@@ -1570,25 +1577,27 @@ const submitSwapReject = () => {
                         </div>
 
                         <!-- Bậc lương do Chủ quy định (quỹ lương chi nhánh) -->
+                        <!-- Bậc lương do Chủ quy định (quỹ lương chi nhánh) -->
                         <div
-                            v-if="(props.wageTiers ?? []).length || isBranchManager"
                             class="grid gap-1.5 rounded-xl border border-emerald-100 bg-emerald-50/50 p-3.5 dark:border-emerald-950/40 dark:bg-emerald-950/20"
                         >
-                            <Label
-                                class="text-xs font-bold text-emerald-700 dark:text-emerald-300"
-                                >Bậc lương do Chủ quy định
-                                <span v-if="isBranchManager" class="text-rose-500">*</span></Label
-                            >
+                            <div class="flex items-center justify-between">
+                                <Label
+                                    class="text-xs font-bold text-emerald-700 dark:text-emerald-300"
+                                    >Bậc lương do Chủ quy định
+                                    <span class="text-rose-500">*</span></Label
+                                >
+                                <span class="text-[11px] font-semibold text-emerald-700 dark:text-emerald-400">
+                                    🔒 Chuẩn hóa thang bảng lương
+                                </span>
+                            </div>
                             <select
                                 v-model="employeeForm.wage_tier_id"
-                                :required="isBranchManager"
+                                required
                                 class="w-full rounded-md border border-slate-200 bg-background px-3 py-2 text-sm font-semibold text-slate-700 focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:outline-none"
                             >
-                                <option v-if="!isBranchManager" value="">
-                                    — Nhập lương thủ công —
-                                </option>
-                                <option v-else value="" disabled>
-                                    — Chọn bậc lương —
+                                <option value="" disabled>
+                                    — Chọn Bậc lương do Chủ quy định —
                                 </option>
                                 <option
                                     v-for="tier in availableWageTiers"
@@ -1597,26 +1606,25 @@ const submitSwapReject = () => {
                                 >
                                     {{ tier.name }} ·
                                     {{ compTypeLabel(tier.compensation_type) }} ·
-                                    {{ tier.rate.toLocaleString('vi-VN') }}đ (≈
-                                    {{ tier.estimated_monthly.toLocaleString('vi-VN') }}đ/tháng)
+                                    {{ formatVnd(tier.rate) }}{{ tier.revenue_percent ? ` + ${tier.revenue_percent}% DT` : '' }} (≈
+                                    {{ formatVnd(tier.estimated_monthly) }}/tháng)
                                 </option>
                             </select>
                             <p
-                                v-if="isBranchManager && !availableWageTiers.length"
+                                v-if="!availableWageTiers.length"
                                 class="text-xs text-rose-500"
                             >
-                                Chi nhánh chưa có bậc lương. Vui lòng đề nghị Chủ
-                                tạo bậc lương trước khi thêm nhân viên.
+                                Chi nhánh chưa có bậc lương. Vui lòng tạo Bậc lương do Chủ quy định trước khi thêm nhân viên.
                             </p>
                             <p
-                                v-else-if="wageLockedByTier"
+                                v-else
                                 class="text-xs text-emerald-600 dark:text-emerald-400"
                             >
-                                🔒 Mức lương được khoá theo bậc — không sửa tay.
+                                🔒 Mức lương được khóa tự động theo Bậc lương do Chủ quy định — không cho phép nhập tay.
                             </p>
                         </div>
 
-                        <!-- Cấu hình Hình thức trả lương & Mức lương -->
+                        <!-- Cấu hình Hình thức trả lương & Mức lương (Chỉ hiển thị theo Bậc, không sửa tay) -->
                         <div
                             class="grid grid-cols-2 gap-4 rounded-xl border border-indigo-100 bg-indigo-50/40 p-3.5 dark:border-indigo-950/40 dark:bg-indigo-950/20"
                         >
@@ -1625,21 +1633,12 @@ const submitSwapReject = () => {
                                     class="text-xs font-bold text-indigo-700 dark:text-indigo-300"
                                     >Hình thức trả lương</Label
                                 >
-                                <select
-                                    v-model="employeeForm.compensation_type"
-                                    :disabled="wageLockedByTier"
-                                    class="w-full rounded-md border border-slate-200 bg-background px-3 py-2 text-sm font-semibold text-slate-700 focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-60"
-                                >
-                                    <option value="fixed">
-                                        💼 Lương tháng cố định
-                                    </option>
-                                    <option value="hourly">
-                                        ⏱ Lương theo giờ
-                                    </option>
-                                    <option value="shift">
-                                        📋 Lương theo ca
-                                    </option>
-                                </select>
+                                <Input
+                                    :value="employeeForm.compensation_type ? compTypeLabel(employeeForm.compensation_type) : 'Theo bậc lương'"
+                                    disabled
+                                    readonly
+                                    class="h-9 font-semibold bg-slate-100 dark:bg-slate-900 cursor-not-allowed text-slate-700 dark:text-slate-300"
+                                />
                             </div>
 
                             <div
@@ -1650,16 +1649,13 @@ const submitSwapReject = () => {
                             >
                                 <Label
                                     class="text-xs font-bold text-indigo-700 dark:text-indigo-300"
-                                    >Mức lương tháng cố định (VNĐ)</Label
+                                    >Mức lương tháng cố định</Label
                                 >
                                 <Input
-                                    type="number"
-                                    step="50000"
-                                    v-model="employeeForm.base_salary"
-                                    placeholder="Ví dụ: 8000000"
-                                    required
-                                    :disabled="wageLockedByTier"
-                                    class="h-9 font-mono text-xs font-bold text-indigo-600 disabled:opacity-60"
+                                    :value="employeeForm.base_salary ? formatVnd(employeeForm.base_salary) : '—'"
+                                    disabled
+                                    readonly
+                                    class="h-9 font-mono text-xs font-bold text-indigo-600 bg-slate-100 dark:bg-slate-900 cursor-not-allowed"
                                 />
                             </div>
                             <div
@@ -1670,31 +1666,25 @@ const submitSwapReject = () => {
                             >
                                 <Label
                                     class="text-xs font-bold text-indigo-700 dark:text-indigo-300"
-                                    >Đơn giá lương giờ (VNĐ/h)</Label
+                                    >Đơn giá lương giờ</Label
                                 >
                                 <Input
-                                    type="number"
-                                    step="1000"
-                                    v-model="employeeForm.pay_rate"
-                                    placeholder="Ví dụ: 25000"
-                                    required
-                                    :disabled="wageLockedByTier"
-                                    class="h-9 font-mono text-xs font-bold text-purple-600 disabled:opacity-60"
+                                    :value="employeeForm.pay_rate ? (formatVnd(employeeForm.pay_rate) + '/giờ') : '—'"
+                                    disabled
+                                    readonly
+                                    class="h-9 font-mono text-xs font-bold text-purple-600 bg-slate-100 dark:bg-slate-900 cursor-not-allowed"
                                 />
                             </div>
                             <div v-else class="grid gap-1.5">
                                 <Label
                                     class="text-xs font-bold text-indigo-700 dark:text-indigo-300"
-                                    >Đơn giá lương ca (VNĐ/ca)</Label
+                                    >Đơn giá lương ca</Label
                                 >
                                 <Input
-                                    type="number"
-                                    step="5000"
-                                    v-model="employeeForm.pay_rate"
-                                    placeholder="Ví dụ: 200000"
-                                    required
-                                    :disabled="wageLockedByTier"
-                                    class="h-9 font-mono text-xs font-bold text-amber-600 disabled:opacity-60"
+                                    :value="employeeForm.pay_rate ? (formatVnd(employeeForm.pay_rate) + '/ca') : '—'"
+                                    disabled
+                                    readonly
+                                    class="h-9 font-mono text-xs font-bold text-amber-600 bg-slate-100 dark:bg-slate-900 cursor-not-allowed"
                                 />
                             </div>
                         </div>
