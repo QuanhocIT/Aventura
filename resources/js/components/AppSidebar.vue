@@ -61,6 +61,7 @@ import {
     SidebarMenu,
     SidebarMenuButton,
     SidebarMenuItem,
+    SidebarTrigger,
 } from '@/components/ui/sidebar';
 import { useFeatureGate } from '@/composables/useFeatureGate';
 import { dashboard } from '@/routes';
@@ -1325,20 +1326,34 @@ const footerNavItems: NavItem[] = [];
 
 <template>
     <Sidebar collapsible="icon" variant="inset">
-        <SidebarHeader>
-            <SidebarMenu>
+        <SidebarHeader class="border-b border-sidebar-border/60 p-3">
+            <SidebarMenu class="gap-0">
                 <SidebarMenuItem>
-                    <SidebarMenuButton size="lg" as-child>
-                        <Link :href="dashboard()">
-                            <AppLogo />
-                        </Link>
-                    </SidebarMenuButton>
+                    <div class="flex items-center gap-2">
+                        <SidebarMenuButton
+                            size="lg"
+                            as-child
+                            class="min-w-0 flex-1 rounded-xl px-2 hover:bg-sidebar-accent/50"
+                        >
+                            <Link :href="dashboard()">
+                                <AppLogo />
+                            </Link>
+                        </SidebarMenuButton>
+                        <SidebarTrigger
+                            class="shrink-0 rounded-lg text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground"
+                        />
+                    </div>
                 </SidebarMenuItem>
             </SidebarMenu>
         </SidebarHeader>
 
-        <SidebarContent>
-            <NavMain v-if="mainNavItems.length" :items="mainNavItems" />
+        <SidebarContent class="gap-0">
+            <NavMain
+                v-if="mainNavItems.length"
+                :items="mainNavItems"
+                :collapsible-groups="isOwner"
+                :enable-search="isOwner"
+            />
             <div v-else class="px-4 py-6 text-xs text-muted-foreground">
                 Không có menu khả dụng cho tài khoản này.
             </div>
