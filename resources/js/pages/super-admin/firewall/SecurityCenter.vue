@@ -12,6 +12,7 @@ import {
 } from 'lucide-vue-next';
 import { ref } from 'vue';
 import { toast } from 'vue-sonner';
+import BackButton from '@/components/BackButton.vue';
 import { Button } from '@/components/ui/button';
 import {
     Card,
@@ -282,13 +283,16 @@ const formatUserAgent = (ua?: string) => {
 
     <div class="space-y-6 p-6">
         <div class="flex flex-wrap items-start justify-between gap-3">
-            <div>
-                <h1 class="text-2xl font-bold tracking-tight">
-                    Trung tâm bảo mật
-                </h1>
-                <p class="text-muted-foreground">
-                    Phiên đăng nhập, IP bất thường, API key và cảnh báo bảo mật.
-                </p>
+            <div class="flex items-center gap-3">
+                <BackButton fallback-href="/super-admin/firewall" label="Tường lửa" />
+                <div>
+                    <h1 class="text-2xl font-bold tracking-tight">
+                        Trung tâm bảo mật
+                    </h1>
+                    <p class="text-muted-foreground">
+                        Phiên đăng nhập, IP bất thường, API key và cảnh báo bảo mật.
+                    </p>
+                </div>
             </div>
             <Button variant="destructive" @click="forceLogoutAll">
                 <LogOut class="mr-2 h-4 w-4" /> Đăng xuất cưỡng chế toàn hệ

@@ -431,8 +431,10 @@ Route::middleware(['auth', 'verified', 'tenant.subscription', 'tenant.ratelimit'
     // ── Đặt Bàn Trước (Table Reservations) ──────────────────────────────────
     Route::prefix('reservations')->name('reservations.')->group(function () {
         Route::get('/', [TableReservationController::class, 'index'])->name('index');
+        Route::post('/', [TableReservationController::class, 'store'])->name('store');
         Route::post('{reservation}/confirm', [TableReservationController::class, 'confirm'])->name('confirm');
         Route::post('{reservation}/seat', [TableReservationController::class, 'seat'])->name('seat');
+        Route::post('{reservation}/complete', [TableReservationController::class, 'complete'])->name('complete');
         Route::post('{reservation}/cancel', [TableReservationController::class, 'cancel'])->name('cancel');
         Route::post('{reservation}/no-show', [TableReservationController::class, 'noShow'])->name('no-show');
     });
@@ -503,6 +505,8 @@ Route::middleware(['auth', 'verified', 'tenant.subscription', 'tenant.ratelimit'
         Route::get('/', [PayrollBudgetController::class, 'index'])->name('index');
         Route::post('/budget', [PayrollBudgetController::class, 'storeBudget'])->name('budget.store');
         Route::post('/wage-tiers', [PayrollBudgetController::class, 'storeWageTier'])->name('wage-tiers.store');
+        Route::put('/wage-tiers/{wageTier}', [PayrollBudgetController::class, 'updateWageTier'])->name('wage-tiers.update');
+        Route::patch('/wage-tiers/{wageTier}/toggle', [PayrollBudgetController::class, 'toggleWageTier'])->name('wage-tiers.toggle');
         Route::delete('/wage-tiers/{wageTier}', [PayrollBudgetController::class, 'destroyWageTier'])->name('wage-tiers.destroy');
     });
 

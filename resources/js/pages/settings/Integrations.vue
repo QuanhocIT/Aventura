@@ -25,6 +25,7 @@ import {
 } from 'lucide-vue-next';
 import { computed, ref } from 'vue';
 import { toast } from 'vue-sonner';
+import BackButton from '@/components/BackButton.vue';
 import DataTable from '@/components/DataTable.vue';
 import type { DataTableColumn } from '@/components/DataTable.vue';
 import { Badge } from '@/components/ui/badge';
@@ -488,7 +489,8 @@ const platformOrderColumns: DataTableColumn[] = [
 
     <div class="w-full space-y-8">
         <!-- Header -->
-        <div class="settings-page-intro flex items-center gap-4">
+        <div class="settings-page-intro flex items-center gap-3">
+            <BackButton fallback-href="/settings/profile" label="Cài đặt" />
             <div
                 class="shrink-0 rounded-xl bg-neutral-100 p-2.5 text-neutral-800 dark:bg-neutral-800 dark:text-neutral-200"
             >

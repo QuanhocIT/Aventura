@@ -12,7 +12,7 @@ import {
 } from 'lucide-vue-next';
 import { computed, ref } from 'vue';
 import { toast } from 'vue-sonner';
-
+import BackButton from '@/components/BackButton.vue';
 import { Button } from '@/components/ui/button';
 import {
     Card,
@@ -219,6 +219,7 @@ const getCategoryTone = (category: string) => {
                 class="relative flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between"
             >
                 <div class="flex items-start gap-4">
+                    <BackButton fallback-href="/dashboard" label="Trang chủ" />
                     <div
                         class="flex size-12 shrink-0 items-center justify-center rounded-2xl bg-indigo-600 text-white shadow-lg shadow-indigo-600/20"
                     >

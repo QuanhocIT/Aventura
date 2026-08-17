@@ -3,6 +3,7 @@ import { Head, router } from '@inertiajs/vue3';
 import { Search, Sparkles, ShoppingBag, Plus, Minus, Trash2, ChefHat, RefreshCw, AlertCircle, Lightbulb } from 'lucide-vue-next';
 import { ref, computed, watch, onMounted } from 'vue';
 import { toast } from 'vue-sonner';
+import BackButton from '@/components/BackButton.vue';
 import { Button } from '@/components/ui/button';
 import {
     Card,
@@ -10,7 +11,8 @@ import {
     CardHeader,
     CardTitle,
 } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';import AppLayout from '@/layouts/AppLayout.vue';
+import { Input } from '@/components/ui/input';
+import AppLayout from '@/layouts/AppLayout.vue';
 
 defineOptions({ layout: AppLayout });
 
@@ -265,6 +267,7 @@ onMounted(() => {
             class="flex shrink-0 flex-col items-start justify-between gap-2 border-b pb-3 sm:flex-row sm:items-center"
         >
             <div class="flex items-center gap-3">
+                <BackButton fallback-href="/orders" label="Danh sách đơn" />
                 <div
                     class="flex h-10 w-10 items-center justify-center rounded-xl bg-violet-100 text-violet-600 dark:bg-violet-950/60 dark:text-violet-400"
                 >

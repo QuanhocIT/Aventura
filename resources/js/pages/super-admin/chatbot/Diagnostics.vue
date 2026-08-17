@@ -322,6 +322,7 @@ const cacheAge = computed(() => {
             title="Chẩn đoán & tái huấn luyện Chatbot"
             subtitle="Giám sát hiệu năng · Tái huấn luyện · Kiểm thử câu hỏi"
             :icon="Brain"
+            back-href="/super-admin/dashboard"
         />
 
         <!-- ── Service Health Strip ───────────────────────────────────────── -->

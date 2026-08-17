@@ -11,10 +11,10 @@ import {
     Package,
     ArrowRight,
     User,
+    RotateCcw,
 } from 'lucide-vue-next';
 import { ref, computed, onMounted, nextTick } from 'vue';
 import { Button } from '@/components/ui/button';
-import { advisorHistory, advisorMessage } from '@/routes/chatbot';
 import {
     Card,
     CardContent,
@@ -23,6 +23,7 @@ import {
     CardDescription,
 } from '@/components/ui/card';
 import AppLayout from '@/layouts/AppLayout.vue';
+import { advisorHistory, advisorMessage } from '@/routes/chatbot';
 
 defineOptions({ layout: AppLayout });
 
@@ -130,7 +131,8 @@ async function loadHistory(session: string): Promise<boolean> {
 }
 
 function getOrCreateSessionId(): string {
-    const key = 'aventura_advisor_session';
+    const userId = user.value?.id ? `_${user.value.id}` : '';
+    const key = `aventura_advisor_session${userId}`;
     let id = localStorage.getItem(key);
 
     if (!id) {
@@ -139,6 +141,34 @@ function getOrCreateSessionId(): string {
     }
 
     return id;
+}
+
+function clearSession() {
+    try {
+        Object.keys(localStorage).forEach((k) => {
+            if (k.startsWith('aventura_advisor_session')) {
+                localStorage.removeItem(k);
+            }
+        });
+    } catch {
+        // Ignore
+    }
+}
+
+function resetChat() {
+    clearSession();
+    const userId = user.value?.id ? `_${user.value.id}` : '';
+    sessionId.value = crypto.randomUUID();
+    localStorage.setItem(`aventura_advisor_session${userId}`, sessionId.value);
+
+    messages.value = [
+        {
+            id: 'welcome',
+            role: 'bot',
+            content: `Xin chào **${user.value?.name || 'Chủ quán'}**! Tôi là **Trợ lý AI Chiến lược** của bạn. 📊\n\nTôi có thể truy xuất số liệu doanh thu thời gian thực, phân tích các nhóm món bán chạy, cảnh báo rủi ro gian lận hoặc dự đoán lượng nguyên liệu kho.\n\nBạn có thể hỏi tôi bất kỳ điều gì, hoặc chọn nhanh các câu hỏi gợi ý bên trái.`,
+            timestamp: new Date().toISOString(),
+        },
+    ];
 }
 
 function selectSuggestion(text: string) {
@@ -316,27 +346,40 @@ function renderMarkdown(text: string): string {
             <CardHeader
                 class="z-10 shrink-0 border-b border-border/80 bg-card/65 pb-4 backdrop-blur-md"
             >
-                <div class="flex items-center gap-3">
-                    <div
-                        class="flex h-10 w-10 items-center justify-center rounded-2xl border border-indigo-500/20 bg-indigo-500/15 text-indigo-500 shadow-inner"
+                <div class="flex items-center justify-between gap-3">
+                    <div class="flex items-center gap-3">
+                        <div
+                            class="flex h-10 w-10 items-center justify-center rounded-2xl border border-indigo-500/20 bg-indigo-500/15 text-indigo-500 shadow-inner"
+                        >
+                            <Bot class="size-5 animate-pulse" />
+                        </div>
+                        <div>
+                            <CardTitle
+                                class="flex items-center gap-1.5 text-sm font-bold"
+                            >
+                                Trợ lý AI Chiến lược Aventura
+                                <span
+                                    class="h-2 w-2 animate-ping rounded-full bg-emerald-500"
+                                ></span>
+                            </CardTitle>
+                            <CardDescription
+                                class="text-xxs font-extrabold tracking-wider text-indigo-600 uppercase dark:text-indigo-400"
+                            >
+                                Hệ thống Phân tích Doanh nghiệp Thông minh
+                            </CardDescription>
+                        </div>
+                    </div>
+
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        @click="resetChat"
+                        title="Làm mới cuộc trò chuyện"
+                        class="h-8 gap-1.5 text-xs text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200"
                     >
-                        <Bot class="size-5 animate-pulse" />
-                    </div>
-                    <div>
-                        <CardTitle
-                            class="flex items-center gap-1.5 text-sm font-bold"
-                        >
-                            Trợ lý AI Chiến lược Aventura
-                            <span
-                                class="h-2 w-2 animate-ping rounded-full bg-emerald-500"
-                            ></span>
-                        </CardTitle>
-                        <CardDescription
-                            class="text-xxs font-extrabold tracking-wider text-indigo-600 uppercase dark:text-indigo-400"
-                        >
-                            Hệ thống Phân tích Doanh nghiệp Thông minh
-                        </CardDescription>
-                    </div>
+                        <RotateCcw class="size-3.5" />
+                        Làm mới hội thoại
+                    </Button>
                 </div>
             </CardHeader>
 

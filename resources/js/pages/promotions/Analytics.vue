@@ -9,6 +9,7 @@ import {
     UserPlus,
 } from 'lucide-vue-next';
 import { ref } from 'vue';
+import BackButton from '@/components/BackButton.vue';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -61,14 +62,17 @@ const maxRevenue = Math.max(
     <Head title="Phân tích Khuyến mãi" />
 
     <div class="flex flex-col gap-5 px-6 py-5">
-        <div class="flex items-center justify-between">
-            <div>
-                <h1 class="text-2xl font-bold tracking-tight">
-                    Phân tích Hiệu quả Khuyến mãi
-                </h1>
-                <p class="text-sm text-muted-foreground">
-                    ROI, redemption rate, chi phí vs doanh thu.
-                </p>
+        <div class="flex items-center justify-between gap-4">
+            <div class="flex items-center gap-3">
+                <BackButton fallback-href="/promotions" label="Khuyến mãi" />
+                <div>
+                    <h1 class="text-2xl font-bold tracking-tight">
+                        Phân tích Hiệu quả Khuyến mãi
+                    </h1>
+                    <p class="text-sm text-muted-foreground">
+                        ROI, redemption rate, chi phí vs doanh thu.
+                    </p>
+                </div>
             </div>
             <div class="flex items-center gap-2">
                 <Input v-model="startDate" type="date" class="w-[150px]" />

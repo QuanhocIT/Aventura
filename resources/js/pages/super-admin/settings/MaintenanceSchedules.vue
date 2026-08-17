@@ -221,6 +221,7 @@ const scheduleStats = computed(() => ({
             title="Lịch bảo trì hệ thống"
             subtitle="Lên lịch nâng cấp dịch vụ và tự động cảnh báo các nhà hàng"
             :icon="Calendar"
+            back-href="/super-admin/dashboard"
         />
 
         <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">

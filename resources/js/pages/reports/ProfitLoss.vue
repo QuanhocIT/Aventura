@@ -11,6 +11,7 @@ import {
 } from 'lucide-vue-next';
 import { computed } from 'vue';
 import AnimatedNumber from '@/components/AnimatedNumber.vue';
+import BackButton from '@/components/BackButton.vue';
 import {
     Card,
     CardContent,
@@ -220,7 +221,8 @@ const lines = computed(() => [
         </div>
         <!-- Header + bộ chọn kỳ -->
         <div class="flex flex-wrap items-center justify-between gap-4">
-            <div class="flex items-center gap-4">
+            <div class="flex items-center gap-3">
+                <BackButton fallback-href="/reports" label="Báo cáo" />
                 <div
                     class="rounded-xl bg-neutral-100 p-2.5 dark:bg-neutral-800"
                 >

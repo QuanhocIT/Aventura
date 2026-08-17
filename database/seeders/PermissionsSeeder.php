@@ -171,6 +171,7 @@ class PermissionsSeeder extends Seeder
             'view_violations',
             'report_violations',
             'view_report',
+            'view_fraud_detection',
             'adjust_inventory',
             'inventory.count',
             'company_policies.view',

@@ -29,7 +29,7 @@ class FraudController extends Controller
 
     public function index(Request $request): Response
     {
-        abort_unless($request->user()->can('view_fraud_detection'), 403);
+        abort_unless($request->user()->hasAnyRole(['owner', 'manager', 'super_admin']) || $request->user()->can('view_fraud_detection'), 403);
 
         $user = $request->user();
 

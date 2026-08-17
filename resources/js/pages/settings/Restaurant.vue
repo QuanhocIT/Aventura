@@ -2,6 +2,7 @@
 import { Form, Head } from '@inertiajs/vue3';
 import { Building2, ImagePlus, X } from 'lucide-vue-next';
 import { onMounted, ref } from 'vue';
+import BackButton from '@/components/BackButton.vue';
 import InputError from '@/components/InputError.vue';
 import { Button } from '@/components/ui/button';
 import {
@@ -226,8 +227,9 @@ defineOptions({
             class="w-full overflow-hidden rounded-2xl border border-neutral-200/60 bg-white/70 shadow-xs backdrop-blur-md dark:border-neutral-800/60 dark:bg-neutral-900/40"
         >
             <CardHeader
-                class="flex flex-row items-center gap-4 border-b border-neutral-100 px-6 pt-6 pb-5 dark:border-neutral-800"
+                class="flex flex-row items-center gap-3 border-b border-neutral-100 px-6 pt-6 pb-5 dark:border-neutral-800"
             >
+                <BackButton fallback-href="/settings/profile" label="Cài đặt" />
                 <div
                     class="shrink-0 rounded-xl bg-neutral-100 p-2.5 text-neutral-800 dark:bg-neutral-800 dark:text-neutral-200"
                 >

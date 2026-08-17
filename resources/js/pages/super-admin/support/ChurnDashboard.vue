@@ -618,6 +618,7 @@ const healthScoreDistribution = computed(() => {
             title="Dự Đoán Rời Bỏ & Chăm Sóc Khách Hàng"
             subtitle="Chủ động phát hiện nhà hàng sắp ngừng sử dụng qua điểm sức khỏe nhà hàng."
             :icon="ShieldAlert"
+            back-href="/super-admin/dashboard"
         >
             <template #actions>
                 <button

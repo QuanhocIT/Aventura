@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { Head, router } from '@inertiajs/vue3';
 import {
-    ChevronLeft,
     AlertTriangle,
     CheckCircle,
     TrendingDown,
@@ -9,7 +8,7 @@ import {
     CalendarDays,
 } from 'lucide-vue-next';
 import { ref } from 'vue';
-import { Button } from '@/components/ui/button';
+import BackButton from '@/components/BackButton.vue';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import AppLayout from '@/layouts/AppLayout.vue';
 
@@ -64,14 +63,7 @@ const changePeriod = (p: string) => {
         >
             <div class="space-y-1">
                 <div class="flex items-center gap-2">
-                    <Button
-                        variant="ghost"
-                        size="icon"
-                        @click="router.get('/reports')"
-                        class="size-8"
-                    >
-                        <ChevronLeft class="size-4" />
-                    </Button>
+                    <BackButton fallback-href="/reports" label="Báo cáo" />
                     <h1
                         class="bg-gradient-to-r from-slate-900 to-slate-700 bg-clip-text text-2xl font-bold tracking-tight text-transparent dark:from-white dark:to-slate-300"
                     >

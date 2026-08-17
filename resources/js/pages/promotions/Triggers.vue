@@ -2,6 +2,7 @@
 import { Head, useForm } from '@inertiajs/vue3';
 import { Bell, Plus } from 'lucide-vue-next';
 import { ref } from 'vue';
+import BackButton from '@/components/BackButton.vue';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -79,15 +80,18 @@ const eventEmojis: Record<string, string> = {
     <Head title="Trigger Khuyến mãi tự động" />
 
     <div class="flex flex-col gap-5 px-6 py-5">
-        <div class="flex items-center justify-between">
-            <div>
-                <h1 class="text-2xl font-bold tracking-tight">
-                    Trigger Khuyến mãi Tự động
-                </h1>
-                <p class="text-sm text-muted-foreground">
-                    Tự động tạo & gửi mã giảm giá khi có sự kiện: đơn đầu, sinh
-                    nhật, lên VIP...
-                </p>
+        <div class="flex items-center justify-between gap-4">
+            <div class="flex items-center gap-3">
+                <BackButton fallback-href="/promotions" label="Khuyến mãi" />
+                <div>
+                    <h1 class="text-2xl font-bold tracking-tight">
+                        Trigger Khuyến mãi Tự động
+                    </h1>
+                    <p class="text-sm text-muted-foreground">
+                        Tự động tạo & gửi mã giảm giá khi có sự kiện: đơn đầu, sinh
+                        nhật, lên VIP...
+                    </p>
+                </div>
             </div>
             <Button v-if="canManageDiscounts" @click="showCreate = true" class="gap-1.5"
                 ><Plus class="size-4" /> Tạo trigger</Button
