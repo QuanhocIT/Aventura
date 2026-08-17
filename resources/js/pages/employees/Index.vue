@@ -274,6 +274,7 @@ const editForm = useForm({
     compensation_type: 'fixed' as 'fixed' | 'hourly' | 'shift',
     pay_rate: 25000,
     base_salary: 8000000,
+    wage_tier_id: '' as number | '',
     date_of_birth: '',
     address: '',
     citizen_id_number: '',
@@ -281,6 +282,31 @@ const editForm = useForm({
     citizen_id_back: null as File | null,
     branch_id: '',
 });
+
+const availableEditWageTiers = computed(() => {
+    const bid = Number(editForm.branch_id) || null;
+    return (props.wageTiers ?? []).filter(
+        (t) => t.branch_id === null || t.branch_id === bid,
+    );
+});
+
+watch(
+    () => editForm.wage_tier_id,
+    (val) => {
+        if (!val) {
+            return;
+        }
+
+        const tier = availableEditWageTiers.value.find(
+            (t) => t.id === Number(val),
+        );
+        if (tier) {
+            editForm.compensation_type = tier.compensation_type;
+            editForm.pay_rate = tier.rate;
+            editForm.base_salary = tier.rate;
+        }
+    },
+);
 
 const openEditEmployee = (emp: any) => {
     editingEmployee.value = emp;
@@ -292,6 +318,7 @@ const openEditEmployee = (emp: any) => {
     editForm.compensation_type = emp.compensation_type ?? 'fixed';
     editForm.pay_rate = emp.pay_rate ?? 25000;
     editForm.base_salary = emp.base_salary ?? 8000000;
+    editForm.wage_tier_id = emp.wage_tier_id ?? '';
     editForm.date_of_birth = emp.date_of_birth ?? '';
     editForm.address = emp.address ?? '';
     editForm.citizen_id_number = emp.citizen_id_number ?? '';
@@ -1348,20 +1375,20 @@ const submitSwapReject = () => {
         <!-- Quỹ lương được Chủ doanh nghiệp cấp cho phạm vi hiện tại -->
         <Card
             v-if="props.payrollBudget && (props.isBranchManager || props.isWarehouseManager || props.canManagePayrollBudget)"
-            class="border-amber-200 bg-amber-50/60 shadow-sm dark:border-amber-900/60 dark:bg-amber-950/20"
+            class="border-slate-200 bg-slate-50/70 shadow-sm dark:border-indigo-900/60 dark:bg-indigo-950/20"
         >
             <div class="flex flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-                <div class="flex items-center gap-2 text-sm font-semibold text-amber-900 dark:text-amber-200">
+                <div class="flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-indigo-200">
                     <Wallet class="size-4 shrink-0" />
                     <span>Quỹ lương</span>
-                    <span class="font-normal text-amber-800/75 dark:text-amber-200/70">
+                    <span class="font-normal text-slate-500 dark:text-slate-400">
                         {{ props.payrollBudget.branch_name || 'Phạm vi hiện tại' }} · {{ props.payrollBudget.month }}
                     </span>
                 </div>
                 <div class="flex flex-wrap items-center gap-x-5 gap-y-1 text-sm">
                     <span>
                         <span class="text-muted-foreground">Quỹ:</span>
-                        <strong class="ml-1 text-amber-900 dark:text-amber-100">
+                        <strong class="ml-1 text-slate-700 dark:text-slate-200">
                         {{ props.payrollBudget.configured && props.payrollBudget.budget_amount !== null ? formatVnd(props.payrollBudget.budget_amount) : 'Chưa được cấp' }}
                         </strong>
                     </span>
@@ -1942,81 +1969,88 @@ const submitSwapReject = () => {
                             </div>
                         </div>
 
-                        <!-- Cấu hình Hình thức trả lương & Mức lương -->
+                        <!-- Cấu hình Bậc lương & Mức lương (Khoá không cho sửa tuỳ ý) -->
                         <div
-                            class="grid grid-cols-2 gap-4 rounded-xl border border-indigo-100 bg-indigo-50/40 p-3.5 dark:border-indigo-950/40 dark:bg-indigo-950/20"
+                            class="space-y-3 rounded-xl border border-indigo-100 bg-indigo-50/40 p-3.5 dark:border-indigo-950/40 dark:bg-indigo-950/20"
                         >
                             <div class="grid gap-1.5">
-                                <Label
-                                    class="text-xs font-bold text-indigo-700 dark:text-indigo-300"
-                                    >Hình thức trả lương</Label
-                                >
+                                <div class="flex items-center justify-between">
+                                    <Label
+                                        class="text-xs font-bold text-indigo-700 dark:text-indigo-300"
+                                    >
+                                        Bậc lương áp dụng (Chủ doanh nghiệp quy định)
+                                    </Label>
+                                    <span
+                                        class="text-[11px] font-semibold text-amber-600 dark:text-amber-400"
+                                    >
+                                        🔒 Chọn Bậc lương để tăng/giảm lương
+                                    </span>
+                                </div>
                                 <select
-                                    v-model="editForm.compensation_type"
-                                    class="w-full rounded-md border border-slate-200 bg-background px-3 py-2 text-sm font-semibold text-slate-700 focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:outline-none"
+                                    v-model="editForm.wage_tier_id"
+                                    class="w-full rounded-md border border-slate-200 bg-background px-3 py-2 text-sm font-semibold text-slate-700 focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:outline-none dark:border-slate-800 dark:text-slate-200"
                                 >
-                                    <option value="fixed">
-                                        💼 Lương tháng cố định
+                                    <option value="">
+                                        -- Giữ bậc/mức lương hiện tại (hoặc chọn Bậc lương để thay đổi) --
                                     </option>
-                                    <option value="hourly">
-                                        ⏱ Lương theo giờ
-                                    </option>
-                                    <option value="shift">
-                                        📋 Lương theo ca
+                                    <option
+                                        v-for="tier in availableEditWageTiers"
+                                        :key="tier.id"
+                                        :value="tier.id"
+                                    >
+                                        {{ tier.name }} ({{ compTypeLabel(tier.compensation_type) }} - {{ formatVnd(tier.rate) }}{{ tier.revenue_percent ? ` + ${tier.revenue_percent}% DT` : '' }})
                                     </option>
                                 </select>
                             </div>
 
-                            <div
-                                v-if="editForm.compensation_type === 'fixed'"
-                                class="grid gap-1.5"
-                            >
-                                <Label
-                                    class="text-xs font-bold text-indigo-700 dark:text-indigo-300"
-                                    >Mức lương tháng hợp đồng (VNĐ)</Label
+                            <div class="grid grid-cols-2 gap-4 pt-1">
+                                <div class="grid gap-1.5">
+                                    <Label class="text-xs font-medium text-slate-500">Hình thức trả lương</Label>
+                                    <Input
+                                        :value="compTypeLabel(editForm.compensation_type)"
+                                        disabled
+                                        readonly
+                                        class="h-9 font-semibold bg-slate-100 dark:bg-slate-900 cursor-not-allowed text-slate-700 dark:text-slate-300"
+                                    />
+                                </div>
+
+                                <div
+                                    v-if="editForm.compensation_type === 'fixed'"
+                                    class="grid gap-1.5"
                                 >
-                                <Input
-                                    type="number"
-                                    step="50000"
-                                    v-model="editForm.base_salary"
-                                    placeholder="Ví dụ: 8000000"
-                                    required
-                                    class="h-9 font-mono text-xs font-bold text-indigo-600"
-                                />
-                            </div>
-                            <div
-                                v-else-if="
-                                    editForm.compensation_type === 'hourly'
-                                "
-                                class="grid gap-1.5"
-                            >
-                                <Label
-                                    class="text-xs font-bold text-indigo-700 dark:text-indigo-300"
-                                    >Đơn giá lương giờ (VNĐ/h)</Label
+                                    <Label class="text-xs font-medium text-slate-500">Mức lương tháng hợp đồng</Label>
+                                    <Input
+                                        :value="formatVnd(editForm.base_salary)"
+                                        disabled
+                                        readonly
+                                        class="h-9 font-mono text-xs font-bold text-indigo-600 bg-slate-100 dark:bg-slate-900 cursor-not-allowed"
+                                    />
+                                </div>
+                                <div
+                                    v-else-if="editForm.compensation_type === 'hourly'"
+                                    class="grid gap-1.5"
                                 >
-                                <Input
-                                    type="number"
-                                    step="1000"
-                                    v-model="editForm.pay_rate"
-                                    placeholder="Ví dụ: 25000"
-                                    required
-                                    class="h-9 font-mono text-xs font-bold text-purple-600"
-                                />
+                                    <Label class="text-xs font-medium text-slate-500">Đơn giá lương giờ</Label>
+                                    <Input
+                                        :value="formatVnd(editForm.pay_rate) + '/giờ'"
+                                        disabled
+                                        readonly
+                                        class="h-9 font-mono text-xs font-bold text-purple-600 bg-slate-100 dark:bg-slate-900 cursor-not-allowed"
+                                    />
+                                </div>
+                                <div v-else class="grid gap-1.5">
+                                    <Label class="text-xs font-medium text-slate-500">Đơn giá lương ca</Label>
+                                    <Input
+                                        :value="formatVnd(editForm.pay_rate) + '/ca'"
+                                        disabled
+                                        readonly
+                                        class="h-9 font-mono text-xs font-bold text-amber-600 bg-slate-100 dark:bg-slate-900 cursor-not-allowed"
+                                    />
+                                </div>
                             </div>
-                            <div v-else class="grid gap-1.5">
-                                <Label
-                                    class="text-xs font-bold text-indigo-700 dark:text-indigo-300"
-                                    >Đơn giá lương ca (VNĐ/ca)</Label
-                                >
-                                <Input
-                                    type="number"
-                                    step="5000"
-                                    v-model="editForm.pay_rate"
-                                    placeholder="Ví dụ: 200000"
-                                    required
-                                    class="h-9 font-mono text-xs font-bold text-amber-600"
-                                />
-                            </div>
+                            <p class="text-[11px] text-slate-500 dark:text-slate-400">
+                                * Hệ thống quy định không được sửa mức lương tùy ý. Muốn điều chỉnh tăng hoặc giảm lương phải chọn Bậc lương đã phê duyệt ở trên.
+                            </p>
                         </div>
 
                         <div class="grid gap-1.5">

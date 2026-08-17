@@ -359,34 +359,32 @@ const getLeaveTypeText = (type: string) => {
 
 <template>
     <div
-        class="employee-portal-page min-h-full bg-slate-50 pb-10 font-sans text-slate-900 dark:bg-slate-950 dark:text-slate-100"
+        class="employee-portal-page min-h-full bg-background pb-10 font-sans text-foreground"
     >
         <Head title="Cổng nhân sự" />
 
         <section
-            class="mx-auto w-full max-w-[1600px] space-y-5 px-5 py-6 xl:px-8 xl:py-8"
+            class="mx-auto w-full max-w-7xl space-y-6 px-4 py-5 lg:px-6 lg:py-6"
         >
             <div
-                class="flex flex-col justify-between gap-5 border-b border-slate-200 pb-6 sm:flex-row sm:items-center dark:border-slate-800"
+                class="flex flex-col justify-between gap-5 border-b border-border pb-6 sm:flex-row sm:items-center"
             >
                 <div class="flex items-center gap-3">
                     <div
-                        class="flex size-12 items-center justify-center rounded-2xl bg-indigo-50 text-indigo-600 shadow-sm dark:bg-indigo-950/50 dark:text-indigo-300"
+                        class="flex size-12 items-center justify-center rounded-2xl bg-primary/10 text-primary"
                     >
                         <User class="size-6" />
                     </div>
                     <div>
                         <p
-                            class="text-xs font-bold tracking-[0.16em] text-indigo-600 uppercase dark:text-indigo-400"
+                            class="text-xs font-bold tracking-[0.16em] text-primary uppercase"
                         >
                             Cổng nhân sự
                         </p>
                         <h1 class="mt-1 text-2xl font-bold tracking-tight">
                             Chào {{ employeeInfo?.full_name ?? 'Nhân viên' }} 👋
                         </h1>
-                        <p
-                            class="mt-1 text-sm text-slate-500 dark:text-slate-400"
-                        >
+                        <p class="mt-1 text-sm text-muted-foreground">
                             {{ employeeInfo?.job_title ?? 'Nhân viên' }} ·
                             {{
                                 employeeInfo?.employee_code ||
@@ -398,7 +396,7 @@ const getLeaveTypeText = (type: string) => {
 
                 <a
                     href="/dashboard"
-                    class="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-xs font-semibold text-slate-700 shadow-sm transition hover:border-indigo-300 hover:text-indigo-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
+                    class="inline-flex items-center justify-center gap-2 rounded-xl border border-border bg-background px-4 py-2.5 text-xs font-semibold text-muted-foreground transition hover:border-primary/40 hover:text-foreground"
                 >
                     <LogOut class="size-4" />
                     Quay lại Quản lý
@@ -406,7 +404,7 @@ const getLeaveTypeText = (type: string) => {
             </div>
 
             <nav
-                class="flex gap-1 overflow-x-auto rounded-2xl border border-slate-200 bg-white p-1.5 shadow-sm dark:border-slate-800 dark:bg-slate-900"
+                class="flex gap-1 overflow-x-auto rounded-xl border border-border bg-card p-1.5"
             >
                 <button
                     v-for="t in [
@@ -422,8 +420,8 @@ const getLeaveTypeText = (type: string) => {
                     class="flex shrink-0 items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-semibold transition"
                     :class="
                         activeTab === t.key
-                            ? 'bg-indigo-600 text-white shadow-sm'
-                            : 'text-slate-500 hover:bg-slate-50 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100'
+                            ? 'bg-primary text-primary-foreground shadow-sm'
+                            : 'text-muted-foreground hover:bg-muted hover:text-foreground'
                     "
                 >
                     <component :is="t.icon" class="size-4" />
@@ -518,21 +516,21 @@ const getLeaveTypeText = (type: string) => {
 
             <!-- Main Body Wrapper -->
             <main
-                class="mx-auto w-full max-w-[1600px] flex-1 space-y-6 px-5 pb-6 xl:px-8"
+                class="mx-auto w-full max-w-7xl flex-1 space-y-6 px-4 pb-6 lg:px-6"
             >
                 <div v-if="loading" class="space-y-5">
                     <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
                         <div
                             v-for="n in 3"
                             :key="n"
-                            class="h-32 animate-pulse rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900"
+                            class="h-32 animate-pulse rounded-xl border border-border bg-card"
                         ></div>
                     </div>
                     <div
-                        class="h-64 animate-pulse rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900"
+                        class="h-64 animate-pulse rounded-xl border border-border bg-card"
                     ></div>
                     <div
-                        class="flex items-center justify-center gap-2 py-3 text-sm text-slate-500 dark:text-slate-400"
+                        class="flex items-center justify-center gap-2 py-3 text-sm text-muted-foreground"
                     >
                         <RefreshCw
                             class="size-4 animate-spin text-indigo-500"
@@ -543,17 +541,13 @@ const getLeaveTypeText = (type: string) => {
 
                 <div
                     v-else-if="dashboardError"
-                    class="flex flex-col items-center justify-center rounded-2xl border border-amber-200 bg-amber-50 px-6 py-14 text-center dark:border-amber-900/50 dark:bg-amber-950/20"
+                    class="flex flex-col items-center justify-center rounded-xl border border-amber-500/30 bg-amber-500/10 px-6 py-14 text-center"
                 >
                     <AlertCircle class="mb-3 size-8 text-amber-500" />
-                    <h2
-                        class="text-base font-bold text-slate-900 dark:text-slate-100"
-                    >
+                    <h2 class="text-base font-bold text-foreground">
                         Chưa thể tải dữ liệu
                     </h2>
-                    <p
-                        class="mt-1 max-w-md text-sm text-slate-500 dark:text-slate-400"
-                    >
+                    <p class="mt-1 max-w-md text-sm text-muted-foreground">
                         {{ dashboardError }}
                     </p>
                     <button
@@ -575,7 +569,7 @@ const getLeaveTypeText = (type: string) => {
                         <!-- Earnings & Hours Grid -->
                         <div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
                             <div
-                                class="relative overflow-hidden rounded-2xl border border-indigo-500/20 bg-gradient-to-br from-indigo-900/40 to-slate-900 p-5 shadow-xl"
+                                class="relative overflow-hidden rounded-xl border border-primary/30 bg-primary/5 p-5"
                             >
                                 <div
                                     class="absolute -right-4 -bottom-4 opacity-10"
@@ -583,11 +577,13 @@ const getLeaveTypeText = (type: string) => {
                                     <Coins class="h-28 w-28" />
                                 </div>
                                 <h3
-                                    class="text-xs font-semibold tracking-wider text-indigo-400 uppercase"
+                                    class="text-xs font-semibold tracking-wider text-primary uppercase"
                                 >
                                     Ước Tính Thu Nhập Tháng
                                 </h3>
-                                <p class="mt-2 text-2xl font-bold text-white">
+                                <p
+                                    class="mt-2 text-2xl font-bold text-foreground"
+                                >
                                     {{
                                         formatCurrency(
                                             summary.estimated_earnings,
@@ -595,10 +591,9 @@ const getLeaveTypeText = (type: string) => {
                                     }}
                                 </p>
                                 <div
-                                    class="mt-3 flex items-center space-x-2 text-[10px] text-slate-400"
+                                    class="mt-3 flex items-center space-x-2 text-[10px] text-muted-foreground"
                                 >
-                                    <span
-                                        class="rounded bg-slate-800 px-1.5 py-0.5"
+                                    <span class="rounded bg-muted px-1.5 py-0.5"
                                         >Cứng:
                                         {{
                                             formatCurrency(summary.base_salary)
@@ -606,7 +601,7 @@ const getLeaveTypeText = (type: string) => {
                                     >
                                     <span
                                         v-if="summary.kpi_bonus > 0"
-                                        class="rounded bg-emerald-500/10 px-1.5 py-0.5 text-emerald-400"
+                                        class="rounded bg-emerald-500/10 px-1.5 py-0.5 text-emerald-500"
                                         >Thưởng KPI: +{{
                                             formatCurrency(summary.kpi_bonus)
                                         }}</span
@@ -615,45 +610,45 @@ const getLeaveTypeText = (type: string) => {
                             </div>
 
                             <div
-                                class="rounded-2xl border border-slate-800 bg-slate-900/60 p-5 shadow-xl"
+                                class="rounded-xl border border-border bg-card p-5"
                             >
                                 <h3
-                                    class="text-xs font-semibold tracking-wider text-slate-400 uppercase"
+                                    class="text-xs font-semibold tracking-wider text-muted-foreground uppercase"
                                 >
                                     Tổng Giờ Làm (Tháng Này)
                                 </h3>
                                 <p
-                                    class="mt-2 text-2xl font-bold text-slate-900 dark:text-white"
+                                    class="mt-2 text-2xl font-bold text-foreground"
                                 >
                                     {{ summary.hours_worked }}
                                     <span
-                                        class="text-xs font-normal text-slate-400"
+                                        class="text-xs font-normal text-muted-foreground"
                                         >giờ</span
                                     >
                                 </p>
-                                <p class="mt-2 text-xs text-slate-500">
+                                <p class="mt-2 text-xs text-muted-foreground">
                                     Tổng số giờ chấm công hoàn thành.
                                 </p>
                             </div>
 
                             <div
-                                class="rounded-2xl border border-slate-800 bg-slate-900/60 p-5 shadow-xl"
+                                class="rounded-xl border border-border bg-card p-5"
                             >
                                 <h3
-                                    class="text-xs font-semibold tracking-wider text-slate-400 uppercase"
+                                    class="text-xs font-semibold tracking-wider text-muted-foreground uppercase"
                                 >
                                     Số Ca Đã Hoàn Thành
                                 </h3>
                                 <p
-                                    class="mt-2 text-2xl font-bold text-slate-900 dark:text-white"
+                                    class="mt-2 text-2xl font-bold text-foreground"
                                 >
                                     {{ summary.shifts_completed }}
                                     <span
-                                        class="text-xs font-normal text-slate-400"
+                                        class="text-xs font-normal text-muted-foreground"
                                         >ca</span
                                     >
                                 </p>
-                                <p class="mt-2 text-xs text-slate-500">
+                                <p class="mt-2 text-xs text-muted-foreground">
                                     Các ca làm việc đã xác nhận hoàn thành.
                                 </p>
                             </div>
@@ -661,10 +656,10 @@ const getLeaveTypeText = (type: string) => {
 
                         <!-- Upcoming shifts quick view -->
                         <div
-                            class="space-y-4 rounded-2xl border border-slate-800 bg-slate-900/40 p-5 shadow-xl"
+                            class="space-y-4 rounded-xl border border-border bg-card p-5"
                         >
                             <h3
-                                class="flex items-center space-x-2 text-sm font-semibold text-slate-200"
+                                class="flex items-center space-x-2 text-sm font-semibold text-foreground"
                             >
                                 <Calendar class="h-4 w-4 text-indigo-400" />
                                 <span>Lịch làm việc sắp tới (Tuần này)</span>
@@ -672,7 +667,7 @@ const getLeaveTypeText = (type: string) => {
 
                             <div
                                 v-if="schedules.length === 0"
-                                class="py-6 text-center text-xs text-slate-500"
+                                class="py-8 text-center text-sm text-muted-foreground"
                             >
                                 Không có ca trực nào được xếp lịch.
                             </div>
@@ -680,22 +675,22 @@ const getLeaveTypeText = (type: string) => {
                                 <div
                                     v-for="sched in schedules.slice(0, 3)"
                                     :key="sched.id"
-                                    class="flex items-center justify-between rounded-xl border border-slate-800 bg-slate-950/60 p-3.5 transition hover:border-slate-700"
+                                    class="flex items-center justify-between rounded-lg border border-border bg-muted/30 p-3.5 transition hover:border-primary/40"
                                 >
                                     <div class="flex items-center space-x-3">
                                         <div
-                                            class="flex h-9 w-9 flex-col items-center justify-center rounded-lg border border-indigo-500/20 bg-indigo-600/10 text-[10px] font-bold text-indigo-400"
+                                            class="flex h-9 w-9 flex-col items-center justify-center rounded-lg border border-primary/20 bg-primary/10 text-[10px] font-bold text-primary"
                                         >
                                             <span>{{ sched.day_name }}</span>
                                         </div>
                                         <div>
                                             <p
-                                                class="text-xs font-bold text-slate-200"
+                                                class="text-xs font-bold text-foreground"
                                             >
                                                 {{ sched.shift_name }}
                                             </p>
                                             <p
-                                                class="text-[11px] text-slate-400"
+                                                class="text-[11px] text-muted-foreground"
                                             >
                                                 {{ sched.start_time }} -
                                                 {{ sched.end_time }}
@@ -713,7 +708,7 @@ const getLeaveTypeText = (type: string) => {
                                         </span>
                                         <span
                                             v-if="sched.check_in_at"
-                                            class="rounded bg-slate-800 px-1.5 py-0.5 text-[10px] text-slate-400"
+                                            class="rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground"
                                         >
                                             Vào: {{ sched.check_in_at }}
                                         </span>
@@ -725,17 +720,17 @@ const getLeaveTypeText = (type: string) => {
                         <!-- Personal KPI Progress -->
                         <div
                             v-if="kpiData"
-                            class="space-y-4 rounded-2xl border border-slate-800 bg-slate-900/40 p-5 shadow-xl"
+                            class="space-y-4 rounded-xl border border-border bg-card p-5"
                         >
                             <div class="flex items-center justify-between">
                                 <h3
-                                    class="flex items-center space-x-2 text-sm font-semibold text-slate-200"
+                                    class="flex items-center space-x-2 text-sm font-semibold text-foreground"
                                 >
                                     <Coins class="h-4 w-4 text-emerald-400" />
                                     <span>Hiệu Suất KPI & Ước Tính Thưởng</span>
                                 </h3>
                                 <span
-                                    class="rounded bg-indigo-500/10 px-2 py-0.5 text-xs font-bold text-indigo-400"
+                                    class="rounded bg-primary/10 px-2 py-0.5 text-xs font-bold text-primary"
                                 >
                                     Điểm KPI: {{ kpiData.total_score }} / 100
                                 </span>
@@ -747,13 +742,13 @@ const getLeaveTypeText = (type: string) => {
                                 <div
                                     v-for="metric in kpiData.metrics"
                                     :key="metric.metric_name"
-                                    class="flex flex-col justify-between space-y-3 rounded-xl border border-slate-800/80 bg-slate-950/40 p-3.5"
+                                    class="flex flex-col justify-between space-y-3 rounded-lg border border-border bg-muted/30 p-3.5"
                                 >
                                     <div
                                         class="flex items-center justify-between"
                                     >
                                         <h4
-                                            class="text-xs font-bold text-slate-200"
+                                            class="text-xs font-bold text-foreground"
                                         >
                                             {{ metric.metric_name }}
                                         </h4>
@@ -778,16 +773,16 @@ const getLeaveTypeText = (type: string) => {
                                     >
                                         <div class="space-y-1">
                                             <p
-                                                class="text-[10px] text-slate-500"
+                                                class="text-[10px] text-muted-foreground"
                                             >
                                                 Tiến độ thực tế / Chỉ tiêu
                                             </p>
                                             <p
-                                                class="text-sm font-bold text-slate-300"
+                                                class="text-sm font-bold text-foreground"
                                             >
                                                 {{ metric.actual_value }}
                                                 <span
-                                                    class="font-medium text-slate-500"
+                                                    class="font-medium text-muted-foreground"
                                                     >/
                                                     {{
                                                         metric.target_value
@@ -800,7 +795,7 @@ const getLeaveTypeText = (type: string) => {
                                         >
                                             <p
                                                 v-if="metric.bonus_earned > 0"
-                                                class="font-bold text-emerald-400"
+                                                class="font-bold text-emerald-500"
                                             >
                                                 +{{
                                                     formatCurrency(
@@ -813,7 +808,7 @@ const getLeaveTypeText = (type: string) => {
                                                 v-if="
                                                     metric.commission_earned > 0
                                                 "
-                                                class="font-bold text-indigo-400"
+                                                class="font-bold text-primary"
                                             >
                                                 +{{
                                                     formatCurrency(
@@ -830,11 +825,11 @@ const getLeaveTypeText = (type: string) => {
 
                         <!-- Notification Center -->
                         <div
-                            class="space-y-4 rounded-2xl border border-slate-800 bg-slate-900/40 p-5 shadow-xl"
+                            class="space-y-4 rounded-xl border border-border bg-card p-5"
                         >
                             <div class="flex items-center justify-between">
                                 <h3
-                                    class="flex items-center space-x-2 text-sm font-semibold text-slate-200"
+                                    class="flex items-center space-x-2 text-sm font-semibold text-foreground"
                                 >
                                     <Bell class="h-4 w-4 text-indigo-400" />
                                     <span>Thông báo mới</span>
@@ -842,7 +837,7 @@ const getLeaveTypeText = (type: string) => {
                                 <button
                                     v-if="unreadNotificationCount > 0"
                                     @click="markAllRead"
-                                    class="text-xs font-medium text-indigo-400 hover:text-indigo-300"
+                                    class="text-xs font-medium text-primary hover:text-primary/80"
                                 >
                                     Đọc tất cả
                                 </button>
@@ -850,7 +845,7 @@ const getLeaveTypeText = (type: string) => {
 
                             <div
                                 v-if="notifications.length === 0"
-                                class="py-6 text-center text-xs text-slate-500"
+                                class="py-8 text-center text-sm text-muted-foreground"
                             >
                                 Không có thông báo mới nào.
                             </div>
@@ -861,22 +856,22 @@ const getLeaveTypeText = (type: string) => {
                                     class="flex items-start space-x-3 rounded-xl border p-3 text-xs transition"
                                     :class="
                                         notif.read_at
-                                            ? 'border-slate-900 bg-slate-950/20 text-slate-400'
-                                            : 'border-slate-800 bg-slate-900 text-slate-200'
+                                            ? 'border-border bg-muted/20 text-muted-foreground'
+                                            : 'border-primary/20 bg-primary/5 text-foreground'
                                     "
                                 >
                                     <span
                                         class="mt-1.5 h-2 w-2 flex-shrink-0 rounded-full"
                                         :class="
                                             notif.read_at
-                                                ? 'bg-slate-700'
+                                                ? 'bg-muted-foreground'
                                                 : 'bg-indigo-500'
                                         "
                                     ></span>
                                     <div class="flex-1 space-y-1">
                                         <p>{{ notif.message }}</p>
                                         <span
-                                            class="block text-[10px] font-medium text-slate-500"
+                                            class="block text-[10px] font-medium text-muted-foreground"
                                             >{{ notif.created_at }}</span
                                         >
                                     </div>
@@ -1613,84 +1608,58 @@ const getLeaveTypeText = (type: string) => {
     animation: fadeIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
-/* Keep the employee portal aligned with the shared management theme in light mode.
-   The tab content still uses the original dark utility classes, so these scoped
-   page-level mappings avoid a risky template-wide rewrite while preserving dark mode. */
-html:not(.dark) .employee-portal-page main [class*='bg-slate-950'] {
-    background-color: #f8fafc !important;
+.employee-portal-page {
+    background-color: var(--background) !important;
+    color: var(--foreground);
 }
 
-html:not(.dark) .employee-portal-page main [class*='bg-slate-900'] {
-    background-color: #ffffff !important;
+/* The older tab panels still use slate utility classes. Map them to the same
+   design tokens used by the rest of the management workspace. */
+.employee-portal-page main [class*='bg-slate-950'] {
+    background-color: var(--background) !important;
 }
 
-html:not(.dark) .employee-portal-page main [class*='bg-slate-800'] {
-    background-color: #f1f5f9 !important;
+.employee-portal-page main [class*='bg-slate-900'] {
+    background-color: var(--card) !important;
 }
 
-html:not(.dark) .employee-portal-page main [class*='bg-slate-700'] {
-    background-color: #e2e8f0 !important;
+.employee-portal-page main [class*='bg-slate-800'],
+.employee-portal-page main [class*='bg-slate-700'] {
+    background-color: var(--muted) !important;
 }
 
-html:not(.dark) .employee-portal-page main [class*='border-slate-900'],
-html:not(.dark) .employee-portal-page main [class*='border-slate-800'],
-html:not(.dark) .employee-portal-page main [class*='border-slate-700'] {
-    border-color: #e2e8f0 !important;
+.employee-portal-page main [class*='border-slate-900'],
+.employee-portal-page main [class*='border-slate-800'],
+.employee-portal-page main [class*='border-slate-700'],
+.employee-portal-page main [class*='divide-slate-800'] {
+    border-color: var(--border) !important;
 }
 
-html:not(.dark) .employee-portal-page main [class*='divide-slate-800'] {
-    border-color: #e2e8f0 !important;
+.employee-portal-page main [class*='text-slate-100'],
+.employee-portal-page main [class*='text-slate-200'],
+.employee-portal-page main [class*='text-slate-300'] {
+    color: var(--foreground) !important;
 }
 
-html:not(.dark) .employee-portal-page main [class*='text-slate-100'] {
-    color: #0f172a !important;
+.employee-portal-page main [class*='text-slate-400'],
+.employee-portal-page main [class*='text-slate-500'] {
+    color: var(--muted-foreground) !important;
 }
 
-html:not(.dark) .employee-portal-page main [class*='text-slate-200'] {
-    color: #1e293b !important;
+.employee-portal-page main [class*='text-indigo-300'],
+.employee-portal-page main [class*='text-indigo-400'] {
+    color: var(--primary) !important;
 }
 
-html:not(.dark) .employee-portal-page main [class*='text-slate-300'] {
-    color: #334155 !important;
+.employee-portal-page main [class*='placeholder:text-slate-600']::placeholder,
+.employee-portal-page main input::placeholder,
+.employee-portal-page main textarea::placeholder {
+    color: var(--muted-foreground) !important;
 }
 
-html:not(.dark) .employee-portal-page main [class*='text-slate-400'],
-html:not(.dark) .employee-portal-page main [class*='text-slate-500'] {
-    color: #64748b !important;
-}
-
-html:not(.dark) .employee-portal-page main [class*='text-indigo-300'],
-html:not(.dark) .employee-portal-page main [class*='text-indigo-400'] {
-    color: #4f46e5 !important;
-}
-
-html:not(.dark) .employee-portal-page main [class*='text-emerald-400'] {
-    color: #059669 !important;
-}
-
-html:not(.dark) .employee-portal-page main [class*='text-amber-400'] {
-    color: #d97706 !important;
-}
-
-html:not(.dark) .employee-portal-page main [class*='text-rose-400'] {
-    color: #e11d48 !important;
-}
-
-html:not(.dark)
-    .employee-portal-page
-    main
-    [class*='placeholder:text-slate-600']::placeholder {
-    color: #94a3b8 !important;
-}
-
-html:not(.dark) .employee-portal-page main input,
-html:not(.dark) .employee-portal-page main select,
-html:not(.dark) .employee-portal-page main textarea {
-    color: #0f172a;
-}
-
-html:not(.dark) .employee-portal-page main input::placeholder,
-html:not(.dark) .employee-portal-page main textarea::placeholder {
-    color: #94a3b8;
+.employee-portal-page main input,
+.employee-portal-page main select,
+.employee-portal-page main textarea {
+    color: var(--foreground);
 }
 </style>
