@@ -87,16 +87,16 @@ AWS_ENDPOINT=http://127.0.0.1:9000
 ## 🤖 Microservices AI (Python)
 
 ```env
-CHATBOT_SERVICE_URL=http://localhost:8002
+CHATBOT_SERVICE_URL=http://127.0.0.1:8002
 EMAIL_SERVICE_URL=http://localhost:8001
-ANALYTICS_SERVICE_URL=http://localhost:8003
+ANALYTICS_SERVICE_URL=http://127.0.0.1:8003
 INTERNAL_API_KEY=                # dùng chung với Python services, gửi qua header X-Internal-API-Key
 ```
 
 Production Vercel hien tai cua analytics service:
 
 ```env
-ANALYTICS_SERVICE_URL=https://aventura-two-delta.vercel.app
+ANALYTICS_SERVICE_URL=http://analytics-service:8003
 ```
 
 Test nhanh:

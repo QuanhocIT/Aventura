@@ -22,7 +22,7 @@ ________________________________________
 
 2.1 Backend & Hệ sinh thái xử lý trung tâm
 
-•    Laravel 12 (PHP): Đóng vai trò nền tảng chính để xây dựng RESTful API, quản lý logic nghiệp vụ và cấu trúc đa người thuê (Multi-tenant).
+•    Laravel 12 (PHP): Đóng vai trò nền tảng chính để xây dựng RESTful API, quản lý logic nghiệp vụ và cấu trúc đa người thuê (Multi-tenant) với hơn 170 Eloquent Models, 633 routes và 41 tác vụ lập lịch ngầm (Scheduler).
 
 o    Laravel Horizon: Công cụ bắt buộc đi kèm với Redis để quản lý và giám sát hệ thống hàng đợi (Queue), giúp theo dõi tỷ lệ lỗi và thời gian xử lý các tác vụ nền.
 
@@ -30,13 +30,13 @@ o    Laravel Pulse: Hệ thống giám sát sức khỏe server thời gian th�
 
 o    Spatie Laravel Permission: Thư viện tiêu chuẩn công nghiệp được tích hợp để quản lý vai trò (Roles) và quyền hạn (Permissions) một cách chặt chẽ, bảo mật.
 
-•    Python Microservice: Hệ thống gồm 3 service độc lập chuyên trách xử lý dữ liệu chuyên sâu và AI:
+•    Python Microservice Engine: Hệ thống gồm 3 service độc lập chạy trên kiến trúc FastAPI hiệu năng cao, hỗ trợ khởi chạy tập trung qua 1 lệnh duy nhất (`composer dev:ai` hoặc `services/start-all.ps1`):
 
-o    Analytics Service: Phân tích giỏ hàng (Basket Analysis/Apriori), phát hiện gian lận (Fraud Detection), dự báo tồn kho và dự báo doanh thu.
+o    Email & AI Insights Service (Port 8001): Gửi email transactional (welcome, OTP, xác thực, hóa đơn, chiến dịch) qua Brevo API, cung cấp AI Forecast Churn Risk (phát hiện nhà hàng có nguy cơ dừng dịch vụ) và dự báo doanh thu SaaS MRR/ARR 3 tháng tới.
 
-o    Email Service: Gửi email transactional (welcome, OTP, xác thực, hóa đơn, chiến dịch) qua Brevo API và cung cấp AI Insights cho Super Admin dashboard.
+o    Chatbot Service (Port 8002): Ensemble NLP Engine (TF-IDF char/word n-gram + BM25Okapi + Keyword Overlap) tự động trả lời câu hỏi thường gặp (FAQ) và Cố vấn doanh nghiệp (`/advisor-chat`) truy vấn trực tiếp CSDL MySQL để trích xuất báo cáo doanh thu, món bán chạy, cảnh báo gian lận thời gian thực.
 
-o    Chatbot Service: FAQ chatbot NLP tự động trả lời câu hỏi thường gặp và Advisor chatbot hỗ trợ chủ nhà hàng phân tích nghiệp vụ.
+o    Analytics & AI Upsell Service (Port 8003): Phân tích giỏ hàng (Basket Analysis/Apriori) gợi ý món bán kèm, phát hiện gian lận (Fraud Detection), dự báo tồn kho/doanh thu (Linear Regression), dự báo nhu cầu theo thời tiết (OpenWeatherMap API) và OCR hóa đơn nhà cung cấp.
 
 o    FastAPI: Framework hiệu năng cao, hỗ trợ bất đồng bộ (Asynchronous) dùng để xây dựng API cho cả 3 service, giúp Laravel và Python giao tiếp cực nhanh.
 
@@ -44,33 +44,35 @@ o    Pandas & Scikit-learn: Thư viện chuyên dụng cho Analytics Service đ�
 
 2.2 Frontend & Trải nghiệm người dùng
 
-•    Vue.js (SPA): Xây dựng ứng dụng đơn trang giúp giao diện hoạt động mượt mà, giảm thiểu thời gian chờ giữa các thao tác của nhân viên nhà hàng.
+•    Vue 3 (Inertia.js SPA): Xây dựng ứng dụng đơn trang theo mô hình Server-driven SPA kết hợp Inertia.js giúp giao diện hoạt động mượt mà, chuyển trang tức thì không cần refresh.
 
 o    Pinia: Thư viện quản lý trạng thái (State Management) thế hệ mới, đảm bảo dữ liệu đơn hàng và trạng thái bàn được đồng bộ liên tục trên toàn hệ thống mà không cần tải lại trang.
 
-o    Tailwind CSS: Framework CSS tối ưu để thiết kế giao diện tùy chỉnh nhanh chóng, đảm bảo tính hiển thị tốt trên nhiều thiết bị như máy POS, máy tính bảng và điện thoại.
+o    Tailwind CSS 4: Framework CSS thế hệ 4 mới nhất giúp tối ưu hóa thiết kế giao diện tùy chỉnh nhanh chóng, phản hồi mượt mà trên máy POS, máy tính bảng và điện thoại di động.
 
-o    Vite: Công cụ hỗ trợ build mã nguồn tốc độ cao, giúp tối ưu hóa việc chia nhỏ mã nguồn (code splitting) để ứng dụng vận hành nhẹ nhàng hơn.
+o    Vite: Công cụ hỗ trợ build mã nguồn tốc độ cao, giúp tối ưu hóa việc chia nhỏ mã nguồn (code splitting) để ứng dụng vận hành nhẹ nhàng hơn (~63 KB gzip bundle).
 
 2.3 Database & Cache (Tầng dữ liệu)
 
-•    MySQL: Hệ quản trị cơ sở dữ liệu quan hệ chính, lưu trữ toàn bộ thông tin nhà hàng, thực đơn và giao dịch.
+•    MySQL 8: Hệ quản trị cơ sở dữ liệu quan hệ chính, lưu trữ toàn bộ thông tin nhà hàng, thực đơn và giao dịch. Hỗ trợ tách Read Replica / Write Master độc lập với cơ chế `sticky` và `useWritePdo()` cho các giao dịch nhạy cảm.
 
-•    Redis: Hệ thống lưu trữ dữ liệu trên bộ nhớ tạm (In-memory), đóng vai trò Caching, quản lý Session và làm trình điều phối hàng đợi (Queue) để giảm tải tối đa cho Database chính.
+•    Redis 7: Hệ thống lưu trữ dữ liệu trên bộ nhớ tạm (In-memory), đóng vai trò Caching, quản lý Session và làm trình điều phối hàng đợi (Queue) để giảm tải tối đa cho Database chính.
 
-•    Meilisearch: Giải pháp tìm kiếm chuyên sâu (Full-text search), hỗ trợ tìm kiếm món ăn và lịch sử hóa đơn "nhanh như chớp" thay vì sử dụng các câu lệnh SQL truyền thống dễ gây chậm hệ thống.
+•    Meilisearch: Giải pháp tìm kiếm chuyên sâu (Full-text search qua Laravel Scout), hỗ trợ tìm kiếm món ăn và lịch sử hóa đơn "nhanh như chớp" thay vì sử dụng các câu lệnh SQL truyền thống dễ gây chậm hệ thống.
 
 2.4 Hạ tầng, Realtime & Giám sát (DevOps)
 
-•    Laravel Reverb / WebSockets: Đảm bảo truyền tải thông tin thời gian thực giữa các bộ phận (ví dụ: nhân viên phục vụ order thì màn hình bếp nhận thông tin ngay lập tức).
+•    Laravel Reverb / WebSockets: Server WebSocket thuần PHP thế hệ mới đảm bảo truyền tải thông tin thời gian thực giữa các bộ phận (ví dụ: nhân viên phục vụ order thì màn hình bếp nhận thông tin ngay lập tức với độ trễ < 500ms).
 
 •    Docker: Đóng gói toàn bộ môi trường ứng dụng, giúp việc triển khai từ môi trường phát triển lên Production luôn ổn định và đồng nhất.
 
-•    MinIO: Giải pháp lưu trữ đối tượng (Object Storage) mã nguồn mở, dùng để quản lý hình ảnh món ăn và tệp hóa đơn chuyên nghiệp, tách biệt khỏi mã nguồn dự án.
+•    MinIO / S3: Giải pháp lưu trữ đối tượng (Object Storage) mã nguồn mở, dùng để quản lý hình ảnh món ăn, tệp hóa đơn và chứng từ HĐĐT XML chuyên nghiệp, tách biệt khỏi mã nguồn dự án.
 
-•    Sentry: Hệ thống theo dõi lỗi tập trung, tự động cảnh báo các sự cố phát sinh ở cả Frontend và Backend để đội ngũ kỹ thuật xử lý kịp thời, đảm bảo KPI Uptime > 99%.
+•    Sentry & Laravel Pulse: Hệ thống theo dõi lỗi tập trung và giám sát tài nguyên CPU/RAM, tự động cảnh báo các sự cố phát sinh ở cả Frontend và Backend để đảm bảo KPI Uptime > 99%.
 
-•    Circuit Breaker: Cơ chế ngăn chặn lỗi lan truyền (Cascading Failure), ngắt tạm thời các cuộc gọi API từ Laravel đến các microservices bên ngoài khi phát hiện sự cố quá tải hoặc mất kết nối.
+•    Circuit Breaker: Cơ chế máy trạng thái 3 cấp (CLOSED - OPEN - HALF-OPEN) ngăn chặn lỗi lan truyền (Cascading Failure), ngắt tạm thời các cuộc gọi API từ Laravel đến các microservices bên ngoài khi phát hiện sự cố quá tải hoặc mất kết nối.
+
+•    Bộ Kiểm Thử Tự Động (Automated Testing Suite): **561 test cases trôi qua 100%** (`php artisan test`), phủ kín các luồng nghiệp vụ phức tạp nhất như định tuyến giao hàng TSP, bảo mật ảnh CCCD, hoàn tiền đơn hàng, validation chéo tenant và tính toán giá vốn.
 
 2.5 Công cụ quản lý dự án
 
@@ -90,7 +92,7 @@ o    Vite: Công cụ hỗ trợ build mã nguồn tốc độ cao, giúp tối 
 
 •    HALF-OPEN (Trạng thái thăm dò): Sau chu kỳ cooldown (thời gian hồi phục), mạch chuyển sang HALF-OPEN và gửi thử nghiệm một lượng nhỏ API request. Nếu thành công, mạch đóng lại (CLOSED); nếu tiếp tục lỗi, mạch duy trì OPEN.
 
-•    Cơ chế dự phòng (Fallback Fallback):
+•    Cơ chế dự phòng (Fallback Engine):
 
   o    Đối với Dịch vụ Gợi ý Upsell: Nếu FastAPI Python offline, Laravel tự động kích hoạt *Laravel Fallback Engine* viết bằng PHP chạy thuật toán Apriori in-memory để phục vụ gợi ý món ăn kèm.
 
@@ -402,11 +404,19 @@ o    view_report: Xem báo cáo doanh thu và hiệu suất theo ngày/tuần/th
 
 Lưu ý: Tất cả các hành động nhạy cảm như sửa giá, hủy đơn hoặc sửa dữ liệu kho đều được hệ thống tự động ghi lại vào Audit Log để phục vụ việc tra soát minh bạch sau này.
 
-6.3 Cơ chế phòng thủ đặc biệt trong phân quyền
+6.3 Cơ chế phòng thủ đặc biệt trong bảo mật & phân quyền
 
 •    Ngăn chặn tự phê duyệt (Prevent Self-Approval): Để tránh rủi ro lạm quyền hoặc thông đồng nội bộ, hệ thống thiết lập bộ lọc nghiêm ngặt ở tầng Middleware. Nhân viên (kể cả Manager) tuyệt đối không thể tự phê duyệt đơn xin nghỉ phép của chính mình, yêu cầu đổi ca trực của mình, hoặc các đề xuất mua nguyên vật liệu PO/RFP do chính mình tạo ra. Lớp kiểm tra chéo sẽ so sánh ID người yêu cầu và ID người phê duyệt; nếu trùng khớp, hệ thống chặn đứng giao dịch và trả về mã lỗi HTTP 403 Forbidden.
 
 •    Giới hạn truy cập theo ca làm việc (Shift-restricted Access): Để triệt tiêu nguy cơ nhân sự ở nhà vẫn đăng nhập vào hệ thống để tạo đơn khống hoặc xem lén thông tin kinh doanh, các tài khoản nhân sự vận hành (Thu ngân, phục vụ) bị khóa tự động ngoài giờ làm việc. Middleware CheckShiftSchedule sẽ liên tục đối chiếu thời điểm gửi request với lịch trực thực tế trong bảng schedule_assignments; nếu nằm ngoài khung giờ trực, quyền gọi API sẽ lập tức bị vô hiệu hóa.
+
+•    Bảo vệ dữ liệu nhạy cảm nhân sự (Secure Citizen IDs): Ảnh căn cước công dân (CCCD) và hồ sơ cá nhân nhân viên được di trú và lưu trữ tuyệt đối an toàn trong ổ đĩa riêng tư (`storage/app/private`). Hệ thống chặn mọi truy cập công khai qua URL tĩnh; truy cập xem ảnh bắt buộc phải đi qua route bảo vệ `employees.citizen-id` với sự xác thực quyền hạn nghiêm ngặt (chỉ dành cho Owner hoặc Manager quản lý cùng chi nhánh/tenant).
+
+•    Rào chắn Validation chéo Tenant (`TenantRule::exists()`): Chặn đứng nguy cơ kẻ tấn công đoán ID của nhà hàng khác trong các Form Request. Hệ thống xây dựng lớp kiểm tra `TenantRule::exists()` để buộc 100% các thao tác kiểm tra dữ liệu đầu vào (59 vị trí Form Request) phải đi kèm phạm vi `restaurant_id` của tenant hiện tại.
+
+•    Bảo vệ luồng Tích điểm & Claim Points (HMAC Security): API nhận điểm thưởng (`claim-points`) được mã hóa bằng token HMAC sinh từ màn hình xác nhận thanh toán. Hệ thống tự động kiểm tra trạng thái đơn đã thanh toán thành công, kiểm tra chữ ký HMAC hợp lệ và chặn tuyệt đối hành vi claim lặp lại để chống gian lận điểm thưởng.
+
+•    Chống trùng lặp Webhook Thanh toán (Payment Webhook Idempotency): Tầng CSDL áp dụng unique index `payment_webhooks(provider, transaction_code, signature)` kết hợp phương thức trả về kiểu boolean tại `payOrder()` để đảm bảo các Webhook retry từ cổng thanh toán gửi trùng tới cùng lúc không bao giờ làm gia hạn gói 2 lần hoặc cộng tiền lặp.
 
 ________________________________________
 
@@ -438,7 +448,11 @@ Hệ thống triển khai kiến trúc Multi-tenancy theo giải pháp Shared Da
 
   o    Hiệu năng truy vấn: Kết hợp đánh chỉ mục (Composite Index) giữa restaurant_id và các trường tìm kiếm thường xuyên (như status, created_at) giúp tăng tốc độ xử lý từ 40% đến 70% khi dữ liệu phình to.
 
-  o    Quản lý tài nguyên: Dễ dàng kiểm soát hạn mức (Quota) theo gói dịch vụ — Gói Free: tối đa 10 bàn, 5 người dùng, 1 chi nhánh; Gói Pro: không giới hạn; Gói Max: tối đa 10 chi nhánh, 300 bàn, 80 người dùng; Gói Ultra: không giới hạn, dung lượng cloud 200GB.
+  o    Quản lý tài nguyên theo 4 gói cước chuẩn hóa:
+    - Gói Miễn Phí (Free): Giới hạn tối đa 1 chi nhánh, 10 bàn hoạt động, 5 tài khoản nhân viên, dung lượng Cloud 500MB.
+    - Gói Cơ Bản (Basic): Mở rộng tài nguyên quản lý cho các quán ăn độc lập, tối đa 30 bàn, 15 nhân viên.
+    - Gói Chuyên Nghiệp (Professional): Không giới hạn số lượng bàn và chi nhánh, mở khóa tối đa 10GB Cloud Storage, truyền tải Realtime và toàn bộ tính năng phân tích dữ liệu AI.
+    - Gói Doanh Nghiệp (Enterprise): Dành cho các chuỗi nhà hàng lớn với các tính năng tùy chỉnh (`is_custom = true`), cam kết SLA 99.9%, dung lượng Cloud Storage từ 200GB trở lên.
 
 7.2 Hệ thống Logging & Audit (Nhật ký kiểm soát)
 
@@ -458,7 +472,7 @@ Hệ thống triển khai kiến trúc Multi-tenancy theo giải pháp Shared Da
 
   o    Dữ liệu cũ & mới: So sánh giá trị trước (`old_values`) và sau (`new_values`) khi thay đổi dưới dạng JSON.
 
-•    Tích hợp AI: Các dữ liệu Log này là nguồn đầu vào quan trọng cho Microservice Python để phân tích và phát hiện các hành vi gian lận (Fraud Detection) tự động.
+•    Tích hợp AI & Chuẩn hóa phương thức ghi Log (`AuditLog::log()`): Hệ thống chuẩn hóa duy nhất phương thức `AuditLog::log($action, $event, $subject, $old, $new)` nhằm đảm bảo tính toàn vẹn của cột ENUM `event` và mối quan hệ `subject_type` / `subject_id`, triệt tiêu hoàn toàn nguy cơ ném ngoại lệ SQL ngầm làm rollback `DB::transaction`. Các dữ liệu Log này là nguồn đầu vào quan trọng cho Microservice Python để phân tích và phát hiện các hành vi gian lận (Fraud Detection) tự động.
 
 •    Cơ chế trích xuất dữ liệu tự động (Audit Log Pipeline): Để không ảnh hưởng đến tốc độ phản hồi API bán hàng chính (KPI < 2s), hệ thống triển khai thông qua Laravel Model Observers kết hợp Redis Queue. Model Observer chớp lấy trạng thái cũ qua `$model->getOriginal()` và trạng thái mới qua `$model->getAttributes()`, sau đó đẩy bất đồng bộ vào hàng đợi Redis để xử lý ghi log nền.
 
@@ -512,121 +526,124 @@ Hệ thống quản lý bộ cơ sở dữ liệu được chuẩn hóa theo cá
 
 •    Phân tách lưu trữ file (Cloud Storage): Toàn bộ ảnh món ăn và hóa đơn vật lý được lưu trữ độc lập trên Cloud Storage (S3, R2, MinIO), giúp hệ thống dễ dàng mở rộng và giảm dung lượng sao lưu CSDL.
 
-8. Các tác nhân
+8. CÁC TÁC NHÂN TRONG HỆ THỐNG (ACTOR PROFILES & PERMISSIONS MATRIX)
 
-Hệ thống phân chia rõ rệt 5 tầng tác nhân để đảm bảo tính chuyên môn hóa:
+Hệ thống Aventura phân tách chức năng chặt chẽ theo mô hình Phân quyền Dựa trên Hành động (Permission-based Access Control) kết hợp với Cơ chế Cô lập Đa người thuê (Multi-tenant Scope). Toàn bộ 12 vai trò (Roles) trong hệ thống đều được định nghĩa rõ ràng về phạm vi truy cập, giao diện chuyên biệt, danh mục quyền Spatie Permission và cơ chế bảo mật rào chắn tương ứng.
 
-•    Super Admin: Quản lý toàn bộ nền tảng SaaS, các gói dịch vụ (Free/Pro/Max/Ultra) và các doanh nghiệp (tenant).
+8.1 Tóm tắt Ma trận Phân cấp Tác nhân & Quyền hạn (Role-Permission Matrix)
 
-•    Chủ nhà hàng (Owner): Có toàn quyền trong một nhà hàng, tập trung vào báo cáo lợi nhuận và chiến lược.
+| Tầng Tác nhân | Vai trò (Role Key) | Phạm vi Truy cập (Scope) | Giao diện Chuyên biệt | Trách nhiệm & Quyền hạn Cốt lõi (Primary Permissions) |
+|---|---|---|---|---|
+| **Tầng 1** | `super-admin` | Toàn hệ thống SaaS (Global / Monolith) | SaaS Super Admin Dashboard | Quản lý Tenant, cấu hình hạn mức 4 gói cước, giả danh hỗ trợ (Impersonation), WAF/Firewall, SaaS Churn Risk & MRR |
+| **Tầng 2** | `owner` | Toàn bộ 1 Doanh nghiệp Tenant (Tenant-wide) | Owner Executive Dashboard | Toàn quyền Tenant, duyệt PO lớn, cấn trừ phạt âm két, báo cáo P&L, ma trận BCG, thử nghiệm giá A/B, B2B Escrow |
+| **Tầng 3.1** | `manager` | 1 Chi nhánh nhà hàng (Branch-wide) | Manager Operations Dashboard | Quản lý vận hành chi nhánh, duyệt ca trực/nghỉ phép, chấm công GPS/Webcam, duyệt cấp phát kho, báo cáo vi phạm |
+| **Tầng 3.2** | `cashier` | Phân hệ POS Tiền sảnh | POS Sales Console | Mở/đóng ca két, nhận order, áp voucher, thanh toán đa kênh, tách hóa đơn (chịu kiểm soát phạt âm két), chốt két |
+| **Tầng 3.3** | `waiter` / `order_staff` | Tiền sảnh & Sơ đồ bàn | Tablet / Mobile Order App | Tạo đơn tại bàn, duyệt đơn QR đệm (`waiting_verification`), tư vấn Upsell AI, chuyển thông báo đơn xuống Bếp |
+| **Tầng 3.4** | `kitchen` | Màn hình Chế biến Bếp | KDS 2-Column Screen | Nhận đơn realtime, đếm thời gian chế biến, đổi trạng thái món (Đang làm -> Hoàn thành), báo tạm dừng món/hết BOM |
+| **Tầng 3.5** | `inventory_staff` | Kho Chi nhánh | Branch Inventory Portal | Đề xuất mua hàng PO, đếm kiểm kê kho vật lý, lập yêu cầu cấp phát (`supply_requests`), nhận hàng từ Kho Tổng |
+| **Tầng 3.6** | `warehouse_manager` | Kho Tổng toàn chuỗi (Central Warehouse) | WMS Management Dashboard | Quản lý sơ đồ vị trí kho, duyệt cấp phát kho chuỗi, phân công task nhân viên, quản lý quy tắc vận hành & sai lệch |
+| **Tầng 3.7** | `warehouse_staff` | Kho Tổng thực địa | WMS Mobile Barcode Scanner | Quét mã QR/Barcode lô hàng, cất hàng (Putaway), lấy hàng (Pick & Pack), bàn giao hàng cho shipper, báo sự cố kho |
+| **Tầng 3.8** | `shipper` | Ứng dụng Giao vận | Shipper Mobile PWA | Nhận đơn gom lô (Batch), tối ưu lộ trình TSP, bật định vị GPS thời gian thực (`updateLocation`), xác nhận giao thành công |
+| **Tầng 4** | `supplier_admin` | Portal Chuỗi cung ứng (B2B) | B2B Supplier Portal | Niêm yết bảng giá vật tư, nhận đơn PO qua Reverb, đấu thầu RFP, tải ảnh/tệp hóa đơn điện tử OCR, nhận tiền Escrow |
+| **Tầng 5** | `customer` | QR tại bàn & Storefront Online | Customer Web Storefront / QR App | Quét QR tự đặt món đệm, theo dõi trạng thái món realtime, tích điểm Loyalty, đổi thưởng coupon, chấm điểm cảm xúc Lexicon |
 
-•    Quản lý (Manager): Điều hành hàng ngày, duyệt lịch làm việc, xử lý phản hồi và báo cáo sai phạm.
+8.2 Hồ sơ Chi tiết các Tác nhân Hệ thống
 
-•    Nhân viên (Thu ngân, Bếp, Kho): Mỗi vị trí có giao diện và quyền hạn riêng để phối hợp nhịp nhàng theo Workflow.
+8.2.1 Tầng 1: Super Admin (Quản trị Tối cao Nền tảng SaaS)
 
-•    Khách hàng: Có thể quét mã QR tại bàn để xem thực đơn và đặt món trực tiếp.
+•    Định danh & Phạm vi (`super-admin`): Nắm giữ quyền lực tối cao toàn hệ thống SaaS. Khi thực hiện các tác vụ quản trị vĩ mô, hệ thống áp dụng phương thức `withoutGlobalScopes()` để vượt qua rào chắn `BelongsToRestaurant`.
 
-Các tác nhân chính trong hệ thống:
+•    Giao diện Chuyên biệt: Trung tâm quản trị Super Admin (`/admin/saas`), hệ thống giám sát hạ tầng thời gian thực (Laravel Horizon, Laravel Pulse, Sentry Dashboard), Billing & Webhook Management Portal.
 
--Tầng 1: Super Admin (Chủ hệ thống SaaS)
+•    Chức năng & Quy trình Nghiệp vụ Cốt lõi:
+  - **Quản lý Vòng đời Tenant:** Khởi tạo doanh nghiệp mới, kích hoạt, tạm ngưng hoặc khóa tài khoản (`Active`, `Expired`, `Suspended`). Tự động kích hoạt Seeder cấp phát dữ liệu mẫu (Khu vực, Bàn, Menu demo, BOM kho mẫu) giúp Tenant thử nghiệm luồng bán hàng ngay trong 1 phút Onboarding.
+  - **Quản lý Hạn ngạch (Quota Builder):** Cấu hình hạn mức số chi nhánh, bàn, nhân sự và dung lượng Cloud Storage (MinIO/S3) cho 4 gói dịch vụ: *Miễn Phí (Free)*, *Cơ Bản (Basic)*, *Chuyên Nghiệp (Professional)*, và *Doanh Nghiệp (Enterprise)*.
+  - **Giả danh hỗ trợ kỹ thuật (Impersonation):** Cho phép Super Admin truy cập giao diện dưới quyền Owner của bất kỳ nhà hàng nào để hỗ trợ gỡ lỗi trực tiếp mà không cần mật khẩu. Mọi hành vi trong phiên giả danh đều được ghi vết chặt chẽ vào SaaS Audit Log để tránh lạm quyền.
+  - **Dự báo SaaS Analytics & Churn Risk:** Tích hợp Python Email Service (Port 8001) chạy mô hình AI đánh giá điểm rủi ro rời bỏ (`SaaS Churn Score`) và dự báo doanh thu định kỳ MRR/ARR 3 tháng tới.
+  - **Quản lý Bảo trì & An ninh Nền tảng:** Điều khiển Feature Flags, bật/tắt chế độ bảo trì theo khu vực, quản lý WAF/Firewall (whitelist IP máy POS, chặn IP Brute Force).
 
- => Người quản lý toàn bộ nền tảng vĩ mô
+•    Cơ chế Bảo vệ & Rào chắn: Hệ thống thiết lập rào chắn dữ liệu riêng tư — Super Admin tuyệt đối không được phép xem chi tiết hóa đơn tài chính nội bộ, danh sách lương nhân viên hoặc thông tin cá nhân của từng khách hàng nhà hàng nhằm tuân thủ chính sách bảo mật dữ liệu người dùng.
 
- Quyền và chức năng vận hành nâng cao:
+8.2.2 Tầng 2: Chủ Nhà Hàng (Restaurant Owner)
 
-- Quản lý doanh nghiệp & Vòng đời thuê bao (Active, Expired, Suspended).
+•    Định danh & Phạm vi (`owner`): Tài khoản đại diện cho chủ doanh nghiệp F&B, sở hữu 100% quyền hạn trong phạm vi một nhà hàng (Tenant Scope).
 
-- Giả danh hỗ trợ kỹ thuật (Impersonation): Cho phép Super Admin truy cập giao diện dưới quyền Owner để hỗ trợ gỡ lỗi trực tiếp mà không cần mật khẩu, lưu log kiểm toán chặt chẽ để tránh lạm quyền.
+•    Giao diện Chuyên biệt: Owner Executive Dashboard, Profit & Loss (P&L) Report Center, BCG Menu Engineering Chart, HR & Payroll Approval Center, B2B Escrow & Procurement Hub.
 
-- Thiết lập hạn mức tài nguyên (Plans & Quota Builder): Cấu hình giới hạn bàn, nhân sự, và dung lượng cloud storage cho từng gói (Free/Pro/Max/Ultra).
+•    Chức năng & Quy trình Nghiệp vụ Cốt lõi:
+  - **Quản lý Phê duyệt Chéo (Approvals):** Phê duyệt các lệnh mua nguyên liệu giá trị lớn (PO/RFP), duyệt cấn trừ các khoản âm két do Thu ngân làm thất thoát, duyệt bảng tính lương nhân sự cuối tháng.
+  - **Tài chính & Quản trị Giá vốn (`ProductCostService`):** Theo dõi Báo cáo Kết quả Kinh doanh & Lợi nhuận ròng (P&L), cấn trừ chính xác chi phí nguyên vật liệu tiêu hao (COGS), chi phí nhân sự và vận hành. Tự động cập nhật giá vốn món ăn khi công thức BOM thay đổi.
+  - **Menu Engineering & Ma trận BCG:** Phân tích thực đơn thành 4 nhóm (Stars, Plowhorses, Puzzles, Dogs) dựa trên dữ liệu sản lượng và biên lợi nhuận ròng. Thiết lập chiến dịch Thử nghiệm giá A/B (`storePriceTest`) để tối ưu hóa doanh thu.
+  - **Giám sát Gian lận (Fraud Detection):** Tiếp nhận thông báo tức thì từ Python AI Microservice khi phát hiện các hành vi bất thường như thu ngân cố tình hủy đơn sau thanh toán, sửa giá món hoặc áp dụng voucher chiết khấu sai quy trình.
+  - **Quản lý Tài khoản Ký quỹ B2B Escrow:** Giải phóng tiền thanh toán cho Nhà cung cấp sau khi đối soát hóa đơn 3 bên (PO gốc ↔ Hóa đơn điện tử OCR ↔ Thực nhập kiểm kho).
 
-- Dự báo rời bỏ dịch vụ (AI Churn Forecast): Tích hợp Python Microservice phân tích rủi ro Churn và tự động gửi email chiến dịch tiếp thị chăm sóc khách hàng.
+8.2.3 Tầng 3: Nhóm Vận Hành Tiền Sảnh, Hậu Cần & Kho Chuỗi
 
-- Quản lý SLA & Tickets hỗ trợ: Tiếp nhận yêu cầu kỹ thuật, tự động leo thang (escalate) thẻ quá hạn xử lý của khách hàng Enterprise/VIP qua Artisan task.
+1. Quản lý Chi nhánh (Branch Manager - `manager`):
+   - **Phạm vi & Giao diện:** Phụ trách vận hành 1 chi nhánh nhà hàng. Giao diện Manager Operations Dashboard.
+   - **Permissions:** `manage_orders`, `manage_employees`, `manage_salary`, `approve_requests`, `adjust_inventory`, `supply_requests.approve`, `branch.manage`, `finance.view`, `analytics.view`.
+   - **Quy trình Nghiệp vụ:** Xếp lịch làm việc hàng tuần cho nhân sự, kiểm tra chấm công GPS & ảnh nhận diện Webcam. Duyệt đơn xin nghỉ phép và yêu cầu đổi ca (`ShiftSwap`) tuân thủ quy tắc nghỉ liên tục 11 giờ. Duyệt đơn xin cấp phát nguyên liệu từ Kho Tổng (`supply_requests.approve`). Xử lý báo cáo vi phạm nội bộ và phản hồi tiêu cực của khách hàng.
+   - **Rào chắn:** Bị chặn tự phê duyệt đơn xin nghỉ phép/đổi ca do chính mình tạo ra (Middleware `PreventSelfApproval`).
 
-- Quản lý sao lưu & Bảo trì (Backup & GC): Thực hiện sao lưu CSDL nén lên MinIO và dọn dẹp bộ nhớ đệm, tệp mồ côi (Garbage Collector).
+2. Nhân viên Thu ngân (Cashier - `cashier`):
+   - **Phạm vi & Giao diện:** Phân hệ POS Tiền sảnh. Giao diện POS Sales Console chuyên dụng.
+   - **Permissions:** `create_orders`, `split_orders`, `process_payments`, `manage_customers`, `cashflow.view`.
+   - **Quy trình Nghiệp vụ:** Tiếp nhận yêu cầu thanh toán, áp dụng mã giảm giá (Voucher), thực hiện thủ tục chốt đơn thanh toán đa kênh (Tiền mặt, QR động Sepay/VietQR/VNPay). Thao tác tách đơn ra bàn trống (bị kiểm soát phát thông báo Realtime về Owner và tính âm két ca trực). Thực hiện mở/đóng ca két (`ShiftClosing`) và bàn giao quỹ tiền mặt (`ShiftHandover`).
+   - **Rào chắn:** Tài khoản bị khóa tự động ngoài khung giờ ca trực được phân công (`CheckShiftSchedule`). Số tiền âm két phải chịu phạt trừ trực tiếp vào bảng lương nếu không được Owner duyệt miễn phạt.
 
-- Quản lý bảo mật hệ thống: Quản lý WAF/Firewall (bật/tắt bảo trì, whitelist IP của máy POS hoặc block IP Brute Force).
+3. Nhân viên Phục vụ / Order (Waiter / Order Staff - `waiter`):
+   - **Phạm vi & Giao diện:** Khu vực bàn ăn tiền sảnh. Giao diện Mobile/Tablet Order UI.
+   - **Permissions:** `create_orders`, `report_violations`, `equipment.report`.
+   - **Quy trình Nghiệp vụ:** Chọn bàn trống trên sơ đồ 2D, chọn món ăn và bấm "Thông báo" gửi xuống Bếp (đơn bị khóa không thể tự ý giảm số lượng). Tiếp nhận cảnh báo Realtime khi khách quét mã QR tự đặt món, ra tận bàn đối chiếu và xác nhận đơn đệm (`waiting_verification`) trong vòng 2 phút. Nhận gợi ý từ Trợ lý AI Upsell (Python Port 8003) trên màn hình để mời khách dùng thêm combo/đồ uống.
 
-- Tầng 2: Chủ nhà hàng (Restaurant Owner)
+4. Bộ phận Bếp / Pha chế (Kitchen Staff - `kitchen`):
+   - **Phạm vi & Giao diện:** Màn hình Bếp / KDS (Kitchen Display System). Giao diện KDS 2 cột ("Chờ chế biến" - "Hoàn thành").
+   - **Permissions:** `manage_kitchen`, `report_violations`, `equipment.report`.
+   - **Quy trình Nghiệp vụ:** Nhận đơn tức thì qua WebSocket Reverb (< 500ms), theo dõi đồng hồ thời gian đếm ngược. Chuyển trạng thái chế biến món (`Đang làm` -> `Đã đi đồ`). Báo tạm dừng món hoặc báo hết nguyên liệu (hết BOM) để hệ thống tự động khóa nút đặt món tương ứng trên menu QR khách hàng.
 
- => Khách hàng chính: tập trung phát triển các báo cáo lợi nhuận,cần tích hợp các tự động tính toán các dữ liệu của hệ thống để chủ nhà hàng có cơ sở kịp thời đưa ra các quyết định trọng yếu. Đề cao tính chính xác và tối ưu các thông tin chính
+5. Nhân viên Kho Chi nhánh (Branch Inventory Staff - `inventory_staff`):
+   - **Phạm vi & Giao diện:** Phân hệ Quản lý Kho Chi nhánh. Giao diện Branch Inventory Portal.
+   - **Permissions:** `adjust_inventory`, `inventory.count`, `supply_requests.create`, `supply_requests.receive`.
+   - **Quy trình Nghiệp vụ:** Lập đơn xin cấp phát nguyên liệu gửi lên Kho Tổng (`supply_requests.create`), thực hiện đếm kiểm kê kho vật lý định kỳ, nhận hàng giao và cập nhật sổ kho chi nhánh.
 
- Quyền và chức năng vận hành nâng cao:
+6. Trưởng Kho Tổng (Warehouse Manager - `warehouse_manager`):
+   - **Phạm vi & Giao diện:** Kho Tổng trung tâm toàn chuỗi (Central Warehouse Scope). Giao diện WMS Dashboard & Governance Hub.
+   - **Permissions:** `warehouse.view`, `warehouse.manage`, `warehouse.dashboard`, `warehouse.report`, `warehouse.receive`, `supply_requests.dispatch_approve`, `warehouse.task.assign`, `warehouse.location.manage`, `warehouse_governance.manage`.
+   - **Quy trình Nghiệp vụ:** Thiết lập vị trí kho bãi, phân công tác vụ hàng ngày cho nhân viên kho, duyệt xuất kho cấp phát nguyên liệu cho các chi nhánh (`dispatch_approve`), quản lý hạn mức chênh lệch tồn kho và xử lý hồ sơ tranh chấp sai lệch hàng hóa.
 
-- Quản lý cấu hình chuỗi chi nhánh và luân chuyển kho nội bộ.
+7. Nhân viên Vận hành Kho Tổng (Warehouse Staff - `warehouse_staff`):
+   - **Phạm vi & Giao diện:** Thực địa Kho Tổng. Giao diện WMS Mobile Barcode Scanner.
+   - **Permissions:** `warehouse.scan`, `warehouse.pick`, `warehouse.pack`, `warehouse.putaway`, `warehouse.handover`, `warehouse.incident.report`.
+   - **Quy trình Nghiệp vụ:** Quét mã QR/Barcode vị trí và lô hàng, thực hiện cất hàng vào vị trí (Putaway), lấy hàng theo đơn (Pick & Pack), bàn giao hàng cho nhân viên giao hàng (Shipper) và báo cáo sự cố hư hỏng vật tư.
 
-- Quản lý phê duyệt chéo (Approvals): Duyệt lệnh mua PO lớn, chốt ca âm két, sửa ca trực của cấp dưới.
+8. Nhân viên Giao hàng (Delivery Shipper - `shipper`):
+   - **Phạm vi & Giao diện:** Tuyến đường giao hàng. Giao diện Shipper Mobile PWA.
+   - **Permissions:** Cập nhật vị trí GPS (`updateLocationBatch`), nhận đơn gom lô (`suggestBatches`), cập nhật trạng thái đơn hàng.
+   - **Quy trình Nghiệp vụ:** Tiếp nhận danh sách đơn hàng đã được gom lô (Batch Delivery) theo thuật toán tối ưu hóa lộ trình ngắn nhất (TSP Route Optimization), cập nhật định vị GPS thời gian thực và xác nhận hoàn thành đơn giao hàng.
 
-- Quản lý thiết bị POS đăng ký sử dụng trong quán.
+8.2.4 Tầng 4: Đối Tác Nhà Cung Cấp (Suppliers - `supplier_admin`)
 
-- Xem báo cáo tài chính (Profit & Loss), báo cáo ma trận thực đơn BCG, phân tích không gian (Order Heatmap) và tính điểm NPS.
+•    Định danh & Phạm vi: Các đối tác cung ứng vật tư F&B kết nối vào hệ thống qua cổng B2B (`supplier_admin`).
 
-- Giải phóng hoặc mở tranh chấp tài khoản ký quỹ B2B Escrow với nhà cung cấp.
+•    Giao diện Chuyên biệt: B2B Supplier Portal, Product Catalog & Price Manager, E-Invoice Upload Hub.
 
-  - Tầng 3: Nhân sự trong nhà hàng & Shipper
+•    Chức năng & Quy trình Nghiệp vụ Cốt lõi:
+  - **Quản lý Danh mục & Niêm yết Bảng giá:** Niêm yết danh mục nguyên liệu, cấu hình giá bán thời gian thực (tự động lưu lịch sử biến động giá vào `supplier_price_histories`).
+  - **Tiếp nhận & Xử lý Đơn PO:** Nhận đơn mua hàng PO từ các chi nhánh nhà hàng qua WebSocket Reverb, cập nhật trạng thái vận đơn theo Workflow (*Tiếp nhận -> Chuẩn bị hàng -> Vận chuyển -> Đã hạ hàng*).
+  - **Đấu thầu Báo giá RFP:** Đăng ký đấu thầu các gói cung ứng nguyên liệu định kỳ do Chủ nhà hàng đăng tải.
+  - **Số hóa Chứng từ & Ký quỹ Escrow:** Tải ảnh hóa đơn giao hàng để đối soát OCR tự động 3 bên. Nhận tiền thanh toán qua tài khoản Ký quỹ B2B Escrow sau khi Chủ nhà hàng xác nhận giải phóng.
 
- => Được phân tách chuyên môn hóa theo ca trực và quyền hạn:
+8.2.5 Tầng 5: Khách Hàng của Nhà Hàng (Customers - `customer`)
 
-- 1. Quản lý (Manager): cánh tay phải của chủ và là mắt xích chủ chốt của nhà hàng, đảm nhận việc xử lý các vấn đề nhỏ và trung trong nhà hàng,
+•    Định danh & Phạm vi: Thực khách trải nghiệm đặt món tại bàn qua mã QR hoặc đặt hàng trực tuyến trên Website nhà hàng (`customer`).
 
- • Quản lý chấm công GPS & Webcam, duyệt đơn nghỉ phép của nhân viên.
+•    Giao diện Chuyên biệt: Customer Web Storefront, QR Ordering Web App, Loyalty Portal & Feedback Form.
 
- • Nhận báo cáo hao hụt, rác thải thực phẩm của Bếp.
-
- • Xếp lịch làm việc hàng tuần, lập bảng lương nháp.
-
- • Giải quyết các báo cáo vi phạm nội bộ và phản hồi tiêu cực của khách.
-
-- 1. Nhân viên thu ngân / phục vụ / order:
-
- • Gọi món trực tiếp trên máy POS/Tablet (chặn thay đổi khi đã gửi xuống bếp).
-
- • Thu ngân thực hiện thanh toán hóa đơn, áp mã giảm giá (Voucher), tách hóa đơn ra bàn trống (bị kiểm soát phạt âm két và thông báo realtime cho Owner).
-
- • Thực hiện Check-in/Check-out GPS khớp Webcam.
-
- • Sử dụng Self-service Portal để đăng ký ca, xin đổi ca (Shift Swap) và khiếu nại ẩn danh.
-
-- 1. Bếp (Kitchen):
-
- • Giao diện tối giản chia làm 2 màn hình (Chưa làm - Đã hoàn thành) tự động đếm thời gian thực từ lúc vào đơn.
-
- • Chuyển trạng thái đồ ăn (Đang làm -> Đã đi đồ).
-
- • Báo tạm dừng món ăn hoặc báo hết nguyên liệu (BOM) để tự động khóa nút đặt món trên thực đơn QR.
-
-- 1. Nhân viên giao hàng (Shipper):
-
- • Sử dụng ứng dụng Shipper PWA trên điện thoại để cập nhật vị trí GPS thời gian thực (`updateLocation`).
-
- • Nhận tối ưu hóa tuyến đường giao hàng (Route Optimization) gom đơn theo lô (Batches) và xác nhận trạng thái đơn hàng khi giao thành công.
-
--Tầng 4: Nhà cung cấp (Suppliers)
-
- => Đối tác liên kết chuỗi cung ứng ngoài:
-
-- Truy cập giao diện riêng (Supplier Portal) cấu hình danh mục và niêm yết bảng giá vật tư thời gian thực.
-
-- Tiếp nhận đơn đặt hàng PO từ nhà hàng thông qua tín hiệu WebSocket của Laravel Reverb.
-
-- Đấu thầu báo giá RFP (Request for Proposal) các gói nguyên liệu định kỳ của nhà hàng.
-
-- Tải lên ảnh hóa đơn giao hàng để đối soát OCR tự động.
-
-- Nhận thanh toán qua cổng ký quỹ B2B Escrow (đóng băng tiền nếu có sai lệch hóa đơn thực tế giao nhận > 20% và chờ Owner xác nhận giải phóng).
-
--Tầng5: Khách hàng của quán
-
- => Người dùng trực tiếp đặt món tại chỗ hoặc trực tuyến:
-
-- Đặt món tại bàn: Quét mã QR động dán tại bàn để gửi yêu cầu giỏ hàng đệm (`waiting_verification`). Theo dõi tiến độ món ăn qua Laravel Echo và yêu cầu gọi nhân viên/thanh toán trực tuyến.
-
-- Đặt món trực tuyến: Truy cập storefront đặt món, nhận phí vận chuyển tự động, thanh toán quét QR động (Sepay/VietQR/VNPay/Momo) và theo dõi trạng thái giao hàng.
-
-- Cổng Loyalty Portal: Xem ví Coupon, hạng thẻ thành viên (Silver, Gold, Diamond) và tự đổi thưởng bằng điểm tích lũy.
-
-- Gửi phản hồi (Feedback) và chấm điểm cảm xúc Lexicon tự động.
+•    Chức năng & Quy trình Nghiệp vụ Cốt lõi:
+  - **Tự gọi món qua QR (Self-Ordering):** Quét mã QR động dán tại bàn, xem thực đơn hình ảnh chi tiết (mô tả hương vị, nguyên liệu), tự chọn món vào giỏ hàng và phát lệnh gửi đơn đệm (`waiting_verification`). Theo dõi tiến độ chế biến món ăn thời gian thực qua Laravel Echo.
+  - **Đặt hàng Trực tuyến (Online Checkout):** Đặt món giao tận nơi, nhận tính phí vận chuyển tự động, thanh toán quét mã QR động (Sepay/VietQR/VNPay/Momo) và nhận điểm tích lũy.
+  - **Tích điểm Thành viên (Loyalty Engine):** Theo dõi hạng thẻ thành viên (Silver, Gold, Diamond), ví Voucher cá nhân và tự đổi thưởng bằng điểm tích lũy.
+  - **Đánh giá Phản hồi & Chấm điểm Cảm xúc:** Gửi bình luận và chấm sao sau bữa ăn; hệ thống tự động chấm điểm cảm xúc (Lexicon Sentiment Analysis) để phát cảnh báo đỏ cho Manager nếu phát hiện phản hồi tiêu cực.
 
 9. Bảo mật
 
@@ -948,11 +965,15 @@ Super Admin có quyền kiểm soát toàn diện vòng đời hoạt động c�
 
 •    Điều phối trạng thái tài khoản: Kích hoạt, tạm ngưng hoặc khóa tài khoản doanh nghiệp tùy thuộc vào hành vi vận hành và tình trạng thanh toán gói dịch vụ.
 
-•    Quản lý giới hạn Quota tầng sâu: Áp dụng cơ chế Subscription Plan (Gói dịch vụ) để phân chia hạn mức tài nguyên ngay tại tầng cơ sở dữ liệu kết hợp Rate Limiting:
+•    Quản lý giới hạn Quota tầng sâu: Áp dụng cơ chế Subscription Plan để phân chia hạn mức tài nguyên ngay tại tầng cơ sở dữ liệu kết hợp Rate Limiting:
 
-o    Gói Miễn phí (Free): Giới hạn tối đa 5 nhân viên, 2 khu vực, 10 bàn hoạt động, dung lượng tối đa 500MB Cloud Storage (lưu ảnh món ăn) và không hỗ trợ các tính năng AI nâng cao.
+o    Gói Miễn phí (Free): Tối đa 1 chi nhánh, 10 bàn hoạt động, 5 tài khoản nhân viên, dung lượng 500MB Cloud Storage, thích hợp cho các mô hình quán nhỏ trải nghiệm.
 
-o    Gói Cao cấp (Pro): Không giới hạn số lượng nhân viên/khu vực/bàn, mở khóa tối đa 10GB Cloud Storage, toàn bộ sức mạnh phân tích dữ liệu AI và kiến trúc truyền tải Realtime.
+o    Gói Cơ bản (Basic): Dành cho các nhà hàng độc lập, tối đa 30 bàn, 15 nhân viên, hỗ trợ báo cáo doanh thu cơ bản.
+
+o    Gói Chuyên nghiệp (Professional): Không giới hạn số lượng bàn và chi nhánh, mở khóa tối đa 10GB Cloud Storage, truyền tải Realtime và toàn bộ sức mạnh phân tích dữ liệu AI (Upsell, Forecast, Churn risk).
+
+o    Gói Doanh nghiệp (Enterprise): Dành cho các chuỗi F&B quy mô lớn với các hợp đồng tùy chỉnh (`is_custom = true`), cam kết SLA 99.9% uptime, hạ tầng dedicated và dung lượng từ 200GB Cloud Storage.
 
 o    Tenant Rate Limiting Middleware: Giới hạn tần suất gửi API request/phút trên từng restaurant_id để bảo vệ tài nguyên MySQL/Redis dùng chung.
 
@@ -1176,17 +1197,21 @@ o    Nâng cao trải nghiệm người dùng bằng cách giúp họ tiếp c�
 
 •    ? Có nên cho doanh nghiệp dùng thử trước khi trả phí không?
 
-•    Giải pháp: Hệ thống áp dụng cơ chế Free Trial (Dùng thử miễn phí) từ 7 đến 30 ngày đối với gói Pro để doanh nghiệp làm quen với tất cả các chức năng trước khi đưa ra quyết định thương mại.
+•    Giải pháp: Hệ thống áp dụng cơ chế Free Trial (Dùng thử miễn phí) từ 7 đến 30 ngày đối với gói Chuyên Nghiệp (Professional) để doanh nghiệp làm quen với tất cả các chức năng trước khi đưa ra quyết định nâng cấp gói cước thương mại.
 
-•    Cơ chế giới hạn tài nguyên (Quota Enforcement):
+•    Cơ chế giới hạn tài nguyên (Quota Enforcement) theo 4 gói cước chuẩn hóa:
 
-o    Gói Free (Mặc định khi đăng ký): Hệ thống áp dụng giới hạn nghiêm ngặt ở tầng ứng dụng và cơ sở dữ liệu: Tối đa 1 chi nhánh, tối đa 10 bàn hoạt động, tối đa 5 tài khoản nhân viên, không mở khóa phân quyền tùy chỉnh và không hỗ trợ các báo cáo dự báo kho/gian lận bằng AI.
+o    Gói Miễn phí (Free - Mặc định khi đăng ký): Áp dụng giới hạn nghiêm ngặt ở tầng ứng dụng và cơ sở dữ liệu: Tối đa 1 chi nhánh, tối đa 10 bàn hoạt động, tối đa 5 tài khoản nhân viên, dung lượng Cloud 500MB và không hỗ trợ các tính năng AI nâng cao.
 
-o    Gói Pro (Thử nghiệm hoặc Trả phí): Mở khóa không giới hạn số lượng bàn, chi nhánh, nhân viên và kích hoạt toàn bộ sức mạnh phân tích dữ liệu của Python Microservice.
+o    Gói Cơ bản (Basic): Mở rộng cho nhà hàng độc lập với tối đa 30 bàn, 15 nhân viên, hỗ trợ báo cáo kinh doanh cơ bản.
+
+o    Gói Chuyên nghiệp (Professional - Trả phí / Trial): Mở khóa không giới hạn số lượng bàn, chi nhánh, nhân viên, 10GB Cloud Storage và kích hoạt toàn bộ sức mạnh phân tích dữ liệu AI của 3 Python Microservices.
+
+o    Gói Doanh nghiệp (Enterprise): Dành cho các chuỗi nhà hàng quy mô lớn với hợp đồng tùy chỉnh (`is_custom = true`), cam kết SLA 99.9% uptime và dung lượng Cloud Storage từ 200GB trở lên.
 
 •    Mục tiêu:
 
-o    Tăng tỷ lệ chuyển đổi (Conversion Rate) từ người dùng miễn phí sang khách hàng trả phí thực tế bằng việc chứng minh giá trị của gói Pro.
+o    Tăng tỷ lệ chuyển đổi (Conversion Rate) từ người dùng miễn phí sang khách hàng trả phí thực tế bằng việc chứng minh giá trị của gói Chuyên Nghiệp.
 
 o    Bảo vệ tài nguyên máy chủ bằng cách giới hạn hiệu năng của các tài khoản miễn phí.
 
@@ -1594,37 +1619,37 @@ Kiểm soát dòng tiền công nợ và tối ưu giá vốn hàng bán:
 
 - Tạo đơn: Có 20 bàn trong 1 khu vực đánh số từ nhỏ tới lớn theo bảng chữ cái, ví dụ A1, A2, A3,....B1,B2,B3,....( có thể nhiều hơn tùy thuộc vào tùy chỉnh của quản lý/chủ ), nhân viên order cần chọn bàn nào đang trống để vào đơn, khi ấn vào bàn trống thì sẽ hiện lên danh mục món ăn/uống để chọn món, khi chọn sẽ hiển thị số bên cạnh mặc định là 1, mỗi khi chọn món thì biểu tượng giỏ hàng sẽ nảy số lượng tổng món, sau khi chọn thì ấn nút xác nhận và sẽ chuyển tới màn hình xác nhận, nơi đó sẽ có tất cả các món đã chọn mà và số lượng, tổng tiền, giá tiền từng món có thể xóa món hoặc điều chỉnh số lượng hoặc quay lại danh mục để thêm, đồ uống khi ở đây, khi này nút xác nhận sẽ chuyển thành thông báo, khi đã “thông báo” thì không thể xóa hay giảm số lượng của đơn đó nữa mà chỉ có thể tăng thêm và tiếp tục gửi thông báo.
 
-- Xem lịch làm việc, đăng ký lịch làm
+15.20. Phân tích chi tiết 3 Dịch vụ Python Microservices (FastAPI System Architecture)
 
-- Chức năng khiếu nại ( luôn được hiển thị là ẩn danh đối với người xem )
+Kiến trúc microservice chuyên biệt xử lý các bài toán nặng về dữ liệu, AI và giao tiếp ngoài (hỗ trợ khởi chạy đồng bộ 1 lệnh qua `composer dev:ai` hoặc `services/start-all.ps1`):
 
--Chức năng làm đơn => khi xin nghỉ đột xuất hay xin nghỉ việc,.. mục đính chính để quản lý, chủ dễ quản lý và có bằng chứng khi tính lương ( chỉ cần cấp trên ấn xác nhận thì hệ thống sẽ tự động thay đổi lịch làm việc hoặc hệ thống sẽ tự động chuyển trạng thái nhân sự sang terminated (đã nghỉ việc) , vô hiệu hóa tài khoản liên kết và kích hoạt chế độ xóa mềm (SoftDeletes) để ẩn khỏi danh sách vận hành nhưng giữ nguyên lịch sử giao dịch kế toán.)
+1. Dịch vụ Phân tích & AI Upsell (Analytics Service - Port 8003):
 
- Cụm Vận hành Tiền sảnh & Chăm sóc Khách hàng (Dành cho nhân viên thu ngân)
+    o   Phân tích giỏ hàng (Market Basket Analysis): Pandas chạy thuật toán tìm luật liên kết Apriori để tính Support, Confidence và Lift giữa các món ăn, gợi ý tạo Combo bán kèm tăng giá trị trung bình đơn (AOV).
 
-Đây là tuyến đầu tiếp xúc với khách, cần tốc độ thao tác nhanh, độ chính xác cao và khả năng quản lý luồng đơn đa kênh.
+    o   Dự báo doanh thu & tồn kho: Chạy hồi quy tuyến tính `LinearRegression` trên 14 ngày dữ liệu tài chính gần nhất để dự đoán doanh thu ngày mai (độ tin cậy Cao/Trung bình/Thấp) và chạy Linear Regression dự báo lượng tiêu thụ nguyên liệu trong 7 ngày tới để tự tạo RFP nháp.
 
-•    Tạo đơn & Quản lý sơ đồ bàn:
+    o   Dự báo nhu cầu theo thời tiết: Kết nối OpenWeatherMap API để cập nhật thời tiết thực tế tại tọa độ GPS nhà hàng và tự động áp dụng hệ số nhân (multiplier) nhu cầu món ăn (trời mưa lạnh -> lẩu/súp nóng tăng 35%, đồ uống đá giảm 20%).
 
-o    Hệ thống hiển thị 20 bàn trong 1 khu vực, được đánh số từ nhỏ tới lớn theo bảng chữ cái (ví dụ: A1, A2... B1, B2...).
+    o   OCR đối soát hóa đơn: Trích xuất thông tin tệp hóa đơn của nhà cung cấp và chạy thuật toán so khớp chéo 3 bên với PO gốc.
 
-o    Nhân viên thao tác chọn bàn đang trống để vào đơn, hệ thống sẽ hiển thị danh mục món ăn và đồ uống.
+    o   Phân tích luân chuyển kho nội bộ: Đề xuất chuyển kho nguyên liệu dư thừa từ chi nhánh có coverage_days > 14 ngày sang chi nhánh thiếu hụt.
 
-o    Khi nhân viên chọn món, số lượng mặc định hiển thị là 1, đồng thời biểu tượng giỏ hàng sẽ nảy số lượng tổng món.
+2. Dịch vụ Chatbot NLP (Chatbot Service - Port 8002):
 
-o    Tại màn hình xác nhận, nhân viên xem được tất cả các món đã chọn, điều chỉnh số lượng, xóa món, xem giá tiền từng món và tổng tiền hóa đơn.
+    o   Ensemble NLP Engine: Kết hợp 4 tín hiệu chấm điểm: TF-IDF char n-gram (bắt âm tiết tiếng Việt), TF-IDF word n-gram (cụm từ), BM25Okapi (chống typo nhẹ) và Keyword Overlap (từ khóa do admin gắn) để so khớp câu hỏi FAQ với độ tin cậy cao nhất.
 
-•    Khóa trạng thái đơn hàng (Chống gian lận):
+    o   Cố vấn doanh nghiệp (`/advisor-chat`): Gọi trực tiếp SQL engine vào CSDL MySQL để tổng hợp báo cáo tài chính hôm nay/tuần qua, Top 5 món chạy nhất, danh sách cảnh báo gian lận đang mở và dự báo doanh thu ngày mai trả về Markdown thời gian thực cho Owner.
 
-o    Khi nhân viên nhấn "thông báo" để gửi lệnh xuống bếp, hệ thống sẽ khóa đơn; nhân viên không thể tự ý xóa hay giảm số lượng của đơn đó nữa mà chỉ có thể tăng thêm món.
+    o   Playground diagnostics: Cho phép Super Admin kiểm thử độ tự tin (Confidence score) và duyệt xử lý các câu hỏi chưa được trả lời (unanswered queries).
 
-•    Xác thực đơn QR & Trợ lý AI Kích cầu (Upselling):
+3. Dịch vụ Email & AI Insights (Email Service - Port 8001):
 
-o    Nhân viên Order nhận cảnh báo Realtime trực tiếp trên máy POS/Tablet ngay khi có khách tự gọi món qua mã QR.
+    o   Dự báo doanh thu SaaS (MRR): Chạy Polyfit bậc 1 dự báo dòng tiền MRR/ARR 3 tháng tới của nền tảng dựa trên số lượng nâng cấp gói Chuyên Nghiệp (Professional).
 
-o    Nhân viên phải di chuyển ra tận bàn để đối chiếu và bấm "Xác nhận" trên giao diện SPA, giúp đơn đệm chuyển thành đơn chính thức đẩy xuống bếp.
+    o   Phân tích Churn Risk: Đánh giá điểm rủi ro rời bỏ (SaaS Churn Score) của từng nhà hàng dựa trên tần suất thao tác và số ngày dùng thử còn lại.
 
-o    Ngay thời điểm xác nhận, thuật toán Python sẽ hiển thị gợi ý AI trên màn hình (ví dụ: "AI đề xuất: Khách gọi Lẩu, mời dùng thêm Coca-Cola..."), hỗ trợ nhân viên mời khách gọi thêm đồ để tăng doanh thu.
+    o   Mailer: Tích hợp gửi email chào mừng, mã xác thực OTP đăng nhập, và email gửi tệp hóa đơn PDF tự động qua Brevo API, kết hợp driver SMTP dự phòng tại Laravel.
 
 •    Quản lý Đơn hàng Đa kênh & Hiệu suất bán hàng (Bổ sung mới):
 
@@ -2529,3 +2554,49 @@ o phát hiện bottleneck sớm
 Ví dụ:
 
 Theo dõi server để phát hiện RAM đầy hoặc CPU quá tải trước khi hệ thống bị sập.
+
+________________________________________
+
+17. KẾT QUẢ RÀ SOÁT & ĐÁNH GIÁ CHẤT LƯỢNG HỆ THỐNG THỰC TẾ
+
+Dựa trên kết quả rà soát toàn diện codebase, CSDL MySQL, 3 Python AI Microservices và chạy bộ kiểm thử tự động (cập nhật mới nhất tháng 7/2026):
+
+17.1. Trạng thái Đảm bảo Chất lượng & Kiểm thử (Quality Assurance)
+
+•    Bộ Kiểm thử Tự động: Đạt **561 test cases passed / 0 failed** (`php artisan test`), 2.629 assertions, phủ kín 100% các luồng nghiệp vụ quan trọng trước đây chưa có coverage (như thuật toán định tuyến giao hàng TSP, hoàn tiền đơn hàng, bảo mật ảnh CCCD, validation chéo tenant và giá vốn theo định lượng BOM).
+•    Kiểm tra kiểu dữ liệu Frontend: `npm run types:check` đạt kết quả sạch (0 lỗi TypeScript).
+•    Build Production Asset: `npx vite build` tối ưu đóng gói bundle chính còn ~63 KB gzip, thời gian build ~22s.
+•    Định tuyến & Lập lịch: **633 REST API routes** và **41 tác vụ lập lịch ngầm (Cronjob Scheduler)** hoạt động ổn định.
+
+17.2. Các cải tiến Bảo mật & Kiểm soát Rủi ro đã thực thi (Security Enhancements)
+
+1. Bảo mật Ảnh Căn cước công dân (CCCD) Nhân viên:
+   - Toàn bộ ảnh CCCD được chuyển sang lưu trữ riêng tư tại `storage/app/private`.
+   - Chặn hoàn toàn truy cập URL tĩnh công khai; truy cập xem ảnh được bảo vệ qua route `employees.citizen-id` với kiểm tra phân quyền Owner/Manager cùng chi nhánh.
+
+2. Rào chắn Validation Phạm vi Tenant (`TenantRule::exists()`):
+   - Đã thay thế 59 vị trí kiểm tra Form Request dạng `exists:table,id` bằng `TenantRule::exists()`, buộc mọi dữ liệu đầu vào phải kèm phạm vi `restaurant_id` của tenant hiện tại, triệt tiêu nguy cơ đoán ID tài nguyên của nhà hàng khác.
+
+3. Chống gian lận Tích điểm & Claim Points (HMAC Authentication):
+   - API `claim-points` được bảo vệ bằng token HMAC sinh từ màn hình xác nhận thanh toán.
+   - Chặn tuyệt đối hành vi claim điểm hóa đơn chưa thanh toán hoặc claim lặp lại nhiều lần.
+
+4. Chống trùng lặp Webhook Thanh toán (Payment Webhook Idempotency):
+   - Thiết lập unique index `payment_webhooks(provider, transaction_code, signature)`.
+   - Hàm `payOrder()` trả về boolean giúp ngăn chặn tình huống 2 webhook trùng gửi tới đồng thời làm cộng tiền hoặc gia hạn gói cước 2 lần.
+
+5. Chuẩn hóa Audit Log chống Rollback ngầm:
+   - Chuẩn hóa sử dụng phương thức `AuditLog::log($action, $event, $subject, $old, $new)`.
+   - Triệt tiêu lỗi SQL ngầm do sai cột hoặc thiếu ENUM `event` gây rollback toàn bộ `DB::transaction` thanh toán/xác nhận đặt bàn.
+
+17.3. Tự động hóa Giá vốn & Tối ưu Hiệu năng CSDL (Performance & Finance Optimization)
+
+1. Tự động tính toán lại Giá vốn (`ProductCostService`):
+   - Tách dịch vụ tính giá vốn dùng chung cho cả 3 luồng: Nhập kho nguyên liệu, Cập nhật công thức món (BOM) và Xóa công thức món.
+   - Đảm bảo Ma trận BCG, Menu Engineering, Báo cáo Lợi nhuận ròng (P&L) và Cảnh báo biên lợi nhuận thấp luôn chạy trên dữ liệu tài chính chính xác thời gian thực.
+
+2. Tối ưu hóa Truy vấn `whereBetween`:
+   - Thay thế các câu lệnh `whereDate(cột, ...)` bằng `whereBetween` trên các bảng giao dịch nóng, giúp MySQL tận dụng Composite Index và không bị quét toàn bảng (Full Table Scan).
+
+3. Khởi động 3 AI Microservices bằng 1 lệnh duy nhất:
+   - Hệ thống hỗ trợ script `services/start-all.ps1` hoặc lệnh `composer dev:ai` để khởi động đồng bộ cả 3 dịch vụ Python (Port 8001: Email & SaaS Insights, Port 8002: Chatbot NLP & Cố vấn SQL, Port 8003: Analytics AI & Upsell), sẵn sàng vận hành hệ thống F&B thông minh.

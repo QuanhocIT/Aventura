@@ -8,13 +8,14 @@ use App\Http\Middleware\CheckTenantSubscription;
 use App\Http\Middleware\ClearPermissionCache;
 use App\Http\Middleware\CompressResponse;
 use App\Http\Middleware\EnforceImpersonateReadOnly;
-use App\Http\Middleware\EnsureSecuritySessionFresh;
 use App\Http\Middleware\EnsureBranchContext;
+use App\Http\Middleware\EnsureSecuritySessionFresh;
 use App\Http\Middleware\EnsureSuperAdminAccess;
 use App\Http\Middleware\HandleAppearance;
 use App\Http\Middleware\HandleInertiaRequests;
-use App\Http\Middleware\RequireSuperAdminTwoFactor;
+use App\Http\Middleware\PreventSelfApproval;
 use App\Http\Middleware\RequireSuperAdminStepUp;
+use App\Http\Middleware\RequireSuperAdminTwoFactor;
 use App\Http\Middleware\SecurityFirewallMiddleware;
 use App\Http\Middleware\SecurityHeaders;
 use App\Http\Middleware\SetTenantContext;
@@ -30,6 +31,7 @@ use Illuminate\Http\Middleware\AddLinkHeadersForPreloadedAssets;
 use Illuminate\Support\Facades\Route;
 use Spatie\Permission\Middleware\PermissionMiddleware;
 use Spatie\Permission\Middleware\RoleMiddleware;
+use Spatie\Permission\Middleware\RoleOrPermissionMiddleware;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -50,6 +52,7 @@ return Application::configure(basePath: dirname(__DIR__))
         (require __DIR__.'/../routes/schedule.php')($schedule);
     })
     ->withMiddleware(function (Middleware $middleware): void {
+        $middleware->prepend(\App\Http\Middleware\CorrelationIdMiddleware::class);
         $middleware->prepend(SecurityFirewallMiddleware::class);
         $middleware->prepend(ValidatePayloadSize::class);
 
@@ -88,6 +91,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'tenant.quota' => TenantQuotaMiddleware::class,
             'auth.apikey' => AuthenticateApiKey::class,
             'role' => RoleMiddleware::class,
+            'role_or_permission' => RoleOrPermissionMiddleware::class,
             'role.superadmin.2fa' => RequireSuperAdminTwoFactor::class,
             'permission' => PermissionMiddleware::class,
             'permission.cache.clear' => ClearPermissionCache::class,
@@ -96,6 +100,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'superadmin.stepup' => RequireSuperAdminStepUp::class,
             'superadmin.ip_whitelist' => SuperAdminIpWhitelistMiddleware::class,
             'shift.schedule' => CheckShiftSchedule::class,
+            'prevent_self_approval' => PreventSelfApproval::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
