@@ -19,9 +19,13 @@ class StockTransferRequest extends Model
         'quantity_requested' => 'decimal:3',
         'quantity_dispatched' => 'decimal:3',
         'quantity_received' => 'decimal:3',
+        'discrepancy_quantity' => 'decimal:3',
+        'dispatch_unit_cost' => 'decimal:2',
         'routed_at' => 'datetime',
         'dispatched_at' => 'datetime',
         'received_at' => 'datetime',
+        'discrepancy_resolved_at' => 'datetime',
+        'cancelled_at' => 'datetime',
     ];
 
     public function toBranch(): BelongsTo
@@ -52,5 +56,20 @@ class StockTransferRequest extends Model
     public function receivedBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'received_by');
+    }
+
+    public function routedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'routed_by');
+    }
+
+    public function discrepancyResolvedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'discrepancy_resolved_by');
+    }
+
+    public function cancelledBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'cancelled_by');
     }
 }

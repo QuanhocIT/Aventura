@@ -11,7 +11,9 @@ use App\Models\Unit;
 use App\Models\User;
 use App\Notifications\StockTransferStageNotification;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Notification;
+use Illuminate\Support\Facades\Storage;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
@@ -157,5 +159,64 @@ class StockTransferRequestTest extends TestCase
         $this->actingAs($this->managerB)->post("/inventory/transfers/{$t->id}/route", [
             'from_branch_id' => $this->branchB->id,
         ])->assertForbidden();
+    }
+
+    public function test_partial_dispatch_is_rejected_to_prevent_false_completion(): void
+    {
+        $t = $this->makeRequest();
+        $this->actingAs($this->owner)->post("/inventory/transfers/{$t->id}/route", [
+            'from_branch_id' => $this->branchB->id,
+        ])->assertRedirect();
+
+        $this->actingAs($this->managerB)
+            ->post("/inventory/transfers/{$t->id}/dispatch", ['quantity_dispatched' => 20])
+            ->assertRedirect()
+            ->assertSessionHas('error');
+
+        $this->assertEquals('routed', $t->refresh()->status);
+        $this->assertEqualsWithDelta(100, (float) Inventory::where('branch_id', $this->branchB->id)->where('ingredient_id', $this->ingredient->id)->value('quantity_on_hand'), 0.001);
+    }
+
+    public function test_short_receipt_creates_discrepancy_and_requires_resolution(): void
+    {
+        Storage::fake('public');
+        $t = $this->makeRequest();
+        $this->actingAs($this->owner)->post("/inventory/transfers/{$t->id}/route", [
+            'from_branch_id' => $this->branchB->id,
+        ])->assertRedirect();
+        $this->actingAs($this->managerB)->post("/inventory/transfers/{$t->id}/dispatch", [
+            'quantity_dispatched' => 30,
+        ])->assertRedirect();
+
+        $this->actingAs($this->managerA)->post("/inventory/transfers/{$t->id}/receive", [
+            'handover_code' => $t->refresh()->handover_code,
+            'quantity_received' => 28,
+            'received_condition' => 'shortage',
+            'received_note' => 'Thiếu 2kg khi kiểm đếm tại cửa nhận.',
+            'receiving_evidence' => UploadedFile::fake()->create('bien-ban-thieu.pdf', 100, 'application/pdf'),
+        ])->assertRedirect()->assertSessionHasNoErrors();
+
+        $t->refresh();
+        $this->assertEquals('discrepancy', $t->status);
+        $this->assertEqualsWithDelta(2, (float) $t->discrepancy_quantity, 0.001);
+        $this->assertEqualsWithDelta(28, (float) Inventory::where('branch_id', $this->branchA->id)->where('ingredient_id', $this->ingredient->id)->value('quantity_on_hand'), 0.001);
+
+        $this->actingAs($this->owner)->post("/inventory/transfers/{$t->id}/resolve-discrepancy", [
+            'discrepancy_resolution' => 'Đã xác nhận thiếu trong quá trình bàn giao và ghi nhận biên bản hao hụt.',
+        ])->assertRedirect()->assertSessionHasNoErrors();
+
+        $this->assertEquals('received', $t->refresh()->status);
+    }
+
+    public function test_requester_can_cancel_before_dispatch(): void
+    {
+        $t = $this->makeRequest();
+
+        $this->actingAs($this->managerA)->post("/inventory/transfers/{$t->id}/cancel", [
+            'cancel_reason' => 'Chi nhánh đã tự cân đối được tồn trong ngày.',
+        ])->assertRedirect()->assertSessionHasNoErrors();
+
+        $this->assertEquals('cancelled', $t->refresh()->status);
+        $this->assertEquals($this->managerA->id, $t->cancelled_by);
     }
 }

@@ -16,7 +16,7 @@ class StockTransferStageNotification extends Notification
 
     public function __construct(
         private StockTransferRequest $transfer,
-        private string $stage,   // requested | routed | dispatched
+        private string $stage,   // requested | routed | dispatched | received | discrepancy
         private string $byName,
     ) {}
 
@@ -32,6 +32,8 @@ class StockTransferStageNotification extends Notification
             'requested' => "📦 Yêu cầu điều chuyển {$ing} — cần Chủ định tuyến chi nhánh cấp.",
             'routed' => "➡️ Chủ đã định tuyến điều chuyển {$ing} tới chi nhánh bạn — cần XUẤT hàng (mã: {$this->transfer->handover_code}).",
             'dispatched' => "📥 Hàng {$ing} đã xuất — nhập mã {$this->transfer->handover_code} để NHẬN.",
+            'received' => "✅ Điều chuyển {$ing} đã được nhận đủ và cộng vào tồn kho.",
+            'discrepancy' => "⚠️ Điều chuyển {$ing} phát sinh chênh lệch — cần kiểm tra và chốt biên bản.",
         ];
 
         return [
