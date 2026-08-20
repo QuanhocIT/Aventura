@@ -451,7 +451,7 @@ class DeliveryManagementController extends Controller
         foreach ($batch->items as $item) {
             if ($item->status === 'pending') {
                 $item->update([
-                    'status' => 'picked_up',
+                    'status' => 'in_transit',
                     'picked_up_at' => now(),
                 ]);
                 $updatedCount++;
@@ -459,15 +459,15 @@ class DeliveryManagementController extends Controller
         }
 
         $batch->items()
-            ->where('status', 'picked_up')
+            ->whereIn('status', ['picked_up', 'in_transit'])
             ->with('order')
             ->get()
             ->each(fn ($item) => DeliveryDetail::where('order_id', $item->order_id)->update([
-                'delivery_status' => 'picked_up',
+                'delivery_status' => 'in_transit',
             ]));
 
         $batch->update([
-            'status' => 'in_progress',
+            'status' => 'in_transit',
             'dispatched_at' => $batch->dispatched_at ?? now(),
         ]);
 

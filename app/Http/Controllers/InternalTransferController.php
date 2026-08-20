@@ -24,9 +24,8 @@ class InternalTransferController extends Controller
      */
     public function transferRecommendations(Request $request): JsonResponse
     {
-        abort_unless($request->user()->isOwner(), 403);
-
         $user = $request->user();
+        abort_unless($user->isOwner() || $user->isSuperAdmin() || $user->hasRole('warehouse_manager') || $user->can('warehouse.manage'), 403);
 
         // 1. Fetch branches
         $branches = RestaurantBranch::where('restaurant_id', $user->restaurant_id)->get();
@@ -194,9 +193,8 @@ class InternalTransferController extends Controller
      */
     public function storeInternalTransfer(Request $request): RedirectResponse
     {
-        abort_unless($request->user()->isOwner(), 403);
-
         $user = $request->user();
+        abort_unless($user->isOwner() || $user->isSuperAdmin() || $user->hasRole('warehouse_manager') || $user->can('warehouse.manage'), 403);
 
         $request->validate([
             'from_branch_id' => ['required', TenantRule::exists('restaurant_branches')],
@@ -307,7 +305,8 @@ class InternalTransferController extends Controller
      */
     public function listInternalTransfers(Request $request): JsonResponse
     {
-        abort_unless($request->user()->isOwner(), 403);
+        $user = $request->user();
+        abort_unless($user->isOwner() || $user->isSuperAdmin() || $user->hasRole('warehouse_manager') || $user->can('warehouse.manage'), 403);
 
         $transfers = InternalTransfer::where('restaurant_id', $request->user()->restaurant_id)
             ->with(['fromBranch', 'toBranch', 'ingredient.unit', 'creator'])

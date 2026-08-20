@@ -196,13 +196,13 @@ class DeliveryDispatchService
                 ]);
             }
 
-            if ($status === 'picked_up' && $item->status !== 'pending') {
+            if ($status === 'picked_up' && ! in_array($item->status, ['pending', 'in_transit'])) {
                 throw ValidationException::withMessages([
-                    'status' => 'Đơn chỉ có thể chuyển sang đã lấy hàng từ trạng thái chờ.',
+                    'status' => 'Đơn chỉ có thể chuyển sang đã lấy hàng từ trạng thái chờ hoặc đang vận chuyển.',
                 ]);
             }
 
-            if ($status === 'delivered' && $item->status !== 'picked_up') {
+            if ($status === 'delivered' && ! in_array($item->status, ['picked_up', 'in_transit'])) {
                 throw ValidationException::withMessages([
                     'status' => 'Cần xác nhận đã lấy hàng trước khi xác nhận đã giao.',
                 ]);

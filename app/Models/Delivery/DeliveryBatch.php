@@ -41,12 +41,12 @@ class DeliveryBatch extends Model
 
     public function scopeActive($query)
     {
-        return $query->whereIn('status', ['dispatched', 'in_progress']);
+        return $query->whereIn('status', ['dispatched', 'in_progress', 'in_transit']);
     }
 
     public function isActive(): bool
     {
-        return in_array($this->status, ['dispatched', 'in_progress']);
+        return in_array($this->status, ['dispatched', 'in_progress', 'in_transit']);
     }
 
     public function getProgressPercent(): int
