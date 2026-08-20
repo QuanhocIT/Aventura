@@ -1215,11 +1215,14 @@ class WarehouseStaffController extends Controller
     public function quickAutoAssignTasks(Request $request): JsonResponse
     {
         $user = $request->user();
-        abort_unless($user->can('manage_warehouse') || $user->hasAnyRole(['warehouse_manager', 'manager', 'owner', 'super_admin']), 403);
+        abort_unless(
+            $user->can('warehouse.manage') || $user->hasAnyRole(['warehouse_manager', 'owner', 'super_admin']),
+            403,
+            'Bạn không có quyền tự động phân công nhiệm vụ Kho Tổng.'
+        );
 
-        $restaurantId = $user->restaurant_id;
-        $centralBranch = $this->warehouseService->getCentralWarehouse($restaurantId)
-            ?? \App\Models\RestaurantBranch::where('restaurant_id', $restaurantId)->first();
+        $restaurantId = (int) $user->restaurant_id;
+        $centralBranch = $this->warehouseService->getCentralWarehouse($restaurantId);
         abort_unless($centralBranch, 422, 'Nhà hàng chưa cấu hình Kho Tổng đang hoạt động.');
 
         $unassignedTasks = WarehouseTaskAssignment::where('restaurant_id', $restaurantId)
@@ -1244,18 +1247,23 @@ class WarehouseStaffController extends Controller
             ], 422);
         }
 
-        // Lấy danh sách nhân viên kho active
+        // Lấy danh sách nhân viên kho active thuộc Kho Tổng
         $warehouseStaff = \App\Models\User::where('restaurant_id', $restaurantId)
             ->where('status', 'active')
             ->where(function ($query) use ($centralBranch) {
                 $query->whereHas('roles', fn ($q) => $q->where('name', 'warehouse_staff'))
-                    ->orWhere('warehouse_branch_id', $centralBranch->id)
-                    ->orWhere('branch_id', $centralBranch->id);
+                    ->orWhere(function ($sub) use ($centralBranch) {
+                        $sub->where('warehouse_branch_id', $centralBranch->id)
+                            ->whereHas('roles', fn ($q) => $q->where('name', 'warehouse_staff'));
+                    });
             })
             ->get();
 
         if ($warehouseStaff->isEmpty()) {
-            $warehouseStaff = collect([$user]);
+            return response()->json([
+                'success' => false,
+                'message' => 'Không tìm thấy nhân viên Kho Tổng (warehouse_staff) đang hoạt động để phân công tự động. Vui lòng tạo nhân sự kho trước.',
+            ], 422);
         }
 
         // Đếm công việc hiện tại của từng nhân viên

@@ -441,6 +441,11 @@ watch(
             class="px-2 py-1 select-none"
         >
             <SidebarGroupLabel
+                :id="
+                    props.collapsibleGroups
+                        ? `sidebar-group-toggle-${group.key}`
+                        : undefined
+                "
                 :as="props.collapsibleGroups ? 'button' : 'div'"
                 :type="props.collapsibleGroups ? 'button' : undefined"
                 :aria-expanded="

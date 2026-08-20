@@ -1,12 +1,6 @@
 <script setup lang="ts">
 import { usePage, router } from '@inertiajs/vue3';
-import {
-    X,
-    ArrowRight,
-    ChevronRight,
-    Award,
-    Compass,
-} from 'lucide-vue-next';
+import { X, ArrowRight, ChevronRight, Award, Compass } from 'lucide-vue-next';
 import { computed, ref, onMounted, onUnmounted, watch, nextTick } from 'vue';
 
 type TourStep = {
@@ -43,15 +37,22 @@ const activeStepIndex = ref(0);
 const isTourActive = ref(false);
 const targetRect = ref<DOMRect | null>(null);
 const tooltipStyle = ref<any>({});
-const scrollPosition = ref({ x: window.scrollX, y: window.scrollY });
 const isSuccessOpen = ref(false);
 const lastScrolledStep = ref<string | null>(null);
+const fallbackTooltipStyle = {
+    bottom: '16px',
+    left: 'auto',
+    position: 'fixed',
+    right: '16px',
+    top: 'auto',
+    zIndex: 9999,
+};
 
 // Định nghĩa tất cả các bước Tour cho 3 Ngày
 const tourSteps: Record<number, TourStep[]> = {
     1: [
         {
-            selector: '#sidebar-link-products',
+            selector: '#sidebar-group-toggle-menu',
             title: 'Bước chân đầu tiên 👣',
             content:
                 'Chào mừng bạn đến với F&BViet! Đầu tiên, hãy truy cập vào menu Thực đơn & Món để thiết lập menu bán hàng của quán.',
@@ -77,7 +78,7 @@ const tourSteps: Record<number, TourStep[]> = {
     ],
     2: [
         {
-            selector: '#sidebar-link-inventory',
+            selector: '#sidebar-group-toggle-supply',
             title: 'Chuẩn hóa vận hành 📦',
             content:
                 'Ngày 2: Quản lý kho. Hãy bấm vào Kho nguyên liệu để cấu hình nguyên liệu và kích hoạt cơ chế trừ kho tự động.',
@@ -95,7 +96,7 @@ const tourSteps: Record<number, TourStep[]> = {
     ],
     3: [
         {
-            selector: '#sidebar-link-employees',
+            selector: '#sidebar-group-toggle-people',
             title: 'Quản trị nhân sự 👥',
             content:
                 'Ngày 3: Thiết lập nhân sự. Nhấp vào đây để thêm nhân viên và phân quyền Thu ngân, Bếp nhanh chóng.',
@@ -138,9 +139,6 @@ const updateTargetPosition = () => {
     const el = document.querySelector(activeStep.value.selector) as HTMLElement;
 
     if (el) {
-        // Cập nhật vị trí cuộn trang hiện tại
-        scrollPosition.value = { x: window.scrollX, y: window.scrollY };
-
         // Tự động scroll phần tử vào tầm nhìn nếu cần
         const stepKey = `${currentDay.value}_${activeStepIndex.value}_${activeStep.value.selector}`;
 
@@ -161,36 +159,56 @@ const updateTargetPosition = () => {
         let top = 0;
         let left = 0;
 
-        const scrollY = window.scrollY;
-        const scrollX = window.scrollX;
+        const tooltipWidth = 320;
+        const viewportPadding = 16;
+        const tooltipMaxHeight = Math.min(420, window.innerHeight * 0.7);
 
         if (activeStep.value.placement === 'bottom') {
-            top = rect.bottom + scrollY + margin;
-            left = rect.left + scrollX + rect.width / 2 - 160; // 160 là nửa width tooltip ước lượng
+            top = rect.bottom + margin;
+            left = rect.left + rect.width / 2 - tooltipWidth / 2;
         } else if (activeStep.value.placement === 'top') {
-            top = rect.top + scrollY - 180 - margin; // 180 là height ước lượng
-            left = rect.left + scrollX + rect.width / 2 - 160;
+            top = rect.top - 180 - margin;
+            left = rect.left + rect.width / 2 - tooltipWidth / 2;
         } else if (activeStep.value.placement === 'right') {
-            top = rect.top + scrollY + rect.height / 2 - 80;
-            left = rect.right + scrollX + margin;
+            top = rect.top + rect.height / 2 - 80;
+            left = rect.right + margin;
         } else if (activeStep.value.placement === 'left') {
-            top = rect.top + scrollY + rect.height / 2 - 80;
-            left = rect.left + scrollX - 330 - margin; // 330 là width tooltip ước lượng
+            top = rect.top + rect.height / 2 - 80;
+            left = rect.left - tooltipWidth - margin;
         }
 
-        // Tránh tooltip văng ra ngoài viewport
-        if (left < 10) {
-            left = 10;
+        // Nếu không đủ chỗ ở cạnh được chỉ định, thử cạnh đối diện.
+        if (
+            activeStep.value.placement === 'right' &&
+            left + tooltipWidth > window.innerWidth - viewportPadding
+        ) {
+            left = rect.left - tooltipWidth - margin;
         }
 
-        if (left + 320 > window.innerWidth) {
-            left = window.innerWidth - 340;
+        if (activeStep.value.placement === 'left' && left < viewportPadding) {
+            left = rect.right + margin;
         }
+
+        // Tránh tooltip văng ra ngoài viewport.
+        left = Math.min(
+            Math.max(left, viewportPadding),
+            Math.max(
+                viewportPadding,
+                window.innerWidth - tooltipWidth - viewportPadding,
+            ),
+        );
+        top = Math.min(
+            Math.max(top, viewportPadding),
+            Math.max(
+                viewportPadding,
+                window.innerHeight - tooltipMaxHeight - viewportPadding,
+            ),
+        );
 
         tooltipStyle.value = {
             top: `${top}px`,
             left: `${left}px`,
-            position: 'absolute',
+            position: 'fixed',
             zIndex: 9999,
         };
     } else {
@@ -412,41 +430,41 @@ defineExpose({
             class="pointer-events-none fixed inset-0 transition-opacity duration-300"
             style="z-index: 9998"
             :style="{
-                background: `radial-gradient(circle 85px at ${targetRect.left + targetRect.width / 2}px ${targetRect.top + targetRect.height / 2}px, transparent 100%, rgba(15, 23, 42, 0.45) 100%)`,
+                background: `radial-gradient(circle 85px at ${targetRect.left + targetRect.width / 2}px ${targetRect.top + targetRect.height / 2}px, transparent 92%, rgba(15, 23, 42, 0.2) 100%)`,
             }"
         />
 
         <!-- Pulse Highlight đè trực tiếp lên phần tử mục tiêu -->
         <div
             v-if="isTourActive && targetRect && isCorrectPage"
-            class="pointer-events-none absolute animate-pulse rounded-md border-2 border-primary"
+            class="pointer-events-none fixed animate-pulse rounded-md border-2 border-primary"
             style="z-index: 9998"
             :style="{
-                top: `${targetRect.top + scrollPosition.y - 2}px`,
-                left: `${targetRect.left + scrollPosition.x - 2}px`,
+                top: `${targetRect.top - 2}px`,
+                left: `${targetRect.left - 2}px`,
                 width: `${targetRect.width + 4}px`,
                 height: `${targetRect.height + 4}px`,
                 boxShadow:
-                    '0 0 0 9999px rgba(0, 0, 0, 0.3), 0 0 15px 4px #6366f1',
+                    '0 0 0 4px rgba(99, 102, 241, 0.22), 0 0 15px 4px rgba(99, 102, 241, 0.55)',
             }"
         />
 
         <!-- Glowing indicator dot -->
         <span
             v-if="isTourActive && targetRect && isCorrectPage"
-            class="pointer-events-none absolute size-4 animate-ping rounded-full bg-indigo-500"
+            class="pointer-events-none fixed size-4 animate-ping rounded-full bg-indigo-500"
             style="z-index: 9999"
             :style="{
-                top: `${targetRect.top + scrollPosition.y + targetRect.height / 2 - 8}px`,
-                left: `${targetRect.left + scrollPosition.x + targetRect.width / 2 - 8}px`,
+                top: `${targetRect.top + targetRect.height / 2 - 8}px`,
+                left: `${targetRect.left + targetRect.width / 2 - 8}px`,
             }"
         />
 
         <!-- Tooltip Card -->
         <div
-            v-if="isTourActive && activeStep"
-            :style="tooltipStyle"
-            class="flex w-[320px] scale-100 transform flex-col gap-4 rounded-2xl border border-slate-200/60 bg-white/90 p-5 text-left shadow-[0_20px_50px_rgba(0,0,0,0.15)] backdrop-blur-xl transition-all duration-300 dark:border-slate-800/60 dark:bg-slate-900/90"
+            v-if="isTourActive && activeStep && (!isCorrectPage || targetRect)"
+            :style="isCorrectPage ? tooltipStyle : fallbackTooltipStyle"
+            class="flex max-h-[min(70vh,420px)] w-[min(320px,calc(100vw-32px))] scale-100 transform flex-col gap-4 overflow-y-auto rounded-2xl border border-slate-200/60 bg-white/90 p-5 text-left shadow-[0_20px_50px_rgba(0,0,0,0.15)] backdrop-blur-xl transition-all duration-300 dark:border-slate-800/60 dark:bg-slate-900/90"
         >
             <!-- Step Header -->
             <div class="flex items-center justify-between border-b pb-2.5">

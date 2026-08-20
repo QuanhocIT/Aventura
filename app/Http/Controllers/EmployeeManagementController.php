@@ -1237,18 +1237,29 @@ class EmployeeManagementController extends Controller
         }
 
         // Sync associated User Spatie roles and update role_id in employees
-        if ($employee->user && isset($data['role'])) {
+        $linkedUser = $employee->user ?? ($employee->user_id ? User::find($employee->user_id) : null);
+        if ($linkedUser && isset($data['role'])) {
             $role = Role::firstOrCreate([
                 'name' => $data['role'],
                 'guard_name' => 'web',
             ]);
-            $employee->user->syncRoles([$role]);
+            $linkedUser->syncRoles([$role]);
             $employee->update(['role_id' => $role->id]);
+
+            // [P1.7]: Tự động đồng bộ warehouse_branch_id khi chuyển sang role kho hoặc rời role kho
+            if (in_array($data['role'], ['warehouse_staff', 'warehouse_manager'])) {
+                $centralBranch = app(\App\Services\CentralWarehouseService::class)->getCentralWarehouse((int) $user->restaurant_id);
+                if ($centralBranch) {
+                    $linkedUser->update(['warehouse_branch_id' => $centralBranch->id]);
+                }
+            } else {
+                $linkedUser->update(['warehouse_branch_id' => null]);
+            }
         }
 
         // Sync full_name to User name
-        if ($employee->user && isset($data['full_name'])) {
-            $employee->user->update(['name' => $data['full_name']]);
+        if ($linkedUser && isset($data['full_name'])) {
+            $linkedUser->update(['name' => $data['full_name']]);
         }
 
         $employeeData = array_filter($data, fn ($v) => $v !== null || isset($v));
