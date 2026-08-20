@@ -30,7 +30,7 @@ class InventoryCountController extends Controller
             ->when(! $user->canViewAllBranches(), fn ($q) => $q->whereKey($user->assignedBranchId()))
             ->get();
 
-        $activeBranchId = $request->integer('branch_id') ?: ($user->assignedBranchId() ?: $branches->first()?->id);
+        $activeBranchId = $request->integer('branch_id') ?: ($user->canViewAllBranches() ? null : ($user->assignedBranchId() ?: $branches->first()?->id));
         abort_unless(
             ! $activeBranchId || $branches->contains('id', (int) $activeBranchId),
             403,
@@ -39,15 +39,28 @@ class InventoryCountController extends Controller
 
         $sessions = InventoryCountSession::where('restaurant_id', $restaurantId)
             ->when($activeBranchId, fn ($q) => $q->where('branch_id', $activeBranchId))
-            ->with(['items.ingredient.unit', 'branch', 'countedBy', 'secondCountedBy', 'approver'])
+            ->with(['items.ingredient.unit', 'items.reconciledBy', 'branch', 'countedBy', 'secondCountedBy', 'approver', 'rejectedBy', 'cancelledBy'])
             ->orderByDesc('id')
             ->get();
+
+        $isOwnerOrAdmin = $user->isOwner() || $user->isSuperAdmin();
+        $sessions->each(function ($session) use ($isOwnerOrAdmin) {
+            if ($session->blind_count && $session->status === 'in_progress' && ! $isOwnerOrAdmin) {
+                $session->items->each(function ($item) {
+                    $item->expected_quantity = null;
+                    $item->variance_quantity = null;
+                    $item->variance_percent = null;
+                    $item->variance_value = null;
+                });
+            }
+        });
 
         return Inertia::render('inventory/InventoryCount', [
             'branches'       => $branches,
             'activeBranchId' => $activeBranchId,
             'countSessions'  => $sessions,
-            'canStartCount'  => $user->can('inventory.count') || $user->isOwner() || $user->isSuperAdmin(),
+            'authUserId'     => $user->id,
+            'canStartCount'  => $user->can('inventory.count') || $user->hasRole('warehouse_manager') || $user->isOwner() || $user->isSuperAdmin(),
             'canApprove'     => $user->can('inventory.adjust.approve') || $user->isOwner() || $user->isSuperAdmin(),
         ]);
     }
@@ -134,6 +147,36 @@ class InventoryCountController extends Controller
     /**
      * Hoàn tất đếm & gửi duyệt
      */
+    public function reconcileItem(Request $request, int $id, int $itemId): JsonResponse
+    {
+        $user = $request->user();
+        $session = InventoryCountSession::where('restaurant_id', $user->restaurant_id)->findOrFail($id);
+        $this->authorizeSessionBranch($user, $session);
+
+        $data = $request->validate([
+            'final_quantity' => 'required|numeric|min:0',
+            'notes' => 'required|string|max:1000',
+        ]);
+
+        try {
+            $updated = $this->countService->reconcileItem(
+                $session,
+                $user,
+                $itemId,
+                (float) $data['final_quantity'],
+                $data['notes'],
+            );
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Da chot ket qua doi soat dong dem.',
+                'data' => $updated,
+            ]);
+        } catch (\Throwable $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
+        }
+    }
+
     public function submitForApproval(Request $request, int $id): JsonResponse
     {
         $user = $request->user();
@@ -168,6 +211,55 @@ class InventoryCountController extends Controller
     /**
      * Phê duyệt phiên kiểm kê & tự động điều chỉnh tồn kho
      */
+    public function reject(Request $request, int $id): JsonResponse
+    {
+        $user = $request->user();
+        $session = InventoryCountSession::where('restaurant_id', $user->restaurant_id)->findOrFail($id);
+        $this->authorizeSessionBranch($user, $session);
+
+        $data = $request->validate(['reason' => 'required|string|max:1000']);
+
+        try {
+            $updated = $this->countService->rejectCountSession($session, $user, $data['reason']);
+
+            return response()->json(['success' => true, 'message' => 'Da tu choi phien kiem ke.', 'data' => $updated]);
+        } catch (\Throwable $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
+        }
+    }
+
+    public function reopen(Request $request, int $id): JsonResponse
+    {
+        $user = $request->user();
+        $session = InventoryCountSession::where('restaurant_id', $user->restaurant_id)->findOrFail($id);
+        $this->authorizeSessionBranch($user, $session);
+
+        try {
+            $updated = $this->countService->reopenRejectedSession($session, $user);
+
+            return response()->json(['success' => true, 'message' => 'Da mo lai phien bi tu choi de dieu chinh.', 'data' => $updated]);
+        } catch (\Throwable $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
+        }
+    }
+
+    public function cancel(Request $request, int $id): JsonResponse
+    {
+        $user = $request->user();
+        $session = InventoryCountSession::where('restaurant_id', $user->restaurant_id)->findOrFail($id);
+        $this->authorizeSessionBranch($user, $session);
+
+        $data = $request->validate(['reason' => 'required|string|max:1000']);
+
+        try {
+            $updated = $this->countService->cancelCountSession($session, $user, $data['reason']);
+
+            return response()->json(['success' => true, 'message' => 'Da huy phien kiem ke.', 'data' => $updated]);
+        } catch (\Throwable $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
+        }
+    }
+
     public function approve(Request $request, int $id): JsonResponse
     {
         $user = $request->user();
@@ -194,7 +286,7 @@ class InventoryCountController extends Controller
     {
         $user = $request->user();
         abort_unless(
-            $user->isOwner() || $user->isSuperAdmin() || $user->can('inventory.count'),
+            $user->isOwner() || $user->isSuperAdmin() || $user->hasRole('warehouse_manager') || $user->can('inventory.count'),
             403,
             'Bạn không có quyền tạo kiểm kê nhanh.'
         );
@@ -215,7 +307,11 @@ class InventoryCountController extends Controller
         match ($data['preset']) {
             'low_stock' => $query->whereHas('inventories', fn ($inv) => $inv->where('branch_id', $branchId)->whereRaw('inventories.quantity_on_hand <= ingredients.min_stock_level')),
             'high_value' => $query->where('average_cost', '>=', 50000)->orderByDesc('average_cost')->limit(20),
-            'expiring_soon' => $query->whereHas('batches', fn ($b) => $b->where('branch_id', $branchId)->where('expiry_date', '<=', now()->addDays(3))),
+            'expiring_soon' => $query->whereHas('batches', fn ($b) => $b
+                ->where('branch_id', $branchId)
+                ->where('quantity_remaining', '>', 0)
+                ->where('status', 'active')
+                ->whereBetween('expiry_date', [now()->toDateString(), now()->addDays(3)->toDateString()])),
             'used_today' => $query->whereHas('transactions', fn ($m) => $m->where('branch_id', $branchId)->whereDate('created_at', today())),
             default => null,
         };
@@ -242,6 +338,28 @@ class InventoryCountController extends Controller
             'success' => true,
             'message' => "Đã tạo phiên kiểm kê nhanh '{$data['preset']}' thành công với ".count($ingredientIds)." nguyên liệu.",
             'data' => $session,
+        ]);
+    }
+
+    /**
+     * Upload ảnh chứng từ sai lệch kiểm kê
+     */
+    public function uploadVarianceProof(Request $request, int $id): JsonResponse
+    {
+        $user = $request->user();
+        $session = InventoryCountSession::where('restaurant_id', $user->restaurant_id)->findOrFail($id);
+        $this->authorizeSessionBranch($user, $session);
+
+        $request->validate([
+            'file' => 'required|file|mimes:jpg,jpeg,png,pdf|max:10240',
+        ]);
+
+        $path = $request->file('file')->store("restaurants/{$user->restaurant_id}/inventory_counts", 'public');
+
+        return response()->json([
+            'success' => true,
+            'url' => asset("storage/{$path}"),
+            'path' => $path,
         ]);
     }
 

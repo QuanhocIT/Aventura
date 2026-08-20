@@ -24,6 +24,8 @@ class InventoryCountSession extends Model
             'started_at'              => 'datetime',
             'completed_at'            => 'datetime',
             'approved_at'             => 'datetime',
+            'rejected_at'             => 'datetime',
+            'cancelled_at'            => 'datetime',
         ];
     }
 
@@ -45,6 +47,16 @@ class InventoryCountSession extends Model
     public function approver(): BelongsTo
     {
         return $this->belongsTo(User::class, 'approved_by');
+    }
+
+    public function rejectedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'rejected_by');
+    }
+
+    public function cancelledBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'cancelled_by');
     }
 
     public function items(): HasMany

@@ -22,6 +22,7 @@ class InventoryCountItem extends Model
             'variance_quantity'  => 'decimal:3',
             'variance_percent'   => 'decimal:2',
             'variance_value'     => 'decimal:2',
+            'reconciled_at'      => 'datetime',
         ];
     }
 
@@ -38,5 +39,10 @@ class InventoryCountItem extends Model
     public function batch(): BelongsTo
     {
         return $this->belongsTo(InventoryBatch::class, 'batch_id');
+    }
+
+    public function reconciledBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'reconciled_by');
     }
 }
