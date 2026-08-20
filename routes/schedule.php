@@ -102,6 +102,22 @@ return function (Schedule $schedule): void {
     $schedule->command('system:audit-consistency')->dailyAt('03:00');
     $schedule->command('goals:sync')->hourly();
 
+    // ── [P1.11]: Quét phát hiện gian lận kho & Cảnh báo đơn cấp phát quá hạn ───────
+    $schedule->call(function () {
+        $restaurants = \App\Models\Restaurant::where('status', 'active')->get();
+        $fraudService = app(\App\Services\WarehouseFraudDetectionService::class);
+        $centralService = app(\App\Services\CentralWarehouseService::class);
+
+        foreach ($restaurants as $restaurant) {
+            try {
+                $fraudService->analyzeRiskAndFraudPatterns((int) $restaurant->id);
+                $centralService->checkAndAlertOverdueRequests((int) $restaurant->id);
+            } catch (\Throwable $e) {
+                \Illuminate\Support\Facades\Log::warning("Lỗi scheduler kiểm tra kho cho nhà hàng #{$restaurant->id}: " . $e->getMessage());
+            }
+        }
+    })->everyTenMinutes()->name('warehouse-fraud-and-overdue-monitoring')->withoutOverlapping();
+
     // ── Chuỗi báo cáo/tổng hợp cuối ngày — PHẢI giữ đúng thứ tự (comment gốc trong
     //    Kernel.php cũ đã ghi rõ lý do: archive chạy sau khi report + kpi xong) ──
     $schedule->command('reports:generate-daily')->dailyAt('23:59');

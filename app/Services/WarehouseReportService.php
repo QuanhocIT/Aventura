@@ -14,7 +14,7 @@ use Illuminate\Support\Facades\DB;
 class WarehouseReportService
 {
     /**
-     * Phân tích tồn kho theo 7 trạng thái quản trị.
+     * Phân tích tồn kho theo 7 trạng thái quản trị có lọc chính xác branch_id.
      */
     public function getInventoryStatusBreakdown(int $restaurantId, ?int $branchId = null): array
     {
@@ -41,17 +41,23 @@ class WarehouseReportService
 
         $availableQty = max(0, $totalOnHand - $totalReserved);
 
-        // Tồn bị khóa / thu hồi theo lô
-        $lockedBatchQty = (float) InventoryBatch::where('restaurant_id', $restaurantId)
-            ->whereIn('status', ['locked', 'recalled'])
-            ->sum('quantity_remaining');
+        // Tồn bị khóa / thu hồi theo lô (Lọc đúng branch_id)
+        $lockedBatchQuery = InventoryBatch::where('restaurant_id', $restaurantId)
+            ->whereIn('status', ['locked', 'recalled']);
+        if ($branchId) {
+            $lockedBatchQuery->where('branch_id', $branchId);
+        }
+        $lockedBatchQty = (float) $lockedBatchQuery->sum('quantity_remaining');
 
-        // Tồn hết hạn theo lô
-        $expiredBatchQty = (float) InventoryBatch::where('restaurant_id', $restaurantId)
+        // Tồn hết hạn theo lô (Lọc đúng branch_id)
+        $expiredBatchQuery = InventoryBatch::where('restaurant_id', $restaurantId)
             ->where('status', 'active')
             ->whereNotNull('expiry_date')
-            ->where('expiry_date', '<', now()->toDateString())
-            ->sum('quantity_remaining');
+            ->where('expiry_date', '<', now()->toDateString());
+        if ($branchId) {
+            $expiredBatchQuery->where('branch_id', $branchId);
+        }
+        $expiredBatchQty = (float) $expiredBatchQuery->sum('quantity_remaining');
 
         // Tồn đang vận chuyển (Dispatched nhưng chưa Completed/Disputed)
         $inTransitQuery = SupplyRequest::where('restaurant_id', $restaurantId)
@@ -75,7 +81,7 @@ class WarehouseReportService
     }
 
     /**
-     * Báo cáo SLA xử lý đơn (thời gian trung bình duyệt, đóng hàng, giao hàng, nhận hàng).
+     * Báo cáo SLA xử lý đơn bằng timestamp thực tế (duyệt, soạn, duyệt xuất, giao hàng, nhận hàng).
      */
     public function getSlaMetrics(int $restaurantId, int $days = 30): array
     {
@@ -94,22 +100,33 @@ class WarehouseReportService
         $totalDisputed  = 0;
 
         foreach ($requests as $r) {
-            if ($r->created_at && $r->updated_at) {
-                if ($r->status === SupplyRequest::STATUS_COMPLETED) {
-                    $totalCompleted++;
-                }
-                if ($r->status === SupplyRequest::STATUS_DISPUTED || $r->discrepancy_flag) {
-                    $totalDisputed++;
-                }
+            if ($r->status === SupplyRequest::STATUS_COMPLETED) {
+                $totalCompleted++;
+            }
+            if ($r->status === SupplyRequest::STATUS_DISPUTED || $r->discrepancy_flag) {
+                $totalDisputed++;
             }
 
-            // Thời gian duyệt (phút)
-            if ($r->created_at && $r->approved_by) {
-                $approveTimes[] = $r->created_at->diffInMinutes($r->updated_at);
+            // 1. Thời gian duyệt (phút) - dùng approved_at nếu có
+            if ($r->created_at && ($r->approved_at || $r->approved_by)) {
+                $appTimestamp = $r->approved_at ?? $r->updated_at;
+                $approveTimes[] = Carbon::parse($r->created_at)->diffInMinutes(Carbon::parse($appTimestamp));
             }
-            // Thời gian giao hàng (giờ)
+
+            // 2. Thời gian soạn hàng (phút) - từ approved_at tới prepared_at
+            if ($r->approved_at && $r->prepared_at) {
+                $prepareTimes[] = Carbon::parse($r->approved_at)->diffInMinutes(Carbon::parse($r->prepared_at));
+            }
+
+            // 3. Thời gian xuất kho (phút) - từ prepared_at tới dispatched_at
+            if ($r->prepared_at && ($r->dispatched_at || $r->handover_at)) {
+                $dispTimestamp = $r->dispatched_at ?? $r->handover_at;
+                $dispatchTimes[] = Carbon::parse($r->prepared_at)->diffInMinutes(Carbon::parse($dispTimestamp));
+            }
+
+            // 4. Thời gian vận chuyển/giao hàng (giờ)
             if ($r->dispatched_at && $r->received_at) {
-                $receiveTimes[] = $r->dispatched_at->diffInHours($r->received_at);
+                $receiveTimes[] = Carbon::parse($r->dispatched_at)->diffInHours(Carbon::parse($r->received_at));
             }
         }
 
@@ -122,6 +139,8 @@ class WarehouseReportService
             'disputed_count'            => $totalDisputed,
             'fulfillment_rate_percent'  => $fulfillmentRate,
             'avg_approval_minutes'      => count($approveTimes) > 0 ? round(array_sum($approveTimes) / count($approveTimes), 1) : 0,
+            'avg_prepare_minutes'       => count($prepareTimes) > 0 ? round(array_sum($prepareTimes) / count($prepareTimes), 1) : 0,
+            'avg_dispatch_minutes'      => count($dispatchTimes) > 0 ? round(array_sum($dispatchTimes) / count($dispatchTimes), 1) : 0,
             'avg_transit_hours'         => count($receiveTimes) > 0 ? round(array_sum($receiveTimes) / count($receiveTimes), 1) : 0,
         ];
     }
