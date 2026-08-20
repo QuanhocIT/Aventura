@@ -9,9 +9,18 @@ import {
     BarChart3,
     ShieldAlert,
     Package,
+    ClipboardCheck,
+    Clock3,
+    ArrowLeftRight,
+    BadgeDollarSign,
+    Users,
     ArrowRight,
     User,
     RotateCcw,
+    Building2,
+    Target,
+    Wallet,
+    Trash2,
 } from 'lucide-vue-next';
 import { ref, computed, onMounted, nextTick } from 'vue';
 import { Button } from '@/components/ui/button';
@@ -27,6 +36,10 @@ import { advisorHistory, advisorMessage } from '@/routes/chatbot';
 
 defineOptions({ layout: AppLayout });
 
+const props = defineProps<{
+    advisorMode?: 'strategic' | 'central_warehouse';
+}>();
+
 interface Message {
     id: string;
     role: 'user' | 'bot';
@@ -36,6 +49,22 @@ interface Message {
 
 const page = usePage();
 const user = computed(() => (page.props.auth?.user as any) ?? null);
+const isCentralWarehouse = computed(
+    () => props.advisorMode === 'central_warehouse',
+);
+const advisorTitle = computed(() =>
+    isCentralWarehouse.value ? 'Trợ lý AI Kho Tổng' : 'Trợ lý AI Chiến lược',
+);
+const advisorSubtitle = computed(() =>
+    isCentralWarehouse.value
+        ? 'HỖ TRỢ ĐIỀU HÀNH KHO VẬN & CHUỖI CUNG ỨNG'
+        : 'HỆ THỐNG PHÂN TÍCH DOANH THU & QUẢN TRỊ KINH DOANH',
+);
+const advisorPlaceholder = computed(() =>
+    isCentralWarehouse.value
+        ? 'Hỏi về tồn khả dụng, đơn cấp phát, SLA, OTIF, FEFO, điều chuyển, giá vốn...'
+        : 'Hỏi về doanh thu chuỗi, top món bán chạy, cảnh báo gian lận, dòng tiền, OKR...',
+);
 
 const messages = ref<Message[]>([]);
 const inputText = ref('');
@@ -43,34 +72,105 @@ const isLoading = ref(false);
 const messagesContainer = ref<HTMLElement | null>(null);
 const sessionId = ref('');
 
-// List of suggested strategic questions to WOW the business owner
-const strategicSuggestions = [
+// Kịch bản chiến lược kinh doanh cho Chủ doanh nghiệp / Ban quản trị
+const ownerSuggestions = [
     {
-        text: 'Doanh thu hôm nay đạt bao nhiêu?',
+        text: 'Doanh thu hôm nay đạt bao nhiêu và so với hôm qua thế nào?',
         category: 'finance',
         icon: TrendingUp,
     },
     {
-        text: 'Món nào bán chạy nhất trong ngày?',
+        text: 'Top món nào bán chạy và đem lại lợi nhuận cao nhất?',
         category: 'sales',
         icon: BarChart3,
     },
     {
-        text: 'Có cảnh báo gian lận nào chưa xử lý không?',
+        text: 'Có phát hiện gian lận, lệch két tiền hay hủy món bất thường không?',
         category: 'fraud',
         icon: ShieldAlert,
     },
     {
-        text: 'Nguyên liệu nào đang sắp hết trong kho?',
-        category: 'inventory',
-        icon: Package,
+        text: 'So sánh doanh thu và hiệu suất giữa các chi nhánh trong chuỗi?',
+        category: 'branches',
+        icon: Building2,
     },
     {
-        text: 'Dự báo doanh thu ngày mai thế nào?',
+        text: 'Dự báo doanh thu ngày mai và xu hướng tuần tới ra sao?',
         category: 'forecast',
         icon: Sparkles,
     },
+    {
+        text: 'Tình hình dòng tiền và chi phí hoạt động chuỗi thế nào?',
+        category: 'finance',
+        icon: Wallet,
+    },
+    {
+        text: 'Tiến độ thực hiện mục tiêu doanh số (OKR) hiện tại ra sao?',
+        category: 'goals',
+        icon: Target,
+    },
+    {
+        text: 'Nguyên vật liệu nào có tỷ lệ hao hụt cao nhất chuỗi cần can thiệp?',
+        category: 'waste',
+        icon: Trash2,
+    },
 ];
+
+// Kịch bản điều hành vận hành Kho Tổng cho Trưởng kho
+const warehouseSuggestions = [
+    {
+        text: 'Kho Tổng còn đủ tồn khả dụng để đáp ứng các đơn cấp phát đang mở không?',
+        category: 'stock',
+        icon: Package,
+    },
+    {
+        text: 'Mặt hàng nào sắp thiếu hoặc đã dưới mức đặt hàng lại (Reorder Point)?',
+        category: 'stock',
+        icon: ClipboardCheck,
+    },
+    {
+        text: 'Đơn cấp phát nào đang trễ hạn hoặc có nguy cơ trễ cam kết SLA?',
+        category: 'requests',
+        icon: Clock3,
+    },
+    {
+        text: 'Fill rate và OTIF của Kho Tổng trong 30 ngày qua ra sao?',
+        category: 'performance',
+        icon: TrendingUp,
+    },
+    {
+        text: 'Lô hàng nào sắp hết hạn trong 7 ngày tới, cần ưu tiên xuất FEFO?',
+        category: 'expiry',
+        icon: Package,
+    },
+    {
+        text: 'Có điều chuyển nội bộ nào đang chờ xử lý hoặc có ngoại lệ chênh lệch?',
+        category: 'transfers',
+        icon: ArrowLeftRight,
+    },
+    {
+        text: 'Tổng giá trị tồn kho hiện tại và mặt hàng nào chiếm tỷ trọng vốn lớn nhất?',
+        category: 'cost',
+        icon: BadgeDollarSign,
+    },
+    {
+        text: 'Tác vụ kho nào đang quá hạn và cần điều phối thêm nhân sự xử lý?',
+        category: 'tasks',
+        icon: Users,
+    },
+];
+
+const suggestions = computed(() =>
+    isCentralWarehouse.value ? warehouseSuggestions : ownerSuggestions,
+);
+
+function welcomeContent(): string {
+    if (isCentralWarehouse.value) {
+        return `Xin chào **${user.value?.name || 'Trưởng kho'}**! Tôi là **Trợ lý AI Kho Tổng**. 📦\n\nTôi tập trung chuyên sâu vào công tác vận hành kho và tối ưu chuỗi cung ứng:\n• **Tồn khả dụng & Cấp phát**: Đảm bảo đủ tồn khả dụng (đã trừ giữ chỗ) để đáp ứng các đơn cấp phát chi nhánh.\n• **SLA & Chất lượng giao hàng**: Giám sát đơn trễ hạn, tỷ lệ giao đủ - đúng hạn (OTIF) và Fill rate.\n• **Kiểm soát Hạn sử dụng (FEFO)**: Cảnh báo sớm các lô hàng cận date (< 7 ngày) để ưu tiên xuất trước.\n• **Tồn an toàn & Điều chuyển**: Phát hiện mặt hàng dưới mức đặt hàng lại, kiểm soát ngoại lệ điều chuyển.\n• **Giá vốn & Điều phối**: Theo dõi giá trị tồn kho, biến động đơn giá và điều phối nhân sự xử lý công việc.\n\nBạn có thể nhập câu hỏi trực tiếp hoặc chọn nhanh các kịch bản vận hành ở danh mục bên trái.`;
+    }
+
+    return `Xin chào **${user.value?.name || 'Chủ doanh nghiệp'}**! Tôi là **Trợ lý AI Chiến lược Doanh nghiệp**. 📊\n\nTôi hỗ trợ bạn phân tích toàn diện bức tranh kinh doanh và đưa ra các quyết định điều hành cấp cao:\n• **Doanh thu & Tăng trưởng**: Theo dõi doanh thu thời gian thực, so sánh các chi nhánh và dự báo tương lai.\n• **Tối ưu Thực đơn (Menu Engineering)**: Nhận diện top món bán chạy, món sinh lời cao và món cần cải thiện.\n• **Kiểm soát Gian lận & Rủi ro**: Giám sát lệch két, hủy hóa đơn bất thường, rủi ro thất thoát tài chính.\n• **Mục tiêu & Dòng tiền**: Đánh giá tiến độ hoàn thành OKR/KPI và sức khỏe dòng tiền kinh doanh.\n\nBạn có thể nhập câu hỏi trực tiếp hoặc chọn nhanh các kịch bản phân tích ở danh mục bên trái.`;
+}
 
 onMounted(async () => {
     sessionId.value = getOrCreateSessionId();
@@ -84,18 +184,25 @@ onMounted(async () => {
     }
 
     // Welcome message (chỉ hiển thị khi chưa có lịch sử hội thoại)
-    messages.value.push({
-        id: 'welcome',
-        role: 'bot',
-        content: `Xin chào **${user.value?.name || 'Chủ quán'}**! Tôi là **Trợ lý AI Chiến lược** của bạn. 📊\n\nTôi có thể truy xuất số liệu doanh thu thời gian thực, phân tích các nhóm món bán chạy, cảnh báo rủi ro gian lận hoặc dự đoán lượng nguyên liệu kho.\n\nBạn có thể hỏi tôi bất kỳ điều gì, hoặc chọn nhanh các câu hỏi gợi ý bên trái.`,
-        timestamp: new Date().toISOString(),
-    });
+    messages.value = [
+        {
+            id: 'welcome',
+            role: 'bot',
+            content: welcomeContent(),
+            timestamp: new Date().toISOString(),
+        },
+    ];
 });
 
 async function loadHistory(session: string): Promise<boolean> {
     try {
         const res = await fetch(
-            advisorHistory.url({ query: { session_id: session } }),
+            advisorHistory.url({
+                query: {
+                    session_id: session,
+                    mode: props.advisorMode ?? 'strategic',
+                },
+            }),
             {
                 headers: { 'X-Requested-With': 'XMLHttpRequest' },
                 credentials: 'same-origin',
@@ -132,7 +239,7 @@ async function loadHistory(session: string): Promise<boolean> {
 
 function getOrCreateSessionId(): string {
     const userId = user.value?.id ? `_${user.value.id}` : '';
-    const key = `aventura_advisor_session${userId}`;
+    const key = `aventura_advisor_session${userId}_${props.advisorMode ?? 'strategic'}`;
     let id = localStorage.getItem(key);
 
     if (!id) {
@@ -145,11 +252,10 @@ function getOrCreateSessionId(): string {
 
 function clearSession() {
     try {
-        Object.keys(localStorage).forEach((k) => {
-            if (k.startsWith('aventura_advisor_session')) {
-                localStorage.removeItem(k);
-            }
-        });
+        const userId = user.value?.id ? `_${user.value.id}` : '';
+        localStorage.removeItem(
+            `aventura_advisor_session${userId}_${props.advisorMode ?? 'strategic'}`,
+        );
     } catch {
         // Ignore
     }
@@ -159,13 +265,16 @@ function resetChat() {
     clearSession();
     const userId = user.value?.id ? `_${user.value.id}` : '';
     sessionId.value = crypto.randomUUID();
-    localStorage.setItem(`aventura_advisor_session${userId}`, sessionId.value);
+    localStorage.setItem(
+        `aventura_advisor_session${userId}_${props.advisorMode ?? 'strategic'}`,
+        sessionId.value,
+    );
 
     messages.value = [
         {
             id: 'welcome',
             role: 'bot',
-            content: `Xin chào **${user.value?.name || 'Chủ quán'}**! Tôi là **Trợ lý AI Chiến lược** của bạn. 📊\n\nTôi có thể truy xuất số liệu doanh thu thời gian thực, phân tích các nhóm món bán chạy, cảnh báo rủi ro gian lận hoặc dự đoán lượng nguyên liệu kho.\n\nBạn có thể hỏi tôi bất kỳ điều gì, hoặc chọn nhanh các câu hỏi gợi ý bên trái.`,
+            content: welcomeContent(),
             timestamp: new Date().toISOString(),
         },
     ];
@@ -214,6 +323,7 @@ async function sendMessage() {
             body: JSON.stringify({
                 session_id: sessionId.value,
                 message: text,
+                mode: props.advisorMode ?? 'strategic',
             }),
         });
 
@@ -292,32 +402,42 @@ function renderMarkdown(text: string): string {
 </script>
 
 <template>
-    <Head title="Trợ lý AI Chiến lược" />
+    <Head :title="advisorTitle" />
 
     <div
         class="mx-auto flex h-[calc(100vh-10rem)] min-h-[500px] w-full max-w-7xl flex-col gap-6 p-4 lg:flex-row lg:p-6"
     >
         <!-- Left Panel: Strategic Suggestions -->
-        <div class="flex w-full shrink-0 flex-col gap-4 lg:w-80">
+        <div class="flex w-full shrink-0 flex-col lg:h-full lg:min-h-0 lg:w-80">
             <Card
-                class="border-indigo-550/10 border bg-gradient-to-br from-indigo-500/10 via-purple-500/5 to-transparent"
+                class="flex h-full min-h-0 flex-col overflow-hidden border border-indigo-500/10 bg-gradient-to-br from-indigo-500/10 via-purple-500/5 to-transparent"
             >
-                <CardHeader class="pb-3">
+                <CardHeader class="shrink-0 pb-3">
                     <div class="flex items-center gap-2">
                         <Sparkles
                             class="size-5 animate-pulse text-indigo-500"
                         />
-                        <CardTitle class="text-base font-bold"
-                            >Gợi ý phân tích AI</CardTitle
-                        >
+                        <CardTitle class="text-base font-bold">
+                            {{
+                                isCentralWarehouse
+                                    ? 'Kịch bản điều hành Kho Tổng'
+                                    : 'Gợi ý phân tích AI'
+                            }}
+                        </CardTitle>
                     </div>
                     <CardDescription class="text-xs">
-                        Các kịch bản hỏi nhanh dữ liệu vận hành từ hệ thống.
+                        {{
+                            isCentralWarehouse
+                                ? 'Các câu hỏi nhanh giúp Trưởng kho ưu tiên đúng việc.'
+                                : 'Các kịch bản hỏi nhanh dữ liệu vận hành từ hệ thống.'
+                        }}
                     </CardDescription>
                 </CardHeader>
-                <CardContent class="flex flex-col gap-2.5">
+                <CardContent
+                    class="no-scrollbar flex flex-1 flex-col gap-2.5 overflow-y-auto pr-1 pb-6 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
+                >
                     <button
-                        v-for="s in strategicSuggestions"
+                        v-for="s in suggestions"
                         :key="s.text"
                         @click="selectSuggestion(s.text)"
                         class="group flex w-full items-center gap-3 rounded-xl border border-border/60 bg-card p-3 text-left text-xs font-semibold text-foreground transition-all hover:border-indigo-500/30 hover:bg-indigo-50/30 dark:hover:bg-indigo-950/20"
@@ -340,7 +460,7 @@ function renderMarkdown(text: string): string {
 
         <!-- Right Panel: Chat Window -->
         <Card
-            class="relative flex flex-1 flex-col overflow-hidden border-border bg-gradient-to-b from-card to-background"
+            class="relative flex h-full min-h-0 flex-1 flex-col overflow-hidden border-border bg-gradient-to-b from-card to-background"
         >
             <!-- Header -->
             <CardHeader
@@ -357,7 +477,7 @@ function renderMarkdown(text: string): string {
                             <CardTitle
                                 class="flex items-center gap-1.5 text-sm font-bold"
                             >
-                                Trợ lý AI Chiến lược Aventura
+                                {{ advisorTitle }} Aventura
                                 <span
                                     class="h-2 w-2 animate-ping rounded-full bg-emerald-500"
                                 ></span>
@@ -365,7 +485,7 @@ function renderMarkdown(text: string): string {
                             <CardDescription
                                 class="text-xxs font-extrabold tracking-wider text-indigo-600 uppercase dark:text-indigo-400"
                             >
-                                Hệ thống Phân tích Doanh nghiệp Thông minh
+                                {{ advisorSubtitle }}
                             </CardDescription>
                         </div>
                     </div>
@@ -458,7 +578,7 @@ function renderMarkdown(text: string): string {
                         v-model="inputText"
                         @keydown="handleKeydown"
                         type="text"
-                        placeholder="Hỏi trợ lý chiến lược (ví dụ: Doanh thu hôm nay, cảnh báo gian lận...)"
+                        :placeholder="advisorPlaceholder"
                         maxlength="500"
                         class="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
                     />
@@ -481,4 +601,14 @@ function renderMarkdown(text: string): string {
 .text-xxs {
     font-size: 0.65rem;
 }
+
+.no-scrollbar {
+    -ms-overflow-style: none; /* IE and Edge */
+    scrollbar-width: none; /* Firefox */
+}
+
+.no-scrollbar::-webkit-scrollbar {
+    display: none; /* Chrome, Safari and Opera */
+}
 </style>
+

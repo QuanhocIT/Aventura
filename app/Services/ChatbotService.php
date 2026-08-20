@@ -137,7 +137,12 @@ class ChatbotService
         }
     }
 
-    public function sendAdvisorMessage(string $sessionId, string $message, int $restaurantId): array
+    public function sendAdvisorMessage(
+        string $sessionId,
+        string $message,
+        int $restaurantId,
+        string $mode = 'strategic',
+    ): array
     {
         if (app(ServiceMonitorService::class)->isMaintenance('chatbot_service')) {
             $msg = app(ServiceMonitorService::class)->getMaintenanceMessage('chatbot_service')
@@ -157,6 +162,14 @@ class ChatbotService
             ];
         }
 
+        // Hồ sơ Kho Tổng dùng bộ truy vấn nghiệp vụ riêng để không trộn
+        // doanh thu/bán hàng của Chủ doanh nghiệp vào quyết định vận hành kho.
+        if ($mode === 'central_warehouse') {
+            return app(CentralWarehouseAdvisorService::class, [
+                'restaurantId' => $restaurantId,
+            ])->handle($message);
+        }
+
         // Nếu Python service chưa cấu hình hoặc circuit breaker đang OPEN,
         // dùng AdvisorQueryEngine nội tại để trả lời từ DB Laravel.
         $pythonAvailable = ! empty($this->baseUrl)
@@ -167,13 +180,14 @@ class ChatbotService
         }
 
         return app(CircuitBreaker::class)->for('chatbot_service')->attempt(
-            function () use ($sessionId, $message, $restaurantId) {
+            function () use ($sessionId, $message, $restaurantId, $mode) {
                 $response = Http::timeout(10)
                     ->withHeaders($this->authHeaders())
                     ->post($this->baseUrl.'/advisor-chat', [
                         'session_id' => $sessionId,
                         'message' => $message,
                         'restaurant_id' => $restaurantId,
+                        'mode' => $mode,
                     ]);
 
                 if (! $response->successful()) {

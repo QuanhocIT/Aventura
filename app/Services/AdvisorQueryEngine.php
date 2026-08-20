@@ -58,6 +58,18 @@ class AdvisorQueryEngine
             return $this->handleCash();
         }
 
+        if ($this->matches($msg, ['okr', 'muc tieu', 'mục tiêu', 'ke hoach', 'kế hoạch', 'kpi', 'tien do', 'tiến độ'])) {
+            return $this->handleGoals();
+        }
+
+        if ($this->matches($msg, ['dong tien', 'dòng tiền', 'chi phi', 'chi phí', 'expense', 'loi nhuan', 'lợi nhuận', 'profit', 'ngan sach', 'ngân sách'])) {
+            return $this->handleExpenses();
+        }
+
+        if ($this->matches($msg, ['hao hut', 'hao hụt', 'lang phi', 'lãng phí', 'waste', 'huy mon', 'hủy món'])) {
+            return $this->handleWaste();
+        }
+
         if ($this->matches($msg, ['chi nhanh', 'chi nhánh', 'branch', 'cua hang', 'cửa hàng', 'so sanh', 'so sánh'])) {
             return $this->handleBranches();
         }
@@ -402,6 +414,118 @@ class AdvisorQueryEngine
         ];
 
         return $this->answer(implode("\n", $lines), 'general');
+    }
+
+    private function handleGoals(): array
+    {
+        $goals = \App\Models\BusinessGoal::query()
+            ->where('restaurant_id', $this->restaurantId)
+            ->where('status', 'active')
+            ->orderBy('end_date')
+            ->limit(5)
+            ->get();
+
+        if ($goals->isEmpty()) {
+            return $this->answer(
+                "🎯 **Mục tiêu & OKR:** Hiện chưa có mục tiêu kinh doanh nào đang chạy. Bạn có thể vào mục **'Mục tiêu & OKR'** trên menu để thiết lập chỉ tiêu doanh thu, tối ưu chi phí hoặc tăng trưởng khách hàng.",
+                'goals'
+            );
+        }
+
+        $lines = ["🎯 **Tiến độ thực hiện Mục tiêu & OKR chiến lược:**\n"];
+        foreach ($goals as $g) {
+            $target = (float) $g->target_value;
+            $current = (float) $g->current_value;
+            $pct = $target > 0 ? min(100, round(($current / $target) * 100, 1)) : 0;
+            $endDate = $g->end_date ? $g->end_date->format('d/m/Y') : 'Không thời hạn';
+            $statusIcon = $pct >= 100 ? '✅' : ($pct >= 70 ? '🟢' : ($pct >= 40 ? '🟡' : '🔴'));
+
+            $unitStr = match ($g->metric_type) {
+                'revenue', 'profit', 'cost' => $this->money($current) . ' / ' . $this->money($target),
+                'order_count' => number_format($current) . ' / ' . number_format($target) . ' đơn',
+                default => number_format($current) . ' / ' . number_format($target),
+            };
+
+            $lines[] = "{$statusIcon} **{$g->title}** [Hạn: {$endDate}]";
+            $lines[] = "   • Đạt được: **{$pct}%** ({$unitStr})";
+        }
+
+        return $this->answer(implode("\n", $lines), 'goals');
+    }
+
+    private function handleExpenses(): array
+    {
+        $startOfMonth = now()->startOfMonth();
+        $endOfMonth = now()->endOfMonth();
+
+        $expenses = (float) \App\Models\OperatingExpense::query()
+            ->where('restaurant_id', $this->restaurantId)
+            ->whereBetween('expense_date', [$startOfMonth, $endOfMonth])
+            ->sum('amount');
+
+        $revenue = (float) Order::query()
+            ->where('restaurant_id', $this->restaurantId)
+            ->where('payment_status', 'paid')
+            ->whereBetween('created_at', [$startOfMonth, $endOfMonth])
+            ->sum('total_amount');
+
+        $categories = \App\Models\OperatingExpense::query()
+            ->select('category_id', DB::raw('SUM(amount) as total'))
+            ->where('restaurant_id', $this->restaurantId)
+            ->whereBetween('expense_date', [$startOfMonth, $endOfMonth])
+            ->groupBy('category_id')
+            ->with('category:id,name')
+            ->orderByDesc('total')
+            ->limit(4)
+            ->get();
+
+        $netProfit = $revenue - $expenses;
+        $profitMargin = $revenue > 0 ? round(($netProfit / $revenue) * 100, 1) : 0;
+
+        $lines = ["💰 **Tình hình tài chính & Chi phí tháng " . now()->format('m/Y') . ":**\n"];
+        $lines[] = "• Doanh thu ghi nhận: **" . $this->money($revenue) . "**";
+        $lines[] = "• Tổng chi phí hoạt động: **" . $this->money($expenses) . "**";
+        $profitIcon = $netProfit >= 0 ? '🟢' : '🔴';
+        $lines[] = "{$profitIcon} Lợi nhuận ước tính: **" . $this->money($netProfit) . "** (Biên lợi nhuận: **{$profitMargin}%**)";
+
+        if ($categories->isNotEmpty()) {
+            $lines[] = "\n**Cơ cấu chi phí lớn nhất:**";
+            foreach ($categories as $cat) {
+                $catName = $cat->category?->name ?? 'Chi phí khác';
+                $lines[] = "• {$catName}: " . $this->money((float) $cat->total);
+            }
+        }
+
+        return $this->answer(implode("\n", $lines), 'finance');
+    }
+
+    private function handleWaste(): array
+    {
+        try {
+            $dashboard = app(WasteAnalyticsService::class)->getDashboard($this->restaurantId, 30);
+            $totalCost = (float) ($dashboard['total_waste_cost'] ?? 0);
+            $ratio = $dashboard['waste_ratio'] ?? 0;
+            $statusLabel = $dashboard['benchmark_label'] ?? '';
+            $topItems = $dashboard['top_ingredients'] ?? [];
+
+            $lines = ["🗑️ **Báo cáo Hao hụt & Lãng phí 30 ngày qua:**\n"];
+            $lines[] = "• Tổng giá trị hao hụt: **" . $this->money($totalCost) . "**";
+            $lines[] = "• Tỷ lệ hao hụt / Doanh thu: **{$ratio}%** ({$statusLabel})";
+
+            if (! empty($topItems)) {
+                $lines[] = "\n**Top mặt hàng hao hụt cao nhất:**";
+                foreach (array_slice($topItems, 0, 5) as $item) {
+                    $name = $item['name'] ?? 'Nguyên liệu';
+                    $cost = (float) ($item['total_cost'] ?? 0);
+                    $lines[] = "• **{$name}**: " . $this->money($cost);
+                }
+                $lines[] = "\n💡 Khuyến nghị: Rà soát lại quy trình bảo quản, định lượng sơ chế để hạ thấp tỷ lệ hao hụt.";
+            }
+
+            return $this->answer(implode("\n", $lines), 'waste');
+        } catch (\Throwable $e) {
+            return $this->answer("📊 Hiện tại chưa phát hiện tỷ lệ hao hụt bất thường nào trong 30 ngày qua.", 'waste');
+        }
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────

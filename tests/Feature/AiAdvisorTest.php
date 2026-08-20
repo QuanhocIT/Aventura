@@ -27,6 +27,8 @@ class AiAdvisorTest extends TestCase
 
     protected User $cashier;
 
+    protected User $warehouseManager;
+
     protected Restaurant $restaurant;
 
     protected RestaurantBranch $branch;
@@ -41,6 +43,7 @@ class AiAdvisorTest extends TestCase
         $ownerRole = Role::firstOrCreate(['name' => 'owner', 'guard_name' => 'web']);
         $managerRole = Role::firstOrCreate(['name' => 'manager', 'guard_name' => 'web']);
         $cashierRole = Role::firstOrCreate(['name' => 'cashier', 'guard_name' => 'web']);
+        $warehouseManagerRole = Role::firstOrCreate(['name' => 'warehouse_manager', 'guard_name' => 'web']);
 
         // Owner setup
         $this->owner = User::factory()->create(['status' => 'active', 'email_verified_at' => now()]);
@@ -65,6 +68,14 @@ class AiAdvisorTest extends TestCase
             'email_verified_at' => now(),
         ]);
         $this->manager->assignRole($managerRole);
+
+        $this->warehouseManager = User::factory()->create([
+            'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
+            'status' => 'active',
+            'email_verified_at' => now(),
+        ]);
+        $this->warehouseManager->assignRole($warehouseManagerRole);
 
         // Cashier setup
         $this->cashier = User::factory()->create([
@@ -178,6 +189,54 @@ class AiAdvisorTest extends TestCase
         ]);
         $response->assertStatus(422);
         $response->assertJsonValidationErrors(['message']);
+    }
+
+    /**
+     * Trợ lý AI Kho Tổng dùng đúng menu, quyền và hồ sơ truy vấn riêng.
+     */
+    public function test_central_warehouse_advisor_is_scoped_to_warehouse_manager(): void
+    {
+        $response = $this->get(route('inventory.central-warehouse.ai-advisor'));
+        $response->assertRedirect(route('login'));
+
+        $response = $this->actingAs($this->warehouseManager)
+            ->get(route('inventory.central-warehouse.ai-advisor'));
+        $response->assertOk();
+
+        $response = $this->actingAs($this->cashier)
+            ->get(route('inventory.central-warehouse.ai-advisor'));
+        $response->assertForbidden();
+
+        $response = $this->actingAs($this->warehouseManager)
+            ->postJson(route('chatbot.advisor-message'), [
+                'message' => 'Kho Tổng còn đủ tồn khả dụng không?',
+                'session_id' => 'warehouse-advisor-test',
+                'mode' => 'central_warehouse',
+            ]);
+
+        $response->assertOk();
+        $response->assertJsonPath('found', true);
+        $this->assertStringContainsString('Kho Tổng', $response->json('answer'));
+        $this->assertDatabaseHas('chatbot_sessions', [
+            'session_id' => 'warehouse-advisor-test',
+            'source' => 'advisor_central_warehouse',
+        ]);
+
+        foreach ([
+            ['Fill rate và OTIF của Kho Tổng trong 30 ngày qua ra sao?', 'performance'],
+            ['Lô hàng nào sắp hết hạn trong 7 ngày tới?', 'expiry'],
+            ['Giá trị tồn kho hiện tại là bao nhiêu?', 'cost'],
+            ['Tác vụ kho nào đang quá hạn?', 'tasks'],
+        ] as $index => [$question, $category]) {
+            $response = $this->actingAs($this->warehouseManager)
+                ->postJson(route('chatbot.advisor-message'), [
+                    'message' => $question,
+                    'session_id' => "warehouse-advisor-intent-{$index}",
+                    'mode' => 'central_warehouse',
+                ]);
+
+            $response->assertOk()->assertJsonPath('category', $category);
+        }
     }
 
     /**
