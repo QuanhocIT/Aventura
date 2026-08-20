@@ -71,6 +71,16 @@ class WarehouseReceivingVoucher extends Model
         return $this->belongsTo(User::class, 'verified_by');
     }
 
+    public function supplier(): BelongsTo
+    {
+        return $this->belongsTo(Supplier::class);
+    }
+
+    public function purchaseOrder(): BelongsTo
+    {
+        return $this->belongsTo(PurchaseOrder::class, 'purchase_order_id');
+    }
+
     public function items(): HasMany
     {
         return $this->hasMany(WarehouseReceivingVoucherItem::class, 'voucher_id');

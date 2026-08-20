@@ -174,7 +174,16 @@ class CentralWarehouseTeamController extends Controller
             'notes' => ['nullable', 'string', 'max:500'],
         ]);
 
-        $staff = User::where('restaurant_id', $user->restaurant_id)->findOrFail($data['staff_user_id']);
+        $centralBranch = $this->warehouseService->getCentralWarehouse($user->restaurant_id);
+        $staff = User::where('restaurant_id', $user->restaurant_id)
+            ->where(function ($query) use ($centralBranch) {
+                if ($centralBranch) {
+                    $query->where('warehouse_branch_id', $centralBranch->id)
+                        ->orWhere('branch_id', $centralBranch->id)
+                        ->orWhereNull('branch_id');
+                }
+            })
+            ->findOrFail($data['staff_user_id']);
 
         abort_unless($staff->hasRole('warehouse_staff'), 422, 'Chỉ có thể gán Trưởng kho cho nhân viên có vai trò warehouse_staff.');
 
@@ -227,7 +236,16 @@ class CentralWarehouseTeamController extends Controller
             'status' => ['required', 'in:active,paused,inactive'],
         ]);
 
-        $staff = User::where('restaurant_id', $user->restaurant_id)->findOrFail($data['staff_user_id']);
+        $centralBranch = $this->warehouseService->getCentralWarehouse($user->restaurant_id);
+        $staff = User::where('restaurant_id', $user->restaurant_id)
+            ->where(function ($query) use ($centralBranch) {
+                if ($centralBranch) {
+                    $query->where('warehouse_branch_id', $centralBranch->id)
+                        ->orWhere('branch_id', $centralBranch->id)
+                        ->orWhereNull('branch_id');
+                }
+            })
+            ->findOrFail($data['staff_user_id']);
         $staff->update(['warehouse_staff_status' => $data['status']]);
 
         AuditLog::log('warehouse_staff_status_updated', 'updated', $staff, null, ['status' => $data['status']]);
@@ -363,6 +381,8 @@ class CentralWarehouseTeamController extends Controller
         $user = $request->user();
         abort_unless($user->canManageWarehouseStaff(), 403, 'Bạn không có quyền duyệt đơn nghỉ phép.');
         abort_unless($leave->restaurant_id === $user->restaurant_id, 403);
+        abort_unless($leave->status === 'pending', 422, 'Đơn nghỉ phép này đã được xử lý trước đó.');
+        abort_if($leave->user_id === $user->id, 422, 'Bạn không thể tự phê duyệt đơn nghỉ phép của chính mình.');
 
         $data = $request->validate([
             'status' => ['required', 'in:approved,rejected'],
@@ -389,7 +409,8 @@ class CentralWarehouseTeamController extends Controller
         $user = $request->user();
         abort_unless($user->canManageWarehouseStaff(), 403);
 
-        $report = $this->kpiService->getTeamKpiReport($user->restaurant_id);
+        $centralBranch = $this->warehouseService->getCentralWarehouse($user->restaurant_id);
+        $report = $this->kpiService->getTeamKpiReport($user->restaurant_id, $centralBranch?->id);
 
         return response()->json([
             'success' => true,

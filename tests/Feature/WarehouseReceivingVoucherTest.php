@@ -4,11 +4,11 @@ namespace Tests\Feature;
 
 use App\Models\Ingredient;
 use App\Models\Inventory;
-use App\Models\InventoryBatch;
 use App\Models\Restaurant;
 use App\Models\RestaurantBranch;
 use App\Models\Unit;
 use App\Models\User;
+use App\Models\WarehouseLocation;
 use App\Models\WarehouseReceivingVoucher;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Spatie\Permission\Models\Role;
@@ -34,9 +34,19 @@ class WarehouseReceivingVoucherTest extends TestCase
         $ingredient = Ingredient::create([
             'restaurant_id' => $restaurant->id,
             'unit_id' => $unit->id,
-            'name' => 'Thịt bò',
+            'name' => 'Thit bo',
             'sku' => 'BEEF-GRN',
             'average_cost' => 100000,
+            'status' => 'active',
+        ]);
+        $location = WarehouseLocation::create([
+            'restaurant_id' => $restaurant->id,
+            'branch_id' => $centralBranch->id,
+            'zone' => 'Khu kho',
+            'rack' => 'A1',
+            'shelf' => '01',
+            'bin' => '01',
+            'location_code' => 'A1-01-01',
             'status' => 'active',
         ]);
         $owner = User::factory()->create(['restaurant_id' => $restaurant->id]);
@@ -61,12 +71,16 @@ class WarehouseReceivingVoucherTest extends TestCase
             'unit_cost' => 120000,
             'lot_number' => 'LOT-GRN-01',
             'expiry_date' => now()->addDays(14)->toDateString(),
+            'location_id' => $location->id,
             'item_status' => 'short',
         ]);
 
         $response = $this->actingAs($owner)->postJson(
             route('warehouse.receiving-vouchers.confirm', $voucher->id),
-            ['notes' => 'Đã đối chiếu biên bản giao nhận.'],
+            [
+                'notes' => 'Da doi chieu bien ban giao nhan.',
+                'quality_status' => 'passed',
+            ],
         );
 
         $response->assertOk();
@@ -77,6 +91,7 @@ class WarehouseReceivingVoucherTest extends TestCase
             'ingredient_id' => $ingredient->id,
             'batch_number' => 'LOT-GRN-01',
             'quantity_remaining' => 8,
+            'location_id' => $location->id,
         ]);
         $this->assertDatabaseHas('inventory_transactions', [
             'source_type' => 'warehouse_receiving_voucher',

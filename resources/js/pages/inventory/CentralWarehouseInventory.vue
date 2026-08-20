@@ -1,24 +1,34 @@
 <script setup lang="ts">
-import { Head, Link } from '@inertiajs/vue3';
+import { Head, Link, useForm } from '@inertiajs/vue3';
 import {
     AlertTriangle,
     Boxes,
     CalendarClock,
+    Check,
     ChevronDown,
     ChevronRight,
     ClipboardList,
+    FileDown,
+    History,
+    LockKeyhole,
+    MinusCircle,
+    PlusCircle,
     PackageCheck,
     PackageSearch,
+    RotateCcw,
     Search,
     ShieldAlert,
     Truck,
+    UnlockKeyhole,
     Warehouse,
+    X,
 } from 'lucide-vue-next';
 import { computed, ref } from 'vue';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import AppLayout from '@/layouts/AppLayout.vue';
 
 defineOptions({ layout: AppLayout });
@@ -34,6 +44,9 @@ type Batch = {
     status: string;
     is_expired: boolean;
     is_expiring_soon: boolean;
+    lock_reason: string | null;
+    recall_note: string | null;
+    locked_at: string | null;
 };
 
 type StockItem = {
@@ -52,21 +65,78 @@ type StockItem = {
     reorder_level: number;
     average_cost: number;
     stock_value: number;
-    status: 'out' | 'low' | 'expiring' | 'locked' | 'normal';
+    status: 'out' | 'low' | 'expired' | 'expiring' | 'locked' | 'normal';
     last_counted_at: string | null;
     batches: Batch[];
+    inventory_id: number | null;
 };
 
 const props = defineProps<{
     centralBranch: { id: number; name: string } | null;
     centralStockItems: StockItem[];
     inventorySummary: Record<string, number>;
+    inventoryActivity: Array<{
+        id: number;
+        ingredient: string | null;
+        unit: string;
+        type: string;
+        direction: 'in' | 'out';
+        quantity: number;
+        unit_cost: number;
+        total_cost: number;
+        reference_code: string | null;
+        notes: string | null;
+        performed_by: string | null;
+        occurred_at: string | null;
+    }>;
+    warehouseLocations: Array<{
+        id: number;
+        location_code: string;
+        zone: string;
+        rack: string | null;
+        shelf: string | null;
+        bin: string | null;
+        is_cold_storage: boolean;
+        is_quarantine: boolean;
+    }>;
+    canManageWarehouse: boolean;
+    canReconcile: boolean;
+    canUnlockBatches: boolean;
 }>();
 
 const search = ref('');
 const statusFilter = ref('all');
 const categoryFilter = ref('all');
 const expandedId = ref<number | null>(null);
+const adjusting = ref<StockItem | null>(null);
+const wasting = ref<StockItem | null>(null);
+const batchAction = ref<{
+    item: StockItem;
+    batch: Batch;
+    action: 'lock' | 'unlock' | 'recall';
+} | null>(null);
+
+const adjustForm = useForm({
+    reconcile_items: [{ ingredient_id: 0, physical_qty: 0 }] as Array<{
+        ingredient_id: number;
+        physical_qty: number;
+    }>,
+    notes: '',
+    is_opening_balance: false,
+});
+
+const wasteForm = useForm({
+    ingredient_id: 0,
+    quantity: 0,
+    waste_category: 'spoilage',
+    notes: '',
+    photo: null as File | null,
+});
+
+const batchForm = useForm({
+    reason: '',
+    note: '',
+});
 
 const categories = computed(() => [
     'all',
@@ -88,7 +158,10 @@ const filteredItems = computed(() => {
                     .filter(Boolean)
                     .join(' ')
                     .toLowerCase()
-                    .includes(query);
+                    .includes(query) ||
+                item.batches.some((batch) =>
+                    batch.batch_number.toLowerCase().includes(query),
+                );
             const matchesStatus =
                 statusFilter.value === 'all' ||
                 item.status === statusFilter.value;
@@ -101,10 +174,11 @@ const filteredItems = computed(() => {
         .sort((a, b) => {
             const priority: Record<string, number> = {
                 out: 0,
-                low: 1,
-                expiring: 2,
-                locked: 3,
-                normal: 4,
+                expired: 1,
+                low: 2,
+                expiring: 3,
+                locked: 4,
+                normal: 5,
             };
 
             return (
@@ -136,6 +210,10 @@ const statusMeta = (status: StockItem['status']) =>
             label: 'Dưới định mức',
             class: 'bg-amber-500/10 text-amber-300 border-amber-500/25',
         },
+        expired: {
+            label: 'CÃ³ lÃ´ háº¿t HSD',
+            class: 'bg-rose-500/10 text-rose-300 border-rose-500/25',
+        },
         expiring: {
             label: 'Sắp hết HSD',
             class: 'bg-orange-500/10 text-orange-300 border-orange-500/25',
@@ -153,6 +231,95 @@ const statusMeta = (status: StockItem['status']) =>
 const toggleExpanded = (id: number) => {
     expandedId.value = expandedId.value === id ? null : id;
 };
+
+const setStatusFilter = (status: string) => {
+    statusFilter.value = status;
+};
+
+const closeActions = () => {
+    adjusting.value = null;
+    wasting.value = null;
+    batchAction.value = null;
+};
+
+const openAdjust = (item: StockItem) => {
+    adjusting.value = item;
+    adjustForm.reconcile_items = [
+        { ingredient_id: item.id, physical_qty: item.on_hand },
+    ];
+    adjustForm.notes = '';
+    adjustForm.is_opening_balance = false;
+};
+
+const submitAdjust = () => {
+    if (!adjusting.value || adjustForm.processing) {
+        return;
+    }
+
+    adjustForm.post('/inventory/reconcile', {
+        preserveScroll: true,
+        onSuccess: closeActions,
+    });
+};
+
+const openWaste = (item: StockItem) => {
+    wasting.value = item;
+    wasteForm.ingredient_id = item.id;
+    wasteForm.quantity = 0;
+    wasteForm.waste_category = 'spoilage';
+    wasteForm.notes = '';
+    wasteForm.photo = null;
+};
+
+const submitWaste = () => {
+    if (!wasting.value || wasteForm.processing) {
+        return;
+    }
+
+    wasteForm.post('/inventory/waste', {
+        preserveScroll: true,
+        forceFormData: true,
+        onSuccess: closeActions,
+    });
+};
+
+const openBatchAction = (
+    item: StockItem,
+    batch: Batch,
+    action: 'lock' | 'unlock' | 'recall',
+) => {
+    batchAction.value = { item, batch, action };
+    batchForm.reset();
+};
+
+const submitBatchAction = () => {
+    if (!batchAction.value || batchForm.processing) {
+        return;
+    }
+
+    const { batch, action } = batchAction.value;
+    const url = `/inventory/batches/${batch.id}/${action}`;
+
+    batchForm.post(url, {
+        preserveScroll: true,
+        onSuccess: closeActions,
+    });
+};
+
+const onWastePhotoChange = (event: Event) => {
+    const input = event.target as HTMLInputElement;
+    wasteForm.photo = input.files?.[0] ?? null;
+};
+
+const activityTypeLabel = (type: string) =>
+    ({
+        purchase: 'Nhập hàng',
+        usage: 'Xuất sử dụng',
+        waste: 'Hao hụt',
+        adjustment: 'Điều chỉnh',
+        stocktake: 'Kiểm kê',
+        return: 'Hoàn trả',
+    })[type] || type;
 </script>
 
 <template>
@@ -293,6 +460,61 @@ const toggleExpanded = (id: number) => {
             >
         </section>
 
+        <section class="grid gap-3 md:grid-cols-3">
+            <button
+                type="button"
+                class="flex items-center justify-between rounded-2xl border border-rose-500/20 bg-rose-500/5 px-4 py-3 text-left transition hover:border-rose-400/50 hover:bg-rose-500/10"
+                @click="setStatusFilter('expired')"
+            >
+                <span>
+                    <span
+                        class="block text-[10px] font-bold tracking-wider text-rose-300 uppercase"
+                        >Lô cần cách ly</span
+                    >
+                    <span class="mt-1 block text-xs text-muted-foreground"
+                        >Đã hết hạn, không được cấp phát</span
+                    >
+                </span>
+                <strong class="text-xl text-rose-200">{{
+                    inventorySummary.expired_batch_count || 0
+                }}</strong>
+            </button>
+            <button
+                type="button"
+                class="flex items-center justify-between rounded-2xl border border-amber-500/20 bg-amber-500/5 px-4 py-3 text-left transition hover:border-amber-400/50 hover:bg-amber-500/10"
+                @click="setStatusFilter('locked')"
+            >
+                <span>
+                    <span
+                        class="block text-[10px] font-bold tracking-wider text-amber-300 uppercase"
+                        >Lô bị khóa / thu hồi</span
+                    >
+                    <span class="mt-1 block text-xs text-muted-foreground"
+                        >Cần xử lý chất lượng hoặc hồ sơ</span
+                    >
+                </span>
+                <strong class="text-xl text-amber-200">{{
+                    inventorySummary.locked_batch_count || 0
+                }}</strong>
+            </button>
+            <div
+                class="flex items-center justify-between rounded-2xl border border-indigo-500/20 bg-indigo-500/5 px-4 py-3"
+            >
+                <span>
+                    <span
+                        class="block text-[10px] font-bold tracking-wider text-indigo-300 uppercase"
+                        >Chênh lệch kiểm kê</span
+                    >
+                    <span class="mt-1 block text-xs text-muted-foreground"
+                        >Tồn lý thuyết trừ tồn thực tế</span
+                    >
+                </span>
+                <strong class="text-xl text-indigo-200">{{
+                    formatQuantity(inventorySummary.variance_quantity)
+                }}</strong>
+            </div>
+        </section>
+
         <Card class="border-border shadow-sm">
             <CardHeader class="border-b border-border bg-muted/20 py-4">
                 <div
@@ -312,6 +534,24 @@ const toggleExpanded = (id: number) => {
                         </p>
                     </div>
                     <div class="flex flex-wrap gap-2">
+                        <Link href="/inventory/count-sessions"
+                            ><Button
+                                variant="outline"
+                                size="sm"
+                                class="gap-1.5 text-xs"
+                                ><ClipboardList class="h-3.5 w-3.5" /> Kiểm
+                                kê</Button
+                            ></Link
+                        >
+                        <Link href="/inventory/transfers"
+                            ><Button
+                                variant="outline"
+                                size="sm"
+                                class="gap-1.5 text-xs"
+                                ><Truck class="h-3.5 w-3.5" /> Điều
+                                chuyển</Button
+                            ></Link
+                        >
                         <Link href="/inventory/central-warehouse/requests"
                             ><Button
                                 variant="outline"
@@ -329,6 +569,18 @@ const toggleExpanded = (id: number) => {
                                 & GRN</Button
                             ></Link
                         >
+                        <a
+                            href="/inventory/central-warehouse/export"
+                            class="inline-flex"
+                        >
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                class="gap-1.5 text-xs"
+                            >
+                                <FileDown class="h-3.5 w-3.5" /> Xuất báo cáo
+                            </Button>
+                        </a>
                     </div>
                 </div>
             </CardHeader>
@@ -349,6 +601,7 @@ const toggleExpanded = (id: number) => {
                         v-model="statusFilter"
                         class="h-9 rounded-md border border-input bg-background px-3 text-xs text-foreground"
                     >
+                        <option value="expired">CÃ³ lÃ´ háº¿t HSD</option>
                         <option value="all">Tất cả trạng thái</option>
                         <option value="out">Hết hàng</option>
                         <option value="low">Dưới định mức</option>
@@ -392,6 +645,7 @@ const toggleExpanded = (id: number) => {
                         >
                             <tr>
                                 <th class="w-8 p-3"></th>
+                                <th class="p-3 text-right">Thao tác</th>
                                 <th class="p-3">Nguyên liệu</th>
                                 <th class="p-3">Trạng thái</th>
                                 <th class="p-3 text-right">Tồn thực</th>
@@ -419,6 +673,29 @@ const toggleExpanded = (id: number) => {
                                             v-else
                                             class="h-4 w-4"
                                         />
+                                    </td>
+                                    <td class="p-3 text-right" @click.stop>
+                                        <div class="flex justify-end gap-1">
+                                            <Button
+                                                v-if="canReconcile"
+                                                size="icon"
+                                                variant="ghost"
+                                                class="size-8 text-indigo-300 hover:bg-indigo-500/10 hover:text-indigo-200"
+                                                title="Kiểm kê nhanh"
+                                                @click="openAdjust(item)"
+                                            >
+                                                <ClipboardList class="size-4" />
+                                            </Button>
+                                            <Button
+                                                size="icon"
+                                                variant="ghost"
+                                                class="size-8 text-rose-300 hover:bg-rose-500/10 hover:text-rose-200"
+                                                title="Ghi hao hụt"
+                                                @click="openWaste(item)"
+                                            >
+                                                <MinusCircle class="size-4" />
+                                            </Button>
+                                        </div>
                                     </td>
                                     <td class="p-3">
                                         <p class="font-bold text-foreground">
@@ -488,7 +765,7 @@ const toggleExpanded = (id: number) => {
                                     v-if="expandedId === item.id"
                                     class="bg-muted/10"
                                 >
-                                    <td colspan="9" class="p-4">
+                                    <td colspan="10" class="p-4">
                                         <div
                                             class="grid gap-4 lg:grid-cols-[0.8fr_1.2fr]"
                                         >
@@ -639,6 +916,123 @@ const toggleExpanded = (id: number) => {
                                                                 }}</span
                                                             >
                                                         </div>
+                                                        <div
+                                                            v-if="
+                                                                batch.lock_reason ||
+                                                                batch.recall_note
+                                                            "
+                                                            class="mt-2 rounded-lg border border-amber-400/20 bg-amber-400/5 px-2.5 py-2 text-[10px] text-amber-100"
+                                                        >
+                                                            <p
+                                                                v-if="
+                                                                    batch.lock_reason
+                                                                "
+                                                            >
+                                                                <strong
+                                                                    >Khóa:</strong
+                                                                >
+                                                                {{
+                                                                    batch.lock_reason
+                                                                }}
+                                                            </p>
+                                                            <p
+                                                                v-if="
+                                                                    batch.recall_note
+                                                                "
+                                                            >
+                                                                <strong
+                                                                    >Thu
+                                                                    hồi:</strong
+                                                                >
+                                                                {{
+                                                                    batch.recall_note
+                                                                }}
+                                                            </p>
+                                                            <p
+                                                                v-if="
+                                                                    batch.locked_at
+                                                                "
+                                                                class="mt-1 text-amber-200/70"
+                                                            >
+                                                                Cập nhật
+                                                                {{
+                                                                    batch.locked_at
+                                                                }}
+                                                            </p>
+                                                        </div>
+                                                        <div
+                                                            class="mt-2 flex flex-wrap gap-1.5"
+                                                        >
+                                                            <Button
+                                                                v-if="
+                                                                    canManageWarehouse &&
+                                                                    [
+                                                                        'active',
+                                                                        'expired',
+                                                                    ].includes(
+                                                                        batch.status,
+                                                                    )
+                                                                "
+                                                                size="sm"
+                                                                variant="outline"
+                                                                class="h-7 gap-1 text-[10px] text-amber-300"
+                                                                @click="
+                                                                    openBatchAction(
+                                                                        item,
+                                                                        batch,
+                                                                        'lock',
+                                                                    )
+                                                                "
+                                                                ><LockKeyhole
+                                                                    class="size-3"
+                                                                />
+                                                                Khóa lô</Button
+                                                            >
+                                                            <Button
+                                                                v-if="
+                                                                    canManageWarehouse &&
+                                                                    batch.status !==
+                                                                        'recalled' &&
+                                                                    batch.status !==
+                                                                        'depleted'
+                                                                "
+                                                                size="sm"
+                                                                variant="outline"
+                                                                class="h-7 gap-1 text-[10px] text-rose-300"
+                                                                @click="
+                                                                    openBatchAction(
+                                                                        item,
+                                                                        batch,
+                                                                        'recall',
+                                                                    )
+                                                                "
+                                                                ><RotateCcw
+                                                                    class="size-3"
+                                                                />
+                                                                Thu hồi</Button
+                                                            >
+                                                            <Button
+                                                                v-if="
+                                                                    canUnlockBatches &&
+                                                                    batch.status ===
+                                                                        'locked'
+                                                                "
+                                                                size="sm"
+                                                                variant="outline"
+                                                                class="h-7 gap-1 text-[10px] text-emerald-300"
+                                                                @click="
+                                                                    openBatchAction(
+                                                                        item,
+                                                                        batch,
+                                                                        'unlock',
+                                                                    )
+                                                                "
+                                                                ><UnlockKeyhole
+                                                                    class="size-3"
+                                                                />
+                                                                Mở khóa</Button
+                                                            >
+                                                        </div>
                                                         <p
                                                             class="mt-2 text-muted-foreground"
                                                         >
@@ -705,5 +1099,375 @@ const toggleExpanded = (id: number) => {
                 </div>
             </CardContent>
         </Card>
+        <section class="grid gap-5 xl:grid-cols-[1.35fr_0.65fr]">
+            <Card class="border-border shadow-sm">
+                <CardHeader class="border-b border-border bg-muted/20 py-4">
+                    <CardTitle class="flex items-center gap-2 text-base">
+                        <History class="size-5 text-indigo-300" /> Biến động tồn
+                        kho gần đây
+                    </CardTitle>
+                    <p class="text-xs text-muted-foreground">
+                        Các giao dịch tại Kho Tổng, dùng để truy vết trước khi
+                        điều chỉnh hoặc kiểm kê.
+                    </p>
+                </CardHeader>
+                <CardContent class="p-0">
+                    <div
+                        v-if="!inventoryActivity.length"
+                        class="p-8 text-center text-sm text-muted-foreground"
+                    >
+                        Chưa có biến động tồn kho.
+                    </div>
+                    <div v-else class="divide-y divide-border">
+                        <div
+                            v-for="activity in inventoryActivity.slice(0, 12)"
+                            :key="activity.id"
+                            class="flex flex-wrap items-center gap-3 px-4 py-3 text-xs"
+                        >
+                            <span
+                                class="flex size-8 shrink-0 items-center justify-center rounded-full"
+                                :class="
+                                    activity.direction === 'in'
+                                        ? 'bg-emerald-500/10 text-emerald-300'
+                                        : 'bg-rose-500/10 text-rose-300'
+                                "
+                            >
+                                <PlusCircle
+                                    v-if="activity.direction === 'in'"
+                                    class="size-4"
+                                /><MinusCircle v-else class="size-4" />
+                            </span>
+                            <div class="min-w-[150px] flex-1">
+                                <p class="font-bold text-foreground">
+                                    {{ activity.ingredient || 'Nguyên liệu' }}
+                                </p>
+                                <p
+                                    class="mt-0.5 text-[10px] text-muted-foreground"
+                                >
+                                    {{ activityTypeLabel(activity.type) }} ·
+                                    {{ activity.occurred_at || '—' }} ·
+                                    {{ activity.performed_by || 'Hệ thống' }}
+                                </p>
+                            </div>
+                            <span
+                                class="font-black"
+                                :class="
+                                    activity.direction === 'in'
+                                        ? 'text-emerald-300'
+                                        : 'text-rose-300'
+                                "
+                                >{{ activity.direction === 'in' ? '+' : '-'
+                                }}{{ formatQuantity(activity.quantity) }}
+                                {{ activity.unit }}</span
+                            >
+                            <span
+                                class="max-w-[280px] truncate text-[10px] text-muted-foreground"
+                                :title="activity.notes || undefined"
+                                >{{
+                                    activity.reference_code ||
+                                    activity.notes ||
+                                    '—'
+                                }}</span
+                            >
+                        </div>
+                    </div>
+                </CardContent>
+            </Card>
+            <Card class="border-border shadow-sm">
+                <CardHeader class="border-b border-border bg-muted/20 py-4"
+                    ><CardTitle class="flex items-center gap-2 text-base"
+                        ><Warehouse class="size-5 text-sky-300" /> Năng lực lưu
+                        trữ</CardTitle
+                    ></CardHeader
+                >
+                <CardContent class="space-y-3 p-4 text-xs">
+                    <div
+                        class="flex items-center justify-between rounded-xl bg-muted/30 p-3"
+                    >
+                        <span class="text-muted-foreground"
+                            >Vị trí đang dùng</span
+                        ><strong class="text-foreground">{{
+                            warehouseLocations.length
+                        }}</strong>
+                    </div>
+                    <div
+                        class="flex items-center justify-between rounded-xl bg-muted/30 p-3"
+                    >
+                        <span class="text-muted-foreground">Kho lạnh</span
+                        ><strong class="text-sky-300">{{
+                            warehouseLocations.filter(
+                                (location) => location.is_cold_storage,
+                            ).length
+                        }}</strong>
+                    </div>
+                    <div
+                        class="flex items-center justify-between rounded-xl bg-rose-500/5 p-3"
+                    >
+                        <span class="text-muted-foreground">Vị trí cách ly</span
+                        ><strong class="text-rose-300">{{
+                            warehouseLocations.filter(
+                                (location) => location.is_quarantine,
+                            ).length
+                        }}</strong>
+                    </div>
+                    <p class="pt-1 leading-5 text-muted-foreground">
+                        Khi nhập hàng hoặc soạn cấp phát, hãy chọn đúng vị trí
+                        lưu trữ và tách riêng hàng cách ly/hàng lỗi để tránh
+                        cộng nhầm vào tồn khả dụng.
+                    </p>
+                </CardContent>
+            </Card>
+        </section>
+    </div>
+    <div
+        v-if="adjusting || wasting || batchAction"
+        class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur-sm"
+        @click.self="closeActions"
+    >
+        <div
+            class="max-h-[92vh] w-full max-w-lg overflow-y-auto rounded-3xl border border-border bg-background p-5 shadow-2xl sm:p-6"
+        >
+            <template v-if="adjusting">
+                <div class="mb-5 flex items-start justify-between gap-3">
+                    <div>
+                        <p
+                            class="text-[10px] font-bold tracking-wider text-indigo-400 uppercase"
+                        >
+                            Kiểm kê nhanh
+                        </p>
+                        <h2 class="mt-1 text-xl font-black">
+                            Đối chiếu {{ adjusting.name }}
+                        </h2>
+                        <p class="mt-1 text-xs text-muted-foreground">
+                            Tồn hệ thống:
+                            {{ formatQuantity(adjusting.on_hand) }}
+                            {{ adjusting.unit_symbol }} · Tồn lý thuyết:
+                            {{ formatQuantity(adjusting.theoretical) }}
+                            {{ adjusting.unit_symbol }}
+                        </p>
+                    </div>
+                    <Button variant="ghost" size="icon" @click="closeActions"
+                        ><X class="size-4"
+                    /></Button>
+                </div>
+                <form class="space-y-4" @submit.prevent="submitAdjust">
+                    <div
+                        class="rounded-xl border border-indigo-400/20 bg-indigo-950/20 p-3 text-xs text-indigo-100"
+                    >
+                        Kiểm kê nhanh sẽ ghi nhận lại tồn thực tế và tạo giao
+                        dịch kiểm kê. Nếu chênh lệch lớn, hệ thống vẫn lưu audit
+                        để truy vết.
+                    </div>
+                    <div class="flex flex-col gap-1.5">
+                        <Label>Số lượng thực tế</Label
+                        ><Input
+                            v-model="adjustForm.reconcile_items[0].physical_qty"
+                            type="number"
+                            min="0"
+                            step="0.001"
+                            required
+                        />
+                        <p class="text-[11px] text-muted-foreground">
+                            Đơn vị: {{ adjusting.unit_symbol }}
+                        </p>
+                    </div>
+                    <div class="flex flex-col gap-1.5">
+                        <Label>Ghi chú kiểm kê</Label
+                        ><textarea
+                            v-model="adjustForm.notes"
+                            rows="3"
+                            class="rounded-md border border-input bg-background px-3 py-2 text-sm"
+                            placeholder="Vị trí kiểm, nguyên nhân chênh lệch, người chứng kiến..."
+                        />
+                    </div>
+                    <div class="flex justify-end gap-2">
+                        <Button
+                            type="button"
+                            variant="outline"
+                            @click="closeActions"
+                            >Hủy</Button
+                        ><Button
+                            type="submit"
+                            :disabled="adjustForm.processing"
+                            class="bg-indigo-600 font-bold text-white hover:bg-indigo-700"
+                            ><Check class="size-4" /> Ghi nhận kiểm kê</Button
+                        >
+                    </div>
+                </form>
+            </template>
+
+            <template v-else-if="wasting">
+                <div class="mb-5 flex items-start justify-between gap-3">
+                    <div>
+                        <p
+                            class="text-[10px] font-bold tracking-wider text-rose-400 uppercase"
+                        >
+                            Kiểm soát hao hụt
+                        </p>
+                        <h2 class="mt-1 text-xl font-black">
+                            Ghi hao hụt · {{ wasting.name }}
+                        </h2>
+                        <p class="mt-1 text-xs text-muted-foreground">
+                            Tồn khả dụng hiện tại:
+                            {{ formatQuantity(wasting.available) }}
+                            {{ wasting.unit_symbol }}
+                        </p>
+                    </div>
+                    <Button variant="ghost" size="icon" @click="closeActions"
+                        ><X class="size-4"
+                    /></Button>
+                </div>
+                <form class="space-y-4" @submit.prevent="submitWaste">
+                    <div class="flex flex-col gap-1.5">
+                        <Label>Số lượng hao hụt</Label
+                        ><Input
+                            v-model="wasteForm.quantity"
+                            type="number"
+                            min="0.001"
+                            step="0.001"
+                            :max="wasting.available"
+                            required
+                        />
+                        <p
+                            v-if="wasteForm.errors.quantity"
+                            class="text-xs text-rose-500"
+                        >
+                            {{ wasteForm.errors.quantity }}
+                        </p>
+                    </div>
+                    <div class="flex flex-col gap-1.5">
+                        <Label>Nguyên nhân</Label
+                        ><select
+                            v-model="wasteForm.waste_category"
+                            class="h-10 rounded-md border border-input bg-background px-3 text-sm"
+                        >
+                            <option value="spoilage">Hư hỏng</option>
+                            <option value="expired">Hết hạn</option>
+                            <option value="damaged">Hàng lỗi</option>
+                            <option value="cooking_loss">
+                                Hao hụt chế biến
+                            </option>
+                            <option value="theft">Thất thoát</option>
+                            <option value="other">Khác</option>
+                        </select>
+                    </div>
+                    <div class="flex flex-col gap-1.5">
+                        <Label>Biên bản / ghi chú</Label
+                        ><textarea
+                            v-model="wasteForm.notes"
+                            rows="3"
+                            class="rounded-md border border-input bg-background px-3 py-2 text-sm"
+                            placeholder="Bắt buộc ghi rõ khi chọn nguyên nhân Khác..."
+                        />
+                    </div>
+                    <div class="flex flex-col gap-1.5">
+                        <Label>Ảnh bằng chứng bắt buộc</Label
+                        ><Input
+                            type="file"
+                            accept="image/*"
+                            required
+                            @change="onWastePhotoChange"
+                        />
+                    </div>
+                    <div class="flex justify-end gap-2">
+                        <Button
+                            type="button"
+                            variant="outline"
+                            @click="closeActions"
+                            >Hủy</Button
+                        ><Button
+                            type="submit"
+                            :disabled="wasteForm.processing"
+                            class="bg-rose-600 font-bold text-white hover:bg-rose-700"
+                            ><MinusCircle class="size-4" /> Gửi ghi nhận hao
+                            hụt</Button
+                        >
+                    </div>
+                </form>
+            </template>
+
+            <template v-else-if="batchAction">
+                <div class="mb-5 flex items-start justify-between gap-3">
+                    <div>
+                        <p
+                            class="text-[10px] font-bold tracking-wider text-amber-400 uppercase"
+                        >
+                            Quản trị lô hàng
+                        </p>
+                        <h2 class="mt-1 text-xl font-black">
+                            {{
+                                batchAction.action === 'lock'
+                                    ? 'Khóa lô'
+                                    : batchAction.action === 'recall'
+                                      ? 'Yêu cầu thu hồi lô'
+                                      : 'Mở khóa lô'
+                            }}
+                        </h2>
+                        <p class="mt-1 text-xs text-muted-foreground">
+                            {{ batchAction.item.name }} ·
+                            {{ batchAction.batch.batch_number }} · còn
+                            {{
+                                formatQuantity(
+                                    batchAction.batch.quantity_remaining,
+                                )
+                            }}
+                            {{ batchAction.item.unit_symbol }}
+                        </p>
+                    </div>
+                    <Button variant="ghost" size="icon" @click="closeActions"
+                        ><X class="size-4"
+                    /></Button>
+                </div>
+                <form class="space-y-4" @submit.prevent="submitBatchAction">
+                    <div
+                        class="rounded-xl border border-amber-400/20 bg-amber-950/20 p-3 text-xs text-amber-100"
+                    >
+                        {{
+                            batchAction.action === 'unlock'
+                                ? 'Mở khóa sẽ đưa lô về trạng thái có thể được FEFO sử dụng. Chỉ Owner/Super Admin được thực hiện.'
+                                : 'Thao tác này ảnh hưởng trực tiếp đến khả năng xuất dùng của lô và được ghi vào audit log.'
+                        }}
+                    </div>
+                    <div
+                        v-if="batchAction.action === 'lock'"
+                        class="flex flex-col gap-1.5"
+                    >
+                        <Label>Lý do khóa lô</Label
+                        ><textarea
+                            v-model="batchForm.reason"
+                            rows="4"
+                            required
+                            class="rounded-md border border-input bg-background px-3 py-2 text-sm"
+                            placeholder="Ví dụ: nghi ngờ chất lượng, chờ kiểm nghiệm..."
+                        />
+                    </div>
+                    <div
+                        v-if="batchAction.action === 'recall'"
+                        class="flex flex-col gap-1.5"
+                    >
+                        <Label>Ghi chú thu hồi</Label
+                        ><textarea
+                            v-model="batchForm.note"
+                            rows="4"
+                            class="rounded-md border border-input bg-background px-3 py-2 text-sm"
+                            placeholder="Nhà cung cấp, số biên bản, hướng xử lý..."
+                        />
+                    </div>
+                    <div class="flex justify-end gap-2">
+                        <Button
+                            type="button"
+                            variant="outline"
+                            @click="closeActions"
+                            >Hủy</Button
+                        ><Button
+                            type="submit"
+                            :disabled="batchForm.processing"
+                            class="bg-amber-600 font-bold text-white hover:bg-amber-700"
+                            >Xác nhận thao tác</Button
+                        >
+                    </div>
+                </form>
+            </template>
+        </div>
     </div>
 </template>

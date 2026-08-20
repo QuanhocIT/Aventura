@@ -594,6 +594,8 @@ const confirmReceivingVoucher = async (voucher: any) => {
     try {
         const res = await axios.post(`/api/warehouse/receiving-vouchers/${voucher.id}/confirm`, {
             notes: 'Đã được Trưởng kho Tổng xác minh trên cockpit.',
+            quality_status: 'passed',
+            quality_notes: 'Đã xác minh trên cockpit.',
         });
         toast.success(res.data.message || 'Đã xác minh phiếu nhập.');
         router.reload();

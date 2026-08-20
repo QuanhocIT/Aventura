@@ -30,13 +30,10 @@ class CentralWarehouseStaffKpiService
         $totalTasks = $tasks->count();
         $completedTasks = $tasks->where('status', 'completed');
         $completedCount = $completedTasks->count();
-        $completionRate = $totalTasks > 0 ? round(($completedCount / $totalTasks) * 100, 1) : 100.0;
 
         $onTimeCount = $completedTasks->filter(function ($task) {
             return ! $task->due_at || ($task->completed_at && $task->completed_at->lte($task->due_at));
         })->count();
-
-        $onTimeRate = $completedCount > 0 ? round(($onTimeCount / $completedCount) * 100, 1) : 100.0;
 
         // 2. Thời gian hoàn thành nhiệm vụ trung bình (phút)
         $totalMinutes = 0;
@@ -61,7 +58,6 @@ class CentralWarehouseStaffKpiService
         $discrepantVouchers = $vouchers->filter(function ($v) {
             return $v->status === 'discrepancy' || $v->items->contains(fn ($i) => (float) $i->received_quantity !== (float) $i->expected_quantity);
         })->count();
-        $discrepancyRate = $totalVouchers > 0 ? round(($discrepantVouchers / $totalVouchers) * 100, 1) : 0.0;
 
         // 4. Số lần báo sự cố / vi phạm bị ghi nhận
         $incidentsCount = OperationalInfringementReport::where('restaurant_id', $restaurantId)
@@ -77,34 +73,58 @@ class CentralWarehouseStaffKpiService
 
         $totalHandovers = $handovers->count();
         $verifiedHandovers = $handovers->where('status', 'completed')->count();
-        $handoverComplianceRate = $totalHandovers > 0 ? round(($verifiedHandovers / $totalHandovers) * 100, 1) : 100.0;
+
+        // Đánh giá dữ liệu phát sinh
+        $hasTaskData = $totalTasks > 0;
+        $hasVoucherData = $totalVouchers > 0;
+        $hasHandoverData = $totalHandovers > 0;
+        $hasActivity = $hasTaskData || $hasVoucherData || $hasHandoverData || $incidentsCount > 0;
+
+        $completionRate = $hasTaskData ? round(($completedCount / $totalTasks) * 100, 1) : null;
+        $onTimeRate = ($hasTaskData && $completedCount > 0) ? round(($onTimeCount / $completedCount) * 100, 1) : null;
+        $discrepancyRate = $hasVoucherData ? round(($discrepantVouchers / $totalVouchers) * 100, 1) : null;
+        $handoverComplianceRate = $hasHandoverData ? round(($verifiedHandovers / $totalHandovers) * 100, 1) : null;
 
         // 6. Điểm KPI tổng hợp (Composite KPI Score - Thang điểm 100)
-        // Công thức: Completion (30%) + OnTime (30%) + LowDiscrepancy (15%) + Handover (15%) + IncidentDeduction (10%)
-        $discrepancyScore = max(0, 100 - ($discrepancyRate * 2));
-        $incidentScore = max(0, 100 - ($incidentsCount * 15));
+        if (! $hasActivity) {
+            $compositeScore = null;
+            $dataStatus = 'insufficient_data';
+            $statusLabel = 'Chưa đủ dữ liệu';
+        } else {
+            $dataStatus = 'sufficient_data';
+            $statusLabel = 'Đã có dữ liệu';
 
-        $compositeScore = round(
-            ($completionRate * 0.30) +
-            ($onTimeRate * 0.30) +
-            ($discrepancyScore * 0.15) +
-            ($handoverComplianceRate * 0.15) +
-            ($incidentScore * 0.10),
-            1
-        );
+            $taskScore = $completionRate ?? 100.0;
+            $timeScore = $onTimeRate ?? 100.0;
+            $discrepancyScore = $discrepancyRate !== null ? max(0, 100 - ($discrepancyRate * 2)) : 100.0;
+            $handoverScore = $handoverComplianceRate ?? 100.0;
+            $incidentScore = max(0, 100 - ($incidentsCount * 15));
+
+            $compositeScore = round(
+                ($taskScore * 0.30) +
+                ($timeScore * 0.30) +
+                ($discrepancyScore * 0.15) +
+                ($handoverScore * 0.15) +
+                ($incidentScore * 0.10),
+                1
+            );
+        }
 
         return [
-            'staff_user_id' => $staffUserId,
-            'total_tasks' => $totalTasks,
-            'completed_tasks' => $completedCount,
-            'completion_rate' => $completionRate,
-            'on_time_rate' => $onTimeRate,
-            'avg_duration_minutes' => $avgDurationMinutes,
+            'staff_user_id'            => $staffUserId,
+            'has_enough_data'          => $hasActivity,
+            'data_status'              => $dataStatus,
+            'status_label'             => $statusLabel,
+            'total_tasks'              => $totalTasks,
+            'completed_tasks'          => $completedCount,
+            'completion_rate'          => $completionRate,
+            'on_time_rate'             => $onTimeRate,
+            'avg_duration_minutes'     => $avgDurationMinutes,
             'total_receiving_vouchers' => $totalVouchers,
-            'discrepancy_rate' => $discrepancyRate,
-            'incidents_count' => $incidentsCount,
+            'discrepancy_rate'         => $discrepancyRate,
+            'incidents_count'          => $incidentsCount,
             'handover_compliance_rate' => $handoverComplianceRate,
-            'composite_score' => $compositeScore,
+            'composite_score'          => $compositeScore,
         ];
     }
 
@@ -126,23 +146,33 @@ class CentralWarehouseStaffKpiService
             $kpi = $this->calculateStaffKpi($restaurantId, $staff->id, $startDate, $endDate);
 
             return array_merge([
-                'id' => $staff->id,
-                'name' => $staff->name,
-                'email' => $staff->email,
-                'phone' => $staff->phone,
-                'avatar_url' => $staff->avatar_url,
-                'supervisor_name' => $staff->supervisor?->name ?? 'Chưa bổ nhiệm',
-                'warehouse_branch_name' => $staff->warehouseBranch?->name ?? 'Kho Tổng',
+                'id'                     => $staff->id,
+                'name'                   => $staff->name,
+                'email'                  => $staff->email,
+                'phone'                  => $staff->phone,
+                'avatar_url'             => $staff->avatar_url,
+                'supervisor_name'        => $staff->supervisor?->name ?? 'Chưa bổ nhiệm',
+                'warehouse_branch_name'  => $staff->warehouseBranch?->name ?? 'Kho Tổng',
                 'warehouse_staff_status' => $staff->warehouse_staff_status ?? 'active',
             ], $kpi);
         });
 
-        // Sắp xếp theo điểm KPI từ cao xuống thấp để xếp hạng
-        $sorted = $report->sortByDesc('composite_score')->values();
+        // Sắp xếp: Ưu tiên người có dữ liệu và điểm cao lên trước, người chưa có dữ liệu xếp sau
+        $withData = $report->filter(fn ($item) => $item['has_enough_data'])->sortByDesc('composite_score')->values();
+        $noData = $report->filter(fn ($item) => ! $item['has_enough_data'])->values();
 
-        return $sorted->map(function ($item, $index) {
+        $rankedWithData = $withData->map(function ($item, $index) {
             $item['rank'] = $index + 1;
+            $item['rank_display'] = '#' . ($index + 1);
             return $item;
         });
+
+        $unrankedNoData = $noData->map(function ($item) {
+            $item['rank'] = null;
+            $item['rank_display'] = 'Chưa xếp hạng';
+            return $item;
+        });
+
+        return $rankedWithData->concat($unrankedNoData);
     }
 }

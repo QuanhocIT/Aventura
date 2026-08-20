@@ -42,6 +42,11 @@ class InventoryBatch extends Model
         return $this->belongsTo(Supplier::class);
     }
 
+    public function location(): BelongsTo
+    {
+        return $this->belongsTo(WarehouseLocation::class, 'location_id');
+    }
+
     public function allocations(): HasMany
     {
         return $this->hasMany(InventoryBatchAllocation::class, 'inventory_batch_id');
@@ -59,6 +64,31 @@ class InventoryBatch extends Model
         return $query->where('status', 'active')
             ->whereNotNull('expiry_date')
             ->where('expiry_date', '<', now()->toDateString());
+    }
+
+    protected static function booted(): void
+    {
+        static::saving(function (InventoryBatch $batch) {
+            $code = $batch->batch_code ?: $batch->batch_number;
+            if ($code) {
+                if (empty($batch->batch_code)) {
+                    $batch->batch_code = $code;
+                }
+                if (empty($batch->batch_number)) {
+                    $batch->batch_number = $code;
+                }
+            }
+        });
+    }
+
+    public function getBatchCodeAttribute(): ?string
+    {
+        return $this->attributes['batch_code'] ?? $this->attributes['batch_number'] ?? null;
+    }
+
+    public function getBatchNumberAttribute(): ?string
+    {
+        return $this->attributes['batch_number'] ?? $this->attributes['batch_code'] ?? null;
     }
 
     public function isExpired(): bool

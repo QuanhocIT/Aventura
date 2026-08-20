@@ -65,7 +65,11 @@ class CentralKitchenController extends Controller
     public function storeBom(Request $request): JsonResponse
     {
         $user = $request->user();
-        abort_unless($user->isOwner() || $user->isSuperAdmin(), 403, 'Chá»‰ Chá»§ doanh nghiá»‡p má»›i Ä‘Æ°á»£c thiáº¿t láº­p Ä‘á»‹nh má»©c BOM vÃ  giÃ¡ vá»‘n sÆ¡ cháº¿.');
+        abort_unless(
+            $user->isOwner() || $user->isSuperAdmin() || $user->hasRole('warehouse_manager') || $user->can('warehouse.manage'),
+            403,
+            'Bạn không có quyền thiết lập định mức BOM sơ chế.'
+        );
         $validated = $request->validate([
             'name'                    => 'required|string|max:255',
             'output_ingredient_id'   => 'required|integer',

@@ -23,12 +23,19 @@ class BatchRecallService
             // 1. Lock batch at system level
             $batch->update(['status' => 'recalled']);
 
-            // 2. Count affected branches holding this batch code
+            // 2. Count affected branches holding this batch code or number
+            $batchCode = $batch->batch_code ?: $batch->batch_number;
             $affectedBatches = InventoryBatch::where('restaurant_id', $restaurantId)
-                ->where('batch_code', $batch->batch_code)
+                ->where(function ($query) use ($batch, $batchCode) {
+                    $query->where('id', $batch->id);
+                    if ($batchCode) {
+                        $query->orWhere('batch_code', $batchCode)
+                              ->orWhere('batch_number', $batchCode);
+                    }
+                })
                 ->get();
 
-            $affectedBranchesCount = $affectedBatches->pluck('branch_id')->unique()->count();
+            $affectedBranchesCount = $affectedBatches->pluck('branch_id')->filter()->unique()->count();
             $totalQuarantinedQty   = (float) $affectedBatches->sum('quantity_remaining');
 
             // Lock all matching batches across branches
