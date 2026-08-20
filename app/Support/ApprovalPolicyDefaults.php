@@ -53,7 +53,13 @@ final class ApprovalPolicyDefaults
             'manager_limit_amount' => 1_000_000,
             'manager_daily_limit' => 3_000_000,
         ],
-        'inventory_stocktake' => ['manager_can_approve' => true],
+        // ── [SECURITY P1] Kiểm kê kho có giới hạn — Quản lý chỉ được duyệt đến 2 triệu ────
+        // Chênh lệch lớn hơn leo thang lên Chủ tự động.
+        'inventory_stocktake' => [
+            'manager_can_approve'  => true,
+            'manager_limit_amount' => 2_000_000,  // chênh lệch theo giá vốn
+            'manager_daily_limit'  => 5_000_000,
+        ],
         'inventory_create' => ['manager_can_approve' => true],
         'inventory_update' => ['manager_can_approve' => true],
         'inventory_recipe_save' => ['manager_can_approve' => false],

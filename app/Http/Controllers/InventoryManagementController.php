@@ -583,7 +583,7 @@ class InventoryManagementController extends Controller
      */
     public function storeIngredient(Request $request): RedirectResponse
     {
-        abort_unless($request->user()->hasAnyRole(['owner', 'manager']), 403);
+        abort_unless($request->user()->hasAnyRole(['owner', 'manager', 'warehouse_manager']), 403);
 
         $user = $request->user();
         $branchId = $this->requireActiveBranch($request);
@@ -639,7 +639,7 @@ class InventoryManagementController extends Controller
      */
     public function updateIngredient(Request $request, $id): RedirectResponse
     {
-        abort_unless($request->user()->hasAnyRole(['owner', 'manager']), 403);
+        abort_unless($request->user()->hasAnyRole(['owner', 'manager', 'warehouse_manager']), 403);
 
         $user = $request->user();
         $branchId = $this->requireActiveBranch($request);
@@ -709,7 +709,7 @@ class InventoryManagementController extends Controller
      */
     public function deleteIngredient(Request $request, $id): RedirectResponse
     {
-        abort_unless($request->user()->hasAnyRole(['owner', 'manager']), 403);
+        abort_unless($request->user()->hasAnyRole(['owner', 'manager', 'warehouse_manager']), 403);
 
         $user = $request->user();
         $branchId = $this->requireActiveBranch($request);
@@ -1024,34 +1024,50 @@ class InventoryManagementController extends Controller
             ->keyBy('ingredient_id');
 
         // Fix N+1: Pre-load total usages in the last 30 days grouped by ingredient_id
-        $totalUsages = InventoryTransaction::where('restaurant_id', $restaurantId)
+        $usageStats = InventoryTransaction::where('restaurant_id', $restaurantId)
             ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
-            ->where('type', 'usage')
             ->where('direction', 'out')
+            ->whereIn('type', ['usage', 'order_deduction', 'waste', 'production'])
             ->where('occurred_at', '>=', $thirtyDaysAgo)
             ->groupBy('ingredient_id')
-            ->selectRaw('ingredient_id, SUM(quantity) as total_qty')
-            ->pluck('total_qty', 'ingredient_id');
+            ->selectRaw('ingredient_id, SUM(quantity) as total_qty, COUNT(DISTINCT DATE(occurred_at)) as active_days')
+            ->get()
+            ->keyBy('ingredient_id');
 
-        $forecast = $ingredients->map(function ($ing) use ($inventories, $totalUsages) {
-            $totalUsage = (float) ($totalUsages[$ing->id] ?? 0.0);
-            $avgDailyUsage = $totalUsage / 30.0;
-
-            if ($avgDailyUsage <= 0) {
-                $avgDailyUsage = (float) rand(50, 150);
-            }
-
+        $forecast = $ingredients->map(function ($ing) use ($inventories, $usageStats) {
+            $stat = $usageStats->get($ing->id);
+            $totalUsage = $stat ? (float) $stat->total_qty : 0.0;
+            $activeDays = $stat ? (int) $stat->active_days : 0;
             $inventory = $inventories->get($ing->id);
             $currentStock = $inventory ? (float) $inventory->quantity_on_hand : 0.0;
-            $predictedUsageNext7Days = round($avgDailyUsage * 7 * 1.1, 2);
-            $suggestedPurchase = max(0.0, round($predictedUsageNext7Days - $currentStock, 2));
+            $minStock = (float) $ing->min_stock_level;
 
-            if ($suggestedPurchase < 1) {
-                $suggestedPurchase = round(rand(100, 300), 2);
+            if ($activeDays < 2 || $totalUsage <= 0) {
+                $suggested = max(0.0, round($minStock - $currentStock, 2));
+
+                return [
+                    'ingredient_id' => $ing->id,
+                    'ingredient_name' => $ing->name,
+                    'sku' => $ing->sku,
+                    'unit_symbol' => $ing->unit?->symbol ?? 'đv',
+                    'current_stock' => $currentStock,
+                    'min_stock_level' => $minStock,
+                    'avg_daily_usage' => 0.0,
+                    'predicted_usage_next_7_days' => 0.0,
+                    'suggested_purchase' => $suggested,
+                    'confidence_score' => null,
+                    'data_status' => 'insufficient_data',
+                    'reason' => 'Chưa đủ dữ liệu tiêu thụ lịch sử trong 30 ngày qua để dự báo xu hướng.',
+                ];
             }
 
-            $reason = "Dựa trên lịch sử tiêu thụ Phở bò tăng mạnh 12% vào thứ 7 và CN. Tồn kho hiện tại ({$currentStock} ".($ing->unit?->symbol ?? '').') sắp chạm ngưỡng tối thiểu. [Nguồn: Laravel Fallback]';
-            $confidenceScore = round(92.0 + (rand(0, 70) / 10), 1);
+            $avgDailyUsage = round($totalUsage / 30.0, 2);
+            $predictedUsageNext7Days = round($avgDailyUsage * 7 * 1.05, 2);
+            $leadTimeDays = (int) ($ing->lead_time_days ?? 2);
+            $bufferSafetyStock = round($avgDailyUsage * $leadTimeDays, 2);
+            $suggestedPurchase = max(0.0, round(($predictedUsageNext7Days + $bufferSafetyStock + $minStock) - $currentStock, 2));
+            $confidenceScore = min(95.0, round(50.0 + ($activeDays / 30.0 * 45.0), 1));
+            $reason = "Dự báo dựa trên mức tiêu thụ trung bình {$avgDailyUsage} {$ing->unit?->symbol}/ngày ({$activeDays} ngày có phát sinh xuất kho 30 ngày qua).";
 
             return [
                 'ingredient_id' => $ing->id,
@@ -1059,11 +1075,12 @@ class InventoryManagementController extends Controller
                 'sku' => $ing->sku,
                 'unit_symbol' => $ing->unit?->symbol ?? 'đv',
                 'current_stock' => $currentStock,
-                'min_stock_level' => (float) $ing->min_stock_level,
-                'avg_daily_usage' => round($avgDailyUsage, 2),
+                'min_stock_level' => $minStock,
+                'avg_daily_usage' => $avgDailyUsage,
                 'predicted_usage_next_7_days' => $predictedUsageNext7Days,
                 'suggested_purchase' => $suggestedPurchase,
                 'confidence_score' => $confidenceScore,
+                'data_status' => 'normal',
                 'reason' => $reason,
             ];
         });
@@ -1194,10 +1211,34 @@ class InventoryManagementController extends Controller
         $user = $request->user();
 
         if (! $user->isOwner() && ! $user->isSuperAdmin()) {
-            $this->approvalService->submitRequest('inventory_stocktake', array_merge($data, ['branch_id' => $branchId]), $user);
+            // [SECURITY P1] Tính tổng giá trị chênh lệch để ApprovalService kiểm tra hạn mức.
+            $discrepancyCost = 0.0;
+            foreach ($data['reconcile_items'] as $item) {
+                $ingredient = \App\Models\Ingredient::where('restaurant_id', $user->restaurant_id)
+                    ->where('id', $item['ingredient_id'])
+                    ->first();
+                if ($ingredient) {
+                    $inventory = \App\Models\Inventory::where('restaurant_id', $user->restaurant_id)
+                        ->where('branch_id', $branchId)
+                        ->where('ingredient_id', $item['ingredient_id'])
+                        ->first();
+                    $currentQty  = $inventory ? (float) $inventory->quantity_on_hand : 0.0;
+                    $physicalQty = (float) $item['physical_qty'];
+                    $diff        = abs($currentQty - $physicalQty);
+                    $cost        = (float) ($ingredient->average_cost ?? $ingredient->last_cost ?? 0);
+                    $discrepancyCost += $diff * $cost;
+                }
+            }
+
+            $this->approvalService->submitRequest(
+                'inventory_stocktake',
+                array_merge($data, ['branch_id' => $branchId, 'amount' => $discrepancyCost]),
+                $user
+            );
 
             return back()->with('success', 'Yêu cầu kiểm kê kho đã được gửi Chủ nhà hàng phê duyệt.');
         }
+
 
         try {
             DB::transaction(function () use ($user, $data, $branchId) {

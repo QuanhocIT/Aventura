@@ -64,8 +64,8 @@ class ScheduleController extends Controller
         $branchId = $this->tenantContext->activeBranchId();
         $scopeKey = $this->tenantContext->scopeKey();
 
-        // 1. Nếu là Chủ hoặc Quản lý: Xem toàn cục
-        if ($user->hasAnyRole(['owner', 'manager'])) {
+        // 1. Nếu là Chủ, Quản lý hoặc Trưởng kho Tổng: Xem toàn cục
+        if ($user->hasAnyRole(['owner', 'manager', 'warehouse_manager'])) {
             $selectedDate = $request->input('date', today()->toDateString());
 
             // Lấy danh sách lịch xếp ca trong ngày được chọn
@@ -625,7 +625,7 @@ class ScheduleController extends Controller
      */
     public function checkInEmployee(Request $request): RedirectResponse
     {
-        abort_unless($request->user()->hasAnyRole(['owner', 'manager']), 403);
+        abort_unless($request->user()->hasAnyRole(['owner', 'manager', 'warehouse_manager']), 403);
 
         $data = $request->validate([
             'assignment_id' => ['required', TenantRule::exists('schedule_assignments')],
@@ -647,7 +647,7 @@ class ScheduleController extends Controller
      */
     public function checkOutEmployee(Request $request): RedirectResponse
     {
-        abort_unless($request->user()->hasAnyRole(['owner', 'manager']), 403);
+        abort_unless($request->user()->hasAnyRole(['owner', 'manager', 'warehouse_manager']), 403);
 
         $data = $request->validate([
             'assignment_id' => ['required', TenantRule::exists('schedule_assignments')],
@@ -667,7 +667,7 @@ class ScheduleController extends Controller
      */
     public function markAbsentEmployee(Request $request): RedirectResponse
     {
-        abort_unless($request->user()->hasAnyRole(['owner', 'manager']), 403);
+        abort_unless($request->user()->hasAnyRole(['owner', 'manager', 'warehouse_manager']), 403);
 
         $data = $request->validate([
             'assignment_id' => ['required', TenantRule::exists('schedule_assignments')],
@@ -729,7 +729,7 @@ class ScheduleController extends Controller
      */
     public function toggleShiftLeader(Request $request): RedirectResponse
     {
-        abort_unless($request->user()->hasAnyRole(['owner', 'manager']), 403);
+        abort_unless($request->user()->hasAnyRole(['owner', 'manager', 'warehouse_manager']), 403);
 
         $data = $request->validate([
             'assignment_id' => ['required', TenantRule::exists('schedule_assignments')],
@@ -793,7 +793,7 @@ class ScheduleController extends Controller
      */
     public function approveRegistration(Request $request): RedirectResponse
     {
-        abort_unless($request->user()->hasAnyRole(['owner', 'manager']), 403);
+        abort_unless($request->user()->hasAnyRole(['owner', 'manager', 'warehouse_manager']), 403);
 
         $data = $request->validate([
             'registration_id' => ['required', TenantRule::exists('schedule_registrations')],
@@ -829,7 +829,7 @@ class ScheduleController extends Controller
      */
     public function export(Request $request)
     {
-        abort_unless($request->user()->hasAnyRole(['owner', 'manager']), 403);
+        abort_unless($request->user()->hasAnyRole(['owner', 'manager', 'warehouse_manager']), 403);
 
         $restaurantId = $request->user()->restaurant_id;
         $selectedDate = $request->input('date', today()->toDateString());
@@ -916,7 +916,7 @@ class ScheduleController extends Controller
      */
     public function generateDailyQR(Request $request): RedirectResponse
     {
-        abort_unless($request->user()->hasAnyRole(['owner', 'manager']), 403);
+        abort_unless($request->user()->hasAnyRole(['owner', 'manager', 'warehouse_manager']), 403);
 
         $restaurant = Restaurant::find($request->user()->restaurant_id);
         if ($restaurant) {
@@ -934,7 +934,7 @@ class ScheduleController extends Controller
      */
     public function getDynamicQR(Request $request): JsonResponse
     {
-        abort_unless($request->user()->hasAnyRole(['owner', 'manager']), 403);
+        abort_unless($request->user()->hasAnyRole(['owner', 'manager', 'warehouse_manager']), 403);
         $restaurantId = $request->user()->restaurant_id;
 
         $now = now()->timestamp;

@@ -10,15 +10,17 @@ import {
     ChevronDown,
     ChevronLeft,
     ChevronRight,
+    ChevronsLeft,
+    ChevronsRight,
     ChevronUp,
     ClipboardCheck,
-    ShieldCheck,
     Clock,
     CreditCard,
     Info,
     Loader2,
     MapPin,
     ReceiptText,
+    ShieldCheck,
     Store,
     TriangleAlert,
     Wallet,
@@ -187,7 +189,10 @@ const cashControlForm = useForm({
     cash_handover_required: props.cashControl?.cash_handover_required ?? false,
 });
 function saveCashControl() {
-    if (cashControlForm.processing) return;
+    if (cashControlForm.processing) {
+        return;
+    }
+
     cashControlForm.post('/shift-closings/cash-control', {
         preserveScroll: true,
         onSuccess: () => {
@@ -287,9 +292,17 @@ const previewData = ref<Preview | null>(null);
 const previewLoading = ref(false);
 const previewError = ref('');
 
+function formatLocalDate(d: Date): string {
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+
+    return `${year}-${month}-${day}`;
+}
+
 const form = useForm({
     shift_id: null as number | null,
-    closing_date: new Date().toISOString().slice(0, 10),
+    closing_date: formatLocalDate(new Date()),
     area_id: null as number | string | null,
     actual_cash: 0,
     cash_count_id: null as number | null,
@@ -615,18 +628,58 @@ const statusOptions = computed(() => [
     { value: 'disputed', label: 'Tranh chấp', count: counts.value.disputed },
 ]);
 
+// ── Phân trang danh sách phiếu chốt ca (10 dòng / trang) ──────────────────────
+const currentPage = ref(1);
+const itemsPerPage = 10;
+
+const totalItems = computed(() => props.closings.length);
+const totalPages = computed(() => Math.max(1, Math.ceil(totalItems.value / itemsPerPage)));
+
+const paginatedClosings = computed(() => {
+    const start = (currentPage.value - 1) * itemsPerPage;
+
+    return props.closings.slice(start, start + itemsPerPage);
+});
+
+const startItemIndex = computed(() => {
+    if (totalItems.value === 0) {
+        return 0;
+    }
+
+    return (currentPage.value - 1) * itemsPerPage + 1;
+});
+
+const endItemIndex = computed(() => {
+    return Math.min(currentPage.value * itemsPerPage, totalItems.value);
+});
+
+function setPage(pageNumber: number) {
+    if (pageNumber >= 1 && pageNumber <= totalPages.value) {
+        currentPage.value = pageNumber;
+        expandedId.value = null;
+    }
+}
+
+// Tự động về trang 1 khi đổi tab lọc, tháng hoặc dữ liệu thay đổi
+watch([() => props.closings, activeStatus, activeMonth], () => {
+    currentPage.value = 1;
+    expandedId.value = null;
+});
+
 const selectedShift = computed(
     () => props.shifts.find((s) => s.id === form.shift_id) ?? null,
 );
 
-// ── Custom Calendar Picker ─────────────────────────────────────────────────────
+// ── Custom Calendar Picker & Quick Dates ──────────────────────────────────────
 
 const showCalendar = ref(false);
 const calTriggerRef = ref<HTMLElement | null>(null);
-const calPos = ref({ top: 0, left: 0, width: 0 });
+const calPos = ref({ top: 0, left: 0, width: 330 });
 
 const today = new Date();
-const todayStr = today.toISOString().slice(0, 10);
+const todayStr = formatLocalDate(today);
+const yesterdayStr = formatLocalDate(new Date(Date.now() - 86400000));
+const twoDaysAgoStr = formatLocalDate(new Date(Date.now() - 86400000 * 2));
 
 const calView = ref({ year: today.getFullYear(), month: today.getMonth() });
 
@@ -693,7 +746,9 @@ function openCalendar() {
 
     if (calTriggerRef.value) {
         const rect = calTriggerRef.value.getBoundingClientRect();
-        const calWidth = 272;
+        const calWidth = Math.min(340, window.innerWidth - 32);
+        const calHeight = 350; // Chiều cao thực tế của popup lịch
+
         let leftPos = rect.left;
 
         if (leftPos + calWidth > window.innerWidth - 16) {
@@ -704,8 +759,31 @@ function openCalendar() {
             leftPos = 16;
         }
 
+        // Kiểm tra khoảng trống trên và dưới viewport
+        const spaceBelow = window.innerHeight - rect.bottom;
+        const spaceAbove = rect.top;
+
+        let topPos: number;
+
+        if (spaceBelow < calHeight + 12 && spaceAbove >= calHeight + 12) {
+            // Đưa bảng lịch lên trên ô input
+            topPos = rect.top - calHeight - 6;
+        } else if (spaceBelow < calHeight + 12 && spaceAbove > spaceBelow) {
+            // Không đủ chỗ cả 2 phía nhưng phía trên thoáng hơn -> đẩy lên
+            topPos = Math.max(16, rect.top - calHeight - 6);
+        } else {
+            // Mở xuống dưới
+            topPos = rect.bottom + 6;
+        }
+
+        // Đảm bảo không bao giờ bị tràn ra ngoài cạnh trên/dưới màn hình
+        topPos = Math.max(
+            12,
+            Math.min(topPos, window.innerHeight - calHeight - 12),
+        );
+
         calPos.value = {
-            top: rect.bottom + 6,
+            top: topPos,
             left: leftPos,
             width: calWidth,
         };
@@ -760,29 +838,30 @@ const calDays = computed<CalDay[]>(() => {
     startDow = startDow === 0 ? 6 : startDow - 1;
 
     const days: CalDay[] = [];
+    const nowLocalDate = formatLocalDate(new Date());
 
     for (let i = startDow - 1; i >= 0; i--) {
         const d = new Date(year, month, -i);
-        const str = d.toISOString().slice(0, 10);
+        const str = formatLocalDate(d);
         days.push({
             date: str,
             day: d.getDate(),
             inMonth: false,
-            isToday: false,
-            isFuture: d > today,
+            isToday: str === todayStr,
+            isFuture: str > nowLocalDate,
             isSelected: str === form.closing_date,
         });
     }
 
     for (let d = 1; d <= lastDay.getDate(); d++) {
         const dt = new Date(year, month, d);
-        const str = dt.toISOString().slice(0, 10);
+        const str = formatLocalDate(dt);
         days.push({
             date: str,
             day: d,
             inMonth: true,
             isToday: str === todayStr,
-            isFuture: dt > today,
+            isFuture: str > nowLocalDate,
             isSelected: str === form.closing_date,
         });
     }
@@ -791,13 +870,13 @@ const calDays = computed<CalDay[]>(() => {
 
     for (let i = 1; i <= remaining; i++) {
         const d = new Date(year, month + 1, i);
-        const str = d.toISOString().slice(0, 10);
+        const str = formatLocalDate(d);
         days.push({
             date: str,
             day: i,
             inMonth: false,
-            isToday: false,
-            isFuture: true,
+            isToday: str === todayStr,
+            isFuture: str > nowLocalDate,
             isSelected: false,
         });
     }
@@ -811,6 +890,18 @@ function selectDate(day: CalDay) {
     }
 
     form.closing_date = day.date;
+    showCalendar.value = false;
+
+    if (dialogStep.value === 2) {
+        dialogStep.value = 1;
+        previewData.value = null;
+    }
+}
+
+function setQuickDate(dateStr: string) {
+    form.closing_date = dateStr;
+    const d = new Date(dateStr + 'T00:00:00');
+    calView.value = { year: d.getFullYear(), month: d.getMonth() };
     showCalendar.value = false;
 
     if (dialogStep.value === 2) {
@@ -1184,7 +1275,7 @@ onUnmounted(() =>
 
                     <!-- Rows -->
                     <div
-                        v-for="closing in closings"
+                        v-for="closing in paginatedClosings"
                         :key="closing.id"
                         class="border-b border-slate-100 last:border-0 dark:border-slate-800"
                     >
@@ -1723,6 +1814,91 @@ onUnmounted(() =>
                             </div>
                         </Transition>
                     </div>
+
+                    <!-- Pagination Toolbar (10 rows/page) -->
+                    <div
+                        v-if="totalItems > 0"
+                        class="flex flex-col items-center justify-between gap-3 border-t border-slate-100 bg-slate-50/50 px-5 py-3.5 sm:flex-row dark:border-slate-800 dark:bg-slate-900/30"
+                    >
+                        <!-- Left: Record summary -->
+                        <p class="text-xs text-slate-500 dark:text-slate-400">
+                            Hiển thị
+                            <span class="font-bold text-slate-800 dark:text-slate-200"
+                                >{{ startItemIndex }} - {{ endItemIndex }}</span
+                            >
+                            trong tổng số
+                            <span class="font-bold text-slate-800 dark:text-slate-200"
+                                >{{ totalItems }}</span
+                            >
+                            phiếu chốt ca
+                        </p>
+
+                        <!-- Right: Pagination Buttons -->
+                        <div
+                            v-if="totalPages > 1"
+                            class="flex items-center gap-1"
+                        >
+                            <!-- First page -->
+                            <button
+                                type="button"
+                                :disabled="currentPage === 1"
+                                @click="setPage(1)"
+                                class="inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg border border-slate-200 bg-white text-xs font-semibold text-slate-600 shadow-2xs transition hover:bg-slate-50 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-40 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
+                                title="Trang đầu"
+                            >
+                                <ChevronsLeft class="size-3.5" />
+                            </button>
+
+                            <!-- Previous page -->
+                            <button
+                                type="button"
+                                :disabled="currentPage === 1"
+                                @click="setPage(currentPage - 1)"
+                                class="inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg border border-slate-200 bg-white text-xs font-semibold text-slate-600 shadow-2xs transition hover:bg-slate-50 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-40 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
+                                title="Trang trước"
+                            >
+                                <ChevronLeft class="size-3.5" />
+                            </button>
+
+                            <!-- Page numbers -->
+                            <button
+                                v-for="p in totalPages"
+                                :key="p"
+                                type="button"
+                                @click="setPage(p)"
+                                :class="[
+                                    'inline-flex h-8 min-w-[32px] cursor-pointer items-center justify-center rounded-lg px-2 text-xs font-bold transition shadow-2xs',
+                                    currentPage === p
+                                        ? 'border border-indigo-600 bg-indigo-600 text-white dark:border-indigo-500 dark:bg-indigo-600'
+                                        : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 hover:text-slate-900 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800',
+                                ]"
+                            >
+                                {{ p }}
+                            </button>
+
+                            <!-- Next page -->
+                            <button
+                                type="button"
+                                :disabled="currentPage === totalPages"
+                                @click="setPage(currentPage + 1)"
+                                class="inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg border border-slate-200 bg-white text-xs font-semibold text-slate-600 shadow-2xs transition hover:bg-slate-50 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-40 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
+                                title="Trang kế"
+                            >
+                                <ChevronRight class="size-3.5" />
+                            </button>
+
+                            <!-- Last page -->
+                            <button
+                                type="button"
+                                :disabled="currentPage === totalPages"
+                                @click="setPage(totalPages)"
+                                class="inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg border border-slate-200 bg-white text-xs font-semibold text-slate-600 shadow-2xs transition hover:bg-slate-50 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-40 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
+                                title="Trang cuối"
+                            >
+                                <ChevronsRight class="size-3.5" />
+                            </button>
+                        </div>
+                    </div>
                 </template>
             </CardContent>
         </Card>
@@ -1898,40 +2074,76 @@ onUnmounted(() =>
                                     </select>
                                 </div>
 
-                                <!-- Chọn ngày — Custom Calendar Picker -->
-                                <div class="flex flex-col space-y-1.5">
-                                    <Label
-                                        class="text-xs font-bold tracking-wide text-slate-500 uppercase"
-                                        >Ngày chốt ca
-                                        <span class="text-rose-500"
-                                            >*</span
-                                        ></Label
-                                    >
+                                <!-- Chọn ngày — Custom Calendar Picker & Quick Presets -->
+                                <div class="flex flex-col space-y-2">
+                                    <div class="flex items-center justify-between">
+                                        <Label
+                                            class="text-xs font-bold tracking-wide text-slate-500 uppercase"
+                                        >
+                                            Ngày chốt ca
+                                            <span class="text-rose-500">*</span>
+                                        </Label>
+
+                                        <!-- Quick pills: Hôm nay, Hôm qua, Hôm kia -->
+                                        <div class="flex items-center gap-1.5">
+                                            <button
+                                                type="button"
+                                                @click="setQuickDate(todayStr)"
+                                                class="cursor-pointer rounded-md px-2 py-0.5 text-xs font-semibold transition"
+                                                :class="
+                                                    form.closing_date === todayStr
+                                                        ? 'bg-indigo-600 font-bold text-white shadow-xs'
+                                                        : 'bg-slate-100 text-slate-600 hover:bg-indigo-50 hover:text-indigo-600 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-indigo-950/50 dark:hover:text-indigo-400'
+                                                "
+                                            >
+                                                Hôm nay
+                                            </button>
+                                            <button
+                                                type="button"
+                                                @click="setQuickDate(yesterdayStr)"
+                                                class="cursor-pointer rounded-md px-2 py-0.5 text-xs font-semibold transition"
+                                                :class="
+                                                    form.closing_date === yesterdayStr
+                                                        ? 'bg-indigo-600 font-bold text-white shadow-xs'
+                                                        : 'bg-slate-100 text-slate-600 hover:bg-indigo-50 hover:text-indigo-600 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-indigo-950/50 dark:hover:text-indigo-400'
+                                                "
+                                            >
+                                                Hôm qua
+                                            </button>
+                                            <button
+                                                type="button"
+                                                @click="setQuickDate(twoDaysAgoStr)"
+                                                class="cursor-pointer rounded-md px-2 py-0.5 text-xs font-semibold transition"
+                                                :class="
+                                                    form.closing_date === twoDaysAgoStr
+                                                        ? 'bg-indigo-600 font-bold text-white shadow-xs'
+                                                        : 'bg-slate-100 text-slate-600 hover:bg-indigo-50 hover:text-indigo-600 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-indigo-950/50 dark:hover:text-indigo-400'
+                                                "
+                                            >
+                                                Hôm kia
+                                            </button>
+                                        </div>
+                                    </div>
 
                                     <!-- Trigger button -->
                                     <button
                                         ref="calTriggerRef"
                                         type="button"
                                         @click="openCalendar"
-                                        class="mt-1.5 flex w-full cursor-pointer items-center justify-between rounded-md border border-slate-200 bg-background px-3 py-2 text-sm font-semibold text-slate-700 transition hover:border-indigo-500/60 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 focus:outline-none"
+                                        class="flex w-full cursor-pointer items-center justify-between rounded-lg border border-slate-300 bg-white px-3.5 py-2.5 text-sm font-semibold text-slate-800 shadow-xs transition hover:border-indigo-500 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
                                         :class="
                                             showCalendar
                                                 ? 'border-indigo-500 ring-2 ring-indigo-500/20'
                                                 : ''
                                         "
                                     >
-                                        <span
-                                            :class="
-                                                form.closing_date
-                                                    ? 'font-medium text-foreground'
-                                                    : 'text-muted-foreground'
-                                            "
-                                        >
+                                        <span class="font-medium text-slate-900 dark:text-slate-100">
                                             {{ displayDate || 'Chọn ngày...' }}
                                         </span>
-                                        <CalendarDays
-                                            class="size-4 shrink-0 text-indigo-500"
-                                        />
+                                        <div class="flex items-center gap-1.5 text-indigo-600 dark:text-indigo-400">
+                                            <CalendarDays class="size-4 shrink-0" />
+                                            <ChevronDown class="size-3.5 opacity-60" />
+                                        </div>
                                     </button>
                                 </div>
 
@@ -1953,25 +2165,23 @@ onUnmounted(() =>
                                         <div
                                             v-if="showCalendar"
                                             id="shift-cal-popup"
-                                            class="fixed z-[9999] animate-in overflow-hidden rounded-xl border border-slate-200 bg-card shadow-2xl duration-100 fade-in-50 zoom-in-95"
+                                            class="fixed z-[9999] animate-in overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl duration-100 fade-in-50 zoom-in-95 dark:border-slate-700 dark:bg-slate-900"
                                             :style="{
                                                 top: calPos.top + 'px',
                                                 left: calPos.left + 'px',
-                                                width: '272px',
+                                                width: calPos.width + 'px',
                                             }"
                                         >
                                             <!-- Header -->
                                             <div
-                                                class="flex items-center justify-between border-b border-slate-100 bg-slate-50/50 px-3 py-2"
+                                                class="flex items-center justify-between border-b border-slate-100 bg-slate-50/80 px-3 py-2.5 dark:border-slate-800 dark:bg-slate-800/80"
                                             >
                                                 <button
                                                     type="button"
                                                     @click="prevMonth"
-                                                    class="flex cursor-pointer items-center justify-center rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+                                                    class="flex cursor-pointer items-center justify-center rounded-lg p-1.5 text-slate-600 hover:bg-slate-200 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-700 dark:hover:text-white"
                                                 >
-                                                    <ChevronLeft
-                                                        class="size-3.5"
-                                                    />
+                                                    <ChevronLeft class="size-4" />
                                                 </button>
 
                                                 <!-- Click để mở month picker -->
@@ -1981,19 +2191,19 @@ onUnmounted(() =>
                                                         showMonthPicker =
                                                             !showMonthPicker
                                                     "
-                                                    class="flex cursor-pointer items-center gap-1.5 rounded-md px-2 py-0.5 text-xs font-bold transition hover:bg-muted"
+                                                    class="flex cursor-pointer items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-bold text-slate-800 transition hover:bg-slate-200/70 dark:text-slate-100 dark:hover:bg-slate-700/70"
                                                 >
                                                     <span>{{
                                                         viMonths[calView.month]
                                                     }}</span>
                                                     <span
-                                                        class="text-indigo-655 font-extrabold text-indigo-600 dark:text-indigo-400"
+                                                        class="font-extrabold text-indigo-600 dark:text-indigo-400"
                                                         >{{
                                                             calView.year
                                                         }}</span
                                                     >
                                                     <ChevronDown
-                                                        class="size-3 text-muted-foreground"
+                                                        class="size-3.5 text-slate-500 transition-transform"
                                                         :class="
                                                             showMonthPicker
                                                                 ? 'rotate-180'
@@ -2008,11 +2218,9 @@ onUnmounted(() =>
                                                     :disabled="
                                                         isNextMonthDisabled
                                                     "
-                                                    class="flex cursor-pointer items-center justify-center rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-25"
+                                                    class="flex cursor-pointer items-center justify-center rounded-lg p-1.5 text-slate-600 hover:bg-slate-200 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-25 dark:text-slate-300 dark:hover:bg-slate-700 dark:hover:text-white"
                                                 >
-                                                    <ChevronRight
-                                                        class="size-3.5"
-                                                    />
+                                                    <ChevronRight class="size-4" />
                                                 </button>
                                             </div>
 
@@ -2027,23 +2235,21 @@ onUnmounted(() =>
                                             >
                                                 <div
                                                     v-if="showMonthPicker"
-                                                    class="border-b border-slate-100 bg-slate-50/20 p-2"
+                                                    class="border-b border-slate-100 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-800/90"
                                                 >
                                                     <!-- Year nav -->
                                                     <div
-                                                        class="mb-2 flex items-center justify-between px-1"
+                                                        class="mb-2.5 flex items-center justify-between px-1"
                                                     >
                                                         <button
                                                             type="button"
                                                             @click="prevYear"
-                                                            class="flex cursor-pointer items-center justify-center rounded p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+                                                            class="flex cursor-pointer items-center justify-center rounded-md p-1 text-slate-600 hover:bg-slate-200 dark:text-slate-300 dark:hover:bg-slate-700"
                                                         >
-                                                            <ChevronLeft
-                                                                class="size-3"
-                                                            />
+                                                            <ChevronLeft class="size-3.5" />
                                                         </button>
                                                         <span
-                                                            class="text-indigo-655 text-xs font-bold font-extrabold text-indigo-600 dark:text-indigo-400"
+                                                            class="text-xs font-extrabold text-indigo-600 dark:text-indigo-400"
                                                             >{{
                                                                 calView.year
                                                             }}</span
@@ -2055,16 +2261,14 @@ onUnmounted(() =>
                                                                 calView.year >=
                                                                 today.getFullYear()
                                                             "
-                                                            class="flex cursor-pointer items-center justify-center rounded p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-25"
+                                                            class="flex cursor-pointer items-center justify-center rounded-md p-1 text-slate-600 hover:bg-slate-200 disabled:cursor-not-allowed disabled:opacity-25 dark:text-slate-300 dark:hover:bg-slate-700"
                                                         >
-                                                            <ChevronRight
-                                                                class="size-3"
-                                                            />
+                                                            <ChevronRight class="size-3.5" />
                                                         </button>
                                                     </div>
                                                     <!-- 12 month grid -->
                                                     <div
-                                                        class="grid grid-cols-4 gap-1"
+                                                        class="grid grid-cols-4 gap-1.5"
                                                     >
                                                         <button
                                                             v-for="(
@@ -2083,26 +2287,26 @@ onUnmounted(() =>
                                                                     idx,
                                                                 )
                                                             "
-                                                            class="rounded-lg py-1.5 text-[11px] font-semibold transition-all"
+                                                            class="rounded-lg py-1.5 text-xs font-semibold transition-all"
                                                             :class="[
                                                                 calView.month ===
                                                                     idx &&
                                                                 !isMonthFuture(
                                                                     idx,
                                                                 )
-                                                                    ? 'bg-indigo-600 text-white shadow-sm'
+                                                                    ? 'bg-indigo-600 font-bold text-white shadow-sm'
                                                                     : '',
                                                                 !isMonthFuture(
                                                                     idx,
                                                                 ) &&
                                                                 calView.month !==
                                                                     idx
-                                                                    ? 'cursor-pointer text-foreground hover:bg-indigo-500/15 hover:text-indigo-600'
+                                                                    ? 'cursor-pointer text-slate-700 hover:bg-indigo-50 hover:text-indigo-600 dark:text-slate-200 dark:hover:bg-indigo-950/60 dark:hover:text-indigo-400'
                                                                     : '',
                                                                 isMonthFuture(
                                                                     idx,
                                                                 )
-                                                                    ? 'cursor-not-allowed text-muted-foreground/25'
+                                                                    ? 'cursor-not-allowed text-slate-400/30 dark:text-slate-600/30'
                                                                     : '',
                                                             ]"
                                                         >
@@ -2114,16 +2318,16 @@ onUnmounted(() =>
 
                                             <!-- Day names -->
                                             <div
-                                                class="grid grid-cols-7 border-b border-slate-100/50 bg-slate-50/10 px-1.5 pt-1.5 pb-1"
+                                                class="grid grid-cols-7 border-b border-slate-100 bg-slate-50/50 px-2 py-1.5 dark:border-slate-800 dark:bg-slate-800/40"
                                             >
                                                 <div
                                                     v-for="d in viDays"
                                                     :key="d"
-                                                    class="text-center text-[9px] font-bold tracking-widest"
+                                                    class="text-center text-[11px] font-bold tracking-wider"
                                                     :class="
                                                         d === 'CN'
-                                                            ? 'text-rose-500'
-                                                            : 'text-muted-foreground'
+                                                            ? 'font-extrabold text-rose-500'
+                                                            : 'text-slate-500 dark:text-slate-400'
                                                     "
                                                 >
                                                     {{ d }}
@@ -2132,7 +2336,7 @@ onUnmounted(() =>
 
                                             <!-- Day grid -->
                                             <div
-                                                class="grid grid-cols-7 gap-0 bg-white p-1.5"
+                                                class="grid grid-cols-7 gap-1 bg-white p-2.5 dark:bg-slate-900"
                                             >
                                                 <button
                                                     v-for="day in calDays"
@@ -2140,27 +2344,27 @@ onUnmounted(() =>
                                                     type="button"
                                                     @click="selectDate(day)"
                                                     :disabled="day.isFuture"
-                                                    class="relative flex h-7 w-full items-center justify-center rounded-md text-[11px] font-medium transition-all"
+                                                    class="relative flex h-8 w-full items-center justify-center rounded-lg text-xs font-semibold transition-all sm:h-9"
                                                     :class="[
                                                         day.isSelected
-                                                            ? 'scale-110 bg-indigo-600 font-extrabold text-white shadow-md shadow-indigo-500/30'
+                                                            ? 'scale-105 bg-indigo-600 font-extrabold text-white shadow-md shadow-indigo-500/40 ring-2 ring-indigo-400'
                                                             : '',
                                                         day.isToday &&
                                                         !day.isSelected
-                                                            ? 'text-indigo-655 border border-indigo-500 font-bold text-indigo-600 dark:text-indigo-400'
+                                                            ? 'border-2 border-indigo-500 font-bold text-indigo-600 dark:text-indigo-400'
                                                             : '',
                                                         day.inMonth &&
                                                         !day.isSelected &&
                                                         !day.isToday &&
                                                         !day.isFuture
-                                                            ? 'cursor-pointer text-foreground hover:bg-indigo-500/15 hover:text-indigo-600'
+                                                            ? 'cursor-pointer text-slate-800 hover:bg-indigo-50 hover:text-indigo-600 dark:text-slate-100 dark:hover:bg-indigo-950/60 dark:hover:text-indigo-400'
                                                             : '',
                                                         !day.inMonth &&
                                                         !day.isFuture
-                                                            ? 'cursor-pointer text-muted-foreground/25'
+                                                            ? 'cursor-pointer text-slate-400/40 hover:text-slate-600 dark:text-slate-600/50 dark:hover:text-slate-400'
                                                             : '',
                                                         day.isFuture
-                                                            ? 'cursor-not-allowed text-muted-foreground/15'
+                                                            ? 'pointer-events-none cursor-not-allowed text-slate-300/30 dark:text-slate-700/30'
                                                             : '',
                                                     ]"
                                                 >
@@ -2170,42 +2374,37 @@ onUnmounted(() =>
                                                             day.isToday &&
                                                             !day.isSelected
                                                         "
-                                                        class="absolute bottom-0.5 left-1/2 h-0.5 w-0.5 -translate-x-1/2 rounded-full bg-indigo-500"
+                                                        class="absolute bottom-1 left-1/2 h-1 w-1 -translate-x-1/2 rounded-full bg-indigo-500"
                                                     />
                                                 </button>
                                             </div>
 
-                                            <!-- Footer: Hôm nay -->
+                                            <!-- Footer: Hôm nay & Hôm qua & Đóng -->
                                             <div
-                                                class="border-t border-slate-100 bg-white px-2 py-1.5"
+                                                class="flex items-center justify-between border-t border-slate-100 bg-slate-50/80 px-2.5 py-2 dark:border-slate-800 dark:bg-slate-800/80"
                                             >
+                                                <div class="flex items-center gap-1">
+                                                    <button
+                                                        type="button"
+                                                        @click="setQuickDate(todayStr)"
+                                                        class="cursor-pointer rounded-md bg-indigo-50 px-2 py-1 text-[11px] font-bold text-indigo-600 transition hover:bg-indigo-600 hover:text-white dark:bg-indigo-950/60 dark:text-indigo-400 dark:hover:bg-indigo-600 dark:hover:text-white"
+                                                    >
+                                                        Hôm nay
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        @click="setQuickDate(yesterdayStr)"
+                                                        class="cursor-pointer rounded-md bg-slate-100 px-2 py-1 text-[11px] font-semibold text-slate-700 transition hover:bg-indigo-600 hover:text-white dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-indigo-600 dark:hover:text-white"
+                                                    >
+                                                        Hôm qua
+                                                    </button>
+                                                </div>
                                                 <button
                                                     type="button"
-                                                    @click="
-                                                        selectDate({
-                                                            date: todayStr,
-                                                            day: today.getDate(),
-                                                            inMonth: true,
-                                                            isToday: true,
-                                                            isFuture: false,
-                                                            isSelected:
-                                                                form.closing_date ===
-                                                                todayStr,
-                                                        })
-                                                    "
-                                                    class="w-full cursor-pointer rounded-lg bg-indigo-500/10 py-1.5 text-[11px] font-semibold text-indigo-600 transition hover:bg-indigo-600 hover:text-white dark:text-indigo-400"
+                                                    @click="showCalendar = false"
+                                                    class="cursor-pointer rounded-md px-2 py-1 text-[11px] font-medium text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
                                                 >
-                                                    Hôm nay ·
-                                                    {{
-                                                        new Date().toLocaleDateString(
-                                                            'vi-VN',
-                                                            {
-                                                                day: '2-digit',
-                                                                month: '2-digit',
-                                                                year: 'numeric',
-                                                            },
-                                                        )
-                                                    }}
+                                                    Đóng
                                                 </button>
                                             </div>
                                         </div>
@@ -2239,51 +2438,52 @@ onUnmounted(() =>
                         <template v-else-if="previewData">
                             <!-- Phiếu tổng duy nhất của ca đang chọn -->
                             <div
-                                class="overflow-hidden rounded-lg border border-slate-300 bg-white text-slate-900 shadow-sm"
+                                class="overflow-hidden rounded-xl border border-slate-200 bg-white text-slate-800 shadow-sm dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100"
                             >
                                 <div
-                                    class="border-b-4 border-indigo-950 px-4 py-4 sm:px-5"
+                                    class="border-b border-slate-200 bg-slate-50/80 px-4 py-3.5 sm:px-5 dark:border-slate-800 dark:bg-slate-800/60"
                                 >
                                     <div
                                         class="flex flex-col justify-between gap-3 sm:flex-row sm:items-start"
                                     >
                                         <div>
                                             <p
-                                                class="text-[10px] font-bold tracking-[0.18em] text-indigo-950 uppercase"
+                                                class="flex items-center gap-1.5 text-[11px] font-bold tracking-wider text-indigo-600 uppercase dark:text-indigo-400"
                                             >
+                                                <Store class="size-3.5 shrink-0" />
                                                 {{ restaurantName }} ·
                                                 {{ activeBranchName }}
                                             </p>
                                             <h2
-                                                class="mt-1 text-2xl font-black tracking-wide text-indigo-950"
+                                                class="mt-1 text-xl font-black tracking-wide text-slate-900 dark:text-white"
                                             >
                                                 PHIẾU CHỐT CA
                                             </h2>
                                             <p
-                                                class="text-[11px] text-slate-500"
+                                                class="text-xs text-slate-500 dark:text-slate-400"
                                             >
                                                 Tổng hợp từ lúc bắt đầu ca đến
                                                 thời điểm bấm chốt
                                             </p>
                                         </div>
                                         <div
-                                            class="rounded border border-slate-300 px-3 py-2 text-[11px] leading-5"
+                                            class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs leading-5 shadow-2xs dark:border-slate-700 dark:bg-slate-950"
                                         >
-                                            <p>
+                                            <p class="text-slate-600 dark:text-slate-400">
                                                 Ngày:
-                                                <strong>{{
+                                                <strong class="text-slate-900 dark:text-slate-100">{{
                                                     form.closing_date
                                                 }}</strong>
                                             </p>
-                                            <p>
+                                            <p class="text-slate-600 dark:text-slate-400">
                                                 Ca:
-                                                <strong>{{
+                                                <strong class="text-indigo-600 dark:text-indigo-400">{{
                                                     previewData.shift_name
                                                 }}</strong>
                                             </p>
-                                            <p>
-                                                Kết thúc:
-                                                <strong>{{
+                                            <p class="text-slate-600 dark:text-slate-400">
+                                                Thời gian:
+                                                <strong class="text-slate-900 dark:text-slate-100">{{
                                                     previewData.end_time
                                                 }}</strong>
                                             </p>
@@ -2291,54 +2491,49 @@ onUnmounted(() =>
                                     </div>
                                 </div>
 
-                                <div class="grid gap-0 sm:grid-cols-2">
-                                    <div
-                                        class="border-b border-slate-200 p-3 sm:border-r"
-                                    >
+                                <div class="grid gap-px bg-slate-200 dark:bg-slate-800 sm:grid-cols-2 lg:grid-cols-4">
+                                    <div class="bg-white p-3.5 dark:bg-slate-900">
                                         <p
-                                            class="text-[10px] font-black text-indigo-950 uppercase"
+                                            class="text-[10px] font-bold tracking-wider text-slate-400 uppercase dark:text-slate-500"
                                         >
                                             1. NGÀY / CA
                                         </p>
-                                        <p class="mt-1 text-xs font-semibold">
+                                        <p class="mt-1 text-xs font-bold text-slate-800 dark:text-slate-200">
                                             {{ previewData.start_time }} →
                                             {{ previewData.end_time }}
                                         </p>
                                     </div>
-                                    <div class="border-b border-slate-200 p-3">
+                                    <div class="bg-white p-3.5 dark:bg-slate-900">
                                         <p
-                                            class="text-[10px] font-black text-indigo-950 uppercase"
+                                            class="text-[10px] font-bold tracking-wider text-slate-400 uppercase dark:text-slate-500"
                                         >
                                             2. KHU VỰC
                                         </p>
-                                        <p class="mt-1 text-xs font-semibold">
+                                        <p class="mt-1 text-xs font-bold text-slate-800 dark:text-slate-200">
                                             Toàn bộ khu vực
                                         </p>
                                     </div>
-                                    <div
-                                        class="border-b border-slate-200 p-3 sm:border-r"
-                                    >
+                                    <div class="bg-white p-3.5 dark:bg-slate-900">
                                         <p
-                                            class="text-[10px] font-black text-indigo-950 uppercase"
+                                            class="text-[10px] font-bold tracking-wider text-slate-400 uppercase dark:text-slate-500"
                                         >
                                             3. ĐƠN VÀO
                                         </p>
-                                        <p class="mt-1 text-xs font-semibold">
+                                        <p class="mt-1 text-xs font-bold text-slate-800 dark:text-slate-200">
                                             {{
                                                 previewData.total_order_count
                                             }}
                                             đơn vào ·
-                                            {{ previewData.order_count }} hoàn
-                                            tất
+                                            <span class="text-emerald-600 dark:text-emerald-400">{{ previewData.order_count }} hoàn tất</span>
                                         </p>
                                     </div>
-                                    <div class="border-b border-slate-200 p-3">
+                                    <div class="bg-white p-3.5 dark:bg-slate-900">
                                         <p
-                                            class="text-[10px] font-black text-indigo-950 uppercase"
+                                            class="text-[10px] font-bold tracking-wider text-slate-400 uppercase dark:text-slate-500"
                                         >
-                                            4. THANH TOÁN TM
+                                            4. THANH TOÁN TIỀN MẶT
                                         </p>
-                                        <p class="mt-1 text-xs font-semibold">
+                                        <p class="mt-1 text-xs font-extrabold text-indigo-600 dark:text-indigo-400">
                                             {{
                                                 previewData.cash_order_count
                                             }}
@@ -2350,15 +2545,13 @@ onUnmounted(() =>
                                             }}
                                         </p>
                                     </div>
-                                    <div
-                                        class="border-b border-slate-200 p-3 sm:border-r"
-                                    >
+                                    <div class="bg-white p-3.5 dark:bg-slate-900">
                                         <p
-                                            class="text-[10px] font-black text-indigo-950 uppercase"
+                                            class="text-[10px] font-bold tracking-wider text-slate-400 uppercase dark:text-slate-500"
                                         >
-                                            5. THANH TOÁN CK
+                                            5. THANH TOÁN CHUYỂN KHOẢN
                                         </p>
-                                        <p class="mt-1 text-xs font-semibold">
+                                        <p class="mt-1 text-xs font-extrabold text-sky-600 dark:text-sky-400">
                                             {{
                                                 previewData.transfer_order_count
                                             }}
@@ -2368,25 +2561,24 @@ onUnmounted(() =>
                                             }}
                                         </p>
                                     </div>
-                                    <div class="border-b border-slate-200 p-3">
+                                    <div class="bg-white p-3.5 dark:bg-slate-900">
                                         <p
-                                            class="text-[10px] font-black text-indigo-950 uppercase"
+                                            class="text-[10px] font-bold tracking-wider text-slate-400 uppercase dark:text-slate-500"
                                         >
                                             6. ĐƠN HỦY / HOÀN TIỀN
                                         </p>
-                                        <p class="mt-1 text-xs font-semibold">
+                                        <p class="mt-1 text-xs font-bold text-rose-500 dark:text-rose-400">
                                             Hủy
                                             {{
                                                 previewData.cancelled_order_count
                                             }}
-                                            đơn ·
-                                            {{
+                                            đơn ({{
                                                 vnd(
                                                     previewData.cancelled_total_amount,
                                                 )
-                                            }}
-                                            <span class="text-slate-400"
-                                                >|</span
+                                            }})
+                                            <span class="text-slate-300 dark:text-slate-600"
+                                                >·</span
                                             >
                                             Hoàn
                                             {{
@@ -2395,50 +2587,39 @@ onUnmounted(() =>
                                             đơn
                                         </p>
                                     </div>
-                                    <div
-                                        class="border-b border-slate-200 p-3 sm:border-r"
-                                    >
+                                    <div class="bg-white p-3.5 dark:bg-slate-900">
                                         <p
-                                            class="text-[10px] font-black text-indigo-950 uppercase"
+                                            class="text-[10px] font-bold tracking-wider text-slate-400 uppercase dark:text-slate-500"
                                         >
                                             7. TỔNG DOANH THU THUẦN
                                         </p>
                                         <p
-                                            class="mt-1 text-base font-black text-indigo-700"
+                                            class="mt-1 text-sm font-black text-emerald-600 dark:text-emerald-400"
                                         >
                                             {{ vnd(previewData.net_revenue) }}
                                         </p>
                                     </div>
-                                    <div class="border-b border-slate-200 p-3">
+                                    <div class="bg-white p-3.5 dark:bg-slate-900">
                                         <p
-                                            class="text-[10px] font-black text-indigo-950 uppercase"
+                                            class="text-[10px] font-bold tracking-wider text-slate-400 uppercase dark:text-slate-500"
                                         >
                                             8. KỲ VỌNG KÉT TIỀN MẶT
                                         </p>
                                         <p
-                                            class="mt-1 text-base font-black text-indigo-700"
+                                            class="mt-1 text-sm font-black text-indigo-600 dark:text-indigo-400"
                                         >
                                             {{ vnd(previewData.expected_cash) }}
                                         </p>
                                     </div>
                                 </div>
 
-                                <div class="bg-indigo-50/60 px-4 py-3 text-xs">
+                                <div class="border-t border-slate-200 bg-slate-50/80 px-4 py-2.5 text-xs text-slate-600 dark:border-slate-800 dark:bg-slate-800/40 dark:text-slate-400">
                                     <div
-                                        class="flex justify-between gap-3 font-bold"
+                                        class="flex justify-between gap-3 font-semibold"
                                     >
-                                        <span>Từ đầu ca đến lúc chốt</span>
-                                        <span class="text-right"
-                                            >{{ previewData.start_time }} →
-                                            {{ previewData.end_time }}</span
-                                        >
-                                    </div>
-                                    <div
-                                        class="mt-1 flex justify-between gap-3"
-                                    >
-                                        <span>Giảm giá</span>
-                                        <span
-                                            >-{{
+                                        <span>Khung giờ chốt: {{ previewData.start_time }} → {{ previewData.end_time }}</span>
+                                        <span v-if="previewData.discount_total > 0" class="text-rose-500 dark:text-rose-400"
+                                            >Giảm giá: -{{
                                                 vnd(previewData.discount_total)
                                             }}</span
                                         >
@@ -2446,19 +2627,25 @@ onUnmounted(() =>
                                 </div>
                             </div>
 
-                            <div class="mt-4 grid gap-3 lg:grid-cols-2">
+                            <div class="mt-4 grid gap-4 lg:grid-cols-2">
+                                <!-- Box 1: Đối soát tiền thực nhận -->
                                 <div
-                                    class="rounded-lg border border-indigo-100 bg-indigo-50/40 p-4"
+                                    class="rounded-xl border border-indigo-500/25 bg-indigo-50/40 p-4.5 shadow-2xs dark:border-indigo-900/40 dark:bg-slate-900"
                                 >
-                                    <p
-                                        class="text-xs font-black tracking-wide text-indigo-950 uppercase"
-                                    >
-                                        Đối soát tiền thực nhận
-                                    </p>
-                                    <div class="mt-3 grid gap-3 sm:grid-cols-2">
+                                    <div class="flex items-center gap-2">
+                                        <div class="flex h-6 w-6 items-center justify-center rounded-md bg-indigo-100 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-400">
+                                            <Wallet class="size-3.5" />
+                                        </div>
+                                        <p
+                                            class="text-xs font-black tracking-wider text-indigo-700 uppercase dark:text-indigo-400"
+                                        >
+                                            Đối soát tiền thực nhận
+                                        </p>
+                                    </div>
+                                    <div class="mt-3.5 grid gap-3 sm:grid-cols-2">
                                         <div>
                                             <Label
-                                                class="text-[11px] font-bold text-slate-600"
+                                                class="text-xs font-bold text-slate-700 dark:text-slate-200"
                                                 >Tiền mặt thực nhận
                                                 <span class="text-rose-500"
                                                     >*</span
@@ -2471,22 +2658,22 @@ onUnmounted(() =>
                                                 type="number"
                                                 min="0"
                                                 step="1000"
-                                                class="mt-1 h-9 font-bold"
+                                                class="mt-1.5 h-10 border-slate-300 bg-white font-bold text-slate-900 shadow-2xs focus:ring-2 focus:ring-indigo-500/30 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                                             />
                                             <p
-                                                class="mt-1 text-[10px] text-slate-500"
+                                                class="mt-1.5 text-[11px] font-medium text-slate-500 dark:text-slate-400"
                                             >
                                                 Kỳ vọng:
-                                                {{
+                                                <strong class="text-slate-800 dark:text-slate-200">{{
                                                     vnd(
                                                         previewData.expected_cash,
                                                     )
-                                                }}
+                                                }}</strong>
                                             </p>
                                         </div>
                                         <div>
                                             <Label
-                                                class="text-[11px] font-bold text-slate-600"
+                                                class="text-xs font-bold text-slate-700 dark:text-slate-200"
                                                 >Chuyển khoản thực nhận
                                                 <span class="text-rose-500"
                                                     >*</span
@@ -2499,30 +2686,36 @@ onUnmounted(() =>
                                                 type="number"
                                                 min="0"
                                                 step="1000"
-                                                class="mt-1 h-9 font-bold"
+                                                class="mt-1.5 h-10 border-slate-300 bg-white font-bold text-slate-900 shadow-2xs focus:ring-2 focus:ring-indigo-500/30 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                                             />
                                             <p
-                                                class="mt-1 text-[10px] text-slate-500"
+                                                class="mt-1.5 text-[11px] font-medium text-slate-500 dark:text-slate-400"
                                             >
                                                 Kỳ vọng:
-                                                {{
+                                                <strong class="text-slate-800 dark:text-slate-200">{{
                                                     vnd(
                                                         previewData.transfer_amount,
                                                     )
-                                                }}
+                                                }}</strong>
                                             </p>
                                         </div>
                                     </div>
                                 </div>
 
+                                <!-- Box 2: Quy trách nhiệm tính lương -->
                                 <div
-                                    class="rounded-lg border border-amber-200 bg-amber-50/60 p-4"
+                                    class="rounded-xl border border-amber-500/25 bg-amber-50/40 p-4.5 shadow-2xs dark:border-amber-900/40 dark:bg-slate-900"
                                 >
-                                    <p
-                                        class="text-xs font-black tracking-wide text-amber-900 uppercase"
-                                    >
-                                        Quy trách nhiệm tính lương
-                                    </p>
+                                    <div class="flex items-center gap-2">
+                                        <div class="flex h-6 w-6 items-center justify-center rounded-md bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-400">
+                                            <ShieldCheck class="size-3.5" />
+                                        </div>
+                                        <p
+                                            class="text-xs font-black tracking-wider text-amber-700 uppercase dark:text-amber-400"
+                                        >
+                                            Quy trách nhiệm tính lương
+                                        </p>
+                                    </div>
                                     <Input
                                         v-model.number="
                                             form.responsibility_amount
@@ -2530,61 +2723,72 @@ onUnmounted(() =>
                                         @input="responsibilityAuto = false"
                                         type="number"
                                         step="1000"
-                                        class="mt-3 h-10 bg-white font-black"
+                                        class="mt-3.5 h-10 border-slate-300 bg-white font-black text-slate-900 shadow-2xs focus:ring-2 focus:ring-amber-500/30 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                                     />
-                                    <p class="mt-1 text-[10px] text-amber-800">
+                                    <p class="mt-1 text-[11px] text-slate-500 dark:text-slate-400">
                                         Số âm sẽ trừ lương, số dương sẽ cộng
                                         lương. Mặc định theo tổng chênh lệch.
                                     </p>
                                     <div
-                                        class="mt-3 space-y-1 border-t border-amber-200 pt-2 text-[11px]"
+                                        class="mt-3 space-y-1.5 border-t border-slate-200 pt-2.5 text-xs dark:border-slate-800"
                                     >
-                                        <div class="flex justify-between">
-                                            <span>Lệch tiền mặt</span
-                                            ><strong
+                                        <div class="flex justify-between text-slate-600 dark:text-slate-400">
+                                            <span>Lệch tiền mặt</span>
+                                            <strong
+                                                :class="cashDifference >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'"
                                                 >{{
                                                     cashDifference >= 0
                                                         ? '+'
                                                         : ''
                                                 }}{{
                                                     vnd(cashDifference)
-                                                }}</strong
-                                            >
+                                                }}</strong>
                                         </div>
-                                        <div class="flex justify-between">
-                                            <span>Lệch chuyển khoản</span
-                                            ><strong
+                                        <div class="flex justify-between text-slate-600 dark:text-slate-400">
+                                            <span>Lệch chuyển khoản</span>
+                                            <strong
+                                                :class="transferDifference >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'"
                                                 >{{
                                                     transferDifference >= 0
                                                         ? '+'
                                                         : ''
                                                 }}{{
                                                     vnd(transferDifference)
-                                                }}</strong
-                                            >
+                                                }}</strong>
                                         </div>
                                         <div
-                                            class="flex justify-between border-t border-amber-200 pt-1 font-black text-amber-950"
+                                            class="flex items-center justify-between border-t border-slate-200 pt-2 text-xs font-black dark:border-slate-800"
                                         >
-                                            <span>Tổng chênh lệch</span
-                                            ><strong
+                                            <span class="text-slate-800 dark:text-slate-200">Tổng chênh lệch</span>
+                                            <span
+                                                class="rounded-md px-2 py-0.5 font-extrabold"
+                                                :class="[
+                                                    totalDifference === 0
+                                                        ? 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300'
+                                                        : '',
+                                                    totalDifference > 0
+                                                        ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800'
+                                                        : '',
+                                                    totalDifference < 0
+                                                        ? 'bg-rose-50 text-rose-700 border border-rose-200 dark:bg-rose-950/60 dark:text-rose-300 dark:border-rose-800'
+                                                        : '',
+                                                ]"
                                                 >{{
                                                     totalDifference >= 0
                                                         ? '+'
                                                         : ''
                                                 }}{{
                                                     vnd(totalDifference)
-                                                }}</strong
-                                            >
+                                                }}</span>
                                         </div>
                                     </div>
                                 </div>
                             </div>
 
-                            <div class="mt-3 grid gap-3 lg:grid-cols-2">
+                            <div class="mt-4 grid gap-4 lg:grid-cols-2">
                                 <div>
                                     <Label
-                                        class="text-[11px] font-bold text-slate-600"
+                                        class="text-xs font-bold text-slate-700 uppercase tracking-wider dark:text-slate-300"
                                         >Ghi chú quy trách nhiệm</Label
                                     >
                                     <textarea
@@ -2592,12 +2796,12 @@ onUnmounted(() =>
                                         rows="2"
                                         maxlength="1000"
                                         placeholder="Ví dụ: Thiếu tiền mặt do... / Dư chuyển khoản do..."
-                                        class="mt-1 w-full resize-none rounded-md border border-slate-200 bg-background px-3 py-2 text-xs font-semibold text-slate-700 focus-visible:ring-2 focus-visible:ring-indigo-500/30 focus-visible:outline-none"
+                                        class="mt-1.5 w-full resize-none rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-medium text-slate-800 placeholder:text-slate-400 shadow-2xs focus-visible:ring-2 focus-visible:ring-indigo-500/30 focus-visible:outline-none dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                                     />
                                 </div>
                                 <div>
                                     <Label
-                                        class="text-[11px] font-bold text-slate-600"
+                                        class="text-xs font-bold text-slate-700 uppercase tracking-wider dark:text-slate-300"
                                         >Ghi chú vận hành ca</Label
                                     >
                                     <textarea
@@ -2605,7 +2809,7 @@ onUnmounted(() =>
                                         rows="2"
                                         maxlength="1000"
                                         placeholder="Ghi chú thêm cho phiếu chốt ca..."
-                                        class="mt-1 w-full resize-none rounded-md border border-slate-200 bg-background px-3 py-2 text-xs font-semibold text-slate-700 focus-visible:ring-2 focus-visible:ring-indigo-500/30 focus-visible:outline-none"
+                                        class="mt-1.5 w-full resize-none rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-medium text-slate-800 placeholder:text-slate-400 shadow-2xs focus-visible:ring-2 focus-visible:ring-indigo-500/30 focus-visible:outline-none dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                                     />
                                 </div>
                             </div>

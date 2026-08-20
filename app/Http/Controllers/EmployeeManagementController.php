@@ -501,39 +501,21 @@ class EmployeeManagementController extends Controller
             $data['base_salary'] = (float) $wageTier->rate;
         }
 
-        // Quản lý (không phải Chủ) BẮT BUỘC chọn bậc lương — không tự nhập tuỳ ý —
-        // NHƯNG chỉ khi Chủ đã tạo sẵn bậc lương cho chi nhánh này. Nếu chưa có bậc
-        // nào thì không thể chặn Quản lý tuyển người (họ vẫn bị ràng buộc bởi quỹ).
+        // ── [SECURITY P0] Quản lý BẮt BUỘC chọn bậc lương do Chủ quy định —
+        // Không cho phép Quản lý tự nhập mức lương tuỳ ý dưới bất kỳ điều kiện nào.
+        // Nếu chưa có bậc lương → liên hệ Chủ thiết lập trước, không bypass.
         if (! $isOwner && ! $wageTier) {
-            $tiersAvailable = \App\Models\WageTier::where('restaurant_id', $user->restaurant_id)
-                ->forBranch($branchId)->active()->exists();
-            if ($tiersAvailable) {
-                throw ValidationException::withMessages([
-                    'wage_tier_id' => 'Quản lý phải chọn bậc lương do Chủ quy định (không tự nhập mức lương).',
-                ]);
-            }
-        }
-
-        // Chặn khi tổng lương chi nhánh vượt quỹ do Chủ đặt (áp dụng cho tất cả người dùng, kể cả Chủ doanh nghiệp).
-        $budgets = app(\App\Services\PayrollBudgetService::class);
-        $budget = $budgets->budgetFor($user->restaurant_id, $branchId);
-        if (! $budget) {
             throw ValidationException::withMessages([
-                'base_salary' => 'Chưa có quỹ lương được cấp cho chi nhánh này. Vui lòng thiết lập/cấp quỹ lương chi nhánh trước khi thêm nhân sự.',
+                'wage_tier_id' => 'Quản lý bắt buộc chọn bậc lương do Chủ quy định (không tự nhập mức lương). Nếu chi nhánh chưa có bậc lương, vui lòng liên hệ Chủ nhà hàng để thiết lập trước.',
             ]);
         }
+
+        // ── [SECURITY P1] Kiểm tra quỹ lương bên trong DB::transaction với lockForUpdate ────────
+        // Chống race condition: 2 request đồng thời đều vượt qua check trước transaction.
+        $budgets = app(\App\Services\PayrollBudgetService::class);
         $monthlyWage = $wageTier
             ? $wageTier->estimatedMonthly()
             : $budgets->estimateMonthly($data['compensation_type'] ?? 'fixed', (float) ($data['pay_rate'] ?? 0), (float) ($data['base_salary'] ?? 0));
-        
-        $committed = $budgets->committedMonthlyWages($user->restaurant_id, $branchId);
-        if ($committed + $monthlyWage > (float) $budget->budget_amount + 0.01) {
-            $remaining = max(0.0, (float) $budget->budget_amount - $committed);
-            $excess = ($committed + $monthlyWage) - (float) $budget->budget_amount;
-            throw ValidationException::withMessages([
-                'base_salary' => 'Thao tác bị chặn: Thêm nhân sự này sẽ làm tổng lương vượt quỹ lương chi nhánh được cấp (vượt '.number_format($excess).'đ). Quỹ còn lại '.number_format($remaining).'đ, nhân sự mới cần '.number_format($monthlyWage).'đ/tháng. Vui lòng tăng quỹ lương chi nhánh trước.',
-            ]);
-        }
 
         // Disk 'local' (private) — KHÔNG dùng disk public: ảnh CCCD truy cập được
         // qua /storage/... không cần đăng nhập là lộ PII nghiêm trọng.
@@ -548,8 +530,27 @@ class EmployeeManagementController extends Controller
         }
 
         try {
-            [$newUser, $newEmployee] = DB::transaction(function () use ($data, $user, $branchId, $frontUrl, $backUrl): array {
-                $randomPassword = Str::random(12);
+            [$newUser, $newEmployee] = DB::transaction(function () use ($data, $user, $branchId, $frontUrl, $backUrl, $budgets, $monthlyWage): array {
+                // ── [SECURITY P1] Re-check quỹ lương bên trong lock — chống race condition ────────
+                $budgetLocked = \App\Models\BranchPayrollBudget::where('restaurant_id', $user->restaurant_id)
+                    ->where('branch_id', $branchId)
+                    ->lockForUpdate()
+                    ->first();
+                if (! $budgetLocked) {
+                    throw ValidationException::withMessages([
+                        'base_salary' => 'Chưa có quỹ lương được cấp cho chi nhánh này. Vui lòng thiết lập/cấp quỹ lương chi nhánh trước khi thêm nhân sự.',
+                    ]);
+                }
+                $committedLocked = $budgets->committedMonthlyWages($user->restaurant_id, $branchId);
+                if ($committedLocked + $monthlyWage > (float) $budgetLocked->budget_amount + 0.01) {
+                    $remaining = max(0.0, (float) $budgetLocked->budget_amount - $committedLocked);
+                    $excess = ($committedLocked + $monthlyWage) - (float) $budgetLocked->budget_amount;
+                    throw ValidationException::withMessages([
+                        'base_salary' => 'Thao tác bị chặn: Thêm nhân sự này sẽ làm tổng lương vượt quỹ lương chi nhánh được cấp (vượt '.number_format($excess).'đ). Quỹ còn lại '.number_format($remaining).'đ, nhân sự mới cần '.number_format($monthlyWage).'đ/tháng.',
+                    ]);
+                }
+
+                $randomPassword  = Str::random(12);
                 $activationToken = Str::random(40);
 
                 $centralBranch = app(\App\Services\CentralWarehouseService::class)->getCentralWarehouse($user->restaurant_id);
@@ -694,9 +695,15 @@ class EmployeeManagementController extends Controller
     public function toggleEmployeeStatus(Request $request, Employee $employee): RedirectResponse
     {
         $user = $request->user();
-        $this->authorizeEmployeeManagement($user);
         abort_if($employee->restaurant_id !== $user->restaurant_id, 403);
         abort_unless($user->isOwner() || $user->isSuperAdmin() || $user->canAccessBranch((int) $employee->branch_id), 403);
+
+        if ($user->hasRole('warehouse_manager') && ! $user->isOwner() && ! $user->isSuperAdmin()) {
+            $isWarehouseStaff = $employee->user?->hasRole('warehouse_staff')
+                || (int) $employee->branch_id === (int) $user->warehouse_branch_id
+                || (int) $employee->user?->warehouse_branch_id === (int) $user->warehouse_branch_id;
+            abort_unless($isWarehouseStaff, 403, 'Trưởng kho chỉ được quản lý nhân sự thuộc bộ phận Kho.');
+        }
 
         $newStatus = $employee->status === 'active' ? 'inactive' : 'active';
         if ($newStatus === 'active') {
@@ -1148,9 +1155,15 @@ class EmployeeManagementController extends Controller
     public function updateEmployee(Request $request, Employee $employee): RedirectResponse
     {
         $user = $request->user();
-        $this->authorizeEmployeeManagement($user);
         abort_if($employee->restaurant_id !== $user->restaurant_id, 403);
         abort_unless($user->canAccessBranch((int) $employee->branch_id), 403);
+
+        if ($user->hasRole('warehouse_manager') && ! $user->isOwner() && ! $user->isSuperAdmin()) {
+            $isWarehouseStaff = $employee->user?->hasRole('warehouse_staff')
+                || (int) $employee->branch_id === (int) $user->warehouse_branch_id
+                || (int) $employee->user?->warehouse_branch_id === (int) $user->warehouse_branch_id;
+            abort_unless($isWarehouseStaff, 403, 'Trưởng kho chỉ được cập nhật nhân sự thuộc bộ phận Kho.');
+        }
 
         $tenantContext = app(TenantContext::class);
         $oldBranchId = $employee->branch_id ? (int) $employee->branch_id : null;
@@ -1180,20 +1193,11 @@ class EmployeeManagementController extends Controller
             ],
         ]);
 
-        if (array_key_exists('wage_tier_id', $data) && ! empty($data['wage_tier_id'])) {
-            $wageTier = \App\Models\WageTier::where('restaurant_id', $user->restaurant_id)->find($data['wage_tier_id']);
-            if ($wageTier) {
-                $data['compensation_type'] = $wageTier->compensation_type;
-                $data['pay_rate'] = (float) $wageTier->rate;
-                $data['base_salary'] = (float) $wageTier->rate;
-                $data['wage_tier_id'] = $wageTier->id;
-            }
-        }
-
         if (isset($data['role'])) {
             $this->assertRoleAssignmentAllowed($user, $data['role'], $oldRole);
         }
 
+        // Xác định branch_id mới TRƯỚC khi validate wage_tier (cần $newBranchId để check branch scope)
         $newBranchId = $oldBranchId;
         if (array_key_exists('branch_id', $data)) {
             $newBranchId = $data['branch_id'] !== null ? (int) $data['branch_id'] : null;
@@ -1204,6 +1208,25 @@ class EmployeeManagementController extends Controller
                 throw ValidationException::withMessages(['branch_id' => 'Chi nhánh nhân viên phải trùng chi nhánh hiện tại.']);
             }
         }
+
+        if (array_key_exists('wage_tier_id', $data) && ! empty($data['wage_tier_id'])) {
+            // ── [SECURITY P0] Validate bậc lương đúng chi nhánh và đang hoạt động ─────────
+            $wageTier = \App\Models\WageTier::where('restaurant_id', $user->restaurant_id)
+                ->where('id', $data['wage_tier_id'])
+                ->forBranch($newBranchId)
+                ->active()
+                ->first();
+            if (! $wageTier) {
+                throw ValidationException::withMessages([
+                    'wage_tier_id' => 'Bậc lương không hợp lệ cho chi nhánh này hoặc đã bị vô hiệu hóa.',
+                ]);
+            }
+            $data['compensation_type'] = $wageTier->compensation_type;
+            $data['pay_rate']          = (float) $wageTier->rate;
+            $data['base_salary']       = (float) $wageTier->rate;
+            $data['wage_tier_id']      = $wageTier->id;
+        }
+
 
         if ($request->hasFile('citizen_id_front')) {
             $employee->citizen_id_front_url = $request->file('citizen_id_front')->store('citizen_ids', 'local');
@@ -1394,13 +1417,28 @@ class EmployeeManagementController extends Controller
                 if ($shift->trashed()) {
                     $shift->restore();
                 }
+
+                // [SECURITY P1] Không cho sửa giờ ca đã có chấm công — tránh làm sai lệch tính lương.
+                $timeChanged = ($shift->start_time !== $s['start']) || ($shift->end_time !== $s['end']);
+                if ($timeChanged) {
+                    $hasAttendance = \App\Models\ScheduleAssignment::where('work_shift_id', $shift->id)
+                        ->where('status', 'completed')
+                        ->exists();
+                    if ($hasAttendance) {
+                        throw ValidationException::withMessages([
+                            "shifts.$index.start" => "Ca '{$shift->name}' đã có chấm công hoàn tất, không thể thay đổi giờ làm để tránh sai lệch tính lương. Hãy tạo ca mới nếu cần thay đổi.",
+                        ]);
+                    }
+                }
+
                 $shift->update([
-                    'branch_id' => $branchId,
-                    'name' => $s['name'],
+                    'branch_id'  => $branchId,
+                    'name'       => $s['name'],
                     'start_time' => $s['start'],
-                    'end_time' => $s['end'],
-                    'status' => 'active',
+                    'end_time'   => $s['end'],
+                    'status'     => 'active',
                 ]);
+
             } else {
                 $slug = Str::upper(Str::slug($s['name'], '_'));
                 $baseCode = 'SHIFT_'.($slug ?: 'WORK');

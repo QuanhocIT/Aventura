@@ -183,12 +183,12 @@ class CashFlowController extends Controller
         $branchId = $this->requireActiveBranch($user);
 
         $data = $request->validate([
-            'type' => ['required', 'string', 'in:in,out'],
-            'amount' => ['required', 'numeric', 'min:1'],
-            'notes' => ['required', 'string', 'max:500'],
-            'source' => ['required', 'string', 'in:expense,other'],
+            'type'         => ['required', 'string', 'in:in,out'],
+            'amount'       => ['required', 'numeric', 'min:1'],
+            'notes'        => ['required', 'string', 'max:500'],
+            'source'       => ['required', 'string', 'in:expense,other'],
             'voucher_code' => ['nullable', 'string', 'max:100'],
-            'is_approved' => ['nullable', 'boolean'],
+            // 'is_approved' đã bị bỏ — không có cơ chế phê duyệt thực sự ở field này.
         ]);
 
         $activeRegister = CashRegister::where('restaurant_id', $restaurantId)
@@ -205,16 +205,31 @@ class CashFlowController extends Controller
             return back()->withErrors(['voucher_code' => 'Khoản chi tiền mặt phải có chứng từ hoặc ghi chú chi tiết.']);
         }
 
-        // Budget overrun enforcement for cash out/expenses
-        if ($data['type'] === 'out' && $activeRegister->expense_budget > 0) {
+        // ── [SECURITY P0] Kiểm soát ngân sách chi tiền mặt ──────────────────────
+        // expense_budget = 0 nghĩa là Chủ/Quản lý CHƯA cấp ngân sách → block hoàn toàn.
+        // expense_budget > 0 → kiểm tra không vượt hạn mức; Owner được override.
+        if ($data['type'] === 'out') {
+            $budget = (float) $activeRegister->expense_budget;
+
+            if ($budget <= 0) {
+                // Ngân sách chưa được cấu hình — chặn mọi khoản chi
+                return back()->withErrors([
+                    'amount' => 'Két tiền này chưa có ngân sách chi ca. Quản lý hoặc Chủ nhà hàng cần thiết lập ngân sách khi mở két trước khi ghi khoản chi.',
+                ]);
+            }
+
             $existingOut = (float) CashTransaction::where('cash_register_id', $activeRegister->id)
                 ->where('type', 'out')
                 ->sum('amount');
-            if ($existingOut + $data['amount'] > $activeRegister->expense_budget) {
+
+            if ($existingOut + $data['amount'] > $budget) {
                 if (! $user->isOwner() && ! $user->isSuperAdmin()) {
-                    return back()->withErrors(['amount' => 'Khoản chi vượt quá ngân sách ca (tối đa '.number_format($activeRegister->expense_budget).'đ). Yêu cầu phê duyệt từ Quản lý hoặc Chủ nhà hàng.']);
+                    return back()->withErrors([
+                        'amount' => 'Khoản chi vượt quá ngân sách ca (đã chi '.number_format($existingOut).'đ / tối đa '.number_format($budget).'đ). Yêu cầu Chủ nhà hàng phê duyệt trực tiếp.',
+                    ]);
                 }
-                $data['notes'] .= ' [Đã phê duyệt vượt ngân sách]';
+                // Owner được phép override — ghi chú rõ ràng để audit trail
+                $data['notes'] .= ' [Owner đã phê duyệt vượt ngân sách ca: '.number_format($existingOut + $data['amount'] - $budget).'đ]';
             }
         }
 

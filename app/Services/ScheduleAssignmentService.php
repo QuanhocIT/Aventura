@@ -272,8 +272,8 @@ class ScheduleAssignmentService
             return ['success' => false, 'field' => 'employee_name', 'message' => 'Nhân viên không tồn tại.'];
         }
 
-        // Chống tự xếp ca (Separation of Duties): Quản lý chi nhánh không thể tự xếp ca cho chính mình
-        if (! $actingUser->hasAnyRole(['owner', 'super_admin']) && $actingUser->hasRole('manager')) {
+        // Chống tự xếp ca (Separation of Duties): Quản lý chi nhánh / Trưởng kho không thể tự xếp ca cho chính mình
+        if (! $actingUser->hasAnyRole(['owner', 'super_admin']) && $actingUser->hasAnyRole(['manager', 'warehouse_manager'])) {
             $isSelf = ($employee->user_id && (int) $employee->user_id === (int) $actingUser->id)
                 || ($employee->email && strtolower($employee->email) === strtolower($actingUser->email));
 
@@ -281,7 +281,7 @@ class ScheduleAssignmentService
                 return [
                     'success' => false,
                     'field' => 'employee_name',
-                    'message' => 'Quản lý chi nhánh không được phép tự xếp ca cho chính mình. Lịch trực của Quản lý phải do Chủ nhà hàng (Owner) xếp.',
+                    'message' => 'Quản lý/Trưởng kho không được phép tự xếp ca cho chính mình. Lịch trực phải do Chủ nhà hàng (Owner) xếp.',
                 ];
             }
         }
@@ -514,7 +514,7 @@ class ScheduleAssignmentService
      *
      * @return array{success: bool, message: string}
      */
-    public function copyLastWeekSchedules(int $restaurantId): array
+    public function copyLastWeekSchedules(int $restaurantId, ?int $branchId = null): array
     {
         // Current week boundaries
         $startOfCurrentWeek = Carbon::now()->startOfWeek(Carbon::MONDAY);
@@ -524,9 +524,11 @@ class ScheduleAssignmentService
         $startOfLastWeek = Carbon::now()->subWeek()->startOfWeek(Carbon::MONDAY);
         $endOfLastWeek = Carbon::now()->subWeek()->endOfWeek(Carbon::SUNDAY);
 
+        $effectiveBranchId = $branchId ?: (app(TenantContext::class)->isBranchScoped() ? app(TenantContext::class)->activeBranchId() : null);
+
         // Get all assignments from last week
         $lastWeekAssignments = ScheduleAssignment::where('restaurant_id', $restaurantId)
-            ->when(app(TenantContext::class)->isBranchScoped(), fn ($q) => $q->where('branch_id', app(TenantContext::class)->activeBranchId()))
+            ->when($effectiveBranchId, fn ($q) => $q->where('branch_id', $effectiveBranchId))
             ->whereBetween('scheduled_date', [$startOfLastWeek->toDateString(), $endOfLastWeek->toDateString()])
             ->get();
 
@@ -537,7 +539,7 @@ class ScheduleAssignmentService
         // Chỉ xóa các assignment còn có thể thay đổi. Lịch đã qua ngày,
         // đã chấm công hoặc đã khóa theo kỳ lương phải được bảo toàn.
         $currentWeekAssignments = ScheduleAssignment::where('restaurant_id', $restaurantId)
-            ->when(app(TenantContext::class)->isBranchScoped(), fn ($q) => $q->where('branch_id', app(TenantContext::class)->activeBranchId()))
+            ->when($effectiveBranchId, fn ($q) => $q->where('branch_id', $effectiveBranchId))
             ->whereBetween('scheduled_date', [$startOfCurrentWeek->toDateString(), $endOfCurrentWeek->toDateString()])
             ->get();
 

@@ -8,6 +8,7 @@ use App\Models\ApprovalPolicy;
 use App\Models\ApprovalRequest;
 use App\Models\Employee;
 use App\Models\Ingredient;
+use App\Models\IngredientPriceHistory;
 use App\Models\Inventory;
 use App\Models\InventoryTransaction;
 use App\Models\Order;
@@ -383,7 +384,7 @@ class ApprovalService
             'inventory_recipe_save' => $this->executeRecipeSave($data, $approval->restaurant_id),
             'inventory_recipe_delete' => $this->executeRecipeDelete($data, $approval->restaurant_id),
             'warehouse_set_central' => $this->warehouseService->setCentralWarehouse($approval->restaurant_id, (int) $data['branch_id']),
-            'warehouse_price_update' => $this->executeWarehousePriceUpdate($data, $approval->restaurant_id),
+            'warehouse_price_update' => $this->executeWarehousePriceUpdate($data, $approval->restaurant_id, $approval->requester_id, $reviewerId),
             'warehouse_supply_approve' => $this->executeSupplyApprove($data, $approval->restaurant_id, $reviewerId),
             'warehouse_supply_dispatch' => $this->executeSupplyDispatch($data, $approval->restaurant_id, $reviewerId),
             'warehouse_supply_reject' => $this->executeSupplyReject($data, $approval->restaurant_id, $reviewerId),
@@ -627,13 +628,35 @@ class ApprovalService
         });
     }
 
-    private function executeWarehousePriceUpdate(array $data, int $restaurantId): void
+    private function executeWarehousePriceUpdate(array $data, int $restaurantId, ?int $changedBy = null, ?int $approvedBy = null): void
     {
         foreach ($data['prices'] as $row) {
-            Ingredient::withoutGlobalScopes()
+            $ingredient = Ingredient::withoutGlobalScopes()
                 ->where('restaurant_id', $restaurantId)
                 ->whereKey((int) $row['ingredient_id'])
-                ->update(['average_cost' => round((float) $row['average_cost'], 2)]);
+                ->lockForUpdate()
+                ->firstOrFail();
+            $oldPrice = (float) $ingredient->average_cost;
+            $newPrice = round((float) $row['average_cost'], 2);
+
+            if (abs($newPrice - $oldPrice) < 0.005) {
+                continue;
+            }
+
+            $ingredient->update(['average_cost' => $newPrice]);
+            IngredientPriceHistory::create([
+                'restaurant_id' => $restaurantId,
+                'ingredient_id' => $ingredient->id,
+                'old_price' => $oldPrice,
+                'new_price' => $newPrice,
+                'change_percent' => $oldPrice > 0 ? (($newPrice - $oldPrice) / $oldPrice) * 100 : ($newPrice > 0 ? 100 : 0),
+                'changed_by' => $changedBy,
+                'approved_by' => $approvedBy,
+                'approved_at' => now(),
+                'change_reason' => $data['reason'] ?? 'Thay đổi giá vốn được phê duyệt.',
+                'requires_owner_approval' => true,
+                'status' => 'approved',
+            ]);
         }
     }
 

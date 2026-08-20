@@ -469,6 +469,13 @@ class OrdersController extends Controller
             || $hasApprovalAuthority, 403);
         abort_unless($user->canAccessBranch((int) $order->branch_id), 403);
 
+        // [SECURITY P1] Hủy món đã bắt đầu chế biến: chỉ Owner được hủy trực tiếp.
+        // Manager phải gửi approval request — tránh tiêu hao nguyên liệu mà không có dấu vết kiểm toán.
+        // $hasApprovalAuthority dùng để kiểm tra CÓ ĐƯỢC tạo approval hay không (tất cả đều được).
+        // $canDirectCancel dùng để kiểm tra CÓ ĐƯỢC hủy mà không cần approval khi đã chế biến.
+        $canDirectCancel = $user->hasAnyRole(['owner']) || $user->isSuperAdmin();
+
+
         $data = $request->validate([
             'reason' => ['required', 'string', 'min:3', 'max:500'],
         ]);
@@ -479,7 +486,7 @@ class OrdersController extends Controller
             || $freshItem->prepared_at !== null
             || $freshItem->status === 'preparing';
 
-        if ($hasStarted && ! $hasApprovalAuthority) {
+        if ($hasStarted && ! $canDirectCancel) {
             $alreadyPending = ApprovalRequest::forRestaurant($order->restaurant_id)
                 ->where('operation_type', 'order_item_cancel')
                 ->where('status', 'pending')
@@ -490,29 +497,30 @@ class OrdersController extends Controller
                 ) === (int) $item->id);
 
             if ($alreadyPending) {
-                return back()->withErrors(['item' => 'Món này đã có yêu cầu hủy đang chờ quản lý duyệt.']);
+                return back()->withErrors(['item' => 'Món này đã có yêu cầu hủy đang chờ Chủ nhà hàng duyệt.']);
             }
 
             $approval = app(ApprovalService::class)->submitRequest('order_item_cancel', [
-                'order_id' => $order->id,
-                'order_number' => $order->order_number,
+                'order_id'      => $order->id,
+                'order_number'  => $order->order_number,
                 'order_item_id' => $item->id,
-                'product_name' => $item->product?->name,
-                'table_name' => $order->table?->name,
-                'reason' => $reason,
-                'was_started' => true,
+                'product_name'  => $item->product?->name,
+                'table_name'    => $order->table?->name,
+                'reason'        => $reason,
+                'was_started'   => true,
             ], $user);
 
             AuditLog::log('order_item_cancel_requested', 'updated', $item, null, [
-                'approval_id' => $approval->id,
-                'order_id' => $order->id,
-                'reason' => $reason,
-                'requested_by_user_id' => $user->id,
+                'approval_id'            => $approval->id,
+                'order_id'               => $order->id,
+                'reason'                 => $reason,
+                'requested_by_user_id'   => $user->id,
                 'requested_by_user_name' => $user->name,
             ]);
 
-            return back()->with('success', 'Đã gửi yêu cầu hủy món đến quản lý phê duyệt.');
+            return back()->with('success', 'Đã gửi yêu cầu hủy món đến Chủ nhà hàng phê duyệt (món đã bắt đầu chế biến).');
         }
+
 
         try {
             $result = app(OrderItemCancellationService::class)->cancel($item, $user, $reason);

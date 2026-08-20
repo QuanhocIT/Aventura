@@ -433,11 +433,12 @@ class AttendanceController extends Controller
     }
 
     /**
-     * Quản lý/Owner Check-in hộ nhân viên.
+     * Quản lý/Owner/Trưởng kho Check-in hộ nhân viên.
      */
     public function checkInEmployee(Request $request): RedirectResponse
     {
-        abort_unless($request->user()->hasAnyRole(['owner', 'manager']), 403);
+        $user = $request->user();
+        abort_unless($user->hasAnyRole(['owner', 'manager', 'warehouse_manager', 'super_admin']), 403);
 
         $data = $request->validate([
             'assignment_id' => ['required', TenantRule::exists('schedule_assignments')],
@@ -449,8 +450,9 @@ class AttendanceController extends Controller
             'violation_notes' => ['nullable', 'string', 'max:500'],
         ]);
 
-        DB::transaction(function () use ($data, $request) {
+        DB::transaction(function () use ($data, $request, $user) {
             $sa = ScheduleAssignment::lockForUpdate()->with(['shift', 'employee.user'])->findOrFail($data['assignment_id']);
+            abort_unless($user->canAccessBranch($sa->branch_id), 403, 'Bạn không có quyền thao tác chấm công cho chi nhánh này.');
             $shift = $sa->shift;
             $dateStr = $sa->scheduled_date instanceof Carbon ? $sa->scheduled_date->toDateString() : Carbon::parse($sa->scheduled_date)->toDateString();
 
@@ -471,8 +473,8 @@ class AttendanceController extends Controller
             $sa->update([
                 'check_in_at' => $checkInAt,
                 'status' => 'checked_in',
-                'approved_by' => $request->user()->id,
-                'notes' => $data['notes'] ?? ($isOnTime ? 'Chủ quán xác nhận nhân viên vào ca đúng giờ' : 'Xác nhận vào ca thời gian thực tế'),
+                'approved_by' => $user->id,
+                'notes' => $data['notes'] ?? ($isOnTime ? 'Quản lý/Chủ quán xác nhận nhân viên vào ca đúng giờ' : 'Xác nhận vào ca thời gian thực tế'),
             ]);
 
             if ($request->boolean('apply_violation')) {
@@ -485,7 +487,7 @@ class AttendanceController extends Controller
                 $checkInFormatted = $checkInAt->format('H:i d/m/Y');
                 $shiftName = $shift?->name ?? 'ca trực';
                 $employeeUser->notify(new \App\Notifications\CheckInConfirmedNotification(
-                    "Chủ nhà hàng đã xác nhận ca trực \"{$shiftName}\". Giờ vào ca được ghi nhận: {$checkInFormatted}.",
+                    "Quản lý đã xác nhận ca trực \"{$shiftName}\". Giờ vào ca được ghi nhận: {$checkInFormatted}.",
                     $dateStr
                 ));
             }
@@ -495,11 +497,12 @@ class AttendanceController extends Controller
     }
 
     /**
-     * Quản lý/Owner Check-out hộ nhân viên.
+     * Quản lý/Owner/Trưởng kho Check-out hộ nhân viên.
      */
     public function checkOutEmployee(Request $request): RedirectResponse
     {
-        abort_unless($request->user()->hasAnyRole(['owner', 'manager']), 403);
+        $user = $request->user();
+        abort_unless($user->hasAnyRole(['owner', 'manager', 'warehouse_manager', 'super_admin']), 403);
 
         $data = $request->validate([
             'assignment_id' => ['required', TenantRule::exists('schedule_assignments')],
@@ -509,13 +512,14 @@ class AttendanceController extends Controller
             'violation_notes' => ['nullable', 'string', 'max:500'],
         ]);
 
-        DB::transaction(function () use ($data, $request) {
+        DB::transaction(function () use ($data, $request, $user) {
             $sa = ScheduleAssignment::lockForUpdate()->findOrFail($data['assignment_id']);
+            abort_unless($user->canAccessBranch($sa->branch_id), 403, 'Bạn không có quyền thao tác chấm công cho chi nhánh này.');
 
             $sa->update([
                 'check_out_at' => now(),
                 'status' => 'completed',
-                'approved_by' => $request->user()->id,
+                'approved_by' => $user->id,
                 'notes' => $data['notes'] ?? 'Check-out hộ bởi Quản lý/Chủ nhà hàng',
             ]);
 
@@ -528,11 +532,12 @@ class AttendanceController extends Controller
     }
 
     /**
-     * Quản lý/Owner Báo vắng (Absent) nhân viên.
+     * Quản lý/Owner/Trưởng kho Báo vắng (Absent) nhân viên.
      */
     public function markAbsentEmployee(Request $request): RedirectResponse
     {
-        abort_unless($request->user()->hasAnyRole(['owner', 'manager']), 403);
+        $user = $request->user();
+        abort_unless($user->hasAnyRole(['owner', 'manager', 'warehouse_manager', 'super_admin']), 403);
 
         $data = $request->validate([
             'assignment_id' => ['required', TenantRule::exists('schedule_assignments')],
@@ -542,12 +547,13 @@ class AttendanceController extends Controller
             'violation_notes' => ['nullable', 'string', 'max:500'],
         ]);
 
-        DB::transaction(function () use ($data, $request) {
+        DB::transaction(function () use ($data, $request, $user) {
             $sa = ScheduleAssignment::lockForUpdate()->findOrFail($data['assignment_id']);
+            abort_unless($user->canAccessBranch($sa->branch_id), 403, 'Bạn không có quyền thao tác chấm công cho chi nhánh này.');
 
             $sa->update([
                 'status' => 'absent',
-                'approved_by' => $request->user()->id,
+                'approved_by' => $user->id,
                 'notes' => $data['notes'] ?? 'Vắng mặt không lý do',
             ]);
 

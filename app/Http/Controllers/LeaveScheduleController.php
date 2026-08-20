@@ -31,6 +31,10 @@ class LeaveScheduleController extends Controller
     public function toggleAutoSchedule(Request $request): RedirectResponse
     {
         $user = $request->user();
+        // [SECURITY P0] Defense-in-depth: route middleware đã chặn, nhưng giữ lại tại đây.
+        abort_unless($user->hasAnyRole(['owner', 'manager', 'warehouse_manager']) || $user->isSuperAdmin(), 403,
+            'Chỉ Quản lý hoặc Trưởng kho được bật/tắt xếp ca tự động.');
+
         $restaurant = $user->restaurant;
         if (! $restaurant && ! $request->user()->hasRole('super_admin')) {
             abort(404, 'Không tìm thấy nhà hàng.');
@@ -55,6 +59,10 @@ class LeaveScheduleController extends Controller
     public function quickAutoSchedule(Request $request): RedirectResponse
     {
         $user = $request->user();
+        // [SECURITY P0] Defense-in-depth
+        abort_unless($user->hasAnyRole(['owner', 'manager', 'warehouse_manager']) || $user->isSuperAdmin(), 403,
+            'Chỉ Quản lý hoặc Trưởng kho được tạo lịch tự động.');
+
         $restaurant = $user->restaurant;
         if (! $restaurant && ! $request->user()->hasRole('super_admin')) {
             abort(404, 'Không tìm thấy nhà hàng.');
@@ -79,6 +87,11 @@ class LeaveScheduleController extends Controller
      */
     public function storeAssignment(Request $request): RedirectResponse
     {
+        // [SECURITY P0] Defense-in-depth: nhân viên thường không được xếp ca cho người khác.
+        $user = $request->user();
+        abort_unless($user->hasAnyRole(['owner', 'manager', 'warehouse_manager']) || $user->isSuperAdmin(), 403,
+            'Chỉ Quản lý hoặc Trưởng kho được xếp ca nhân sự.');
+
         $data = $request->validate([
             'day' => ['required', 'string', 'in:Monday,Tuesday,Wednesday,Thursday,Friday,Saturday,Sunday'],
             'employee_name' => ['required', 'string'],
@@ -103,6 +116,11 @@ class LeaveScheduleController extends Controller
      */
     public function destroyAssignment(Request $request): RedirectResponse
     {
+        // [SECURITY P0] Defense-in-depth
+        $user = $request->user();
+        abort_unless($user->hasAnyRole(['owner', 'manager', 'warehouse_manager']) || $user->isSuperAdmin(), 403,
+            'Chỉ Quản lý hoặc Trưởng kho được hủy xếp ca.');
+
         $data = $request->validate([
             'day' => ['required', 'string', 'in:Monday,Tuesday,Wednesday,Thursday,Friday,Saturday,Sunday'],
             'employee_name' => ['required', 'string'],
@@ -150,7 +168,7 @@ class LeaveScheduleController extends Controller
     public function getReplacementSuggestions(Request $request, LeaveRequest $leave): JsonResponse
     {
         $user = $request->user();
-        abort_unless($user->hasAnyRole(['owner', 'manager']), 403);
+        abort_unless($user->hasAnyRole(['owner', 'manager', 'warehouse_manager']), 403);
         abort_if($leave->restaurant_id !== $user->restaurant_id, 403);
         abort_unless($user->canAccessBranch((int) $leave->branch_id), 403);
 
@@ -171,7 +189,7 @@ class LeaveScheduleController extends Controller
     public function emergencyReplace(Request $request): RedirectResponse
     {
         $user = $request->user();
-        abort_unless($user->isSuperAdmin() || $user->hasAnyRole(['owner', 'manager']), 403);
+        abort_unless($user->isSuperAdmin() || $user->hasAnyRole(['owner', 'manager', 'warehouse_manager']), 403);
 
         $data = $request->validate([
             'assignment_id' => ['required', 'integer', TenantRule::exists('schedule_assignments')],
@@ -243,7 +261,7 @@ class LeaveScheduleController extends Controller
     public function approveLeaveRequest(Request $request, LeaveRequest $leave): RedirectResponse
     {
         $user = $request->user();
-        abort_unless($user->hasAnyRole(['owner', 'manager']), 403);
+        abort_unless($user->hasAnyRole(['owner', 'manager', 'warehouse_manager']), 403);
         abort_if($leave->restaurant_id !== $user->restaurant_id, 403);
         abort_unless($user->canAccessBranch((int) $leave->branch_id), 403);
         abort_unless($leave->status === 'pending', 422);
@@ -271,7 +289,7 @@ class LeaveScheduleController extends Controller
     public function rejectLeaveRequest(Request $request, LeaveRequest $leave): RedirectResponse
     {
         $user = $request->user();
-        abort_unless($user->hasAnyRole(['owner', 'manager']), 403);
+        abort_unless($user->hasAnyRole(['owner', 'manager', 'warehouse_manager']), 403);
         abort_if($leave->restaurant_id !== $user->restaurant_id, 403);
         abort_unless($user->canAccessBranch((int) $leave->branch_id), 403);
         abort_unless($leave->status === 'pending', 422);
@@ -291,9 +309,10 @@ class LeaveScheduleController extends Controller
     public function copyLastWeekSchedules(Request $request): RedirectResponse
     {
         $user = $request->user();
-        abort_unless($user->hasAnyRole(['owner', 'manager']), 403);
+        abort_unless($user->hasAnyRole(['owner', 'manager', 'warehouse_manager']), 403);
 
-        $result = $this->assignments->copyLastWeekSchedules($user->restaurant_id);
+        $branchId = $request->integer('branch_id') ?: ($user->canViewAllBranches() ? null : $user->assignedBranchId());
+        $result = $this->assignments->copyLastWeekSchedules($user->restaurant_id, $branchId);
 
         if (! $result['success']) {
             return back()->with('error', $result['message']);
@@ -308,7 +327,7 @@ class LeaveScheduleController extends Controller
     public function approveSwap(Request $request, ShiftSwap $swap): RedirectResponse
     {
         $user = $request->user();
-        abort_unless($user->hasAnyRole(['owner', 'manager']), 403);
+        abort_unless($user->hasAnyRole(['owner', 'manager', 'warehouse_manager']), 403);
         abort_if($swap->restaurant_id !== $user->restaurant_id, 403);
         abort_unless($user->canAccessBranch((int) $swap->branch_id), 403);
         abort_unless($swap->status === 'accepted', 422);
@@ -337,7 +356,7 @@ class LeaveScheduleController extends Controller
     public function rejectSwap(Request $request, ShiftSwap $swap): RedirectResponse
     {
         $user = $request->user();
-        abort_unless($user->hasAnyRole(['owner', 'manager']), 403);
+        abort_unless($user->hasAnyRole(['owner', 'manager', 'warehouse_manager']), 403);
         abort_if($swap->restaurant_id !== $user->restaurant_id, 403);
         abort_unless($user->canAccessBranch((int) $swap->branch_id), 403);
 
