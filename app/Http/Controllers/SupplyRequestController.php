@@ -1249,6 +1249,8 @@ class SupplyRequestController extends Controller
             'receipt_photo_path'        => 'nullable|string',
             'receiver_signature_path'   => 'nullable|string',
             'notes'                     => 'nullable|string',
+            'receipt_photo'             => 'nullable|file|mimes:jpg,jpeg,png,webp,pdf|max:10240',
+            'receiver_signature'        => 'nullable|file|mimes:jpg,jpeg,png,webp|max:5120',
         ]);
         $this->assertItemsBelongToSupplyRequest(
             $supplyRequest,
@@ -1271,7 +1273,23 @@ class SupplyRequestController extends Controller
             }
         }
 
-        if ($hasShortage && (blank($data['receipt_photo_path'] ?? null) || blank($data['receiver_signature_path'] ?? null))) {
+        $receiptPhotoPath = $data['receipt_photo_path'] ?? null;
+        $receiptPhotoHash = null;
+        if ($request->hasFile('receipt_photo')) {
+            $file = $request->file('receipt_photo');
+            $receiptPhotoHash = hash_file('sha256', $file->getRealPath());
+            $receiptPhotoPath = $file->store("restaurants/{$user->restaurant_id}/supply_receipts", 'local');
+        }
+
+        $signaturePath = $data['receiver_signature_path'] ?? null;
+        $signatureHash = null;
+        if ($request->hasFile('receiver_signature')) {
+            $file = $request->file('receiver_signature');
+            $signatureHash = hash_file('sha256', $file->getRealPath());
+            $signaturePath = $file->store("restaurants/{$user->restaurant_id}/supply_receipts", 'local');
+        }
+
+        if ($hasShortage && (blank($receiptPhotoPath) && blank($supplyRequest->receipt_photo_path) || blank($signaturePath) && blank($supplyRequest->receiver_signature_path))) {
             return response()->json([
                 'success' => false,
                 'message' => 'Bắt buộc chụp ảnh thực tế và ký tên xác nhận khi số lượng thực nhận ít hơn số lượng Kho Tổng xuất.',
@@ -1284,9 +1302,11 @@ class SupplyRequestController extends Controller
                 $supplyRequest,
                 $user,
                 $data['items'] ?? null,
-                $data['receipt_photo_path'] ?? null,
-                $data['receiver_signature_path'] ?? null,
-                $data['notes'] ?? null
+                $receiptPhotoPath,
+                $signaturePath,
+                $data['notes'] ?? null,
+                $receiptPhotoHash,
+                $signatureHash
             );
 
             $msg = $updated->status === SupplyRequest::STATUS_DISPUTED
@@ -1731,15 +1751,73 @@ class SupplyRequestController extends Controller
 
         $data = $request->validate([
             'status' => 'required|string|in:assigned,in_progress,completed,cancelled',
+            'notes'  => 'nullable|string|max:500',
         ]);
 
-        $task->update(['status' => $data['status']]);
+        $currentStatus = $task->status;
+        $newStatus = $data['status'];
+
+        $allowedTransitions = [
+            'pending'     => ['assigned', 'in_progress', 'cancelled'],
+            'assigned'    => ['in_progress', 'cancelled'],
+            'in_progress' => ['completed', 'cancelled', 'assigned'],
+            'completed'   => $isManager ? ['in_progress', 'assigned'] : [],
+            'cancelled'   => $isManager ? ['assigned', 'pending'] : [],
+        ];
+
+        if ($newStatus !== $currentStatus && ! in_array($newStatus, $allowedTransitions[$currentStatus] ?? [])) {
+            return response()->json([
+                'success' => false,
+                'message' => "Không thể chuyển trạng thái nhiệm vụ từ '{$currentStatus}' sang '{$newStatus}'.",
+            ], 422);
+        }
+
+        $task->update([
+            'status' => $newStatus,
+            'notes'  => $data['notes'] ?? $task->notes,
+        ]);
 
         return response()->json([
             'success' => true,
             'message' => 'Đã cập nhật tiến độ nhiệm vụ Kho Tổng.',
             'data' => $task->fresh(['assignee.employee', 'supplyRequest.toBranch']),
         ]);
+    }
+
+    /**
+     * Tải / Xem ảnh chứng từ và chữ ký bàn giao (bảo vệ quyền truy cập).
+     */
+    public function viewProof(Request $request, int $id, string $type)
+    {
+        $user = $request->user();
+        $supplyRequest = SupplyRequest::where('restaurant_id', $user->restaurant_id)->findOrFail($id);
+        abort_unless(
+            $user->canAccessBranch((int) $supplyRequest->to_branch_id)
+            || $user->canAccessBranch((int) $supplyRequest->from_branch_id)
+            || $user->isWarehouseManager()
+            || $user->isOwner()
+            || $user->isSuperAdmin(),
+            403,
+            'Bạn không có quyền xem chứng từ của đơn cấp phát này.'
+        );
+
+        $path = match ($type) {
+            'receipt_photo' => $supplyRequest->receipt_photo_path,
+            'signature', 'receiver_signature' => $supplyRequest->receiver_signature_path,
+            default => null,
+        };
+
+        abort_unless($path, 404, 'Không tìm thấy chứng từ.');
+
+        if (\Illuminate\Support\Facades\Storage::disk('local')->exists($path)) {
+            return response()->file(\Illuminate\Support\Facades\Storage::disk('local')->path($path));
+        }
+
+        if (\Illuminate\Support\Facades\Storage::disk('public')->exists($path)) {
+            return response()->file(\Illuminate\Support\Facades\Storage::disk('public')->path($path));
+        }
+
+        abort(404, 'File chứng từ không tồn tại trên hệ thống lưu trữ.');
     }
 
     /**

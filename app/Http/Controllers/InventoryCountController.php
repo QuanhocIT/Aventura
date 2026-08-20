@@ -342,7 +342,7 @@ class InventoryCountController extends Controller
     }
 
     /**
-     * Upload ảnh chứng từ sai lệch kiểm kê
+     * Upload ảnh chứng từ sai lệch kiểm kê (lưu trữ riêng tư bảo mật kèm mã hash)
      */
     public function uploadVarianceProof(Request $request, int $id): JsonResponse
     {
@@ -351,22 +351,53 @@ class InventoryCountController extends Controller
         $this->authorizeSessionBranch($user, $session);
 
         $request->validate([
-            'file' => 'required|file|mimes:jpg,jpeg,png,pdf|max:10240',
+            'file' => 'required|file|mimes:jpg,jpeg,png,webp,pdf|max:10240',
         ]);
 
-        $path = $request->file('file')->store("restaurants/{$user->restaurant_id}/inventory_counts", 'public');
+        $file = $request->file('file');
+        $hash = hash_file('sha256', $file->getRealPath());
+        $path = $file->store("restaurants/{$user->restaurant_id}/inventory_counts", 'local');
+
+        $session->update([
+            'variance_proof_path' => $path,
+            'variance_proof_hash' => $hash,
+        ]);
 
         return response()->json([
             'success' => true,
-            'url' => asset("storage/{$path}"),
-            'path' => $path,
+            'url'     => route('inventory.count-sessions.proof', ['id' => $session->id]),
+            'path'    => $path,
+            'hash'    => $hash,
         ]);
+    }
+
+    /**
+     * Tải / Xem ảnh chứng từ kiểm kê (kiểm tra quyền bảo mật)
+     */
+    public function viewVarianceProof(Request $request, int $id)
+    {
+        $user = $request->user();
+        $session = InventoryCountSession::where('restaurant_id', $user->restaurant_id)->findOrFail($id);
+        $this->authorizeSessionBranch($user, $session);
+
+        $path = $session->variance_proof_path;
+        abort_unless($path, 404, 'Không tìm thấy chứng từ kiểm kê.');
+
+        if (\Illuminate\Support\Facades\Storage::disk('local')->exists($path)) {
+            return response()->file(\Illuminate\Support\Facades\Storage::disk('local')->path($path));
+        }
+
+        if (\Illuminate\Support\Facades\Storage::disk('public')->exists($path)) {
+            return response()->file(\Illuminate\Support\Facades\Storage::disk('public')->path($path));
+        }
+
+        abort(404, 'File chứng từ không tồn tại.');
     }
 
     private function authorizeSessionBranch($user, InventoryCountSession $session): void
     {
         abort_unless(
-            $user->canAccessBranch((int) $session->branch_id),
+            $user->canAccessBranch((int) $session->branch_id) || $user->isWarehouseManager(),
             403,
             'Bạn không có quyền thao tác phiên kiểm kê của chi nhánh này.'
         );
