@@ -457,24 +457,15 @@ watch(
                     props.collapsibleGroups
                         ? 'cursor-pointer hover:bg-sidebar-accent/60 hover:text-sidebar-foreground focus-visible:ring-2 focus-visible:ring-sidebar-ring'
                         : 'text-slate-450 dark:text-slate-500',
-                    isGroupActive(group)
-                        ? 'bg-primary/10 text-primary ring-1 ring-primary/20'
-                        : '',
                     isGroupExpanded(group) && !isGroupActive(group)
                         ? 'bg-sidebar-accent/40 text-sidebar-foreground'
                         : '',
                 ]"
                 @click="props.collapsibleGroups && toggleGroup(group.key)"
             >
-                <span
-                    v-if="isGroupActive(group)"
-                    class="absolute top-2 bottom-2 left-0 w-0.5 rounded-r-full bg-primary"
-                    aria-hidden="true"
-                />
                 <component
                     :is="group.icon"
                     class="size-[18px] shrink-0 opacity-75 transition-opacity duration-200"
-                    :class="isGroupActive(group) ? 'opacity-100' : ''"
                     aria-hidden="true"
                 />
                 <span class="min-w-0 flex-1 truncate leading-none">

@@ -7,6 +7,7 @@ import {
     Brain,
     Building2,
     BadgeDollarSign,
+    CheckSquare,
     ClipboardCheck,
     Image,
     Newspaper,
@@ -450,6 +451,12 @@ const ownerNav = computed<NavItem[]>(() => {
             feature: 'inventory_basic',
         },
         {
+            title: 'Trợ lý AI Kho Tổng',
+            href: '/inventory/central-warehouse/ai-advisor',
+            icon: Bot,
+            feature: 'inventory_basic',
+        },
+        {
             title: 'Đơn cấp phát',
             href: '/inventory/central-warehouse/requests',
             icon: ClipboardCheck,
@@ -475,6 +482,12 @@ const ownerNav = computed<NavItem[]>(() => {
             href: '/warehouse/team',
             icon: Users,
             permission: 'warehouse.staff.view',
+            feature: 'inventory_basic',
+        },
+        {
+            title: 'Cổng nhân sự Kho',
+            href: '/inventory/staff-portal',
+            icon: CheckSquare,
             feature: 'inventory_basic',
         },
         {
@@ -696,6 +709,7 @@ const ownerNav = computed<NavItem[]>(() => {
         '/inventory/transfers': 'supply',
         '/waste-management': 'supply',
         '/inventory/central-warehouse': 'supply',
+        '/inventory/central-warehouse/ai-advisor': 'supply',
         '/inventory/central-warehouse/stock': 'supply',
         '/inventory/count-sessions': 'supply',
         '/inventory/central-kitchen': 'supply',
@@ -1122,6 +1136,12 @@ const warehouseManagerNav = computed<NavItem[]>(() => {
             feature: 'inventory_basic',
         },
         {
+            title: 'Trợ lý AI Kho Tổng',
+            href: '/inventory/central-warehouse/ai-advisor',
+            icon: Bot,
+            feature: 'inventory_basic',
+        },
+        {
             title: 'Đơn cấp phát',
             href: '/inventory/central-warehouse/requests',
             icon: ClipboardCheck,
@@ -1148,6 +1168,18 @@ const warehouseManagerNav = computed<NavItem[]>(() => {
             icon: Users,
             permission: 'warehouse.staff.view',
             feature: 'inventory_basic',
+        },
+        {
+            title: 'Cổng nhân sự Kho',
+            href: '/inventory/staff-portal',
+            icon: CheckSquare,
+            feature: 'inventory_basic',
+        },
+        {
+            title: 'Nhân sự & Lịch biểu',
+            href: '/employees',
+            icon: UserCheck,
+            feature: 'hr_timekeeping',
         },
         {
             title: 'Central Kitchen Sơ chế',
@@ -1201,6 +1233,12 @@ const warehouseManagerNav = computed<NavItem[]>(() => {
 
 const warehouseStaffNav = computed<NavItem[]>(() => {
     const nav = [
+        {
+            title: 'Cổng tác vụ của tôi',
+            href: '/inventory/staff-portal',
+            icon: CheckSquare,
+            feature: 'inventory_basic',
+        },
         {
             title: 'Điều phối Kho Tổng',
             href: '/inventory/central-warehouse',

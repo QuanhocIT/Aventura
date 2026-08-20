@@ -143,17 +143,26 @@ Route::middleware(['auth', 'verified', 'tenant.subscription', 'tenant.ratelimit'
     Route::get('employees/{employee}/export-profile', [EmployeeManagementController::class, 'exportEmployeeProfile'])->name('employees.export-profile');
     Route::get('employees/{employee}/citizen-id/{side}', [EmployeeManagementController::class, 'citizenIdImage'])->name('employees.citizen-id');
     Route::post('employees/shifts/sync', [EmployeeManagementController::class, 'syncShifts'])->name('employees.shifts.sync');
-    Route::post('employees/schedules', [LeaveScheduleController::class, 'storeAssignment'])->name('employees.schedules.store');
-    Route::post('employees/schedules/delete', [LeaveScheduleController::class, 'destroyAssignment'])->name('employees.schedules.destroy');
-    Route::post('employees/schedules/toggle-auto', [LeaveScheduleController::class, 'toggleAutoSchedule'])->name('employees.schedules.toggle-auto');
-    Route::post('employees/schedules/quick-auto', [LeaveScheduleController::class, 'quickAutoSchedule'])->name('employees.schedules.quick-auto');
-    Route::post('employees/schedules/copy-last-week', [LeaveScheduleController::class, 'copyLastWeekSchedules'])->name('employees.schedules.copy-last-week');
+
+    // ── [SECURITY P0] Xếp ca: chỉ Owner / Manager / Trưởng kho được tạo/xóa/tự động ──
+    // Nhân viên thường KHÔNG được gọi các route này. Phân quyền 2 lớp: route-level +
+    // controller-level (ScheduleAssignmentService::storeAssignment cũng tự kiểm tra).
+    Route::middleware('role:owner|manager|warehouse_manager')->group(function () {
+        Route::post('employees/schedules', [LeaveScheduleController::class, 'storeAssignment'])->name('employees.schedules.store');
+        Route::post('employees/schedules/delete', [LeaveScheduleController::class, 'destroyAssignment'])->name('employees.schedules.destroy');
+        Route::post('employees/schedules/toggle-auto', [LeaveScheduleController::class, 'toggleAutoSchedule'])->name('employees.schedules.toggle-auto');
+        Route::post('employees/schedules/quick-auto', [LeaveScheduleController::class, 'quickAutoSchedule'])->name('employees.schedules.quick-auto');
+        Route::post('employees/schedules/copy-last-week', [LeaveScheduleController::class, 'copyLastWeekSchedules'])->name('employees.schedules.copy-last-week');
+        // Thay ca khẩn cấp (nghỉ đột xuất) — quản lý xếp người thay, không tự xếp mình.
+        Route::post('employees/schedules/emergency-replace', [LeaveScheduleController::class, 'emergencyReplace'])->name('employees.schedules.emergency-replace');
+        Route::patch('employees/leaves/{leave}/approve', [LeaveScheduleController::class, 'approveLeaveRequest'])->name('employees.leaves.approve');
+        Route::patch('employees/leaves/{leave}/reject', [LeaveScheduleController::class, 'rejectLeaveRequest'])->name('employees.leaves.reject');
+    });
+
+    // Nộp đơn nghỉ phép / xem gợi ý thay ca — tất cả nhân viên có tài khoản.
     Route::post('employees/leaves', [LeaveScheduleController::class, 'storeLeaveRequest'])->name('employees.leaves.store');
     Route::get('employees/leaves/{leave}/replacements', [LeaveScheduleController::class, 'getReplacementSuggestions'])->name('employees.leaves.replacements');
-    // Thay ca khẩn cấp (nghỉ đột xuất) — quản lý xếp người thay, không tự xếp mình.
-    Route::post('employees/schedules/emergency-replace', [LeaveScheduleController::class, 'emergencyReplace'])->name('employees.schedules.emergency-replace');
-    Route::patch('employees/leaves/{leave}/approve', [LeaveScheduleController::class, 'approveLeaveRequest'])->name('employees.leaves.approve');
-    Route::patch('employees/leaves/{leave}/reject', [LeaveScheduleController::class, 'rejectLeaveRequest'])->name('employees.leaves.reject');
+
 
     // Chấm công & Lịch biểu
     Route::get('schedules', [ScheduleController::class, 'index'])->name('schedules.index');
@@ -610,6 +619,8 @@ Route::middleware(['auth', 'verified', 'tenant.subscription', 'tenant.ratelimit'
         Route::post('inventory/transfers/{transfer}/route', [StockTransferRequestController::class, 'route'])->name('inventory.transfers.route');
         Route::post('inventory/transfers/{transfer}/dispatch', [StockTransferRequestController::class, 'dispatch'])->name('inventory.transfers.dispatch');
         Route::post('inventory/transfers/{transfer}/receive', [StockTransferRequestController::class, 'receive'])->name('inventory.transfers.receive');
+        Route::post('inventory/transfers/{transfer}/resolve-discrepancy', [StockTransferRequestController::class, 'resolveDiscrepancy'])->name('inventory.transfers.resolve-discrepancy');
+        Route::post('inventory/transfers/{transfer}/cancel', [StockTransferRequestController::class, 'cancel'])->name('inventory.transfers.cancel');
         Route::post('inventory/transfers/{transfer}/reject', [StockTransferRequestController::class, 'reject'])->name('inventory.transfers.reject');
     });
 
@@ -646,8 +657,8 @@ Route::middleware(['auth', 'verified', 'tenant.subscription', 'tenant.ratelimit'
         Route::post('tasks/{id}/start', [WarehouseStaffController::class, 'startTask'])->name('warehouse.tasks.start');
         Route::post('tasks/{id}/complete', [WarehouseStaffController::class, 'completeTask'])->name('warehouse.tasks.complete');
         // Phiếu nhận hàng GRN
-        Route::post('receiving-vouchers', [WarehouseStaffController::class, 'storeReceivingVoucher'])->middleware('role_or_permission:owner|super_admin|warehouse.receiving.create|warehouse_staff')->name('warehouse.receiving-vouchers.store');
-        Route::post('receiving-vouchers/{id}/confirm', [WarehouseStaffController::class, 'confirmReceiving'])->middleware('role_or_permission:owner|super_admin')->name('warehouse.receiving-vouchers.confirm');
+        Route::post('receiving-vouchers', [WarehouseStaffController::class, 'storeReceivingVoucher'])->middleware('role_or_permission:owner|super_admin|warehouse.receiving.create|warehouse_staff|warehouse_manager|warehouse.manage')->name('warehouse.receiving-vouchers.store');
+        Route::post('receiving-vouchers/{id}/confirm', [WarehouseStaffController::class, 'confirmReceiving'])->middleware('role_or_permission:owner|super_admin|warehouse_manager|warehouse.manage')->name('warehouse.receiving-vouchers.confirm');
         Route::post('receiving-vouchers/{id}/discrepancy', [WarehouseStaffController::class, 'reportDiscrepancy'])->middleware('role_or_permission:owner|super_admin|warehouse.incident.report|warehouse_staff')->name('warehouse.receiving-vouchers.discrepancy');
         // Cất hàng
         Route::post('tasks/{taskId}/putaway-confirm', [WarehouseStaffController::class, 'confirmPutaway'])->name('warehouse.putaway.confirm');
@@ -678,6 +689,9 @@ Route::middleware(['auth', 'verified', 'tenant.subscription', 'tenant.ratelimit'
     Route::post('api/warehouse/ingredient-prices', [SupplyRequestController::class, 'updateIngredientPrices'])
         ->middleware('role_or_permission:owner|super_admin')
         ->name('warehouse.ingredient-prices.update');
+    Route::post('api/warehouse/ingredient-prices/propose', [SupplyRequestController::class, 'proposeIngredientPrices'])
+        ->middleware('role_or_permission:owner|super_admin|warehouse_manager|warehouse.manage')
+        ->name('warehouse.ingredient-prices.propose');
 
     // Central Kitchen (Sơ chế & Sản xuất Trung tâm)
     Route::get('api/central-kitchen/boms', [CentralKitchenController::class, 'getBoms'])
@@ -746,11 +760,16 @@ Route::middleware(['auth', 'verified', 'tenant.subscription', 'tenant.ratelimit'
     Route::post('api/warehouse-governance/disputes/{id}/resolve', [WarehouseGovernanceController::class, 'resolveDispute'])->middleware('role_or_permission:owner|super_admin|warehouse_governance.manage')->name('warehouse-governance.resolve-dispute');
 
     // Kiểm kê tồn kho nâng cao (Periodic, Spot check, Blind count)
-    Route::get('inventory/count-sessions', [InventoryCountController::class, 'page'])->middleware('role_or_permission:owner|super_admin|inventory.count|inventory.adjust.approve')->name('inventory.count-sessions');
-    Route::post('api/inventory/count-sessions', [InventoryCountController::class, 'store'])->middleware('role_or_permission:owner|super_admin|inventory.count')->name('inventory.count-sessions.store');
-    Route::post('api/inventory/count-sessions/{id}/counts', [InventoryCountController::class, 'submitCounts'])->middleware('role_or_permission:owner|super_admin|inventory.count')->name('inventory.count-sessions.counts');
-    Route::post('api/inventory/count-sessions/{id}/submit-approval', [InventoryCountController::class, 'submitForApproval'])->middleware('role_or_permission:owner|super_admin|inventory.count')->name('inventory.count-sessions.submit-approval');
-    Route::post('api/inventory/count-sessions/{id}/approve', [InventoryCountController::class, 'approve'])->middleware('role_or_permission:owner|super_admin|inventory.adjust.approve')->name('inventory.count-sessions.approve');
+    Route::get('inventory/count-sessions', [InventoryCountController::class, 'page'])->middleware('role_or_permission:owner|super_admin|warehouse_manager|inventory.count|inventory.adjust.approve')->name('inventory.count-sessions');
+    Route::post('api/inventory/count-sessions', [InventoryCountController::class, 'store'])->middleware('role_or_permission:owner|super_admin|warehouse_manager|inventory.count')->name('inventory.count-sessions.store');
+    Route::post('api/inventory/count-sessions/{id}/counts', [InventoryCountController::class, 'submitCounts'])->middleware('role_or_permission:owner|super_admin|warehouse_manager|inventory.count')->name('inventory.count-sessions.counts');
+    Route::post('api/inventory/count-sessions/{id}/items/{itemId}/reconcile', [InventoryCountController::class, 'reconcileItem'])->middleware('role_or_permission:owner|super_admin|warehouse_manager|inventory.count')->name('inventory.count-sessions.items.reconcile');
+    Route::post('api/inventory/count-sessions/{id}/submit-approval', [InventoryCountController::class, 'submitForApproval'])->middleware('role_or_permission:owner|super_admin|warehouse_manager|inventory.count')->name('inventory.count-sessions.submit-approval');
+    Route::post('api/inventory/count-sessions/{id}/upload-proof', [InventoryCountController::class, 'uploadVarianceProof'])->middleware('role_or_permission:owner|super_admin|warehouse_manager|inventory.count')->name('inventory.count-sessions.upload-proof');
+    Route::post('api/inventory/count-sessions/{id}/reject', [InventoryCountController::class, 'reject'])->middleware('role_or_permission:owner|super_admin|inventory.adjust.approve')->name('inventory.count-sessions.reject');
+    Route::post('api/inventory/count-sessions/{id}/reopen', [InventoryCountController::class, 'reopen'])->middleware('role_or_permission:owner|super_admin|warehouse_manager|inventory.count')->name('inventory.count-sessions.reopen');
+    Route::post('api/inventory/count-sessions/{id}/cancel', [InventoryCountController::class, 'cancel'])->middleware('role_or_permission:owner|super_admin|warehouse_manager|inventory.count')->name('inventory.count-sessions.cancel');
+    Route::post('api/inventory/count-sessions/{id}/approve', [InventoryCountController::class, 'approve'])->middleware('role_or_permission:owner|super_admin|warehouse_manager|inventory.adjust.approve')->name('inventory.count-sessions.approve');
 
     // Bộ Quy Định & Tiêu Chuẩn Vận Hành Toàn Hệ Thống
     Route::get('operations/company-policies', [CompanyPolicyController::class, 'page'])->middleware('role_or_permission:owner|super_admin|company_policies.manage')->name('operations.company-policies');
@@ -796,6 +815,9 @@ Route::middleware(['auth', 'verified', 'tenant.subscription', 'tenant.ratelimit'
 
     // Trợ lý AI Chiến lược (AI Advisor)
     Route::get('ai-advisor', [ChatbotController::class, 'advisorIndex'])->name('ai-advisor.index');
+    Route::get('inventory/central-warehouse/ai-advisor', [ChatbotController::class, 'centralWarehouseAdvisorIndex'])
+        ->middleware('role_or_permission:owner|super_admin|warehouse_manager')
+        ->name('inventory.central-warehouse.ai-advisor');
     Route::post('api/chatbot/advisor-message', [ChatbotController::class, 'advisorMessage'])->name('chatbot.advisor-message');
     Route::get('api/chatbot/advisor-history', [ChatbotController::class, 'advisorHistory'])->name('chatbot.advisor-history');
 
@@ -855,7 +877,7 @@ Route::middleware(['auth', 'verified', 'tenant.subscription', 'tenant.ratelimit'
     // Quick Actions API Routes (Batch 1)
     Route::post('reservations/{reservation}/auto-assign', [TableReservationController::class, 'autoAssignTable'])->name('reservations.auto-assign');
     Route::post('orders/batch-approve-qr', [OrdersController::class, 'batchApproveQrOrders'])->name('orders.batch-approve-qr');
-    Route::post('inventory/counts/quick-preset', [InventoryCountController::class, 'quickCountPreset'])->middleware('role_or_permission:owner|super_admin|inventory.count')->name('inventory.counts.quick-preset');
+    Route::post('inventory/counts/quick-preset', [InventoryCountController::class, 'quickCountPreset'])->middleware('role_or_permission:owner|super_admin|warehouse_manager|inventory.count')->name('inventory.counts.quick-preset');
     Route::post('supply-requests/quick-recommended', [SupplyRequestController::class, 'quickRecommendedRequest'])->middleware('role_or_permission:owner|super_admin|supply_requests.create')->name('supply-requests.quick-recommended');
     Route::post('kitchen/items/{item}/notify-waiter', [KitchenController::class, 'notifyWaiterOverdue'])->name('kitchen.items.notify-waiter');
     Route::post('approvals/batch-approve-low-risk', [ApprovalController::class, 'batchApproveLowRisk'])->name('approvals.batch-approve-low-risk');
