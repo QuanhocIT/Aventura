@@ -80,9 +80,13 @@ class WarehouseGovernanceTest extends TestCase
             [['ingredient_id' => $ingredient->id, 'quantity' => 10]]
         );
 
-        // 2. Central Warehouse approves & dispatches 10kg with Seal Code
-        $service->approveSupplyRequest($supplyRequest, $warehouseManager);
-        $dispatched = $service->dispatchSupplyRequest($supplyRequest, $warehouseStaff, 'SEAL-998877');
+        // 2. Central Warehouse approves, prepares, approves dispatch & dispatches 10kg with Seal Code
+        $approved = $service->approveSupplyRequest($supplyRequest, $warehouseManager);
+        $prepared = $service->prepareDispatch($approved, $warehouseStaff, [
+            ['id' => $approved->items->first()->id, 'actual_dispatched_quantity' => 10],
+        ]);
+        $dispatchApproved = $service->approveDispatch($prepared, $warehouseManager);
+        $dispatched = $service->dispatchSupplyRequest($dispatchApproved, $warehouseStaff, 'SEAL-998877');
 
         $this->assertEquals('SEAL-998877', $dispatched->seal_code);
 
