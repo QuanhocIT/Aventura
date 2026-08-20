@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\Ingredient;
 use App\Models\Inventory;
 use App\Models\InventoryBatch;
+use App\Models\InventoryDiscrepancyDispute;
 use App\Models\InventoryReservation;
 use App\Models\InventoryTransaction;
 use App\Models\RestaurantBranch;
@@ -12,14 +13,16 @@ use App\Models\SupplyRequest;
 use App\Models\SupplyRequestItem;
 use App\Models\User;
 use App\Notifications\SupplyRequestCreatedNotification;
+use App\Notifications\SupplyRequestStatusNotification;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use InvalidArgumentException;
 
 class CentralWarehouseService
 {
     /**
-     * Get or set the Central Warehouse branch for a restaurant.
+     * Get the active Central Warehouse branch for a restaurant.
      */
     public function getCentralWarehouse(int $restaurantId): ?RestaurantBranch
     {
@@ -55,7 +58,7 @@ class CentralWarehouseService
     }
 
     /**
-     * Set a specific branch as the central warehouse.
+     * Set a specific branch as the central warehouse and ensure uniqueness.
      */
     public function setCentralWarehouse(int $restaurantId, int $branchId): RestaurantBranch
     {
@@ -63,8 +66,14 @@ class CentralWarehouseService
             ->where('id', $branchId)
             ->firstOrFail();
 
+        if ($branch->status !== 'active') {
+            throw new InvalidArgumentException('Chỉ có thể thiết lập chi nhánh đang hoạt động (active) làm Kho Tổng.');
+        }
+
         DB::transaction(function () use ($restaurantId, $branch): void {
+            // Reset central status for all other branches
             RestaurantBranch::where('restaurant_id', $restaurantId)
+                ->where('id', '!=', $branch->id)
                 ->update([
                     'is_central_warehouse' => false,
                     'warehouse_type' => 'business',
@@ -77,6 +86,24 @@ class CentralWarehouseService
         });
 
         return $branch->fresh();
+    }
+
+    /**
+     * Sinh mã yêu cầu cấp phát duy nhất chống xung đột (race condition).
+     */
+    public function generateUniqueRequestCode(int $restaurantId): string
+    {
+        $prefix = 'SR-' . Carbon::now()->format('Ymd') . '-';
+        for ($attempt = 0; $attempt < 20; $attempt++) {
+            $count = SupplyRequest::where('restaurant_id', $restaurantId)
+                ->whereDate('created_at', Carbon::today())
+                ->count() + 1 + $attempt;
+            $candidate = $prefix . str_pad((string) $count, 4, '0', STR_PAD_LEFT);
+            if (! SupplyRequest::where('restaurant_id', $restaurantId)->where('request_code', $candidate)->exists()) {
+                return $candidate;
+            }
+        }
+        return $prefix . strtoupper(bin2hex(random_bytes(3)));
     }
 
     /**
@@ -105,6 +132,9 @@ class CentralWarehouseService
         }
 
         $branch = RestaurantBranch::where('restaurant_id', $restaurantId)->findOrFail($toBranchId);
+        if ($branch->status !== 'active') {
+            throw new InvalidArgumentException("Chi nhánh nhận '{$branch->name}' đang không ở trạng thái hoạt động.");
+        }
 
         $this->assertCentralIngredients(
             $restaurantId,
@@ -113,7 +143,6 @@ class CentralWarehouseService
         );
 
         // ── Anti-Duplicate Check ───────────────────────────────────────────────
-        // Chống tạo nhiều đơn trùng lắp từ cùng một chi nhánh trong 10 phút
         $recentDuplicate = SupplyRequest::where('restaurant_id', $restaurantId)
             ->where('to_branch_id', $toBranchId)
             ->where('created_by', $creator->id)
@@ -134,7 +163,7 @@ class CentralWarehouseService
             ->sum('total_amount');
 
         return DB::transaction(function () use ($restaurantId, $central, $toBranchId, $creator, $items, $requestedDate, $notes, $branch, $monthlySpent, $overlimitReason) {
-            $requestCode = 'SR-'.Carbon::now()->format('Ymd').'-'.str_pad((string) (SupplyRequest::where('restaurant_id', $restaurantId)->count() + 1), 4, '0', STR_PAD_LEFT);
+            $requestCode = $this->generateUniqueRequestCode($restaurantId);
 
             $supplyRequest = SupplyRequest::create([
                 'restaurant_id' => $restaurantId,
@@ -199,10 +228,7 @@ class CentralWarehouseService
             $supplyRequest->update(['total_amount' => $totalAmount]);
 
             // Gửi thông báo cho Ban Quản Lý Kho
-            User::where('restaurant_id', $restaurantId)
-                ->whereHas('roles', fn ($query) => $query->whereIn('name', ['owner', 'warehouse_manager', 'warehouse_staff']))
-                ->get()
-                ->each(fn (User $warehouseUser) => $warehouseUser->notify(new SupplyRequestCreatedNotification($supplyRequest)));
+            $this->notifyStakeholders($supplyRequest, 'created');
 
             return $supplyRequest->load(['items.ingredient', 'fromBranch', 'toBranch', 'creator']);
         });
@@ -232,7 +258,6 @@ class CentralWarehouseService
 
         return DB::transaction(function () use ($request, $approver, $approvedItems, $notes) {
             $totalAmount = 0;
-
             $itemsToProcess = ! empty($approvedItems) ? $approvedItems : $request->items;
 
             foreach ($itemsToProcess as $itemApproval) {
@@ -274,7 +299,7 @@ class CentralWarehouseService
                     'supply_request_id' => $request->id,
                     'reservation_type'  => 'supply_request',
                     'quantity'          => $approvedQty,
-                    'expires_at'        => now()->addDays(7), // Hết hạn sau 7 ngày nếu không xuất
+                    'expires_at'        => now()->addDays(7),
                     'created_by'        => $approver->id,
                 ]);
             }
@@ -282,9 +307,12 @@ class CentralWarehouseService
             $request->update([
                 'status'       => SupplyRequest::STATUS_APPROVED,
                 'approved_by'  => $approver->id,
+                'approved_at'  => now(),
                 'total_amount' => $totalAmount,
                 'notes'        => $notes ? ($request->notes . "\n[Duyệt]: " . $notes) : $request->notes,
             ]);
+
+            $this->notifyStakeholders($request, 'approved');
 
             return $request->fresh(['items.ingredient', 'fromBranch', 'toBranch', 'approver', 'reservations']);
         });
@@ -319,6 +347,11 @@ class CentralWarehouseService
 
                 $actualQty = (float) ($picked['actual_dispatched_quantity'] ?? $item->approved_quantity);
                 $batchId   = $picked['batch_id'] ?? null;
+
+                // Khóa chặt: số lượng thực xuất không được vượt số lượng đã duyệt
+                if ($actualQty > (float) $item->approved_quantity) {
+                    throw new InvalidArgumentException("Số lượng thực soạn ({$actualQty}) không được vượt quá số lượng đã duyệt ({$item->approved_quantity}) cho nguyên liệu #{$item->ingredient_id}.");
+                }
 
                 // Kiểm tra lô & FEFO nếu truyền batch_id
                 if ($batchId) {
@@ -372,6 +405,8 @@ class CentralWarehouseService
                 'prepared_at' => now(),
             ]);
 
+            $this->notifyStakeholders($request, 'prepared');
+
             return $request->fresh(['items.ingredient', 'items.batch']);
         });
     }
@@ -399,11 +434,14 @@ class CentralWarehouseService
             'dispatch_approved_at' => now(),
         ]);
 
+        $this->notifyStakeholders($request, 'dispatch_approved');
+
         return $request->fresh();
     }
 
     /**
      * Xuất kho thực tế & bàn giao (Layer 3 - Physical Handover & Stock Deduction).
+     * [P0.1]: Chỉ cho phép xuất khi đơn đã ở trạng thái dispatch_pending_approval.
      */
     public function dispatchSupplyRequest(
         SupplyRequest $request,
@@ -414,8 +452,9 @@ class CentralWarehouseService
         $this->assertNotSelfApproval($request, $handoverPerson, 'approved_by', 'Người duyệt đơn không được tự xuất kho.');
         $this->assertNotSelfApproval($request, $handoverPerson, 'dispatch_approved_by', 'Người duyệt xuất không được tự bàn giao hàng.');
 
-        if (! in_array($request->status, [SupplyRequest::STATUS_APPROVED, SupplyRequest::STATUS_PREPARING, SupplyRequest::STATUS_DISPATCH_PENDING])) {
-            throw new InvalidArgumentException('Chỉ đơn đã soạn và duyệt xuất mới có thể xuất kho bàn giao.');
+        // KHÓA CỨNG: Bắt buộc phải qua bước Trưởng kho duyệt xuất (STATUS_DISPATCH_PENDING)
+        if ($request->status !== SupplyRequest::STATUS_DISPATCH_PENDING) {
+            throw new InvalidArgumentException('Chỉ đơn đã được Trưởng kho duyệt số lượng xuất (chờ xuất hàng) mới có thể xuất kho bàn giao.');
         }
 
         $central = $this->getCentralWarehouse($request->restaurant_id);
@@ -436,6 +475,11 @@ class CentralWarehouseService
         return DB::transaction(function () use ($request, $handoverPerson, $sealCode) {
             foreach ($request->items as $item) {
                 $qtyToDeduct = (float) $item->effective_dispatched_quantity;
+
+                // Kiểm tra lại không vượt quá số lượng đã duyệt
+                if ($qtyToDeduct > (float) $item->approved_quantity) {
+                    throw new InvalidArgumentException("Số lượng thực xuất ({$qtyToDeduct}) vượt quá số lượng đã duyệt ({$item->approved_quantity}) cho nguyên liệu #{$item->ingredient_id}.");
+                }
 
                 if ($request->from_branch_id) {
                     // Lock inventory record for atomic update
@@ -458,19 +502,28 @@ class CentralWarehouseService
                         $batch = InventoryBatch::where('restaurant_id', $request->restaurant_id)
                             ->where('branch_id', $request->from_branch_id)
                             ->where('ingredient_id', $item->ingredient_id)
-                            ->whereKey($item->batch_id)
+                            ->where('id', $item->batch_id)
                             ->lockForUpdate()
                             ->first();
 
                         if ($batch) {
                             if ((float) $batch->quantity_remaining < $qtyToDeduct) {
-                                throw new InvalidArgumentException("Lô #{$batch->batch_code} chỉ còn {$batch->quantity_remaining}, không đủ để thực xuất {$qtyToDeduct}.");
+                                throw new InvalidArgumentException("Lô #{$batch->batch_code} không đủ tồn để trừ ({$batch->quantity_remaining} < {$qtyToDeduct}).");
                             }
                             $batch->decrement('quantity_remaining', $qtyToDeduct);
+                            if ((float) $batch->quantity_remaining <= 0) {
+                                $batch->update(['status' => 'depleted']);
+                            }
                         }
                     }
 
-                    // ── Ghi Ledger Bất Biến với Idempotency Key ───────────────────────
+                    // Giải phóng Reservation giữ chỗ tương ứng
+                    InventoryReservation::where('supply_request_id', $request->id)
+                        ->where('ingredient_id', $item->ingredient_id)
+                        ->whereNull('released_at')
+                        ->update(['released_at' => now()]);
+
+                    // Ghi Ledger Xuất Kho (InventoryTransaction)
                     InventoryTransaction::createWithIdempotency([
                         'restaurant_id'   => $request->restaurant_id,
                         'branch_id'       => $request->from_branch_id,
@@ -485,16 +538,11 @@ class CentralWarehouseService
                         'source_type'     => 'supply_request',
                         'source_id'       => $request->id,
                         'idempotency_key' => "dispatch_sr_{$request->id}_item_{$item->id}",
-                        'notes'           => "Xuất cấp phát cho chi nhánh theo đơn {$request->request_code} (Niêm phong: " . ($sealCode ?: $request->seal_code ?: 'N/A') . ")",
+                        'notes'           => "Xuất kho cấp phát cho chi nhánh {$request->toBranch?->name} theo đơn {$request->request_code}",
                         'occurred_at'     => now(),
                     ]);
                 }
             }
-
-            // ── GIẢI PHÓNG GIỮ CHỐ TỒN ─────────────────────────────────────────
-            InventoryReservation::where('supply_request_id', $request->id)
-                ->whereNull('released_at')
-                ->update(['released_at' => now()]);
 
             $request->update([
                 'status'        => SupplyRequest::STATUS_DISPATCHED,
@@ -504,6 +552,8 @@ class CentralWarehouseService
                 'handover_by'   => $handoverPerson->id,
                 'handover_at'   => now(),
             ]);
+
+            $this->notifyStakeholders($request, 'dispatched');
 
             return $request->fresh(['items.ingredient', 'fromBranch', 'toBranch', 'dispatcher']);
         });
@@ -518,7 +568,9 @@ class CentralWarehouseService
         ?array $receivedItems = null,
         ?string $receiptPhotoPath = null,
         ?string $signaturePath = null,
-        ?string $notes = null
+        ?string $notes = null,
+        ?string $receiptPhotoHash = null,
+        ?string $signatureHash = null
     ): SupplyRequest {
         $this->assertSameRestaurant($request, $receiver);
         $this->assertNotSelfApproval($request, $receiver, 'dispatched_by', 'Người xuất kho không được tự xác nhận nhận hàng.');
@@ -541,7 +593,7 @@ class CentralWarehouseService
             return $request;
         }
 
-        return DB::transaction(function () use ($request, $receiver, $receivedItems, $receiptPhotoPath, $signaturePath, $notes) {
+        return DB::transaction(function () use ($request, $receiver, $receivedItems, $receiptPhotoPath, $signaturePath, $notes, $receiptPhotoHash, $signatureHash) {
             $lockedRequest = SupplyRequest::where('id', $request->id)->lockForUpdate()->firstOrFail();
             $hasShortage = false;
 
@@ -549,7 +601,7 @@ class CentralWarehouseService
                 $item->lockForUpdate();
                 $dispatchedQty = (float) $item->effective_dispatched_quantity;
                 $previouslyReceivedQty = (float) ($item->received_quantity ?? 0);
-                $targetTotalRecQty = $dispatchedQty; // Default if array empty
+                $targetTotalRecQty = $dispatchedQty;
 
                 if (! empty($receivedItems)) {
                     foreach ($receivedItems as $recItem) {
@@ -592,7 +644,7 @@ class CentralWarehouseService
                     $branchInventory->lockForUpdate();
                     $branchInventory->increment('quantity_on_hand', $incrementalQty);
 
-                    // Ghi Ledger Nhập Kho Chi Nhánh theo chênh lệch tăng thêm với idempotency key duy nhất
+                    // Ghi Ledger Nhập Kho Chi Nhánh
                     $idempotencyKey = "receive_sr_{$request->id}_item_{$item->id}_prev_{$previouslyReceivedQty}_to_{$targetTotalRecQty}";
 
                     InventoryTransaction::createWithIdempotency([
@@ -626,7 +678,9 @@ class CentralWarehouseService
                 'received_by'             => $receiver->id,
                 'received_at'             => now(),
                 'receipt_photo_path'      => $receiptPhotoPath ?: $request->receipt_photo_path,
+                'receipt_photo_hash'      => $receiptPhotoHash ?: $request->receipt_photo_hash,
                 'receiver_signature_path' => $signaturePath ?: $request->receiver_signature_path,
+                'receiver_signature_hash' => $signatureHash ?: $request->receiver_signature_hash,
                 'received_notes'          => $notes ?: $request->received_notes,
                 'discrepancy_flag'        => $hasShortage,
             ]);
@@ -634,6 +688,9 @@ class CentralWarehouseService
             // Nếu có nhận thiếu: Tự động kích hoạt Governance Service để mở tranh chấp
             if ($hasShortage && ! empty($receivedItems)) {
                 app(WarehouseGovernanceService::class)->checkAndCreateDisputesFromSupplyRequest($request, $receivedItems);
+                $this->notifyStakeholders($request, 'disputed');
+            } else {
+                $this->notifyStakeholders($request, 'received');
             }
 
             return $request->fresh(['items.ingredient', 'fromBranch', 'toBranch', 'receiver']);
@@ -666,6 +723,8 @@ class CentralWarehouseService
                 'cancel_reason' => $reason,
             ]);
 
+            $this->notifyStakeholders($request, 'cancelled');
+
             return $request->fresh();
         });
     }
@@ -692,6 +751,8 @@ class CentralWarehouseService
                 'rejection_reason' => $reason,
                 'approved_by'      => $user->id,
             ]);
+
+            $this->notifyStakeholders($request, 'rejected');
 
             return $request->fresh();
         });
@@ -783,9 +844,9 @@ class CentralWarehouseService
                 $totalDemandByIngredient[$ingId]['requests'][] = [
                     'request_id'   => $req->id,
                     'item_id'      => $item->id,
-                    'to_branch_id'  => $req->to_branch_id,
+                    'to_branch_id' => $req->to_branch_id,
                     'branch_name'  => $req->toBranch?->name ?? "CN #{$req->to_branch_id}",
-                    'requested_qty' => $qty,
+                    'requested_qty'=> $qty,
                 ];
             }
         }
@@ -844,7 +905,6 @@ class CentralWarehouseService
 
         return DB::transaction(function () use ($parentRequest, $shortageItems, $user, $central) {
             $restaurantId = $parentRequest->restaurant_id;
-
             $requestCode = $parentRequest->request_code . '-BO';
 
             $existingBackorder = SupplyRequest::where('restaurant_id', $restaurantId)
@@ -896,12 +956,15 @@ class CentralWarehouseService
 
             $backorder->update(['total_amount' => $totalAmount]);
 
+            $this->notifyStakeholders($backorder, 'backorder_created');
+
             return $backorder->fresh(['items.ingredient', 'fromBranch', 'toBranch']);
         });
     }
 
     /**
      * Báo cáo KPIs Chuyên sâu cho Trưởng Kho Tổng (Fill Rate, OTIF, Waste Ratio, FEFO Compliance).
+     * [P1.4]: Tính toán OTIF và tỷ lệ hao hụt từ dữ liệu thật, không gán cứng.
      */
     public function getCentralWarehouseAnalytics(int $restaurantId): array
     {
@@ -917,10 +980,30 @@ class CentralWarehouseService
             ->when($central, fn ($query) => $query->where('from_branch_id', $central->id), fn ($query) => $query->whereRaw('1 = 0'))
             ->where('created_at', '>=', $startOfMonth)
             ->where('status', SupplyRequest::STATUS_COMPLETED)
-            ->count();
+            ->with(['items'])
+            ->get();
 
-        $fillRate = $totalRequests > 0 ? round(($completedRequests / $totalRequests) * 100, 1) : 100.0;
+        $completedCount = $completedRequests->count();
+        $fillRate = $totalRequests > 0 ? round(($completedCount / $totalRequests) * 100, 1) : 100.0;
 
+        // ── OTIF THẬT ────────────────────────────────────────────────────────
+        // On-Time: received_at <= requested_delivery_date
+        // In-Full: mọi item received_quantity >= requested_quantity và không có dispute
+        if ($completedCount > 0) {
+            $otifCount = 0;
+            foreach ($completedRequests as $cr) {
+                $isOnTime = ! $cr->requested_delivery_date || ! $cr->received_at || Carbon::parse($cr->received_at)->lte(Carbon::parse($cr->requested_delivery_date)->endOfDay());
+                $isInFull = $cr->items->every(fn ($it) => (float) ($it->received_quantity ?? $it->effective_dispatched_quantity) >= (float) $it->requested_quantity);
+                if ($isOnTime && $isInFull && ! $cr->discrepancy_flag) {
+                    $otifCount++;
+                }
+            }
+            $otifPercent = round(($otifCount / $completedCount) * 100, 1);
+        } else {
+            $otifPercent = $totalRequests > 0 ? 0.0 : 100.0;
+        }
+
+        // ── FEFO Compliance ──────────────────────────────────────────────────
         $itemsCount = SupplyRequestItem::whereHas('supplyRequest', function ($q) use ($restaurantId, $startOfMonth, $central) {
             $q->where('restaurant_id', $restaurantId)
                 ->when($central, fn ($query) => $query->where('from_branch_id', $central->id), fn ($query) => $query->whereRaw('1 = 0'))
@@ -933,16 +1016,114 @@ class CentralWarehouseService
                 ->where('created_at', '>=', $startOfMonth);
         })->whereNotNull('non_fefo_reason')->count();
 
-        $fefoCompliance = $itemsCount > 0 ? round((( $itemsCount - $nonFefoCount ) / $itemsCount) * 100, 1) : 100.0;
+        $fefoCompliance = $itemsCount > 0 ? round((($itemsCount - $nonFefoCount) / $itemsCount) * 100, 1) : 100.0;
+
+        // ── Tỷ Lệ Hao Hụt Thật (Waste Ratio) ──────────────────────────────────
+        $wasteRatio = 0.0;
+        if ($central) {
+            $totalWasteCost = (float) InventoryTransaction::withoutGlobalScopes()
+                ->where('restaurant_id', $restaurantId)
+                ->where('branch_id', $central->id)
+                ->where('type', 'waste')
+                ->where('occurred_at', '>=', $startOfMonth)
+                ->sum('total_cost');
+
+            $totalDispatchedValue = (float) SupplyRequest::where('restaurant_id', $restaurantId)
+                ->where('from_branch_id', $central->id)
+                ->where('created_at', '>=', $startOfMonth)
+                ->whereIn('status', [SupplyRequest::STATUS_DISPATCHED, SupplyRequest::STATUS_COMPLETED])
+                ->sum('total_amount');
+
+            if ($totalDispatchedValue > 0) {
+                $wasteRatio = round(($totalWasteCost / $totalDispatchedValue) * 100, 2);
+            }
+        }
 
         return [
             'total_requests_month'  => $totalRequests,
-            'completed_month'       => $completedRequests,
+            'completed_month'       => $completedCount,
             'fill_rate_percent'     => $fillRate,
-            'otif_percent'          => max(92.0, $fillRate - 2.5),
+            'otif_percent'          => $otifPercent,
             'fefo_compliance'       => $fefoCompliance,
-            'waste_ratio_percent'   => 1.2,
-            'active_disputes_count' => \App\Models\InventoryDiscrepancyDispute::where('restaurant_id', $restaurantId)->where('status', 'open')->count(),
+            'waste_ratio_percent'   => $wasteRatio,
+            'active_disputes_count' => InventoryDiscrepancyDispute::where('restaurant_id', $restaurantId)->where('status', 'open')->count(),
         ];
+    }
+
+    /**
+     * Gửi thông báo đến các bên liên quan theo từng giai đoạn.
+     */
+    public function notifyStakeholders(SupplyRequest $request, string $stage, ?string $customMessage = null): void
+    {
+        try {
+            $recipients = collect();
+
+            // 1. Người tạo yêu cầu
+            if ($request->creator) {
+                $recipients->push($request->creator);
+            }
+
+            // 2. Quản lý chi nhánh nhận
+            if ($request->toBranch?->manager) {
+                $recipients->push($request->toBranch->manager);
+            }
+
+            // 3. Đội ngũ quản lý Kho Tổng (warehouse_manager, owner, super_admin)
+            $warehouseManagers = User::where('restaurant_id', $request->restaurant_id)
+                ->where('status', 'active')
+                ->whereHas('roles', fn ($r) => $r->whereIn('name', ['warehouse_manager', 'owner', 'super_admin']))
+                ->get();
+            $recipients = $recipients->merge($warehouseManagers);
+
+            // 4. Nếu có tranh chấp (disputed): Bắt buộc gửi tới Owner
+            if ($stage === 'disputed') {
+                $owners = User::where('restaurant_id', $request->restaurant_id)
+                    ->whereHas('roles', fn ($r) => $r->where('name', 'owner'))
+                    ->get();
+                $recipients = $recipients->merge($owners);
+            }
+
+            $uniqueRecipients = $recipients->unique('id')->filter();
+
+            if ($stage === 'created') {
+                $uniqueRecipients->each(fn (User $user) => $user->notify(new SupplyRequestCreatedNotification($request)));
+            } else {
+                $uniqueRecipients->each(fn (User $user) => $user->notify(new SupplyRequestStatusNotification($request, $stage, $customMessage)));
+            }
+        } catch (\Throwable $e) {
+            Log::warning("Không thể gửi notification cho đơn cấp phát #{$request->id}: " . $e->getMessage());
+        }
+    }
+
+    /**
+     * Kiểm tra và gửi cảnh báo các đơn cấp phát quá hạn xử lý.
+     */
+    public function checkAndAlertOverdueRequests(int $restaurantId): int
+    {
+        $overdueCount = 0;
+
+        // Đơn chờ duyệt quá 24h
+        $pendingOverdue = SupplyRequest::where('restaurant_id', $restaurantId)
+            ->where('status', SupplyRequest::STATUS_PENDING)
+            ->where('created_at', '<=', now()->subHours(24))
+            ->get();
+
+        foreach ($pendingOverdue as $req) {
+            $this->notifyStakeholders($req, 'overdue_alert', "Đơn cấp phát #{$req->request_code} đã chờ duyệt quá 24 giờ.");
+            $overdueCount++;
+        }
+
+        // Đơn đã duyệt nhưng chưa soạn hàng quá 24h
+        $preparingOverdue = SupplyRequest::where('restaurant_id', $restaurantId)
+            ->where('status', SupplyRequest::STATUS_APPROVED)
+            ->where('approved_at', '<=', now()->subHours(24))
+            ->get();
+
+        foreach ($preparingOverdue as $req) {
+            $this->notifyStakeholders($req, 'overdue_alert', "Đơn cấp phát #{$req->request_code} đã được duyệt hơn 24 giờ nhưng chưa hoàn tất soạn hàng.");
+            $overdueCount++;
+        }
+
+        return $overdueCount;
     }
 }
