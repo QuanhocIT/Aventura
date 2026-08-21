@@ -6,20 +6,23 @@ use App\Models\TrainingCourse;
 use App\Models\TrainingEnrollment;
 use App\Models\TrainingLesson;
 use App\Models\TrainingQuiz;
-use App\Models\TrainingQuizAttempt;
 use App\Models\Employee;
+use App\Models\RestaurantBranch;
 use App\Services\QuotaService;
+use App\Services\TrainingService;
 use App\Support\TenantRule;
+use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Inertia\Inertia;
 use Inertia\Response;
 
 class TrainingController extends Controller
 {
+    public function __construct(private readonly TrainingService $trainingService) {}
+
     public function index(Request $request): Response
     {
         $restaurant = $request->user()->restaurant;
@@ -37,28 +40,86 @@ class TrainingController extends Controller
         }
 
         $restaurantId = $request->user()->restaurant_id;
+        $this->trainingService->syncDueStatuses($restaurantId);
+        $canManage = $request->user()->isOwner()
+            || $request->user()->isSuperAdmin()
+            || $request->user()->can('training.manage');
 
         $courses = TrainingCourse::where('restaurant_id', $restaurantId)
             ->where('is_active', true)
             ->withCount(['lessons', 'enrollments'])
-            ->with('quizzes:id,course_id,title')
+            ->with(['quizzes:id,course_id,title,is_required,pass_score,max_attempts', 'lessons:id,course_id,title,content_type,duration_minutes,is_required'])
             ->orderBy('sort_order')
             ->get();
 
         $enrollments = TrainingEnrollment::where('restaurant_id', $restaurantId)
-            ->with(['employee:id,full_name', 'course:id,title'])
+            ->when(! $canManage, function ($query) use ($request): void {
+                $query->whereHas('employee', fn ($employeeQuery) => $employeeQuery->where('user_id', $request->user()->id));
+            })
+            ->with(['employee:id,full_name,branch_id', 'course:id,title,type,requires_manager_signoff', 'assignedBy:id,name', 'managerApprovedBy:id,name'])
             ->latest()
             ->take(50)
             ->get();
+
+        $employees = $canManage
+            ? Employee::query()->where('restaurant_id', $restaurantId)->where('status', 'active')->with('branch:id,name', 'user.roles')->orderBy('full_name')->get(['id', 'full_name', 'branch_id', 'user_id'])->map(fn (Employee $employee): array => [
+                'id' => $employee->id,
+                'full_name' => $employee->full_name,
+                'branch_id' => $employee->branch_id,
+                'branch_name' => $employee->branch?->name,
+                'role' => $employee->user?->roles?->first()?->name ?? $employee->role?->name,
+            ])->values()
+            : [];
+        $branches = $canManage
+            ? RestaurantBranch::where('restaurant_id', $restaurantId)->where('status', 'active')->orderBy('name')->get(['id', 'name'])
+            : [];
 
         $stats = [
             'total_courses' => $courses->count(),
             'total_enrollments' => TrainingEnrollment::where('restaurant_id', $restaurantId)->count(),
             'completed' => TrainingEnrollment::where('restaurant_id', $restaurantId)->where('status', 'completed')->count(),
             'in_progress' => TrainingEnrollment::where('restaurant_id', $restaurantId)->where('status', 'in_progress')->count(),
+            ...$this->trainingService->complianceSummary($restaurantId),
         ];
 
-        return Inertia::render('training/Index', compact('courses', 'enrollments', 'stats'));
+        return Inertia::render('training/Index', [
+            'courses' => $courses,
+            'enrollments' => $enrollments,
+            'employees' => $employees,
+            'branches' => $branches,
+            'stats' => $stats,
+            'canManage' => $canManage,
+            'currentEmployeeId' => Employee::where('restaurant_id', $restaurantId)->where('user_id', $request->user()->id)->value('id'),
+        ]);
+    }
+
+    public function courseContent(Request $request, TrainingCourse $course): JsonResponse
+    {
+        $this->assertCourseBelongsToTenant($request, $course);
+        $employee = Employee::where('restaurant_id', $request->user()->restaurant_id)
+            ->where('user_id', $request->user()->id)
+            ->firstOrFail();
+        $enrollment = TrainingEnrollment::query()
+            ->where('restaurant_id', $request->user()->restaurant_id)
+            ->where('course_id', $course->id)
+            ->where('employee_id', $employee->id)
+            ->firstOrFail();
+
+        return response()->json([
+            'course' => $course->only(['id', 'title', 'description', 'type', 'requires_manager_signoff']),
+            'enrollment' => $enrollment->only(['id', 'course_id', 'status', 'progress_percent', 'completed_lessons', 'due_at', 'is_overdue', 'awaiting_manager_approval', 'certificate_code']),
+            'lessons' => $course->lessons()->get(['id', 'course_id', 'title', 'content_type', 'content', 'file_url', 'duration_minutes', 'is_required']),
+            'quizzes' => $course->quizzes()->get()->map(fn (TrainingQuiz $quiz): array => [
+                'id' => $quiz->id,
+                'title' => $quiz->title,
+                'pass_score' => $quiz->pass_score,
+                'max_attempts' => $quiz->max_attempts,
+                'questions' => collect($quiz->questions ?? [])->map(fn (array $question): array => [
+                    'question' => $question['question'] ?? '',
+                    'options' => $question['options'] ?? [],
+                ])->values(),
+            ])->values(),
+        ]);
     }
 
     public function storeCourse(Request $request): RedirectResponse
@@ -70,15 +131,33 @@ class TrainingController extends Controller
             'description' => ['nullable', 'string'],
             'type' => ['required', 'in:onboarding,menu,attp,operations,custom'],
             'is_required' => ['boolean'],
+            'course_code' => ['nullable', 'string', 'max:40'],
+            'target_roles' => ['nullable', 'array'],
+            'target_roles.*' => ['string', 'max:60'],
+            'target_branch_ids' => ['nullable', 'array'],
+            'target_branch_ids.*' => [TenantRule::exists('restaurant_branches')],
+            'required_for_new_hires' => ['boolean'],
+            'due_days' => ['nullable', 'integer', 'min:1', 'max:365'],
+            'validity_days' => ['nullable', 'integer', 'min:1', 'max:3650'],
+            'requires_manager_signoff' => ['boolean'],
         ]);
 
         TrainingCourse::create([
             'restaurant_id' => $request->user()->restaurant_id,
             'title' => $data['title'],
             'description' => $data['description'] ?? null,
+            'course_code' => ($data['course_code'] ?? null) ?: 'TRN-'.strtoupper(Str::random(6)),
+            'version' => '1.0',
             'type' => $data['type'],
             'is_required' => $data['is_required'] ?? false,
+            'target_roles' => array_values($data['target_roles'] ?? []),
+            'target_branch_ids' => array_values(array_map('intval', $data['target_branch_ids'] ?? [])),
+            'required_for_new_hires' => $data['required_for_new_hires'] ?? false,
+            'due_days' => $data['due_days'] ?? 14,
+            'validity_days' => $data['validity_days'] ?? null,
+            'requires_manager_signoff' => $data['requires_manager_signoff'] ?? false,
             'is_active' => true,
+            'published_at' => now(),
             'created_by' => $request->user()->id,
         ]);
 
@@ -96,6 +175,8 @@ class TrainingController extends Controller
             'content' => ['nullable', 'string'],
             'file' => ['nullable', 'file', 'max:20480'],
             'duration_minutes' => ['nullable', 'integer', 'min:1'],
+            'is_required' => ['boolean'],
+            'requires_acknowledgement' => ['boolean'],
         ]);
 
         $fileUrl = null;
@@ -110,6 +191,8 @@ class TrainingController extends Controller
             'content' => $data['content'] ?? null,
             'file_url' => $fileUrl,
             'duration_minutes' => $data['duration_minutes'] ?? null,
+            'is_required' => $data['is_required'] ?? true,
+            'requires_acknowledgement' => $data['requires_acknowledgement'] ?? false,
             'sort_order' => $course->lessons()->count(),
         ]);
 
@@ -125,6 +208,9 @@ class TrainingController extends Controller
             'title' => ['required', 'string', 'max:255'],
             'pass_score' => ['required', 'integer', 'min:1', 'max:100'],
             'max_attempts' => ['required', 'integer', 'min:1', 'max:10'],
+            'is_required' => ['boolean'],
+            'time_limit_minutes' => ['nullable', 'integer', 'min:1', 'max:240'],
+            'randomize_questions' => ['boolean'],
             'questions' => ['required', 'array', 'min:1'],
             'questions.*.question' => ['required', 'string'],
             'questions.*.options' => ['required', 'array', 'min:2'],
@@ -136,6 +222,9 @@ class TrainingController extends Controller
             'title' => $data['title'],
             'pass_score' => $data['pass_score'],
             'max_attempts' => $data['max_attempts'],
+            'is_required' => $data['is_required'] ?? true,
+            'time_limit_minutes' => $data['time_limit_minutes'] ?? null,
+            'randomize_questions' => $data['randomize_questions'] ?? false,
             'questions' => $data['questions'],
         ]);
 
@@ -150,7 +239,12 @@ class TrainingController extends Controller
             'course_id' => ['required', "exists:training_courses,id,restaurant_id,{$request->user()->restaurant_id}"],
             'employee_ids' => ['required', 'array', 'min:1'],
             'employee_ids.*' => ["exists:employees,id,restaurant_id,{$request->user()->restaurant_id}"],
+            'due_at' => ['nullable', 'date'],
+            'mandatory' => ['nullable', 'boolean'],
+            'reason' => ['nullable', 'string', 'max:120'],
         ]);
+
+        $course = TrainingCourse::where('restaurant_id', $request->user()->restaurant_id)->findOrFail($data['course_id']);
 
         $employees = Employee::query()
             ->where('restaurant_id', $request->user()->restaurant_id)
@@ -165,24 +259,16 @@ class TrainingController extends Controller
             'Bạn chỉ có thể ghi danh nhân viên thuộc chi nhánh được phân công.'
         );
 
-        $enrolled = 0;
-        foreach ($data['employee_ids'] as $empId) {
-            $exists = TrainingEnrollment::where('course_id', $data['course_id'])
-                ->where('employee_id', $empId)
-                ->exists();
+        $enrollments = $this->trainingService->assign(
+            $course,
+            $data['employee_ids'],
+            $request->user(),
+            isset($data['due_at']) ? Carbon::parse($data['due_at']) : null,
+            $data['mandatory'] ?? null,
+            $data['reason'] ?? 'Giao đào tạo thủ công',
+        );
 
-            if (! $exists) {
-                TrainingEnrollment::create([
-                    'restaurant_id' => $request->user()->restaurant_id,
-                    'course_id' => $data['course_id'],
-                    'employee_id' => $empId,
-                    'status' => 'enrolled',
-                ]);
-                $enrolled++;
-            }
-        }
-
-        return back()->with('success', "Đã ghi danh {$enrolled} nhân viên.");
+        return back()->with('success', "Đã giao khóa học cho {$enrollments->count()} nhân viên.");
     }
 
     public function completeLesson(Request $request): JsonResponse
@@ -208,19 +294,13 @@ class TrainingController extends Controller
             422,
             'Bài học không thuộc khóa đào tạo của đăng ký này.'
         );
-        $completed = $enrollment->completed_lessons ?? [];
-
-        if (! in_array($data['lesson_id'], $completed)) {
-            $completed[] = (int) $data['lesson_id'];
-            $enrollment->update([
-                'completed_lessons' => $completed,
-                'status' => 'in_progress',
-                'started_at' => $enrollment->started_at ?? now(),
-            ]);
-            $enrollment->recalculateProgress();
+        try {
+            $enrollment = $this->trainingService->markLessonComplete($enrollment, $lesson, $request->user());
+        } catch (\InvalidArgumentException $exception) {
+            return response()->json(['message' => $exception->getMessage()], 422);
         }
 
-        return response()->json(['success' => true, 'progress' => $enrollment->progress_percent]);
+        return response()->json(['success' => true, 'progress' => $enrollment->progress_percent, 'status' => $enrollment->status, 'certificate_code' => $enrollment->certificate_code]);
     }
 
     public function submitQuiz(Request $request): JsonResponse
@@ -248,56 +328,37 @@ class TrainingController extends Controller
             'Bài kiểm tra không thuộc khóa đào tạo của đăng ký này.'
         );
 
-        // Atomic check with lock to prevent race condition on max_attempts
-        $attempts = DB::transaction(function () use ($enrollment, $quiz) {
-            return TrainingQuizAttempt::lockForUpdate()
-                ->where('enrollment_id', $enrollment->id)
-                ->where('quiz_id', $quiz->id)
-                ->count();
-        });
-
-        if ($attempts >= $quiz->max_attempts) {
-            return response()->json(['message' => 'Đã hết lượt làm bài.'], 422);
+        try {
+            return response()->json($this->trainingService->submitQuiz($enrollment, $quiz, $data['answers'], $request->user()));
+        } catch (\InvalidArgumentException $exception) {
+            return response()->json(['message' => $exception->getMessage()], 422);
         }
+    }
 
-        // Grade
-        $correct = 0;
-        $questions = $quiz->questions;
-        foreach ($questions as $idx => $q) {
-            if (isset($data['answers'][$idx]) && (int) $data['answers'][$idx] === (int) $q['correct']) {
-                $correct++;
-            }
-        }
+    public function approveEnrollment(Request $request, TrainingEnrollment $enrollment): RedirectResponse
+    {
+        $this->authorizeManagement($request);
+        $this->assertEnrollmentBelongsToTenant($request, $enrollment);
+        $this->trainingService->approveCompletion($enrollment, $request->user());
 
-        $score = count($questions) > 0 ? (int) round(($correct / count($questions)) * 100) : 0;
-        $passed = $score >= $quiz->pass_score;
+        return back()->with('success', 'Đã ký duyệt hoàn thành đào tạo và phát hành chứng chỉ.');
+    }
 
-        $attempt = TrainingQuizAttempt::create([
-            'enrollment_id' => $enrollment->id,
-            'quiz_id' => $quiz->id,
-            'score' => $score,
-            'passed' => $passed,
-            'answers' => $data['answers'],
+    public function syncEnrollment(Request $request, TrainingEnrollment $enrollment): RedirectResponse
+    {
+        $this->authorizeManagement($request);
+        $this->assertEnrollmentBelongsToTenant($request, $enrollment);
+        $data = $request->validate([
+            'due_at' => ['required', 'date'],
+            'mandatory' => ['boolean'],
+        ]);
+        $enrollment->update([
+            'due_at' => Carbon::parse($data['due_at']),
+            'mandatory' => $data['mandatory'] ?? $enrollment->mandatory,
+            'is_overdue' => false,
         ]);
 
-        if ($passed && $enrollment->progress_percent >= 100) {
-            $enrollment->update([
-                'status' => 'completed',
-                'completed_at' => now(),
-                'certificate_code' => 'CERT-'.strtoupper(Str::random(8)),
-            ]);
-        } elseif (! $passed && $attempts + 1 >= $quiz->max_attempts) {
-            $enrollment->update(['status' => 'failed']);
-        }
-
-        return response()->json([
-            'score' => $score,
-            'passed' => $passed,
-            'correct' => $correct,
-            'total' => count($questions),
-            'attempts_left' => $quiz->max_attempts - $attempts - 1,
-            'certificate_code' => $passed ? $enrollment->fresh()->certificate_code : null,
-        ]);
+        return back()->with('success', 'Đã cập nhật hạn đào tạo.');
     }
 
     public function destroyCourse(Request $request, TrainingCourse $course): RedirectResponse
@@ -328,6 +389,16 @@ class TrainingController extends Controller
                 || (int) $course->restaurant_id === (int) $request->user()->restaurant_id,
             404,
             'Không tìm thấy khóa đào tạo.'
+        );
+    }
+
+    private function assertEnrollmentBelongsToTenant(Request $request, TrainingEnrollment $enrollment): void
+    {
+        abort_unless(
+            $request->user()->isSuperAdmin()
+                || (int) $enrollment->restaurant_id === (int) $request->user()->restaurant_id,
+            404,
+            'Không tìm thấy đăng ký đào tạo.'
         );
     }
 

@@ -1,13 +1,19 @@
 <script setup lang="ts">
 import { Head, useForm, usePage } from '@inertiajs/vue3';
 import {
+    AlertTriangle,
     Award,
     BookOpen,
+    CalendarClock,
     CheckCircle2,
+    ClipboardCheck,
+    Clock3,
     GraduationCap,
     Plus,
+    ShieldCheck,
     Users,
 } from 'lucide-vue-next';
+import axios from 'axios';
 import { ref, watch } from 'vue';
 import { toast } from 'vue-sonner';
 import { Badge } from '@/components/ui/badge';
@@ -26,14 +32,23 @@ import AppLayout from '@/layouts/AppLayout.vue';
 
 defineOptions({ layout: AppLayout });
 
-defineProps<{
+const props = defineProps<{
     courses: any[];
     enrollments: any[];
+    employees: any[];
+    branches: any[];
+    canManage: boolean;
+    currentEmployeeId: number | null;
     stats: {
         total_courses: number;
         total_enrollments: number;
         completed: number;
         in_progress: number;
+        assigned: number;
+        overdue: number;
+        awaiting_approval: number;
+        failed: number;
+        certificates_expiring: number;
     };
 }>();
 
@@ -53,13 +68,98 @@ watch(
 
 const activeTab = ref<'courses' | 'enrollments'>('courses');
 
+// Giao đào tạo theo nghiệp vụ: nhân viên, hạn hoàn thành và tính bắt buộc.
+const showAssignmentDialog = ref(false);
+const assignmentCourseId = ref<number | null>(null);
+const assignmentForm = useForm({
+    employee_ids: [] as number[],
+    due_at: '',
+    mandatory: false,
+    reason: 'Giao đào tạo theo kế hoạch vận hành',
+});
+function openAssignmentDialog(course: any) {
+    assignmentCourseId.value = course.id;
+    assignmentForm.reset();
+    assignmentForm.mandatory = Boolean(course.is_required || course.required_for_new_hires);
+    assignmentForm.due_at = new Date(Date.now() + Number(course.due_days || 14) * 86400000)
+        .toISOString()
+        .slice(0, 16);
+    showAssignmentDialog.value = true;
+}
+function submitAssignment() {
+    if (!assignmentCourseId.value || assignmentForm.employee_ids.length === 0) return;
+    assignmentForm.post('/training/enroll', {
+        onSuccess: () => {
+            showAssignmentDialog.value = false;
+        },
+    });
+}
+
+// Cổng học viên: không trả đáp án đúng xuống trình duyệt, nội dung quiz lấy từ API đã lọc quyền.
+const showLearningDialog = ref(false);
+const learning = ref<any>(null);
+const learningLoading = ref(false);
+const quizAnswers = ref<Record<number, number[]>>({});
+async function openLearning(enrollment: any) {
+    learningLoading.value = true;
+    try {
+        const response = await axios.get(`/training/courses/${enrollment.course_id || enrollment.course?.id}/content`);
+        learning.value = response.data;
+        quizAnswers.value = {};
+        showLearningDialog.value = true;
+    } finally {
+        learningLoading.value = false;
+    }
+}
+async function completeLearningLesson(lessonId: number) {
+    if (!learning.value?.enrollment?.id) return;
+    const response = await axios.post('/training/complete-lesson', {
+        enrollment_id: learning.value.enrollment.id,
+        lesson_id: lessonId,
+    });
+    const completed = new Set(learning.value.enrollment.completed_lessons || []);
+    completed.add(lessonId);
+    learning.value.enrollment.completed_lessons = Array.from(completed);
+    learning.value.enrollment.progress_percent = response.data.progress ?? learning.value.enrollment.progress_percent;
+}
+async function submitLearningQuiz(quiz: any) {
+    if (!learning.value?.enrollment?.id) return;
+    const response = await axios.post('/training/submit-quiz', {
+        enrollment_id: learning.value.enrollment.id,
+        quiz_id: quiz.id,
+        answers: quizAnswers.value[quiz.id] || [],
+    });
+    toast.success(`Kết quả: ${response.data.score}%`);
+    learning.value.enrollment.progress_percent = Math.max(learning.value.enrollment.progress_percent, response.data.progress || learning.value.enrollment.progress_percent);
+    if (response.data.certificate_code) learning.value.enrollment.certificate_code = response.data.certificate_code;
+}
+function quizAnswersFor(quiz: any): number[] {
+    if (!quizAnswers.value[quiz.id]) {
+        quizAnswers.value[quiz.id] = [];
+    }
+    return quizAnswers.value[quiz.id];
+}
+async function approveEnrollment(enrollment: any) {
+    await axios.post(`/training/enrollments/${enrollment.id}/approve`);
+    enrollment.awaiting_manager_approval = false;
+    enrollment.status = 'completed';
+    toast.success('Đã ký duyệt hoàn thành đào tạo.');
+}
+
 // Course form
 const showCourseDialog = ref(false);
 const courseForm = useForm({
     title: '',
     description: '',
+    course_code: '',
     type: 'onboarding' as string,
     is_required: false,
+    required_for_new_hires: false,
+    due_days: 14,
+    validity_days: null as number | null,
+    requires_manager_signoff: false,
+    target_roles: [] as string[],
+    target_branch_ids: [] as number[],
 });
 function submitCourse() {
     courseForm.post('/training/courses', {
@@ -282,6 +382,24 @@ const statusColor: Record<string, string> = {
             </Card>
         </div>
 
+        <div
+            v-if="canManage && (stats.overdue || stats.awaiting_approval || stats.failed)"
+            class="grid gap-2 rounded-xl border border-amber-500/25 bg-amber-500/5 p-3 text-xs sm:grid-cols-3"
+        >
+            <div class="flex items-center gap-2 text-amber-700 dark:text-amber-300">
+                <AlertTriangle class="size-4" />
+                <span><strong>{{ stats.overdue }}</strong> khóa đã quá hạn</span>
+            </div>
+            <div class="flex items-center gap-2 text-blue-700 dark:text-blue-300">
+                <ClipboardCheck class="size-4" />
+                <span><strong>{{ stats.awaiting_approval }}</strong> hồ sơ chờ ký duyệt</span>
+            </div>
+            <div class="flex items-center gap-2 text-rose-700 dark:text-rose-300">
+                <Clock3 class="size-4" />
+                <span><strong>{{ stats.failed }}</strong> hồ sơ chưa đạt</span>
+            </div>
+        </div>
+
         <!-- Tabs Switcher -->
         <div class="flex border-b border-border/65 pb-0">
             <div class="flex rounded-lg bg-muted/60 p-0.5 dark:bg-muted/30">
@@ -341,12 +459,21 @@ const statusColor: Record<string, string> = {
                         </div>
                         <div class="flex gap-1.5 self-start sm:self-center">
                             <button
+                                v-if="canManage"
+                                @click="openAssignmentDialog(course)"
+                                class="inline-flex items-center gap-1.5 rounded-lg border border-blue-500/30 bg-blue-500/5 px-2.5 py-1.5 text-xs font-medium text-blue-600 transition hover:bg-blue-500/10 active:scale-95"
+                            >
+                                <Users class="size-3" /> Giao học
+                            </button>
+                            <button
+                                v-if="canManage"
                                 @click="openLessonDialog(course.id)"
                                 class="inline-flex items-center gap-1.5 rounded-lg border border-border bg-background px-2.5 py-1.5 text-xs font-medium text-foreground transition hover:bg-muted active:scale-95"
                             >
                                 <Plus class="size-3" /> Bài học
                             </button>
                             <button
+                                v-if="canManage"
                                 @click="openQuizDialog(course.id)"
                                 class="inline-flex items-center gap-1.5 rounded-lg border border-border bg-background px-2.5 py-1.5 text-xs font-medium text-foreground transition hover:bg-muted active:scale-95"
                             >
@@ -397,6 +524,7 @@ const statusColor: Record<string, string> = {
                                 <th class="px-5 py-3 text-center">Tiến độ</th>
                                 <th class="px-5 py-3">Trạng thái</th>
                                 <th class="px-5 py-3">Chứng chỉ</th>
+                                <th class="px-5 py-3 text-right">Thao tác</th>
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-border/40">
@@ -456,6 +584,25 @@ const statusColor: Record<string, string> = {
                                         >—</span
                                     >
                                 </td>
+                                <td class="px-5 py-3.5 text-right">
+                                    <Button
+                                        v-if="!canManage"
+                                        size="sm"
+                                        variant="outline"
+                                        :disabled="learningLoading"
+                                        @click="openLearning(e)"
+                                    >
+                                        <BookOpen class="mr-1 size-3.5" /> Học
+                                    </Button>
+                                    <Button
+                                        v-else-if="e.awaiting_manager_approval"
+                                        size="sm"
+                                        class="bg-emerald-600 text-white hover:bg-emerald-700"
+                                        @click="approveEnrollment(e)"
+                                    >
+                                        <ShieldCheck class="mr-1 size-3.5" /> Duyệt
+                                    </Button>
+                                </td>
                             </tr>
                         </tbody>
                     </table>
@@ -469,6 +616,107 @@ const statusColor: Record<string, string> = {
             </Card>
         </div>
     </div>
+
+    <!-- Assign course -->
+    <Dialog v-model:open="showAssignmentDialog">
+        <DialogContent class="max-h-[85vh] max-w-xl overflow-y-auto">
+            <DialogHeader><DialogTitle>Giao đào tạo cho nhân viên</DialogTitle></DialogHeader>
+            <form @submit.prevent="submitAssignment" class="space-y-4">
+                <div class="grid gap-1.5">
+                    <Label>Nhân viên thực hiện</Label>
+                    <div class="max-h-52 space-y-1 overflow-y-auto rounded-lg border p-2">
+                        <label
+                            v-for="employee in employees"
+                            :key="employee.id"
+                            class="flex cursor-pointer items-center justify-between rounded-md px-2 py-2 text-sm hover:bg-muted/50"
+                        >
+                            <span class="flex items-center gap-2">
+                                <input v-model="assignmentForm.employee_ids" type="checkbox" :value="employee.id" />
+                                <span>{{ employee.full_name }}</span>
+                            </span>
+                            <span class="text-[11px] text-muted-foreground">{{ employee.branch_name }} · {{ employee.role || 'Nhân viên' }}</span>
+                        </label>
+                        <p v-if="!employees.length" class="p-4 text-center text-xs text-muted-foreground">Chưa có nhân viên đang hoạt động.</p>
+                    </div>
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div class="grid gap-1.5">
+                        <Label>Hạn hoàn thành</Label>
+                        <Input v-model="assignmentForm.due_at" type="datetime-local" required />
+                    </div>
+                    <label class="flex items-end gap-2 pb-2 text-sm">
+                        <input v-model="assignmentForm.mandatory" type="checkbox" /> Bắt buộc đạt
+                    </label>
+                </div>
+                <div class="grid gap-1.5">
+                    <Label>Lý do giao</Label>
+                    <Input v-model="assignmentForm.reason" maxlength="120" />
+                </div>
+                <DialogFooter>
+                    <Button variant="outline" type="button" @click="showAssignmentDialog = false">Hủy</Button>
+                    <Button type="submit" :disabled="assignmentForm.processing || !assignmentForm.employee_ids.length">Giao khóa học</Button>
+                </DialogFooter>
+            </form>
+        </DialogContent>
+    </Dialog>
+
+    <!-- Learner course -->
+    <Dialog v-model:open="showLearningDialog">
+        <DialogContent class="max-h-[90vh] max-w-3xl overflow-y-auto">
+            <DialogHeader>
+                <DialogTitle>{{ learning?.course?.title || 'Nội dung đào tạo' }}</DialogTitle>
+            </DialogHeader>
+            <div v-if="learning" class="space-y-5">
+                <div class="rounded-xl border bg-muted/20 p-4">
+                    <div class="flex items-center justify-between text-xs">
+                        <span>Tiến độ: <strong>{{ learning.enrollment.progress_percent }}%</strong></span>
+                        <span v-if="learning.enrollment.due_at" :class="learning.enrollment.is_overdue ? 'text-rose-600' : 'text-muted-foreground'">
+                            <CalendarClock class="mr-1 inline size-3.5" /> Hạn {{ new Date(learning.enrollment.due_at).toLocaleDateString('vi-VN') }}
+                        </span>
+                    </div>
+                    <div class="mt-2 h-2 overflow-hidden rounded-full bg-muted">
+                        <div class="h-full rounded-full bg-blue-500 transition-all" :style="{ width: `${learning.enrollment.progress_percent}%` }"></div>
+                    </div>
+                    <p v-if="learning.enrollment.awaiting_manager_approval" class="mt-2 text-xs text-amber-600">Đã hoàn tất nội dung, đang chờ quản lý ký duyệt thực hành.</p>
+                </div>
+
+                <section>
+                    <h3 class="mb-2 flex items-center gap-2 text-sm font-semibold"><BookOpen class="size-4" /> Bài học</h3>
+                    <div class="space-y-2">
+                        <div v-for="lesson in learning.lessons" :key="lesson.id" class="flex items-center justify-between rounded-lg border p-3">
+                            <div class="min-w-0 pr-3">
+                                <p class="text-sm font-medium">{{ lesson.title }}</p>
+                                <p class="text-[11px] text-muted-foreground">{{ lesson.content_type }} · {{ lesson.duration_minutes || 0 }} phút</p>
+                                <p v-if="lesson.content" class="mt-2 whitespace-pre-wrap text-xs text-muted-foreground">{{ lesson.content }}</p>
+                                <a v-if="lesson.file_url" :href="`/storage/${lesson.file_url}`" target="_blank" rel="noreferrer" class="mt-2 inline-block text-xs font-medium text-blue-600 hover:underline">Mở tài liệu</a>
+                            </div>
+                            <Button
+                                size="sm"
+                                :variant="(learning.enrollment.completed_lessons || []).includes(lesson.id) ? 'secondary' : 'default'"
+                                :disabled="(learning.enrollment.completed_lessons || []).includes(lesson.id)"
+                                @click="completeLearningLesson(lesson.id)"
+                            >
+                                <CheckCircle2 class="mr-1 size-3.5" />
+                                {{ (learning.enrollment.completed_lessons || []).includes(lesson.id) ? 'Đã học' : 'Hoàn tất' }}
+                            </Button>
+                        </div>
+                    </div>
+                </section>
+
+                <section v-for="quiz in learning.quizzes" :key="quiz.id" class="rounded-xl border p-4">
+                    <h3 class="mb-3 flex items-center gap-2 text-sm font-semibold"><Award class="size-4" /> {{ quiz.title }}</h3>
+                    <div v-for="(question, qIndex) in quiz.questions" :key="qIndex" class="mb-4 space-y-2">
+                        <p class="text-sm font-medium">{{ Number(qIndex) + 1 }}. {{ question.question }}</p>
+                        <label v-for="(option, optionIndex) in question.options" :key="optionIndex" class="flex cursor-pointer items-center gap-2 text-xs">
+                            <input v-model.number="quizAnswersFor(quiz)[Number(qIndex)]" type="radio" :value="Number(optionIndex)" />
+                            {{ option }}
+                        </label>
+                    </div>
+                    <Button @click="submitLearningQuiz(quiz)">Nộp bài kiểm tra</Button>
+                </section>
+            </div>
+        </DialogContent>
+    </Dialog>
 
     <!-- Create Course -->
     <Dialog v-model:open="showCourseDialog">
@@ -484,6 +732,37 @@ const statusColor: Record<string, string> = {
                 <div class="grid gap-1.5">
                     <Label>Mô tả</Label
                     ><Input v-model="courseForm.description" />
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div class="grid gap-1.5">
+                        <Label>Mã khóa</Label>
+                        <Input v-model="courseForm.course_code" placeholder="ATTP-2026" />
+                    </div>
+                    <div class="grid gap-1.5">
+                        <Label>Hạn mặc định (ngày)</Label>
+                        <Input v-model.number="courseForm.due_days" type="number" min="1" />
+                    </div>
+                </div>
+                <div class="grid gap-1.5">
+                    <Label>Áp dụng cho vai trò</Label>
+                    <select v-model="courseForm.target_roles" multiple class="min-h-20 rounded-md border bg-background px-3 py-2 text-sm">
+                        <option value="manager">Quản lý</option>
+                        <option value="warehouse_manager">Trưởng kho</option>
+                        <option value="warehouse_staff">Nhân viên kho</option>
+                        <option value="kitchen">Bếp</option>
+                        <option value="cashier">Thu ngân</option>
+                        <option value="waiter">Phục vụ</option>
+                    </select>
+                </div>
+                <div class="grid gap-1.5">
+                    <Label>Giới hạn chi nhánh (để trống = toàn chuỗi)</Label>
+                    <select v-model="courseForm.target_branch_ids" multiple class="min-h-20 rounded-md border bg-background px-3 py-2 text-sm">
+                        <option v-for="branch in branches" :key="branch.id" :value="branch.id">{{ branch.name }}</option>
+                    </select>
+                </div>
+                <div class="grid gap-2 text-sm">
+                    <label class="flex items-center gap-2"><input v-model="courseForm.required_for_new_hires" type="checkbox" /> Tự động giao cho nhân viên mới</label>
+                    <label class="flex items-center gap-2"><input v-model="courseForm.requires_manager_signoff" type="checkbox" /> Cần quản lý ký duyệt phần thực hành</label>
                 </div>
                 <div class="grid grid-cols-2 gap-4">
                     <div class="grid gap-1.5">

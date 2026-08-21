@@ -12,6 +12,14 @@ class TrainingLesson extends Model
 
     protected $guarded = [];
 
+    protected function casts(): array
+    {
+        return [
+            'is_required' => 'boolean',
+            'requires_acknowledgement' => 'boolean',
+        ];
+    }
+
     public function course(): BelongsTo
     {
         return $this->belongsTo(TrainingCourse::class, 'course_id');

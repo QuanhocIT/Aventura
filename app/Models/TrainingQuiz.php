@@ -14,7 +14,11 @@ class TrainingQuiz extends Model
 
     protected function casts(): array
     {
-        return ['questions' => 'array'];
+        return [
+            'questions' => 'array',
+            'is_required' => 'boolean',
+            'randomize_questions' => 'boolean',
+        ];
     }
 
     public function course(): BelongsTo
