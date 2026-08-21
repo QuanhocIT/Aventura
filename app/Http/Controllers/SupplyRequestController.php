@@ -8,6 +8,7 @@ use App\Models\User;
 use App\Services\ApprovalService;
 use App\Services\CentralWarehouseAiService;
 use App\Services\CentralWarehouseService;
+use App\Services\DeliveryManifestService;
 use App\Services\SupplyRequestAnalyticsService;
 use App\Services\WarehouseTaskService;
 use App\Support\TenantRule;
@@ -376,6 +377,7 @@ class SupplyRequestController extends Controller
         if (! $this->canApproveSupplyRequests($user)) {
             $this->approvalService->submitRequest('warehouse_supply_approve', [
                 'supply_request_id' => $supplyRequest->id,
+                'branch_id'         => $supplyRequest->to_branch_id,
                 'items'             => $data['items'] ?? [],
                 'notes'             => $data['notes'] ?? null,
             ], $user);
@@ -486,6 +488,7 @@ class SupplyRequestController extends Controller
         if (! $this->canDispatchSupplyRequests($user)) {
             $this->approvalService->submitRequest('warehouse_supply_dispatch', [
                 'supply_request_id' => $supplyRequest->id,
+                'branch_id'         => $supplyRequest->to_branch_id,
                 'seal_code'         => $request->seal_code,
             ], $user);
 
@@ -587,6 +590,7 @@ class SupplyRequestController extends Controller
                 $receiptPhotoHash,
                 $signatureHash
             );
+            app(DeliveryManifestService::class)->syncFromSupplyRequest($updated);
 
             $msg = $updated->status === SupplyRequest::STATUS_DISPUTED
                 ? 'Đã ghi nhận nhận hàng (Phát hiện hàng thiếu: Đã tự động tạo Hồ sơ tranh chấp).'
@@ -666,6 +670,7 @@ class SupplyRequestController extends Controller
         if (! $this->canApproveSupplyRequests($user)) {
             $this->approvalService->submitRequest('warehouse_supply_reject', [
                 'supply_request_id' => $supplyRequest->id,
+                'branch_id'         => $supplyRequest->to_branch_id,
                 'reason'            => $request->reason,
             ], $user);
 
@@ -816,6 +821,7 @@ class SupplyRequestController extends Controller
     {
         return $user->isOwner()
             || $user->isSuperAdmin()
+            || $user->hasRole('warehouse_manager')
             || $user->can('supply_requests.approve');
     }
 
@@ -823,6 +829,7 @@ class SupplyRequestController extends Controller
     {
         return $user->isOwner()
             || $user->isSuperAdmin()
+            || $user->hasRole('warehouse_manager')
             || $user->can('supply_requests.dispatch')
             || $user->can('warehouse.handover');
     }

@@ -21,7 +21,7 @@ const supplierId = computed(() => (page.props.auth?.user as any)?.supplier_id);
 // Realtime Echo Listener
 onMounted(() => {
     if (window.Echo && supplierId.value) {
-        window.Echo.channel(`supplier.${supplierId.value}`).listen(
+        window.Echo.private(`supplier.${supplierId.value}`).listen(
             '.purchase-order.placed',
             (e: any) => {
                 toast.success(`Đơn đặt hàng PO mới về: ${e.po_number}!`, {

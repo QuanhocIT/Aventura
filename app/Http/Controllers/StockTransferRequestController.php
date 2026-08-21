@@ -62,8 +62,8 @@ class StockTransferRequestController extends Controller
             ->where('restaurant_id', $user->restaurant_id)
             ->when(! $canViewAllBranches, function ($query) use ($user): void {
                 $query->where(function ($branchQuery) use ($user): void {
-                    $branchQuery->where('to_branch_id', $user->branch_id)
-                        ->orWhere('from_branch_id', $user->branch_id);
+                    $branchQuery->where('to_branch_id', $user->assignedBranchId())
+                        ->orWhere('from_branch_id', $user->assignedBranchId());
                 });
             })
             ->with([
@@ -147,7 +147,7 @@ class StockTransferRequestController extends Controller
         $branches = RestaurantBranch::query()
             ->where('restaurant_id', $user->restaurant_id)
             ->where('status', 'active')
-            ->when(! $canViewAllBranches, fn ($query) => $query->where('id', $user->branch_id))
+            ->when(! $canViewAllBranches, fn ($query) => $query->where('id', $user->assignedBranchId()))
             ->orderBy('name')
             ->get(['id', 'name']);
 
@@ -229,7 +229,7 @@ class StockTransferRequestController extends Controller
             'requested_by' => $user->id,
         ]);
 
-        $this->notifyOwners($user, $transfer, 'requested');
+        $this->notifyTransferParties($user, $transfer, 'requested');
         AuditLog::log('stock_transfer_requested', 'created', $transfer, null, ['by' => $user->name]);
 
         return back()->with('success', 'Đã tạo yêu cầu điều chuyển và gửi vào hàng chờ định tuyến.');
@@ -277,7 +277,7 @@ class StockTransferRequestController extends Controller
             return back()->withErrors(['from_branch_id' => $e->getMessage()]);
         }
 
-        $this->notifyBranchManagers($lockedTransfer->from_branch_id, $user, $lockedTransfer, 'routed');
+        $this->notifyTransferParties($user, $lockedTransfer, 'routed');
         AuditLog::log('stock_transfer_routed', 'updated', $lockedTransfer, null, ['from_branch_id' => $lockedTransfer->from_branch_id, 'by' => $user->name]);
 
         return back()->with('success', 'Đã định tuyến nguồn cấp và sinh mã giao nhận.');
@@ -361,7 +361,7 @@ class StockTransferRequestController extends Controller
             return back()->with('error', 'Không thể xuất hàng: '.$e->getMessage());
         }
 
-        $this->notifyBranchManagers($lockedTransfer->to_branch_id, $user, $lockedTransfer, 'dispatched');
+        $this->notifyTransferParties($user, $lockedTransfer, 'dispatched');
         AuditLog::log('stock_transfer_dispatched', 'updated', $lockedTransfer, null, ['quantity' => $qty, 'by' => $user->name]);
 
         return back()->with('success', 'Đã xuất kho. Chi nhánh nhận cần kiểm đếm và nhập mã giao nhận.');
@@ -498,7 +498,7 @@ class StockTransferRequestController extends Controller
         }
 
         $stage = $lockedTransfer->status === 'discrepancy' ? 'discrepancy' : 'received';
-        $this->notifyOwners($user, $lockedTransfer, $stage);
+        $this->notifyTransferParties($user, $lockedTransfer, $stage);
         AuditLog::log('stock_transfer_received', 'updated', $lockedTransfer, null, [
             'quantity_received' => (float) $lockedTransfer->quantity_received,
             'discrepancy_quantity' => (float) $lockedTransfer->discrepancy_quantity,
@@ -564,6 +564,7 @@ class StockTransferRequestController extends Controller
             'cancelled_by' => $user->id,
             'cancelled_at' => now(),
         ]);
+        $this->notifyTransferParties($user, $transfer->fresh(), 'cancelled');
         AuditLog::log('stock_transfer_cancelled', 'updated', $transfer, null, ['by' => $user->name]);
 
         return back()->with('success', 'Đã hủy yêu cầu điều chuyển.');
@@ -581,6 +582,7 @@ class StockTransferRequestController extends Controller
             return back()->with('error', 'Chỉ từ chối được yêu cầu chưa xuất hàng.');
         }
         $transfer->update(['status' => 'rejected', 'reject_reason' => trim($data['reject_reason'])]);
+        $this->notifyTransferParties($user, $transfer->fresh(), 'rejected');
         AuditLog::log('stock_transfer_rejected', 'updated', $transfer, null, ['by' => $user->name]);
 
         return back()->with('success', 'Đã từ chối yêu cầu điều chuyển.');
@@ -594,6 +596,26 @@ class StockTransferRequestController extends Controller
             ->whereHas('roles', fn ($query) => $query->whereIn('name', ['owner', 'warehouse_manager']))
             ->get()
             ->each(fn (User $user) => $user->notify(new StockTransferStageNotification($transfer, $stage, $actor->name)));
+    }
+
+    private function notifyTransferParties(User $actor, StockTransferRequest $transfer, string $stage): void
+    {
+        $branchIds = array_values(array_filter([(int) $transfer->from_branch_id, (int) $transfer->to_branch_id]));
+        $recipientIds = User::where('restaurant_id', $actor->restaurant_id)
+            ->where(function ($query) use ($transfer, $branchIds) {
+                $query->whereKey($transfer->requested_by)
+                    ->orWhereHas('roles', fn ($roles) => $roles->whereIn('name', ['owner', 'warehouse_manager']))
+                    ->orWhere(function ($manager) use ($branchIds) {
+                        $manager->whereIn('branch_id', $branchIds)
+                            ->whereHas('roles', fn ($roles) => $roles->where('name', 'manager'));
+                    });
+            })
+            ->where('id', '!=', $actor->id)
+            ->pluck('id');
+
+        User::whereIn('id', $recipientIds->unique())
+            ->get()
+            ->each(fn (User $recipient) => $recipient->notify(new StockTransferStageNotification($transfer, $stage, $actor->name)));
     }
 
     private function notifyBranchManagers(?int $branchId, User $actor, StockTransferRequest $transfer, string $stage): void

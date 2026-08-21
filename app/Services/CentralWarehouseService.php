@@ -1272,6 +1272,16 @@ class CentralWarehouseService
                 ->filter();
             $recipients = $recipients->merge($assignedStaff);
 
+            // Nhân sự tại chi nhánh nhận phải thấy được các mốc chuẩn bị,
+            // vận chuyển và yêu cầu xác nhận; chỉ thông báo cho quản lý là
+            // chưa đủ để hoàn tất vòng đời hai chiều.
+            $branchReceivers = User::where('restaurant_id', $request->restaurant_id)
+                ->where('status', 'active')
+                ->where('branch_id', $request->to_branch_id)
+                ->whereHas('roles', fn ($roles) => $roles->whereIn('name', ['manager', 'branch_staff', 'inventory_staff', 'staff']))
+                ->get();
+            $recipients = $recipients->merge($branchReceivers);
+
             // 4. Nếu có tranh chấp (disputed): Bắt buộc gửi tới Owner
             if ($stage === 'disputed') {
                 $owners = User::where('restaurant_id', $request->restaurant_id)
@@ -1321,6 +1331,25 @@ class CentralWarehouseService
             if ($this->notifyOverdueOnce($req, SupplyRequest::STATUS_APPROVED, "Đơn cấp phát #{$req->request_code} đã được duyệt hơn 24 giờ nhưng chưa hoàn tất soạn hàng.")) {
                 $overdueCount++;
             }
+        }
+
+        $stageChecks = [
+            [SupplyRequest::STATUS_PREPARING, 'prepared_at', 24, 'đã bắt đầu soạn nhưng chưa hoàn tất soạn hàng'],
+            [SupplyRequest::STATUS_DISPATCH_PENDING, 'dispatch_approved_at', 12, 'đã được duyệt xuất nhưng chưa bàn giao vận chuyển'],
+            [SupplyRequest::STATUS_DISPATCHED, 'dispatched_at', 24, 'đã xuất kho nhưng chưa được chi nhánh xác nhận nhận hàng'],
+        ];
+
+        foreach ($stageChecks as [$status, $timestampColumn, $hours, $description]) {
+            SupplyRequest::where('restaurant_id', $restaurantId)
+                ->where('status', $status)
+                ->whereNotNull($timestampColumn)
+                ->where($timestampColumn, '<=', now()->subHours($hours))
+                ->get()
+                ->each(function (SupplyRequest $req) use (&$overdueCount, $status, $hours, $description): void {
+                    if ($this->notifyOverdueOnce($req, 'overdue_'.$status, "Đơn cấp phát #{$req->request_code} {$description} quá {$hours} giờ.")) {
+                        $overdueCount++;
+                    }
+                });
         }
 
         return $overdueCount;

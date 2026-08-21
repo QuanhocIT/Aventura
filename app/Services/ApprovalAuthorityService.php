@@ -53,6 +53,20 @@ class ApprovalAuthorityService
             return AuthorityDecision::allow(AuthorityDecision::BASIS_OWNER);
         }
 
+        $hasApprovalPermission = $actor->can('approve_requests');
+        $isWarehouseApproval = $actor->hasRole('warehouse_manager')
+            && str_starts_with((string) $approval->operation_type, 'warehouse_');
+
+        if (! $actor->isBranchManager() && ($hasApprovalPermission || $isWarehouseApproval)) {
+            if ($isWarehouseApproval) {
+                return AuthorityDecision::allow(AuthorityDecision::BASIS_DELEGATED);
+            }
+            if ($approval->branch_id !== null && ! $actor->canAccessBranch((int) $approval->branch_id)) {
+                return AuthorityDecision::deny('Yeu cau khong thuoc chi nhanh ban duoc phep quan ly.');
+            }
+            return AuthorityDecision::allow(AuthorityDecision::BASIS_DELEGATED);
+        }
+
         if (! $actor->isBranchManager()) {
             return AuthorityDecision::deny('Bạn không có thẩm quyền phê duyệt.');
         }

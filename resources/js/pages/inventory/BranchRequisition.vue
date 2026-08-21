@@ -41,6 +41,9 @@ const isCreateModalOpen = ref(false);
 const isDetailModalOpen = ref(false);
 const isProcessing = ref(false);
 const selectedRequest = ref<any>(null);
+const receiveNotes = ref('');
+const receiptPhoto = ref<File | null>(null);
+const receiverSignature = ref<File | null>(null);
 
 // Create Form State
 const newRequestForm = ref({
@@ -136,7 +139,19 @@ const submitRequisition = async () => {
 
 const openDetailModal = (req: any) => {
     selectedRequest.value = JSON.parse(JSON.stringify(req));
+    receiveNotes.value = '';
+    receiptPhoto.value = null;
+    receiverSignature.value = null;
     isDetailModalOpen.value = true;
+};
+
+const setEvidenceFile = (type: 'photo' | 'signature', event: Event) => {
+    const file = (event.target as HTMLInputElement).files?.[0] || null;
+    if (type === 'photo') {
+        receiptPhoto.value = file;
+    } else {
+        receiverSignature.value = file;
+    }
 };
 
 const receiveGoods = async () => {
@@ -147,20 +162,34 @@ const receiveGoods = async () => {
     isProcessing.value = true;
 
     try {
-        const payload = {
-            items: selectedRequest.value.items.map((item: any) => ({
-                id: item.id,
-                received_quantity: Number(
-                    item.received_quantity ??
-                        item.approved_quantity ??
-                        item.requested_quantity,
+        const payload = new FormData();
+        selectedRequest.value.items.forEach((item: any, index: number) => {
+            payload.append(`items[${index}][id]`, String(item.id));
+            payload.append(
+                `items[${index}][received_quantity]`,
+                String(
+                    Number(
+                        item.received_quantity ??
+                            item.approved_quantity ??
+                            item.requested_quantity,
+                    ),
                 ),
-            })),
-        };
+            );
+        });
+        if (receiveNotes.value.trim()) {
+            payload.append('notes', receiveNotes.value.trim());
+        }
+        if (receiptPhoto.value) {
+            payload.append('receipt_photo', receiptPhoto.value);
+        }
+        if (receiverSignature.value) {
+            payload.append('receiver_signature', receiverSignature.value);
+        }
 
         const res = await axios.post(
             `/api/supply-requests/${selectedRequest.value.id}/receive`,
             payload,
+            { headers: { 'Content-Type': 'multipart/form-data' } },
         );
 
         if (res.data.success) {
@@ -207,6 +236,16 @@ const getStatusBadge = (status: string) => {
                 label: 'Kho đã duyệt (Đang chuẩn bị)',
                 color: 'bg-blue-100 text-blue-800 border-blue-300',
             };
+        case 'preparing':
+            return {
+                label: 'Kho đang soạn hàng',
+                color: 'bg-indigo-100 text-indigo-800 border-indigo-300',
+            };
+        case 'dispatch_pending_approval':
+            return {
+                label: 'Chờ duyệt xuất kho',
+                color: 'bg-cyan-100 text-cyan-800 border-cyan-300',
+            };
         case 'dispatched':
             return {
                 label: 'Kho đã xuất - Đang giao',
@@ -217,10 +256,25 @@ const getStatusBadge = (status: string) => {
                 label: 'Đã nhận hàng',
                 color: 'bg-emerald-100 text-emerald-800 border-emerald-300',
             };
+        case 'partial_received':
+            return {
+                label: 'Đã nhận một phần',
+                color: 'bg-orange-100 text-orange-800 border-orange-300',
+            };
+        case 'disputed':
+            return {
+                label: 'Đang tranh chấp',
+                color: 'bg-rose-100 text-rose-800 border-rose-300',
+            };
         case 'rejected':
             return {
                 label: 'Kho từ chối',
                 color: 'bg-rose-100 text-rose-800 border-rose-300',
+            };
+        case 'cancelled':
+            return {
+                label: 'Đã hủy',
+                color: 'bg-slate-100 text-slate-700 border-slate-300',
             };
         default:
             return {
@@ -626,6 +680,47 @@ const getStatusBadge = (status: string) => {
                     >
                         <strong>Lý do từ chối:</strong>
                         {{ selectedRequest.rejection_reason }}
+                    </div>
+
+                    <div
+                        v-if="
+                            selectedRequest.status === 'dispatched' &&
+                            canReceiveRequests
+                        "
+                        class="grid gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-slate-700 md:grid-cols-3"
+                    >
+                        <div class="space-y-1 md:col-span-3">
+                            <label class="text-xs font-semibold"
+                                >Ghi chú nhận hàng / giải trình chênh lệch</label
+                            >
+                            <textarea
+                                v-model="receiveNotes"
+                                rows="2"
+                                class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs"
+                                placeholder="Bắt buộc khi nhận thiếu hàng"
+                            />
+                        </div>
+                        <label class="space-y-1 text-xs font-semibold">
+                            Ảnh thực nhận
+                            <input
+                                type="file"
+                                accept="image/*,.pdf"
+                                class="block w-full rounded-lg border border-slate-300 bg-white p-2 text-[11px] font-normal"
+                                @change="setEvidenceFile('photo', $event)"
+                            />
+                        </label>
+                        <label class="space-y-1 text-xs font-semibold">
+                            Chữ ký người nhận
+                            <input
+                                type="file"
+                                accept="image/*"
+                                class="block w-full rounded-lg border border-slate-300 bg-white p-2 text-[11px] font-normal"
+                                @change="setEvidenceFile('signature', $event)"
+                            />
+                        </label>
+                        <div class="flex items-end text-[11px] text-slate-500">
+                            Nếu nhận thiếu, bắt buộc có đủ ảnh và chữ ký để tạo hồ sơ tranh chấp.
+                        </div>
                     </div>
 
                     <div>

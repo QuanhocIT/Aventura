@@ -12,6 +12,7 @@ use App\Models\RequestForProposal;
 use App\Models\Restaurant;
 use App\Models\RestaurantBranch;
 use App\Models\RfpBid;
+use App\Models\RfpItem;
 use App\Models\Supplier;
 use App\Models\SupplierPriceHistory;
 use App\Models\Unit;
@@ -257,6 +258,26 @@ class SupplierB2BIntegrationTest extends TestCase
 
         // 2. Supplier submits a bid
         $rfpItem = $rfp->items->first();
+        $otherRfp = RequestForProposal::create([
+            'restaurant_id' => $this->restaurant->id,
+            'title' => 'RFP khác',
+            'due_date' => now()->addDays(6),
+            'status' => 'open',
+        ]);
+        $foreignRfpItem = RfpItem::create([
+            'rfp_id' => $otherRfp->id,
+            'ingredient_name' => 'Mặt hàng khác',
+            'quantity_required' => 10,
+            'unit_symbol' => 'kg',
+        ]);
+
+        $this->actingAs($this->supplierUser)
+            ->postJson(route('supplier.rfps.bid', $rfp->id), [
+                'proposed_delivery_date' => now()->addDays(7)->toDateString(),
+                'items' => [['rfp_item_id' => $foreignRfpItem->id, 'proposed_price' => 1]],
+            ])
+            ->assertStatus(422);
+
         $response = $this->actingAs($this->supplierUser)->post(route('supplier.rfps.bid', $rfp->id), [
             'proposed_delivery_date' => now()->addDays(7)->toDateString(),
             'notes' => 'Giá tốt nhất thị trường',
