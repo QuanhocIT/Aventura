@@ -9,6 +9,7 @@ use App\Models\SupplyRequest;
 use App\Models\SupplyRequestItem;
 use App\Models\User;
 use App\Models\WarehouseGovernanceRule;
+use App\Notifications\WarehouseDisputeAssignedNotification;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 
@@ -135,6 +136,30 @@ class WarehouseGovernanceService
     ): InventoryDiscrepancyDispute {
         $dispute = InventoryDiscrepancyDispute::where('restaurant_id', $restaurantId)->findOrFail($disputeId);
 
+        if (! in_array($dispute->status, ['open', 'investigating'], true)) {
+            throw new \InvalidArgumentException('Biên bản đã được xử lý và không thể quy trách nhiệm lại.');
+        }
+
+        $responsible = $responsibleUserId
+            ? User::where('restaurant_id', $restaurantId)->where('status', 'active')->findOrFail($responsibleUserId)
+            : null;
+
+        if ($responsibleType === 'transporter' && $responsible) {
+            throw new \InvalidArgumentException('Trách nhiệm nhà vận chuyển không được gán nhầm cho tài khoản nội bộ.');
+        }
+        if ($responsibleType === 'unknown' && $responsible) {
+            throw new \InvalidArgumentException('Không gán tài khoản cá nhân khi nguyên nhân vẫn chưa xác định.');
+        }
+        if ($responsibleType === 'warehouse_staff' && $responsible && ! $responsible->hasRole('warehouse_staff')) {
+            throw new \InvalidArgumentException('Tài khoản được gán phải có vai trò nhân viên Kho Tổng.');
+        }
+        if ($responsibleType === 'branch_staff' && $responsible) {
+            $branchId = (int) $dispute->supplyRequest?->to_branch_id;
+            if ($branchId && ! $responsible->canAccessBranch($branchId)) {
+                throw new \InvalidArgumentException('Nhân sự chi nhánh phải thuộc đúng chi nhánh nhận hàng.');
+            }
+        }
+
         $dispute->update([
             'responsible_type' => $responsibleType,
             'responsible_user_id' => $responsibleUserId,
@@ -143,6 +168,33 @@ class WarehouseGovernanceService
             'resolved_by' => $resolver->id,
             'resolved_at' => now(),
         ]);
+
+        if ($responsible) {
+            $responsible->notify(new WarehouseDisputeAssignedNotification($dispute->fresh(['ingredient', 'supplyRequest']), $resolver));
+        }
+
+        return $dispute->fresh(['ingredient', 'responsibleUser', 'resolver', 'supplyRequest']);
+    }
+
+    public function respondToDispute(int $disputeId, int $restaurantId, User $actor, string $response): InventoryDiscrepancyDispute
+    {
+        $dispute = InventoryDiscrepancyDispute::where('restaurant_id', $restaurantId)
+            ->where('responsible_user_id', $actor->id)
+            ->whereIn('status', ['investigating', 'open', 'resolved'])
+            ->findOrFail($disputeId);
+
+        $dispute->update([
+            'status' => 'appealed',
+            'resolution_notes' => trim(($dispute->resolution_notes ? $dispute->resolution_notes."\n" : '').'[Phản hồi người được quy trách nhiệm '.$actor->name.']: '.trim($response)),
+        ]);
+
+        User::where('restaurant_id', $restaurantId)
+            ->where(function ($query) use ($dispute) {
+                $query->whereKey($dispute->resolved_by)
+                    ->orWhereHas('roles', fn ($roles) => $roles->whereIn('name', ['owner', 'super_admin', 'warehouse_manager']));
+            })
+            ->get()
+            ->each(fn (User $user) => $user->notify(new WarehouseDisputeAssignedNotification($dispute, $actor, true)));
 
         return $dispute->fresh(['ingredient', 'responsibleUser', 'resolver', 'supplyRequest']);
     }
@@ -153,7 +205,7 @@ class WarehouseGovernanceService
     public function getRiskAndReliabilitySummary(int $restaurantId): array
     {
         $openDisputes = InventoryDiscrepancyDispute::where('restaurant_id', $restaurantId)
-            ->where('status', 'open')
+            ->whereIn('status', ['open', 'investigating', 'appealed'])
             ->count();
 
         $totalFinancialLoss = InventoryDiscrepancyDispute::where('restaurant_id', $restaurantId)

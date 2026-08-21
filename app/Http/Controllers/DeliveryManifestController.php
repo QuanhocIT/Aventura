@@ -130,6 +130,20 @@ class DeliveryManifestController extends Controller
         ]);
     }
 
+    public function complete(Request $request, int $id): JsonResponse
+    {
+        $user = $request->user();
+        $request->validate(['notes' => 'nullable|string|max:1000']);
+
+        $manifest = DeliveryManifest::where('restaurant_id', $user->restaurant_id)->findOrFail($id);
+        $completed = $this->manifestService->completeManifest($manifest, $user, $request->input('notes'));
+
+        return response()->json([
+            'message' => 'Đã xác nhận hoàn tất chuyến xe và đối soát đủ hàng.',
+            'manifest' => $completed,
+        ]);
+    }
+
     private function authorizeWarehouseView($user): void
     {
         abort_unless(

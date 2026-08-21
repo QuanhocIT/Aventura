@@ -4,6 +4,9 @@ namespace App\Http\Controllers;
 
 use App\Models\InventoryCountSession;
 use App\Models\RestaurantBranch;
+use App\Models\User;
+use App\Notifications\InventoryCountApprovalNotification;
+use App\Notifications\InventoryCountAssignmentNotification;
 use App\Services\InventoryCountService;
 use App\Support\TenantRule;
 use Illuminate\Http\JsonResponse;
@@ -43,6 +46,19 @@ class InventoryCountController extends Controller
             ->orderByDesc('id')
             ->get();
 
+        $counterCandidates = User::where('restaurant_id', $restaurantId)
+            ->where('status', 'active')
+            ->where(function ($query) use ($activeBranchId) {
+                if ($activeBranchId) {
+                    $query->where('branch_id', $activeBranchId)
+                        ->orWhere('warehouse_branch_id', $activeBranchId);
+                }
+            })
+            ->whereHas('roles', fn ($query) => $query->whereIn('name', ['warehouse_staff', 'warehouse_manager', 'manager']))
+            ->select('id', 'name', 'email', 'branch_id', 'warehouse_branch_id')
+            ->orderBy('name')
+            ->get();
+
         $isOwnerOrAdmin = $user->isOwner() || $user->isSuperAdmin();
         $sessions->each(function ($session) use ($isOwnerOrAdmin) {
             if ($session->blind_count && $session->status === 'in_progress' && ! $isOwnerOrAdmin) {
@@ -59,9 +75,10 @@ class InventoryCountController extends Controller
             'branches'       => $branches,
             'activeBranchId' => $activeBranchId,
             'countSessions'  => $sessions,
+            'counterCandidates' => $counterCandidates,
             'authUserId'     => $user->id,
             'canStartCount'  => $user->can('inventory.count') || $user->hasRole('warehouse_manager') || $user->isOwner() || $user->isSuperAdmin(),
-            'canApprove'     => $user->can('inventory.adjust.approve') || $user->isOwner() || $user->isSuperAdmin(),
+            'canApprove'     => $user->can('inventory.adjust.approve') || $user->hasRole('warehouse_manager') || $user->isOwner() || $user->isSuperAdmin(),
         ]);
     }
 
@@ -147,6 +164,32 @@ class InventoryCountController extends Controller
     /**
      * Hoàn tất đếm & gửi duyệt
      */
+    public function assignSecondCounter(Request $request, int $id): JsonResponse
+    {
+        $user = $request->user();
+        $session = InventoryCountSession::where('restaurant_id', $user->restaurant_id)->findOrFail($id);
+        $this->authorizeSessionBranch($user, $session);
+
+        $data = $request->validate([
+            'user_id' => ['required', 'integer', TenantRule::exists('users')],
+        ]);
+
+        try {
+            $counter = User::where('restaurant_id', $user->restaurant_id)
+                ->where('status', 'active')
+                ->whereKey((int) $data['user_id'])
+                ->whereHas('roles', fn ($query) => $query->whereIn('name', ['warehouse_staff', 'warehouse_manager', 'manager']))
+                ->firstOrFail();
+
+            $updated = $this->countService->assignSecondCounter($session, $user, $counter);
+            $counter->notify(new InventoryCountAssignmentNotification($updated));
+
+            return response()->json(['success' => true, 'message' => 'Đã phân công người đếm 2 cho phiên kiểm kê.', 'data' => $updated]);
+        } catch (\Throwable $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
+        }
+    }
+
     public function reconcileItem(Request $request, int $id, int $itemId): JsonResponse
     {
         $user = $request->user();
@@ -195,6 +238,15 @@ class InventoryCountController extends Controller
                 $data['notes'] ?? null
             );
 
+            User::where('restaurant_id', $user->restaurant_id)
+                ->where('status', 'active')
+                ->where(function ($query) {
+                    $query->whereHas('roles', fn ($roles) => $roles->whereIn('name', ['owner', 'super_admin', 'warehouse_manager']))
+                        ->orWhereHas('permissions', fn ($permissions) => $permissions->where('name', 'inventory.adjust.approve'));
+                })
+                ->get()
+                ->each(fn (User $reviewer) => $reviewer->notify(new InventoryCountApprovalNotification($updated, 'submitted')));
+
             return response()->json([
                 'success' => true,
                 'message' => 'Phiên kiểm kê đã được gửi duyệt thành công.',
@@ -221,6 +273,8 @@ class InventoryCountController extends Controller
 
         try {
             $updated = $this->countService->rejectCountSession($session, $user, $data['reason']);
+            User::whereKey($updated->counted_by)->first()?->notify(new InventoryCountApprovalNotification($updated, 'rejected'));
+            User::whereKey($updated->second_counted_by)->first()?->notify(new InventoryCountApprovalNotification($updated, 'rejected'));
 
             return response()->json(['success' => true, 'message' => 'Da tu choi phien kiem ke.', 'data' => $updated]);
         } catch (\Throwable $e) {
@@ -268,6 +322,8 @@ class InventoryCountController extends Controller
 
         try {
             $updated = $this->countService->approveCountSession($session, $user);
+            User::whereKey($updated->counted_by)->first()?->notify(new InventoryCountApprovalNotification($updated, 'approved'));
+            User::whereKey($updated->second_counted_by)->first()?->notify(new InventoryCountApprovalNotification($updated, 'approved'));
 
             return response()->json([
                 'success' => true,

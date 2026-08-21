@@ -8,6 +8,7 @@ use App\Models\Inventory;
 use App\Models\InventoryBatchAllocation;
 use App\Models\InventoryBatch;
 use App\Models\InventoryCountSession;
+use App\Models\InventoryDiscrepancyDispute;
 use App\Models\InventoryTransaction;
 use App\Models\PurchaseOrder;
 use App\Models\PurchaseOrderItem;
@@ -20,6 +21,7 @@ use App\Models\WarehouseReceivingVoucherItem;
 use App\Models\WarehouseShiftHandover;
 use App\Models\WarehouseTaskAssignment;
 use App\Models\User;
+use App\Notifications\WarehouseShiftHandoverPendingNotification;
 use App\Services\CentralWarehouseService;
 use App\Support\TenantRule;
 use Carbon\Carbon;
@@ -94,6 +96,14 @@ class WarehouseStaffController extends Controller
             ->limit(10)
             ->get();
 
+        $myDisputes = InventoryDiscrepancyDispute::where('restaurant_id', $restaurantId)
+            ->where('responsible_user_id', $userId)
+            ->whereIn('status', ['open', 'investigating', 'resolved'])
+            ->with(['ingredient', 'supplyRequest.toBranch'])
+            ->orderByDesc('id')
+            ->limit(20)
+            ->get();
+
         // Vị trí kho
         $locations = $this->centralLocationQuery($restaurantId, $centralBranch?->id)
             ->where('status', 'active')
@@ -107,6 +117,18 @@ class WarehouseStaffController extends Controller
             ->orderBy('name')
             ->get(['id', 'name', 'sku', 'average_cost', 'unit_id']);
 
+        $handoverRecipients = User::where('restaurant_id', $restaurantId)
+            ->where('status', 'active')
+            ->where('id', '!=', $userId)
+            ->whereHas('roles', fn ($query) => $query->whereIn('name', ['warehouse_manager', 'warehouse_staff']))
+            ->when($centralBranch, fn ($query) => $query->where(function ($scope) use ($centralBranch) {
+                $scope->where('warehouse_branch_id', $centralBranch->id)
+                    ->orWhere('branch_id', $centralBranch->id);
+            }))
+            ->select('id', 'name', 'email')
+            ->orderBy('name')
+            ->get();
+
         $canManage = $user->isOwner() || $user->isSuperAdmin() || $user->can('warehouse.manage');
 
         return Inertia::render('inventory/WarehouseStaffPortal', [
@@ -115,8 +137,10 @@ class WarehouseStaffController extends Controller
             'taskSummary'       => $taskSummary,
             'myVouchers'        => $myVouchers,
             'myHandovers'       => $myHandovers,
+            'myDisputes'        => $myDisputes,
             'locations'         => $locations,
             'ingredients'       => $ingredients,
+            'handoverRecipients' => $handoverRecipients,
             'canManageWarehouse' => $canManage,
             'currentUser'       => [
                 'id'         => $userId,
@@ -478,11 +502,16 @@ class WarehouseStaffController extends Controller
         $user    = $request->user();
         $centralBranch = $this->warehouseService->getCentralWarehouse($user->restaurant_id);
         abort_unless($centralBranch, 422, 'Chưa thiết lập Kho Tổng.');
-        $canVerifyAny = true;
+        // GRN phải có maker-checker: nhân sự tạo phiếu không được tự xác nhận
+        // chính phiếu đó. Owner/Super Admin là ngoại lệ xử lý khẩn cấp và vẫn
+        // được lưu dấu vết ở verified_by/verified_at.
+        $canVerifyOwnVoucher = $user->isOwner() || $user->isSuperAdmin();
 
         $voucher = WarehouseReceivingVoucher::where('restaurant_id', $user->restaurant_id)
             ->where('branch_id', $centralBranch->id)
-            ->when(! $canVerifyAny, fn ($query) => $query->where('received_by', $user->id))
+            ->when(! $canVerifyOwnVoucher, fn ($query) => $query->where(function ($scope) use ($user) {
+                $scope->whereNull('received_by')->orWhere('received_by', '!=', $user->id);
+            }))
             ->whereIn('status', ['draft', 'discrepancy', 'pending_review'])
             ->findOrFail($id);
 
@@ -498,12 +527,14 @@ class WarehouseStaffController extends Controller
             ], 422);
         }
 
-        DB::transaction(function () use (&$voucher, $id, $user, $centralBranch, $canVerifyAny, $request): void {
+        DB::transaction(function () use (&$voucher, $id, $user, $centralBranch, $canVerifyOwnVoucher, $request): void {
             // Khóa phiếu trong transaction để hai người không thể đồng thời hạch toán
             // cùng một GRN thành hai lần nhập kho.
             $voucher = WarehouseReceivingVoucher::where('restaurant_id', $user->restaurant_id)
                 ->where('branch_id', $centralBranch->id)
-                ->when(! $canVerifyAny, fn ($query) => $query->where('received_by', $user->id))
+                ->when(! $canVerifyOwnVoucher, fn ($query) => $query->where(function ($scope) use ($user) {
+                    $scope->whereNull('received_by')->orWhere('received_by', '!=', $user->id);
+                }))
                 ->whereIn('status', ['draft', 'discrepancy', 'pending_review'])
                 ->lockForUpdate()
                 ->findOrFail($id);
@@ -644,8 +675,8 @@ class WarehouseStaffController extends Controller
                 'notes' => $request->notes ?? $voucher->notes,
                 'quality_status' => $request->quality_status,
                 'quality_notes' => $request->quality_notes ?? $voucher->quality_notes,
-                'verified_by' => $canVerifyAny ? $user->id : $voucher->verified_by,
-                'verified_at' => $canVerifyAny ? now() : $voucher->verified_at,
+                'verified_by' => $user->id,
+                'verified_at' => now(),
             ]);
         });
 
@@ -893,7 +924,7 @@ class WarehouseStaffController extends Controller
             'shift_type'   => 'required|in:morning,afternoon,evening,night',
             'shift_label'  => 'nullable|string|max:50',
             'notes'        => 'nullable|string|max:2000',
-            'received_by'  => ['nullable', 'integer', TenantRule::exists('users')],
+            'received_by'  => ['required', 'integer', TenantRule::exists('users')],
             'incidents_json' => 'nullable|array',
         ]);
 
@@ -950,7 +981,7 @@ class WarehouseStaffController extends Controller
             'shift_label'        => $request->shift_label,
             'handover_by'        => $user->id,
             'received_by'        => $request->received_by,
-            'status'             => $request->received_by ? 'pending' : 'draft',
+            'status'             => 'pending',
             'notes'              => $request->notes,
             'open_tasks_json'    => $pendingTasks->map(fn ($t) => [
                 'id'        => $t->id,
@@ -974,6 +1005,10 @@ class WarehouseStaffController extends Controller
             'pending_tasks_count' => $pendingTasks->count(),
             'is_system_locked'    => $isSystemLocked,
         ]);
+
+        User::whereKey((int) $request->received_by)->first()?->notify(
+            new WarehouseShiftHandoverPendingNotification($handover, $user)
+        );
 
         return response()->json([
             'message'          => 'Bàn giao ca đã được nộp.',

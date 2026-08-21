@@ -47,6 +47,8 @@ const props = defineProps<{
     taskSummary: any;
     myVouchers: Array<any>;
     myHandovers: Array<any>;
+    myDisputes: Array<any>;
+    handoverRecipients: Array<any>;
     locations: Array<any>;
     ingredients: Array<any>;
     canManageWarehouse: boolean;
@@ -62,6 +64,7 @@ const isLoading = ref(false);
 const taskList = ref([...props.myTasks]);
 const voucherList = ref([...props.myVouchers]);
 const handoverList = ref([...props.myHandovers]);
+const disputeList = ref([...props.myDisputes]);
 const taskSummaryData = ref({ ...props.taskSummary });
 const scanInput = ref('');
 const scanResult = ref<any>(null);
@@ -93,7 +96,7 @@ const incidentForm = ref({
     incident_type: 'shortage' as 'shortage' | 'damage' | 'expired' | 'wrong_item' | 'other',
     description: '',
     ingredient_id: null as number | null,
-    quantity_affected: null as number | null,
+    quantity_affected: undefined as number | undefined,
 });
 const incidentFiles = ref<File[]>([]);
 const isSubmittingIncident = ref(false);
@@ -378,7 +381,7 @@ async function submitIncident() {
     if (incidentForm.value.ingredient_id) {
         formData.append('ingredient_id', String(incidentForm.value.ingredient_id));
     }
-    if (incidentForm.value.quantity_affected !== null) {
+    if (incidentForm.value.quantity_affected !== null && incidentForm.value.quantity_affected !== undefined) {
         formData.append('quantity_affected', String(incidentForm.value.quantity_affected));
     }
     incidentFiles.value.forEach(f => formData.append('evidence[]', f));
@@ -388,7 +391,7 @@ async function submitIncident() {
             headers: { 'Content-Type': 'multipart/form-data' },
         });
         toast.success(data.message || 'Đã gửi báo cáo sự cố kho thành công.');
-        incidentForm.value = { incident_type: 'shortage', description: '', ingredient_id: null, quantity_affected: null };
+        incidentForm.value = { incident_type: 'shortage', description: '', ingredient_id: null, quantity_affected: undefined };
         incidentFiles.value = [];
         activeTab.value = 'today';
     } catch (e: any) {
@@ -400,6 +403,10 @@ async function submitIncident() {
 
 // Shift handover
 async function submitHandover() {
+    if (!handoverForm.value.received_by) {
+        toast.error('Hãy chọn người nhận ca trước khi nộp biên bản.');
+        return;
+    }
     isSubmittingHandover.value = true;
 
     try {
@@ -415,6 +422,21 @@ async function submitHandover() {
         toast.error(e.response?.data?.message ?? 'Lỗi bàn giao ca.');
     } finally {
         isSubmittingHandover.value = false;
+    }
+}
+
+async function respondToDispute(dispute: any) {
+    const response = prompt('Nhập ý kiến phản hồi / bằng chứng đối với biên bản '+dispute.dispute_code+':');
+    if (!response?.trim()) {
+        return;
+    }
+
+    try {
+        await axios.post(`/api/warehouse-governance/disputes/${dispute.id}/respond`, { response: response.trim() });
+        toast.success('Đã gửi phản hồi tranh chấp.');
+        disputeList.value = disputeList.value.filter((item) => item.id !== dispute.id);
+    } catch (e: any) {
+        toast.error(e.response?.data?.message ?? 'Không thể gửi phản hồi tranh chấp.');
     }
 }
 
@@ -978,6 +1000,21 @@ onMounted(() => {
 
         <!-- 7. BÁO CÁO SỰ CỐ (INCIDENT) -->
         <div v-if="activeTab === 'incident'" class="flex flex-col gap-6">
+            <Card v-if="disputeList.length" class="border-rose-200 shadow-sm dark:border-rose-900/50">
+                <CardHeader>
+                    <CardTitle class="text-base font-bold text-rose-700 dark:text-rose-300">Biên bản tranh chấp cần phản hồi</CardTitle>
+                    <CardDescription class="text-xs">Các biên bản được quy trách nhiệm cho tài khoản của bạn. Phản hồi sẽ được ghi vào audit trail để Trưởng kho xem xét.</CardDescription>
+                </CardHeader>
+                <CardContent class="space-y-3">
+                    <div v-for="dispute in disputeList" :key="dispute.id" class="flex flex-col gap-3 rounded-xl border border-rose-200 bg-rose-50/50 p-4 dark:border-rose-900/50 dark:bg-rose-950/20 sm:flex-row sm:items-center sm:justify-between">
+                        <div class="text-xs">
+                            <div class="font-bold text-slate-800 dark:text-slate-100">{{ dispute.dispute_code }} · {{ dispute.ingredient?.name }}</div>
+                            <div class="mt-1 text-slate-500">Thiếu {{ dispute.discrepancy_quantity }} · Thiệt hại {{ dispute.financial_loss_amount }}</div>
+                        </div>
+                        <Button size="sm" class="bg-rose-600 text-xs text-white hover:bg-rose-700" @click="respondToDispute(dispute)">Gửi phản hồi</Button>
+                    </div>
+                </CardContent>
+            </Card>
             <Card class="border-slate-200 shadow-sm dark:border-slate-800">
                 <CardHeader>
                     <CardTitle class="text-lg font-bold text-slate-900 dark:text-slate-100">Báo Cáo Sự Cố Kho & Chất Lượng</CardTitle>
@@ -1093,6 +1130,24 @@ onMounted(() => {
                             placeholder="Tình trạng kho bãi, hàng hóa cần kiểm tra đặc biệt, thiết bị xe nâng/kho lạnh..."
                             class="rounded-md border border-slate-200 bg-white p-3 text-xs shadow-sm dark:border-slate-700 dark:bg-slate-900"
                         ></textarea>
+                    </div>
+
+                    <div class="flex flex-col gap-1.5">
+                        <Label class="text-xs font-bold text-slate-700 dark:text-slate-300">Người nhận ca *</Label>
+                        <select
+                            v-model="handoverForm.received_by"
+                            class="h-9 rounded-md border border-slate-200 bg-white px-2.5 text-xs shadow-sm dark:border-slate-700 dark:bg-slate-900"
+                        >
+                            <option :value="0">Chọn nhân sự nhận ca</option>
+                            <option
+                                v-for="recipient in handoverRecipients"
+                                :key="recipient.id"
+                                :value="recipient.id"
+                            >
+                                {{ recipient.name }}
+                            </option>
+                        </select>
+                        <p class="text-[11px] text-slate-500">Biên bản sẽ chờ người nhận xác nhận và hệ thống sẽ gửi thông báo.</p>
                     </div>
 
                     <div class="flex justify-end pt-2">

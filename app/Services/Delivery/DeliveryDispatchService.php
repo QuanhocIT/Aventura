@@ -246,6 +246,11 @@ class DeliveryDispatchService
 
             broadcast(new DeliveryStatusUpdated($item->load('order.deliveryDetail'), $batch));
 
+            $trackedOrder = $item->order?->fresh();
+            if ($trackedOrder?->tracking_token) {
+                broadcast(new \App\Events\OrderStatusUpdated($trackedOrder));
+            }
+
             return $item->refresh();
         });
     }

@@ -20,6 +20,7 @@ class DeliveryManifest extends Model
     const STATUS_DISPATCHED = 'dispatched';
     const STATUS_COMPLETED  = 'completed';
     const STATUS_CANCELLED  = 'cancelled';
+    const STATUS_DISPUTED   = 'disputed';
 
     protected function casts(): array
     {
@@ -48,6 +49,11 @@ class DeliveryManifest extends Model
     public function dispatchedBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'dispatched_by');
+    }
+
+    public function completedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'completed_by');
     }
 
     public function items(): HasMany

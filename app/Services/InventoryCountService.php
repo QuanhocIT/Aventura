@@ -115,6 +115,10 @@ class InventoryCountService
                 throw new InvalidArgumentException('Nguoi dem lan 1 khong duoc tu nhap vai tro dem kiem tra lan 2.');
             }
 
+            if (! $isCounter1 && ! $isCounter2 && ! $user->hasRole('inventory_staff')) {
+                throw new InvalidArgumentException('Tài khoản của bạn chưa được phân công kiểm kê trong phiên này.');
+            }
+
             if (! $isCounter1 && ! $isCounter2) {
                 if (empty($session->second_counted_by)) {
                     $session->update(['second_counted_by' => $user->id]);
@@ -202,6 +206,36 @@ class InventoryCountService
     /**
      * Gửi duyệt kết quả kiểm kê.
      */
+    public function assignSecondCounter(InventoryCountSession $session, User $assigner, User $counter): InventoryCountSession
+    {
+        $this->assertSessionScope($session, $assigner);
+
+        return DB::transaction(function () use ($session, $assigner, $counter) {
+            $locked = InventoryCountSession::whereKey($session->id)
+                ->where('restaurant_id', $assigner->restaurant_id)
+                ->lockForUpdate()
+                ->firstOrFail();
+
+            if (! in_array($locked->status, ['draft', 'in_progress'], true)) {
+                throw new InvalidArgumentException('Chỉ có thể phân công người đếm khi phiên đang mở.');
+            }
+            if ((int) $locked->counted_by === (int) $counter->id) {
+                throw new InvalidArgumentException('Người đếm 1 không thể đồng thời là người đếm 2.');
+            }
+            if ((int) $counter->restaurant_id !== (int) $assigner->restaurant_id
+                || ! $counter->canAccessBranch((int) $locked->branch_id)) {
+                throw new InvalidArgumentException('Người đếm 2 phải thuộc cùng phạm vi chi nhánh của phiên.');
+            }
+            if ($locked->second_counted_by && (int) $locked->second_counted_by !== (int) $counter->id) {
+                throw new InvalidArgumentException('Phiên đã có người đếm 2; không thể thay đổi sau khi đã ghi nhận kết quả.');
+            }
+
+            $locked->update(['second_counted_by' => $counter->id]);
+
+            return $locked->fresh(['items.ingredient.unit', 'countedBy', 'secondCountedBy']);
+        });
+    }
+
     public function reconcileItem(
         InventoryCountSession $session,
         User $user,

@@ -128,10 +128,17 @@ interface CountSession {
     items?: CountItem[];
 }
 
+interface CounterCandidate {
+    id: number;
+    name: string;
+    email?: string;
+}
+
 const props = defineProps<{
     branches: Branch[];
     activeBranchId: number | null;
     countSessions: CountSession[];
+    counterCandidates: CounterCandidate[];
     authUserId: number;
     canStartCount: boolean;
     canApprove: boolean;
@@ -417,7 +424,7 @@ const openCountModal = (session: CountSession) => {
     // được gán người đếm 2; backend vẫn là nơi xác thực cuối cùng.
     isSecondCounter.value =
         !isCounter1 &&
-        (isAssignedCounter2 || session.second_counted_by == null);
+        isAssignedCounter2;
 
     const isEditable = ['draft', 'in_progress'].includes(session.status);
     countRows.value = (session.items || []).map((item) => ({
@@ -447,6 +454,31 @@ const openCountModal = (session: CountSession) => {
         notes: item.notes || '',
     }));
     showCountModal.value = true;
+};
+
+const handleAssignSecondCounter = async (
+    session: CountSession,
+    event: Event,
+) => {
+    const userId = Number((event.target as HTMLSelectElement).value);
+    if (!userId) {
+        return;
+    }
+
+    try {
+        await axios.post(
+            `/api/inventory/count-sessions/${session.id}/second-counter`,
+            { user_id: userId },
+        );
+        toast.success('Đã phân công người đếm 2.');
+        router.reload();
+    } catch (e: any) {
+        toast.error(
+            e.response?.data?.message || 'Không thể phân công người đếm 2.',
+        );
+    } finally {
+        (event.target as HTMLSelectElement).value = '';
+    }
 };
 
 // 4. Lưu kết quả kiểm đếm
@@ -1208,6 +1240,35 @@ const handleReconcile = async () => {
                                     <div
                                         class="flex items-center justify-end gap-1.5"
                                     >
+                                        <select
+                                            v-if="
+                                                canStartCount &&
+                                                ['draft', 'in_progress'].includes(
+                                                    session.status,
+                                                ) &&
+                                                !session.second_counted_by
+                                            "
+                                            class="h-7 max-w-[150px] rounded-md border border-border bg-background px-1.5 text-[10px] text-muted-foreground"
+                                            @change="
+                                                handleAssignSecondCounter(
+                                                    session,
+                                                    $event,
+                                                )
+                                            "
+                                        >
+                                            <option value="">Phân công đếm 2</option>
+                                            <option
+                                                v-for="candidate in counterCandidates.filter(
+                                                    (candidate) =>
+                                                        candidate.id !==
+                                                        session.counted_by,
+                                                )"
+                                                :key="candidate.id"
+                                                :value="candidate.id"
+                                            >
+                                                {{ candidate.name }}
+                                            </option>
+                                        </select>
                                         <!-- Nút Nhập đếm -->
                                         <Button
                                             v-if="

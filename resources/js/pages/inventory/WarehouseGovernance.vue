@@ -377,7 +377,7 @@ const getResponsibleLabel = (type: string) => {
                                 </td>
                                 <td class="p-3">
                                     <span
-                                        v-if="disp.status === 'open'"
+                                        v-if="disp.status === 'open' || disp.status === 'investigating'"
                                         class="rounded-full border border-rose-300 bg-rose-100 px-2.5 py-1 text-[11px] font-semibold text-rose-800 dark:border-rose-900/50 dark:bg-rose-950/30 dark:text-rose-300"
                                     >
                                         Chờ Xử Lý

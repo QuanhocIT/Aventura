@@ -181,6 +181,79 @@ class DeliveryManifestService
         });
     }
 
+    public function completeManifest(DeliveryManifest $manifest, User $user, ?string $notes = null): DeliveryManifest
+    {
+        $this->assertManifestScope($manifest, $user);
+
+        return DB::transaction(function () use ($manifest, $user, $notes) {
+            $locked = DeliveryManifest::whereKey($manifest->id)
+                ->where('restaurant_id', $user->restaurant_id)
+                ->with('items.supplyRequest')
+                ->lockForUpdate()
+                ->firstOrFail();
+
+            if ($locked->status !== DeliveryManifest::STATUS_DISPATCHED) {
+                throw new InvalidArgumentException('Chỉ có chuyến xe đang giao mới được xác nhận hoàn tất.');
+            }
+            if ($locked->items->isEmpty()) {
+                throw new InvalidArgumentException('Chuyến xe không có đơn để xác nhận.');
+            }
+
+            foreach ($locked->items as $item) {
+                $request = $item->supplyRequest;
+                if (! $request || (int) $request->to_branch_id !== (int) $user->assignedBranchId()) {
+                    if (! $user->isOwner() && ! $user->isSuperAdmin() && ! $user->hasRole('warehouse_manager')) {
+                        throw new InvalidArgumentException('Tài khoản chỉ được xác nhận chuyến xe giao tới chi nhánh được phân công.');
+                    }
+                }
+                if (! $request || $request->status !== SupplyRequest::STATUS_COMPLETED) {
+                    throw new InvalidArgumentException('Chỉ được đóng chuyến xe sau khi tất cả đơn đã được chi nhánh xác nhận nhận đủ.');
+                }
+                $item->update(['status' => 'delivered']);
+            }
+
+            $locked->update([
+                'status' => DeliveryManifest::STATUS_COMPLETED,
+                'completed_by' => $user->id,
+                'completed_at' => now(),
+                'receipt_notes' => $notes,
+            ]);
+
+            return $locked->fresh(['items.supplyRequest.toBranch', 'completedBy']);
+        });
+    }
+
+    public function syncFromSupplyRequest(SupplyRequest $request): void
+    {
+        $items = DeliveryManifestItem::where('supply_request_id', $request->id)
+            ->with('deliveryManifest')
+            ->get();
+
+        foreach ($items as $item) {
+            $item->update([
+                'status' => $request->status === SupplyRequest::STATUS_COMPLETED
+                    ? 'delivered'
+                    : ($request->status === SupplyRequest::STATUS_DISPUTED ? 'disputed' : $item->status),
+            ]);
+
+            $manifest = $item->deliveryManifest;
+            if (! $manifest || $manifest->status !== DeliveryManifest::STATUS_DISPATCHED) {
+                continue;
+            }
+
+            $manifest->load('items.supplyRequest');
+            if ($manifest->items->contains(fn ($manifestItem) => $manifestItem->supplyRequest?->status === SupplyRequest::STATUS_DISPUTED)) {
+                $manifest->update(['status' => DeliveryManifest::STATUS_DISPUTED]);
+            } elseif ($manifest->items->isNotEmpty() && $manifest->items->every(fn ($manifestItem) => $manifestItem->supplyRequest?->status === SupplyRequest::STATUS_COMPLETED)) {
+                $manifest->update([
+                    'status' => DeliveryManifest::STATUS_COMPLETED,
+                    'completed_by' => $request->received_by,
+                    'completed_at' => $request->received_at ?: now(),
+                ]);
+            }
+        }
+    }
+
     private function assertManifestScope(DeliveryManifest $manifest, ?User $actor = null): void
     {
         if ($actor && (int) $actor->restaurant_id !== (int) $manifest->restaurant_id) {
