@@ -34,6 +34,6 @@ class BusinessGoal extends Model
 
     public function isExpired(): bool
     {
-        return $this->end_date->isPast() && $this->status === 'active';
+        return $this->end_date->copy()->endOfDay()->isPast() && $this->status === 'active';
     }
 }

@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\BusinessGoal;
+use App\Models\GoalAction;
 use App\Models\Restaurant;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -119,5 +120,66 @@ class BusinessGoalsTest extends TestCase
         // Yêu cầu bảo mật: KHÔNG được xoá mục tiêu của nhà hàng khác.
         $this->actingAs($this->owner)->delete("/business-goals/{$foreignGoal->id}");
         $this->assertDatabaseHas('business_goals', ['id' => $foreignGoal->id]);
+    }
+
+    public function test_owner_can_update_a_custom_goal_value(): void
+    {
+        $goal = BusinessGoal::create([
+            'restaurant_id' => $this->restaurant->id,
+            'title' => 'Tăng tỷ lệ khách quay lại',
+            'metric' => 'custom',
+            'period' => 'monthly',
+            'start_date' => now()->toDateString(),
+            'end_date' => now()->addMonth()->toDateString(),
+            'target_value' => 100,
+            'created_by' => $this->owner->id,
+        ]);
+
+        $this->actingAs($this->owner)
+            ->patch("/business-goals/{$goal->id}/value", ['current_value' => 42])
+            ->assertRedirect();
+
+        $this->assertDatabaseHas('business_goals', [
+            'id' => $goal->id,
+            'current_value' => 42,
+            'progress_percent' => 42,
+        ]);
+    }
+
+    public function test_owner_cannot_toggle_a_foreign_goal_action(): void
+    {
+        $otherRestaurant = Restaurant::factory()->create();
+        $foreignGoal = BusinessGoal::create([
+            'restaurant_id' => $otherRestaurant->id,
+            'title' => 'Mục tiêu riêng tư',
+            'metric' => 'custom',
+            'period' => 'monthly',
+            'start_date' => now()->toDateString(),
+            'end_date' => now()->addMonth()->toDateString(),
+            'target_value' => 100,
+        ]);
+        $action = GoalAction::create([
+            'goal_id' => $foreignGoal->id,
+            'title' => 'Hành động riêng tư',
+        ]);
+
+        $this->actingAs($this->owner)
+            ->patch("/business-goals/actions/{$action->id}/toggle")
+            ->assertForbidden();
+
+        $this->assertDatabaseHas('goal_actions', [
+            'id' => $action->id,
+            'status' => 'pending',
+        ]);
+    }
+
+    public function test_goal_is_not_expired_until_the_end_of_its_end_date(): void
+    {
+        $goal = BusinessGoal::make([
+            'end_date' => now()->toDateString(),
+            'status' => 'active',
+        ]);
+
+        $this->assertFalse($goal->isExpired());
     }
 }

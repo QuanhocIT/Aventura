@@ -68,9 +68,25 @@ class GoalTrackingService
 
     private function calculateCurrentValue(BusinessGoal $goal): float
     {
+        if ($goal->metric === 'custom') {
+            return (float) $goal->current_value;
+        }
+
         $restaurantId = $goal->restaurant_id;
-        $from = $goal->start_date;
-        $to = min($goal->end_date, now());
+        $from = $goal->start_date->copy()->startOfDay();
+        $to = $goal->end_date->copy()->endOfDay();
+
+        if ($from->isFuture()) {
+            return 0;
+        }
+
+        if ($to->isFuture()) {
+            $to = now();
+        }
+
+        if ($to->lt($from)) {
+            return 0;
+        }
 
         return match ($goal->metric) {
             'revenue' => (float) DB::table('orders')
@@ -121,7 +137,8 @@ class GoalTrackingService
             ->whereBetween('occurred_at', [$from, $to])
             ->sum('total_cost');
 
-        $prevFrom = $from->copy()->subDays($from->diffInDays($to));
+        $periodDays = max(1, $from->diffInDays($to));
+        $prevFrom = $from->copy()->subDays($periodDays);
         $prevWaste = (float) DB::table('inventory_transactions')
             ->where('restaurant_id', $restaurantId)
             ->where('type', 'waste')
