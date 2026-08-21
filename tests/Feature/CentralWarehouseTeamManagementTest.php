@@ -22,6 +22,7 @@ class CentralWarehouseTeamManagementTest extends TestCase
     protected User $staff;
     protected Restaurant $restaurant;
     protected RestaurantBranch $centralBranch;
+    protected RestaurantBranch $businessBranch;
 
     protected function setUp(): void
     {
@@ -36,6 +37,12 @@ class CentralWarehouseTeamManagementTest extends TestCase
         $this->centralBranch = RestaurantBranch::factory()->create([
             'restaurant_id' => $this->restaurant->id,
             'is_central_warehouse' => true,
+            'warehouse_type' => 'central',
+        ]);
+        $this->businessBranch = RestaurantBranch::factory()->create([
+            'restaurant_id' => $this->restaurant->id,
+            'is_central_warehouse' => false,
+            'warehouse_type' => 'business',
         ]);
 
         $this->owner = User::factory()->create(['restaurant_id' => $this->restaurant->id]);
@@ -273,6 +280,72 @@ class CentralWarehouseTeamManagementTest extends TestCase
 
         $this->assertDatabaseMissing('users', [
             'email' => 'thungan@example.com',
+        ]);
+    }
+
+    public function test_cannot_create_warehouse_roles_at_business_branch(): void
+    {
+        \Illuminate\Support\Facades\Storage::fake('local');
+
+        $payload = [
+            'name' => 'Trần Văn Kho Tổng',
+            'email' => 'truongkho@example.com',
+            'phone' => '0988776633',
+            'citizen_id_number' => '079988776633',
+            'address' => '123 Hai Bà Trưng, Quận 3, TP.HCM',
+            'date_of_birth' => '1990-05-20',
+            'citizen_id_front' => \Illuminate\Http\UploadedFile::fake()->image('front.jpg', 600, 400),
+            'citizen_id_back' => \Illuminate\Http\UploadedFile::fake()->image('back.jpg', 600, 400),
+            'hire_date' => now()->toDateString(),
+            'base_salary' => 15000000,
+            'role' => 'warehouse_manager',
+            'job_title' => 'Trưởng Kho Tổng',
+            'branch_id' => $this->businessBranch->id, // Business branch is not allowed!
+        ];
+
+        $response = $this->actingAs($this->owner)
+            ->from('/employees')
+            ->post('/employees', $payload);
+
+        $response->assertRedirect('/employees');
+        $response->assertSessionHasErrors(['branch_id']);
+
+        $this->assertDatabaseMissing('users', [
+            'email' => 'truongkho@example.com',
+        ]);
+    }
+
+    public function test_owner_can_create_warehouse_manager_at_central_branch(): void
+    {
+        \Illuminate\Support\Facades\Storage::fake('local');
+
+        $payload = [
+            'name' => 'Trần Văn Kho Tổng',
+            'email' => 'truongkho_ok@example.com',
+            'phone' => '0988776622',
+            'citizen_id_number' => '079988776622',
+            'address' => '123 Hai Bà Trưng, Quận 3, TP.HCM',
+            'date_of_birth' => '1990-05-20',
+            'citizen_id_front' => \Illuminate\Http\UploadedFile::fake()->image('front.jpg', 600, 400),
+            'citizen_id_back' => \Illuminate\Http\UploadedFile::fake()->image('back.jpg', 600, 400),
+            'hire_date' => now()->toDateString(),
+            'base_salary' => 15000000,
+            'role' => 'warehouse_manager',
+            'job_title' => 'Trưởng Kho Tổng',
+            'branch_id' => $this->centralBranch->id,
+        ];
+
+        $response = $this->actingAs($this->owner)
+            ->from('/employees')
+            ->post('/employees', $payload);
+
+        $response->assertRedirect('/employees');
+        $response->assertSessionHasNoErrors();
+
+        $this->assertDatabaseHas('users', [
+            'restaurant_id' => $this->restaurant->id,
+            'email' => 'truongkho_ok@example.com',
+            'warehouse_branch_id' => $this->centralBranch->id,
         ]);
     }
 }

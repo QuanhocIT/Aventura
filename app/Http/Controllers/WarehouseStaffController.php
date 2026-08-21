@@ -23,6 +23,7 @@ use App\Models\WarehouseTaskAssignment;
 use App\Models\User;
 use App\Notifications\WarehouseShiftHandoverPendingNotification;
 use App\Services\CentralWarehouseService;
+use App\Services\WarehouseReverseLogisticsService;
 use App\Support\TenantRule;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
@@ -293,6 +294,8 @@ class WarehouseStaffController extends Controller
             'seal_code'           => 'nullable|string|max:50',
             'quality_status'      => 'nullable|in:pending,passed,conditional,failed',
             'quality_notes'       => 'nullable|string|max:1000',
+            'temperature_min_c'   => 'nullable|numeric|between:-80,80',
+            'temperature_max_c'   => 'nullable|numeric|between:-80,80',
             'notes'               => 'nullable|string|max:500',
             'items'               => 'required|array|min:1',
             'items.*.ingredient_id' => ['required', 'integer', TenantRule::exists('ingredients')],
@@ -424,6 +427,11 @@ class WarehouseStaffController extends Controller
                 'seal_code'             => $request->seal_code,
                 'quality_status'        => $request->input('quality_status', 'pending'),
                 'quality_notes'         => $request->quality_notes,
+                'temperature_min_c'     => $request->temperature_min_c,
+                'temperature_max_c'     => $request->temperature_max_c,
+                'temperature_status'    => $this->temperatureStatus($request->temperature_min_c, $request->temperature_max_c),
+                'three_way_match_status' => $purchaseOrder ? 'pending' : 'not_applicable',
+                'disposition'           => 'pending',
                 'status'                 => $status,
                 'total_expected_qty'     => $totalExpected,
                 'total_actual_qty'       => $totalActual,
@@ -485,9 +493,13 @@ class WarehouseStaffController extends Controller
             'notes' => 'nullable|string|max:500',
             'quality_status' => 'required|in:passed,conditional,failed',
             'quality_notes' => 'nullable|string|max:1000',
+            'temperature_min_c' => 'nullable|numeric|between:-80,80',
+            'temperature_max_c' => 'nullable|numeric|between:-80,80',
+            'evidence' => 'nullable|array',
+            'evidence.*' => 'file|mimes:jpg,jpeg,png,pdf|max:10240',
         ]);
 
-        if ($request->input('quality_status') === 'failed') {
+        if (false && $request->input('quality_status') === 'failed') {
             return response()->json([
                 'message' => 'Lô hàng không đạt chất lượng không được phép hạch toán nhập kho. Hãy lập biên bản và xử lý trả/tiêu hủy.',
             ], 422);
@@ -512,8 +524,46 @@ class WarehouseStaffController extends Controller
             ->when(! $canVerifyOwnVoucher, fn ($query) => $query->where(function ($scope) use ($user) {
                 $scope->whereNull('received_by')->orWhere('received_by', '!=', $user->id);
             }))
-            ->whereIn('status', ['draft', 'discrepancy', 'pending_review'])
+            ->whereIn('status', ['draft', 'discrepancy', 'pending_review', 'pending_disposition'])
             ->findOrFail($id);
+
+        if ($voucher->status === 'pending_disposition') {
+            return response()->json([
+                'message' => 'Phiáº¿u Ä‘ang chá» xá»­ lÃ½ tráº£ nhÃ  cung cáº¥p hoáº·c tiÃªu há»§y.',
+                'requires_disposition' => true,
+            ], 422);
+        }
+
+        if ($request->input('quality_status') === 'failed') {
+            $evidencePaths = $voucher->evidence_paths ?? [];
+            if ($request->hasFile('evidence')) {
+                foreach ($request->file('evidence') as $file) {
+                    $evidencePaths[] = $file->store('warehouse/grn-failed/'.now()->format('Y/m'), 'local');
+                }
+            }
+
+            $voucher->update([
+                'status' => 'pending_disposition',
+                'quality_status' => 'failed',
+                'quality_notes' => $request->quality_notes,
+                'temperature_min_c' => $request->temperature_min_c,
+                'temperature_max_c' => $request->temperature_max_c,
+                'temperature_status' => $this->temperatureStatus($request->temperature_min_c, $request->temperature_max_c),
+                'disposition' => 'pending',
+                'evidence_paths' => $evidencePaths,
+            ]);
+
+            $this->logAudit($user, 'warehouse.receiving.quality_failed', $voucher, [
+                'voucher_code' => $voucher->voucher_code,
+                'quality_notes' => $request->quality_notes,
+            ]);
+
+            return response()->json([
+                'message' => 'LÃ´ hÃ ng khÃ´ng Ä‘áº¡t. Phiáº¿u Ä‘Ã£ chuyá»ƒn sang chá» tráº£ nhÃ  cung cáº¥p/tiÃªu há»§y vÃ  chÆ°a háº¡ch toÃ¡n vÃ o kho.',
+                'requires_disposition' => true,
+                'voucher' => $voucher->fresh(),
+            ], 422);
+        }
 
         if ($voucher->items()->where('actual_qty', '>', 0)->whereNull('location_id')->exists()) {
             return response()->json([
@@ -527,7 +577,44 @@ class WarehouseStaffController extends Controller
             ], 422);
         }
 
-        DB::transaction(function () use (&$voucher, $id, $user, $centralBranch, $canVerifyOwnVoucher, $request): void {
+        $voucher->loadMissing(['items.location', 'items.ingredient', 'purchaseOrder.items']);
+        $temperatureMin = $request->filled('temperature_min_c') ? (float) $request->temperature_min_c : $voucher->temperature_min_c;
+        $temperatureMax = $request->filled('temperature_max_c') ? (float) $request->temperature_max_c : $voucher->temperature_max_c;
+        $hasTemperature = $temperatureMin !== null && $temperatureMax !== null;
+
+        $requiresTemperature = $voucher->items->contains(function (WarehouseReceivingVoucherItem $item): bool {
+            return (bool) $item->location?->is_cold_storage
+                || in_array($item->ingredient?->storage_type, ['fresh', 'daily', 'short_shelf'], true)
+                || $item->ingredient?->storage_temperature_min_c !== null
+                || $item->ingredient?->storage_temperature_max_c !== null;
+        });
+
+        if ($requiresTemperature && ! $hasTemperature) {
+            return response()->json(['message' => 'HÃ ng tÆ°Æ¡i/hÃ ng kho láº¡nh báº¯t buá»™c ghi nháº­n nhiá»‡t Ä‘á»™ nháº­n hÃ ng.'], 422);
+        }
+        if ($hasTemperature && $temperatureMin > $temperatureMax) {
+            return response()->json(['message' => 'Nhiá»‡t Ä‘á»™ tháº¥p nháº¥t khÃ´ng Ä‘Æ°á»£c lá»›n hÆ¡n nhiá»‡t Ä‘á»™ cao nháº¥t.'], 422);
+        }
+
+        $temperatureOutOfRange = $hasTemperature && $voucher->items->contains(function (WarehouseReceivingVoucherItem $item) use ($temperatureMin, $temperatureMax): bool {
+            $ingredient = $item->ingredient;
+            return ($ingredient?->storage_temperature_min_c !== null && $temperatureMin < (float) $ingredient->storage_temperature_min_c)
+                || ($ingredient?->storage_temperature_max_c !== null && $temperatureMax > (float) $ingredient->storage_temperature_max_c);
+        });
+
+        if ($temperatureOutOfRange && $request->input('quality_status') === 'passed') {
+            return response()->json(['message' => 'Nhiá»‡t Ä‘á»™ nháº­n hÃ ng vÆ°á»£t ngÆ°á»¡ng cÃ i Ä‘áº·t cho nguyÃªn liá»‡u. HÃ£y chuyá»ƒn sang Kiá»ƒm tra cÃ³ Ä‘iá»‡u kiá»‡n hoáº·c xá»­ lÃ½ tá»« chá»‘i.'], 422);
+        }
+
+        $threeWayStatus = $voucher->purchaseOrder ? $this->threeWayMatchStatus($voucher) : 'not_applicable';
+        if ($voucher->purchaseOrder && blank($voucher->invoice_number)) {
+            return response()->json(['message' => 'GRN gáº¯n vá»›i PO báº¯t buá»™c cÃ³ sá»‘ hÃ³a Ä‘Æ¡n Ä‘á»ƒ Ä‘á»‘i chiáº¿u 3 bÃªn.'], 422);
+        }
+        if ($threeWayStatus === 'discrepancy' && blank($request->input('notes'))) {
+            return response()->json(['message' => 'PO, há»“a Ä‘Æ¡n vÃ  thá»±c nháº­n cÃ³ chÃªnh lá»‡ch. BÃ¡º¯t buá»™c ghi chÃº Ä‘á»‘i soÃ¡t trÆ°á»›c khi xÃ¡c nháº­n.'], 422);
+        }
+
+        DB::transaction(function () use (&$voucher, $id, $user, $centralBranch, $canVerifyOwnVoucher, $request, $temperatureMin, $temperatureMax, $hasTemperature, $temperatureOutOfRange, $threeWayStatus): void {
             // Khóa phiếu trong transaction để hai người không thể đồng thời hạch toán
             // cùng một GRN thành hai lần nhập kho.
             $voucher = WarehouseReceivingVoucher::where('restaurant_id', $user->restaurant_id)
@@ -558,32 +645,41 @@ class WarehouseStaffController extends Controller
                 $ingredient = $this->centralIngredientQuery($user->restaurant_id, $centralBranch->id)
                     ->findOrFail($voucherItem->ingredient_id);
 
-                $inventory = Inventory::where('restaurant_id', $user->restaurant_id)
-                    ->where('branch_id', $voucher->branch_id)
-                    ->where('ingredient_id', $ingredient->id)
-                    ->lockForUpdate()
-                    ->first();
+                $location = $voucherItem->location;
+                $expiryDate = $voucherItem->expiry_date
+                    ? Carbon::parse($voucherItem->expiry_date)->toDateString()
+                    : null;
+                $isExpired = $expiryDate !== null && $expiryDate < now()->toDateString();
+                $isQuarantine = (bool) $location?->is_quarantine || $request->input('quality_status') === 'conditional' || $isExpired;
 
-                if (! $inventory) {
-                    $inventory = Inventory::create([
-                        'restaurant_id' => $user->restaurant_id,
-                        'branch_id' => $voucher->branch_id,
-                        'ingredient_id' => $ingredient->id,
-                        'quantity_on_hand' => 0,
-                        'theoretical_quantity' => 0,
-                        'last_cost' => 0,
-                    ]);
-                    $inventory = Inventory::whereKey($inventory->id)->lockForUpdate()->firstOrFail();
-                }
+                $transaction = null;
+                if (! $isQuarantine) {
+                    $inventory = Inventory::where('restaurant_id', $user->restaurant_id)
+                        ->where('branch_id', $voucher->branch_id)
+                        ->where('ingredient_id', $ingredient->id)
+                        ->lockForUpdate()
+                        ->first();
 
-                $unitCost = (float) ($voucherItem->unit_cost ?: $ingredient->average_cost ?: 0);
-                $oldQty = (float) $inventory->quantity_on_hand;
-                $oldAverageCost = (float) ($ingredient->average_cost ?: $inventory->last_cost ?: $unitCost);
-                $newAverageCost = ($oldQty + $actualQty) > 0
-                    ? (($oldQty * $oldAverageCost) + ($actualQty * $unitCost)) / ($oldQty + $actualQty)
-                    : $unitCost;
+                    if (! $inventory) {
+                        $inventory = Inventory::create([
+                            'restaurant_id' => $user->restaurant_id,
+                            'branch_id' => $voucher->branch_id,
+                            'ingredient_id' => $ingredient->id,
+                            'quantity_on_hand' => 0,
+                            'theoretical_quantity' => 0,
+                            'last_cost' => 0,
+                        ]);
+                        $inventory = Inventory::whereKey($inventory->id)->lockForUpdate()->firstOrFail();
+                    }
 
-                $transaction = InventoryTransaction::createWithIdempotency([
+                    $unitCost = (float) ($voucherItem->unit_cost ?: $ingredient->average_cost ?: 0);
+                    $oldQty = (float) $inventory->quantity_on_hand;
+                    $oldAverageCost = (float) ($ingredient->average_cost ?: $inventory->last_cost ?: $unitCost);
+                    $newAverageCost = ($oldQty + $actualQty) > 0
+                        ? (($oldQty * $oldAverageCost) + ($actualQty * $unitCost)) / ($oldQty + $actualQty)
+                        : $unitCost;
+
+                    $transaction = InventoryTransaction::createWithIdempotency([
                     'restaurant_id' => $user->restaurant_id,
                     'branch_id' => $voucher->branch_id,
                     'ingredient_id' => $ingredient->id,
@@ -602,19 +698,15 @@ class WarehouseStaffController extends Controller
                     'occurred_at' => $voucher->received_at ?: now(),
                 ]);
 
-                $inventory->update([
-                    'quantity_on_hand' => $oldQty + $actualQty,
-                    'theoretical_quantity' => (float) ($inventory->theoretical_quantity ?? $oldQty) + $actualQty,
-                    'last_cost' => $unitCost,
-                ]);
-                $ingredient->update(['average_cost' => round($newAverageCost, 2)]);
-
-                $location = $voucherItem->location;
-                $expiryDate = $voucherItem->expiry_date
-                    ? Carbon::parse($voucherItem->expiry_date)->toDateString()
-                    : null;
-                $isExpired = $expiryDate !== null && $expiryDate < now()->toDateString();
-                $isQuarantine = (bool) $location?->is_quarantine || $request->input('quality_status') === 'conditional';
+                    $inventory->update([
+                        'quantity_on_hand' => $oldQty + $actualQty,
+                        'theoretical_quantity' => (float) ($inventory->theoretical_quantity ?? $oldQty) + $actualQty,
+                        'last_cost' => $unitCost,
+                    ]);
+                    $ingredient->update(['average_cost' => round($newAverageCost, 2)]);
+                } else {
+                    $unitCost = (float) ($voucherItem->unit_cost ?: $ingredient->average_cost ?: 0);
+                }
 
                 $batch = InventoryBatch::create([
                     'restaurant_id' => $user->restaurant_id,
@@ -637,15 +729,35 @@ class WarehouseStaffController extends Controller
                     'locked_at' => $isQuarantine ? now() : null,
                 ]);
 
-                InventoryBatchAllocation::create([
-                    'restaurant_id' => $user->restaurant_id,
-                    'branch_id' => $voucher->branch_id,
-                    'inventory_batch_id' => $batch->id,
-                    'inventory_transaction_id' => $transaction->id,
-                    'direction' => 'in',
-                    'quantity' => $actualQty,
-                    'unit_cost' => $unitCost,
-                ]);
+                if ($transaction) {
+                    InventoryBatchAllocation::create([
+                        'restaurant_id' => $user->restaurant_id,
+                        'branch_id' => $voucher->branch_id,
+                        'inventory_batch_id' => $batch->id,
+                        'inventory_transaction_id' => $transaction->id,
+                        'direction' => 'in',
+                        'quantity' => $actualQty,
+                        'unit_cost' => $unitCost,
+                    ]);
+                }
+
+                if ($isQuarantine) {
+                    app(WarehouseReverseLogisticsService::class)->createQuarantine(
+                        (int) $user->restaurant_id,
+                        (int) $voucher->branch_id,
+                        (int) $ingredient->id,
+                        $actualQty,
+                        $isExpired ? 'expired' : 'conditional',
+                        $request->input('quality_notes') ?: 'Hàng nhập kho đang chờ xử lý chất lượng.',
+                        $user,
+                        $batch,
+                        'warehouse_receiving_voucher',
+                        $voucher->id,
+                        $voucherItem->id,
+                        $voucher->evidence_paths ?? [],
+                        $request->input('quality_notes'),
+                    );
+                }
 
                 $voucherItem->update(['batch_id' => $batch->id]);
 
@@ -675,6 +787,11 @@ class WarehouseStaffController extends Controller
                 'notes' => $request->notes ?? $voucher->notes,
                 'quality_status' => $request->quality_status,
                 'quality_notes' => $request->quality_notes ?? $voucher->quality_notes,
+                'temperature_min_c' => $hasTemperature ? $temperatureMin : $voucher->temperature_min_c,
+                'temperature_max_c' => $hasTemperature ? $temperatureMax : $voucher->temperature_max_c,
+                'temperature_status' => $hasTemperature ? ($temperatureOutOfRange ? 'failed' : 'passed') : 'not_recorded',
+                'three_way_match_status' => $threeWayStatus,
+                'disposition' => 'accepted',
                 'verified_by' => $user->id,
                 'verified_at' => now(),
             ]);
@@ -690,6 +807,59 @@ class WarehouseStaffController extends Controller
     /**
      * Báo chênh lệch và yêu cầu xem xét
      */
+    /**
+     * Xá»­ lÃ½ hÃ ng khÃ´ng Ä‘áº¡t sau khi QC tá»« chá»‘i. HÃ ng chÆ°a tá»«ng Ä‘Æ°á»£c háº¡ch toÃ¡n vÃ o tá»“n kho.
+     */
+    public function disposeReceiving(Request $request, int $id): JsonResponse
+    {
+        $user = $request->user();
+        abort_unless($user->isOwner() || $user->isSuperAdmin() || $user->hasRole('warehouse_manager') || $user->can('warehouse.manage'), 403);
+
+        $data = $request->validate([
+            'disposition' => 'required|in:return_supplier,destroy',
+            'reason' => 'required|string|max:1000',
+            'evidence' => 'nullable|array',
+            'evidence.*' => 'file|mimes:jpg,jpeg,png,pdf|max:10240',
+        ]);
+
+        $centralBranch = $this->warehouseService->getCentralWarehouse($user->restaurant_id);
+        abort_unless($centralBranch, 422, 'ChÆ°a thiáº¿t láº­p Kho Tá»•ng.');
+
+        $voucher = WarehouseReceivingVoucher::where('restaurant_id', $user->restaurant_id)
+            ->where('branch_id', $centralBranch->id)
+            ->where('status', 'pending_disposition')
+            ->findOrFail($id);
+
+        $evidencePaths = [];
+        if ($request->hasFile('evidence')) {
+            foreach ($request->file('evidence') as $file) {
+                $evidencePaths[] = $file->store('warehouse/grn-dispositions/'.now()->format('Y/m'), 'local');
+            }
+        }
+        if ($data['disposition'] === 'destroy' && $evidencePaths === []) {
+            return response()->json(['message' => 'TiÃªu há»§y hÃ ng báº¯t buá»™c cÃ³ áº£nh/biÃªn báº£n lÃ m báº±ng chá»©ng.'], 422);
+        }
+
+        $voucher->update([
+            'status' => $data['disposition'] === 'destroy' ? 'destroyed' : 'returned',
+            'disposition' => $data['disposition'],
+            'disposition_reason' => $data['reason'],
+            'disposed_by' => $user->id,
+            'disposed_at' => now(),
+            'disposition_evidence_paths' => $evidencePaths,
+        ]);
+
+        $this->logAudit($user, 'warehouse.receiving.disposed', $voucher, [
+            'voucher_code' => $voucher->voucher_code,
+            'disposition' => $data['disposition'],
+        ]);
+
+        return response()->json([
+            'message' => $data['disposition'] === 'destroy' ? 'ÄÃ£ ghi nháº­n tiÃªu há»§y hÃ ng.' : 'ÄÃ£ ghi nháº­n tráº£ hÃ ng cho nhÃ  cung cáº¥p.',
+            'voucher' => $voucher->fresh(),
+        ]);
+    }
+
     public function reportDiscrepancy(Request $request, int $id): JsonResponse
     {
         $request->validate([
@@ -840,7 +1010,93 @@ class WarehouseStaffController extends Controller
         $evidencePaths = [];
         if ($request->hasFile('evidence')) {
             foreach ($request->file('evidence') as $file) {
-                $evidencePaths[] = $file->store('warehouse/incidents/' . now()->format('Y/m'), 'public');
+                $evidencePaths[] = $file->store('warehouse/incidents/' . now()->format('Y/m'), 'local');
+            }
+        }
+
+        $quarantineId = null;
+        if (in_array($request->incident_type, ['damage', 'expired'], true) && $request->filled('batch_id') && (float) ($request->quantity_affected ?? 0) > 0) {
+            try {
+                DB::transaction(function () use ($request, $user, $restaurantId, $centralBranch, $evidencePaths, &$quarantineId): void {
+                    $batch = InventoryBatch::where('restaurant_id', $restaurantId)
+                        ->where('branch_id', $centralBranch->id)
+                        ->lockForUpdate()
+                        ->findOrFail((int) $request->batch_id);
+                    $quantity = (float) $request->quantity_affected;
+                    if ($batch->status !== 'active' || (float) $batch->quantity_remaining + 0.0005 < $quantity) {
+                        throw new \InvalidArgumentException('Lô không còn đủ tồn khả dụng để chuyển sang cách ly.');
+                    }
+                    $inventory = Inventory::where('restaurant_id', $restaurantId)
+                        ->where('branch_id', $centralBranch->id)
+                        ->where('ingredient_id', $batch->ingredient_id)
+                        ->lockForUpdate()
+                        ->firstOrFail();
+                    if ((float) $inventory->quantity_on_hand + 0.0005 < $quantity) {
+                        throw new \InvalidArgumentException('Tồn khả dụng không đủ để chuyển sang cách ly.');
+                    }
+                    $before = (float) $inventory->quantity_on_hand;
+                    $transaction = InventoryTransaction::createWithIdempotency([
+                        'restaurant_id' => $restaurantId,
+                        'branch_id' => $centralBranch->id,
+                        'ingredient_id' => $batch->ingredient_id,
+                        'inventory_id' => $inventory->id,
+                        'performed_by' => $user->id,
+                        'type' => 'waste',
+                        'direction' => 'out',
+                        'quantity' => $quantity,
+                        'unit_cost' => $batch->unit_cost,
+                        'total_cost' => $quantity * (float) $batch->unit_cost,
+                        'source_type' => 'warehouse_incident',
+                        'source_id' => $request->batch_id,
+                        'idempotency_key' => 'incident_quarantine_'.$request->batch_id.'_'.sha1($request->description),
+                        'reference_code' => 'INC-Q-'.$request->batch_id,
+                        'waste_category' => $request->incident_type,
+                        'notes' => 'Chuyển hàng lỗi sang cách ly: '.$request->description,
+                        'occurred_at' => now(),
+                    ]);
+                    $inventory->update(['quantity_on_hand' => $before - $quantity, 'theoretical_quantity' => max(0, (float) $inventory->theoretical_quantity - $quantity), 'updated_by' => $user->id]);
+                    $batch->decrement('quantity_remaining', $quantity);
+                    if ((float) $batch->quantity_remaining <= 0) {
+                        $batch->update(['status' => 'depleted']);
+                    }
+                    $lockedBatch = app(WarehouseReverseLogisticsService::class)->createDestinationBatch(
+                        $restaurantId,
+                        (int) $centralBranch->id,
+                        (int) $batch->ingredient_id,
+                        $quantity,
+                        (float) $batch->unit_cost,
+                        $user,
+                        $batch,
+                        true,
+                        'Lô bị báo hỏng/hết hạn, chờ hoàn trả hoặc tiêu hủy.',
+                    );
+                    InventoryBatchAllocation::create([
+                        'restaurant_id' => $restaurantId,
+                        'branch_id' => $centralBranch->id,
+                        'inventory_batch_id' => $batch->id,
+                        'inventory_transaction_id' => $transaction->id,
+                        'direction' => 'out',
+                        'quantity' => $quantity,
+                        'unit_cost' => $batch->unit_cost,
+                    ]);
+                    $quarantine = app(WarehouseReverseLogisticsService::class)->createQuarantine(
+                        $restaurantId,
+                        (int) $centralBranch->id,
+                        (int) $batch->ingredient_id,
+                        $quantity,
+                        $request->incident_type,
+                        $request->description,
+                        $user,
+                        $lockedBatch,
+                        'warehouse_incident',
+                        (int) $request->batch_id,
+                        null,
+                        $evidencePaths,
+                    );
+                    $quarantineId = $quarantine->id;
+                });
+            } catch (\Throwable $e) {
+                return response()->json(['message' => $e->getMessage()], 422);
             }
         }
 
@@ -861,6 +1117,7 @@ class WarehouseStaffController extends Controller
                 'batch_id'          => $request->batch_id,
                 'location_id'       => $request->location_id,
                 'quantity_affected' => $request->quantity_affected,
+                'quarantine_id'      => $quarantineId,
             ]),
         ]);
 
@@ -1176,6 +1433,37 @@ class WarehouseStaffController extends Controller
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────
+
+    private function temperatureStatus($minimum, $maximum): string
+    {
+        return $minimum !== null && $maximum !== null ? 'recorded' : 'not_recorded';
+    }
+
+    private function threeWayMatchStatus(WarehouseReceivingVoucher $voucher): string
+    {
+        $poItems = $voucher->purchaseOrder?->items?->keyBy('ingredient_id') ?? collect();
+        if ($poItems->isEmpty()) {
+            return 'discrepancy';
+        }
+
+        foreach ($voucher->items as $item) {
+            $poItem = $poItems->get($item->ingredient_id);
+            if (! $poItem) {
+                return 'discrepancy';
+            }
+
+            $quantityMismatch = (float) $item->actual_qty > (float) $poItem->quantity_ordered + 0.0005;
+            $expectedPrice = (float) $poItem->price_per_unit;
+            $actualPrice = (float) $item->unit_cost;
+            $priceMismatch = $expectedPrice > 0 && $actualPrice > 0 && abs($actualPrice - $expectedPrice) > max(0.01, $expectedPrice * 0.1);
+
+            if ($quantityMismatch || $priceMismatch) {
+                return 'discrepancy';
+            }
+        }
+
+        return 'matched';
+    }
 
     private function centralIngredientQuery(int $restaurantId, ?int $centralBranchId)
     {

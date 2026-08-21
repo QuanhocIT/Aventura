@@ -41,6 +41,10 @@ type TransferStatus =
     | 'dispatched'
     | 'received'
     | 'discrepancy'
+    | 'quarantined'
+    | 'return_requested'
+    | 'returned'
+    | 'destroyed'
     | 'rejected'
     | 'cancelled';
 
@@ -57,6 +61,9 @@ interface Transfer {
     quantity_requested: number;
     quantity_dispatched: number | null;
     quantity_received: number | null;
+    quantity_received_good: number | null;
+    quantity_received_damaged: number;
+    quantity_received_expired: number;
     quantity_remaining: number;
     discrepancy_quantity: number;
     source_available_quantity: number;
@@ -67,6 +74,13 @@ interface Transfer {
     received_condition: string | null;
     received_note: string | null;
     receiving_evidence_path: string | null;
+    source_batch_id: number | null;
+    destination_batch_id: number | null;
+    quarantine_id: number | null;
+    transport_temperature_min_c: number | null;
+    transport_temperature_max_c: number | null;
+    vehicle_number: string | null;
+    carrier_name: string | null;
     discrepancy_reason: string | null;
     discrepancy_resolution: string | null;
     handover_code: string | null;
@@ -147,8 +161,15 @@ const dispatchForm = useForm({
 const receiveForm = useForm({
     handover_code: '',
     quantity_received: 0,
+    quantity_received_good: 0,
+    quantity_received_damaged: 0,
+    quantity_received_expired: 0,
     received_condition: 'good',
     received_note: '',
+    transport_temperature_min_c: '' as number | string,
+    transport_temperature_max_c: '' as number | string,
+    vehicle_number: '',
+    carrier_name: '',
     receiving_evidence: null as File | null,
 });
 
@@ -388,6 +409,26 @@ const statusConfig: Record<
         className: 'border-rose-400/30 bg-rose-500/10 text-rose-300',
         icon: AlertTriangle,
     },
+    quarantined: {
+        label: 'Cách ly',
+        className: 'border-orange-400/30 bg-orange-500/10 text-orange-300',
+        icon: PackageOpen,
+    },
+    return_requested: {
+        label: 'Yêu cầu hoàn trả',
+        className: 'border-fuchsia-400/30 bg-fuchsia-500/10 text-fuchsia-300',
+        icon: RefreshCw,
+    },
+    returned: {
+        label: 'Đã hoàn trả',
+        className: 'border-cyan-400/30 bg-cyan-500/10 text-cyan-300',
+        icon: RefreshCw,
+    },
+    destroyed: {
+        label: 'Đã tiêu hủy',
+        className: 'border-slate-400/30 bg-slate-500/10 text-slate-400',
+        icon: XCircle,
+    },
     received: {
         label: 'Đã hoàn tất',
         className: 'border-emerald-400/30 bg-emerald-500/10 text-emerald-300',
@@ -424,8 +465,15 @@ const openReceive = (transfer: Transfer) => {
     receiveForm.handover_code = '';
     receiveForm.quantity_received =
         transfer.quantity_dispatched ?? transfer.quantity_requested;
+    receiveForm.quantity_received_good = receiveForm.quantity_received;
+    receiveForm.quantity_received_damaged = 0;
+    receiveForm.quantity_received_expired = 0;
     receiveForm.received_condition = 'good';
     receiveForm.received_note = '';
+    receiveForm.transport_temperature_min_c = '';
+    receiveForm.transport_temperature_max_c = '';
+    receiveForm.vehicle_number = '';
+    receiveForm.carrier_name = '';
     receiveForm.receiving_evidence = null;
 };
 
@@ -525,6 +573,19 @@ const submitReceive = () => {
         return;
     }
 
+    receiveForm.quantity_received =
+        Number(receiveForm.quantity_received_good || 0) +
+        Number(receiveForm.quantity_received_damaged || 0) +
+        Number(receiveForm.quantity_received_expired || 0);
+    receiveForm.received_condition =
+        Number(receiveForm.quantity_received_damaged || 0) +
+            Number(receiveForm.quantity_received_expired || 0) >
+        0
+            ? 'damaged'
+            : receiveForm.quantity_received <
+                  Number(receiving.value.quantity_dispatched ?? 0)
+              ? 'shortage'
+              : 'good';
     receiveForm.post(`/inventory/transfers/${receiving.value.id}/receive`, {
         preserveScroll: true,
         forceFormData: true,
@@ -1273,7 +1334,7 @@ const formatDuration = (hours: number) => {
                     </p>
                     <a
                         v-if="transfer.receiving_evidence_path"
-                        :href="`/storage/${transfer.receiving_evidence_path}`"
+                        :href="`/secure-files/download?path=${encodeURIComponent(transfer.receiving_evidence_path)}`"
                         target="_blank"
                         rel="noreferrer"
                         class="inline-flex items-center gap-1 font-semibold text-teal-400 hover:text-teal-300"
@@ -1401,7 +1462,7 @@ const formatDuration = (hours: number) => {
                         <p v-if="detailTransfer.received_condition" class="mt-2 text-xs text-muted-foreground">Tình trạng: {{ detailTransfer.received_condition }}</p>
                         <p v-if="detailTransfer.received_note" class="mt-2 text-xs text-muted-foreground">Biên bản: {{ detailTransfer.received_note }}</p>
                         <p v-if="detailTransfer.discrepancy_quantity > 0" class="mt-2 text-xs font-semibold text-rose-300">Thiếu {{ formatNumber(detailTransfer.discrepancy_quantity) }} {{ detailTransfer.unit }}</p>
-                        <a v-if="detailTransfer.receiving_evidence_path" :href="`/storage/${detailTransfer.receiving_evidence_path}`" target="_blank" rel="noreferrer" class="mt-2 inline-flex items-center gap-1 text-xs font-bold text-teal-400"><FileText class="size-3.5" /> Mở bằng chứng</a>
+                        <a v-if="detailTransfer.receiving_evidence_path" :href="`/secure-files/download?path=${encodeURIComponent(detailTransfer.receiving_evidence_path)}`" target="_blank" rel="noreferrer" class="mt-2 inline-flex items-center gap-1 text-xs font-bold text-teal-400"><FileText class="size-3.5" /> Mở bằng chứng</a>
                         <p v-if="detailTransfer.discrepancy_resolution" class="mt-2 text-xs text-muted-foreground"><b>Đã chốt:</b> {{ detailTransfer.discrepancy_resolution }}</p>
                     </div>
                 </div>
@@ -1611,13 +1672,16 @@ const formatDuration = (hours: number) => {
                         <div class="flex flex-col gap-1.5">
                             <Label>Số lượng thực nhận</Label
                             ><Input
-                                v-model="receiveForm.quantity_received"
+                                v-model="receiveForm.quantity_received_good"
                                 type="number"
                                 step="0.001"
                                 min="0"
                                 :max="receiving.quantity_dispatched ?? 0"
                                 required
                             />
+                            <Input v-model="receiveForm.quantity_received_damaged" type="number" step="0.001" min="0" :max="receiving.quantity_dispatched ?? 0" placeholder="Hỏng" />
+                            <Input v-model="receiveForm.quantity_received_expired" type="number" step="0.001" min="0" :max="receiving.quantity_dispatched ?? 0" placeholder="Hết hạn" />
+                            <span class="text-xs text-muted-foreground">Tổng: {{ Number(receiveForm.quantity_received_good || 0) + Number(receiveForm.quantity_received_damaged || 0) + Number(receiveForm.quantity_received_expired || 0) }} {{ receiving.unit }}</span>
                         </div>
                     </div>
                     <div class="flex flex-col gap-1.5">
@@ -1651,6 +1715,12 @@ const formatDuration = (hours: number) => {
                             accept="image/*,.pdf"
                             @change="onEvidenceChange"
                         />
+                    </div>
+                    <div class="grid grid-cols-2 gap-3">
+                        <Input v-model="receiveForm.transport_temperature_min_c" type="number" step="0.1" placeholder="Nhiệt độ thấp nhất (°C)" />
+                        <Input v-model="receiveForm.transport_temperature_max_c" type="number" step="0.1" placeholder="Nhiệt độ cao nhất (°C)" />
+                        <Input v-model="receiveForm.vehicle_number" placeholder="Biển số xe" />
+                        <Input v-model="receiveForm.carrier_name" placeholder="Đơn vị vận chuyển" />
                     </div>
                     <p
                         v-if="

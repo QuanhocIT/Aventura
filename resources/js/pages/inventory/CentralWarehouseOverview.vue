@@ -41,6 +41,8 @@ const props = defineProps<{
     centralWarehouseAi?: any;
     receivingSummary?: any;
     inventorySummary?: any;
+    supplyChainAlerts?: any;
+    supplyChainReconciliation?: any;
 }>();
 
 const analytics = computed(() => props.supplyAnalytics ?? {});
@@ -49,6 +51,8 @@ const inventory = computed(() => props.inventorySummary ?? {});
 const receiving = computed(() => props.receivingSummary ?? {});
 const warehouseKpi = computed(() => props.centralWarehouseAnalytics ?? {});
 const aiAssessment = computed(() => props.centralWarehouseAi ?? {});
+const supplyChainAlerts = computed(() => props.supplyChainAlerts ?? {});
+const reconciliation = computed(() => props.supplyChainReconciliation ?? {});
 
 const daily = computed(() => analytics.value.daily ?? []);
 const branches = computed(() => analytics.value.branches ?? []);
@@ -317,6 +321,51 @@ const aiSignalClass = (severity: string) =>
                     </div>
                     <p class="mt-3 text-2xl font-bold text-rose-100">{{ summary.urgent_recommendations ?? 0 }}</p>
                     <p class="mt-1 text-[11px] text-muted-foreground">Nguyên liệu rủi ro thiếu trong 7 ngày</p>
+                </CardContent>
+            </Card>
+        </section>
+
+        <section class="grid gap-4 xl:grid-cols-[1.15fr_0.85fr]">
+            <Card class="border-amber-500/25 bg-amber-950/5 shadow-sm">
+                <CardHeader class="border-b border-amber-500/15 py-4">
+                    <div class="flex items-center justify-between gap-3">
+                        <div>
+                            <CardTitle class="flex items-center gap-2 text-base"><AlertTriangle class="h-5 w-5 text-amber-300" /> Cảnh báo chuỗi cung ứng</CardTitle>
+                            <CardDescription class="mt-1 text-xs">Thiếu hàng, thiếu nhà cung cấp dự phòng hoặc PO trễ hạn.</CardDescription>
+                        </div>
+                        <span class="rounded-full border border-amber-400/25 bg-amber-500/10 px-2.5 py-1 text-[10px] font-bold text-amber-200">{{ supplyChainAlerts.critical ?? 0 }} khẩn</span>
+                    </div>
+                </CardHeader>
+                <CardContent class="space-y-2 p-4">
+                    <div v-if="!(supplyChainAlerts.items ?? []).length" class="rounded-xl border border-dashed border-border p-5 text-center text-xs text-muted-foreground">Chưa có cảnh báo chuỗi cung ứng.</div>
+                    <div v-for="item in (supplyChainAlerts.items ?? []).slice(0, 5)" :key="`${item.type}-${item.ingredient_id ?? item.purchase_order_id}`" class="flex items-start justify-between gap-3 rounded-xl border border-border bg-background/40 p-3">
+                        <div>
+                            <p class="text-xs font-bold text-foreground">{{ item.ingredient_name || item.po_number || 'Cảnh báo kho' }}</p>
+                            <p class="mt-1 text-[11px] text-muted-foreground">{{ item.message }}</p>
+                        </div>
+                        <span class="shrink-0 text-[10px] font-bold uppercase" :class="item.severity === 'critical' ? 'text-rose-300' : 'text-amber-300'">{{ item.severity }}</span>
+                    </div>
+                </CardContent>
+            </Card>
+            <Card class="border-sky-500/25 bg-sky-950/5 shadow-sm">
+                <CardHeader class="border-b border-sky-500/15 py-4">
+                    <CardTitle class="flex items-center gap-2 text-base"><ShieldCheck class="h-5 w-5 text-sky-300" /> Đối soát tồn kho</CardTitle>
+                    <CardDescription class="mt-1 text-xs">So sánh số dư kho, lô và sổ giao dịch.</CardDescription>
+                </CardHeader>
+                <CardContent class="p-4">
+                    <div class="flex items-end justify-between gap-3">
+                        <div>
+                            <p class="text-3xl font-black" :class="reconciliation.has_variance ? 'text-rose-300' : 'text-emerald-300'">{{ reconciliation.review_count ?? 0 }}</p>
+                            <p class="text-xs text-muted-foreground">mặt hàng cần rà soát</p>
+                        </div>
+                        <span class="rounded-full border px-2 py-1 text-[10px] font-bold" :class="reconciliation.has_variance ? 'border-rose-400/25 bg-rose-500/10 text-rose-300' : 'border-emerald-400/25 bg-emerald-500/10 text-emerald-300'">{{ reconciliation.has_variance ? 'Cần xử lý' : 'Đã khớp' }}</span>
+                    </div>
+                    <div v-if="(reconciliation.items ?? []).length" class="mt-4 space-y-2">
+                        <div v-for="item in reconciliation.items.slice(0, 3)" :key="item.ingredient_id" class="flex justify-between gap-3 text-xs">
+                            <span class="truncate text-muted-foreground">{{ item.ingredient_name }}</span>
+                            <span class="font-bold text-rose-300">{{ formatQuantity(item.variance) }}</span>
+                        </div>
+                    </div>
                 </CardContent>
             </Card>
         </section>

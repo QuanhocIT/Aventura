@@ -3,6 +3,8 @@
 namespace Database\Seeders;
 
 use App\Models\BatchRecallOrder;
+use App\Models\CentralBom;
+use App\Models\CentralBomItem;
 use App\Models\DeliveryManifest;
 use App\Models\DeliveryManifestItem;
 use App\Models\Employee;
@@ -13,8 +15,11 @@ use App\Models\InventoryBatch;
 use App\Models\InventoryCountItem;
 use App\Models\InventoryCountSession;
 use App\Models\InventoryDiscrepancyDispute;
+use App\Models\PurchaseOrder;
+use App\Models\PurchaseOrderItem;
 use App\Models\Restaurant;
 use App\Models\RestaurantBranch;
+use App\Models\StockTransferRequest;
 use App\Models\Supplier;
 use App\Models\SupplyRequest;
 use App\Models\SupplyRequestItem;
@@ -27,6 +32,8 @@ use App\Models\WarehouseReceivingVoucher;
 use App\Models\WarehouseReceivingVoucherItem;
 use App\Models\WarehouseShiftHandover;
 use App\Models\WarehouseTaskAssignment;
+use App\Models\WorkOrder;
+use App\Models\WorkOrderItem;
 use Carbon\Carbon;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
@@ -489,125 +496,346 @@ class WarehouseDemoDataSeeder extends Seeder
             ]
         );
 
-        // 10. Phiếu Nhập Kho (WarehouseReceivingVoucher & Items)
-        // Voucher 1: Nhập thịt từ CP - Verified
+        BatchRecallOrder::updateOrCreate(
+            ['restaurant_id' => $restaurantId, 'recall_code' => 'THK-2026-002'],
+            [
+                'restaurant_id' => $restaurantId,
+                'batch_id' => $batchModels['NL-BO-01']->id,
+                'severity' => 'warning',
+                'reason' => 'Kiểm tra định kỳ phát hiện nhãn phụ mờ mã vạch.',
+                'action_taken' => 'relabel',
+                'status' => 'completed',
+                'affected_branches_count' => 1,
+                'total_quarantined_quantity' => 20,
+                'initiated_by' => $truongKho->id,
+                'completed_at' => Carbon::now()->subDays(1),
+                'resolution_notes' => 'Đã in lại nhãn phụ và dán bổ sung đạt chuẩn.',
+            ]
+        );
+
+        // 9b. Đơn Mua Hàng Từ NCC (Purchase Orders)
+        $po1 = PurchaseOrder::updateOrCreate(
+            ['restaurant_id' => $restaurantId, 'po_number' => 'PO-CP-2026-001'],
+            [
+                'branch_id' => $centralBranch->id,
+                'supplier_id' => $supplierCP->id,
+                'status' => 'shipping',
+                'total_amount' => 62750000,
+                'created_by' => $truongKho->id,
+                'approved_by' => $truongKho->id,
+                'notes' => 'Đơn nhập thịt định kỳ đầu tuần từ CP Foods.',
+            ]
+        );
+        PurchaseOrderItem::updateOrCreate(
+            ['purchase_order_id' => $po1->id, 'ingredient_id' => $ingredientModels['NL-BO-01']->id],
+            [
+                'quantity_ordered' => 200,
+                'quantity_received' => 150,
+                'price_per_unit' => 250000,
+                'total_cost' => 50000000,
+            ]
+        );
+        PurchaseOrderItem::updateOrCreate(
+            ['purchase_order_id' => $po1->id, 'ingredient_id' => $ingredientModels['NL-GA-03']->id],
+            [
+                'quantity_ordered' => 150,
+                'quantity_received' => 150,
+                'price_per_unit' => 85000,
+                'total_cost' => 12750000,
+            ]
+        );
+
+        $po2 = PurchaseOrder::updateOrCreate(
+            ['restaurant_id' => $restaurantId, 'po_number' => 'PO-VE-2026-002'],
+            [
+                'branch_id' => $centralBranch->id,
+                'supplier_id' => $supplierVinEco->id,
+                'status' => 'preparing',
+                'total_amount' => 8700000,
+                'created_by' => $truongKho->id,
+                'approved_by' => $truongKho->id,
+                'notes' => 'Rau củ quả sạch giao sáng sớm.',
+            ]
+        );
+        PurchaseOrderItem::updateOrCreate(
+            ['purchase_order_id' => $po2->id, 'ingredient_id' => $ingredientModels['NL-RAU-04']->id],
+            [
+                'quantity_ordered' => 100,
+                'quantity_received' => 0,
+                'price_per_unit' => 45000,
+                'total_cost' => 4500000,
+            ]
+        );
+        PurchaseOrderItem::updateOrCreate(
+            ['purchase_order_id' => $po2->id, 'ingredient_id' => $ingredientModels['NL-RAU-05']->id],
+            [
+                'quantity_ordered' => 120,
+                'quantity_received' => 0,
+                'price_per_unit' => 35000,
+                'total_cost' => 4200000,
+            ]
+        );
+
+        $po3 = PurchaseOrder::updateOrCreate(
+            ['restaurant_id' => $restaurantId, 'po_number' => 'PO-GV-2026-003'],
+            [
+                'branch_id' => $centralBranch->id,
+                'supplier_id' => $supplierGiaVi->id,
+                'status' => 'delivered',
+                'total_amount' => 21000000,
+                'created_by' => $truongKho->id,
+                'approved_by' => $truongKho->id,
+                'notes' => 'Dầu ăn và nước sốt đóng gói.',
+            ]
+        );
+        PurchaseOrderItem::updateOrCreate(
+            ['purchase_order_id' => $po3->id, 'ingredient_id' => $ingredientModels['NL-GV-07']->id],
+            [
+                'quantity_ordered' => 50,
+                'quantity_received' => 45,
+                'price_per_unit' => 240000,
+                'total_cost' => 12000000,
+            ]
+        );
+        PurchaseOrderItem::updateOrCreate(
+            ['purchase_order_id' => $po3->id, 'ingredient_id' => $ingredientModels['NL-GV-08']->id],
+            [
+                'quantity_ordered' => 100,
+                'quantity_received' => 100,
+                'price_per_unit' => 90000,
+                'total_cost' => 9000000,
+            ]
+        );
+
+        // 10. Phiếu Nhập Kho GRN (WarehouseReceivingVoucher & Items)
+        // Voucher 1: Draft - Chờ Trưởng Kho Xác Nhận Nhập Kho (CP Foods)
         $rcv1 = WarehouseReceivingVoucher::updateOrCreate(
-            ['restaurant_id' => $restaurantId, 'voucher_code' => 'PNK-2026-001'],
+            ['restaurant_id' => $restaurantId, 'voucher_code' => 'GRN-2026-001'],
             [
                 'restaurant_id' => $restaurantId,
                 'branch_id' => $centralBranch->id,
+                'purchase_order_id' => $po1->id,
                 'delivery_note_number' => 'DN-CP-89210',
                 'invoice_number' => 'HD-CP-2026-441',
                 'vehicle_number' => '51C-889.21',
                 'seal_code' => 'SEAL-CP-8812',
                 'supplier_id' => $supplierCP->id,
                 'received_by' => $nhanVienKho->id,
-                'received_at' => Carbon::now()->subDays(2)->setTime(8, 30),
-                'status' => 'verified',
+                'received_at' => Carbon::now()->setTime(8, 30),
+                'status' => 'draft',
                 'quality_status' => 'passed',
                 'quality_notes' => 'Nhiệt độ thùng xe đông lạnh đạt -18.5°C. Đầy đủ tem kiểm dịch thú y.',
-                'total_expected_qty' => 350,
-                'total_actual_qty' => 350,
+                'total_expected_qty' => 250,
+                'total_actual_qty' => 250,
                 'total_discrepancy_qty' => 0,
-                'verified_by' => $truongKho->id,
-                'verified_at' => Carbon::now()->subDays(2)->setTime(9, 15),
+                'notes' => 'Đã tiếp nhận hàng tại cửa bốc dỡ Zone A, đang chờ Trưởng Kho xác nhận nhập kho.',
             ]
         );
         WarehouseReceivingVoucherItem::updateOrCreate(
             ['voucher_id' => $rcv1->id, 'ingredient_id' => $ingredientModels['NL-BO-01']->id],
             [
-                'batch_id' => $batchModels['NL-BO-01']->id,
                 'location_id' => $locationModels['A1-01']->id,
-                'expected_qty' => 200,
-                'actual_qty' => 200,
+                'expected_qty' => 150,
+                'actual_qty' => 150,
                 'unit_cost' => 250000,
-                'item_status' => 'accepted',
-                'expiry_date' => Carbon::now()->addDays(120),
+                'item_status' => 'ok',
+                'expiry_date' => Carbon::now()->addDays(120)->toDateString(),
                 'lot_number' => 'LOT-BO-CP01',
             ]
         );
         WarehouseReceivingVoucherItem::updateOrCreate(
             ['voucher_id' => $rcv1->id, 'ingredient_id' => $ingredientModels['NL-GA-03']->id],
             [
-                'batch_id' => $batchModels['NL-GA-03']->id,
                 'location_id' => $locationModels['A2-01']->id,
-                'expected_qty' => 150,
-                'actual_qty' => 150,
+                'expected_qty' => 100,
+                'actual_qty' => 100,
                 'unit_cost' => 85000,
-                'item_status' => 'accepted',
-                'expiry_date' => Carbon::now()->addDays(45),
+                'item_status' => 'ok',
+                'expiry_date' => Carbon::now()->addDays(45)->toDateString(),
                 'lot_number' => 'LOT-GA-CP02',
             ]
         );
 
-        // Voucher 2: Nhập Rau từ VinEco - Verified
+        // Voucher 2: Discrepancy - Có chênh lệch (VinaSpices: thiếu 5 can Dầu Ăn)
         $rcv2 = WarehouseReceivingVoucher::updateOrCreate(
-            ['restaurant_id' => $restaurantId, 'voucher_code' => 'PNK-2026-002'],
+            ['restaurant_id' => $restaurantId, 'voucher_code' => 'GRN-2026-002'],
             [
                 'restaurant_id' => $restaurantId,
                 'branch_id' => $centralBranch->id,
-                'delivery_note_number' => 'DN-VE-99123',
-                'invoice_number' => 'HD-VE-2026-118',
-                'vehicle_number' => '49C-112.56',
-                'seal_code' => 'SEAL-VE-3341',
-                'supplier_id' => $supplierVinEco->id,
-                'received_by' => $thuKho2->id,
-                'received_at' => Carbon::now()->subDay()->setTime(7, 0),
-                'status' => 'verified',
-                'quality_status' => 'passed',
-                'quality_notes' => 'Rau củ tươi xanh, độ ẩm đạt chuẩn VietGAP.',
-                'total_expected_qty' => 200,
-                'total_actual_qty' => 200,
-                'total_discrepancy_qty' => 0,
-                'verified_by' => $truongKho->id,
-                'verified_at' => Carbon::now()->subDay()->setTime(8, 0),
-            ]
-        );
-        WarehouseReceivingVoucherItem::updateOrCreate(
-            ['voucher_id' => $rcv2->id, 'ingredient_id' => $ingredientModels['NL-RAU-04']->id],
-            [
-                'batch_id' => $batchModels['NL-RAU-04']->id,
-                'location_id' => $locationModels['B1-01']->id,
-                'expected_qty' => 100,
-                'actual_qty' => 100,
-                'unit_cost' => 45000,
-                'item_status' => 'accepted',
-                'expiry_date' => Carbon::now()->addDays(7),
-                'lot_number' => 'LOT-VE-RAU01',
-            ]
-        );
-
-        // Voucher 3: Nhập Gia vị - Pending verification
-        $rcv3 = WarehouseReceivingVoucher::updateOrCreate(
-            ['restaurant_id' => $restaurantId, 'voucher_code' => 'PNK-2026-003'],
-            [
-                'restaurant_id' => $restaurantId,
-                'branch_id' => $centralBranch->id,
+                'purchase_order_id' => $po3->id,
                 'delivery_note_number' => 'DN-GV-33019',
                 'invoice_number' => 'HD-GV-2026-789',
                 'vehicle_number' => '50E-992.14',
                 'seal_code' => 'SEAL-GV-9012',
                 'supplier_id' => $supplierGiaVi->id,
                 'received_by' => $nhanVienKho->id,
-                'received_at' => Carbon::now()->setTime(9, 30),
-                'status' => 'received',
-                'quality_status' => 'pending',
-                'quality_notes' => 'Đã tiếp nhận vào sảnh bốc dỡ C, đang kiểm đếm hạn dùng và quy cách đóng gói.',
+                'received_at' => Carbon::now()->subHours(2),
+                'status' => 'discrepancy',
+                'quality_status' => 'conditional',
+                'quality_notes' => 'Phát hiện 5 can dầu ăn bị móp nắp và rò rỉ dầu ra thùng xe.',
                 'total_expected_qty' => 110,
-                'total_actual_qty' => 110,
+                'total_actual_qty' => 105,
+                'total_discrepancy_qty' => -5,
+                'discrepancy_reason' => 'Thiếu 5 can dầu ăn do hư hỏng lúc vận chuyển, NCC đã ký biên bản xác nhận bù đợt sau.',
+            ]
+        );
+        WarehouseReceivingVoucherItem::updateOrCreate(
+            ['voucher_id' => $rcv2->id, 'ingredient_id' => $ingredientModels['NL-GV-07']->id],
+            [
+                'location_id' => $locationModels['C1-02']->id,
+                'expected_qty' => 50,
+                'actual_qty' => 45,
+                'unit_cost' => 240000,
+                'item_status' => 'short',
+                'discrepancy_reason' => 'Vỡ móp 5 can khi bốc dỡ',
+                'expiry_date' => Carbon::now()->addDays(365)->toDateString(),
+                'lot_number' => 'LOT-GV-DAU07',
+            ]
+        );
+        WarehouseReceivingVoucherItem::updateOrCreate(
+            ['voucher_id' => $rcv2->id, 'ingredient_id' => $ingredientModels['NL-GV-08']->id],
+            [
+                'location_id' => $locationModels['C2-01']->id,
+                'expected_qty' => 60,
+                'actual_qty' => 60,
+                'unit_cost' => 90000,
+                'item_status' => 'ok',
+                'expiry_date' => Carbon::now()->addDays(180)->toDateString(),
+                'lot_number' => 'LOT-GV-SOT08',
+            ]
+        );
+
+        // Voucher 3: Pending Review - Chờ xem xét kiểm định (VinEco)
+        $rcv3 = WarehouseReceivingVoucher::updateOrCreate(
+            ['restaurant_id' => $restaurantId, 'voucher_code' => 'GRN-2026-003'],
+            [
+                'restaurant_id' => $restaurantId,
+                'branch_id' => $centralBranch->id,
+                'purchase_order_id' => $po2->id,
+                'delivery_note_number' => 'DN-VE-99123',
+                'invoice_number' => 'HD-VE-2026-118',
+                'vehicle_number' => '49C-112.56',
+                'seal_code' => 'SEAL-VE-3341',
+                'supplier_id' => $supplierVinEco->id,
+                'received_by' => $thuKho2->id,
+                'received_at' => Carbon::now()->subHours(1),
+                'status' => 'pending_review',
+                'quality_status' => 'pending',
+                'quality_notes' => 'Rau củ tươi xanh, đang chờ bộ phận QC hoàn tất kiểm tra dư lượng trước khi cất kệ.',
+                'total_expected_qty' => 220,
+                'total_actual_qty' => 220,
                 'total_discrepancy_qty' => 0,
             ]
         );
         WarehouseReceivingVoucherItem::updateOrCreate(
-            ['voucher_id' => $rcv3->id, 'ingredient_id' => $ingredientModels['NL-GV-07']->id],
+            ['voucher_id' => $rcv3->id, 'ingredient_id' => $ingredientModels['NL-RAU-04']->id],
             [
-                'location_id' => $locationModels['C1-02']->id,
-                'expected_qty' => 50,
-                'actual_qty' => 50,
-                'unit_cost' => 240000,
-                'item_status' => 'accepted',
-                'expiry_date' => Carbon::now()->addDays(365),
-                'lot_number' => 'LOT-GV-DAU07',
+                'location_id' => $locationModels['B1-01']->id,
+                'expected_qty' => 100,
+                'actual_qty' => 100,
+                'unit_cost' => 45000,
+                'item_status' => 'ok',
+                'expiry_date' => Carbon::now()->addDays(7)->toDateString(),
+                'lot_number' => 'LOT-VE-RAU01',
+            ]
+        );
+        WarehouseReceivingVoucherItem::updateOrCreate(
+            ['voucher_id' => $rcv3->id, 'ingredient_id' => $ingredientModels['NL-RAU-05']->id],
+            [
+                'location_id' => $locationModels['B1-02']->id,
+                'expected_qty' => 120,
+                'actual_qty' => 120,
+                'unit_cost' => 35000,
+                'item_status' => 'ok',
+                'expiry_date' => Carbon::now()->addDays(10)->toDateString(),
+                'lot_number' => 'LOT-VE-CACHUA02',
+            ]
+        );
+
+        // Voucher 4: Confirmed - Đã nhập kho thành công (Gạo ST25)
+        $rcv4 = WarehouseReceivingVoucher::updateOrCreate(
+            ['restaurant_id' => $restaurantId, 'voucher_code' => 'GRN-2026-004'],
+            [
+                'restaurant_id' => $restaurantId,
+                'branch_id' => $centralBranch->id,
+                'delivery_note_number' => 'DN-GV-88219',
+                'invoice_number' => 'HD-GV-2026-552',
+                'vehicle_number' => '50E-118.99',
+                'seal_code' => 'SEAL-GV-1122',
+                'supplier_id' => $supplierGiaVi->id,
+                'received_by' => $nhanVienKho->id,
+                'received_at' => Carbon::now()->subDays(2)->setTime(10, 0),
+                'status' => 'confirmed',
+                'quality_status' => 'passed',
+                'quality_notes' => 'Gạo khô ráo, thơm, độ ẩm dưới 14%. Đã cất vào Kệ C1-01.',
+                'total_expected_qty' => 1000,
+                'total_actual_qty' => 1000,
+                'total_discrepancy_qty' => 0,
+                'verified_by' => $truongKho->id,
+                'verified_at' => Carbon::now()->subDays(2)->setTime(11, 0),
+            ]
+        );
+        WarehouseReceivingVoucherItem::updateOrCreate(
+            ['voucher_id' => $rcv4->id, 'ingredient_id' => $ingredientModels['NL-KHO-06']->id],
+            [
+                'batch_id' => $batchModels['NL-KHO-06']->id,
+                'location_id' => $locationModels['C1-01']->id,
+                'expected_qty' => 1000,
+                'actual_qty' => 1000,
+                'unit_cost' => 38000,
+                'item_status' => 'ok',
+                'expiry_date' => Carbon::now()->addDays(300)->toDateString(),
+                'lot_number' => 'LOT-GV-GAO06',
+            ]
+        );
+
+        // Voucher 5: Confirmed - Đã nhập kho (Phô mai & Sữa tươi)
+        $rcv5 = WarehouseReceivingVoucher::updateOrCreate(
+            ['restaurant_id' => $restaurantId, 'voucher_code' => 'GRN-2026-005'],
+            [
+                'restaurant_id' => $restaurantId,
+                'branch_id' => $centralBranch->id,
+                'delivery_note_number' => 'DN-CP-77123',
+                'invoice_number' => 'HD-CP-2026-309',
+                'vehicle_number' => '51C-889.21',
+                'seal_code' => 'SEAL-CP-7711',
+                'supplier_id' => $supplierCP->id,
+                'received_by' => $thuKho2->id,
+                'received_at' => Carbon::now()->subDays(3)->setTime(14, 0),
+                'status' => 'confirmed',
+                'quality_status' => 'passed',
+                'quality_notes' => 'Hàng bảo quản lạnh đạt chuẩn, tem nhãn nguyên vẹn.',
+                'total_expected_qty' => 280,
+                'total_actual_qty' => 280,
+                'total_discrepancy_qty' => 0,
+                'verified_by' => $truongKho->id,
+                'verified_at' => Carbon::now()->subDays(3)->setTime(15, 0),
+            ]
+        );
+        WarehouseReceivingVoucherItem::updateOrCreate(
+            ['voucher_id' => $rcv5->id, 'ingredient_id' => $ingredientModels['NL-BO-09']->id],
+            [
+                'batch_id' => $batchModels['NL-BO-09']->id,
+                'location_id' => $locationModels['A2-01']->id,
+                'expected_qty' => 80,
+                'actual_qty' => 80,
+                'unit_cost' => 200000,
+                'item_status' => 'ok',
+                'expiry_date' => Carbon::now()->addDays(90)->toDateString(),
+                'lot_number' => 'LOT-CP-PHOMAI09',
+            ]
+        );
+        WarehouseReceivingVoucherItem::updateOrCreate(
+            ['voucher_id' => $rcv5->id, 'ingredient_id' => $ingredientModels['NL-SUA-10']->id],
+            [
+                'batch_id' => $batchModels['NL-SUA-10']->id,
+                'location_id' => $locationModels['B1-02']->id,
+                'expected_qty' => 200,
+                'actual_qty' => 200,
+                'unit_cost' => 34000,
+                'item_status' => 'ok',
+                'expiry_date' => Carbon::now()->addDays(40)->toDateString(),
+                'lot_number' => 'LOT-GV-SUA10',
             ]
         );
 
@@ -841,6 +1069,88 @@ class WarehouseDemoDataSeeder extends Seeder
             ]
         );
 
+        // Request 7: Dispatch Pending (Đã duyệt & soạn xong, đang chờ gom chuyến xe Logistics)
+        $req7 = SupplyRequest::updateOrCreate(
+            ['restaurant_id' => $restaurantId, 'request_code' => 'YCCP-2026-007'],
+            [
+                'restaurant_id' => $restaurantId,
+                'from_branch_id' => $centralBranch->id,
+                'to_branch_id' => $branchChinh->id,
+                'created_by' => $managerChinh->id,
+                'approved_by' => $truongKho->id,
+                'approved_at' => Carbon::now()->subHours(2),
+                'prepared_by' => $nhanVienKho->id,
+                'prepared_at' => Carbon::now()->subHour(),
+                'status' => SupplyRequest::STATUS_DISPATCH_PENDING,
+                'total_amount' => 5700000,
+                'notes' => 'Đã soạn xong nguyên liệu, chờ gom chuyến xe giao ca chiều.',
+            ]
+        );
+        SupplyRequestItem::updateOrCreate(
+            ['supply_request_id' => $req7->id, 'ingredient_id' => $ingredientModels['NL-HEO-02']->id],
+            [
+                'requested_quantity' => 25,
+                'approved_quantity' => 25,
+                'actual_dispatched_quantity' => 25,
+                'unit_cost' => 160000,
+                'total_cost' => 4000000,
+                'unit_symbol' => 'kg',
+                'batch_id' => $batchModels['NL-HEO-02']->id,
+            ]
+        );
+        SupplyRequestItem::updateOrCreate(
+            ['supply_request_id' => $req7->id, 'ingredient_id' => $ingredientModels['NL-RAU-05']->id],
+            [
+                'requested_quantity' => 50,
+                'approved_quantity' => 50,
+                'actual_dispatched_quantity' => 50,
+                'unit_cost' => 34000,
+                'total_cost' => 1700000,
+                'unit_symbol' => 'kg',
+            ]
+        );
+
+        // Request 8: Dispatch Pending (Đang chờ gom chuyến xe)
+        $req8 = SupplyRequest::updateOrCreate(
+            ['restaurant_id' => $restaurantId, 'request_code' => 'YCCP-2026-008'],
+            [
+                'restaurant_id' => $restaurantId,
+                'from_branch_id' => $centralBranch->id,
+                'to_branch_id' => $branchQuan3->id,
+                'created_by' => $managerQuan3->id,
+                'approved_by' => $truongKho->id,
+                'approved_at' => Carbon::now()->subHours(1),
+                'prepared_by' => $nhanVienKho->id,
+                'prepared_at' => Carbon::now()->subMinutes(30),
+                'status' => SupplyRequest::STATUS_DISPATCH_PENDING,
+                'total_amount' => 7400000,
+                'notes' => 'Giao cùng tuyến xe Quận 3.',
+            ]
+        );
+        SupplyRequestItem::updateOrCreate(
+            ['supply_request_id' => $req8->id, 'ingredient_id' => $ingredientModels['NL-BO-01']->id],
+            [
+                'requested_quantity' => 20,
+                'approved_quantity' => 20,
+                'actual_dispatched_quantity' => 20,
+                'unit_cost' => 250000,
+                'total_cost' => 5000000,
+                'unit_symbol' => 'kg',
+                'batch_id' => $batchModels['NL-BO-01']->id,
+            ]
+        );
+        SupplyRequestItem::updateOrCreate(
+            ['supply_request_id' => $req8->id, 'ingredient_id' => $ingredientModels['NL-GV-07']->id],
+            [
+                'requested_quantity' => 10,
+                'approved_quantity' => 10,
+                'actual_dispatched_quantity' => 10,
+                'unit_cost' => 240000,
+                'total_cost' => 2400000,
+                'unit_symbol' => 'can',
+            ]
+        );
+
         // 12. Chuyến Xe Logistics (DeliveryManifest & Items)
         $manifest1 = DeliveryManifest::updateOrCreate(
             ['restaurant_id' => $restaurantId, 'manifest_code' => 'CX-2026-001'],
@@ -866,6 +1176,22 @@ class WarehouseDemoDataSeeder extends Seeder
                 'sequence_order' => 1,
                 'status' => 'dispatched',
                 'notes' => 'Giao hàng đợt 1 cho Chi nhánh Quận 1',
+            ]
+        );
+
+        $manifest3 = DeliveryManifest::updateOrCreate(
+            ['restaurant_id' => $restaurantId, 'manifest_code' => 'CX-2026-003'],
+            [
+                'restaurant_id' => $restaurantId,
+                'from_branch_id' => $centralBranch->id,
+                'route_name' => 'Tuyến Giao Bổ Sung Chiều Nay: Kho Tổng -> CN Quận 3',
+                'driver_name' => 'Lê Văn Tài',
+                'driver_phone' => '0908123456',
+                'vehicle_number' => '51C-889.21',
+                'status' => DeliveryManifest::STATUS_DRAFT,
+                'scheduled_dispatch_at' => Carbon::now()->addHours(2),
+                'created_by' => $truongKho->id,
+                'notes' => 'Dự kiến xuất bến lúc 15:30 sau khi gom đủ đơn.',
             ]
         );
 
@@ -1009,16 +1335,15 @@ class WarehouseDemoDataSeeder extends Seeder
                 'variance_percent' => -0.67,
                 'variance_value' => -750000.00,
                 'reconciliation_status' => 'pending',
-                'notes' => 'Hao hụt rã đông và lạng bỏ mỡ thừa khi sơ chế bảo quản.',
+                'notes' => 'Hao hụt rã đông và cắt tỉa mẫu.',
             ]
         );
         InventoryCountItem::updateOrCreate(
-            ['count_session_id' => $countSession1->id, 'ingredient_id' => $ingredientModels['NL-HEO-02']->id],
+            ['count_session_id' => $countSession1->id, 'ingredient_id' => $ingredientModels['NL-GA-03']->id],
             [
-                'expected_quantity' => 380,
-                'counted_quantity_1' => 380,
-                'counted_quantity_2' => 380,
-                'final_quantity' => 380,
+                'expected_quantity' => 300,
+                'counted_quantity_1' => 300,
+                'final_quantity' => 300,
                 'variance_quantity' => 0,
                 'variance_percent' => 0,
                 'variance_value' => 0,
@@ -1026,9 +1351,9 @@ class WarehouseDemoDataSeeder extends Seeder
             ]
         );
 
-        // Phiếu 2: Completed
+        // Session 2: Đã khớp (Tự động thông qua)
         $countSession2 = InventoryCountSession::firstOrCreate(
-            ['restaurant_id' => $restaurantId, 'notes' => 'Đợt kiểm kê tổng kho tháng trước - Đã cân bằng số liệu.'],
+            ['restaurant_id' => $restaurantId, 'notes' => 'Kiểm kê định kỳ Zone C (Khu Khô). Số liệu thực tế khớp 100% sổ sách.'],
             [
                 'branch_id' => $centralBranch->id,
                 'type' => 'full',
@@ -1036,11 +1361,23 @@ class WarehouseDemoDataSeeder extends Seeder
                 'blind_count' => false,
                 'counted_by' => $nhanVienKho->id,
                 'approved_by' => $truongKho->id,
-                'started_at' => Carbon::now()->subDays(7)->setTime(16, 0),
-                'completed_at' => Carbon::now()->subDays(7)->setTime(18, 0),
-                'approved_at' => Carbon::now()->subDays(7)->setTime(18, 30),
+                'started_at' => Carbon::now()->subDays(2)->setTime(18, 0),
+                'completed_at' => Carbon::now()->subDays(2)->setTime(21, 0),
+                'approved_at' => Carbon::now()->subDays(2)->setTime(21, 30),
                 'total_variance_value' => 0,
                 'requires_owner_approval' => false,
+            ]
+        );
+        InventoryCountItem::updateOrCreate(
+            ['count_session_id' => $countSession2->id, 'ingredient_id' => $ingredientModels['NL-GV-07']->id],
+            [
+                'expected_quantity' => 80,
+                'counted_quantity_1' => 80,
+                'final_quantity' => 80,
+                'variance_quantity' => 0,
+                'variance_percent' => 0,
+                'variance_value' => 0,
+                'reconciliation_status' => 'matched',
             ]
         );
         InventoryCountItem::updateOrCreate(
@@ -1056,33 +1393,239 @@ class WarehouseDemoDataSeeder extends Seeder
             ]
         );
 
-        // 16. Điều Chuyển Nội Bộ (InternalTransfer)
-        InternalTransfer::firstOrCreate(
-            ['restaurant_id' => $restaurantId, 'notes' => 'Hỗ trợ khẩn cấp 20kg Gạo ST25 cho CN Quận 3 do khách đông đột biến.'],
+        // 16. Điều Chuyển Liên Chi Nhánh (StockTransferRequest)
+        // Request 1: Requested - Chờ định tuyến nguồn xuất
+        StockTransferRequest::updateOrCreate(
+            ['restaurant_id' => $restaurantId, 'reason' => 'Hết hàng đột xuất do cuối tuần lượng khách gọi món bò nướng tăng cao.'],
             [
-                'from_branch_id' => $branchChinh->id,
                 'to_branch_id' => $branchQuan3->id,
-                'ingredient_id' => $ingredientModels['NL-KHO-06']->id,
-                'quantity' => 20,
-                'status' => 'completed',
-                'created_by' => $managerChinh->id,
-                'completed_by' => $truongKho->id,
-                'completed_at' => Carbon::now()->subDays(1),
-            ]
-        );
-        InternalTransfer::firstOrCreate(
-            ['restaurant_id' => $restaurantId, 'notes' => 'Yêu cầu điều chuyển 3 can Dầu Ăn Cái Lân.'],
-            [
-                'from_branch_id' => $branchChinh->id,
-                'to_branch_id' => $branchQuan3->id,
-                'ingredient_id' => $ingredientModels['NL-GV-07']->id,
-                'quantity' => 3,
-                'status' => 'pending',
-                'created_by' => $managerChinh->id,
+                'from_branch_id' => null,
+                'ingredient_id' => $ingredientModels['NL-BO-01']->id,
+                'quantity_requested' => 15.000,
+                'status' => 'requested',
+                'requested_by' => $managerQuan3->id,
+                'created_at' => Carbon::now()->subHours(4),
             ]
         );
 
-        // 17. Phân Công Nhiệm Vụ Nhân Viên Kho (WarehouseTaskAssignment)
+        // Request 2: Routed - Chờ xuất kho (Đã định tuyến nguồn xuất)
+        StockTransferRequest::updateOrCreate(
+            ['restaurant_id' => $restaurantId, 'reason' => 'Mượn tạm 5 can dầu ăn phục vụ ca tối.'],
+            [
+                'to_branch_id' => $branchChinh->id,
+                'from_branch_id' => $branchQuan3->id,
+                'ingredient_id' => $ingredientModels['NL-GV-07']->id,
+                'quantity_requested' => 5.000,
+                'status' => 'routed',
+                'requested_by' => $managerChinh->id,
+                'routed_by' => $truongKho->id,
+                'routed_at' => Carbon::now()->subHours(3),
+                'handover_code' => 'DC-2026-0881',
+                'created_at' => Carbon::now()->subHours(5),
+            ]
+        );
+
+        // Request 3: Dispatched - Đang vận chuyển
+        StockTransferRequest::updateOrCreate(
+            ['restaurant_id' => $restaurantId, 'reason' => 'Điều chuyển hỗ trợ 30kg gạo ST25 giữa 2 chi nhánh.'],
+            [
+                'to_branch_id' => $branchQuan3->id,
+                'from_branch_id' => $branchChinh->id,
+                'ingredient_id' => $ingredientModels['NL-KHO-06']->id,
+                'quantity_requested' => 30.000,
+                'quantity_dispatched' => 30.000,
+                'dispatch_unit_cost' => 38000.00,
+                'status' => 'dispatched',
+                'requested_by' => $managerQuan3->id,
+                'routed_by' => $truongKho->id,
+                'routed_at' => Carbon::now()->subHours(4),
+                'dispatched_by' => $managerChinh->id,
+                'dispatched_at' => Carbon::now()->subHours(2),
+                'handover_code' => 'DC-2026-0882',
+                'created_at' => Carbon::now()->subHours(6),
+            ]
+        );
+
+        // Request 4: Discrepancy - Có chênh lệch (Cần lập biên bản)
+        StockTransferRequest::updateOrCreate(
+            ['restaurant_id' => $restaurantId, 'reason' => 'Hỗ trợ thịt heo tươi giữa 2 cơ sở.'],
+            [
+                'to_branch_id' => $branchChinh->id,
+                'from_branch_id' => $branchQuan3->id,
+                'ingredient_id' => $ingredientModels['NL-HEO-02']->id,
+                'quantity_requested' => 20.000,
+                'quantity_dispatched' => 20.000,
+                'quantity_received' => 18.000,
+                'discrepancy_quantity' => -2.000,
+                'dispatch_unit_cost' => 160000.00,
+                'status' => 'discrepancy',
+                'discrepancy_reason' => 'Thùng hàng rách bao bì, rơi vỡ thất thoát 2kg trên đường vận chuyển.',
+                'requested_by' => $managerChinh->id,
+                'routed_by' => $truongKho->id,
+                'routed_at' => Carbon::now()->subDays(1),
+                'dispatched_by' => $managerQuan3->id,
+                'dispatched_at' => Carbon::now()->subDays(1)->addHours(2),
+                'received_by' => $managerChinh->id,
+                'received_at' => Carbon::now()->subDays(1)->addHours(4),
+                'handover_code' => 'DC-2026-0883',
+                'created_at' => Carbon::now()->subDays(1)->subHours(2),
+            ]
+        );
+
+        // Request 5: Received - Đã hoàn tất đối soát
+        StockTransferRequest::updateOrCreate(
+            ['restaurant_id' => $restaurantId, 'reason' => 'Cân đối rau sạch giữa 2 cơ sở.'],
+            [
+                'to_branch_id' => $branchQuan3->id,
+                'from_branch_id' => $branchChinh->id,
+                'ingredient_id' => $ingredientModels['NL-RAU-04']->id,
+                'quantity_requested' => 10.000,
+                'quantity_dispatched' => 10.000,
+                'quantity_received' => 10.000,
+                'dispatch_unit_cost' => 45000.00,
+                'status' => 'received',
+                'requested_by' => $managerQuan3->id,
+                'routed_by' => $truongKho->id,
+                'routed_at' => Carbon::now()->subDays(2),
+                'dispatched_by' => $managerChinh->id,
+                'dispatched_at' => Carbon::now()->subDays(2)->addHours(1),
+                'received_by' => $managerQuan3->id,
+                'received_at' => Carbon::now()->subDays(2)->addHours(3),
+                'handover_code' => 'DC-2026-0884',
+                'created_at' => Carbon::now()->subDays(2)->subHours(1),
+            ]
+        );
+
+        // 17. Central Kitchen (CentralBom & WorkOrder)
+        // BOM 1: Thịt Bò Mỹ Cắt Lát BBQ
+        $bom1 = CentralBom::updateOrCreate(
+            ['restaurant_id' => $restaurantId, 'bom_code' => 'BOM-BO-BBQ01'],
+            [
+                'output_ingredient_id' => $ingredientModels['NL-BO-01']->id,
+                'name' => 'Thịt Bò Mỹ Cắt Lát BBQ',
+                'standard_output_qty' => 10.0000,
+                'expected_yield_percent' => 95.00,
+                'allowed_wastage_percent' => 5.00,
+                'instructions' => 'Rã đông nhiệt độ 4°C trong 12h. Cắt lát dày 3mm theo thớ thịt và đóng gói hút chân không 1kg/túi.',
+                'is_active' => true,
+                'created_by' => $truongKho->id,
+            ]
+        );
+        CentralBomItem::updateOrCreate(
+            ['central_bom_id' => $bom1->id, 'input_ingredient_id' => $ingredientModels['NL-BO-01']->id],
+            [
+                'required_quantity' => 10.5000,
+                'unit_symbol' => 'kg',
+                'notes' => 'Thịt bò tảng nguyên khối',
+            ]
+        );
+        CentralBomItem::updateOrCreate(
+            ['central_bom_id' => $bom1->id, 'input_ingredient_id' => $ingredientModels['NL-GV-07']->id],
+            [
+                'required_quantity' => 0.1000,
+                'unit_symbol' => 'can',
+                'notes' => 'Dầu ăn quét bề mặt',
+            ]
+        );
+
+        // BOM 2: Sốt Ướp BBQ Đặc Biệt Aventura
+        $bom2 = CentralBom::updateOrCreate(
+            ['restaurant_id' => $restaurantId, 'bom_code' => 'BOM-SOT-BBQ02'],
+            [
+                'output_ingredient_id' => $ingredientModels['NL-GV-08']->id,
+                'name' => 'Sốt Ướp BBQ Đặc Biệt Aventura',
+                'standard_output_qty' => 20.0000,
+                'expected_yield_percent' => 98.00,
+                'allowed_wastage_percent' => 2.00,
+                'instructions' => 'Nấu sốt ở nhiệt độ 85°C trong 45 phút, để nguội và đóng can 5 lít có tem nhãn HSD 6 tháng.',
+                'is_active' => true,
+                'created_by' => $truongKho->id,
+            ]
+        );
+        CentralBomItem::updateOrCreate(
+            ['central_bom_id' => $bom2->id, 'input_ingredient_id' => $ingredientModels['NL-GV-07']->id],
+            [
+                'required_quantity' => 1.0000,
+                'unit_symbol' => 'can',
+                'notes' => 'Dầu ăn Cái Lân',
+            ]
+        );
+
+        // WorkOrder 1: Completed (Đã hoàn tất sơ chế)
+        $wo1 = WorkOrder::updateOrCreate(
+            ['restaurant_id' => $restaurantId, 'work_order_code' => 'WO-2026-001'],
+            [
+                'restaurant_id' => $restaurantId,
+                'branch_id' => $centralBranch->id,
+                'central_bom_id' => $bom1->id,
+                'output_ingredient_id' => $ingredientModels['NL-BO-01']->id,
+                'target_quantity' => 50.0000,
+                'actual_yield_quantity' => 48.5000,
+                'actual_wastage_quantity' => 1.5000,
+                'actual_yield_percent' => 97.00,
+                'production_date' => Carbon::now()->subDays(1)->toDateString(),
+                'expiry_date' => Carbon::now()->addDays(30)->toDateString(),
+                'status' => WorkOrder::STATUS_COMPLETED,
+                'created_batch_id' => $batchModels['NL-BO-01']->id,
+                'produced_by' => $nhanVienKho->id,
+                'approved_by' => $truongKho->id,
+                'notes' => 'Hoàn tất sơ chế cắt lát 48.5kg thịt bò, đã chuyển vào bảo quản tại Kệ A1-01.',
+            ]
+        );
+        WorkOrderItem::updateOrCreate(
+            ['work_order_id' => $wo1->id, 'input_ingredient_id' => $ingredientModels['NL-BO-01']->id],
+            [
+                'planned_quantity' => 52.5000,
+                'actual_used_quantity' => 52.5000,
+                'unit_cost' => 250000,
+                'total_cost' => 13125000,
+            ]
+        );
+
+        // WorkOrder 2: In Progress (Đang thực hiện sơ chế)
+        $wo2 = WorkOrder::updateOrCreate(
+            ['restaurant_id' => $restaurantId, 'work_order_code' => 'WO-2026-002'],
+            [
+                'restaurant_id' => $restaurantId,
+                'branch_id' => $centralBranch->id,
+                'central_bom_id' => $bom2->id,
+                'output_ingredient_id' => $ingredientModels['NL-GV-08']->id,
+                'target_quantity' => 30.0000,
+                'production_date' => Carbon::now()->toDateString(),
+                'expiry_date' => Carbon::now()->addDays(180)->toDateString(),
+                'status' => WorkOrder::STATUS_IN_PROGRESS,
+                'produced_by' => $thuKho2->id,
+                'notes' => 'Đang tiến hành nấu và chuẩn bị chiết rót vào can.',
+            ]
+        );
+        WorkOrderItem::updateOrCreate(
+            ['work_order_id' => $wo2->id, 'input_ingredient_id' => $ingredientModels['NL-GV-07']->id],
+            [
+                'planned_quantity' => 1.5000,
+                'actual_used_quantity' => 1.5000,
+                'unit_cost' => 240000,
+                'total_cost' => 360000,
+            ]
+        );
+
+        // WorkOrder 3: Draft (Lệnh mới tạo)
+        WorkOrder::updateOrCreate(
+            ['restaurant_id' => $restaurantId, 'work_order_code' => 'WO-2026-003'],
+            [
+                'restaurant_id' => $restaurantId,
+                'branch_id' => $centralBranch->id,
+                'central_bom_id' => $bom1->id,
+                'output_ingredient_id' => $ingredientModels['NL-BO-01']->id,
+                'target_quantity' => 40.0000,
+                'production_date' => Carbon::now()->addDay()->toDateString(),
+                'expiry_date' => Carbon::now()->addDays(31)->toDateString(),
+                'status' => WorkOrder::STATUS_DRAFT,
+                'produced_by' => $nhanVienKho->id,
+                'notes' => 'Lên kế hoạch sơ chế cho ca sáng ngày mai.',
+            ]
+        );
+
+        // 18. Phân Công Nhiệm Vụ Nhân Viên Kho (WarehouseTaskAssignment)
         WarehouseTaskAssignment::updateOrCreate(
             ['restaurant_id' => $restaurantId, 'supply_request_id' => $req3->id, 'task_type' => 'picking'],
             [
@@ -1124,7 +1667,7 @@ class WarehouseDemoDataSeeder extends Seeder
             ]
         );
 
-        // 18. Biên Bản Giao Ca Kho Tổng (WarehouseShiftHandover)
+        // 19. Biên Bản Giao Ca Kho Tổng (WarehouseShiftHandover)
         WarehouseShiftHandover::updateOrCreate(
             ['restaurant_id' => $restaurantId, 'shift_date' => Carbon::now()->toDateString(), 'shift_type' => 'morning'],
             [

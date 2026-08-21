@@ -21,6 +21,12 @@ class SupplyRequestItem extends Model
             'approved_quantity'          => 'decimal:3',
             'actual_dispatched_quantity' => 'decimal:3',
             'received_quantity'          => 'decimal:3',
+            'received_good_quantity'    => 'decimal:3',
+            'received_damaged_quantity' => 'decimal:3',
+            'received_expired_quantity' => 'decimal:3',
+            'received_wrong_item_quantity' => 'decimal:3',
+            'received_temperature_min_c' => 'decimal:2',
+            'received_temperature_max_c' => 'decimal:2',
             'unit_cost'                  => 'decimal:2',
             'total_cost'                 => 'decimal:2',
         ];
@@ -50,6 +56,16 @@ class SupplyRequestItem extends Model
     public function location(): BelongsTo
     {
         return $this->belongsTo(WarehouseLocation::class, 'warehouse_location_id');
+    }
+
+    public function receivedBatch(): BelongsTo
+    {
+        return $this->belongsTo(InventoryBatch::class, 'received_batch_id');
+    }
+
+    public function quarantine(): BelongsTo
+    {
+        return $this->belongsTo(InventoryQuarantine::class, 'quarantine_id');
     }
 
     /**

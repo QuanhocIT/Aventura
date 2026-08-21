@@ -8,6 +8,7 @@ use App\Models\ApprovalPolicy;
 use App\Models\ApprovalRequest;
 use App\Models\Employee;
 use App\Models\Ingredient;
+use App\Models\IngredientSupplier;
 use App\Models\IngredientPriceHistory;
 use App\Models\Inventory;
 use App\Models\InventoryTransaction;
@@ -453,7 +454,7 @@ class ApprovalService
         }
 
         $branchId = $data['branch_id'] ?? null;
-        Ingredient::create([
+        $ingredient = Ingredient::create([
             'restaurant_id' => $restaurantId,
             'branch_id' => $branchId,
             'name' => $data['name'],
@@ -466,9 +467,16 @@ class ApprovalService
             'expiry_warning_days' => $data['expiry_warning_days'] ?? 3,
             'min_stock_level' => $data['min_stock_level'] ?? 0,
             'reorder_level' => $data['reorder_level'] ?? 0,
+            'supplier_id' => $data['supplier_id'] ?? null,
+            'safety_stock_quantity' => $data['safety_stock_quantity'] ?? 0,
+            'lead_time_days' => $data['lead_time_days'] ?? 0,
+            'batch_tracking_required' => $data['batch_tracking_required'] ?? false,
+            'storage_temperature_min_c' => $data['storage_temperature_min_c'] ?? null,
+            'storage_temperature_max_c' => $data['storage_temperature_max_c'] ?? null,
             'auto_waste_end_of_day' => $data['auto_waste_end_of_day'] ?? false,
             'status' => 'active',
         ]);
+        $this->syncIngredientSuppliers($ingredient, $data['supplier_id'] ?? null, $data['backup_supplier_ids'] ?? []);
     }
 
     private function executeInventoryUpdate(array $data, int $restaurantId): void
@@ -477,6 +485,36 @@ class ApprovalService
             ->where('restaurant_id', $restaurantId)
             ->findOrFail($data['ingredient_id']);
         $ingredient->update($data['attributes'] ?? []);
+        if (array_key_exists('supplier_id', $data['attributes'] ?? []) || array_key_exists('backup_supplier_ids', $data['attributes'] ?? [])) {
+            $this->syncIngredientSuppliers(
+                $ingredient,
+                $data['attributes']['supplier_id'] ?? $ingredient->supplier_id,
+                $data['attributes']['backup_supplier_ids'] ?? [],
+            );
+        }
+    }
+
+    private function syncIngredientSuppliers(Ingredient $ingredient, ?int $primarySupplierId, array $backupSupplierIds): void
+    {
+        $supplierIds = array_values(array_unique(array_filter(array_merge(
+            $primarySupplierId ? [$primarySupplierId] : [],
+            array_map('intval', $backupSupplierIds),
+        ))));
+
+        IngredientSupplier::where('restaurant_id', $ingredient->restaurant_id)
+            ->where('ingredient_id', $ingredient->id)
+            ->delete();
+
+        foreach ($supplierIds as $index => $supplierId) {
+            IngredientSupplier::create([
+                'restaurant_id' => $ingredient->restaurant_id,
+                'ingredient_id' => $ingredient->id,
+                'supplier_id' => $supplierId,
+                'priority' => $index + 1,
+                'is_primary' => $supplierId === $primarySupplierId,
+                'is_active' => true,
+            ]);
+        }
     }
 
     private function executeInventoryDelete(array $data, int $restaurantId): void

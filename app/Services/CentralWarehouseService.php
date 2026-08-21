@@ -6,6 +6,7 @@ use App\Models\DeliveryManifest;
 use App\Models\Ingredient;
 use App\Models\Inventory;
 use App\Models\InventoryBatch;
+use App\Models\InventoryBatchAllocation;
 use App\Models\InventoryCountSession;
 use App\Models\InventoryDiscrepancyDispute;
 use App\Models\InventoryReservation;
@@ -420,6 +421,35 @@ class CentralWarehouseService
                 $actualQty = (float) ($picked['actual_dispatched_quantity'] ?? $item->approved_quantity);
                 $batchId = $picked['batch_id'] ?? null;
 
+                $ingredient = Ingredient::where('restaurant_id', $request->restaurant_id)
+                    ->findOrFail($item->ingredient_id);
+
+                // TÃ­nh truy xuáº¥t lÃ´ theo máº·c Ä‘á»‹nh danh má»¥c. DÃ¹ng FEFO tá»± Ä‘á»™ng khi
+                // giao diá»‡n khÃ´ng truyá»n batch_id; dá»¯ liá»‡u legacy khÃ´ng cÃ³ lÃ´ váº«n
+                // Ä‘Æ°á»£c phÃ©p xuáº¥t Ä‘á»ƒ khÃ´ng lÃ m giÃ¡n Ä‘oáº¡n kho cÅ©.
+                if (! $batchId && $actualQty > 0) {
+                    $requiresBatch = (bool) $ingredient->batch_tracking_required
+                        || in_array($ingredient->storage_type, ['fresh', 'daily', 'short_shelf'], true);
+                    $fefoBatch = InventoryBatch::where('restaurant_id', $request->restaurant_id)
+                        ->where('branch_id', $request->from_branch_id)
+                        ->where('ingredient_id', $item->ingredient_id)
+                        ->where('status', 'active')
+                        ->where('quantity_remaining', '>=', $actualQty)
+                        ->where(function ($query) {
+                            $query->whereNull('expiry_date')->orWhere('expiry_date', '>=', now()->toDateString());
+                        })
+                        ->orderByRaw('expiry_date IS NULL')
+                        ->orderBy('expiry_date')
+                        ->orderBy('id')
+                        ->first();
+
+                    if ($fefoBatch) {
+                        $batchId = $fefoBatch->id;
+                    } elseif ($requiresBatch) {
+                        throw new InvalidArgumentException("NguyÃªn liá»‡u {$ingredient->name} báº¯t buá»™c truy xuáº¥t lÃ´ nhÆ°ng khÃ´ng cÃ³ lÃ´ FEFO Ä‘á»§ tá»“n.");
+                    }
+                }
+
                 // Khóa chặt: số lượng thực xuất không được vượt số lượng đã duyệt
                 if ($actualQty < 0 || $actualQty > (float) $item->approved_quantity) {
                     throw new InvalidArgumentException("Số lượng thực soạn ({$actualQty}) không được vượt quá số lượng đã duyệt ({$item->approved_quantity}) cho nguyên liệu #{$item->ingredient_id}.");
@@ -560,6 +590,14 @@ class CentralWarehouseService
                     throw new InvalidArgumentException("Số lượng thực xuất ({$qtyToDeduct}) vượt quá số lượng đã duyệt ({$item->approved_quantity}) cho nguyên liệu #{$item->ingredient_id}.");
                 }
 
+                $ingredient = Ingredient::where('restaurant_id', $request->restaurant_id)
+                    ->findOrFail($item->ingredient_id);
+                $requiresBatch = (bool) $ingredient->batch_tracking_required
+                    || in_array($ingredient->storage_type, ['fresh', 'daily', 'short_shelf'], true);
+                if ($qtyToDeduct > 0 && $requiresBatch && ! $item->batch_id) {
+                    throw new InvalidArgumentException("NguyÃªn liá»‡u {$ingredient->name} báº¯t buá»™c cÃ³ lÃ´ khi xuáº¥t kho.");
+                }
+
                 if ($request->from_branch_id) {
                     // Lock inventory record for atomic update
                     $centralInventory = Inventory::where('restaurant_id', $request->restaurant_id)
@@ -585,6 +623,9 @@ class CentralWarehouseService
                             ->lockForUpdate()
                             ->first();
 
+                        if (! $batch) {
+                            throw new InvalidArgumentException('LÃ´ xuáº¥t kho khÃ´ng cÃ²n tá»“n táº¡i hoáº·c khÃ´ng thuá»™c Kho Tá»•ng.');
+                        }
                         if ($batch) {
                             if ((float) $batch->quantity_remaining < $qtyToDeduct) {
                                 throw new InvalidArgumentException("Lô #{$batch->batch_code} không đủ tồn để trừ ({$batch->quantity_remaining} < {$qtyToDeduct}).");
@@ -603,7 +644,7 @@ class CentralWarehouseService
                         ->update(['released_at' => now()]);
 
                     // Ghi Ledger Xuất Kho (InventoryTransaction)
-                    InventoryTransaction::createWithIdempotency([
+                    $transaction = InventoryTransaction::createWithIdempotency([
                         'restaurant_id' => $request->restaurant_id,
                         'branch_id' => $request->from_branch_id,
                         'ingredient_id' => $item->ingredient_id,
@@ -620,6 +661,18 @@ class CentralWarehouseService
                         'notes' => "Xuất kho cấp phát cho chi nhánh {$request->toBranch?->name} theo đơn {$request->request_code}",
                         'occurred_at' => now(),
                     ]);
+
+                    if ($item->batch_id) {
+                        InventoryBatchAllocation::create([
+                            'restaurant_id' => $request->restaurant_id,
+                            'branch_id' => $request->from_branch_id,
+                            'inventory_batch_id' => $item->batch_id,
+                            'inventory_transaction_id' => $transaction->id,
+                            'direction' => 'out',
+                            'quantity' => $qtyToDeduct,
+                            'unit_cost' => $item->unit_cost,
+                        ]);
+                    }
                 }
             }
 
@@ -656,14 +709,16 @@ class CentralWarehouseService
         $this->assertNotSelfApproval($request, $receiver, 'dispatched_by', 'Người xuất kho không được tự xác nhận nhận hàng.');
 
         $central = $this->getCentralWarehouse($request->restaurant_id);
-        if (! $central || (int) $request->from_branch_id !== (int) $central->id) {
+        if ($central && (int) $request->from_branch_id !== (int) $central->id) {
             throw new InvalidArgumentException('Đơn cấp phát không xuất phát từ Kho Tổng hiện tại.');
         }
-        $this->assertCentralIngredients(
-            $request->restaurant_id,
-            (int) $central->id,
-            $request->items->pluck('ingredient_id')
-        );
+        if ($central) {
+            $this->assertCentralIngredients(
+                $request->restaurant_id,
+                (int) $central->id,
+                $request->items->pluck('ingredient_id')
+            );
+        }
 
         if (! in_array($request->status, [SupplyRequest::STATUS_DISPATCHED, SupplyRequest::STATUS_PARTIAL_RECEIVED, SupplyRequest::STATUS_COMPLETED])) {
             throw new InvalidArgumentException('Chỉ đơn đang giao mới có thể xác nhận nhận hàng.');
@@ -675,6 +730,8 @@ class CentralWarehouseService
 
         $this->assertCompleteItemSet($request, $receivedItems ?? [], 'nhận hàng');
 
+        $receivedItems = $receivedItems ?? [];
+
         return DB::transaction(function () use ($request, $receiver, $receivedItems, $receiptPhotoPath, $signaturePath, $notes, $receiptPhotoHash, $signatureHash) {
             $lockedRequest = SupplyRequest::where('id', $request->id)->lockForUpdate()->firstOrFail();
             if (! in_array($lockedRequest->status, [SupplyRequest::STATUS_DISPATCHED, SupplyRequest::STATUS_PARTIAL_RECEIVED], true)) {
@@ -683,15 +740,33 @@ class CentralWarehouseService
 
             $lockedItems = $lockedRequest->items()->lockForUpdate()->get();
             $hasShortage = false;
+            $hasDamage = false;
+            $reverseLogistics = app(WarehouseReverseLogisticsService::class);
 
             foreach ($lockedItems as $item) {
                 $dispatchedQty = (float) $item->effective_dispatched_quantity;
                 $previouslyReceivedQty = (float) ($item->received_quantity ?? 0);
                 $targetTotalRecQty = null;
+                $targetGoodQty = null;
+                $targetDamagedQty = 0.0;
+                $targetExpiredQty = 0.0;
+                $targetWrongItemQty = 0.0;
+                $targetCondition = null;
+                $targetNote = null;
+                $targetTemperatureMin = null;
+                $targetTemperatureMax = null;
 
                 foreach ($receivedItems as $recItem) {
                     if ((int) ($recItem['id'] ?? 0) === (int) $item->id && isset($recItem['received_quantity'])) {
                         $targetTotalRecQty = (float) $recItem['received_quantity'];
+                        $targetGoodQty = (float) ($recItem['received_good_quantity'] ?? $targetTotalRecQty);
+                        $targetDamagedQty = (float) ($recItem['received_damaged_quantity'] ?? 0);
+                        $targetExpiredQty = (float) ($recItem['received_expired_quantity'] ?? 0);
+                        $targetWrongItemQty = (float) ($recItem['received_wrong_item_quantity'] ?? 0);
+                        $targetCondition = $recItem['received_condition'] ?? null;
+                        $targetNote = $recItem['received_note'] ?? null;
+                        $targetTemperatureMin = $recItem['received_temperature_min_c'] ?? null;
+                        $targetTemperatureMax = $recItem['received_temperature_max_c'] ?? null;
                         break;
                     }
                 }
@@ -708,16 +783,47 @@ class CentralWarehouseService
                     throw new InvalidArgumentException("Số lượng nhận mới ({$targetTotalRecQty}) không được nhỏ hơn số lượng đã nhận trước đó ({$previouslyReceivedQty}).");
                 }
 
+                $previousGoodQty = $item->received_good_quantity !== null
+                    ? (float) $item->received_good_quantity
+                    : $previouslyReceivedQty;
+                $previousDamagedQty = (float) ($item->received_damaged_quantity ?? 0);
+                $previousExpiredQty = (float) ($item->received_expired_quantity ?? 0);
+                $previousWrongItemQty = (float) ($item->received_wrong_item_quantity ?? 0);
+                if ($targetGoodQty < $previousGoodQty || $targetDamagedQty < $previousDamagedQty || $targetExpiredQty < $previousExpiredQty || $targetWrongItemQty < $previousWrongItemQty) {
+                    throw new InvalidArgumentException('Số lượng theo tình trạng không được nhỏ hơn số đã ghi nhận trước đó.');
+                }
+
+                $incrementalGoodQty = $targetGoodQty - $previousGoodQty;
+                $incrementalDamagedQty = $targetDamagedQty - $previousDamagedQty;
+                $incrementalExpiredQty = $targetExpiredQty - $previousExpiredQty;
+                $incrementalWrongItemQty = $targetWrongItemQty - $previousWrongItemQty;
+                $incrementalBadQty = $incrementalDamagedQty + $incrementalExpiredQty + $incrementalWrongItemQty;
+                $itemHasDamage = $targetDamagedQty > 0 || $targetExpiredQty > 0 || $targetWrongItemQty > 0;
+
                 $incrementalQty = $targetTotalRecQty - $previouslyReceivedQty;
 
                 if ($targetTotalRecQty < $dispatchedQty) {
                     $hasShortage = true;
                 }
+                if ($itemHasDamage) {
+                    $hasDamage = true;
+                }
 
-                $item->update(['received_quantity' => $targetTotalRecQty]);
+                $item->update([
+                    'received_quantity' => $targetTotalRecQty,
+                    'received_good_quantity' => $targetGoodQty,
+                    'received_damaged_quantity' => $targetDamagedQty,
+                    'received_expired_quantity' => $targetExpiredQty,
+                    'received_wrong_item_quantity' => $targetWrongItemQty,
+                    'received_condition' => $targetCondition ?: ($itemHasDamage ? 'damaged' : ($targetTotalRecQty < $dispatchedQty ? 'shortage' : 'good')),
+                    'received_note' => $targetNote,
+                    'received_evidence_path' => $receiptPhotoPath ?: $request->receipt_photo_path,
+                    'received_temperature_min_c' => $targetTemperatureMin,
+                    'received_temperature_max_c' => $targetTemperatureMax,
+                ]);
 
-                if ($incrementalQty > 0) {
-                    // Cộng phần nhận tăng thêm vào tồn kho Chi Nhánh Nhận
+                if ($incrementalGoodQty > 0) {
+                    // Chỉ hàng đạt mới được cộng vào tồn khả dụng Chi nhánh.
                     $branchInventory = Inventory::firstOrCreate(
                         [
                             'restaurant_id' => $request->restaurant_id,
@@ -729,13 +835,16 @@ class CentralWarehouseService
                         ]
                     );
 
-                    $branchInventory->lockForUpdate();
-                    $branchInventory->increment('quantity_on_hand', $incrementalQty);
+                    $branchInventory = Inventory::whereKey($branchInventory->id)->lockForUpdate()->firstOrFail();
+                    $branchInventory->increment('quantity_on_hand', $incrementalGoodQty);
 
                     // Ghi Ledger Nhập Kho Chi Nhánh
-                    $idempotencyKey = "receive_sr_{$request->id}_item_{$item->id}_prev_{$previouslyReceivedQty}_to_{$targetTotalRecQty}";
+                    $idempotencyKey = "receive_sr_{$request->id}_item_{$item->id}_good_{$previousGoodQty}_to_{$targetGoodQty}";
+                    $sourceBatch = $item->batch_id
+                        ? InventoryBatch::where('restaurant_id', $request->restaurant_id)->whereKey($item->batch_id)->first()
+                        : null;
 
-                    InventoryTransaction::createWithIdempotency([
+                    $transaction = InventoryTransaction::createWithIdempotency([
                         'restaurant_id' => $request->restaurant_id,
                         'branch_id' => $request->to_branch_id,
                         'ingredient_id' => $item->ingredient_id,
@@ -743,23 +852,79 @@ class CentralWarehouseService
                         'performed_by' => $receiver->id,
                         'type' => 'transfer',
                         'direction' => 'in',
-                        'quantity' => $incrementalQty,
+                        'quantity' => $incrementalGoodQty,
                         'unit_cost' => $item->unit_cost,
-                        'total_cost' => round($item->unit_cost * $incrementalQty, 2),
+                        'total_cost' => round($item->unit_cost * $incrementalGoodQty, 2),
                         'source_type' => 'supply_request',
                         'source_id' => $request->id,
                         'idempotency_key' => $idempotencyKey,
-                        'notes' => "Nhập kho cấp phát từ Kho Tổng theo đơn {$request->request_code} (+{$incrementalQty})",
+                        'notes' => "Nhập hàng đạt từ Kho Tổng theo đơn {$request->request_code} (+{$incrementalGoodQty})",
                         'occurred_at' => now(),
                     ]);
+
+                    $destinationBatch = $reverseLogistics->createDestinationBatch(
+                        (int) $request->restaurant_id,
+                        (int) $request->to_branch_id,
+                        (int) $item->ingredient_id,
+                        $incrementalGoodQty,
+                        (float) $item->unit_cost,
+                        $receiver,
+                        $sourceBatch,
+                    );
+                    $item->update(['received_batch_id' => $destinationBatch?->id]);
+                    if ($destinationBatch) {
+                        InventoryBatchAllocation::create([
+                            'restaurant_id' => $request->restaurant_id,
+                            'branch_id' => $request->to_branch_id,
+                            'inventory_batch_id' => $destinationBatch->id,
+                            'inventory_transaction_id' => $transaction->id,
+                            'direction' => 'in',
+                            'quantity' => $incrementalGoodQty,
+                            'unit_cost' => $item->unit_cost,
+                        ]);
+                    }
+                }
+
+                if ($incrementalBadQty > 0) {
+                    $sourceBatch = $item->batch_id
+                        ? InventoryBatch::where('restaurant_id', $request->restaurant_id)->whereKey($item->batch_id)->first()
+                        : null;
+                    $lockedBatch = $reverseLogistics->createDestinationBatch(
+                        (int) $request->restaurant_id,
+                        (int) $request->to_branch_id,
+                        (int) $item->ingredient_id,
+                        $incrementalBadQty,
+                        (float) $item->unit_cost,
+                        $receiver,
+                        $sourceBatch,
+                        true,
+                        'Hàng nhận từ Kho Tổng bị hỏng/hết hạn/sai hàng, chờ hoàn trả hoặc tiêu hủy.',
+                    );
+                    $condition = $targetExpiredQty > 0 ? 'expired' : ($targetWrongItemQty > 0 ? 'wrong_item' : 'damaged');
+                    $quarantine = $reverseLogistics->createQuarantine(
+                        (int) $request->restaurant_id,
+                        (int) $request->to_branch_id,
+                        (int) $item->ingredient_id,
+                        $incrementalBadQty,
+                        $condition,
+                        $targetNote ?: 'Hàng không đạt khi chi nhánh nhận.',
+                        $receiver,
+                        $lockedBatch,
+                        'supply_request',
+                        $request->id,
+                        $item->id,
+                        array_filter([$receiptPhotoPath ?: $request->receipt_photo_path]),
+                        $targetNote,
+                    );
+                    $item->update(['quarantine_id' => $quarantine->id]);
                 }
             }
 
-            if ($hasShortage && (blank($receiptPhotoPath) && blank($request->receipt_photo_path) || blank($signaturePath) && blank($request->receiver_signature_path))) {
+            if (($hasShortage || $hasDamage) && (blank($receiptPhotoPath) && blank($request->receipt_photo_path) || blank($signaturePath) && blank($request->receiver_signature_path))) {
                 throw new InvalidArgumentException('Bắt buộc đính kèm ảnh thực tế và chữ ký người nhận khi giao nhận thiếu hoặc hỏng.');
             }
 
-            $finalStatus = $hasShortage ? SupplyRequest::STATUS_DISPUTED : SupplyRequest::STATUS_COMPLETED;
+            $finalStatus = ($hasShortage || $hasDamage) ? SupplyRequest::STATUS_DISPUTED : SupplyRequest::STATUS_COMPLETED;
 
             $request->update([
                 'status' => $finalStatus,
@@ -770,11 +935,20 @@ class CentralWarehouseService
                 'receiver_signature_path' => $signaturePath ?: $request->receiver_signature_path,
                 'receiver_signature_hash' => $signatureHash ?: $request->receiver_signature_hash,
                 'received_notes' => $notes ?: $request->received_notes,
-                'discrepancy_flag' => $hasShortage,
+                'discrepancy_flag' => $hasShortage || $hasDamage,
             ]);
 
-            // Nếu có nhận thiếu: Tự động kích hoạt Governance Service để mở tranh chấp
-            if ($hasShortage && ! empty($receivedItems)) {
+            $reverseLogistics->recordShipmentEvent(
+                (int) $request->restaurant_id,
+                'supply_request',
+                (int) $request->id,
+                ($hasShortage || $hasDamage) ? 'received_with_discrepancy' : 'received',
+                $receiver,
+                ['branch_id' => $request->to_branch_id, 'notes' => $notes],
+            );
+
+            // Nếu có nhận thiếu/hỏng: Tự động kích hoạt Governance Service để mở tranh chấp.
+            if (($hasShortage || $hasDamage) && ! empty($receivedItems)) {
                 app(WarehouseGovernanceService::class)->checkAndCreateDisputesFromSupplyRequest($lockedRequest, $receivedItems);
                 $this->notifyStakeholders($lockedRequest, 'disputed');
             } else {

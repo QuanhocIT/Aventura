@@ -3,7 +3,11 @@
 namespace App\Services;
 
 use App\Models\BatchRecallOrder;
+use App\Models\Inventory;
 use App\Models\InventoryBatch;
+use App\Models\InventoryBatchAllocation;
+use App\Models\InventoryQuarantine;
+use App\Models\InventoryTransaction;
 use App\Models\User;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -57,6 +61,68 @@ class BatchRecallService
                 'initiated_by'               => $user->id,
             ]);
 
+            foreach ($affectedBatches as $affectedBatch) {
+                $quantity = (float) $affectedBatch->quantity_remaining;
+                if ($quantity <= 0 || ! $affectedBatch->branch_id) {
+                    continue;
+                }
+                $inventory = Inventory::where('restaurant_id', $restaurantId)
+                    ->where('branch_id', $affectedBatch->branch_id)
+                    ->where('ingredient_id', $affectedBatch->ingredient_id)
+                    ->lockForUpdate()
+                    ->first();
+                $available = min($quantity, (float) ($inventory?->quantity_on_hand ?? 0));
+                if ($available > 0 && $inventory) {
+                    $before = (float) $inventory->quantity_on_hand;
+                    $transaction = InventoryTransaction::createWithIdempotency([
+                        'restaurant_id' => $restaurantId,
+                        'branch_id' => $affectedBatch->branch_id,
+                        'ingredient_id' => $affectedBatch->ingredient_id,
+                        'inventory_id' => $inventory->id,
+                        'performed_by' => $user->id,
+                        'type' => 'adjustment',
+                        'direction' => 'out',
+                        'quantity' => $available,
+                        'unit_cost' => $affectedBatch->unit_cost,
+                        'total_cost' => $available * (float) $affectedBatch->unit_cost,
+                        'source_type' => 'batch_recall',
+                        'source_id' => $recallOrder->id,
+                        'idempotency_key' => 'recall_quarantine_'.$recallOrder->id.'_'.$affectedBatch->id,
+                        'reference_code' => $recallOrder->recall_code,
+                        'notes' => 'Đưa lô thu hồi vào cách ly.',
+                        'occurred_at' => now(),
+                    ]);
+                    $inventory->update([
+                        'quantity_on_hand' => $before - $available,
+                        'theoretical_quantity' => max(0, (float) $inventory->theoretical_quantity - $available),
+                        'updated_by' => $user->id,
+                    ]);
+                    InventoryBatchAllocation::create([
+                        'restaurant_id' => $restaurantId,
+                        'branch_id' => $affectedBatch->branch_id,
+                        'inventory_batch_id' => $affectedBatch->id,
+                        'inventory_transaction_id' => $transaction->id,
+                        'direction' => 'out',
+                        'quantity' => $available,
+                        'unit_cost' => $affectedBatch->unit_cost,
+                    ]);
+                }
+                InventoryQuarantine::create([
+                    'restaurant_id' => $restaurantId,
+                    'branch_id' => $affectedBatch->branch_id,
+                    'ingredient_id' => $affectedBatch->ingredient_id,
+                    'inventory_batch_id' => $affectedBatch->id,
+                    'source_type' => 'batch_recall',
+                    'source_id' => $recallOrder->id,
+                    'quantity' => $quantity,
+                    'condition' => 'recall',
+                    'status' => 'open',
+                    'reason' => $data['reason'],
+                    'notes' => $data['action_taken'] ?? 'Cách ly lô thu hồi.',
+                    'created_by' => $user->id,
+                ]);
+            }
+
             return $recallOrder->load(['batch.ingredient', 'initiator']);
         });
     }
@@ -66,6 +132,14 @@ class BatchRecallService
      */
     public function completeRecall(BatchRecallOrder $recallOrder, User $user, ?string $resolutionNotes = null): BatchRecallOrder
     {
+        if (InventoryQuarantine::where('restaurant_id', $recallOrder->restaurant_id)
+            ->where('source_type', 'batch_recall')
+            ->where('source_id', $recallOrder->id)
+            ->whereIn('status', ['open', 'return_requested'])
+            ->exists()) {
+            throw new \InvalidArgumentException('Chưa thể hoàn tất thu hồi: vẫn còn lô cách ly chưa được trả hoặc tiêu hủy.');
+        }
+
         $recallOrder->update([
             'status'           => BatchRecallOrder::STATUS_COMPLETED,
             'completed_at'     => now(),

@@ -105,10 +105,16 @@ class WarehouseGovernanceService
             // The approved quantity can be higher when picking found a shortage.
             $dispatchedQty = (float) $item->effective_dispatched_quantity;
             $receivedQty = $dispatchedQty;
+            $damagedQty = 0.0;
+            $expiredQty = 0.0;
+            $wrongItemQty = 0.0;
 
             foreach ($receivedItems as $recItem) {
                 if ((int) ($recItem['id'] ?? 0) === (int) $item->id && isset($recItem['received_quantity'])) {
                     $receivedQty = (float) $recItem['received_quantity'];
+                    $damagedQty = (float) ($recItem['received_damaged_quantity'] ?? 0);
+                    $expiredQty = (float) ($recItem['received_expired_quantity'] ?? 0);
+                    $wrongItemQty = (float) ($recItem['received_wrong_item_quantity'] ?? 0);
                     break;
                 }
             }
@@ -117,8 +123,10 @@ class WarehouseGovernanceService
                 throw new \InvalidArgumentException('Số lượng nhận không hợp lệ so với số lượng thực xuất.');
             }
 
-            if ($receivedQty < $dispatchedQty) {
-                $discrepancyQty = $dispatchedQty - $receivedQty;
+            $qualityLossQty = $damagedQty + $expiredQty + $wrongItemQty;
+            $shortageQty = max(0, $dispatchedQty - $receivedQty);
+            $discrepancyQty = ($dispatchedQty - $receivedQty) + $qualityLossQty;
+            if ($discrepancyQty > 0) {
                 $financialLoss = round($discrepancyQty * (float) $item->unit_cost, 2);
 
                 // Receiving can be retried after a network timeout. Keep one
@@ -153,7 +161,9 @@ class WarehouseGovernanceService
                     'responsible_type' => 'unassigned',
                     'responsible_user_id' => null, // Không tự động quy trách nhiệm trước khi hoàn tất điều tra
                     'status' => 'open',
-                    'dispute_reason' => "Chi nhánh nhận thiếu {$discrepancyQty} ".($item->ingredient?->unit?->symbol ?? 'đơn vị')." theo đơn cấp phát {$request->request_code}.",
+                    'dispute_reason' => $qualityLossQty > 0
+                        ? "Chi nhánh ghi nhận {$qualityLossQty} ".($item->ingredient?->unit?->symbol ?? 'đơn vị')." hỏng/hết hạn/sai hàng và thiếu {$shortageQty} theo đơn cấp phát {$request->request_code}."
+                        : "Chi nhánh nhận thiếu {$discrepancyQty} ".($item->ingredient?->unit?->symbol ?? 'đơn vị')." theo đơn cấp phát {$request->request_code}.",
                 ]);
 
                 $disputes[] = $dispute;

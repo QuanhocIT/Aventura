@@ -42,6 +42,8 @@ class SupplyRequestController extends Controller
             'receivingSummary'          => $props['receivingSummary'],
             'inventorySummary'          => $props['inventorySummary'],
             'centralWarehouseAi'        => $props['centralWarehouseAi'],
+            'supplyChainAlerts'         => $props['supplyChainAlerts'],
+            'supplyChainReconciliation' => $props['supplyChainReconciliation'],
         ]);
     }
 
@@ -530,22 +532,70 @@ class SupplyRequestController extends Controller
             'items'                     => 'nullable|array',
             'items.*.id'                => 'required_with:items|integer',
             'items.*.received_quantity' => 'required_with:items|numeric|min:0',
+            'items.*.received_good_quantity' => 'nullable|numeric|min:0',
+            'items.*.received_damaged_quantity' => 'nullable|numeric|min:0',
+            'items.*.received_expired_quantity' => 'nullable|numeric|min:0',
+            'items.*.received_wrong_item_quantity' => 'nullable|numeric|min:0',
+            'items.*.received_condition' => 'nullable|string|in:good,damaged,shortage,mixed,expired,wrong_item',
+            'items.*.received_note' => 'nullable|string|max:1000',
+            'received_temperature_min_c' => 'nullable|numeric',
+            'received_temperature_max_c' => 'nullable|numeric',
             'notes'                     => 'nullable|string',
             'receipt_photo'             => 'nullable|file|mimes:jpg,jpeg,png,webp,pdf|max:10240',
             'receiver_signature'        => 'nullable|file|mimes:jpg,jpeg,png,webp|max:5120',
         ]);
+        foreach ($data['items'] ?? [] as &$receivedItem) {
+            $hasBreakdown = array_key_exists('received_good_quantity', $receivedItem)
+                || array_key_exists('received_damaged_quantity', $receivedItem)
+                || array_key_exists('received_expired_quantity', $receivedItem)
+                || array_key_exists('received_wrong_item_quantity', $receivedItem);
+            if (! $hasBreakdown) {
+                $receivedItem['received_good_quantity'] = (float) ($receivedItem['received_quantity'] ?? 0);
+            }
+            $receivedItem['received_damaged_quantity'] = (float) ($receivedItem['received_damaged_quantity'] ?? 0);
+            $receivedItem['received_expired_quantity'] = (float) ($receivedItem['received_expired_quantity'] ?? 0);
+            $receivedItem['received_wrong_item_quantity'] = (float) ($receivedItem['received_wrong_item_quantity'] ?? 0);
+            $breakdownTotal = round(
+                (float) $receivedItem['received_good_quantity']
+                + (float) $receivedItem['received_damaged_quantity']
+                + (float) $receivedItem['received_expired_quantity']
+                + (float) $receivedItem['received_wrong_item_quantity'],
+                3
+            );
+            if (array_key_exists('received_quantity', $receivedItem) && abs($breakdownTotal - (float) $receivedItem['received_quantity']) > 0.0005) {
+                throw ValidationException::withMessages([
+                    'items' => 'Tổng số lượng tốt/hỏng/hết hạn/sai hàng phải bằng số lượng thực nhận.',
+                ]);
+            }
+            $receivedItem['received_quantity'] = $breakdownTotal;
+            $receivedItem['received_temperature_min_c'] = $receivedItem['received_temperature_min_c'] ?? $data['received_temperature_min_c'] ?? null;
+            $receivedItem['received_temperature_max_c'] = $receivedItem['received_temperature_max_c'] ?? $data['received_temperature_max_c'] ?? null;
+            if (empty($receivedItem['received_condition'])) {
+                $receivedItem['received_condition'] = $receivedItem['received_damaged_quantity'] > 0
+                    || $receivedItem['received_expired_quantity'] > 0
+                    || $receivedItem['received_wrong_item_quantity'] > 0
+                    ? 'damaged'
+                    : ($receivedItem['received_quantity'] < (float) ($supplyRequest->items->firstWhere('id', $receivedItem['id'])?->effective_dispatched_quantity ?? 0) ? 'shortage' : 'good');
+            }
+        }
+        unset($receivedItem);
         $this->assertItemsBelongToSupplyRequest(
             $supplyRequest,
             collect($data['items'] ?? [])->pluck('id')->all()
         );
 
         $hasShortage = false;
+        $hasDamage = false;
         if (! empty($data['items'])) {
             foreach ($supplyRequest->items as $item) {
                 foreach ($data['items'] as $recItem) {
                     if ($recItem['id'] == $item->id && isset($recItem['received_quantity'])) {
                         $dispatched = (float) $item->effective_dispatched_quantity;
                         $received = (float) $recItem['received_quantity'];
+                        $hasDamage = $hasDamage
+                            || (float) ($recItem['received_damaged_quantity'] ?? 0) > 0
+                            || (float) ($recItem['received_expired_quantity'] ?? 0) > 0
+                            || (float) ($recItem['received_wrong_item_quantity'] ?? 0) > 0;
                         if ($received < $dispatched) {
                             $hasShortage = true;
                             break 2;
@@ -571,7 +621,7 @@ class SupplyRequestController extends Controller
             $signaturePath = $file->store("restaurants/{$user->restaurant_id}/supply_receipts", 'local');
         }
 
-        if ($hasShortage && (blank($receiptPhotoPath) && blank($supplyRequest->receipt_photo_path) || blank($signaturePath) && blank($supplyRequest->receiver_signature_path))) {
+        if (($hasShortage || $hasDamage) && (blank($receiptPhotoPath) && blank($supplyRequest->receipt_photo_path) || blank($signaturePath) && blank($supplyRequest->receiver_signature_path))) {
             return response()->json([
                 'success' => false,
                 'message' => 'Bắt buộc chụp ảnh thực tế và ký tên xác nhận khi số lượng thực nhận ít hơn số lượng Kho Tổng xuất.',
@@ -593,7 +643,7 @@ class SupplyRequestController extends Controller
             app(DeliveryManifestService::class)->syncFromSupplyRequest($updated);
 
             $msg = $updated->status === SupplyRequest::STATUS_DISPUTED
-                ? 'Đã ghi nhận nhận hàng (Phát hiện hàng thiếu: Đã tự động tạo Hồ sơ tranh chấp).'
+                ? 'Đã ghi nhận nhận hàng có chênh lệch/hàng lỗi; hàng đạt đã nhập tồn, hàng lỗi đã cách ly và tạo hồ sơ xử lý.'
                 : 'Đã nghiệm thu và nhập hàng vào tồn kho Chi nhánh thành công.';
 
             return response()->json([

@@ -49,6 +49,11 @@ class Ingredient extends Model
         return $this->hasMany(InventoryBatch::class);
     }
 
+    public function supplierOptions(): HasMany
+    {
+        return $this->hasMany(IngredientSupplier::class);
+    }
+
     public function activeBatches(): HasMany
     {
         return $this->hasMany(InventoryBatch::class)->where('status', 'active')->where('quantity_remaining', '>', 0)->orderBy('expiry_date', 'asc');
@@ -63,6 +68,11 @@ class Ingredient extends Model
             'default_shelf_life_days' => 'integer',
             'expiry_warning_days' => 'integer',
             'auto_waste_end_of_day' => 'boolean',
+            'batch_tracking_required' => 'boolean',
+            'storage_temperature_min_c' => 'decimal:2',
+            'storage_temperature_max_c' => 'decimal:2',
+            'lead_time_days' => 'integer',
+            'safety_stock_quantity' => 'decimal:3',
         ];
     }
 

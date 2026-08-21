@@ -118,6 +118,11 @@ type Voucher = {
     seal_code: string | null;
     quality_status: 'pending' | 'passed' | 'conditional' | 'failed' | string;
     quality_notes: string | null;
+    temperature_min_c?: number | string | null;
+    temperature_max_c?: number | string | null;
+    temperature_status?: string | null;
+    three_way_match_status?: string | null;
+    disposition?: string | null;
     total_expected_qty: number | string;
     total_actual_qty: number | string;
     total_discrepancy_qty: number | string;
@@ -167,6 +172,14 @@ const confirmNotes = ref('');
 const confirmError = ref('');
 const confirmQualityStatus = ref<'passed' | 'conditional' | 'failed'>('passed');
 const confirmQualityNotes = ref('');
+const confirmTemperatureMin = ref<number | string | undefined>(undefined);
+const confirmTemperatureMax = ref<number | string | undefined>(undefined);
+const confirmEvidence = ref<File[]>([]);
+const dispositionVoucher = ref<Voucher | null>(null);
+const dispositionKind = ref<'return_supplier' | 'destroy'>('return_supplier');
+const dispositionReason = ref('');
+const dispositionEvidence = ref<File[]>([]);
+const isDisposing = ref(false);
 const showGrnForm = ref(false);
 const isSubmittingGrn = ref(false);
 const grnErrors = ref<string[]>([]);
@@ -196,6 +209,8 @@ const grnForm = ref({
     seal_code: '',
     quality_status: 'pending',
     quality_notes: '',
+    temperature_min_c: '' as string | number,
+    temperature_max_c: '' as string | number,
     items: [emptyLine()],
 });
 
@@ -239,6 +254,9 @@ const formatDateOnly = (value: string | null | undefined) => {
 };
 
 const statusLabel = (status: string) =>
+    status === 'pending_disposition' ? 'Chá» tráº£/há»§y' :
+    status === 'returned' ? 'ÄÃ£ tráº£ NCC' :
+    status === 'destroyed' ? 'ÄÃ£ tiÃªu há»·' :
     ({
         draft: 'Chờ xác minh',
         discrepancy: 'Có chênh lệch',
@@ -248,6 +266,9 @@ const statusLabel = (status: string) =>
     })[status] || status;
 
 const statusClass = (status: string) =>
+    status === 'pending_disposition' ? 'border-rose-400/30 bg-rose-500/10 text-rose-300' :
+    status === 'returned' ? 'border-sky-400/30 bg-sky-500/10 text-sky-300' :
+    status === 'destroyed' ? 'border-slate-400/30 bg-slate-500/10 text-slate-300' :
     ({
         draft: 'border-orange-400/30 bg-orange-500/10 text-orange-300',
         discrepancy: 'border-rose-400/30 bg-rose-500/10 text-rose-300',
@@ -291,7 +312,7 @@ const filteredVouchers = computed(() => {
         const matchesFilter =
             filter.value === 'all' ||
             (filter.value === 'pending' &&
-                ['draft', 'discrepancy', 'pending_review'].includes(
+                ['draft', 'discrepancy', 'pending_review', 'pending_disposition'].includes(
                     voucher.status,
                 )) ||
             (filter.value === 'discrepancy' &&
@@ -361,6 +382,9 @@ const openConfirm = (voucher: Voucher) => {
     confirmQualityStatus.value =
         voucher.quality_status === 'conditional' ? 'conditional' : 'passed';
     confirmQualityNotes.value = voucher.quality_notes ?? '';
+    confirmTemperatureMin.value = voucher.temperature_min_c ?? undefined;
+    confirmTemperatureMax.value = voucher.temperature_max_c ?? undefined;
+    confirmEvidence.value = [];
 };
 
 const closeConfirm = () => {
@@ -369,6 +393,38 @@ const closeConfirm = () => {
     confirmError.value = '';
     confirmQualityStatus.value = 'passed';
     confirmQualityNotes.value = '';
+    confirmTemperatureMin.value = undefined;
+    confirmTemperatureMax.value = undefined;
+    confirmEvidence.value = [];
+};
+
+const handleConfirmEvidence = (event: Event) => {
+    const files = (event.target as HTMLInputElement).files;
+
+    if (files) {
+        confirmEvidence.value = [...confirmEvidence.value, ...Array.from(files)];
+    }
+};
+
+const handleDispositionEvidence = (event: Event) => {
+    const files = (event.target as HTMLInputElement).files;
+
+    if (files) {
+        dispositionEvidence.value = [...dispositionEvidence.value, ...Array.from(files)];
+    }
+};
+
+const openDisposition = (voucher: Voucher) => {
+    dispositionVoucher.value = voucher;
+    dispositionKind.value = 'return_supplier';
+    dispositionReason.value = '';
+    dispositionEvidence.value = [];
+};
+
+const closeDisposition = () => {
+    dispositionVoucher.value = null;
+    dispositionReason.value = '';
+    dispositionEvidence.value = [];
 };
 
 const confirmVoucher = async () => {
@@ -383,7 +439,7 @@ const confirmVoucher = async () => {
         return;
     }
 
-    if (confirmQualityStatus.value === 'failed') {
+    if (false && confirmQualityStatus.value === 'failed') {
         confirmError.value =
             'Chất lượng không đạt không thể nhập kho. Hãy lập biên bản trả hàng hoặc xử lý cách ly.';
 
@@ -404,36 +460,91 @@ const confirmVoucher = async () => {
     isProcessing.value = voucher.id;
 
     try {
-        await axios.post(
-            `/api/warehouse/receiving-vouchers/${voucher.id}/confirm`,
-            {
+        const payload = confirmQualityStatus.value === 'failed'
+            ? (() => {
+                const formData = new FormData();
+                formData.append('notes', confirmNotes.value.trim());
+                formData.append('quality_status', confirmQualityStatus.value);
+                formData.append('quality_notes', confirmQualityNotes.value.trim());
+                if (confirmTemperatureMin.value !== null && confirmTemperatureMin.value !== '') {
+                    formData.append('temperature_min_c', String(confirmTemperatureMin.value));
+                }
+                if (confirmTemperatureMax.value !== null && confirmTemperatureMax.value !== '') {
+                    formData.append('temperature_max_c', String(confirmTemperatureMax.value));
+                }
+                confirmEvidence.value.forEach((file) => formData.append('evidence[]', file));
+                return formData;
+            })()
+            : {
                 notes: confirmNotes.value.trim(),
                 quality_status: confirmQualityStatus.value,
                 quality_notes: confirmQualityNotes.value.trim(),
-            },
-        );
+                temperature_min_c: confirmTemperatureMin.value,
+                temperature_max_c: confirmTemperatureMax.value,
+            };
+        await axios.post(`/api/warehouse/receiving-vouchers/${voucher.id}/confirm`, payload);
         voucher.status = 'confirmed';
         voucher.verified_at = new Date().toISOString();
         voucher.quality_status = confirmQualityStatus.value;
         voucher.quality_notes = confirmQualityNotes.value.trim();
+        voucher.temperature_min_c = confirmTemperatureMin.value;
+        voucher.temperature_max_c = confirmTemperatureMax.value;
         summary.value.pending_review = Math.max(
             0,
             (summary.value.pending_review ?? 1) - 1,
         );
         summary.value.confirmed = (summary.value.confirmed ?? 0) + 1;
-        inventory.value.on_hand_quantity =
-            Number(inventory.value.on_hand_quantity ?? 0) +
-            Number(voucher.total_actual_qty ?? 0);
+        if (confirmQualityStatus.value === 'passed') {
+            inventory.value.on_hand_quantity =
+                Number(inventory.value.on_hand_quantity ?? 0) +
+                Number(voucher.total_actual_qty ?? 0);
+        }
         toast.success(
             `Đã xác minh ${voucher.voucher_code}; tồn kho và lô hàng đã được cập nhật.`,
         );
         closeConfirm();
     } catch (error: any) {
+        if (error.response?.data?.requires_disposition) {
+            voucher.status = 'pending_disposition';
+            closeConfirm();
+            openDisposition(voucher);
+            toast.warning('LÃ´ khÃ´ng Ä‘áº¡t Ä‘Ã£ Ä‘Æ°á»£c cÃ¡ch ly. HÃ£y ghi nháº­n tráº£ NCC hoáº·c tiÃªu há»§y.');
+            return;
+        }
         confirmError.value =
             error.response?.data?.message ??
             'Không thể xác minh phiếu nhận hàng.';
     } finally {
         isProcessing.value = null;
+    }
+};
+
+const disposeReceiving = async () => {
+    if (!dispositionVoucher.value || !dispositionReason.value.trim() || isDisposing.value) {
+        return;
+    }
+
+    if (dispositionKind.value === 'destroy' && dispositionEvidence.value.length === 0) {
+        toast.error('TiÃªu há»§y pháº£i cÃ³ áº£nh/biÃªn báº£n lÃ m báº±ng chá»©ng.');
+        return;
+    }
+
+    isDisposing.value = true;
+    const formData = new FormData();
+    formData.append('disposition', dispositionKind.value);
+    formData.append('reason', dispositionReason.value.trim());
+    dispositionEvidence.value.forEach((file) => formData.append('evidence[]', file));
+
+    try {
+        await axios.post(`/api/warehouse/receiving-vouchers/${dispositionVoucher.value.id}/dispose`, formData);
+        dispositionVoucher.value.status = dispositionKind.value === 'destroy' ? 'destroyed' : 'returned';
+        summary.value.pending_review = Math.max(0, (summary.value.pending_review ?? 1) - 1);
+        closeDisposition();
+        toast.success('ÄÃ£ ghi nháº­n xá»­ lÃ½ lÃ´ khÃ´ng Ä‘áº¡t.');
+    } catch (error: any) {
+        toast.error(error.response?.data?.message ?? 'KhÃ´ng thá»ƒ ghi nháº­n xá»­ lÃ½ lá»‡nh.');
+    } finally {
+        isDisposing.value = false;
     }
 };
 
@@ -558,6 +669,14 @@ const validateGrn = () => {
             errors.push(`Dòng ${lineNo}: phải ghi lý do thiếu/thừa.`);
         }
     });
+    if (
+        grnForm.value.temperature_min_c !== null &&
+        grnForm.value.temperature_max_c !== null &&
+        Number(grnForm.value.temperature_min_c) > Number(grnForm.value.temperature_max_c)
+    ) {
+        errors.push('Nhiá»‡t Ä‘á»™ tá»‘i thiá»ƒu khÃ´ng Ä‘Æ°á»£c lá»›n hÆ¡n nhiá»‡t Ä‘á»™ tá»‘i Ä‘a.');
+    }
+
     grnErrors.value = errors;
 
     return errors.length === 0;
@@ -604,6 +723,13 @@ const submitGrn = async () => {
 
     if (grnForm.value.seal_code.trim()) {
         formData.append('seal_code', grnForm.value.seal_code.trim());
+    }
+
+    if (grnForm.value.temperature_min_c !== null && grnForm.value.temperature_min_c !== '') {
+        formData.append('temperature_min_c', String(grnForm.value.temperature_min_c));
+    }
+    if (grnForm.value.temperature_max_c !== null && grnForm.value.temperature_max_c !== '') {
+        formData.append('temperature_max_c', String(grnForm.value.temperature_max_c));
     }
 
     grnForm.value.items.forEach((line, index) => {
@@ -681,6 +807,8 @@ const submitGrn = async () => {
             seal_code: '',
             quality_status: 'pending',
             quality_notes: '',
+            temperature_min_c: '',
+            temperature_max_c: '',
             items: [emptyLine()],
         };
         grnFiles.value = [];
@@ -1671,6 +1799,19 @@ const evidenceUrl = (path: string) =>
                 </ul>
             </div>
             <form class="mt-5 space-y-4" @submit.prevent="confirmVoucher">
+                <div class="rounded-xl border border-sky-400/20 bg-sky-500/5 p-4">
+                    <div class="grid gap-3 sm:grid-cols-2">
+                        <div class="flex flex-col gap-1.5">
+                            <Label>Nhiá»‡t Ä‘á»™ tháº¥p nháº¥t (Â°C)</Label>
+                            <Input v-model="confirmTemperatureMin" type="number" step="0.1" placeholder="VÃ­ dá»¥ 2" />
+                        </div>
+                        <div class="flex flex-col gap-1.5">
+                            <Label>Nhiá»‡t Ä‘á»™ cao nháº¥t (Â°C)</Label>
+                            <Input v-model="confirmTemperatureMax" type="number" step="0.1" placeholder="VÃ­ dá»¥ 6" />
+                        </div>
+                    </div>
+                    <p class="mt-2 text-[11px] text-muted-foreground">Báº¯t buá»™c vá»›i hÃ ng tÆ°Æ¡i, kho láº¡nh hoáº·c nguyÃªn liá»‡u cÃ³ cÃ i ngÆ°á»¡ng.</p>
+                </div>
                 <div class="grid gap-3 sm:grid-cols-2">
                     <div class="flex flex-col gap-1.5">
                         <Label>Kết quả kiểm tra chất lượng</Label>
@@ -1696,6 +1837,10 @@ const evidenceUrl = (path: string) =>
                             placeholder="Nhiệt độ, bao bì, ngoại quan..."
                         />
                     </div>
+                </div>
+                <div class="flex flex-col gap-1.5">
+                    <Label>Báº±ng chá»©ng xá»­ lÃ½ cháº¥t lÆ°á»£ng (náº¿u khÃ´ng Ä‘áº¡t)</Label>
+                    <input type="file" multiple accept="image/*,.pdf" class="h-10 rounded-md border border-input bg-background px-3 py-2 text-xs" @change="handleConfirmEvidence" />
                 </div>
                 <div class="flex flex-col gap-1.5">
                     <Label>{{
@@ -1737,6 +1882,46 @@ const evidenceUrl = (path: string) =>
                                 : 'Xác minh & nhập kho'
                         }}</Button
                     >
+                </div>
+            </form>
+        </div>
+    </div>
+    </Teleport>
+
+    <Teleport to="body">
+    <div
+        v-if="dispositionVoucher"
+        class="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-sm"
+        @click.self="closeDisposition"
+    >
+        <div class="w-full max-w-xl rounded-3xl border border-rose-400/25 bg-background p-6 shadow-2xl">
+            <div class="mb-5 flex items-start justify-between gap-3">
+                <div>
+                    <p class="text-[10px] font-bold uppercase tracking-wider text-rose-400">Xá»­ lÃ½ lÃ´ khÃ´ng Ä‘áº¡t</p>
+                    <h2 class="mt-1 text-xl font-black">{{ dispositionVoucher.voucher_code }}</h2>
+                    <p class="mt-1 text-xs text-muted-foreground">LÃ´ nÃ y chÆ°a Ä‘Æ°á»£c cá»™ng vÃ o tá»“n kho.</p>
+                </div>
+                <Button variant="ghost" size="icon" @click="closeDisposition"><X class="size-4" /></Button>
+            </div>
+            <form class="space-y-4" @submit.prevent="disposeReceiving">
+                <div class="flex flex-col gap-1.5">
+                    <Label>HÆ°á»›ng xá»­ lÃ½</Label>
+                    <select v-model="dispositionKind" class="h-10 rounded-md border border-input bg-background px-3 text-sm">
+                        <option value="return_supplier">Tráº£ nhÃ  cung cáº¥p</option>
+                        <option value="destroy">TiÃªu há»§y</option>
+                    </select>
+                </div>
+                <div class="flex flex-col gap-1.5">
+                    <Label>LÃ½ do / biÃªn báº£n</Label>
+                    <textarea v-model="dispositionReason" rows="4" required class="rounded-md border border-input bg-background px-3 py-2 text-sm" placeholder="NÃªu rÃµ lÃ½ do, sá»‘ biÃªn báº£n, ngÆ°á»i bÃ n giao..." />
+                </div>
+                <div class="flex flex-col gap-1.5">
+                    <Label>Báº±ng chá»©ng {{ dispositionKind === 'destroy' ? '(báº¯t buá»™c)' : '(khuyáº¿n nghá»‹)' }}</Label>
+                    <input type="file" multiple accept="image/*,.pdf" class="h-10 rounded-md border border-input bg-background px-3 py-2 text-xs" @change="handleDispositionEvidence" />
+                </div>
+                <div class="flex justify-end gap-2">
+                    <Button type="button" variant="outline" @click="closeDisposition">Há»§y</Button>
+                    <Button type="submit" class="bg-rose-600 text-white hover:bg-rose-700" :disabled="isDisposing">Ghi nháº­n xá»­ lÃ½</Button>
                 </div>
             </form>
         </div>
@@ -1847,6 +2032,19 @@ const evidenceUrl = (path: string) =>
                             v-model="grnForm.seal_code"
                             placeholder="SEAL-..."
                         />
+                    </div>
+                </div>
+                <div class="grid gap-3 md:grid-cols-4">
+                    <div class="flex flex-col gap-1.5">
+                        <Label>Nhiá»‡t Ä‘á»™ tháº¥p nháº¥t (Â°C)</Label>
+                        <Input v-model="grnForm.temperature_min_c" type="number" step="0.1" placeholder="VÃ­ dá»¥ 2" />
+                    </div>
+                    <div class="flex flex-col gap-1.5">
+                        <Label>Nhiá»‡t Ä‘á»™ cao nháº¥t (Â°C)</Label>
+                        <Input v-model="grnForm.temperature_max_c" type="number" step="0.1" placeholder="VÃ­ dá»¥ 6" />
+                    </div>
+                    <div class="flex items-end md:col-span-2">
+                        <p class="rounded-lg border border-sky-400/20 bg-sky-500/5 p-3 text-[11px] text-muted-foreground">HÃ ng tÆ°Æ¡i/kho láº¡nh sáº½ khÃ´ng Ä‘Æ°á»£c xÃ¡c minh náº¿u thiáº¿u nhiá»‡t Ä‘á»™ nháº­n hÃ ng.</p>
                     </div>
                 </div>
                 <div class="rounded-2xl border border-border">

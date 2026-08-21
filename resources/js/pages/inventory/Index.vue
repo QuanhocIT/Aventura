@@ -66,6 +66,13 @@ type Ingredient = {
     auto_waste_end_of_day?: boolean;
     min_stock_level?: number;
     reorder_level?: number;
+    supplier_id?: number | null;
+    supplier_options?: Array<{ supplier_id: number; supplier_name?: string | null; is_primary?: boolean }>;
+    safety_stock_quantity?: number;
+    lead_time_days?: number;
+    batch_tracking_required?: boolean;
+    storage_temperature_min_c?: number | null;
+    storage_temperature_max_c?: number | null;
     average_cost: number;
     unit: { id: number; symbol: string } | null;
     stock: number | null;
@@ -4061,6 +4068,7 @@ const recallBatch = (batchId: number) => {
         :is-open="showIngredientModal"
         :ingredient="editingIngredient"
         :units="units"
+        :suppliers="suppliers"
         @close="showIngredientModal = false"
     />
 </template>

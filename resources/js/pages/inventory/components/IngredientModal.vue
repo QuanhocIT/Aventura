@@ -18,6 +18,7 @@ const props = defineProps<{
     isOpen: boolean;
     ingredient?: any | null;
     units: Array<{ id: number; name: string; symbol: string }>;
+    suppliers: Array<{ id: number; name: string }>;
 }>();
 
 const emit = defineEmits<{
@@ -35,6 +36,13 @@ const form = useForm({
     expiry_warning_days: '3',
     min_stock_level: '0',
     reorder_level: '0',
+    supplier_id: '' as string | number,
+    backup_supplier_ids: [] as number[],
+    safety_stock_quantity: '0',
+    lead_time_days: '0',
+    batch_tracking_required: false,
+    storage_temperature_min_c: '',
+    storage_temperature_max_c: '',
     auto_waste_end_of_day: false,
 });
 
@@ -52,12 +60,23 @@ watch(
                 form.expiry_warning_days = ing.expiry_warning_days ? String(ing.expiry_warning_days) : '3';
                 form.min_stock_level = ing.min_stock_level ? String(ing.min_stock_level) : '0';
                 form.reorder_level = ing.reorder_level ? String(ing.reorder_level) : '0';
+                form.supplier_id = ing.supplier_id ? String(ing.supplier_id) : '';
+                form.backup_supplier_ids = (ing.supplier_options ?? [])
+                    .filter((option: any) => !option.is_primary)
+                    .map((option: any) => Number(option.supplier_id));
+                form.safety_stock_quantity = ing.safety_stock_quantity ? String(ing.safety_stock_quantity) : '0';
+                form.lead_time_days = ing.lead_time_days !== null && ing.lead_time_days !== undefined ? String(ing.lead_time_days) : '0';
+                form.batch_tracking_required = Boolean(ing.batch_tracking_required);
+                form.storage_temperature_min_c = ing.storage_temperature_min_c !== null && ing.storage_temperature_min_c !== undefined ? String(ing.storage_temperature_min_c) : '';
+                form.storage_temperature_max_c = ing.storage_temperature_max_c !== null && ing.storage_temperature_max_c !== undefined ? String(ing.storage_temperature_max_c) : '';
                 form.auto_waste_end_of_day = Boolean(ing.auto_waste_end_of_day);
             } else {
                 form.reset();
                 form.unit_id = props.units[0]?.id ? String(props.units[0].id) : '';
                 form.storage_type = 'dry';
                 form.expiry_warning_days = '3';
+                form.supplier_id = '';
+                form.backup_supplier_ids = [];
             }
         }
     },
@@ -199,6 +218,23 @@ const submitForm = () => {
                     </div>
 
                     <!-- Loại bảo quản & Hạn sử dụng -->
+                    <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                        <div class="space-y-1.5">
+                            <Label class="text-xs font-semibold">NhÃ  cung cáº¥p chÃ­nh</Label>
+                            <select v-model="form.supplier_id" class="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs font-semibold">
+                                <option value="">ChÆ°a gÃ¡n nhÃ  cung cáº¥p</option>
+                                <option v-for="supplier in suppliers" :key="supplier.id" :value="String(supplier.id)">{{ supplier.name }}</option>
+                            </select>
+                        </div>
+                        <div class="space-y-1.5">
+                            <Label class="text-xs font-semibold">NhÃ  cung cáº¥p dá»± phÃ²ng</Label>
+                            <select v-model="form.backup_supplier_ids" multiple class="min-h-20 w-full rounded-xl border border-border bg-background px-3 py-2 text-xs">
+                                <option v-for="supplier in suppliers" :key="supplier.id" :value="supplier.id">{{ supplier.name }}</option>
+                            </select>
+                            <p class="text-[10px] text-muted-foreground">Giá»¯ Ctrl/Cmd Ä‘á»ƒ chá»n nhiá»u NCC.</p>
+                        </div>
+                    </div>
+
                     <div class="rounded-xl border border-indigo-100 bg-indigo-50/40 p-3.5 space-y-3 dark:border-indigo-900/40 dark:bg-indigo-950/20">
                         <div class="flex items-center gap-2 text-xs font-bold text-indigo-700 dark:text-indigo-300">
                             <Sparkles class="size-4" />
@@ -299,6 +335,39 @@ const submitForm = () => {
                                 min="0"
                                 placeholder="0"
                             />
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-3">
+                        <div class="space-y-1.5">
+                            <Label class="text-xs font-semibold">Tồn kho an toàn</Label>
+                            <Input v-model="form.safety_stock_quantity" type="number" step="any" min="0" placeholder="0" />
+                        </div>
+                        <div class="space-y-1.5">
+                            <Label class="text-xs font-semibold">Lead time nhà cung cấp (ngày)</Label>
+                            <Input v-model="form.lead_time_days" type="number" min="0" max="365" placeholder="0" />
+                        </div>
+                    </div>
+                    <div class="rounded-xl border border-sky-200 bg-sky-50/50 p-3.5 space-y-3 dark:border-sky-900/40 dark:bg-sky-950/20">
+                        <div class="flex items-center justify-between gap-3">
+                            <div>
+                                <Label class="text-xs font-semibold">Kiểm soát truy xuất & nhiệt độ</Label>
+                                <p class="mt-1 text-[11px] text-muted-foreground">Dùng cho nguyên liệu tươi, kho lạnh hoặc mặt hàng cần quản lý theo lô.</p>
+                            </div>
+                            <label class="flex items-center gap-2 text-xs font-semibold">
+                                <input v-model="form.batch_tracking_required" type="checkbox" class="rounded border-slate-300 text-sky-600 focus:ring-sky-500" />
+                                Bắt buộc theo lô
+                            </label>
+                        </div>
+                        <div class="grid grid-cols-2 gap-3">
+                            <div class="space-y-1.5">
+                                <Label class="text-xs font-semibold">Nhiệt độ thấp nhất (°C)</Label>
+                                <Input v-model="form.storage_temperature_min_c" type="number" step="0.1" placeholder="Ví dụ 2" />
+                            </div>
+                            <div class="space-y-1.5">
+                                <Label class="text-xs font-semibold">Nhiệt độ cao nhất (°C)</Label>
+                                <Input v-model="form.storage_temperature_max_c" type="number" step="0.1" placeholder="Ví dụ 6" />
+                            </div>
                         </div>
                     </div>
 

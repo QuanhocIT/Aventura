@@ -6,6 +6,7 @@ use App\Models\ApprovalRequest;
 use App\Models\AuditLog;
 use App\Models\Employee;
 use App\Models\Ingredient;
+use App\Models\IngredientSupplier;
 use App\Models\Inventory;
 use App\Models\InventoryBatch;
 use App\Models\InventoryBatchAllocation;
@@ -134,7 +135,7 @@ class InventoryManagementController extends Controller
                 $branchId,
                 fn ($q) => $q->where(fn ($scope) => $scope->whereNull('branch_id')->orWhere('branch_id', $branchId)),
             )
-            ->with(['unit', 'branch:id,name'])
+            ->with(['unit', 'branch:id,name', 'supplierOptions.supplier:id,name'])
             ->get()
             ->map(function ($ing) use ($inventoryMap, $activeBatchesMap) {
                 $inventory = $inventoryMap->get($ing->id);
@@ -180,6 +181,18 @@ class InventoryManagementController extends Controller
                     'auto_waste_end_of_day' => (bool) $ing->auto_waste_end_of_day,
                     'min_stock_level' => (float) ($ing->min_stock_level ?? 0),
                     'reorder_level' => (float) ($ing->reorder_level ?? 0),
+                    'supplier_id' => $ing->supplier_id,
+                    'supplier_options' => $ing->supplierOptions->map(fn (IngredientSupplier $option) => [
+                        'supplier_id' => $option->supplier_id,
+                        'supplier_name' => $option->supplier?->name,
+                        'priority' => $option->priority,
+                        'is_primary' => (bool) $option->is_primary,
+                    ])->values(),
+                    'safety_stock_quantity' => (float) ($ing->safety_stock_quantity ?? 0),
+                    'lead_time_days' => (int) ($ing->lead_time_days ?? 0),
+                    'batch_tracking_required' => (bool) ($ing->batch_tracking_required ?? false),
+                    'storage_temperature_min_c' => $ing->storage_temperature_min_c !== null ? (float) $ing->storage_temperature_min_c : null,
+                    'storage_temperature_max_c' => $ing->storage_temperature_max_c !== null ? (float) $ing->storage_temperature_max_c : null,
                     'average_cost' => (float) $ing->average_cost,
                     'is_semi_finished' => (bool) $ing->is_semi_finished,
                     'unit' => $ing->unit ? ['id' => $ing->unit->id, 'symbol' => $ing->unit->symbol] : null,
@@ -601,6 +614,14 @@ class InventoryManagementController extends Controller
             'expiry_warning_days' => ['nullable', 'integer', 'min:1'],
             'min_stock_level' => ['nullable', 'numeric', 'min:0'],
             'reorder_level' => ['nullable', 'numeric', 'min:0'],
+            'supplier_id' => ['nullable', TenantRule::exists('suppliers')],
+            'backup_supplier_ids' => ['nullable', 'array', 'max:5'],
+            'backup_supplier_ids.*' => [TenantRule::exists('suppliers')],
+            'safety_stock_quantity' => ['nullable', 'numeric', 'min:0'],
+            'lead_time_days' => ['nullable', 'integer', 'min:0', 'max:365'],
+            'batch_tracking_required' => ['nullable', 'boolean'],
+            'storage_temperature_min_c' => ['nullable', 'numeric', 'between:-80,80'],
+            'storage_temperature_max_c' => ['nullable', 'numeric', 'between:-80,80'],
             'auto_waste_end_of_day' => ['nullable', 'boolean'],
         ], [
             'default_shelf_life_days.required' => 'Vui lòng nhập HSD tiêu chuẩn của nguyên liệu.',
@@ -617,7 +638,7 @@ class InventoryManagementController extends Controller
             return back()->with('success', 'Yêu cầu thêm nguyên liệu mới đã được gửi lên Chủ nhà hàng phê duyệt.');
         }
 
-        Ingredient::create([
+        $ingredient = Ingredient::create([
             'restaurant_id' => $user->restaurant_id,
             'branch_id' => $branchId,
             'name' => $data['name'],
@@ -630,9 +651,16 @@ class InventoryManagementController extends Controller
             'expiry_warning_days' => $data['expiry_warning_days'] ?? 3,
             'min_stock_level' => $data['min_stock_level'] ?? 0,
             'reorder_level' => $data['reorder_level'] ?? 0,
+            'supplier_id' => $data['supplier_id'] ?? null,
+            'safety_stock_quantity' => $data['safety_stock_quantity'] ?? 0,
+            'lead_time_days' => $data['lead_time_days'] ?? 0,
+            'batch_tracking_required' => $data['batch_tracking_required'] ?? false,
+            'storage_temperature_min_c' => $data['storage_temperature_min_c'] ?? null,
+            'storage_temperature_max_c' => $data['storage_temperature_max_c'] ?? null,
             'auto_waste_end_of_day' => $data['auto_waste_end_of_day'] ?? false,
             'status' => 'active',
         ]);
+        $this->syncIngredientSuppliers($ingredient, $data['supplier_id'] ?? null, $data['backup_supplier_ids'] ?? []);
 
         return back()->with('success', 'Đã thêm nguyên liệu mới vào kho.');
     }
@@ -661,6 +689,14 @@ class InventoryManagementController extends Controller
             'expiry_warning_days' => ['nullable', 'integer', 'min:1'],
             'min_stock_level' => ['nullable', 'numeric', 'min:0'],
             'reorder_level' => ['nullable', 'numeric', 'min:0'],
+            'supplier_id' => ['nullable', TenantRule::exists('suppliers')],
+            'backup_supplier_ids' => ['nullable', 'array', 'max:5'],
+            'backup_supplier_ids.*' => [TenantRule::exists('suppliers')],
+            'safety_stock_quantity' => ['nullable', 'numeric', 'min:0'],
+            'lead_time_days' => ['nullable', 'integer', 'min:0', 'max:365'],
+            'batch_tracking_required' => ['nullable', 'boolean'],
+            'storage_temperature_min_c' => ['nullable', 'numeric', 'between:-80,80'],
+            'storage_temperature_max_c' => ['nullable', 'numeric', 'between:-80,80'],
             'auto_waste_end_of_day' => ['nullable', 'boolean'],
         ], [
             'default_shelf_life_days.required' => 'Vui lòng nhập HSD tiêu chuẩn của nguyên liệu.',
@@ -683,6 +719,13 @@ class InventoryManagementController extends Controller
                     'expiry_warning_days' => $data['expiry_warning_days'] ?? 3,
                     'min_stock_level' => $data['min_stock_level'] ?? 0,
                     'reorder_level' => $data['reorder_level'] ?? 0,
+                    'supplier_id' => $data['supplier_id'] ?? null,
+                    'backup_supplier_ids' => $data['backup_supplier_ids'] ?? [],
+                    'safety_stock_quantity' => $data['safety_stock_quantity'] ?? 0,
+                    'lead_time_days' => $data['lead_time_days'] ?? 0,
+                    'batch_tracking_required' => $data['batch_tracking_required'] ?? false,
+                    'storage_temperature_min_c' => $data['storage_temperature_min_c'] ?? null,
+                    'storage_temperature_max_c' => $data['storage_temperature_max_c'] ?? null,
                     'auto_waste_end_of_day' => $data['auto_waste_end_of_day'] ?? false,
                 ],
                 'branch_id' => $branchId,
@@ -701,8 +744,15 @@ class InventoryManagementController extends Controller
             'expiry_warning_days' => $data['expiry_warning_days'] ?? 3,
             'min_stock_level' => $data['min_stock_level'] ?? 0,
             'reorder_level' => $data['reorder_level'] ?? 0,
+            'supplier_id' => $data['supplier_id'] ?? null,
+            'safety_stock_quantity' => $data['safety_stock_quantity'] ?? 0,
+            'lead_time_days' => $data['lead_time_days'] ?? 0,
+            'batch_tracking_required' => $data['batch_tracking_required'] ?? false,
+            'storage_temperature_min_c' => $data['storage_temperature_min_c'] ?? null,
+            'storage_temperature_max_c' => $data['storage_temperature_max_c'] ?? null,
             'auto_waste_end_of_day' => $data['auto_waste_end_of_day'] ?? false,
         ]);
+        $this->syncIngredientSuppliers($ingredient, $data['supplier_id'] ?? null, $data['backup_supplier_ids'] ?? []);
 
         return back()->with('success', 'Đã cập nhật thông tin nguyên liệu.');
     }
@@ -1522,6 +1572,29 @@ class InventoryManagementController extends Controller
     }
 
     /** Gửi yêu cầu kho thu hồi lô — báo Chủ và Trưởng kho, đưa lô ra khỏi sử dụng. */
+    private function syncIngredientSuppliers(Ingredient $ingredient, ?int $primarySupplierId, array $backupSupplierIds): void
+    {
+        $supplierIds = array_values(array_unique(array_filter(array_merge(
+            $primarySupplierId ? [$primarySupplierId] : [],
+            array_map('intval', $backupSupplierIds),
+        ))));
+
+        IngredientSupplier::where('restaurant_id', $ingredient->restaurant_id)
+            ->where('ingredient_id', $ingredient->id)
+            ->delete();
+
+        foreach ($supplierIds as $index => $supplierId) {
+            IngredientSupplier::create([
+                'restaurant_id' => $ingredient->restaurant_id,
+                'ingredient_id' => $ingredient->id,
+                'supplier_id' => $supplierId,
+                'priority' => $index + 1,
+                'is_primary' => $supplierId === $primarySupplierId,
+                'is_active' => true,
+            ]);
+        }
+    }
+
     public function requestBatchRecall(Request $request, InventoryBatch $batch): RedirectResponse
     {
         $user = $request->user();

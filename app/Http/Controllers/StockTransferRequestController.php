@@ -5,6 +5,8 @@ namespace App\Http\Controllers;
 use App\Models\AuditLog;
 use App\Models\Ingredient;
 use App\Models\Inventory;
+use App\Models\InventoryBatch;
+use App\Models\InventoryBatchAllocation;
 use App\Models\InventoryTransaction;
 use App\Models\RestaurantBranch;
 use App\Models\StockTransferRequest;
@@ -16,6 +18,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use App\Services\WarehouseReverseLogisticsService;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -114,6 +117,16 @@ class StockTransferRequestController extends Controller
                 'owner_note' => $transfer->owner_note,
                 'dispatch_note' => $transfer->dispatch_note,
                 'received_condition' => $transfer->received_condition,
+                'quantity_received_good' => $transfer->quantity_received_good !== null ? (float) $transfer->quantity_received_good : null,
+                'quantity_received_damaged' => (float) ($transfer->quantity_received_damaged ?? 0),
+                'quantity_received_expired' => (float) ($transfer->quantity_received_expired ?? 0),
+                'source_batch_id' => $transfer->source_batch_id,
+                'destination_batch_id' => $transfer->destination_batch_id,
+                'quarantine_id' => $transfer->quarantine_id,
+                'transport_temperature_min_c' => $transfer->transport_temperature_min_c,
+                'transport_temperature_max_c' => $transfer->transport_temperature_max_c,
+                'carrier_name' => $transfer->carrier_name,
+                'vehicle_number' => $transfer->vehicle_number,
                 'received_note' => $transfer->received_note,
                 'receiving_evidence_path' => $transfer->receiving_evidence_path,
                 'discrepancy_reason' => $transfer->discrepancy_reason,
@@ -321,6 +334,37 @@ class StockTransferRequestController extends Controller
                 }
 
                 $unitCost = (float) $inventory->last_cost;
+                $sourceBatch = InventoryBatch::query()
+                    ->where('restaurant_id', $lockedTransfer->restaurant_id)
+                    ->where('branch_id', $lockedTransfer->from_branch_id)
+                    ->where('ingredient_id', $lockedTransfer->ingredient_id)
+                    ->where('status', 'active')
+                    ->where('quantity_remaining', '>', 0)
+                    ->orderByRaw('expiry_date IS NULL')
+                    ->orderBy('expiry_date')
+                    ->orderBy('id')
+                    ->lockForUpdate()
+                    ->first();
+                if (! $sourceBatch || (float) $sourceBatch->quantity_remaining + 0.0005 < $qty) {
+                    // Legacy inventory may not have a batch. Create a traceable
+                    // opening batch for the exact quantity being transferred.
+                    if (! $sourceBatch) {
+                        $legacyCode = 'LEGACY-TR-'.$lockedTransfer->id;
+                        $sourceBatch = InventoryBatch::create([
+                            'restaurant_id' => $lockedTransfer->restaurant_id,
+                            'branch_id' => $lockedTransfer->from_branch_id,
+                            'ingredient_id' => $lockedTransfer->ingredient_id,
+                            'batch_code' => $legacyCode,
+                            'batch_number' => $legacyCode,
+                            'quantity_remaining' => $qty,
+                            'unit_cost' => $unitCost,
+                            'purchased_at' => now()->toDateString(),
+                            'status' => 'active',
+                        ]);
+                    } else {
+                        throw new \RuntimeException('Lô FEFO tại chi nhánh cấp không đủ tồn để điều chuyển.');
+                    }
+                }
                 $before = (float) $inventory->quantity_on_hand;
                 $after = round($before - $qty, 3);
                 InventoryTransaction::create([
@@ -346,6 +390,22 @@ class StockTransferRequestController extends Controller
                     'theoretical_quantity' => max(0, (float) $inventory->theoretical_quantity - $qty),
                     'updated_by' => $user->id,
                 ]);
+                $sourceBatch->decrement('quantity_remaining', $qty);
+                if ((float) $sourceBatch->quantity_remaining <= 0) {
+                    $sourceBatch->update(['status' => 'depleted']);
+                }
+                $outTransaction = InventoryTransaction::where('reference_code', 'TR-'.$lockedTransfer->id.'-OUT')->latest('id')->first();
+                if ($outTransaction) {
+                    InventoryBatchAllocation::create([
+                        'restaurant_id' => $lockedTransfer->restaurant_id,
+                        'branch_id' => $lockedTransfer->from_branch_id,
+                        'inventory_batch_id' => $sourceBatch->id,
+                        'inventory_transaction_id' => $outTransaction->id,
+                        'direction' => 'out',
+                        'quantity' => $qty,
+                        'unit_cost' => $unitCost,
+                    ]);
+                }
                 $lockedTransfer->update([
                     'status' => 'dispatched',
                     'quantity_dispatched' => $qty,
@@ -353,6 +413,7 @@ class StockTransferRequestController extends Controller
                     'dispatched_by' => $user->id,
                     'dispatched_at' => now(),
                     'dispatch_note' => isset($data['dispatch_note']) ? trim((string) $data['dispatch_note']) : null,
+                    'source_batch_id' => $sourceBatch->id,
                 ]);
 
                 return $lockedTransfer->fresh();
@@ -362,6 +423,14 @@ class StockTransferRequestController extends Controller
         }
 
         $this->notifyTransferParties($user, $lockedTransfer, 'dispatched');
+        app(WarehouseReverseLogisticsService::class)->recordShipmentEvent(
+            (int) $lockedTransfer->restaurant_id,
+            'stock_transfer',
+            (int) $lockedTransfer->id,
+            'dispatched',
+            $user,
+            ['branch_id' => $lockedTransfer->from_branch_id, 'notes' => $lockedTransfer->dispatch_note],
+        );
         AuditLog::log('stock_transfer_dispatched', 'updated', $lockedTransfer, null, ['quantity' => $qty, 'by' => $user->name]);
 
         return back()->with('success', 'Đã xuất kho. Chi nhánh nhận cần kiểm đếm và nhập mã giao nhận.');
@@ -376,10 +445,16 @@ class StockTransferRequestController extends Controller
 
         $data = $request->validate([
             'handover_code' => ['required', 'string', 'size:6'],
-            // Tương thích với thao tác nhanh: chỉ nhập mã là xác nhận nhận đủ hàng tốt.
             'quantity_received' => ['nullable', 'numeric', 'min:0'],
+            'quantity_received_good' => ['nullable', 'numeric', 'min:0'],
+            'quantity_received_damaged' => ['nullable', 'numeric', 'min:0'],
+            'quantity_received_expired' => ['nullable', 'numeric', 'min:0'],
             'received_condition' => ['nullable', 'string', 'in:good,damaged,shortage,mixed'],
             'received_note' => ['nullable', 'string', 'max:1000'],
+            'transport_temperature_min_c' => ['nullable', 'numeric'],
+            'transport_temperature_max_c' => ['nullable', 'numeric'],
+            'vehicle_number' => ['nullable', 'string', 'max:50'],
+            'carrier_name' => ['nullable', 'string', 'max:150'],
             'receiving_evidence' => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp,pdf', 'max:10240'],
         ]);
 
@@ -387,9 +462,31 @@ class StockTransferRequestController extends Controller
             abort(403, 'Bạn không thuộc chi nhánh nhận hàng.');
         }
 
+        $hasBreakdown = array_key_exists('quantity_received_good', $data)
+            || array_key_exists('quantity_received_damaged', $data)
+            || array_key_exists('quantity_received_expired', $data);
+        $dispatchedQuantity = (float) $transfer->quantity_dispatched;
+        if (! $hasBreakdown) {
+            $data['quantity_received_good'] = array_key_exists('quantity_received', $data) && $data['quantity_received'] !== null
+                ? (float) $data['quantity_received']
+                : $dispatchedQuantity;
+        }
+        $data['quantity_received_damaged'] = (float) ($data['quantity_received_damaged'] ?? 0);
+        $data['quantity_received_expired'] = (float) ($data['quantity_received_expired'] ?? 0);
+        $breakdownTotal = round(
+            (float) $data['quantity_received_good']
+            + (float) $data['quantity_received_damaged']
+            + (float) $data['quantity_received_expired'],
+            3,
+        );
+        if (array_key_exists('quantity_received', $data) && $data['quantity_received'] !== null && abs($breakdownTotal - (float) $data['quantity_received']) > 0.0005) {
+            return back()->withErrors(['quantity_received' => 'Tổng số lượng tốt/hỏng/hết hạn phải bằng số lượng thực nhận.']);
+        }
+        $data['quantity_received'] = $breakdownTotal;
+
         $evidencePath = null;
         if ($request->hasFile('receiving_evidence')) {
-            $evidencePath = $request->file('receiving_evidence')->store('stock-transfers/'.$user->restaurant_id, 'public');
+            $evidencePath = $request->file('receiving_evidence')->store('warehouse/stock-transfers/'.$user->restaurant_id, 'local');
         }
         try {
             $lockedTransfer = DB::transaction(function () use ($transfer, $user, $data, $evidencePath): StockTransferRequest {
@@ -405,43 +502,51 @@ class StockTransferRequestController extends Controller
                 }
 
                 $dispatchedQty = (float) $lockedTransfer->quantity_dispatched;
-                $receivedQty = array_key_exists('quantity_received', $data) && $data['quantity_received'] !== null
-                    ? (float) $data['quantity_received']
-                    : $dispatchedQty;
+                $receivedQty = (float) $data['quantity_received'];
+                $goodQty = (float) $data['quantity_received_good'];
+                $damagedQty = (float) $data['quantity_received_damaged'];
+                $expiredQty = (float) $data['quantity_received_expired'];
                 $receivedCondition = $data['received_condition'] ?? 'good';
                 if ($receivedQty > $dispatchedQty + 0.0005) {
                     throw new \InvalidArgumentException('Số lượng thực nhận không được lớn hơn số lượng đã xuất.');
                 }
                 $difference = round($dispatchedQty - $receivedQty, 3);
-                if ($difference > 0 && mb_strlen(trim((string) ($data['received_note'] ?? ''))) < 5) {
+                $badQty = $damagedQty + $expiredQty;
+                if (($difference > 0 || $badQty > 0) && mb_strlen(trim((string) ($data['received_note'] ?? ''))) < 5) {
                     throw new \InvalidArgumentException('Khi nhận thiếu hoặc hỏng, bắt buộc ghi rõ biên bản chênh lệch.');
                 }
-                if (($difference > 0 || $receivedCondition !== 'good') && ! $evidencePath) {
+                if (($difference > 0 || $badQty > 0 || $receivedCondition !== 'good') && ! $evidencePath) {
                     throw new \InvalidArgumentException('Khi nhận thiếu hoặc hàng không đạt, bắt buộc đính kèm ảnh/PDF bằng chứng.');
                 }
-
-                $inventory = Inventory::query()
-                    ->where('restaurant_id', $lockedTransfer->restaurant_id)
-                    ->where('branch_id', $lockedTransfer->to_branch_id)
-                    ->where('ingredient_id', $lockedTransfer->ingredient_id)
-                    ->lockForUpdate()
-                    ->first();
-                if (! $inventory) {
-                    $inventory = Inventory::create([
-                        'restaurant_id' => $lockedTransfer->restaurant_id,
-                        'branch_id' => $lockedTransfer->to_branch_id,
-                        'ingredient_id' => $lockedTransfer->ingredient_id,
-                        'quantity_on_hand' => 0,
-                        'theoretical_quantity' => 0,
-                        'last_cost' => (float) ($lockedTransfer->dispatch_unit_cost ?? 0),
-                    ]);
+                if (abs($goodQty + $badQty - $receivedQty) > 0.0005) {
+                    throw new \InvalidArgumentException('Tổng số lượng tốt/hỏng/hết hạn không khớp số lượng thực nhận.');
                 }
 
-                $unitCost = (float) ($lockedTransfer->dispatch_unit_cost ?? $inventory->last_cost);
-                $before = (float) $inventory->quantity_on_hand;
-                $after = round($before + $receivedQty, 3);
-                if ($receivedQty > 0) {
-                    InventoryTransaction::create([
+                $unitCost = (float) ($lockedTransfer->dispatch_unit_cost ?? 0);
+                $reverseLogistics = app(WarehouseReverseLogisticsService::class);
+                $destinationBatchId = null;
+                if ($goodQty > 0) {
+                    $inventory = Inventory::query()
+                        ->where('restaurant_id', $lockedTransfer->restaurant_id)
+                        ->where('branch_id', $lockedTransfer->to_branch_id)
+                        ->where('ingredient_id', $lockedTransfer->ingredient_id)
+                        ->lockForUpdate()
+                        ->first();
+                    if (! $inventory) {
+                        $inventory = Inventory::create([
+                            'restaurant_id' => $lockedTransfer->restaurant_id,
+                            'branch_id' => $lockedTransfer->to_branch_id,
+                            'ingredient_id' => $lockedTransfer->ingredient_id,
+                            'quantity_on_hand' => 0,
+                            'theoretical_quantity' => 0,
+                            'last_cost' => $unitCost,
+                        ]);
+                        $inventory = Inventory::whereKey($inventory->id)->lockForUpdate()->firstOrFail();
+                    }
+                    $unitCost = $unitCost > 0 ? $unitCost : (float) $inventory->last_cost;
+                    $before = (float) $inventory->quantity_on_hand;
+                    $after = round($before + $goodQty, 3);
+                    $transaction = InventoryTransaction::createWithIdempotency([
                         'restaurant_id' => $lockedTransfer->restaurant_id,
                         'branch_id' => $lockedTransfer->to_branch_id,
                         'ingredient_id' => $lockedTransfer->ingredient_id,
@@ -449,40 +554,129 @@ class StockTransferRequestController extends Controller
                         'performed_by' => $user->id,
                         'type' => 'adjustment',
                         'direction' => 'in',
-                        'quantity' => $receivedQty,
+                        'quantity' => $goodQty,
                         'quantity_before' => $before,
                         'quantity_after' => $after,
                         'unit_cost' => $unitCost,
-                        'total_cost' => $receivedQty * $unitCost,
+                        'total_cost' => $goodQty * $unitCost,
+                        'source_type' => 'stock_transfer',
+                        'source_id' => $lockedTransfer->id,
+                        'idempotency_key' => 'stock_transfer_in_'.$lockedTransfer->id,
                         'reference_code' => 'TR-'.$lockedTransfer->id.'-IN',
                         'notes' => 'Điều chuyển #'.$lockedTransfer->id.' nhận từ '.$lockedTransfer->from_branch_id.' (mã '.$lockedTransfer->handover_code.')',
                         'occurred_at' => now(),
                     ]);
+
+                    $inventory->update([
+                        'quantity_on_hand' => $after,
+                        'theoretical_quantity' => (float) $inventory->theoretical_quantity + $goodQty,
+                        'last_cost' => $unitCost,
+                        'updated_by' => $user->id,
+                    ]);
+                    $sourceBatch = $lockedTransfer->source_batch_id
+                        ? InventoryBatch::query()->where('restaurant_id', $lockedTransfer->restaurant_id)->whereKey($lockedTransfer->source_batch_id)->first()
+                        : null;
+                    $destinationBatch = $reverseLogistics->createDestinationBatch(
+                        (int) $lockedTransfer->restaurant_id,
+                        (int) $lockedTransfer->to_branch_id,
+                        (int) $lockedTransfer->ingredient_id,
+                        $goodQty,
+                        $unitCost,
+                        $user,
+                        $sourceBatch,
+                    );
+                    $destinationBatchId = $destinationBatch?->id;
+                    if ($destinationBatch) {
+                        InventoryBatchAllocation::create([
+                            'restaurant_id' => $lockedTransfer->restaurant_id,
+                            'branch_id' => $lockedTransfer->to_branch_id,
+                            'inventory_batch_id' => $destinationBatch->id,
+                            'inventory_transaction_id' => $transaction->id,
+                            'direction' => 'in',
+                            'quantity' => $goodQty,
+                            'unit_cost' => $unitCost,
+                        ]);
+                    }
                 }
 
-                $inventory->update([
-                    'quantity_on_hand' => $after,
-                    'theoretical_quantity' => (float) $inventory->theoretical_quantity + $receivedQty,
-                    'last_cost' => $unitCost > 0 ? $unitCost : $inventory->last_cost,
-                    'updated_by' => $user->id,
-                ]);
+                $quarantineId = null;
+                if ($badQty > 0) {
+                    $sourceBatch = $lockedTransfer->source_batch_id
+                        ? InventoryBatch::query()->where('restaurant_id', $lockedTransfer->restaurant_id)->whereKey($lockedTransfer->source_batch_id)->first()
+                        : null;
+                    $lockedBatch = $reverseLogistics->createDestinationBatch(
+                        (int) $lockedTransfer->restaurant_id,
+                        (int) $lockedTransfer->to_branch_id,
+                        (int) $lockedTransfer->ingredient_id,
+                        $badQty,
+                        $unitCost,
+                        $user,
+                        $sourceBatch,
+                        true,
+                        'Hàng điều chuyển bị hỏng hoặc hết hạn, chờ hoàn trả/tiêu hủy.',
+                    );
+                    $quarantine = $reverseLogistics->createQuarantine(
+                        (int) $lockedTransfer->restaurant_id,
+                        (int) $lockedTransfer->to_branch_id,
+                        (int) $lockedTransfer->ingredient_id,
+                        $badQty,
+                        $expiredQty > 0 ? 'expired' : 'damaged',
+                        trim((string) ($data['received_note'] ?? 'Hàng không đạt khi nhận điều chuyển.')),
+                        $user,
+                        $lockedBatch,
+                        'stock_transfer',
+                        $lockedTransfer->id,
+                        null,
+                        array_filter([$evidencePath]),
+                        $data['received_note'] ?? null,
+                    );
+                    $quarantineId = $quarantine->id;
+                }
+
+                $lossQuantity = round($difference + $badQty, 3);
+                $nextStatus = $badQty > 0 ? 'quarantined' : ($difference > 0 ? 'discrepancy' : 'received');
                 $lockedTransfer->update([
-                    'status' => $difference > 0 ? 'discrepancy' : 'received',
+                    'status' => $nextStatus,
                     'quantity_received' => $receivedQty,
-                    'discrepancy_quantity' => $difference,
+                    'quantity_received_good' => $goodQty,
+                    'quantity_received_damaged' => $damagedQty,
+                    'quantity_received_expired' => $expiredQty,
+                    'discrepancy_quantity' => $lossQuantity,
                     'received_by' => $user->id,
                     'received_at' => now(),
                     'received_condition' => $receivedCondition,
                     'received_note' => isset($data['received_note']) ? trim((string) $data['received_note']) : null,
                     'receiving_evidence_path' => $evidencePath,
-                    'discrepancy_reason' => $difference > 0 ? trim((string) $data['received_note']) : null,
+                    'discrepancy_reason' => $lossQuantity > 0 ? trim((string) $data['received_note']) : null,
+                    'destination_batch_id' => $destinationBatchId,
+                    'quarantine_id' => $quarantineId,
+                    'transport_temperature_min_c' => $data['transport_temperature_min_c'] ?? null,
+                    'transport_temperature_max_c' => $data['transport_temperature_max_c'] ?? null,
+                    'vehicle_number' => $data['vehicle_number'] ?? null,
+                    'carrier_name' => $data['carrier_name'] ?? null,
                 ]);
+
+                $reverseLogistics->recordShipmentEvent(
+                    (int) $lockedTransfer->restaurant_id,
+                    'stock_transfer',
+                    (int) $lockedTransfer->id,
+                    $nextStatus === 'received' ? 'received' : 'received_with_discrepancy',
+                    $user,
+                    [
+                        'branch_id' => $lockedTransfer->to_branch_id,
+                        'vehicle_number' => $data['vehicle_number'] ?? null,
+                        'carrier_name' => $data['carrier_name'] ?? null,
+                        'temperature_min_c' => $data['transport_temperature_min_c'] ?? null,
+                        'temperature_max_c' => $data['transport_temperature_max_c'] ?? null,
+                        'notes' => $data['received_note'] ?? null,
+                    ],
+                );
 
                 return $lockedTransfer->fresh();
             });
         } catch (\Throwable $e) {
             if ($evidencePath) {
-                Storage::disk('public')->delete($evidencePath);
+                Storage::disk('local')->delete($evidencePath);
             }
 
             if ($e instanceof \InvalidArgumentException) {
@@ -497,7 +691,7 @@ class StockTransferRequestController extends Controller
             return back()->with('error', 'Không thể nhận hàng: '.$e->getMessage());
         }
 
-        $stage = $lockedTransfer->status === 'discrepancy' ? 'discrepancy' : 'received';
+        $stage = in_array($lockedTransfer->status, ['discrepancy', 'quarantined'], true) ? 'discrepancy' : 'received';
         $this->notifyTransferParties($user, $lockedTransfer, $stage);
         AuditLog::log('stock_transfer_received', 'updated', $lockedTransfer, null, [
             'quantity_received' => (float) $lockedTransfer->quantity_received,
@@ -507,7 +701,7 @@ class StockTransferRequestController extends Controller
 
         return back()->with('success', $stage === 'discrepancy'
             ? 'Đã nhập phần hàng thực nhận. Yêu cầu đang chờ xử lý chênh lệch.'
-            : 'Đã nhận đủ hàng và cộng tồn kho chi nhánh.');
+            : 'Đã nhận đủ hàng đạt chất lượng và cộng tồn kho chi nhánh.');
     }
 
     /** Chủ hoặc Trưởng kho Tổng xác nhận hướng xử lý phần thiếu/hỏng. */

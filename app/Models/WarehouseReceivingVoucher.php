@@ -27,6 +27,10 @@ class WarehouseReceivingVoucher extends Model
             'total_expected_qty'     => 'decimal:3',
             'total_actual_qty'       => 'decimal:3',
             'total_discrepancy_qty'  => 'decimal:3',
+            'temperature_min_c'      => 'decimal:2',
+            'temperature_max_c'      => 'decimal:2',
+            'disposition_evidence_paths' => 'array',
+            'disposed_at'            => 'datetime',
         ];
     }
 
@@ -71,6 +75,11 @@ class WarehouseReceivingVoucher extends Model
         return $this->belongsTo(User::class, 'verified_by');
     }
 
+    public function disposedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'disposed_by');
+    }
+
     public function supplier(): BelongsTo
     {
         return $this->belongsTo(Supplier::class);
@@ -108,5 +117,12 @@ class WarehouseReceivingVoucher extends Model
     public function isEditable(): bool
     {
         return in_array($this->status, ['draft', 'discrepancy']);
+    }
+
+    public function requiresDisposition(): bool
+    {
+        return $this->quality_status === 'failed'
+            || $this->status === 'pending_disposition'
+            || ($this->hasDiscrepancy() && $this->disposition === 'pending');
     }
 }

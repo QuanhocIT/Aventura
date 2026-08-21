@@ -276,9 +276,10 @@ class SupplyRequestAnalyticsService
         $receivingSummary = [
             'total' => (clone $receivingStats)->count(),
             'today' => (clone $receivingStats)->whereDate('received_at', today())->count(),
-            'pending_review' => (clone $receivingStats)->whereIn('status', ['draft', 'discrepancy', 'pending_review'])->count(),
+            'pending_review' => (clone $receivingStats)->whereIn('status', ['draft', 'discrepancy', 'pending_review', 'pending_disposition'])->count(),
             'draft' => (clone $receivingStats)->where('status', 'draft')->count(),
             'discrepancy_vouchers' => (clone $receivingStats)->whereIn('status', ['discrepancy', 'pending_review'])->count(),
+            'pending_disposition' => (clone $receivingStats)->where('status', 'pending_disposition')->count(),
             'confirmed' => (clone $receivingStats)->where('status', 'confirmed')->count(),
             'closed' => (clone $receivingStats)->where('status', 'closed')->count(),
             'discrepancy_quantity' => round((float) (clone $receivingStats)->sum(DB::raw('ABS(total_discrepancy_qty)')), 3),
@@ -313,6 +314,8 @@ class SupplyRequestAnalyticsService
             'canReconcile' => $isOwnerOrSuperAdmin || $user->can('adjust_inventory'),
             'warehouseSuppliers' => $warehouseSuppliers,
             'warehousePurchaseOrders' => $warehousePurchaseOrders,
+            'supplyChainAlerts' => app(CentralWarehouseSupplyChainService::class)->alerts($restaurantId),
+            'supplyChainReconciliation' => app(CentralWarehouseSupplyChainService::class)->reconciliation($restaurantId),
         ];
     }
 

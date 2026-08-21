@@ -203,7 +203,7 @@ class OperationalAuditTest extends TestCase
 
         $report = OperationalInfringementReport::first();
         $this->assertNotNull($report->proof_photo_url);
-        Storage::disk('public')->assertExists(str_replace('/storage/', '', $report->proof_photo_url));
+        $this->assertTrue(Storage::disk('public')->exists(str_replace('/storage/', '', $report->proof_photo_url)));
 
         // 3. Owner approves the penalty report
         $this->actingAs($owner);
@@ -217,5 +217,53 @@ class OperationalAuditTest extends TestCase
             'status' => 'approved',
             'approved_by' => $owner->id,
         ]);
+    }
+
+    public function test_owner_can_create_chain_wide_operations_inspector_without_fixed_branch(): void
+    {
+        $restaurant = Restaurant::factory()->create();
+        $owner = User::factory()->create([
+            'restaurant_id' => $restaurant->id,
+            'branch_id' => null,
+        ]);
+        $owner->assignRole('owner');
+
+        Role::firstOrCreate(['name' => 'operations_inspector', 'guard_name' => 'web']);
+
+        Storage::fake('local');
+
+        $payload = [
+            'name' => 'Thanh Tra Toàn Hệ Thống',
+            'email' => 'thanhtra@example.com',
+            'phone' => '0911223344',
+            'citizen_id_number' => '079911223344',
+            'address' => '123 Cách Mạng Tháng 8, Quận 10, TP.HCM',
+            'date_of_birth' => '1988-03-12',
+            'citizen_id_front' => UploadedFile::fake()->image('front.jpg', 600, 400),
+            'citizen_id_back' => UploadedFile::fake()->image('back.jpg', 600, 400),
+            'hire_date' => now()->toDateString(),
+            'base_salary' => 20000000,
+            'role' => 'operations_inspector',
+            'job_title' => 'Giám Sát Viên Vận Hành / Thanh Tra',
+            'branch_id' => null,
+        ];
+
+        $response = $this->actingAs($owner)
+            ->from('/employees')
+            ->post('/employees', $payload);
+
+        $response->assertRedirect('/employees');
+        $response->assertSessionHasNoErrors();
+
+        $this->assertDatabaseHas('users', [
+            'restaurant_id' => $restaurant->id,
+            'email' => 'thanhtra@example.com',
+            'branch_id' => null,
+        ]);
+
+        $inspector = User::where('email', 'thanhtra@example.com')->first();
+        $this->assertNotNull($inspector);
+        $this->assertTrue($inspector->hasRole('operations_inspector'));
+        $this->assertTrue($inspector->canViewAllBranches());
     }
 }

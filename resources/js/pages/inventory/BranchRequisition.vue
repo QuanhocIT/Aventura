@@ -44,6 +44,8 @@ const selectedRequest = ref<any>(null);
 const receiveNotes = ref('');
 const receiptPhoto = ref<File | null>(null);
 const receiverSignature = ref<File | null>(null);
+const receiveTemperatureMin = ref<number | string>('');
+const receiveTemperatureMax = ref<number | string>('');
 
 // Create Form State
 const newRequestForm = ref({
@@ -142,6 +144,13 @@ const openDetailModal = (req: any) => {
     receiveNotes.value = '';
     receiptPhoto.value = null;
     receiverSignature.value = null;
+    receiveTemperatureMin.value = '';
+    receiveTemperatureMax.value = '';
+    selectedRequest.value.items.forEach((item: any) => {
+        item.received_good_quantity = Number(item.received_good_quantity ?? item.received_quantity ?? item.approved_quantity ?? item.requested_quantity ?? 0);
+        item.received_damaged_quantity = Number(item.received_damaged_quantity ?? 0);
+        item.received_expired_quantity = Number(item.received_expired_quantity ?? 0);
+    });
     isDetailModalOpen.value = true;
 };
 
@@ -165,17 +174,18 @@ const receiveGoods = async () => {
         const payload = new FormData();
         selectedRequest.value.items.forEach((item: any, index: number) => {
             payload.append(`items[${index}][id]`, String(item.id));
-            payload.append(
-                `items[${index}][received_quantity]`,
-                String(
-                    Number(
-                        item.received_quantity ??
-                            item.approved_quantity ??
-                            item.requested_quantity,
-                    ),
-                ),
-            );
+            const good = Number(item.received_good_quantity ?? item.received_quantity ?? 0);
+            const damaged = Number(item.received_damaged_quantity ?? 0);
+            const expired = Number(item.received_expired_quantity ?? 0);
+            const total = good + damaged + expired;
+            payload.append(`items[${index}][received_quantity]`, String(total));
+            payload.append(`items[${index}][received_good_quantity]`, String(good));
+            payload.append(`items[${index}][received_damaged_quantity]`, String(damaged));
+            payload.append(`items[${index}][received_expired_quantity]`, String(expired));
+            payload.append(`items[${index}][received_condition]`, damaged + expired > 0 ? 'damaged' : (total < Number(item.approved_quantity ?? item.requested_quantity ?? 0) ? 'shortage' : 'good'));
         });
+        if (receiveTemperatureMin.value !== '') payload.append('received_temperature_min_c', String(receiveTemperatureMin.value));
+        if (receiveTemperatureMax.value !== '') payload.append('received_temperature_max_c', String(receiveTemperatureMax.value));
         if (receiveNotes.value.trim()) {
             payload.append('notes', receiveNotes.value.trim());
         }
@@ -718,6 +728,14 @@ const getStatusBadge = (status: string) => {
                                 @change="setEvidenceFile('signature', $event)"
                             />
                         </label>
+                        <label class="space-y-1 text-xs font-semibold">
+                            Nhiệt độ thấp nhất (°C)
+                            <input v-model="receiveTemperatureMin" type="number" step="0.1" class="block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-normal" />
+                        </label>
+                        <label class="space-y-1 text-xs font-semibold">
+                            Nhiệt độ cao nhất (°C)
+                            <input v-model="receiveTemperatureMax" type="number" step="0.1" class="block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-normal" />
+                        </label>
                         <div class="flex items-end text-[11px] text-slate-500">
                             Nếu nhận thiếu, bắt buộc có đủ ảnh và chữ ký để tạo hồ sơ tranh chấp.
                         </div>
@@ -779,20 +797,12 @@ const getStatusBadge = (status: string) => {
                                             }}
                                         </td>
                                         <td class="p-3 text-right">
-                                            <input
-                                                v-if="
-                                                    selectedRequest.status ===
-                                                        'dispatched' &&
-                                                    canReceiveRequests
-                                                "
-                                                type="number"
-                                                step="0.1"
-                                                min="0"
-                                                v-model.number="
-                                                    item.received_quantity
-                                                "
-                                                class="w-20 rounded border border-slate-300 px-2 py-1 text-right font-bold text-emerald-600 focus:outline-none"
-                                            />
+                                            <div v-if="selectedRequest.status === 'dispatched' && canReceiveRequests" class="space-y-1">
+                                                <input type="number" step="0.001" min="0" v-model.number="item.received_good_quantity" class="w-24 rounded border border-emerald-300 px-2 py-1 text-right font-bold text-emerald-600 focus:outline-none" placeholder="Tốt" />
+                                                <input type="number" step="0.001" min="0" v-model.number="item.received_damaged_quantity" class="w-24 rounded border border-rose-300 px-2 py-1 text-right font-bold text-rose-600 focus:outline-none" placeholder="Hỏng" />
+                                                <input type="number" step="0.001" min="0" v-model.number="item.received_expired_quantity" class="w-24 rounded border border-amber-300 px-2 py-1 text-right font-bold text-amber-600 focus:outline-none" placeholder="Hết hạn" />
+                                                <div class="text-[10px] text-slate-500">Tổng: {{ Number(item.received_good_quantity || 0) + Number(item.received_damaged_quantity || 0) + Number(item.received_expired_quantity || 0) }}</div>
+                                            </div>
                                             <span
                                                 v-else
                                                 class="font-bold text-emerald-600"
