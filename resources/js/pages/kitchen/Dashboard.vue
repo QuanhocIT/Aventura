@@ -953,7 +953,7 @@ void throttledReload;
     }, 300);
 
     if (Echo && restaurantId) {
-        Echo.channel(`kitchen.${restaurantId}`).listen(
+        Echo.private(`kitchen.${restaurantId}`).listen(
             '.kitchen.updated',
             (e: any) => {
                 kitchenEventBatcher.push(e);
@@ -961,7 +961,7 @@ void throttledReload;
         );
 
         // Lắng nghe thay đổi kho/thực đơn để hot-reload
-        Echo.channel(`restaurant.${restaurantId}`).listen(
+        Echo.private(`restaurant.${restaurantId}`).listen(
             '.product.stock_updated',
             (e: any) => {
                 productEventBatcher.push(e);

@@ -232,7 +232,7 @@ onMounted(() => {
     const restaurantId = user.value.restaurant_id;
 
     if (window.Echo) {
-        window.Echo.channel(`restaurant.${restaurantId}`)
+        window.Echo.private(`restaurant.${restaurantId}`)
             // 1. Listening to new QR order alerts
             .listen('.temporary_order.created', (e: any) => {
                 playAlarm('normal');

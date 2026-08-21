@@ -81,7 +81,7 @@ export function useCashierRealtime(restaurantId: () => number | undefined) {
             // QR temporary orders use a public restaurant channel so the cashier
             // screen refreshes when a customer submits, confirms a revision, or
             // when staff rejects/approves the request.
-            window.Echo.channel(`restaurant.${restId}`)
+            window.Echo.private(`restaurant.${restId}`)
                 .listen('.temporary_order.created', () => {
                     router.reload({
                         only: ['qrOrders', 'tablesData'],
@@ -93,7 +93,7 @@ export function useCashierRealtime(restaurantId: () => number | undefined) {
                     });
                 });
 
-            window.Echo.channel(`kitchen.${restId}`)
+            window.Echo.private(`kitchen.${restId}`)
                 .listen('.kitchen.updated', () => {
                     router.reload({
                         only: ['kitchenReadyItems', 'tablesData'],

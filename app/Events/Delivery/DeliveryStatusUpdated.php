@@ -4,6 +4,7 @@ namespace App\Events\Delivery;
 
 use App\Models\Delivery\DeliveryBatch;
 use App\Models\Delivery\DeliveryBatchItem;
+use Illuminate\Broadcasting\Channel;
 use Illuminate\Broadcasting\InteractsWithSockets;
 use Illuminate\Broadcasting\PrivateChannel;
 use Illuminate\Contracts\Broadcasting\ShouldBroadcastNow;
@@ -23,7 +24,14 @@ class DeliveryStatusUpdated implements ShouldBroadcastNow
     {
         $restaurantId = $this->batch?->restaurant_id ?? $this->item->batch?->restaurant_id;
 
-        return [new PrivateChannel("delivery.{$restaurantId}")];
+        $channels = [new PrivateChannel("delivery.{$restaurantId}")];
+        $trackingToken = $this->item->order?->tracking_token;
+
+        if ($trackingToken) {
+            $channels[] = new Channel("order.{$trackingToken}");
+        }
+
+        return $channels;
     }
 
     public function broadcastWith(): array

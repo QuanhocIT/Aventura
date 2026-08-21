@@ -2,6 +2,7 @@
 
 namespace App\Observers;
 
+use App\Events\OrderStatusUpdated;
 use App\Jobs\LogDiscountAppliedJob;
 use App\Jobs\SendReviewRequestEmail;
 use App\Models\Order;
@@ -10,6 +11,13 @@ class OrderObserver
 {
     public function updated(Order $order): void
     {
+        if (
+            $order->tracking_token
+            && ($order->isDirty('status') || $order->isDirty('payment_status'))
+        ) {
+            event(new OrderStatusUpdated($order));
+        }
+
         if ($order->isDirty('status') && $order->status === 'completed') {
             $order->loadMissing('customer');
             if ($order->customer && ! empty($order->customer->email)) {

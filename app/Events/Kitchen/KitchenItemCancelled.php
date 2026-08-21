@@ -2,8 +2,8 @@
 
 namespace App\Events\Kitchen;
 
-use Illuminate\Broadcasting\Channel;
 use Illuminate\Broadcasting\InteractsWithSockets;
+use Illuminate\Broadcasting\PrivateChannel;
 use Illuminate\Contracts\Broadcasting\ShouldBroadcastNow;
 use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Queue\SerializesModels;
@@ -23,14 +23,17 @@ class KitchenItemCancelled implements ShouldBroadcastNow
         public int $cancelledCount,
         public ?int $orderId = null,
         public array $orderIds = [],
+        public ?string $tableToken = null,
     ) {}
 
     public function broadcastOn(): array
     {
-        return [
-            new Channel("kitchen.{$this->restaurantId}"),
-            new Channel("restaurant.{$this->restaurantId}"),
+        $channels = [
+            new PrivateChannel("kitchen.{$this->restaurantId}"),
+            new PrivateChannel("restaurant.{$this->restaurantId}"),
         ];
+
+        return $channels;
     }
 
     public function broadcastAs(): string

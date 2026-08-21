@@ -3,7 +3,7 @@
 namespace App\Events;
 
 use App\Models\PurchaseOrder;
-use Illuminate\Broadcasting\Channel;
+use Illuminate\Broadcasting\PrivateChannel;
 use Illuminate\Broadcasting\InteractsWithSockets;
 use Illuminate\Contracts\Broadcasting\ShouldBroadcastNow;
 use Illuminate\Foundation\Events\Dispatchable;
@@ -17,7 +17,7 @@ class PurchaseOrderPlaced implements ShouldBroadcastNow
 
     public function broadcastOn(): array
     {
-        return [new Channel("supplier.{$this->purchaseOrder->supplier_id}")];
+        return [new PrivateChannel("supplier.{$this->purchaseOrder->supplier_id}")];
     }
 
     public function broadcastAs(): string

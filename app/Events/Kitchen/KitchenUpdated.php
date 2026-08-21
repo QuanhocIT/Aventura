@@ -2,7 +2,7 @@
 
 namespace App\Events\Kitchen;
 
-use Illuminate\Broadcasting\Channel;
+use Illuminate\Broadcasting\PrivateChannel;
 use Illuminate\Broadcasting\InteractsWithSockets;
 use Illuminate\Contracts\Broadcasting\ShouldBroadcastNow;
 use Illuminate\Foundation\Events\Dispatchable;
@@ -16,7 +16,7 @@ class KitchenUpdated implements ShouldBroadcastNow
 
     public function broadcastOn(): array
     {
-        return [new Channel("kitchen.{$this->restaurantId}")];
+        return [new PrivateChannel("kitchen.{$this->restaurantId}")];
     }
 
     public function broadcastAs(): string

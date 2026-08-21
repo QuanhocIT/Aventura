@@ -3,7 +3,7 @@
 namespace App\Events\Customer;
 
 use App\Models\TemporaryOrder;
-use Illuminate\Broadcasting\Channel;
+use Illuminate\Broadcasting\PrivateChannel;
 use Illuminate\Broadcasting\InteractsWithSockets;
 use Illuminate\Contracts\Broadcasting\ShouldBroadcastNow;
 use Illuminate\Foundation\Events\Dispatchable;
@@ -17,12 +17,7 @@ class TemporaryOrderUpdated implements ShouldBroadcastNow
 
     public function broadcastOn(): array
     {
-        $tableToken = $this->temporaryOrder->table?->qr_token ?? $this->temporaryOrder->table_id;
-
-        return [
-            new Channel("restaurant.{$this->temporaryOrder->restaurant_id}"),
-            new Channel("table.{$tableToken}"),
-        ];
+        return [new PrivateChannel("restaurant.{$this->temporaryOrder->restaurant_id}")];
     }
 
     public function broadcastAs(): string

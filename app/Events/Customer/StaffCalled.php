@@ -2,7 +2,7 @@
 
 namespace App\Events\Customer;
 
-use Illuminate\Broadcasting\Channel;
+use Illuminate\Broadcasting\PrivateChannel;
 use Illuminate\Broadcasting\InteractsWithSockets;
 use Illuminate\Contracts\Broadcasting\ShouldBroadcastNow;
 use Illuminate\Foundation\Events\Dispatchable;
@@ -21,7 +21,7 @@ class StaffCalled implements ShouldBroadcastNow
 
     public function broadcastOn(): array
     {
-        return [new Channel("restaurant.{$this->restaurantId}")];
+        return [new PrivateChannel("restaurant.{$this->restaurantId}")];
     }
 
     public function broadcastAs(): string
