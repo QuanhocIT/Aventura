@@ -137,6 +137,7 @@ const props = defineProps<{
         branch_id: number | null;
         compensation_type: 'fixed' | 'hourly' | 'shift';
         rate: number;
+        revenue_percent?: number | null;
         estimated_monthly: number;
     }>;
 }>();

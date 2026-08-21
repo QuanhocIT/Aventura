@@ -276,7 +276,7 @@ function scheduleRealtimeRefresh() {
 
 onMounted(() => {
     if (Echo) {
-        Echo.channel('superadmin.dashboard').listen(
+        Echo.private('superadmin.dashboard').listen(
             '.superadmin.dashboard.updated',
             () => {
                 scheduleRealtimeRefresh();

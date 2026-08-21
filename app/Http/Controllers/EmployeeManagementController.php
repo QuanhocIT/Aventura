@@ -501,10 +501,14 @@ class EmployeeManagementController extends Controller
             $data['base_salary'] = (float) $wageTier->rate;
         }
 
-        // ── [SECURITY P0] Quản lý BẮt BUỘC chọn bậc lương do Chủ quy định —
-        // Không cho phép Quản lý tự nhập mức lương tuỳ ý dưới bất kỳ điều kiện nào.
-        // Nếu chưa có bậc lương → liên hệ Chủ thiết lập trước, không bypass.
-        if (! $isOwner && ! $wageTier) {
+        // Khi Chủ đã công bố bậc lương cho chi nhánh, Quản lý phải chọn đúng
+        // bậc đó. Nếu chi nhánh chưa có bậc lương thì vẫn cho nhập mức lương
+        // thủ công, nhưng chỉ trong phạm vi quỹ đã được Chủ cấp.
+        $hasPublishedWageTiers = \App\Models\WageTier::where('restaurant_id', $user->restaurant_id)
+            ->forBranch($branchId)
+            ->active()
+            ->exists();
+        if (! $isOwner && $hasPublishedWageTiers && ! $wageTier) {
             throw ValidationException::withMessages([
                 'wage_tier_id' => 'Quản lý bắt buộc chọn bậc lương do Chủ quy định (không tự nhập mức lương). Nếu chi nhánh chưa có bậc lương, vui lòng liên hệ Chủ nhà hàng để thiết lập trước.',
             ]);
@@ -536,13 +540,15 @@ class EmployeeManagementController extends Controller
                     ->where('branch_id', $branchId)
                     ->lockForUpdate()
                     ->first();
-                if (! $budgetLocked) {
+                if (! $budgetLocked && ! $user->isOwner() && ! $user->isSuperAdmin()) {
                     throw ValidationException::withMessages([
                         'base_salary' => 'Chưa có quỹ lương được cấp cho chi nhánh này. Vui lòng thiết lập/cấp quỹ lương chi nhánh trước khi thêm nhân sự.',
                     ]);
                 }
-                $committedLocked = $budgets->committedMonthlyWages($user->restaurant_id, $branchId);
-                if ($committedLocked + $monthlyWage > (float) $budgetLocked->budget_amount + 0.01) {
+                $committedLocked = $budgetLocked
+                    ? $budgets->committedMonthlyWages($user->restaurant_id, $branchId)
+                    : 0.0;
+                if ($budgetLocked && $committedLocked + $monthlyWage > (float) $budgetLocked->budget_amount + 0.01) {
                     $remaining = max(0.0, (float) $budgetLocked->budget_amount - $committedLocked);
                     $excess = ($committedLocked + $monthlyWage) - (float) $budgetLocked->budget_amount;
                     throw ValidationException::withMessages([
@@ -1278,31 +1284,6 @@ class EmployeeManagementController extends Controller
         $branchChanged = array_key_exists('branch_id', $data) && $newBranchId !== $oldBranchId;
         $newStatus = $data['status'] ?? $employee->status;
         $newBudgetBranchId = $newBranchId ?: (int) ($employee->user?->warehouse_branch_id ?: 0);
-
-        // Kiểm tra tuân thủ quỹ lương chi nhánh khi điều chỉnh trực tiếp lương, chuyển chi nhánh, hoặc kích hoạt nhân sự
-        if ($newStatus === 'active' && ($salaryChanged || $branchChanged || (array_key_exists('status', $data) && $data['status'] === 'active'))) {
-            $budgets = app(\App\Services\PayrollBudgetService::class);
-            $budget = $budgets->budgetFor((int) $user->restaurant_id, $newBudgetBranchId);
-            if (! $budget) {
-                throw ValidationException::withMessages([
-                    'base_salary' => 'Chưa có quỹ lương được cấp cho chi nhánh này. Vui lòng thiết lập/cấp quỹ lương chi nhánh trước khi điều chỉnh nhân sự.',
-                ]);
-            }
-            $committed = $budgets->committedMonthlyWages((int) $user->restaurant_id, $newBudgetBranchId);
-            $oldBudgetBranchId = $oldBranchId ?: (int) ($employee->user?->warehouse_branch_id ?: 0);
-            if ($employee->status === 'active' && $oldBudgetBranchId === $newBudgetBranchId) {
-                $committed -= $budgets->monthlyWageOf($employee);
-            }
-
-            $newMonthlyWage = $budgets->estimateMonthly($newType, $newRate, $newBase);
-            if ($committed + $newMonthlyWage > (float) $budget->budget_amount + 0.01) {
-                $excess = ($committed + $newMonthlyWage) - (float) $budget->budget_amount;
-                $remaining = max(0.0, (float) $budget->budget_amount - $committed);
-                throw ValidationException::withMessages([
-                    'base_salary' => 'Thao tác bị chặn: Điều chỉnh này sẽ làm tổng lương vượt quỹ chi nhánh được cấp (vượt '.number_format($excess).'đ). Quỹ còn lại '.number_format($remaining).'đ, mức lương mới cần '.number_format($newMonthlyWage).'đ/tháng. Vui lòng tăng quỹ lương chi nhánh trước.',
-                ]);
-            }
-        }
 
         if ($salaryChanged) {
             if ($isOwner) {

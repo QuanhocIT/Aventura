@@ -938,8 +938,8 @@ async function copyPhone(phone: string) {
                 <aside class="space-y-4 xl:sticky xl:top-4">
                     <!-- Không hiển thị hồ sơ chi tiết người đặt trên màn hình này. -->
                     <section
-                        v-if="false"
-                        class="overflow-hidden rounded-xl border border-border bg-background shadow-none"
+                        v-if="selected"
+                        class="hidden overflow-hidden rounded-xl border border-border bg-background shadow-none"
                     >
                         <div
                             class="flex items-start justify-between border-b border-border p-5"

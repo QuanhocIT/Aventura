@@ -7,6 +7,7 @@ use App\Events\Kitchen\KitchenItemCancelled;
 use App\Events\Kitchen\KitchenUpdated;
 use App\Models\AuditLog;
 use App\Models\Ingredient;
+use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\Product;
 use App\Models\ProductBranchPause;
@@ -237,9 +238,10 @@ class KitchenController extends Controller
         ]);
 
         if ($item->order_id) {
-            \App\Models\Order::where('id', $item->order_id)
+            Order::where('id', $item->order_id)
                 ->whereIn('status', ['pending', 'confirmed'])
                 ->update(['status' => 'preparing']);
+            $this->broadcastTrackedOrders([$item->order_id]);
         }
 
         $this->broadcastSafely(
@@ -297,9 +299,10 @@ class KitchenController extends Controller
         ]);
 
         if ($item->order_id) {
-            \App\Models\Order::where('id', $item->order_id)
+            Order::where('id', $item->order_id)
                 ->whereIn('status', ['pending', 'confirmed'])
                 ->update(['status' => 'preparing']);
+            $this->broadcastTrackedOrders([$item->order_id]);
         }
 
         $this->broadcastSafely(
@@ -344,9 +347,10 @@ class KitchenController extends Controller
 
         if ($updatedCount > 0) {
             if ($orderIds->isNotEmpty()) {
-                \App\Models\Order::whereIn('id', $orderIds)
+                Order::whereIn('id', $orderIds)
                     ->whereIn('status', ['pending', 'confirmed'])
                     ->update(['status' => 'preparing']);
+                $this->broadcastTrackedOrders($orderIds->all());
             }
 
             $this->broadcastSafely(
@@ -801,6 +805,7 @@ class KitchenController extends Controller
                 cancelledCount: $cancelledCount,
                 orderId: $item->order_id,
                 orderIds: $affectedOrderIds,
+                tableToken: $item->order?->table?->qr_token,
             ),
             'kitchen.item_cancelled',
         );
@@ -858,5 +863,17 @@ class KitchenController extends Controller
                 'error' => $exception->getMessage(),
             ]);
         }
+    }
+
+    private function broadcastTrackedOrders(iterable $orderIds): void
+    {
+        Order::withoutGlobalScopes()
+            ->whereIn('id', collect($orderIds)->filter()->values())
+            ->whereNotNull('tracking_token')
+            ->get()
+            ->each(fn (Order $order) => $this->broadcastSafely(
+                new \App\Events\OrderStatusUpdated($order),
+                'order.updated',
+            ));
     }
 }

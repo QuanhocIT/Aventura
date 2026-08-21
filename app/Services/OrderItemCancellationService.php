@@ -21,7 +21,7 @@ class OrderItemCancellationService
      * Cancel one complete order item after the caller has authenticated the
      * operation (cashier confirmation or manager approval).
      *
-     * @return array{product_name:string, table_name:string, quantity:float, order_id:int, refund_amount:float, was_started:bool}
+     * @return array{product_name:string, table_name:string, table_token:?string, quantity:float, order_id:int, refund_amount:float, was_started:bool}
      */
     public function cancel(OrderItem $item, User $user, string $reason): array
     {
@@ -150,6 +150,7 @@ class OrderItemCancellationService
             return [
                 'product_name' => $lockedItem->product?->name ?? 'Món ăn',
                 'table_name' => $order->table?->name ?? 'Mang về',
+                'table_token' => $order->table?->qr_token,
                 'quantity' => (float) $lockedItem->quantity,
                 'order_id' => (int) $order->id,
                 'refund_amount' => $refundAmount,
@@ -177,6 +178,7 @@ class OrderItemCancellationService
                 cancelledCount: (int) round($result['quantity']),
                 orderId: $result['order_id'],
                 orderIds: [$result['order_id']],
+                tableToken: $result['table_token'] ?? null,
             ));
         } catch (\Throwable $exception) {
             Log::warning('Kitchen cancellation notification skipped.', [

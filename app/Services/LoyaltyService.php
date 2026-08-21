@@ -434,7 +434,10 @@ class LoyaltyService
         }
 
         $qrService = app(QrCodeService::class);
-        $token = hash('sha256', $customer->restaurant_id.$customer->phone.config('app.key'));
+        $token = app(CustomerPortalAccessService::class)->issue(
+            (int) $customer->restaurant_id,
+            (string) $customer->phone,
+        );
         $url = url("/customer/portal/dashboard/{$customer->restaurant_id}/{$customer->phone}?token={$token}");
 
         return $qrService->renderSvg($url);

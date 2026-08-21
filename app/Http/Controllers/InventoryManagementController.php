@@ -1057,17 +1057,19 @@ class InventoryManagementController extends Controller
                     'suggested_purchase' => $suggested,
                     'confidence_score' => null,
                     'data_status' => 'insufficient_data',
-                    'reason' => 'Chưa đủ dữ liệu tiêu thụ lịch sử trong 30 ngày qua để dự báo xu hướng.',
+                    'reason' => 'Chưa đủ dữ liệu tiêu thụ lịch sử trong 30 ngày qua để dự báo xu hướng. [Nguồn: Laravel Fallback]',
                 ];
             }
 
             $avgDailyUsage = round($totalUsage / 30.0, 2);
-            $predictedUsageNext7Days = round($avgDailyUsage * 7 * 1.05, 2);
-            $leadTimeDays = (int) ($ing->lead_time_days ?? 2);
+            $predictedUsageNext7Days = round($avgDailyUsage * 7 * 1.10, 2);
+            // Chỉ cộng buffer lead-time khi nguyên liệu có cấu hình rõ ràng;
+            // không tự bịa 2 ngày khi schema/dữ liệu cũ chưa có trường này.
+            $leadTimeDays = (int) ($ing->lead_time_days ?? 0);
             $bufferSafetyStock = round($avgDailyUsage * $leadTimeDays, 2);
             $suggestedPurchase = max(0.0, round(($predictedUsageNext7Days + $bufferSafetyStock + $minStock) - $currentStock, 2));
             $confidenceScore = min(95.0, round(50.0 + ($activeDays / 30.0 * 45.0), 1));
-            $reason = "Dự báo dựa trên mức tiêu thụ trung bình {$avgDailyUsage} {$ing->unit?->symbol}/ngày ({$activeDays} ngày có phát sinh xuất kho 30 ngày qua).";
+            $reason = "Dự báo dựa trên mức tiêu thụ trung bình {$avgDailyUsage} {$ing->unit?->symbol}/ngày ({$activeDays} ngày có phát sinh xuất kho 30 ngày qua). [Nguồn: Laravel Fallback]";
 
             return [
                 'ingredient_id' => $ing->id,

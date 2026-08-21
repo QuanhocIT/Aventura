@@ -177,6 +177,7 @@ class OnlineOrderService
                     'restaurant_id' => $config->restaurant_id,
                     'branch_id' => $branchId,
                     'customer_id' => $customer?->id,
+                    'customer_email' => $data['customer_email'] ?? null,
                     'order_number' => 'ON'.strtoupper(Str::random(8)),
                     'client_request_id' => $clientRequestId !== '' ? $clientRequestId : null,
                     'channel' => $channel === 'delivery' ? 'delivery' : 'takeaway',

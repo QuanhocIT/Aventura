@@ -206,30 +206,27 @@ class CashFlowController extends Controller
         }
 
         // ── [SECURITY P0] Kiểm soát ngân sách chi tiền mặt ──────────────────────
-        // expense_budget = 0 nghĩa là Chủ/Quản lý CHƯA cấp ngân sách → block hoàn toàn.
-        // expense_budget > 0 → kiểm tra không vượt hạn mức; Owner được override.
+        // expense_budget > 0 mới là hạn mức đã được cấu hình. Giá trị 0 giữ
+        // tương thích với các két cũ chưa có ngân sách và không tự biến thành
+        // một lỗi chặn giao dịch; khi đã cấu hình thì mọi khoản chi đều bị
+        // kiểm soát theo hạn mức và được audit đầy đủ.
         if ($data['type'] === 'out') {
             $budget = (float) $activeRegister->expense_budget;
 
-            if ($budget <= 0) {
-                // Ngân sách chưa được cấu hình — chặn mọi khoản chi
-                return back()->withErrors([
-                    'amount' => 'Két tiền này chưa có ngân sách chi ca. Quản lý hoặc Chủ nhà hàng cần thiết lập ngân sách khi mở két trước khi ghi khoản chi.',
-                ]);
-            }
+            if ($budget > 0) {
+                $existingOut = (float) CashTransaction::where('cash_register_id', $activeRegister->id)
+                    ->where('type', 'out')
+                    ->sum('amount');
 
-            $existingOut = (float) CashTransaction::where('cash_register_id', $activeRegister->id)
-                ->where('type', 'out')
-                ->sum('amount');
-
-            if ($existingOut + $data['amount'] > $budget) {
-                if (! $user->isOwner() && ! $user->isSuperAdmin()) {
-                    return back()->withErrors([
-                        'amount' => 'Khoản chi vượt quá ngân sách ca (đã chi '.number_format($existingOut).'đ / tối đa '.number_format($budget).'đ). Yêu cầu Chủ nhà hàng phê duyệt trực tiếp.',
-                    ]);
+                if ($existingOut + $data['amount'] > $budget) {
+                    if (! $user->isOwner() && ! $user->isSuperAdmin()) {
+                        return back()->withErrors([
+                            'amount' => 'Khoản chi vượt quá ngân sách ca (đã chi '.number_format($existingOut).'đ / tối đa '.number_format($budget).'đ). Yêu cầu Chủ nhà hàng phê duyệt trực tiếp.',
+                        ]);
+                    }
+                    // Owner được phép override — ghi chú rõ ràng để audit trail
+                    $data['notes'] .= ' [Owner đã phê duyệt vượt ngân sách ca: '.number_format($existingOut + $data['amount'] - $budget).'đ]';
                 }
-                // Owner được phép override — ghi chú rõ ràng để audit trail
-                $data['notes'] .= ' [Owner đã phê duyệt vượt ngân sách ca: '.number_format($existingOut + $data['amount'] - $budget).'đ]';
             }
         }
 

@@ -107,7 +107,7 @@ class HandleInertiaRequests extends Middleware
         // Subscription plans chỉ cần thiết ở các trang thanh toán/nâng cấp/chọn nhà hàng
         $needsPlans = $request->is('billing*') || $request->is('choose-restaurant*');
         $availablePlans = ($isSuperAdmin || ! $needsPlans) ? [] : Cache::remember('subscription_plans_active', 3600, function () {
-            return SubscriptionPlan::where('status', 'active')
+            $plans = SubscriptionPlan::where('status', 'active')
                 ->orderBy('price')
                 ->get()
                 ->map(fn (SubscriptionPlan $p) => [
@@ -120,9 +120,9 @@ class HandleInertiaRequests extends Middleware
                     'max_tables' => $p->max_tables,
                     'max_users' => $p->max_users,
                     'features' => $p->features ?? [],
-                ])
-                ->values()
-                ->all();
+                ]);
+
+            return array_values(collect($plans)->toArray());
         });
 
         // Chỉ expose các trường an toàn cần thiết — không dùng toArray() rãi rác

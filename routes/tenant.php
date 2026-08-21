@@ -682,17 +682,17 @@ Route::middleware(['auth', 'verified', 'tenant.subscription', 'tenant.ratelimit'
 
     Route::get('inventory/branch-requisition', [SupplyRequestController::class, 'branchRequisitionPage'])->middleware('role_or_permission:owner|super_admin|supply_requests.create|supply_requests.receive')->name('inventory.branch-requisition');
     Route::post('api/supply-requests', [SupplyRequestController::class, 'store'])->middleware('role_or_permission:owner|super_admin|supply_requests.create')->name('supply-requests.store');
-    Route::post('api/supply-requests/{id}/approve', [SupplyRequestController::class, 'approve'])->middleware(['role_or_permission:owner|super_admin|supply_requests.approve', 'prevent_self_approval:approve'])->name('supply-requests.approve');
-    Route::post('api/supply-requests/{id}/prepare', [SupplyRequestController::class, 'prepare'])->middleware('role_or_permission:owner|super_admin|warehouse.pack|warehouse.pick|supply_requests.dispatch')->name('supply-requests.prepare');
-    Route::post('api/supply-requests/{id}/approve-dispatch', [SupplyRequestController::class, 'approveDispatch'])->middleware(['role_or_permission:owner|super_admin|supply_requests.dispatch_approve|supply_requests.dispatch', 'prevent_self_approval:dispatch_approve'])->name('supply-requests.approve-dispatch');
-    Route::post('api/supply-requests/{id}/dispatch', [SupplyRequestController::class, 'dispatch'])->middleware(['role_or_permission:owner|super_admin|warehouse.handover|supply_requests.dispatch', 'prevent_self_approval:dispatch'])->name('supply-requests.dispatch');
+    Route::post('api/supply-requests/{id}/approve', [SupplyRequestController::class, 'approve'])->middleware(['role_or_permission:owner|super_admin|warehouse_manager|supply_requests.approve', 'prevent_self_approval:approve'])->name('supply-requests.approve');
+    Route::post('api/supply-requests/{id}/prepare', [SupplyRequestController::class, 'prepare'])->middleware('role_or_permission:owner|super_admin|warehouse_manager|warehouse.pack|warehouse.pick|supply_requests.dispatch')->name('supply-requests.prepare');
+    Route::post('api/supply-requests/{id}/approve-dispatch', [SupplyRequestController::class, 'approveDispatch'])->middleware(['role_or_permission:owner|super_admin|warehouse_manager|supply_requests.dispatch_approve|supply_requests.dispatch', 'prevent_self_approval:dispatch_approve'])->name('supply-requests.approve-dispatch');
+    Route::post('api/supply-requests/{id}/dispatch', [SupplyRequestController::class, 'dispatch'])->middleware(['role_or_permission:owner|super_admin|warehouse_manager|warehouse.handover|supply_requests.dispatch', 'prevent_self_approval:dispatch'])->name('supply-requests.dispatch');
     Route::get('api/supply-requests/{id}/proof/{type}', [WarehouseTaskController::class, 'viewProof'])->name('supply-requests.proof');
     Route::post('api/supply-requests/{id}/receive', [SupplyRequestController::class, 'receive'])->middleware(['role_or_permission:owner|super_admin|supply_requests.receive', 'prevent_self_approval:receive'])->name('supply-requests.receive');
-    Route::post('api/supply-requests/{id}/reject', [SupplyRequestController::class, 'reject'])->middleware('role_or_permission:owner|super_admin|supply_requests.approve')->name('supply-requests.reject');
-    Route::post('api/supply-requests/{id}/cancel', [SupplyRequestController::class, 'cancel'])->middleware('role_or_permission:owner|super_admin|supply_requests.cancel')->name('supply-requests.cancel');
-    Route::post('api/supply-requests/set-central-branch', [SupplyRequestController::class, 'setCentralBranch'])->middleware('role_or_permission:owner|super_admin|warehouse.manage')->name('supply-requests.set-central-branch');
-    Route::post('api/supply-requests/smart-allocation', [SupplyRequestController::class, 'smartAllocation'])->middleware('role_or_permission:owner|super_admin|warehouse.manage|supply_requests.approve')->name('supply-requests.smart-allocation');
-    Route::post('api/supply-requests/{id}/create-backorder', [SupplyRequestController::class, 'createBackorder'])->middleware('role_or_permission:owner|super_admin|warehouse.manage|supply_requests.dispatch')->name('supply-requests.create-backorder');
+    Route::post('api/supply-requests/{id}/reject', [SupplyRequestController::class, 'reject'])->middleware('role_or_permission:owner|super_admin|warehouse_manager|supply_requests.approve')->name('supply-requests.reject');
+    Route::post('api/supply-requests/{id}/cancel', [SupplyRequestController::class, 'cancel'])->middleware('role_or_permission:owner|super_admin|warehouse_manager|supply_requests.cancel')->name('supply-requests.cancel');
+    Route::post('api/supply-requests/set-central-branch', [SupplyRequestController::class, 'setCentralBranch'])->middleware('role_or_permission:owner|super_admin|warehouse_manager|warehouse.manage')->name('supply-requests.set-central-branch');
+    Route::post('api/supply-requests/smart-allocation', [SupplyRequestController::class, 'smartAllocation'])->middleware('role_or_permission:owner|super_admin|warehouse_manager|warehouse.manage|supply_requests.approve')->name('supply-requests.smart-allocation');
+    Route::post('api/supply-requests/{id}/create-backorder', [SupplyRequestController::class, 'createBackorder'])->middleware('role_or_permission:owner|super_admin|warehouse_manager|warehouse.manage|supply_requests.dispatch')->name('supply-requests.create-backorder');
     Route::post('api/warehouse/ingredient-prices', [CentralWarehousePriceController::class, 'updateIngredientPrices'])
         ->middleware('role_or_permission:owner|super_admin')
         ->name('warehouse.ingredient-prices.update');
@@ -730,6 +730,9 @@ Route::middleware(['auth', 'verified', 'tenant.subscription', 'tenant.ratelimit'
     Route::post('api/delivery-manifests/{id}/dispatch', [DeliveryManifestController::class, 'dispatch'])
         ->middleware('role_or_permission:owner|super_admin|warehouse.handover|warehouse.manage|warehouse_manager')
         ->name('delivery-manifests.dispatch');
+    Route::post('api/delivery-manifests/{id}/complete', [DeliveryManifestController::class, 'complete'])
+        ->middleware('role_or_permission:owner|super_admin|warehouse_manager|warehouse_staff|supply_requests.receive')
+        ->name('delivery-manifests.complete');
 
     // Batch Recall Orders (Lệnh Thu hồi Lô Khẩn cấp 1-Click)
     Route::get('api/batch-recalls', [BatchRecallController::class, 'index'])
@@ -764,17 +767,19 @@ Route::middleware(['auth', 'verified', 'tenant.subscription', 'tenant.ratelimit'
     // Bộ Quy Tắc Siết Chặt Quản Lý Tài Chính & Quy Trách Nhiệm Kho (Dành cho Trưởng Kho)
     Route::get('inventory/warehouse-governance', [WarehouseGovernanceController::class, 'page'])->middleware('role_or_permission:owner|super_admin|warehouse_governance.view')->name('inventory.warehouse-governance');
     Route::post('api/warehouse-governance/rules', [WarehouseGovernanceController::class, 'updateRules'])->middleware('role_or_permission:owner|super_admin|warehouse_governance.manage')->name('warehouse-governance.update-rules');
-    Route::post('api/warehouse-governance/disputes/{id}/resolve', [WarehouseGovernanceController::class, 'resolveDispute'])->middleware('role_or_permission:owner|super_admin|warehouse_governance.manage')->name('warehouse-governance.resolve-dispute');
+    Route::post('api/warehouse-governance/disputes/{id}/resolve', [WarehouseGovernanceController::class, 'resolveDispute'])->middleware('role_or_permission:owner|super_admin|warehouse_manager|warehouse_governance.manage')->name('warehouse-governance.resolve-dispute');
+    Route::post('api/warehouse-governance/disputes/{id}/respond', [WarehouseGovernanceController::class, 'respondDispute'])->middleware('role_or_permission:owner|super_admin|warehouse_manager|warehouse_staff|manager')->name('warehouse-governance.respond-dispute');
 
     // Kiểm kê tồn kho nâng cao (Periodic, Spot check, Blind count)
     Route::get('inventory/count-sessions', [InventoryCountController::class, 'page'])->middleware('role_or_permission:owner|super_admin|warehouse_manager|inventory.count|inventory.adjust.approve')->name('inventory.count-sessions');
     Route::post('api/inventory/count-sessions', [InventoryCountController::class, 'store'])->middleware('role_or_permission:owner|super_admin|warehouse_manager|inventory.count')->name('inventory.count-sessions.store');
     Route::post('api/inventory/count-sessions/{id}/counts', [InventoryCountController::class, 'submitCounts'])->middleware('role_or_permission:owner|super_admin|warehouse_manager|inventory.count')->name('inventory.count-sessions.counts');
+    Route::post('api/inventory/count-sessions/{id}/second-counter', [InventoryCountController::class, 'assignSecondCounter'])->middleware('role_or_permission:owner|super_admin|warehouse_manager|inventory.count')->name('inventory.count-sessions.second-counter');
     Route::post('api/inventory/count-sessions/{id}/items/{itemId}/reconcile', [InventoryCountController::class, 'reconcileItem'])->middleware('role_or_permission:owner|super_admin|warehouse_manager|inventory.count')->name('inventory.count-sessions.items.reconcile');
     Route::post('api/inventory/count-sessions/{id}/submit-approval', [InventoryCountController::class, 'submitForApproval'])->middleware('role_or_permission:owner|super_admin|warehouse_manager|inventory.count')->name('inventory.count-sessions.submit-approval');
     Route::post('api/inventory/count-sessions/{id}/upload-proof', [InventoryCountController::class, 'uploadVarianceProof'])->middleware('role_or_permission:owner|super_admin|warehouse_manager|inventory.count')->name('inventory.count-sessions.upload-proof');
     Route::get('api/inventory/count-sessions/{id}/proof', [InventoryCountController::class, 'viewVarianceProof'])->name('inventory.count-sessions.proof');
-    Route::post('api/inventory/count-sessions/{id}/reject', [InventoryCountController::class, 'reject'])->middleware('role_or_permission:owner|super_admin|inventory.adjust.approve')->name('inventory.count-sessions.reject');
+    Route::post('api/inventory/count-sessions/{id}/reject', [InventoryCountController::class, 'reject'])->middleware('role_or_permission:owner|super_admin|warehouse_manager|inventory.adjust.approve')->name('inventory.count-sessions.reject');
     Route::post('api/inventory/count-sessions/{id}/reopen', [InventoryCountController::class, 'reopen'])->middleware('role_or_permission:owner|super_admin|warehouse_manager|inventory.count')->name('inventory.count-sessions.reopen');
     Route::post('api/inventory/count-sessions/{id}/cancel', [InventoryCountController::class, 'cancel'])->middleware('role_or_permission:owner|super_admin|warehouse_manager|inventory.count')->name('inventory.count-sessions.cancel');
     Route::post('api/inventory/count-sessions/{id}/approve', [InventoryCountController::class, 'approve'])->middleware('role_or_permission:owner|super_admin|warehouse_manager|inventory.adjust.approve')->name('inventory.count-sessions.approve');
@@ -804,7 +809,7 @@ Route::middleware(['auth', 'verified', 'tenant.subscription', 'tenant.ratelimit'
     Route::post('rfps/bids/{bid}/accept', [RfpController::class, 'acceptBid'])->name('rfps.bids.accept');
 
     // Portal Chuỗi cung ứng (Dành cho nhà cung cấp)
-    Route::prefix('supplier')->name('supplier.')->middleware('role:supplier|owner|manager')->group(function () {
+    Route::prefix('supplier')->name('supplier.')->middleware('role:supplier')->group(function () {
         Route::get('dashboard', [SupplierPortalController::class, 'supplierDashboard'])->name('dashboard');
         Route::get('catalog', [SupplierPortalController::class, 'supplierCatalog'])->name('catalog');
         Route::post('catalog', [SupplierPortalController::class, 'storeCatalogItem'])->name('catalog.store');

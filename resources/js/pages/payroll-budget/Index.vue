@@ -55,6 +55,7 @@ interface WageTier {
     name: string;
     compensation_type: CompensationType;
     rate: number;
+    revenue_percent?: number | null;
     is_active: boolean;
 }
 
@@ -675,7 +676,7 @@ async function removeTier(tier: WageTier) {
                         </div>
                         <div class="flex justify-between">
                             <span class="text-muted-foreground">Hạn mức hiện tại:</span>
-                            <span class="font-semibold">{{ selectedBranch?.budget_amount !== null ? vnd(selectedBranch.budget_amount) : 'Chưa cấp' }}</span>
+                            <span class="font-semibold">{{ selectedBranch && selectedBranch.budget_amount !== null ? vnd(selectedBranch.budget_amount) : 'Chưa cấp' }}</span>
                         </div>
                     </div>
 

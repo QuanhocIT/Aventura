@@ -689,9 +689,10 @@ function submitDispute() {
                             >
                         </div>
                         <Input
-                            v-model="item.notes"
+                            :model-value="item.notes ?? ''"
                             class="mt-3 h-8 text-xs"
                             placeholder="Ghi chú cho mục này (nếu có)"
+                            @update:model-value="item.notes = String($event ?? '')"
                         />
                     </div>
                 </div>

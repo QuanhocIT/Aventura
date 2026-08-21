@@ -2817,7 +2817,7 @@ onUnmounted(() =>
                                 </div>
                             </div>
 
-                            <div v-if="false">
+                            <div v-if="previewData" class="hidden">
                                 <div
                                     class="mb-4 flex items-center justify-between border-b pb-2"
                                 >

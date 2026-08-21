@@ -82,8 +82,9 @@ class PolicyEnforcementService
         if ($maxAmount === 0.0 && ! $isManager) {
             return [
                 'allowed' => false,
+                'requires_approval' => true,
                 'max_allowed' => $maxAmount,
-                'message' => 'Nhân viên không có quyền hủy đơn hàng.',
+                'message' => 'Nhân viên không được tự hủy đơn hàng. Cần mã phê duyệt của Quản lý/Chủ nhà hàng.',
             ];
         }
 
