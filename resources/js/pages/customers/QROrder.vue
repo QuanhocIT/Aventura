@@ -361,6 +361,7 @@ const staffRating = ref<Record<number, { rating: number; comment: string }>>(
 );
 const isSubmittingFeedback = ref(false);
 const feedbackSubmittedSuccessfully = ref(false);
+const feedbackStatusUrl = ref('');
 
 // Filtered products
 const filteredProducts = computed(() => {
@@ -638,6 +639,7 @@ async function requestPayment() {
 function initializeFeedback() {
     showFeedbackSection.value = true;
     feedbackSubmittedSuccessfully.value = false;
+    feedbackStatusUrl.value = '';
     feedbackRating.value = 5;
     feedbackContent.value = '';
 
@@ -687,11 +689,12 @@ async function submitFeedback() {
     };
 
     try {
-        await axios.post(
+        const response = await axios.post(
             `/customer/order/feedback/${props.restaurant.id}`,
             payload,
         );
         feedbackSubmittedSuccessfully.value = true;
+        feedbackStatusUrl.value = response.data.status_url || '';
         const tipsSent = Object.entries(staffTip.value)
             .filter(([_, amt]) => amt > 0)
             .reduce((sum, [_, amt]) => sum + amt, 0);
@@ -704,9 +707,6 @@ async function submitFeedback() {
             toast.success('Gửi đánh giá thành công! Cảm ơn ý kiến của bạn.');
         }
 
-        setTimeout(() => {
-            showFeedbackSection.value = false;
-        }, 2500);
     } catch {
         toast.error('Có lỗi xảy ra khi gửi đánh giá.');
     } finally {
@@ -720,6 +720,7 @@ function refetchActiveOrders() {
 }
 
 const confirmingRevisionId = ref<number | null>(null);
+const cancellingOrderId = ref<number | null>(null);
 
 async function confirmRevision(order: ActiveOrder) {
     if (confirmingRevisionId.value) {
@@ -743,6 +744,39 @@ return;
 
 function refetchMenuOnly() {
     router.reload({ only: ['products'] });
+}
+
+// Guest cancellation handler is kept at setup scope so it is available to the template.
+async function cancelOrder(order: ActiveOrder) {
+    if (
+        cancellingOrderId.value ||
+        !['waiting_verification', 'escalated'].includes(order.status)
+    ) {
+        return;
+    }
+
+    if (!window.confirm('Bạn có chắc muốn hủy yêu cầu gọi món này không?')) {
+        return;
+    }
+
+    cancellingOrderId.value = order.id;
+
+    try {
+        const response = await axios.post(
+            `/customer/order/${props.restaurant.id}/${props.table.qr_token}/temporary/${order.id}/cancel`,
+            {
+                session_id: sessionToken.value,
+                customer_phone: customerPhone.value.trim() || null,
+                reason: 'Khách tự hủy yêu cầu gọi món',
+            },
+        );
+        toast.success(response.data.message || 'Đã hủy yêu cầu gọi món.');
+        refetchActiveOrders();
+    } catch (error: any) {
+        toast.error(error.response?.data?.message || 'Không thể hủy yêu cầu gọi món.');
+    } finally {
+        cancellingOrderId.value = null;
+    }
 }
 
 const now = ref(new Date());
@@ -866,13 +900,16 @@ onMounted(() => {
                 refetchActiveOrders();
             });
 
-        // Listen to stock changes
-        window.Echo.channel(`restaurant.${props.restaurant.id}`).listen(
+        // Stock changes are deliberately exposed on a separate minimal guest
+        // channel; restaurant.{id} is private and reserved for staff events.
+        window.Echo.channel(`menu.${props.restaurant.id}`).listen(
             '.product.stock_updated',
             () => {
                 refetchMenuOnly();
             },
-        ).listen('.kitchen.item_cancelled', (e: any) => {
+        );
+
+        window.Echo.channel(`table.${props.table.qr_token}`).listen('.kitchen.item_cancelled', (e: any) => {
             const affectedOrderIds = [
                 ...(Array.isArray(e.order_ids) ? e.order_ids : []),
                 e.order_id,
@@ -1005,10 +1042,6 @@ onUnmounted(() => {
 
     if (orderPollingInterval) {
         clearInterval(orderPollingInterval);
-    }
-
-    if (paymentTimer.value) {
-        clearInterval(paymentTimer.value);
     }
 
     if (window.Echo) {
@@ -1219,6 +1252,19 @@ onUnmounted(() => {
                             }}
                         </p>
                     </div>
+
+                    <button
+                        v-if="['waiting_verification', 'escalated'].includes(order.status)"
+                        class="mb-4 w-full rounded-xl border border-rose-200 bg-white px-3 py-2 text-[11px] font-black text-rose-600 transition hover:bg-rose-50 disabled:opacity-60"
+                        :disabled="cancellingOrderId === order.id"
+                        @click="cancelOrder(order)"
+                    >
+                        {{
+                            cancellingOrderId === order.id
+                                ? 'Đang hủy...'
+                                : 'Hủy yêu cầu gọi món'
+                        }}
+                    </button>
 
                     <!-- Progress Bar Steps -->
                     <div
@@ -2328,6 +2374,15 @@ onUnmounted(() => {
                             Cảm ơn bạn đã đóng góp ý kiến giúp chúng tôi nâng
                             cao chất lượng phục vụ.
                         </p>
+                        <a
+                            v-if="feedbackStatusUrl"
+                            :href="feedbackStatusUrl"
+                            target="_blank"
+                            rel="noreferrer"
+                            class="inline-flex rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2 text-xs font-bold text-emerald-700 hover:bg-emerald-100"
+                        >
+                            Theo dõi kết quả xử lý phản hồi
+                        </a>
                     </div>
 
                     <div v-else class="space-y-6">

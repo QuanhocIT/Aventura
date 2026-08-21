@@ -296,6 +296,36 @@ class FeedbackController extends Controller
         ]);
     }
 
+    public function publicStatus(Request $request, string $feedbackToken): Response|JsonResponse
+    {
+        $feedback = CustomerFeedback::withoutGlobalScopes()
+            ->where('feedback_token', $feedbackToken)
+            ->with('restaurant')
+            ->firstOrFail();
+
+        $payload = [
+            'restaurant' => [
+                'id' => $feedback->restaurant_id,
+                'name' => $feedback->restaurant?->name ?? 'Nhà hàng',
+            ],
+            'feedback' => [
+                'rating' => (int) $feedback->rating,
+                'content' => $feedback->content,
+                'status' => $feedback->status,
+                'resolution_notes' => $feedback->resolution_notes,
+                'compensation_voucher' => $feedback->compensation_voucher,
+                'created_at' => $feedback->created_at?->toIso8601String(),
+                'updated_at' => $feedback->updated_at?->toIso8601String(),
+            ],
+        ];
+
+        if ($request->wantsJson()) {
+            return response()->json($payload);
+        }
+
+        return Inertia::render('feedback/Status', $payload);
+    }
+
     /**
      * Lưu phản hồi khách hàng công khai.
      */
@@ -394,6 +424,7 @@ class FeedbackController extends Controller
             'success' => true,
             'message' => 'Cảm ơn quý khách đã gửi đánh giá! Ý kiến của quý khách đã được tiếp nhận và xử lý.',
             'feedback_id' => $feedback->id,
+            'status_url' => route('feedback.status', $feedback->feedback_token),
         ]);
     }
 
@@ -579,6 +610,8 @@ class FeedbackController extends Controller
             'resolved_by' => $user->name,
         ]);
 
+        $this->notifyFeedbackCustomer($feedback->fresh());
+
         return back()->with('success', 'Đã lưu phương án xử lý và đền bù khủng hoảng thành công!');
     }
 
@@ -700,6 +733,8 @@ class FeedbackController extends Controller
             ]
         );
 
+        $this->notifyFeedbackCustomer($feedback->fresh());
+
         return response()->json([
             'success' => true,
             'message' => 'Đã xử lý phản hồi khách hàng theo mẫu thành công.',
@@ -707,5 +742,33 @@ class FeedbackController extends Controller
             'reply_text' => $replyText,
             'voucher_code' => $voucherCode,
         ]);
+    }
+
+    private function notifyFeedbackCustomer(CustomerFeedback $feedback): void
+    {
+        if (! $feedback->submitted_by_phone || $feedback->is_anonymous) {
+            return;
+        }
+
+        try {
+            $statusUrl = route('feedback.status', $feedback->feedback_token);
+            $message = $feedback->status === 'resolved'
+                ? "Aventura: Nhà hàng đã xử lý phản hồi của bạn. Xem kết quả"
+                : "Aventura: Phản hồi của bạn đã được chuyển đến quản lý. Xem cập nhật";
+
+            if ($feedback->compensation_voucher) {
+                $message .= " và voucher {$feedback->compensation_voucher}";
+            }
+
+            app(\App\Services\Sms\SmsService::class)->send(
+                $feedback->submitted_by_phone,
+                $message.": {$statusUrl}"
+            );
+        } catch (\Throwable $e) {
+            logger()->warning('Feedback customer notification failed.', [
+                'feedback_id' => $feedback->id,
+                'error' => $e->getMessage(),
+            ]);
+        }
     }
 }

@@ -15,6 +15,7 @@ import echo from '@/lib/echo';
 
 const props = defineProps<{
     orderNumber: string;
+    trackingToken?: string;
     tracking?: {
         order: {
             order_number: string;
@@ -48,10 +49,15 @@ const statusIcon: Record<string, any> = {
 let pollInterval: ReturnType<typeof setInterval>;
 let echoChannel: any = null;
 
+const trackingToken =
+    props.trackingToken ??
+    new URLSearchParams(window.location.search).get('token') ??
+    '';
+
 async function fetchTracking() {
     try {
         const { data } = await axios.get(
-            `/api/online/order/${props.orderNumber}/status`,
+            `/api/online/order/${props.orderNumber}/status?token=${encodeURIComponent(trackingToken)}`,
         );
         tracking.value = data;
         loading.value = false;
@@ -75,16 +81,21 @@ onMounted(() => {
     pollInterval = setInterval(fetchTracking, 15000);
 
     try {
-        echoChannel = echo.channel(`order.${props.orderNumber}`);
-        echoChannel.listen('.order.updated', () => fetchTracking());
-        echoChannel.listen('.delivery.status', () => fetchTracking());
+        if (trackingToken) {
+            echoChannel = echo.channel(`order.${trackingToken}`);
+            echoChannel.listen('.order.updated', () => fetchTracking());
+            echoChannel.listen('.delivery.status.updated', () => fetchTracking());
+        }
     } catch {}
 });
 
 onUnmounted(() => {
     clearInterval(pollInterval);
     echoChannel?.stopListening('.order.updated');
-    echoChannel?.stopListening('.delivery.status');
+    echoChannel?.stopListening('.delivery.status.updated');
+    if (trackingToken) {
+        echo.leaveChannel(`order.${trackingToken}`);
+    }
 });
 </script>
 

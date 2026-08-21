@@ -154,6 +154,7 @@ class OnlineOrderController extends Controller
 
         $data = $request->validate([
             'customer_name' => ['required', 'string', 'max:255'],
+            'customer_email' => ['nullable', 'email', 'max:255'],
             'phone' => ['required', 'string', 'max:20'],
             'channel' => ['required', 'in:takeaway,delivery'],
             'address' => ['nullable', 'required_if:channel,delivery', 'string', 'max:500'],
@@ -226,7 +227,7 @@ class OnlineOrderController extends Controller
             $paymentUrl = null;
             if ($data['payment_method'] !== 'cod') {
                 try {
-                    $returnUrl = url('/order/payment/return');
+                    $returnUrl = url('/order/payment/return').'?token='.urlencode((string) $order->tracking_token);
                     $paymentUrl = $this->paymentService->createPayment($order, $data['payment_method'], $returnUrl);
                 } catch (\Throwable $e) {
                     Log::error('online checkout: payment URL creation failed', [
@@ -239,12 +240,12 @@ class OnlineOrderController extends Controller
                         'success' => false,
                         'message' => 'Không thể khởi tạo thanh toán lúc này. Đơn đã được giữ lại, vui lòng thử lại.',
                         'order_number' => $order->order_number,
-                        'track_url' => url("/order/track/{$order->order_number}"),
+                        'track_url' => $this->trackingUrl($order),
                     ], 503);
                 }
             }
 
-            $trackUrl = url("/order/track/{$order->order_number}");
+            $trackUrl = $this->trackingUrl($order);
 
             if ($order->customer_email) {
                 try {
@@ -292,33 +293,53 @@ class OnlineOrderController extends Controller
 
     public function paymentReturn(Request $request): Response
     {
+        $trackingToken = trim((string) $request->query('token'));
+        $order = Order::withoutGlobalScopes()
+            ->where('tracking_token', $trackingToken)
+            ->firstOrFail();
+
         return Inertia::render('online-order/OrderTracking', [
-            'orderNumber' => $request->query('order_number', ''),
+            'orderNumber' => $order->order_number,
+            'trackingToken' => $trackingToken,
+            'tracking' => $this->orderService->getOrderTracking($order),
         ]);
     }
 
     public function trackOrder(string $orderNumber): Response
     {
-        $order = Order::withoutGlobalScopes()
-            ->where('order_number', $orderNumber)
-            ->with('items.product')
-            ->firstOrFail();
+        $request = request();
+        $order = $this->findTrackableOrder($request, $orderNumber);
 
         $tracking = $this->orderService->getOrderTracking($order);
 
         return Inertia::render('online-order/OrderTracking', [
             'orderNumber' => $orderNumber,
+            'trackingToken' => (string) $request->query('token'),
             'tracking' => $tracking,
         ]);
     }
 
     public function orderStatus(string $orderNumber): JsonResponse
     {
-        $order = Order::withoutGlobalScopes()
-            ->where('order_number', $orderNumber)
-            ->with('items.product')
-            ->firstOrFail();
+        $order = $this->findTrackableOrder(request(), $orderNumber);
 
         return response()->json($this->orderService->getOrderTracking($order));
+    }
+
+    private function findTrackableOrder(Request $request, string $orderNumber): Order
+    {
+        $token = trim((string) $request->query('token'));
+        abort_unless($token !== '', 403, 'Thiếu mã theo dõi đơn hàng.');
+
+        return Order::withoutGlobalScopes()
+            ->where('order_number', $orderNumber)
+            ->where('tracking_token', $token)
+            ->with('items.product')
+            ->firstOrFail();
+    }
+
+    private function trackingUrl(Order $order): string
+    {
+        return url("/order/track/{$order->order_number}").'?token='.urlencode((string) $order->tracking_token);
     }
 }

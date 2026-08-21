@@ -543,6 +543,57 @@ class QROrderingLifecycleTest extends TestCase
     /**
      * Test Pha 4: Waiter cancels the temporary order.
      */
+    public function test_guest_can_cancel_only_own_pending_qr_order(): void
+    {
+        Event::fake();
+
+        $tempOrder = TemporaryOrder::create([
+            'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
+            'table_id' => $this->table->id,
+            'customer_phone' => '0912345678',
+            'session_id' => 'guest-session-a',
+            'status' => 'waiting_verification',
+            'cart_data' => [],
+            'total_amount' => 0.0,
+        ]);
+
+        $forbidden = $this->postJson(route('customer.qr-order.cancel', [
+            'restaurant' => $this->restaurant->id,
+            'token' => $this->table->qr_token,
+            'temporaryOrder' => $tempOrder->id,
+        ]), [
+            'session_id' => 'guest-session-b',
+        ]);
+
+        $forbidden->assertForbidden();
+        $this->assertDatabaseHas('temporary_orders', [
+            'id' => $tempOrder->id,
+            'status' => 'waiting_verification',
+        ]);
+
+        $cancelled = $this->postJson(route('customer.qr-order.cancel', [
+            'restaurant' => $this->restaurant->id,
+            'token' => $this->table->qr_token,
+            'temporaryOrder' => $tempOrder->id,
+        ]), [
+            'session_id' => 'guest-session-a',
+            'reason' => 'Khách đổi ý',
+        ]);
+
+        $cancelled->assertOk()->assertJsonPath('success', true);
+        $this->assertDatabaseHas('temporary_orders', [
+            'id' => $tempOrder->id,
+            'status' => 'cancelled',
+            'cancelled_by' => null,
+            'cancellation_reason' => 'Khách đổi ý',
+        ]);
+        $this->assertDatabaseHas('audit_logs', [
+            'action' => 'temporary_order_cancelled_by_guest',
+            'subject_id' => $tempOrder->id,
+        ]);
+    }
+
     public function test_waiter_cancels_temporary_order(): void
     {
         Event::fake();
@@ -774,6 +825,7 @@ class QROrderingLifecycleTest extends TestCase
 
         $response->assertOk();
         $response->assertJsonPath('success', true);
+        $this->assertNotEmpty($response->json('status_url'));
 
         $this->assertDatabaseHas('customer_feedback', [
             'restaurant_id' => $this->restaurant->id,
@@ -788,6 +840,10 @@ class QROrderingLifecycleTest extends TestCase
         $this->assertNotNull($feedback->items_rating);
         $this->assertEquals(99, $feedback->items_rating[0]['product_id']);
         $this->assertEquals(88, $feedback->staff_rating[0]['employee_id']);
+
+        $this->getJson(route('feedback.status', $feedback->feedback_token))
+            ->assertOk()
+            ->assertJsonPath('feedback.status', 'new');
 
         Event::assertDispatched(FeedbackSubmitted::class);
     }

@@ -241,6 +241,7 @@ require __DIR__.'/tenant.php';
 Route::middleware('throttle:15,1')->group(function () {
     Route::get('feedback/new', [FeedbackController::class, 'publicCreate'])->name('feedback.new');
     Route::post('feedback', [FeedbackController::class, 'store'])->name('feedback.store');
+    Route::get('feedback/status/{feedbackToken}', [FeedbackController::class, 'publicStatus'])->name('feedback.status');
 });
 
 // Kênh Đặt Hàng Online (Digital Ordering Hub)
@@ -285,6 +286,7 @@ Route::middleware('throttle:60,1')->group(function () {
     Route::post('customer/order/feedback/{restaurant}', [QROrderController::class, 'submitFeedback'])->name('customer.qr-order.feedback');
     Route::get('customer/order/{restaurant}/{token}', [QROrderController::class, 'showMenu'])->name('customer.qr-order.show');
     Route::post('customer/order/{restaurant}/{token}', [QROrderController::class, 'submitOrder'])->middleware('throttle:qr_order_submit')->name('customer.qr-order.submit');
+    Route::post('customer/order/{restaurant}/{token}/temporary/{temporaryOrder}/cancel', [QROrderController::class, 'cancelOrder'])->name('customer.qr-order.cancel');
     Route::post('customer/order/{restaurant}/{token}/temporary/{temporaryOrder}/confirm-revision', [QROrderController::class, 'confirmRevision'])->name('customer.qr-order.confirm-revision');
     Route::post('api/customer/track-behavior', [CdpController::class, 'trackBehavior'])->name('api.customer.track-behavior');
     Route::get('api/orders/{order}/payment-qr', [OrderPaymentQrController::class, 'paymentQr'])->name('api.orders.payment-qr');
@@ -292,6 +294,8 @@ Route::middleware('throttle:60,1')->group(function () {
 
     // Public đặt bàn trước (khách quét QR đặt bàn)
     Route::post('r/{restaurantId}/reservations', [TableReservationController::class, 'publicStore'])->name('reservations.public-store');
+    Route::get('r/{restaurantId}/reservations/{reservationToken}', [TableReservationController::class, 'publicStatus'])->name('reservations.public-status');
+    Route::post('r/{restaurantId}/reservations/{reservationToken}/cancel', [TableReservationController::class, 'publicCancel'])->name('reservations.public-cancel');
 
     // Member Dashboard, Loyalty & Reservation Portal Routes
     // Bảo mật: KHÔNG phát token công khai. Khách yêu cầu link → gửi link đã ký qua

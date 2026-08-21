@@ -54,6 +54,7 @@ const staffRating = ref<Record<number, { rating: number; comment: string }>>(
 
 const isSubmitting = ref(false);
 const isSuccess = ref(false);
+const feedbackStatusUrl = ref('');
 const errorMessage = ref('');
 
 // --- LIFECYCLE ---
@@ -177,6 +178,7 @@ const handleSubmit = async () => {
 
         if (result.success) {
             isSuccess.value = true;
+            feedbackStatusUrl.value = result.status_url || '';
         } else {
             errorMessage.value =
                 result.message || 'Đã xảy ra lỗi, vui lòng thử lại sau.';
@@ -253,6 +255,14 @@ const ratingTexts: Record<number, string> = {
                     hàng sẽ không ngừng nâng cao chất lượng dịch vụ để phục vụ
                     quý khách tốt hơn.
                 </p>
+
+                <a
+                    v-if="feedbackStatusUrl"
+                    :href="feedbackStatusUrl"
+                    class="mt-3 inline-flex items-center rounded-lg border px-3 py-2 text-xs font-semibold text-primary hover:bg-muted"
+                >
+                    Theo dõi kết quả xử lý phản hồi
+                </a>
 
                 <div
                     class="mt-6 flex items-center gap-1 text-[10px] font-medium text-slate-400 dark:text-slate-600"

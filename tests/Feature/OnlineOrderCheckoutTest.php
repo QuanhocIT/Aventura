@@ -216,10 +216,22 @@ class OnlineOrderCheckoutTest extends TestCase
     {
         $checkout = $this->postJson('/api/online/quan-test-online/checkout', $this->checkoutPayload());
         $orderNumber = $checkout->json('order_number');
+        $order = Order::withoutGlobalScopes()->where('order_number', $orderNumber)->firstOrFail();
+        $token = $order->tracking_token;
 
-        $this->get("/order/track/{$orderNumber}")->assertOk();
+        $this->get("/order/track/{$orderNumber}?token={$token}")->assertOk();
+        $this->get("/order/payment/return?token={$token}")->assertOk();
 
-        $status = $this->getJson("/api/online/order/{$orderNumber}/status");
+        $status = $this->getJson("/api/online/order/{$orderNumber}/status?token={$token}");
         $status->assertOk();
+    }
+
+    public function test_guest_cannot_track_order_without_tracking_token(): void
+    {
+        $checkout = $this->postJson('/api/online/quan-test-online/checkout', $this->checkoutPayload());
+        $orderNumber = $checkout->json('order_number');
+
+        $this->get("/order/track/{$orderNumber}")->assertForbidden();
+        $this->getJson("/api/online/order/{$orderNumber}/status")->assertForbidden();
     }
 }

@@ -6,8 +6,10 @@ use App\Events\Customer\FeedbackSubmitted;
 use App\Events\Customer\PaymentRequested;
 use App\Events\Customer\StaffCalled;
 use App\Events\Customer\TemporaryOrderCreated;
+use App\Events\Customer\TemporaryOrderUpdated;
 use App\Http\Controllers\Controller;
 use App\Jobs\VerifyTemporaryOrderDelayJob;
+use App\Models\AuditLog;
 use App\Models\Customer;
 use App\Models\CustomerFeedback;
 use App\Models\Order;
@@ -170,17 +172,15 @@ class QROrderController extends Controller
             ->when(
                 filled(request()->query('session_id')),
                 function ($query): void {
-                    $query->where(function ($ownerQuery): void {
-                        $ownerQuery->where('session_id', (string) request()->query('session_id'));
-
-                        if (filled(request()->query('phone'))) {
-                            $ownerQuery->orWhere('customer_phone', (string) request()->query('phone'));
-                        }
-                    });
+                    // session_id is the primary browser capability. Do not OR
+                    // it with a phone number supplied in the URL, otherwise a
+                    // visitor could disclose another guest's orders by knowing
+                    // that phone number.
+                    $query->where('session_id', (string) request()->query('session_id'));
                 },
                 fn ($query) => filled(request()->query('phone'))
                     ? $query->where('customer_phone', (string) request()->query('phone'))
-                    : $query,
+                    : $query->whereRaw('1 = 0'),
             )
             ->with(['order.items.product'])
             ->latest()
@@ -280,6 +280,94 @@ class QROrderController extends Controller
             'products' => $products,
             'activeTempOrders' => $activeTempOrders,
             'staffList' => $staffList,
+        ]);
+    }
+
+    /**
+     * Khách tại bàn tự hủy yêu cầu gọi món trước khi nhân viên xác nhận.
+     *
+     * QR bàn là thông tin công khai nên không đủ để xác định chủ đơn. Yêu cầu
+     * phải kèm session_id (hoặc số điện thoại đúng với đơn) để tránh khách
+     * khác tại cùng bàn hủy đơn của nhau.
+     */
+    public function cancelOrder(Request $request, int $restaurantId, string $qrToken, TemporaryOrder $temporaryOrder): JsonResponse
+    {
+        $table = RestaurantTable::withoutGlobalScopes()
+            ->where('restaurant_id', $restaurantId)
+            ->where('qr_token', $qrToken)
+            ->whereNull('deleted_at')
+            ->where('status', '!=', 'inactive')
+            ->first();
+
+        abort_if(! $table, 404);
+        abort_if(
+            $temporaryOrder->restaurant_id !== (int) $restaurantId
+                || $temporaryOrder->table_id !== $table->id,
+            404,
+        );
+
+        $data = $request->validate([
+            'session_id' => ['nullable', 'string', 'max:255'],
+            'customer_phone' => ['nullable', 'string', 'max:20'],
+            'reason' => ['nullable', 'string', 'max:255'],
+        ]);
+
+        $sessionMatches = filled($data['session_id'] ?? null)
+            && filled($temporaryOrder->session_id)
+            && hash_equals((string) $temporaryOrder->session_id, (string) $data['session_id']);
+        $phoneMatches = filled($data['customer_phone'] ?? null)
+            && filled($temporaryOrder->customer_phone)
+            && hash_equals((string) $temporaryOrder->customer_phone, (string) $data['customer_phone']);
+
+        $hasSessionCapability = filled($temporaryOrder->session_id);
+        abort_unless(
+            $hasSessionCapability ? $sessionMatches : $phoneMatches,
+            403,
+            'Bạn không có quyền hủy yêu cầu này.',
+        );
+
+        try {
+            $updatedTemporaryOrder = DB::transaction(function () use ($temporaryOrder, $data) {
+                $lockedOrder = TemporaryOrder::withoutGlobalScopes()
+                    ->whereKey($temporaryOrder->id)
+                    ->lockForUpdate()
+                    ->firstOrFail();
+
+                if (! in_array($lockedOrder->status, ['waiting_verification', 'escalated'], true)) {
+                    throw new \RuntimeException('Đơn hàng đã được xử lý và không thể hủy.');
+                }
+
+                $oldValues = $lockedOrder->only(['status', 'cancellation_reason']);
+                $lockedOrder->update([
+                    'status' => 'cancelled',
+                    'cancelled_by' => null,
+                    'cancellation_reason' => $data['reason'] ?? 'Khách tự hủy yêu cầu gọi món',
+                ]);
+
+                AuditLog::log('temporary_order_cancelled_by_guest', 'updated', $lockedOrder, $oldValues, [
+                    'status' => 'cancelled',
+                    'cancellation_reason' => $lockedOrder->cancellation_reason,
+                    'session_id_present' => filled($lockedOrder->session_id),
+                ]);
+
+                return $lockedOrder->fresh(['table']);
+            });
+        } catch (\RuntimeException $exception) {
+            return response()->json([
+                'success' => false,
+                'message' => $exception->getMessage(),
+            ], 422);
+        }
+
+        try {
+            event(new TemporaryOrderUpdated($updatedTemporaryOrder));
+        } catch (\Throwable $exception) {
+            \Illuminate\Support\Facades\Log::warning('Broadcast guest temporary order cancellation failed: '.$exception->getMessage());
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Đã hủy yêu cầu gọi món thành công.',
         ]);
     }
 
@@ -637,6 +725,12 @@ class QROrderController extends Controller
             'status' => 'new',
         ]);
 
+        // Giữ luồng QR tương thích với các bản ghi/model cũ chưa chạy hook
+        // creating: link theo dõi phải luôn có capability token riêng.
+        if (blank($feedback->feedback_token)) {
+            $feedback->forceFill(['feedback_token' => bin2hex(random_bytes(32))])->saveQuietly();
+        }
+
         try {
             event(new FeedbackSubmitted($restaurantId, $feedback));
         } catch (\Throwable $e) {
@@ -646,6 +740,7 @@ class QROrderController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Cảm ơn ý kiến đóng góp quý báu của bạn!',
+            'status_url' => route('feedback.status', $feedback->feedback_token),
         ]);
     }
 

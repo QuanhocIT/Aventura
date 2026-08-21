@@ -13,6 +13,7 @@ use App\Models\Restaurant;
 use App\Models\RestaurantTable;
 use App\Models\TemporaryOrder;
 use App\Services\LoyaltyService;
+use App\Services\CustomerPortalAccessService;
 use App\Services\Sms\SmsService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -24,11 +25,7 @@ class CustomerPortalController extends Controller
 {
     public function showDashboard(Request $request, $restaurantId, $phone): Response
     {
-        $token = $request->query('token');
-        $expectedToken = hash('sha256', $restaurantId.$phone.config('app.key'));
-        if (! $token || ! hash_equals($expectedToken, $token)) {
-            abort(403, 'Link truy cập không hợp lệ hoặc đã hết hạn.');
-        }
+        app(CustomerPortalAccessService::class)->assertValid($request, (int) $restaurantId, (string) $phone);
 
         $customer = Customer::withoutGlobalScopes()
             ->where('restaurant_id', $restaurantId)
@@ -127,7 +124,7 @@ class CustomerPortalController extends Controller
     }
 
     /**
-     * Gửi link truy cập cổng hội viên (đã ký) tới SĐT của khách qua SMS/Zalo.
+     * Gửi link truy cập cổng hội viên với token ngẫu nhiên có thời hạn tới SĐT của khách qua SMS/Zalo.
      * Thay cho endpoint phát token công khai cũ (lỗ hổng: ai cũng lấy được token
      * để xem lịch sử đơn + điểm của người khác). Chỉ chủ SĐT nhận được link.
      * Luôn trả về thông báo chung, không tiết lộ SĐT có phải hội viên hay không.
@@ -144,7 +141,7 @@ class CustomerPortalController extends Controller
             ->first();
 
         if ($customer) {
-            $token = hash('sha256', $restaurantId.$customer->phone.config('app.key'));
+            $token = app(CustomerPortalAccessService::class)->issue((int) $restaurantId, $customer->phone);
             $url = url("/customer/portal/dashboard/{$restaurantId}/{$customer->phone}?token={$token}");
             app(SmsService::class)
                 ->send($customer->phone, "Aventura: Link cổng hội viên của bạn: {$url}");
@@ -157,11 +154,7 @@ class CustomerPortalController extends Controller
 
     public function redeemReward(Request $request, $restaurantId, $phone): JsonResponse
     {
-        $token = $request->query('token') ?? $request->input('token');
-        $expectedToken = hash('sha256', $restaurantId.$phone.config('app.key'));
-        if (! $token || ! hash_equals($expectedToken, $token)) {
-            abort(403, 'Link truy cập không hợp lệ hoặc đã hết hạn.');
-        }
+        app(CustomerPortalAccessService::class)->assertValid($request, (int) $restaurantId, (string) $phone);
 
         $data = $request->validate([
             'reward_id' => ['required', 'integer'],
@@ -193,6 +186,7 @@ class CustomerPortalController extends Controller
 
     public function createReservation(Request $request, $restaurantId): JsonResponse
     {
+        $access = app(CustomerPortalAccessService::class)->assertValid($request, (int) $restaurantId);
         $data = $request->validate([
             'customer_name' => ['required', 'string', 'max:255'],
             'customer_phone' => ['required', 'string', 'max:20'],
@@ -200,6 +194,12 @@ class CustomerPortalController extends Controller
             'guests_count' => ['required', 'integer', 'min:1'],
             'items' => ['nullable', 'array'],
         ]);
+
+        abort_unless(
+            hash_equals((string) ($access['phone'] ?? ''), (string) $data['customer_phone']),
+            403,
+            'Số điện thoại đặt bàn không khớp với link khách hàng.'
+        );
 
         // Find or create customer
         $customer = Customer::firstOrCreate(

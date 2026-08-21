@@ -7,6 +7,7 @@ use App\Models\Customer;
 use App\Models\CustomerCoupon;
 use App\Models\Promotion;
 use App\Models\Restaurant;
+use App\Services\CustomerPortalAccessService;
 use App\Support\TenantRule;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
@@ -16,11 +17,7 @@ class CouponWalletController extends Controller
 {
     private function assertValidToken(Request $request, int $restaurantId, string $phone): void
     {
-        $token = $request->query('token');
-        $expectedToken = hash('sha256', $restaurantId.$phone.config('app.key'));
-        if (! $token || ! hash_equals($expectedToken, $token)) {
-            abort(403, 'Link truy cập không hợp lệ hoặc đã hết hạn.');
-        }
+        app(CustomerPortalAccessService::class)->assertValid($request, $restaurantId, $phone);
     }
 
     public function showWallet(Request $request, int $restaurantId, string $phone)

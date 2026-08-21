@@ -159,6 +159,7 @@ const showCheckout = ref(false);
 const channel = ref<'takeaway' | 'delivery'>('takeaway');
 const customerName = ref('');
 const phone = ref('');
+const customerEmail = ref('');
 const address = ref('');
 const latitude = ref<number | null>(null);
 const longitude = ref<number | null>(null);
@@ -388,6 +389,7 @@ async function submitOrder() {
             `/api/online/${props.config.slug}/checkout`,
             {
                 customer_name: customerName.value,
+                customer_email: customerEmail.value || null,
                 phone: phone.value,
                 channel: channel.value,
                 address: address.value,
@@ -1448,6 +1450,23 @@ async function submitOrder() {
                                                 class="w-full rounded-xl px-4 py-3 text-sm font-medium text-slate-800 transition-all outline-none"
                                                 :style="
                                                     phone
+                                                        ? 'background:#f8f9fa;box-shadow:0 0 0 2px #6366f1;'
+                                                        : 'background:#f8f9fa;box-shadow:0 0 0 1px #e5e7eb;'
+                                                "
+                                                />
+                                        </div>
+                                        <div>
+                                            <label
+                                                class="mb-1 block text-xs font-semibold text-slate-600"
+                                                >Email nhận thông báo (tuỳ chọn)</label
+                                            >
+                                            <input
+                                                v-model="customerEmail"
+                                                type="email"
+                                                placeholder="ban@example.com"
+                                                class="w-full rounded-xl px-4 py-3 text-sm font-medium text-slate-800 transition-all outline-none"
+                                                :style="
+                                                    customerEmail
                                                         ? 'background:#f8f9fa;box-shadow:0 0 0 2px #6366f1;'
                                                         : 'background:#f8f9fa;box-shadow:0 0 0 1px #e5e7eb;'
                                                 "

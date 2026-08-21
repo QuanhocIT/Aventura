@@ -261,6 +261,10 @@ class Order extends Model
     protected static function booted(): void
     {
         static::creating(function (self $order): void {
+            if (blank($order->tracking_token)) {
+                $order->tracking_token = bin2hex(random_bytes(32));
+            }
+
             if (! $order->restaurant_id) {
                 return;
             }

@@ -10,6 +10,7 @@ use App\Models\OnlineStoreConfig;
 use App\Models\Product;
 use App\Models\RestaurantTable;
 use App\Models\User;
+use App\Services\CustomerPortalAccessService;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
@@ -167,7 +168,7 @@ class CustomerSmokeTest extends TestCase
             'QR feedback 5xx: '.optional($feedback->exception)->getMessage());
     }
 
-    // ── Customer portal + coupon wallet (signed-token protected) ───────────
+    // ── Customer portal + coupon wallet (random short-lived token protected) ─
 
     public function test_portal_dashboard_requires_valid_token(): void
     {
@@ -177,7 +178,7 @@ class CustomerSmokeTest extends TestCase
             ->orderBy('id')->value('phone');
         $this->assertNotNull($phone, 'No customer with phone for portal test');
 
-        $valid = hash('sha256', $this->rid.$phone.config('app.key'));
+        $valid = app(CustomerPortalAccessService::class)->issue($this->rid, (string) $phone);
 
         $this->get("/customer/portal/dashboard/{$this->rid}/{$phone}?token={$valid}")->assertOk();
         $this->get("/customer/portal/dashboard/{$this->rid}/{$phone}?token=sai-token")->assertForbidden();

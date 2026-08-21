@@ -104,6 +104,33 @@ class TableReservationTest extends TestCase
         ]);
     }
 
+    public function test_guest_can_view_and_cancel_reservation_with_capability_url(): void
+    {
+        $this->makeTable();
+
+        $response = $this->postJson("/r/{$this->restaurant->id}/reservations", [
+            'guest_name' => 'Khách Theo Dõi',
+            'guest_phone' => '0912345000',
+            'reservation_date' => today()->addDay()->toDateString(),
+            'reservation_time' => '18:30',
+            'party_size' => 2,
+        ])->assertOk();
+
+        $reservation = TableReservation::withoutGlobalScopes()->latest('id')->firstOrFail();
+        $this->assertNotEmpty($reservation->reservation_token);
+        $this->assertStringContainsString($reservation->reservation_token, (string) $response->json('status_url'));
+
+        $this->getJson("/r/{$this->restaurant->id}/reservations/{$reservation->reservation_token}")
+            ->assertOk()
+            ->assertJsonPath('reservation.status', 'pending');
+
+        $this->postJson("/r/{$this->restaurant->id}/reservations/{$reservation->reservation_token}/cancel", [
+            'reason' => 'Khách đổi lịch.',
+        ])->assertOk()->assertJsonPath('reservation.status', 'cancelled');
+
+        $this->assertSame('cancelled', $reservation->refresh()->status);
+    }
+
     public function test_public_reservation_rejects_past_date(): void
     {
         $this->makeTable();

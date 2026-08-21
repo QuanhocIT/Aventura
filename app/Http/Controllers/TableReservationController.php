@@ -324,6 +324,8 @@ class TableReservationController extends Controller
             return back()->withErrors(['table_id' => $e->getMessage()]);
         }
 
+        $this->notifyReservationGuest($reservation->fresh(['restaurant', 'table']), 'confirmed');
+
         return back()->with('success', "Đã xác nhận đặt bàn cho khách {$reservation->guest_name}.");
     }
 
@@ -449,6 +451,8 @@ class TableReservationController extends Controller
             ]);
         }
 
+        $this->notifyReservationGuest($reservation->fresh(['restaurant', 'table']), 'confirmed');
+
         return back()->with('success', "Đã tự động xếp bàn [{$tableName}] cho khách {$reservation->guest_name}!");
     }
 
@@ -487,6 +491,8 @@ class TableReservationController extends Controller
         } catch (\Exception $e) {
             return back()->withErrors(['error' => $e->getMessage()]);
         }
+
+        $this->notifyReservationGuest($reservation->fresh(['restaurant', 'table']), 'cancelled', $data['reason']);
 
         return back()->with('success', "Đã hủy đặt bàn của khách {$reservation->guest_name}.");
     }
@@ -590,6 +596,89 @@ class TableReservationController extends Controller
     /**
      * Khách tự đặt bàn qua trang QR hoặc website (public endpoint).
      */
+    public function publicStatus(Request $request, int $restaurantId, string $reservationToken): Response|JsonResponse
+    {
+        $reservation = TableReservation::withoutGlobalScopes()
+            ->where('restaurant_id', $restaurantId)
+            ->where('reservation_token', $reservationToken)
+            ->with(['restaurant', 'table', 'branch'])
+            ->firstOrFail();
+
+        $payload = $this->publicReservationPayload($reservation);
+
+        if ($request->wantsJson()) {
+            return response()->json($payload);
+        }
+
+        return Inertia::render('reservations/PublicStatus', $payload);
+    }
+
+    public function publicCancel(Request $request, int $restaurantId, string $reservationToken): JsonResponse|RedirectResponse
+    {
+        $data = $request->validate([
+            'reason' => ['nullable', 'string', 'min:3', 'max:255'],
+        ]);
+        $reason = trim($data['reason'] ?? 'Khách tự hủy đặt bàn.');
+
+        try {
+            $reservation = DB::transaction(function () use ($restaurantId, $reservationToken, $reason) {
+                $lockedReservation = TableReservation::withoutGlobalScopes()
+                    ->where('restaurant_id', $restaurantId)
+                    ->where('reservation_token', $reservationToken)
+                    ->lockForUpdate()
+                    ->firstOrFail();
+
+                if (! in_array($lockedReservation->status, ['pending', 'confirmed'], true)) {
+                    throw new \Exception('Đặt bàn này không còn có thể hủy.');
+                }
+
+                $oldStatus = $lockedReservation->status;
+                $lockedReservation->update([
+                    'status' => 'cancelled',
+                    'cancellation_reason' => $reason,
+                    'cancelled_at' => now(),
+                ]);
+
+                if ($lockedReservation->table_id) {
+                    RestaurantTable::whereKey($lockedReservation->table_id)
+                        ->where('restaurant_id', $restaurantId)
+                        ->where('status', 'reserved')
+                        ->update(['status' => 'available']);
+                }
+
+                AuditLog::log(
+                    'reservation_cancelled_by_guest',
+                    'updated',
+                    $lockedReservation,
+                    ['status' => $oldStatus],
+                    ['status' => 'cancelled', 'reason' => $reason],
+                );
+
+                return $lockedReservation->fresh(['restaurant', 'table', 'branch']);
+            });
+        } catch (\Exception $e) {
+            if ($request->wantsJson()) {
+                return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
+            }
+
+            return back()->withErrors(['error' => $e->getMessage()]);
+        }
+
+        $this->notifyReservationGuest($reservation, 'cancelled', $reason);
+
+        if ($request->wantsJson()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Đã hủy đặt bàn thành công.',
+                ...$this->publicReservationPayload($reservation),
+            ]);
+        }
+
+        return back()
+            ->with('success', 'Đã hủy đặt bàn thành công.')
+            ->with('reservation_status_url', route('reservations.public-status', [$restaurantId, $reservation->reservation_token]));
+    }
+
     public function publicStore(Request $request, int $restaurantId): RedirectResponse|JsonResponse
     {
         $data = $request->validate([
@@ -713,17 +802,23 @@ class TableReservationController extends Controller
                     ? 'Đặt bàn thành công! Vui lòng thanh toán cọc '.number_format($deposit['amount']).'đ để giữ chỗ.'
                     : 'Đặt bàn thành công! Nhà hàng sẽ xác nhận trong vòng 15 phút.',
                 'reservation_id' => $reservation->id,
+                'status_url' => route('reservations.public-status', [$restaurantId, $reservation->reservation_token]),
                 'deposit' => $deposit,
             ]);
         }
 
+        $statusUrl = route('reservations.public-status', [$restaurantId, $reservation->reservation_token]);
+
         if ($deposit && $deposit['payment_url']) {
             return back()
                 ->with('success', 'Đặt bàn thành công! Vui lòng thanh toán cọc '.number_format($deposit['amount']).'đ để giữ chỗ.')
-                ->with('deposit_payment_url', $deposit['payment_url']);
+                ->with('deposit_payment_url', $deposit['payment_url'])
+                ->with('reservation_status_url', $statusUrl);
         }
 
-        return back()->with('success', 'Đặt bàn thành công! Nhà hàng sẽ sớm liên hệ xác nhận.');
+        return back()
+            ->with('success', 'Đặt bàn thành công! Nhà hàng sẽ sớm liên hệ xác nhận.')
+            ->with('reservation_status_url', $statusUrl);
     }
 
     /**
@@ -731,6 +826,78 @@ class TableReservationController extends Controller
      * không yêu cầu cọc hoặc chưa cấu hình cổng thanh toán nào (đặt bàn vẫn
      * thành công như bình thường — không được chặn khách vì thiếu cấu hình).
      */
+    private function publicReservationPayload(TableReservation $reservation): array
+    {
+        return [
+            'restaurant' => [
+                'id' => $reservation->restaurant_id,
+                'name' => $reservation->restaurant?->name ?? 'Nhà hàng',
+            ],
+            'reservation' => [
+                'id' => $reservation->id,
+                'guest_name' => $reservation->guest_name,
+                'reservation_date' => $reservation->reservation_date?->toDateString(),
+                'reservation_time' => substr((string) $reservation->reservation_time, 0, 5),
+                'party_size' => (int) $reservation->party_size,
+                'status' => $reservation->status,
+                'status_label' => $reservation->status_label,
+                'table_name' => $reservation->table?->name,
+                'branch_name' => $reservation->branch?->name,
+                'special_requests' => $reservation->special_requests,
+                'cancellation_reason' => $reservation->cancellation_reason,
+                'can_cancel' => in_array($reservation->status, ['pending', 'confirmed'], true),
+            ],
+        ];
+    }
+
+    private function notifyReservationGuest(TableReservation $reservation, string $status, ?string $reason = null): void
+    {
+        if (! $reservation->guest_email && ! $reservation->guest_phone) {
+            return;
+        }
+
+        $reservation->loadMissing(['restaurant', 'table']);
+        $statusUrl = route('reservations.public-status', [$reservation->restaurant_id, $reservation->reservation_token]);
+        $common = [
+            'recipient_email' => $reservation->guest_email,
+            'recipient_name' => $reservation->guest_name,
+            'restaurant_name' => $reservation->restaurant?->name ?? 'Nhà hàng',
+            'reservation_date' => $reservation->reservation_date?->format('d/m/Y'),
+            'reservation_time' => substr((string) $reservation->reservation_time, 0, 5),
+            'party_size' => $reservation->party_size,
+            'table_name' => $reservation->table?->name,
+            'special_requests' => $reservation->special_requests,
+            'internal_notes' => $reservation->internal_notes,
+            'status_url' => $statusUrl,
+            'manage_url' => $statusUrl,
+        ];
+
+        try {
+            if ($reservation->guest_email) {
+                $client = app(\App\Services\EmailMicroserviceClient::class);
+                if ($status === 'confirmed') {
+                    $client->sendReservationConfirmation($common);
+                } elseif ($status === 'cancelled') {
+                    $client->sendReservationCancellation($common + ['reason' => $reason]);
+                }
+            }
+
+            if ($reservation->guest_phone) {
+                $label = $status === 'confirmed' ? 'đã được nhà hàng xác nhận' : 'đã được hủy';
+                app(\App\Services\Sms\SmsService::class)->send(
+                    $reservation->guest_phone,
+                    "Aventura: Đặt bàn ngày {$common['reservation_date']} lúc {$common['reservation_time']} {$label}. Xem chi tiết: {$statusUrl}"
+                );
+            }
+        } catch (\Throwable $e) {
+            Log::warning('Reservation guest notification failed.', [
+                'reservation_id' => $reservation->id,
+                'status' => $status,
+                'error' => $e->getMessage(),
+            ]);
+        }
+    }
+
     private function createDepositPayment(TableReservation $reservation, Restaurant $restaurant): ?array
     {
         $amount = (float) ($restaurant->reservation_deposit_amount ?? 0);
