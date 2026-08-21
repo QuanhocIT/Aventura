@@ -1,11 +1,12 @@
 <script setup lang="ts">
 import { Link, usePage } from '@inertiajs/vue3';
-import { AlertTriangle, Bell, BookOpen, Star } from 'lucide-vue-next';
+import { AlertTriangle, BookOpen, Star } from 'lucide-vue-next';
 import { computed, ref } from 'vue';
 import AppearanceToggleInline from '@/components/AppearanceToggleInline.vue';
 import BackButton from '@/components/BackButton.vue';
 import BranchContextSelector from '@/components/BranchContextSelector.vue';
 import Breadcrumbs from '@/components/Breadcrumbs.vue';
+import NotificationCenter from '@/components/NotificationCenter.vue';
 import PlatformFeedbackModal from '@/components/PlatformFeedbackModal.vue';
 import PolicyViewerModal from '@/components/PolicyViewerModal.vue';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -31,8 +32,6 @@ withDefaults(
 
 const page = usePage();
 const user = computed(() => (page.props.auth?.user as User | null) ?? null);
-const flash = computed(() => (page.props as any).flash ?? {});
-const hasFlash = computed(() => !!(flash.value.success || flash.value.error));
 
 const navItems = [
     { label: 'Dashboard', href: '/dashboard' },
@@ -148,18 +147,8 @@ const showPolicyModal = ref(false);
                 <span class="hidden sm:inline">Đánh giá dịch vụ</span>
             </button>
 
-            <!-- Flash notification indicator -->
-            <button
-                v-if="user"
-                class="relative cursor-pointer rounded-md p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                aria-label="Thông báo"
-            >
-                <Bell class="size-4" />
-                <span
-                    v-if="hasFlash"
-                    class="absolute top-1.5 right-1.5 h-1.5 w-1.5 rounded-full bg-rose-500"
-                />
-            </button>
+            <!-- Notification Center -->
+            <NotificationCenter v-if="user" />
 
             <DropdownMenu v-if="user">
                 <DropdownMenuTrigger as-child>

@@ -15,7 +15,6 @@ import AdminShiftRegistrations from './components/AdminShiftRegistrations.vue';
 import AdminShiftSwapApprovals from './components/AdminShiftSwapApprovals.vue';
 import AdminTimekeepingSettings from './components/AdminTimekeepingSettings.vue';
 import AdminWeeklyRoster from './components/AdminWeeklyRoster.vue';
-import NotificationDrawer from './components/NotificationDrawer.vue';
 import ShiftSwapProposalModal from './components/ShiftSwapProposalModal.vue';
 
 // Staff Components
@@ -53,6 +52,9 @@ type Assignment = {
 
 type StaffingTip = {
     shift: string;
+    branch_name?: string;
+    day_of_week?: string;
+    date?: string;
     pct: number;
     message: string;
     level: 'warning' | 'info';
@@ -305,11 +307,8 @@ const refreshAdminData = () => {
                 </div>
             </div>
 
-            <!-- TIME CLOCK DIGITAL DISPLAY & NOTIFICATION BELL -->
+            <!-- TIME CLOCK DIGITAL DISPLAY -->
             <div class="flex items-center gap-4">
-                <!-- Notifications Bell & Drawer -->
-                <NotificationDrawer />
-
                 <div
                     class="flex flex-col justify-center rounded-2xl border bg-slate-50 px-5 py-3 text-right shadow-xs dark:bg-slate-900/50"
                 >

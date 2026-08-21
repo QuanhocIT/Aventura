@@ -109,7 +109,12 @@ function openNotification(id: number) {
     const notif = items.value.find((n) => n.id === id);
     markRead(id);
 
-    if (notif?.href) {
+    if (
+        notif?.href &&
+        notif.href !== '/notifications' &&
+        notif.href !== '#' &&
+        notif.href !== ''
+    ) {
         isOpen.value = false;
         router.visit(notif.href);
     }
@@ -164,17 +169,61 @@ async function loadDatabaseNotifications() {
                 return;
             }
 
+            let notifType: NotifType = 'info';
+
+            if (
+                notification.type === 'inventory_product_sold_out' ||
+                notification.type === 'kitchen_menu_unavailable'
+            ) {
+                notifType = 'stock';
+            } else if (notification.type === 'order') {
+                notifType = 'order';
+            } else if (
+                notification.action === 'warning' ||
+                notification.type === 'warning'
+            ) {
+                notifType = 'warning';
+            } else if (
+                notification.action === 'error' ||
+                notification.type === 'error'
+            ) {
+                notifType = 'error';
+            } else if (
+                notification.action === 'success' ||
+                notification.type === 'success'
+            ) {
+                notifType = 'success';
+            }
+
+            let defaultTitle = 'Thông báo hệ thống';
+
+            if (notification.type === 'shift_swap') {
+                defaultTitle = 'Đổi ca trực';
+            } else if (notification.type === 'schedule') {
+                defaultTitle = 'Lịch làm việc';
+            } else if (notification.type === 'inventory_product_sold_out') {
+                defaultTitle = 'Món đã hết';
+            } else if (notification.type === 'kitchen_menu_unavailable') {
+                defaultTitle = 'Nguyên liệu tạm hết';
+            }
+
             addNotification(
-                notification.type === 'inventory_product_sold_out' || notification.type === 'kitchen_menu_unavailable' ? 'stock' : 'info',
-                notification.title || (notification.type === 'inventory_product_sold_out' ? 'Món đã hết' : 'Thông báo'),
+                notifType,
+                notification.title || defaultTitle,
                 notification.message || '',
-                notification.url || '/notifications',
+                notification.url && notification.url !== '/notifications'
+                    ? notification.url
+                    : undefined,
             );
             const created = items.value[0];
 
             if (created) {
                 created.serverId = String(notification.id);
                 created.read = Boolean(notification.read_at);
+
+                if (notification.created_at) {
+                    created.time = notification.created_at;
+                }
             }
         });
     } catch {
