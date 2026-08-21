@@ -265,4 +265,8 @@ return function (Schedule $schedule): void {
     $schedule->command('onboarding:sync')
         ->everyThirtyMinutes()
         ->skip($restoreGuard('SCHEDULER_RESTORE_ONBOARDING_SYNC'));
+
+    $schedule->command('training:sync-compliance')
+        ->hourly()
+        ->skip($restoreGuard('SCHEDULER_RESTORE_TRAINING_COMPLIANCE'));
 };

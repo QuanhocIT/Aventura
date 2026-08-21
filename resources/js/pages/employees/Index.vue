@@ -124,7 +124,13 @@ const props = defineProps<{
             }>;
         }
     >;
-    branches: Array<{ id: number; name: string }>;
+    branches: Array<{
+        id: number;
+        name: string;
+        warehouse_type?: string;
+        is_central_warehouse?: boolean;
+        is_central?: boolean;
+    }>;
     activeBranchId: number | null;
     branchScope: string;
     isBranchManager: boolean;
@@ -225,8 +231,54 @@ const employeeForm = useForm({
     wage_tier_id: '' as number | '',
 });
 
+const isWarehouseRole = (role: string) =>
+    role === 'warehouse_manager' || role === 'warehouse_staff';
+
+const isInspectorRole = (role: string) =>
+    role === 'operations_inspector';
+
+const isCentralBranch = (b: {
+    id: number;
+    name: string;
+    warehouse_type?: string;
+    is_central_warehouse?: boolean;
+    is_central?: boolean;
+}) => Boolean(b.is_central || b.is_central_warehouse || b.warehouse_type === 'central');
+
+const centralBranch = computed(() => {
+    return props.branches.find((b) => isCentralBranch(b)) ?? null;
+});
+
+const availableCreateBranches = computed(() => {
+    if (isInspectorRole(employeeForm.role)) {
+        return [];
+    }
+
+    if (isWarehouseRole(employeeForm.role)) {
+        return centralBranch.value ? [centralBranch.value] : props.branches.filter(isCentralBranch);
+    }
+
+    return props.branches;
+});
+
+const availableEditBranches = computed(() => {
+    if (isInspectorRole(editForm.role)) {
+        return [];
+    }
+
+    if (isWarehouseRole(editForm.role)) {
+        return centralBranch.value ? [centralBranch.value] : props.branches.filter(isCentralBranch);
+    }
+
+    return props.branches;
+});
+
 // Bậc lương dùng được cho chi nhánh đang chọn: của chính chi nhánh đó hoặc toàn chuỗi.
 const availableWageTiers = computed(() => {
+    if (isInspectorRole(employeeForm.role)) {
+        return (props.wageTiers ?? []).filter((t) => t.branch_id === null);
+    }
+
     const bid = Number(employeeForm.branch_id) || null;
 
     return (props.wageTiers ?? []).filter(
@@ -234,14 +286,42 @@ const availableWageTiers = computed(() => {
     );
 });
 
-const compTypeLabel = (t: 'fixed' | 'hourly' | 'shift') =>
-    t === 'hourly' ? 'theo giờ' : t === 'shift' ? 'theo ca' : 'lương tháng';
+const compTypeLabel = (t?: 'fixed' | 'hourly' | 'shift' | string) =>
+    t === 'hourly' ? 'Lương theo giờ' : t === 'shift' ? 'Lương theo ca' : 'Lương tháng (Cố định)';
+
+const formattedSalaryRate = computed(() => {
+    if (employeeForm.compensation_type === 'hourly') {
+        return employeeForm.pay_rate ? `${formatVnd(employeeForm.pay_rate)}/giờ` : '—';
+    }
+
+    if (employeeForm.compensation_type === 'shift') {
+        return employeeForm.pay_rate ? `${formatVnd(employeeForm.pay_rate)}/ca` : '—';
+    }
+
+    return employeeForm.base_salary ? `${formatVnd(employeeForm.base_salary)}/tháng` : '—';
+});
+
+const formattedEditSalaryRate = computed(() => {
+    if (editForm.compensation_type === 'hourly') {
+        return editForm.pay_rate ? `${formatVnd(editForm.pay_rate)}/giờ` : '—';
+    }
+
+    if (editForm.compensation_type === 'shift') {
+        return editForm.pay_rate ? `${formatVnd(editForm.pay_rate)}/ca` : '—';
+    }
+
+    return editForm.base_salary ? `${formatVnd(editForm.base_salary)}/tháng` : '—';
+});
 
 // Khi chọn bậc lương → KHOÁ mức lương theo bậc (đồng bộ với backend).
 watch(
     () => employeeForm.wage_tier_id,
     (val) => {
-        const tier = availableWageTiers.value.find((t) => t.id === Number(val));
+        if (!val) {
+            return;
+        }
+
+        const tier = (props.wageTiers ?? []).find((t) => t.id === Number(val));
 
         if (tier) {
             employeeForm.compensation_type = tier.compensation_type;
@@ -249,6 +329,7 @@ watch(
             employeeForm.base_salary = tier.rate;
         }
     },
+    { immediate: true },
 );
 
 // Tự động gán bậc lương hợp lệ khi mở hoặc đổi chi nhánh
@@ -257,6 +338,9 @@ watch(
     (tiers) => {
         if (tiers.length > 0 && (!employeeForm.wage_tier_id || !tiers.some((t) => t.id === Number(employeeForm.wage_tier_id)))) {
             employeeForm.wage_tier_id = tiers[0].id;
+            employeeForm.compensation_type = tiers[0].compensation_type;
+            employeeForm.pay_rate = tiers[0].rate;
+            employeeForm.base_salary = tiers[0].rate;
         } else if (tiers.length === 0) {
             employeeForm.wage_tier_id = '';
         }
@@ -297,7 +381,7 @@ watch(
             return;
         }
 
-        const tier = availableEditWageTiers.value.find(
+        const tier = (props.wageTiers ?? []).find(
             (t) => t.id === Number(val),
         );
 
@@ -307,6 +391,7 @@ watch(
             editForm.base_salary = tier.rate;
         }
     },
+    { immediate: true },
 );
 
 const openEditEmployee = (emp: any) => {
@@ -361,6 +446,22 @@ const handleRoleChange = (e: Event) => {
         employeeForm.job_title = 'Quản Lý Cửa Hàng';
     } else if (val === 'waiter') {
         employeeForm.job_title = 'Nhân Viên Order';
+    } else if (val === 'shipper') {
+        employeeForm.job_title = 'Nhân Viên Giao Hàng';
+    } else if (val === 'inventory_staff') {
+        employeeForm.job_title = 'Nhân Viên Kho Chi Nhánh';
+    } else if (val === 'warehouse_staff') {
+        employeeForm.job_title = 'Nhân Viên Kho Tổng';
+    } else if (val === 'warehouse_manager') {
+        employeeForm.job_title = 'Trưởng Kho Tổng';
+    } else if (val === 'operations_inspector') {
+        employeeForm.job_title = 'Giám Sát Viên Vận Hành / Thanh Tra';
+    }
+
+    if (isWarehouseRole(val) && centralBranch.value) {
+        employeeForm.branch_id = centralBranch.value.id;
+    } else if (isInspectorRole(val)) {
+        employeeForm.branch_id = '';
     }
 };
 
@@ -453,6 +554,29 @@ watch(
         }
     },
     { immediate: true },
+);
+
+watch(
+    () => employeeForm.role,
+    (role) => {
+        if (isWarehouseRole(role) && centralBranch.value) {
+            employeeForm.branch_id = centralBranch.value.id;
+        } else if (isInspectorRole(role)) {
+            employeeForm.branch_id = '';
+        }
+    },
+    { immediate: true },
+);
+
+watch(
+    () => editForm.role,
+    (role) => {
+        if (isWarehouseRole(role) && centralBranch.value) {
+            editForm.branch_id = centralBranch.value.id;
+        } else if (isInspectorRole(role)) {
+            editForm.branch_id = '';
+        }
+    },
 );
 
 watch(showAddEmployee, (val) => {
@@ -1635,79 +1759,82 @@ const submitSwapReject = () => {
                                     >Hình thức trả lương</Label
                                 >
                                 <Input
-                                    :value="employeeForm.compensation_type ? compTypeLabel(employeeForm.compensation_type) : 'Theo bậc lương'"
+                                    :model-value="compTypeLabel(employeeForm.compensation_type)"
                                     disabled
                                     readonly
-                                    class="h-9 font-semibold bg-slate-100 dark:bg-slate-900 cursor-not-allowed text-slate-700 dark:text-slate-300"
+                                    class="h-9 font-semibold bg-slate-100 dark:bg-slate-900 cursor-not-allowed text-slate-800 dark:text-slate-100"
                                 />
                             </div>
 
-                            <div
-                                v-if="
-                                    employeeForm.compensation_type === 'fixed'
-                                "
-                                class="grid gap-1.5"
-                            >
+                            <div class="grid gap-1.5">
                                 <Label
                                     class="text-xs font-bold text-indigo-700 dark:text-indigo-300"
-                                    >Mức lương tháng cố định</Label
+                                    >Mức lương</Label
                                 >
                                 <Input
-                                    :value="employeeForm.base_salary ? formatVnd(employeeForm.base_salary) : '—'"
+                                    :model-value="formattedSalaryRate"
                                     disabled
                                     readonly
-                                    class="h-9 font-mono text-xs font-bold text-indigo-600 bg-slate-100 dark:bg-slate-900 cursor-not-allowed"
-                                />
-                            </div>
-                            <div
-                                v-else-if="
-                                    employeeForm.compensation_type === 'hourly'
-                                "
-                                class="grid gap-1.5"
-                            >
-                                <Label
-                                    class="text-xs font-bold text-indigo-700 dark:text-indigo-300"
-                                    >Đơn giá lương giờ</Label
-                                >
-                                <Input
-                                    :value="employeeForm.pay_rate ? (formatVnd(employeeForm.pay_rate) + '/giờ') : '—'"
-                                    disabled
-                                    readonly
-                                    class="h-9 font-mono text-xs font-bold text-purple-600 bg-slate-100 dark:bg-slate-900 cursor-not-allowed"
-                                />
-                            </div>
-                            <div v-else class="grid gap-1.5">
-                                <Label
-                                    class="text-xs font-bold text-indigo-700 dark:text-indigo-300"
-                                    >Đơn giá lương ca</Label
-                                >
-                                <Input
-                                    :value="employeeForm.pay_rate ? (formatVnd(employeeForm.pay_rate) + '/ca') : '—'"
-                                    disabled
-                                    readonly
-                                    class="h-9 font-mono text-xs font-bold text-amber-600 bg-slate-100 dark:bg-slate-900 cursor-not-allowed"
+                                    class="h-9 font-mono text-xs font-bold text-indigo-600 dark:text-indigo-400 bg-slate-100 dark:bg-slate-900 cursor-not-allowed"
                                 />
                             </div>
                         </div>
 
                         <div class="grid gap-1.5">
-                            <Label
-                                >Chi nhánh làm việc
-                                <span class="text-rose-500">*</span></Label
-                            >
+                            <div class="flex items-center justify-between">
+                                <Label
+                                    >Chi nhánh làm việc
+                                    <span v-if="!isInspectorRole(employeeForm.role)" class="text-rose-500">*</span></Label
+                                >
+                                <span
+                                    v-if="isInspectorRole(employeeForm.role)"
+                                    class="text-[11px] font-semibold text-rose-600 dark:text-rose-400"
+                                >
+                                    🌐 Toàn chuỗi (Không cố định chi nhánh)
+                                </span>
+                                <span
+                                    v-else-if="isWarehouseRole(employeeForm.role)"
+                                    class="text-[11px] font-semibold text-purple-600 dark:text-purple-400"
+                                >
+                                    🔒 Cố định theo Chi nhánh Tổng Kho
+                                </span>
+                            </div>
                             <select
+                                v-if="isInspectorRole(employeeForm.role)"
+                                disabled
+                                class="w-full rounded-md border border-rose-200 bg-rose-50/50 px-3 py-2 text-sm font-semibold text-rose-700 focus-visible:outline-none disabled:cursor-not-allowed dark:border-rose-900/50 dark:bg-rose-950/30 dark:text-rose-300"
+                            >
+                                <option value="">
+                                    🌐 Toàn chuỗi / Toàn hệ thống (Phạm vi giám sát tất cả chi nhánh)
+                                </option>
+                            </select>
+                            <select
+                                v-else
                                 v-model="employeeForm.branch_id"
                                 required
-                                class="w-full rounded-md border border-slate-200 bg-background px-3 py-2 text-sm font-semibold text-slate-700 focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:outline-none"
+                                :disabled="isWarehouseRole(employeeForm.role)"
+                                class="w-full rounded-md border border-slate-200 bg-background px-3 py-2 text-sm font-semibold text-slate-700 focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:outline-none disabled:cursor-not-allowed disabled:bg-slate-100 dark:disabled:bg-slate-900"
                             >
                                 <option
-                                    v-for="branch in branches"
+                                    v-for="branch in availableCreateBranches"
                                     :key="branch.id"
                                     :value="branch.id"
                                 >
-                                    {{ branch.name }}
+                                    {{ branch.name }} {{ isCentralBranch(branch) ? '(Kho Tổng)' : '' }}
                                 </option>
                             </select>
+                            <p
+                                v-if="isInspectorRole(employeeForm.role)"
+                                class="text-xs text-rose-600 dark:text-rose-400"
+                            >
+                                Giám sát viên Vận hành / Thanh tra có thẩm quyền kiểm tra và giám sát trên toàn bộ các chi nhánh trong chuỗi, không bị ràng buộc cố định vào một chi nhánh cụ thể.
+                            </p>
+                            <p
+                                v-else-if="isWarehouseRole(employeeForm.role)"
+                                class="text-xs text-purple-600 dark:text-purple-400"
+                            >
+                                Nhân sự vai trò Kho Tổng (Trưởng kho / Nhân viên kho Tổng) bắt buộc chỉ được xếp làm tại chi nhánh Tổng kho, không được xếp làm ở chi nhánh kinh doanh.
+                            </p>
                         </div>
 
                         <!-- CCCD Front / Back File Upload Section -->
@@ -1996,46 +2123,22 @@ const submitSwapReject = () => {
 
                             <div class="grid grid-cols-2 gap-4 pt-1">
                                 <div class="grid gap-1.5">
-                                    <Label class="text-xs font-medium text-slate-500">Hình thức trả lương</Label>
+                                    <Label class="text-xs font-medium text-slate-500 dark:text-slate-400">Hình thức trả lương</Label>
                                     <Input
-                                        :value="compTypeLabel(editForm.compensation_type)"
+                                        :model-value="compTypeLabel(editForm.compensation_type)"
                                         disabled
                                         readonly
-                                        class="h-9 font-semibold bg-slate-100 dark:bg-slate-900 cursor-not-allowed text-slate-700 dark:text-slate-300"
+                                        class="h-9 font-semibold bg-slate-100 dark:bg-slate-900 cursor-not-allowed text-slate-800 dark:text-slate-100"
                                     />
                                 </div>
 
-                                <div
-                                    v-if="editForm.compensation_type === 'fixed'"
-                                    class="grid gap-1.5"
-                                >
-                                    <Label class="text-xs font-medium text-slate-500">Mức lương tháng hợp đồng</Label>
+                                <div class="grid gap-1.5">
+                                    <Label class="text-xs font-medium text-slate-500 dark:text-slate-400">Mức lương</Label>
                                     <Input
-                                        :value="formatVnd(editForm.base_salary)"
+                                        :model-value="formattedEditSalaryRate"
                                         disabled
                                         readonly
-                                        class="h-9 font-mono text-xs font-bold text-indigo-600 bg-slate-100 dark:bg-slate-900 cursor-not-allowed"
-                                    />
-                                </div>
-                                <div
-                                    v-else-if="editForm.compensation_type === 'hourly'"
-                                    class="grid gap-1.5"
-                                >
-                                    <Label class="text-xs font-medium text-slate-500">Đơn giá lương giờ</Label>
-                                    <Input
-                                        :value="formatVnd(editForm.pay_rate) + '/giờ'"
-                                        disabled
-                                        readonly
-                                        class="h-9 font-mono text-xs font-bold text-purple-600 bg-slate-100 dark:bg-slate-900 cursor-not-allowed"
-                                    />
-                                </div>
-                                <div v-else class="grid gap-1.5">
-                                    <Label class="text-xs font-medium text-slate-500">Đơn giá lương ca</Label>
-                                    <Input
-                                        :value="formatVnd(editForm.pay_rate) + '/ca'"
-                                        disabled
-                                        readonly
-                                        class="h-9 font-mono text-xs font-bold text-amber-600 bg-slate-100 dark:bg-slate-900 cursor-not-allowed"
+                                        class="h-9 font-mono text-xs font-bold text-indigo-600 dark:text-indigo-400 bg-slate-100 dark:bg-slate-900 cursor-not-allowed"
                                     />
                                 </div>
                             </div>
@@ -2045,23 +2148,60 @@ const submitSwapReject = () => {
                         </div>
 
                         <div class="grid gap-1.5">
-                            <Label
-                                >Chi nhánh làm việc
-                                <span class="text-rose-500">*</span></Label
-                            >
+                            <div class="flex items-center justify-between">
+                                <Label
+                                    >Chi nhánh làm việc
+                                    <span v-if="!isInspectorRole(editForm.role)" class="text-rose-500">*</span></Label
+                                >
+                                <span
+                                    v-if="isInspectorRole(editForm.role)"
+                                    class="text-[11px] font-semibold text-rose-600 dark:text-rose-400"
+                                >
+                                    🌐 Toàn chuỗi (Không cố định chi nhánh)
+                                </span>
+                                <span
+                                    v-else-if="isWarehouseRole(editForm.role)"
+                                    class="text-[11px] font-semibold text-purple-600 dark:text-purple-400"
+                                >
+                                    🔒 Cố định theo Chi nhánh Tổng Kho
+                                </span>
+                            </div>
                             <select
+                                v-if="isInspectorRole(editForm.role)"
+                                disabled
+                                class="w-full rounded-md border border-rose-200 bg-rose-50/50 px-3 py-2 text-sm font-semibold text-rose-700 focus-visible:outline-none disabled:cursor-not-allowed dark:border-rose-900/50 dark:bg-rose-950/30 dark:text-rose-300"
+                            >
+                                <option value="">
+                                    🌐 Toàn chuỗi / Toàn hệ thống (Phạm vi giám sát tất cả chi nhánh)
+                                </option>
+                            </select>
+                            <select
+                                v-else
                                 v-model="editForm.branch_id"
                                 required
-                                class="w-full rounded-md border border-slate-200 bg-background px-3 py-2 text-sm font-semibold text-slate-700 focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:outline-none"
+                                :disabled="isWarehouseRole(editForm.role)"
+                                class="w-full rounded-md border border-slate-200 bg-background px-3 py-2 text-sm font-semibold text-slate-700 focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:outline-none disabled:cursor-not-allowed disabled:bg-slate-100 dark:disabled:bg-slate-900"
                             >
                                 <option
-                                    v-for="branch in branches"
+                                    v-for="branch in availableEditBranches"
                                     :key="branch.id"
                                     :value="branch.id"
                                 >
-                                    {{ branch.name }}
+                                    {{ branch.name }} {{ isCentralBranch(branch) ? '(Kho Tổng)' : '' }}
                                 </option>
                             </select>
+                            <p
+                                v-if="isInspectorRole(editForm.role)"
+                                class="text-xs text-rose-600 dark:text-rose-400"
+                            >
+                                Giám sát viên Vận hành / Thanh tra có thẩm quyền kiểm tra và giám sát trên toàn chuỗi hệ thống.
+                            </p>
+                            <p
+                                v-else-if="isWarehouseRole(editForm.role)"
+                                class="text-xs text-purple-600 dark:text-purple-400"
+                            >
+                                Nhân sự vai trò Kho Tổng bắt buộc làm việc tại chi nhánh Tổng kho.
+                            </p>
                         </div>
 
                         <!-- Optional CCCD Front / Back File Upload Section -->

@@ -289,6 +289,7 @@ class PermissionsSeeder extends Seeder
             'warehouse.shift.handover',
             'warehouse.own_history.view',
             'warehouse.receiving.create',
+            'warehouse.receiving.verify',
             'warehouse.task.assign',
             'warehouse.kpi.view',
             'warehouse.location.manage',

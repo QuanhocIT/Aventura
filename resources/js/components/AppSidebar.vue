@@ -34,6 +34,7 @@ import {
     ShieldCheck,
     ShieldAlert,
     Siren,
+    RotateCcw,
     ArrowLeftRight,
     BookLock,
     SlidersHorizontal,
@@ -515,6 +516,12 @@ const ownerNav = computed<NavItem[]>(() => {
             feature: 'inventory_basic',
         },
         {
+            title: 'Cách ly & Hoàn trả',
+            href: '/inventory/reverse-logistics',
+            icon: RotateCcw,
+            feature: 'inventory_basic',
+        },
+        {
             title: 'Quản trị Siết chặt Kho',
             href: '/inventory/warehouse-governance',
             icon: ShieldAlert,
@@ -715,6 +722,7 @@ const ownerNav = computed<NavItem[]>(() => {
         '/inventory/central-kitchen': 'supply',
         '/inventory/delivery-manifests': 'supply',
         '/inventory/batch-recalls': 'supply',
+        '/inventory/reverse-logistics': 'supply',
         '/inventory/warehouse-governance': 'supply',
         '/suppliers': 'supply',
         '/rfps': 'supply',
@@ -1197,6 +1205,12 @@ const warehouseManagerNav = computed<NavItem[]>(() => {
             title: 'Thu hồi Lô Khẩn cấp',
             href: '/inventory/batch-recalls',
             icon: Siren,
+            feature: 'inventory_basic',
+        },
+        {
+            title: 'Cách ly & Hoàn trả',
+            href: '/inventory/reverse-logistics',
+            icon: RotateCcw,
             feature: 'inventory_basic',
         },
         {

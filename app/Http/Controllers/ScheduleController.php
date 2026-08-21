@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Employee;
 use App\Models\Restaurant;
+use App\Models\RestaurantBranch;
 use App\Models\ScheduleAssignment;
 use App\Models\ScheduleRegistration;
 use App\Models\ShiftSwap;
@@ -146,65 +147,109 @@ class ScheduleController extends Controller
                 ->get(['id', 'full_name', 'job_title', 'employee_code']);
 
             // ── AI Staffing Suggestions dựa trên peak hours ──────────────────
-            $staffingTips = Inertia::defer(function () use ($restaurantId, $shifts, $assignments, $branchId, $scopeKey) {
-                return Cache::remember("schedule_staffing_tips:{$restaurantId}:{$scopeKey}", 300, function () use ($restaurantId, $shifts, $assignments, $branchId, $scopeKey) {
+            $staffingTips = Inertia::defer(function () use ($restaurantId, $branchId, $scopeKey, $selectedDate) {
+                return Cache::remember("schedule_staffing_tips_v5:{$restaurantId}:{$scopeKey}:{$selectedDate}", 300, function () use ($restaurantId, $branchId, $selectedDate) {
                     $isSqlite = DB::connection()->getDriverName() === 'sqlite';
                     $hourExpr = $isSqlite ? "CAST(strftime('%H', completed_at) AS INTEGER)" : 'HOUR(completed_at)';
                     $ordersTable = Schema::hasTable('orders_unified') ? 'orders_unified' : 'orders';
 
-                    $peakHoursData = Cache::remember("schedule_peak_hours:{$restaurantId}:{$scopeKey}", 3600, function () use ($restaurantId, $hourExpr, $branchId, $ordersTable) {
-                        return DB::table($ordersTable)
-                            ->where('restaurant_id', $restaurantId)
-                            ->when($branchId, fn ($query) => $query->where('branch_id', $branchId))
-                            ->where('status', 'completed')
-                            ->where('completed_at', '>=', now()->subDays(30))
-                            ->when($ordersTable === 'orders', fn ($query) => $query->whereNull('deleted_at'))
-                            ->selectRaw("{$hourExpr} as hour, COUNT(*) as order_count, SUM(total_amount) as revenue")
-                            ->groupBy(DB::raw($hourExpr))
-                            ->orderByDesc('revenue')
-                            ->get()
-                            ->map(fn ($item) => (array) $item)
-                            ->toArray();
-                    });
+                    $dateCarbon = Carbon::parse($selectedDate);
+                    $dayOfWeekVi = match ($dateCarbon->dayOfWeek) {
+                        0 => 'Chủ Nhật',
+                        1 => 'Thứ Hai',
+                        2 => 'Thứ Ba',
+                        3 => 'Thứ Tư',
+                        4 => 'Thứ Năm',
+                        5 => 'Thứ Sáu',
+                        6 => 'Thứ Bảy',
+                    };
+                    $dateFormatted = $dateCarbon->format('d/m/Y');
 
-                    $peakHours = collect($peakHoursData)->map(fn ($item) => (object) $item);
+                    $branchesList = $branchId
+                        ? RestaurantBranch::where('id', $branchId)->get(['id', 'name'])
+                        : RestaurantBranch::where('restaurant_id', $restaurantId)->where('warehouse_type', 'business')->get(['id', 'name']);
 
-                    $totalRevenuePeak = $peakHours->sum('revenue');
+                    if ($branchesList->isEmpty()) {
+                        $branchesList = collect([(object) ['id' => null, 'name' => 'Toàn chuỗi']]);
+                    }
+
                     $tips = [];
 
-                    if ($peakHours->count() && $totalRevenuePeak > 0) {
-                        foreach ($shifts as $shift) {
-                            // Xác định giờ trong ca
-                            $startH = (int) substr($shift['start'], 0, 2);
-                            $endH = (int) substr($shift['end'], 0, 2);
-                            if ($endH <= $startH) {
-                                $endH += 24;
-                            } // overnight
+                    foreach ($branchesList as $b) {
+                        $targetBranchId = $b->id;
+                        $branchName = $b->name;
 
-                            $shiftRevenue = $peakHours
-                                ->filter(fn ($r) => $r->hour >= $startH && $r->hour < $endH)
-                                ->sum('revenue');
-                            $pct = round($shiftRevenue / $totalRevenuePeak * 100, 1);
+                        $peakHoursData = Cache::remember("schedule_peak_hours_v5:{$restaurantId}:{$targetBranchId}", 3600, function () use ($restaurantId, $hourExpr, $targetBranchId, $ordersTable) {
+                            return DB::table($ordersTable)
+                                ->where('restaurant_id', $restaurantId)
+                                ->when($targetBranchId, fn ($query) => $query->where('branch_id', $targetBranchId))
+                                ->where('status', 'completed')
+                                ->where('completed_at', '>=', now()->subDays(30))
+                                ->when($ordersTable === 'orders', fn ($query) => $query->whereNull('deleted_at'))
+                                ->selectRaw("{$hourExpr} as hour, COUNT(*) as order_count, SUM(total_amount) as revenue")
+                                ->groupBy(DB::raw($hourExpr))
+                                ->orderByDesc('revenue')
+                                ->get()
+                                ->map(fn ($item) => (array) $item)
+                                ->toArray();
+                        });
 
-                            $currentStaff = $assignments
-                                ->where('shift_name', $shift['name'])
-                                ->whereIn('status', ['scheduled', 'checked_in'])
-                                ->count();
+                        $peakHours = collect($peakHoursData)->map(fn ($item) => (object) $item);
+                        $totalRevenuePeak = $peakHours->sum('revenue');
 
-                            if ($pct >= 35 && $currentStaff < 3) {
-                                $tips[] = [
-                                    'shift' => $shift['name'],
-                                    'pct' => $pct,
-                                    'message' => "Ca <strong>{$shift['name']}</strong> chiếm {$pct}% doanh thu — hiện chỉ có {$currentStaff} nhân viên. Nên bố trí ít nhất 3 người.",
-                                    'level' => 'warning',
-                                ];
-                            } elseif ($pct < 10 && $currentStaff > 2) {
-                                $tips[] = [
-                                    'shift' => $shift['name'],
-                                    'pct' => $pct,
-                                    'message' => "Ca <strong>{$shift['name']}</strong> chỉ chiếm {$pct}% doanh thu — {$currentStaff} nhân viên có thể hơi nhiều. Cân nhắc tối ưu chi phí lương.",
-                                    'level' => 'info',
-                                ];
+                        if ($peakHours->count() && $totalRevenuePeak > 0) {
+                            $targetShifts = WorkShift::where('restaurant_id', $restaurantId)
+                                ->when($targetBranchId, fn ($q) => $q->where(function ($sq) use ($targetBranchId) {
+                                    $sq->whereNull('branch_id')->orWhere('branch_id', $targetBranchId);
+                                }))
+                                ->where('status', 'active')
+                                ->get(['id', 'name', 'start_time', 'end_time']);
+
+                            foreach ($targetShifts as $shiftModel) {
+                                $startH = (int) substr($shiftModel->start_time, 0, 2);
+                                $endH = (int) substr($shiftModel->end_time, 0, 2);
+                                if ($endH <= $startH) {
+                                    $endH += 24;
+                                }
+
+                                $shiftRevenue = $peakHours
+                                    ->filter(fn ($r) => $r->hour >= $startH && $r->hour < $endH)
+                                    ->sum('revenue');
+                                $pct = round($shiftRevenue / $totalRevenuePeak * 100, 1);
+
+                                $currentStaff = ScheduleAssignment::where('restaurant_id', $restaurantId)
+                                    ->whereDate('scheduled_date', $selectedDate)
+                                    ->when($targetBranchId, fn ($q) => $q->where('branch_id', $targetBranchId))
+                                    ->where('shift_id', $shiftModel->id)
+                                    ->whereIn('status', ['scheduled', 'checked_in'])
+                                    ->count();
+
+                                $cleanShiftName = trim($shiftModel->name);
+                                $shiftDisplay = Str::startsWith(mb_strtolower($cleanShiftName), 'ca ')
+                                    ? "<strong>{$cleanShiftName}</strong>"
+                                    : "Ca <strong>{$cleanShiftName}</strong>";
+
+                                if ($pct >= 35 && $currentStaff < 3) {
+                                    $tips[] = [
+                                        'shift' => $cleanShiftName,
+                                        'branch_name' => $branchName,
+                                        'day_of_week' => $dayOfWeekVi,
+                                        'date' => $dateFormatted,
+                                        'pct' => $pct,
+                                        'message' => "Tại <strong>{$branchName}</strong> vào <strong>{$dayOfWeekVi}, ngày {$dateFormatted}</strong>: {$shiftDisplay} chiếm <strong>{$pct}% doanh thu</strong> — hiện chỉ có <strong>{$currentStaff} nhân viên</strong>. Khuyến nghị bố trí ít nhất 3 nhân sự.",
+                                        'level' => 'warning',
+                                    ];
+                                } elseif ($pct < 10 && $currentStaff > 2) {
+                                    $tips[] = [
+                                        'shift' => $cleanShiftName,
+                                        'branch_name' => $branchName,
+                                        'day_of_week' => $dayOfWeekVi,
+                                        'date' => $dateFormatted,
+                                        'pct' => $pct,
+                                        'message' => "Tại <strong>{$branchName}</strong> vào <strong>{$dayOfWeekVi}, ngày {$dateFormatted}</strong>: {$shiftDisplay} chỉ chiếm <strong>{$pct}% doanh thu</strong> — hiện có <strong>{$currentStaff} nhân viên</strong>. Cân nhắc tối ưu chi phí lương.",
+                                        'level' => 'info',
+                                    ];
+                                }
                             }
                         }
                     }

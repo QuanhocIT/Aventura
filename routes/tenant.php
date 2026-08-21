@@ -72,6 +72,7 @@ use App\Http\Controllers\ShiftSwapController;
 use App\Http\Controllers\StaffQROrderController;
 use App\Http\Controllers\StockTransferRequestController;
 use App\Http\Controllers\CentralWarehousePriceController;
+use App\Http\Controllers\CentralWarehouseSupplyChainController;
 use App\Http\Controllers\SupplierController;
 use App\Http\Controllers\SupplierPortalController;
 use App\Http\Controllers\SupplyRequestController;
@@ -85,6 +86,7 @@ use App\Http\Controllers\WarehouseFraudCaseController;
 use App\Http\Controllers\WarehouseGovernanceController;
 use App\Http\Controllers\WarehouseLocationController;
 use App\Http\Controllers\WarehouseStaffController;
+use App\Http\Controllers\WarehouseReverseLogisticsController;
 use App\Http\Controllers\WasteManagementController;
 use App\Http\Controllers\WeatherForecastController;
 use App\Http\Controllers\WebhookEndpointController;
@@ -266,6 +268,14 @@ Route::middleware(['auth', 'verified', 'tenant.subscription', 'tenant.ratelimit'
         Route::post('/enroll', [TrainingController::class, 'enrollEmployee'])
             ->middleware('role_or_permission:owner|super_admin|training.manage')
             ->name('enroll');
+        Route::get('/courses/{course}/content', [TrainingController::class, 'courseContent'])
+            ->name('courses.content');
+        Route::post('/enrollments/{enrollment}/approve', [TrainingController::class, 'approveEnrollment'])
+            ->middleware('role_or_permission:owner|super_admin|training.manage')
+            ->name('enrollments.approve');
+        Route::patch('/enrollments/{enrollment}', [TrainingController::class, 'syncEnrollment'])
+            ->middleware('role_or_permission:owner|super_admin|training.manage')
+            ->name('enrollments.update');
         Route::post('/complete-lesson', [TrainingController::class, 'completeLesson'])->name('complete-lesson');
         Route::post('/submit-quiz', [TrainingController::class, 'submitQuiz'])->name('submit-quiz');
     });
@@ -635,7 +645,8 @@ Route::middleware(['auth', 'verified', 'tenant.subscription', 'tenant.ratelimit'
         Route::get('inventory/central-warehouse', [SupplyRequestController::class, 'centralWarehousePage'])->name('inventory.central-warehouse');
         Route::get('inventory/central-warehouse/stock', [SupplyRequestController::class, 'centralWarehouseInventoryPage'])->name('inventory.central-warehouse.stock');
         Route::get('inventory/central-warehouse/requests', [SupplyRequestController::class, 'centralWarehouseRequestsPage'])->name('inventory.central-warehouse.requests');
-        Route::get('inventory/central-warehouse/receiving', [SupplyRequestController::class, 'centralWarehouseReceivingPage'])->name('inventory.central-warehouse.receiving');
+    Route::get('inventory/central-warehouse/receiving', [SupplyRequestController::class, 'centralWarehouseReceivingPage'])->name('inventory.central-warehouse.receiving');
+    Route::get('inventory/reverse-logistics', [WarehouseReverseLogisticsController::class, 'page'])->name('inventory.reverse-logistics');
         Route::get('inventory/central-warehouse/prices', [CentralWarehousePriceController::class, 'centralWarehousePricesPage'])
             ->middleware('role_or_permission:owner|super_admin|warehouse.view|warehouse_manager')
             ->name('inventory.central-warehouse.prices');
@@ -665,6 +676,7 @@ Route::middleware(['auth', 'verified', 'tenant.subscription', 'tenant.ratelimit'
         // Phiếu nhận hàng GRN
         Route::post('receiving-vouchers', [WarehouseStaffController::class, 'storeReceivingVoucher'])->middleware('role_or_permission:owner|super_admin|warehouse.receiving.create|warehouse_staff|warehouse_manager|warehouse.manage')->name('warehouse.receiving-vouchers.store');
         Route::post('receiving-vouchers/{id}/confirm', [WarehouseStaffController::class, 'confirmReceiving'])->middleware('role_or_permission:owner|super_admin|warehouse_manager|warehouse.manage')->name('warehouse.receiving-vouchers.confirm');
+        Route::post('receiving-vouchers/{id}/dispose', [WarehouseStaffController::class, 'disposeReceiving'])->middleware('role_or_permission:owner|super_admin|warehouse_manager|warehouse.manage')->name('warehouse.receiving-vouchers.dispose');
         Route::post('receiving-vouchers/{id}/discrepancy', [WarehouseStaffController::class, 'reportDiscrepancy'])->middleware('role_or_permission:owner|super_admin|warehouse.incident.report|warehouse_staff')->name('warehouse.receiving-vouchers.discrepancy');
         // Cất hàng
         Route::post('tasks/{taskId}/putaway-confirm', [WarehouseStaffController::class, 'confirmPutaway'])->name('warehouse.putaway.confirm');
@@ -699,6 +711,49 @@ Route::middleware(['auth', 'verified', 'tenant.subscription', 'tenant.ratelimit'
     Route::post('api/warehouse/ingredient-prices/propose', [CentralWarehousePriceController::class, 'proposeIngredientPrices'])
         ->middleware('role_or_permission:owner|super_admin|warehouse_manager|warehouse.manage')
         ->name('warehouse.ingredient-prices.propose');
+
+    // Chuá»—i cung á»©ng Kho Tá»•ng: cáº£nh bÃ¡o nguá»“n cung, Ä‘á»‘i soÃ¡t tá»“n vÃ  NCC dá»± phÃ²ng.
+    Route::get('api/warehouse/supply-chain/alerts', [CentralWarehouseSupplyChainController::class, 'alerts'])
+        ->middleware('role_or_permission:owner|super_admin|warehouse_manager|warehouse.view')
+        ->name('warehouse.supply-chain.alerts');
+    Route::get('api/warehouse/supply-chain/reconciliation', [CentralWarehouseSupplyChainController::class, 'reconciliation'])
+        ->middleware('role_or_permission:owner|super_admin|warehouse_manager|warehouse.view')
+        ->name('warehouse.supply-chain.reconciliation');
+    Route::get('api/warehouse/ingredients/{ingredientId}/suppliers', [CentralWarehouseSupplyChainController::class, 'supplierOptions'])
+        ->middleware('role_or_permission:owner|super_admin|warehouse_manager|warehouse.view')
+        ->name('warehouse.ingredients.suppliers');
+    Route::post('api/warehouse/ingredients/suppliers', [CentralWarehouseSupplyChainController::class, 'syncSupplierOptions'])
+        ->middleware('role_or_permission:owner|super_admin|warehouse_manager|warehouse.manage')
+        ->name('warehouse.ingredients.suppliers.sync');
+
+    // Cách ly, hoàn trả và khiếu nại chuỗi cung ứng.
+    Route::get('api/warehouse/reverse-logistics/quarantines', [WarehouseReverseLogisticsController::class, 'quarantines'])
+        ->middleware('role_or_permission:owner|super_admin|warehouse.view|warehouse_manager|warehouse_staff|manager')
+        ->name('warehouse.reverse-logistics.quarantines');
+    Route::get('api/warehouse/reverse-logistics/returns', [WarehouseReverseLogisticsController::class, 'returns'])
+        ->middleware('role_or_permission:owner|super_admin|warehouse.view|warehouse_manager|warehouse_staff|manager')
+        ->name('warehouse.reverse-logistics.returns');
+    Route::post('api/warehouse/reverse-logistics/quarantines/{id}/return', [WarehouseReverseLogisticsController::class, 'requestReturn'])
+        ->middleware('role_or_permission:owner|super_admin|warehouse.manage|warehouse_manager|warehouse_staff|manager')
+        ->name('warehouse.reverse-logistics.quarantines.return');
+    Route::post('api/warehouse/reverse-logistics/quarantines/{id}/destroy', [WarehouseReverseLogisticsController::class, 'destroyQuarantine'])
+        ->middleware('role_or_permission:owner|super_admin|warehouse.manage|warehouse_manager')
+        ->name('warehouse.reverse-logistics.quarantines.destroy');
+    Route::post('api/warehouse/reverse-logistics/returns/{id}/approve', [WarehouseReverseLogisticsController::class, 'approveReturn'])
+        ->middleware('role_or_permission:owner|super_admin|warehouse.manage|warehouse_manager')
+        ->name('warehouse.reverse-logistics.returns.approve');
+    Route::post('api/warehouse/reverse-logistics/returns/{id}/complete', [WarehouseReverseLogisticsController::class, 'completeReturn'])
+        ->middleware('role_or_permission:owner|super_admin|warehouse.manage|warehouse_manager')
+        ->name('warehouse.reverse-logistics.returns.complete');
+    Route::get('api/warehouse/reverse-logistics/claims', [WarehouseReverseLogisticsController::class, 'claims'])
+        ->middleware('role_or_permission:owner|super_admin|warehouse.view|warehouse_manager')
+        ->name('warehouse.reverse-logistics.claims');
+    Route::post('api/warehouse/reverse-logistics/claims', [WarehouseReverseLogisticsController::class, 'storeClaim'])
+        ->middleware('role_or_permission:owner|super_admin|warehouse.manage|warehouse_manager')
+        ->name('warehouse.reverse-logistics.claims.store');
+    Route::post('api/warehouse/reverse-logistics/claims/{id}/resolve', [WarehouseReverseLogisticsController::class, 'resolveClaim'])
+        ->middleware('role_or_permission:owner|super_admin|warehouse.manage|warehouse_manager')
+        ->name('warehouse.reverse-logistics.claims.resolve');
 
     // Central Kitchen (Sơ chế & Sản xuất Trung tâm)
     Route::get('api/central-kitchen/boms', [CentralKitchenController::class, 'getBoms'])
