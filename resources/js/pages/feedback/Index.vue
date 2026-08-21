@@ -1116,6 +1116,7 @@ const sentimentConfig: Record<string, { text: string; class: string }> = {
     </div>
 
     <!-- CRISIS RESOLUTION MODAL -->
+    <Teleport to="body">
     <div
         v-if="showResolveModal && selectedFeedback"
         class="animate-fadeIn fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm dark:bg-slate-950/80"
@@ -1273,6 +1274,7 @@ const sentimentConfig: Record<string, { text: string; class: string }> = {
             </form>
         </div>
     </div>
+    </Teleport>
 </template>
 
 <style scoped>

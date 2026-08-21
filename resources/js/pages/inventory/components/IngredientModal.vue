@@ -129,6 +129,7 @@ const submitForm = () => {
 </script>
 
 <template>
+    <Teleport to="body">
     <div
         v-if="isOpen"
         class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs overflow-y-auto"
@@ -322,4 +323,5 @@ const submitForm = () => {
             </CardContent>
         </Card>
     </div>
+    </Teleport>
 </template>

@@ -246,6 +246,7 @@ onUnmounted(() => {
 
 <template>
     <!-- Modal Backdrop -->
+    <Teleport to="body">
     <div
         v-if="isOpen"
         class="fixed inset-0 z-50 flex items-start justify-center bg-black/60 pt-[15vh] backdrop-blur-sm"
@@ -383,6 +384,7 @@ onUnmounted(() => {
             </div>
         </div>
     </div>
+    </Teleport>
 </template>
 
 <script lang="ts">

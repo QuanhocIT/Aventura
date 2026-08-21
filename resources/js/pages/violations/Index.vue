@@ -1082,6 +1082,7 @@ const statusConfig: Record<
     </div>
 
     <!-- OWNER RESOLUTION MODAL -->
+    <Teleport to="body">
     <div
         v-if="showResolveModal && selectedReport"
         class="animate-fadeIn fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm dark:bg-slate-950/80"
@@ -1245,8 +1246,10 @@ const statusConfig: Record<
             </form>
         </div>
     </div>
+    </Teleport>
 
     <!-- MODAL: NHÂN VIÊN GỬI KHÁNG CÁO -->
+    
     <div
         v-if="showAppealModal && selectedReport"
         class="animate-fadeIn fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm dark:bg-slate-950/80"
@@ -1345,8 +1348,10 @@ const statusConfig: Record<
             </form>
         </div>
     </div>
+    
 
     <!-- MODAL: CHỦ XÉT ĐƠN KHÁNG CÁO -->
+    <Teleport to="body">
     <div
         v-if="showReviewAppealModal && selectedReport"
         class="animate-fadeIn fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm dark:bg-slate-950/80"
@@ -1438,6 +1443,7 @@ const statusConfig: Record<
             </form>
         </div>
     </div>
+    </Teleport>
 </template>
 
 <style scoped>

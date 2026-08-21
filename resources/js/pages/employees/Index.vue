@@ -1841,7 +1841,7 @@ const submitSwapReject = () => {
         </Teleport>
 
         <!-- Edit Employee Modal -->
-        <Teleport to="body">
+        
             <div
                 v-if="editingEmployee"
                 class="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 p-4 pt-16 backdrop-blur-xs md:pt-24"
@@ -2184,7 +2184,7 @@ const submitSwapReject = () => {
                 </CardContent>
             </Card>
         </div>
-        </Teleport>
+        
 
         <div class="grid grid-cols-1 gap-6 lg:grid-cols-3">
             <!-- Left content: Employee roster -->
@@ -3229,7 +3229,7 @@ const submitSwapReject = () => {
         </Card>
 
         <!-- Modal: Thiết lập ca nhanh -->
-        <Teleport to="body">
+        
             <div
                 v-if="showQuickScheduleModal"
                 class="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 p-4 pt-16 backdrop-blur-xs md:pt-24"
@@ -3297,10 +3297,10 @@ const submitSwapReject = () => {
                     </CardContent>
                 </Card>
             </div>
-        </Teleport>
+        
 
         <!-- Modal: Thiết lập Ca làm việc (showShiftConfigModal) -->
-        <Teleport to="body">
+        
             <div
                 v-if="showShiftConfigModal"
                 class="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 p-4 pt-16 backdrop-blur-xs md:pt-24"
@@ -3431,10 +3431,10 @@ const submitSwapReject = () => {
                     </CardContent>
                 </Card>
             </div>
-        </Teleport>
+        
 
         <!-- Modal: Phân Ca Lịch làm việc (showAssignModal) -->
-        <Teleport to="body">
+        
             <div
                 v-if="showAssignModal"
                 class="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 p-4 pt-16 backdrop-blur-xs md:pt-28"
@@ -3585,10 +3585,10 @@ const submitSwapReject = () => {
                     </CardContent>
                 </Card>
             </div>
-        </Teleport>
+        
 
         <!-- Modal: Tạo đơn xin nghỉ phép / thôi việc (showLeaveModal) -->
-        <Teleport to="body">
+        
             <div
                 v-if="showLeaveModal"
                 class="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 p-4 pt-16 backdrop-blur-xs md:pt-24"
@@ -3733,10 +3733,10 @@ const submitSwapReject = () => {
                 </CardContent>
             </Card>
         </div>
-        </Teleport>
+        
 
         <!-- Modal: Duyệt đơn & Gợi ý thế chỗ nhân sự (showApproveReplacementModal) -->
-        <Teleport to="body">
+        
             <div
                 v-if="showApproveReplacementModal && replacementLeaveData"
                 class="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 p-4 pt-16 backdrop-blur-xs md:pt-24"
@@ -3901,10 +3901,10 @@ const submitSwapReject = () => {
                 </CardContent>
             </Card>
         </div>
-        </Teleport>
+        
 
         <!-- Modal: Nhập lý do từ chối (showRejectModal) -->
-        <Teleport to="body">
+        
             <div
                 v-if="showRejectModal !== null"
                 class="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 p-4 pt-16 backdrop-blur-xs md:pt-24"
@@ -3970,10 +3970,10 @@ const submitSwapReject = () => {
                 </CardContent>
             </Card>
         </div>
-        </Teleport>
+        
 
         <!-- Modal: Nhập lý do từ chối đổi ca trực (showSwapRejectModal) -->
-        <Teleport to="body">
+        
             <div
                 v-if="showSwapRejectModal !== null"
                 class="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 p-4 pt-16 backdrop-blur-xs md:pt-24"
@@ -4039,9 +4039,10 @@ const submitSwapReject = () => {
                 </CardContent>
             </Card>
         </div>
-        </Teleport>
+        
 
         <!-- MODAL: THAY CA KHẨN CẤP -->
+        <Teleport to="body">
         <div
             v-if="showEmergencyReplace"
             class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm"
@@ -4086,5 +4087,6 @@ const submitSwapReject = () => {
                 </form>
             </div>
         </div>
+        </Teleport>
     </div>
 </template>

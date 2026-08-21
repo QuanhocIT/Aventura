@@ -478,6 +478,7 @@ const statusColors: Record<string, string> = {
     </Card>
 
     <!-- Selfie Lightbox Modal -->
+    <Teleport to="body">
     <div
         v-if="viewSelfieUrl"
         class="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-xs"
@@ -503,4 +504,5 @@ const statusColors: Record<string, string> = {
             </div>
         </div>
     </div>
+    </Teleport>
 </template>

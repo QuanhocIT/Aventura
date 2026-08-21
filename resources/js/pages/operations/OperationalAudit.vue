@@ -542,6 +542,7 @@ const formatDate = (dt: string) => {
         </section>
 
         <!-- Create Report Modal (Inspector) -->
+        <Teleport to="body">
         <div
             v-if="isCreateModalOpen"
             class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur-sm"
@@ -719,8 +720,10 @@ const formatDate = (dt: string) => {
                 </div>
             </div>
         </div>
+        </Teleport>
 
         <!-- Detail / Approve Report Modal -->
+        <Teleport to="body">
         <div
             v-if="isDetailModalOpen && selectedReport"
             class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur-sm"
@@ -892,5 +895,6 @@ const formatDate = (dt: string) => {
                 </div>
             </div>
         </div>
+        </Teleport>
     </div>
 </template>

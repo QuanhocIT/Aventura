@@ -31,6 +31,7 @@ type Handover = {
     id: number;
     handover_date: string | null;
     status: HandoverStatus;
+    template_id?: number | null;
     from_user_name: string | null;
     to_user_name: string | null;
     from_shift_name: string | null;
@@ -42,8 +43,33 @@ type Handover = {
     pending_tasks: string | null;
     dispute_reason: string | null;
     unfinished_items: number;
+    checklist_total: number;
+    checklist_done: number;
+    checklist: ChecklistEntry[];
+    from_shift: Shift | null;
+    to_shift: Shift | null;
     submitted_at: string | null;
     accepted_at: string | null;
+};
+
+type Shift = {
+    id: number;
+    name: string;
+    code?: string;
+    start_time?: string;
+    end_time?: string;
+    is_overnight?: boolean;
+};
+
+type ChecklistEntry = {
+    id: number;
+    title: string;
+    description: string | null;
+    requires_photo: boolean;
+    is_done: boolean;
+    notes: string | null;
+    photo_url: string | null;
+    checked_at: string | null;
 };
 
 type TemplateItem = {
@@ -62,12 +88,16 @@ const props = defineProps<{
         total: number;
     };
     templates: Template[];
-    shifts: { id: number; name: string }[];
+    shifts: Shift[];
     colleagues: { id: number; name: string }[];
     activeBranchId: number | null;
+    activeBranch?: { id: number; name: string } | null;
 }>();
 
 const currency = new Intl.NumberFormat('vi-VN');
+const activeBranchName = computed(
+    () => props.activeBranch?.name ?? 'Chưa chọn chi nhánh',
+);
 
 const statusConfig: Record<
     HandoverStatus,
@@ -159,10 +189,75 @@ const activeTemplate = computed(
         null,
 );
 
-function tickItem(handover: Handover, item: TemplateItem, photo?: string) {
+const handoverStats = computed(() => {
+    const rows = props.handovers.data;
+
+    return {
+        total: props.handovers.total,
+        draft: rows.filter((h) => h.status === 'draft').length,
+        pending: rows.filter((h) => h.status === 'pending_acceptance').length,
+        accepted: rows.filter((h) => h.status === 'accepted').length,
+        disputed: rows.filter((h) => h.status === 'disputed').length,
+    };
+});
+
+const draftChecklist = computed(() => draftHandover.value?.checklist ?? []);
+const draftProgress = computed(() => {
+    const total = draftHandover.value?.checklist_total ?? 0;
+
+    return total === 0
+        ? 100
+        : Math.round(
+              ((draftHandover.value?.checklist_done ?? 0) / total) * 100,
+          );
+});
+
+const statusOrder: HandoverStatus[] = [
+    'pending_acceptance',
+    'disputed',
+    'draft',
+    'accepted',
+];
+
+const priorityHandovers = computed(() =>
+    [...props.handovers.data]
+        .filter((handover) => handover.status !== 'accepted')
+        .sort(
+            (a, b) =>
+                statusOrder.indexOf(a.status) - statusOrder.indexOf(b.status),
+        )
+        .slice(0, 4),
+);
+
+const formatShift = (shift: Shift | null) => {
+    if (!shift) {
+        return 'Chưa chọn ca';
+    }
+
+    if (!shift.start_time || !shift.end_time) {
+        return shift.name;
+    }
+
+    return `${shift.name} · ${shift.start_time.slice(0, 5)}–${shift.end_time.slice(0, 5)}${shift.is_overnight ? ' (+1)' : ''}`;
+};
+
+function tickItem(handover: Handover, item: ChecklistEntry, photo?: string) {
+    const nextDone = !item.is_done;
+
+    if (nextDone && item.requires_photo && !photo && !item.photo_url) {
+        tickWithPhoto(handover, item);
+
+        return;
+    }
+
     router.post(
         `/shift-handovers/${handover.id}/check`,
-        { item_id: item.id, is_done: true, photo: photo ?? null },
+        {
+            item_id: item.id,
+            is_done: nextDone,
+            photo: photo ?? null,
+            notes: item.notes ?? null,
+        },
         {
             preserveScroll: true,
             onSuccess: () => toast.success(`Đã xác nhận: ${item.title}`),
@@ -173,7 +268,7 @@ function tickItem(handover: Handover, item: TemplateItem, photo?: string) {
 }
 
 /** Mục bắt buộc ảnh: mở camera rồi gửi kèm ảnh dạng data URI. */
-function tickWithPhoto(handover: Handover, item: TemplateItem) {
+function tickWithPhoto(handover: Handover, item: ChecklistEntry) {
     const input = document.createElement('input');
     input.type = 'file';
     input.accept = 'image/*';
@@ -228,30 +323,131 @@ function submitDispute() {
 <template>
     <Head title="Bàn giao ca" />
 
-    <div class="mx-auto flex w-full max-w-7xl flex-col gap-6 p-4 sm:p-6">
+    <div
+        class="mx-auto flex w-full max-w-[1600px] flex-col gap-6 p-4 sm:p-6 lg:p-8"
+    >
         <div
-            class="flex flex-col gap-4 border-b border-slate-200/80 pb-5 sm:flex-row sm:items-center sm:justify-between dark:border-slate-800"
+            class="relative overflow-hidden rounded-[24px] border border-indigo-500/20 bg-[radial-gradient(circle_at_top_right,_rgba(99,102,241,0.25),_transparent_36%),linear-gradient(120deg,_#0f172a,_#1e1b4b_55%,_#111827)] p-5 text-white shadow-2xl shadow-indigo-950/20 sm:p-7"
         >
-            <div class="flex items-center gap-3">
-                <div
-                    class="flex size-12 items-center justify-center rounded-2xl border border-indigo-100 bg-indigo-50 text-indigo-600 shadow-sm dark:border-indigo-900/30 dark:bg-indigo-950/60 dark:text-indigo-400"
-                >
-                    <Handshake class="size-6" />
-                </div>
-                <div>
-                    <h1
-                        class="text-2xl font-bold tracking-tight text-slate-800 dark:text-slate-100"
+            <div
+                class="relative z-10 flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between"
+            >
+                <div class="flex items-center gap-3">
+                    <div
+                        class="flex size-14 items-center justify-center rounded-2xl border border-indigo-300/30 bg-indigo-400/15 text-indigo-200 shadow-inner shadow-indigo-300/10"
                     >
-                        Bàn giao ca
-                    </h1>
-                    <p class="text-sm text-slate-500 dark:text-slate-400">
-                        Ghi nhận tiền, hàng, thiết bị, sự cố và công việc còn
-                        tồn trong một phiên. Ca sau phải xác nhận thì phiên mới
-                        khép lại.
-                    </p>
+                        <Handshake class="size-6" />
+                    </div>
+                    <div>
+                        <h1
+                            class="text-2xl font-bold tracking-tight text-white sm:text-3xl"
+                        >
+                            Trung tâm Bàn giao ca
+                        </h1>
+                        <p
+                            class="max-w-2xl text-sm leading-6 text-indigo-100/75"
+                        >
+                            Chốt trách nhiệm giữa hai ca bằng checklist, số
+                            tiền, tài sản, sự cố và việc tồn. Phiên chỉ khép lại
+                            khi ca sau xác nhận.
+                        </p>
+                    </div>
+                </div>
+                <div
+                    class="flex flex-col gap-3 sm:flex-row sm:items-center xl:min-w-[360px] xl:justify-end"
+                >
+                    <div
+                        class="rounded-2xl border border-white/15 bg-white/10 px-4 py-3 text-xs backdrop-blur-md"
+                    >
+                        <p class="text-indigo-200/70">Phạm vi bàn giao</p>
+                        <p class="mt-1 font-semibold text-white">
+                            {{ activeBranchName }}
+                        </p>
+                        <p class="mt-0.5 text-[10px] text-indigo-200/60">
+                            {{ handoverStats.total }} phiên trong lịch sử
+                        </p>
+                    </div>
+                    <a
+                        href="#handover-history"
+                        class="inline-flex items-center justify-center rounded-xl bg-white px-4 py-2.5 text-xs font-bold text-indigo-950 transition hover:bg-indigo-50"
+                        >Xem lịch sử</a
+                    >
                 </div>
             </div>
         </div>
+
+        <section class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <div class="rounded-2xl border border-border bg-card p-4 shadow-sm">
+                <div class="flex items-center justify-between">
+                    <p
+                        class="text-xs font-bold tracking-wide text-muted-foreground uppercase"
+                    >
+                        Phiên đang lập
+                    </p>
+                    <ListChecks class="h-4 w-4 text-indigo-400" />
+                </div>
+                <p class="mt-2 text-3xl font-bold text-foreground">
+                    {{ handoverStats.draft }}
+                </p>
+                <p class="mt-1 text-[11px] text-muted-foreground">
+                    Chưa hoàn tất checklist
+                </p>
+            </div>
+            <div
+                class="rounded-2xl border border-amber-500/20 bg-amber-950/10 p-4 shadow-sm"
+            >
+                <div class="flex items-center justify-between">
+                    <p
+                        class="text-xs font-bold tracking-wide text-amber-300 uppercase"
+                    >
+                        Chờ ca sau
+                    </p>
+                    <AlertTriangle class="h-4 w-4 text-amber-400" />
+                </div>
+                <p class="mt-2 text-3xl font-bold text-amber-100">
+                    {{ handoverStats.pending }}
+                </p>
+                <p class="mt-1 text-[11px] text-amber-200/70">
+                    Cần xác nhận để đóng phiên
+                </p>
+            </div>
+            <div
+                class="rounded-2xl border border-rose-500/20 bg-rose-950/10 p-4 shadow-sm"
+            >
+                <div class="flex items-center justify-between">
+                    <p
+                        class="text-xs font-bold tracking-wide text-rose-300 uppercase"
+                    >
+                        Không khớp
+                    </p>
+                    <AlertTriangle class="h-4 w-4 text-rose-400" />
+                </div>
+                <p class="mt-2 text-3xl font-bold text-rose-100">
+                    {{ handoverStats.disputed }}
+                </p>
+                <p class="mt-1 text-[11px] text-rose-200/70">
+                    Cần xử lý và ghi nhận nguyên nhân
+                </p>
+            </div>
+            <div
+                class="rounded-2xl border border-emerald-500/20 bg-emerald-950/10 p-4 shadow-sm"
+            >
+                <div class="flex items-center justify-between">
+                    <p
+                        class="text-xs font-bold tracking-wide text-emerald-300 uppercase"
+                    >
+                        Đã hoàn tất
+                    </p>
+                    <CheckCircle2 class="h-4 w-4 text-emerald-400" />
+                </div>
+                <p class="mt-2 text-3xl font-bold text-emerald-100">
+                    {{ handoverStats.accepted }}
+                </p>
+                <p class="mt-1 text-[11px] text-emerald-200/70">
+                    Đã có ca sau xác nhận
+                </p>
+            </div>
+        </section>
 
         <div
             v-if="!activeBranchId"
@@ -264,15 +460,30 @@ function submitDispute() {
         </div>
 
         <!-- Mở phiên mới -->
-        <Card v-else-if="!draftHandover" class="overflow-hidden shadow-sm">
-            <CardHeader class="border-b bg-slate-50/50 dark:bg-slate-900/50">
-                <CardTitle class="text-base">Mở phiên bàn giao</CardTitle>
-                <CardDescription>
-                    Chọn mẫu bàn giao áp dụng cho chi nhánh này.
-                </CardDescription>
+        <Card
+            v-else-if="!draftHandover"
+            class="overflow-hidden border-indigo-500/20 shadow-sm"
+        >
+            <CardHeader class="border-b border-indigo-500/10 bg-indigo-950/10">
+                <div class="flex items-start justify-between gap-3">
+                    <div>
+                        <CardTitle class="flex items-center gap-2 text-base"
+                            ><Handshake class="h-4 w-4 text-indigo-400" /> Mở
+                            phiên bàn giao</CardTitle
+                        >
+                        <CardDescription class="mt-1"
+                            >Chốt đúng ngày, ca giao, ca nhận và mẫu checklist
+                            áp dụng cho {{ activeBranchName }}.</CardDescription
+                        >
+                    </div>
+                    <span
+                        class="hidden rounded-full border border-indigo-500/20 bg-indigo-500/10 px-2.5 py-1 text-[11px] font-semibold text-indigo-300 sm:inline-flex"
+                        >Bước 1 / 3</span
+                    >
+                </div>
             </CardHeader>
-            <CardContent class="flex flex-col gap-3 sm:flex-row sm:items-end">
-                <div class="flex-1">
+            <CardContent class="grid gap-4 p-5 sm:grid-cols-2 xl:grid-cols-5">
+                <div>
                     <Label class="text-xs font-bold text-slate-500 uppercase"
                         >Mẫu bàn giao</Label
                     >
@@ -289,8 +500,12 @@ function submitDispute() {
                             {{ t.name }}
                         </option>
                     </select>
+                    <p class="mt-1 text-[11px] text-muted-foreground">
+                        {{ activeTemplate?.items.length ?? 0 }} mục checklist sẽ
+                        được áp dụng.
+                    </p>
                 </div>
-                <div class="flex-1">
+                <div>
                     <Label class="text-xs font-bold text-slate-500 uppercase"
                         >Ngày</Label
                     >
@@ -300,77 +515,375 @@ function submitDispute() {
                         class="mt-1"
                     />
                 </div>
-                <Button :disabled="openForm.processing" @click="openHandover">
-                    Bắt đầu bàn giao
-                </Button>
+                <div>
+                    <Label class="text-xs font-bold text-slate-500 uppercase"
+                        >Ca giao</Label
+                    >
+                    <select
+                        v-model="openForm.from_shift_id"
+                        class="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900"
+                    >
+                        <option :value="null">— Chọn ca giao —</option>
+                        <option
+                            v-for="shift in shifts"
+                            :key="`from-${shift.id}`"
+                            :value="shift.id"
+                        >
+                            {{ formatShift(shift) }}
+                        </option>
+                    </select>
+                </div>
+                <div>
+                    <Label class="text-xs font-bold text-slate-500 uppercase"
+                        >Ca nhận</Label
+                    >
+                    <select
+                        v-model="openForm.to_shift_id"
+                        class="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900"
+                    >
+                        <option :value="null">— Chọn ca nhận —</option>
+                        <option
+                            v-for="shift in shifts"
+                            :key="`to-${shift.id}`"
+                            :value="shift.id"
+                        >
+                            {{ formatShift(shift) }}
+                        </option>
+                    </select>
+                </div>
+                <div class="flex items-end">
+                    <Button
+                        class="w-full gap-2"
+                        :disabled="openForm.processing"
+                        @click="openHandover"
+                        ><Handshake class="h-4 w-4" /> Bắt đầu bàn giao</Button
+                    >
+                </div>
             </CardContent>
         </Card>
 
         <!-- Phiên đang lập: checklist -->
-        <Card v-else class="overflow-hidden shadow-sm">
-            <CardHeader class="border-b bg-slate-50/50 dark:bg-slate-900/50">
-                <CardTitle class="flex items-center gap-2 text-base">
-                    <ListChecks class="h-4 w-4 text-indigo-600" />
-                    Phiên đang lập
-                </CardTitle>
-                <CardDescription>
-                    Còn
-                    <strong>{{ draftHandover.unfinished_items }}</strong> mục
-                    chưa hoàn thành. Chưa xong hết thì chưa nộp được.
-                </CardDescription>
-            </CardHeader>
-            <CardContent class="flex flex-col gap-2">
+        <Card v-else class="overflow-hidden border-indigo-500/20 shadow-sm">
+            <CardHeader class="border-b border-indigo-500/10 bg-indigo-950/10">
                 <div
-                    v-for="item in activeTemplate?.items ?? []"
-                    :key="item.id"
-                    class="flex items-center justify-between gap-3 rounded-lg border border-slate-200 px-3 py-2 dark:border-slate-800"
+                    class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between"
                 >
-                    <div class="min-w-0">
-                        <p
-                            class="text-sm font-medium text-slate-800 dark:text-slate-200"
+                    <div>
+                        <CardTitle class="flex items-center gap-2 text-base"
+                            ><ListChecks class="h-4 w-4 text-indigo-400" />
+                            Phiên đang lập</CardTitle
                         >
-                            {{ item.title }}
-                        </p>
-                        <p
-                            v-if="item.requires_photo"
-                            class="text-[11px] font-semibold text-amber-600"
+                        <CardDescription class="mt-1"
+                            >{{ draftHandover.from_user_name }} ·
+                            {{ formatShift(draftHandover.from_shift) }} →
+                            {{
+                                formatShift(draftHandover.to_shift)
+                            }}</CardDescription
                         >
-                            Bắt buộc chụp ảnh
-                        </p>
                     </div>
-                    <Button
-                        size="sm"
-                        variant="outline"
-                        class="shrink-0 gap-1.5"
-                        @click="
-                            item.requires_photo
-                                ? tickWithPhoto(draftHandover, item)
-                                : tickItem(draftHandover, item)
+                    <div class="min-w-[220px]">
+                        <div class="flex items-center justify-between text-xs">
+                            <span class="text-indigo-200/70"
+                                >Tiến độ checklist</span
+                            ><strong class="text-indigo-200"
+                                >{{ draftHandover.checklist_done }}/{{
+                                    draftHandover.checklist_total
+                                }}
+                                · {{ draftProgress }}%</strong
+                            >
+                        </div>
+                        <div
+                            class="mt-2 h-2 overflow-hidden rounded-full bg-slate-800"
+                        >
+                            <div
+                                class="h-full rounded-full bg-indigo-400 transition-all"
+                                :style="{ width: `${draftProgress}%` }"
+                            ></div>
+                        </div>
+                    </div>
+                </div>
+            </CardHeader>
+            <CardContent class="p-5">
+                <div
+                    v-if="draftChecklist.length"
+                    class="grid gap-3 lg:grid-cols-2"
+                >
+                    <div
+                        v-for="item in draftChecklist"
+                        :key="item.id"
+                        class="rounded-xl border p-4 transition"
+                        :class="
+                            item.is_done
+                                ? 'border-emerald-500/25 bg-emerald-500/5'
+                                : 'border-border bg-background'
                         "
                     >
-                        <component
-                            :is="item.requires_photo ? Camera : CheckCircle2"
-                            class="h-3.5 w-3.5"
+                        <div class="flex items-start gap-3">
+                            <div
+                                class="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg"
+                                :class="
+                                    item.is_done
+                                        ? 'bg-emerald-500/15 text-emerald-400'
+                                        : 'bg-amber-500/10 text-amber-400'
+                                "
+                            >
+                                <CheckCircle2
+                                    v-if="item.is_done"
+                                    class="h-4 w-4"
+                                /><Camera
+                                    v-else-if="item.requires_photo"
+                                    class="h-4 w-4"
+                                /><ListChecks v-else class="h-4 w-4" />
+                            </div>
+                            <div class="min-w-0 flex-1">
+                                <p
+                                    class="text-sm font-semibold text-foreground"
+                                >
+                                    {{ item.title }}
+                                </p>
+                                <p
+                                    v-if="item.description"
+                                    class="mt-1 text-[11px] leading-4 text-muted-foreground"
+                                >
+                                    {{ item.description }}
+                                </p>
+                                <p
+                                    class="mt-2 text-[11px] font-semibold"
+                                    :class="
+                                        item.is_done
+                                            ? 'text-emerald-400'
+                                            : 'text-amber-400'
+                                    "
+                                >
+                                    {{
+                                        item.is_done
+                                            ? `Đã xác nhận${item.checked_at ? ` · ${item.checked_at}` : ''}`
+                                            : item.requires_photo
+                                              ? 'Bắt buộc chụp ảnh'
+                                              : 'Chưa xác nhận'
+                                    }}
+                                </p>
+                                <p
+                                    v-if="item.photo_url"
+                                    class="mt-1 text-[11px] text-indigo-300"
+                                >
+                                    <a
+                                        :href="item.photo_url"
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        >Mở ảnh xác nhận ↗</a
+                                    >
+                                </p>
+                            </div>
+                            <Button
+                                size="sm"
+                                :variant="item.is_done ? 'outline' : 'default'"
+                                class="shrink-0 gap-1.5 text-xs"
+                                @click="tickItem(draftHandover, item)"
+                                ><CheckCircle2
+                                    v-if="!item.is_done"
+                                    class="h-3.5 w-3.5"
+                                /><span>{{
+                                    item.is_done ? 'Bỏ xác nhận' : 'Xác nhận'
+                                }}</span></Button
+                            >
+                        </div>
+                        <Input
+                            v-model="item.notes"
+                            class="mt-3 h-8 text-xs"
+                            placeholder="Ghi chú cho mục này (nếu có)"
                         />
-                        Xác nhận
-                    </Button>
+                    </div>
                 </div>
-
-                <Button
-                    class="mt-2 self-end"
-                    :disabled="draftHandover.unfinished_items > 0"
-                    @click="openSubmit(draftHandover)"
+                <div
+                    v-else
+                    class="rounded-xl border border-dashed border-amber-500/30 bg-amber-500/5 p-5 text-sm text-amber-200"
                 >
-                    Nộp bàn giao
-                </Button>
+                    Mẫu bàn giao hiện chưa có mục checklist. Bạn vẫn có thể nộp
+                    phiên sau khi bổ sung thông tin tiền, thiết bị, sự cố và
+                    việc tồn.
+                </div>
+                <div
+                    class="mt-5 flex flex-col gap-3 border-t border-border pt-4 sm:flex-row sm:items-center sm:justify-between"
+                >
+                    <p class="text-xs text-muted-foreground">
+                        {{
+                            draftHandover.unfinished_items
+                                ? `Còn ${draftHandover.unfinished_items} mục cần hoàn tất trước khi nộp.`
+                                : 'Checklist đã hoàn tất, sẵn sàng chuyển sang ca nhận.'
+                        }}
+                    </p>
+                    <Button
+                        class="gap-2"
+                        :disabled="draftHandover.unfinished_items > 0"
+                        @click="openSubmit(draftHandover)"
+                        ><Handshake class="h-4 w-4" /> Nộp bàn giao</Button
+                    >
+                </div>
             </CardContent>
         </Card>
 
+        <section
+            v-if="priorityHandovers.length"
+            class="grid gap-4 xl:grid-cols-[1.25fr_0.75fr]"
+        >
+            <Card class="overflow-hidden border-amber-500/20 shadow-sm">
+                <CardHeader
+                    class="border-b border-amber-500/10 bg-amber-950/10 py-4"
+                >
+                    <CardTitle class="flex items-center gap-2 text-base"
+                        ><AlertTriangle class="h-4 w-4 text-amber-400" /> Cần
+                        hành động</CardTitle
+                    >
+                    <CardDescription class="mt-1 text-xs"
+                        >Các phiên chưa khép hoặc có chênh lệch được đưa lên đầu
+                        để xử lý.</CardDescription
+                    >
+                </CardHeader>
+                <CardContent class="divide-y divide-border p-0">
+                    <div
+                        v-for="handover in priorityHandovers"
+                        :key="handover.id"
+                        class="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between"
+                    >
+                        <div class="min-w-0">
+                            <div class="flex flex-wrap items-center gap-2">
+                                <span
+                                    class="font-mono text-xs font-bold text-indigo-300"
+                                    >#{{ handover.id }}</span
+                                ><span
+                                    :class="[
+                                        'rounded-full border px-2 py-0.5 text-[10px] font-bold',
+                                        statusConfig[handover.status].badge,
+                                    ]"
+                                    >{{
+                                        statusConfig[handover.status].label
+                                    }}</span
+                                >
+                            </div>
+                            <p
+                                class="mt-1 text-xs font-semibold text-foreground"
+                            >
+                                {{ handover.from_user_name }} →
+                                {{
+                                    handover.to_user_name ||
+                                    'Chưa chọn người nhận'
+                                }}
+                            </p>
+                            <p class="mt-1 text-[11px] text-muted-foreground">
+                                {{ formatShift(handover.from_shift) }} →
+                                {{ formatShift(handover.to_shift) }} ·
+                                {{ handover.handover_date }}
+                            </p>
+                        </div>
+                        <div class="flex shrink-0 gap-2">
+                            <Button
+                                v-if="handover.status === 'draft'"
+                                size="sm"
+                                class="gap-1.5 text-xs"
+                                @click="openSubmit(handover)"
+                                ><Handshake class="h-3.5 w-3.5" /> Nộp</Button
+                            >
+                            <template
+                                v-else-if="
+                                    handover.status === 'pending_acceptance'
+                                "
+                            >
+                                <Button
+                                    size="sm"
+                                    class="gap-1.5 text-xs"
+                                    @click="acceptHandover(handover)"
+                                    ><CheckCircle2 class="h-3.5 w-3.5" /> Nhận
+                                    ca</Button
+                                >
+                                <Button
+                                    size="sm"
+                                    variant="outline"
+                                    class="text-xs"
+                                    @click="disputeTarget = handover"
+                                    >Báo lệch</Button
+                                >
+                            </template>
+                        </div>
+                    </div>
+                </CardContent>
+            </Card>
+
+            <Card class="border-border shadow-sm">
+                <CardHeader class="border-b border-border bg-muted/20 py-4"
+                    ><CardTitle class="text-base">Luồng đóng phiên</CardTitle
+                    ><CardDescription class="mt-1 text-xs"
+                        >Không bỏ qua bước xác nhận hai bên.</CardDescription
+                    ></CardHeader
+                >
+                <CardContent class="space-y-4 p-5">
+                    <div class="flex gap-3">
+                        <div
+                            class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-indigo-500/15 text-xs font-bold text-indigo-300"
+                        >
+                            1
+                        </div>
+                        <div>
+                            <p class="text-xs font-semibold text-foreground">
+                                Ca ra lập phiên
+                            </p>
+                            <p class="mt-1 text-[11px] text-muted-foreground">
+                                Chọn ca, người nhận và hoàn tất checklist.
+                            </p>
+                        </div>
+                    </div>
+                    <div class="flex gap-3">
+                        <div
+                            class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-amber-500/15 text-xs font-bold text-amber-300"
+                        >
+                            2
+                        </div>
+                        <div>
+                            <p class="text-xs font-semibold text-foreground">
+                                Ca vào kiểm tra
+                            </p>
+                            <p class="mt-1 text-[11px] text-muted-foreground">
+                                Đối chiếu tiền, thiết bị, sự cố và việc tồn.
+                            </p>
+                        </div>
+                    </div>
+                    <div class="flex gap-3">
+                        <div
+                            class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-emerald-500/15 text-xs font-bold text-emerald-300"
+                        >
+                            3
+                        </div>
+                        <div>
+                            <p class="text-xs font-semibold text-foreground">
+                                Xác nhận hoặc báo lệch
+                            </p>
+                            <p class="mt-1 text-[11px] text-muted-foreground">
+                                Chỉ trạng thái đã nhận mới được xem là hoàn tất.
+                            </p>
+                        </div>
+                    </div>
+                </CardContent>
+            </Card>
+        </section>
+
         <!-- Lịch sử -->
-        <Card class="overflow-hidden shadow-sm">
+        <Card id="handover-history" class="overflow-hidden shadow-sm">
             <CardHeader class="border-b bg-slate-50/50 dark:bg-slate-900/50">
-                <CardTitle class="text-base">Lịch sử bàn giao</CardTitle>
-                <CardDescription>{{ handovers.total }} phiên.</CardDescription>
+                <div
+                    class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between"
+                >
+                    <div>
+                        <CardTitle class="text-base">Lịch sử bàn giao</CardTitle
+                        ><CardDescription class="mt-1"
+                            >{{ handovers.total }} phiên trong phạm vi chi
+                            nhánh.</CardDescription
+                        >
+                    </div>
+                    <span class="text-[11px] text-muted-foreground"
+                        >Hiển thị {{ handovers.data.length }} phiên gần
+                        nhất</span
+                    >
+                </div>
             </CardHeader>
             <CardContent class="p-0">
                 <div
@@ -421,6 +934,8 @@ function submitDispute() {
                                 class="mt-1 text-xs text-slate-400 dark:text-slate-500"
                             >
                                 {{ h.handover_date }}
+                                · {{ formatShift(h.from_shift) }} →
+                                {{ formatShift(h.to_shift) }}
                                 <template v-if="h.template_name">
                                     · {{ h.template_name }}
                                 </template>
@@ -428,6 +943,28 @@ function submitDispute() {
                                     · nộp {{ h.submitted_at }}
                                 </template>
                             </p>
+
+                            <div
+                                v-if="h.checklist_total"
+                                class="mt-2 flex items-center gap-2 text-[11px] text-muted-foreground"
+                            >
+                                <div
+                                    class="h-1.5 w-28 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-800"
+                                >
+                                    <div
+                                        class="h-full rounded-full bg-indigo-500"
+                                        :style="{
+                                            width: `${Math.min(Math.round((h.checklist_done / h.checklist_total) * 100), 100)}%`,
+                                        }"
+                                    ></div>
+                                </div>
+                                <span
+                                    >{{ h.checklist_done }}/{{
+                                        h.checklist_total
+                                    }}
+                                    mục checklist</span
+                                >
+                            </div>
 
                             <div
                                 v-if="
@@ -518,19 +1055,70 @@ function submitDispute() {
     </div>
 
     <!-- Dialog nộp bàn giao -->
+    <Teleport to="body">
     <div
         v-if="submitTarget"
         class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
         @click.self="submitTarget = null"
     >
         <div
-            class="w-full max-w-lg rounded-xl bg-white p-5 shadow-xl dark:bg-slate-900"
+            class="w-full max-w-2xl rounded-2xl border border-indigo-500/20 bg-white p-5 shadow-2xl sm:p-6 dark:bg-slate-900"
         >
-            <h2 class="text-base font-bold text-slate-900 dark:text-slate-100">
-                Nộp bàn giao ca
-            </h2>
+            <div class="flex items-start justify-between gap-3">
+                <div>
+                    <h2
+                        class="text-base font-bold text-slate-900 dark:text-slate-100"
+                    >
+                        Nộp bàn giao ca
+                    </h2>
+                    <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                        {{ submitTarget.from_user_name }} →
+                        {{
+                            submitTarget.to_user_name || 'Chưa chọn người nhận'
+                        }}
+                        · {{ formatShift(submitTarget.from_shift) }} →
+                        {{ formatShift(submitTarget.to_shift) }}
+                    </p>
+                </div>
+                <span
+                    class="rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-[10px] font-bold text-amber-700 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-300"
+                    >Bước 2 / 3</span
+                >
+            </div>
 
-            <div class="mt-4 flex flex-col gap-3">
+            <div
+                class="mt-4 grid gap-3 rounded-xl border border-indigo-500/15 bg-indigo-950/5 p-3 text-xs sm:grid-cols-3 dark:bg-indigo-950/20"
+            >
+                <div>
+                    <p class="text-slate-500 dark:text-slate-400">Checklist</p>
+                    <p
+                        class="mt-1 font-bold text-slate-800 dark:text-slate-100"
+                    >
+                        {{ submitTarget.checklist_done }}/{{
+                            submitTarget.checklist_total
+                        }}
+                        mục
+                    </p>
+                </div>
+                <div>
+                    <p class="text-slate-500 dark:text-slate-400">Tiền mặt</p>
+                    <p
+                        class="mt-1 font-bold text-slate-800 dark:text-slate-100"
+                    >
+                        {{ currency.format(submitForm.cash_amount || 0) }}đ
+                    </p>
+                </div>
+                <div>
+                    <p class="text-slate-500 dark:text-slate-400">Ngày</p>
+                    <p
+                        class="mt-1 font-bold text-slate-800 dark:text-slate-100"
+                    >
+                        {{ submitTarget.handover_date }}
+                    </p>
+                </div>
+            </div>
+
+            <div class="mt-4 grid gap-3 sm:grid-cols-2">
                 <div>
                     <Label class="text-xs font-bold text-slate-500 uppercase"
                         >Người nhận ca
@@ -564,7 +1152,7 @@ function submitDispute() {
                     />
                 </div>
 
-                <div>
+                <div class="sm:col-span-2">
                     <Label class="text-xs font-bold text-slate-500 uppercase"
                         >Thiết bị</Label
                     >
@@ -576,7 +1164,7 @@ function submitDispute() {
                     ></textarea>
                 </div>
 
-                <div>
+                <div class="sm:col-span-2">
                     <Label class="text-xs font-bold text-slate-500 uppercase"
                         >Sự cố trong ca</Label
                     >
@@ -587,7 +1175,7 @@ function submitDispute() {
                     ></textarea>
                 </div>
 
-                <div>
+                <div class="sm:col-span-2">
                     <Label class="text-xs font-bold text-slate-500 uppercase"
                         >Công việc còn tồn</Label
                     >
@@ -612,8 +1200,10 @@ function submitDispute() {
             </div>
         </div>
     </div>
+    </Teleport>
 
     <!-- Dialog báo không khớp -->
+    <Teleport to="body">
     <div
         v-if="disputeTarget"
         class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
@@ -644,4 +1234,5 @@ function submitDispute() {
             </div>
         </div>
     </div>
+    </Teleport>
 </template>

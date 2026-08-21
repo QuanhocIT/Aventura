@@ -844,262 +844,266 @@ const genderColors = {
         </Card>
 
         <!-- MODAL: ADD CUSTOMER -->
-        <div
-            v-if="showAddModal"
-            class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs"
-        >
-            <Card
-                class="w-full max-w-md animate-in shadow-2xl duration-150 zoom-in-95 fade-in"
+        <Teleport to="body">
+            <div
+                v-if="showAddModal"
+                class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs"
             >
-                <CardHeader
-                    class="flex flex-row items-center justify-between gap-4 border-b pb-3"
+                <Card
+                    class="w-full max-w-md animate-in shadow-2xl duration-150 zoom-in-95 fade-in"
                 >
-                    <div>
-                        <CardTitle
-                            class="flex items-center gap-1.5 text-base text-indigo-600"
-                        >
-                            <UserCheck class="size-5" />
-                            Đăng Ký Khách Hàng CRM Mới
-                        </CardTitle>
-                        <CardDescription
-                            >Khai báo hồ sơ khách hàng để tích lũy điểm thưởng
-                            và phục vụ remarketing.</CardDescription
-                        >
-                    </div>
-                    <button
-                        @click="showAddModal = false"
-                        class="rounded-lg p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+                    <CardHeader
+                        class="flex flex-row items-center justify-between gap-4 border-b pb-3"
                     >
-                        <X class="size-4" />
-                    </button>
-                </CardHeader>
-
-                <CardContent class="space-y-4 pt-4">
-                    <form @submit.prevent="submitAdd" class="space-y-4">
-                        <div class="grid gap-1.5">
-                            <Label for="cust-name"
-                                >Họ và tên khách hàng
-                                <span class="text-rose-500">*</span></Label
+                        <div>
+                            <CardTitle
+                                class="flex items-center gap-1.5 text-base text-indigo-600"
                             >
-                            <Input
-                                id="cust-name"
-                                v-model="form.full_name"
-                                placeholder="Nguyễn Văn A..."
-                                required
-                            />
+                                <UserCheck class="size-5" />
+                                Đăng Ký Khách Hàng CRM Mới
+                            </CardTitle>
+                            <CardDescription
+                                >Khai báo hồ sơ khách hàng để tích lũy điểm thưởng
+                                và phục vụ remarketing.</CardDescription
+                            >
                         </div>
+                        <button
+                            @click="showAddModal = false"
+                            class="rounded-lg p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+                        >
+                            <X class="size-4" />
+                        </button>
+                    </CardHeader>
 
-                        <div class="grid grid-cols-2 gap-4">
+                    <CardContent class="space-y-4 pt-4">
+                        <form @submit.prevent="submitAdd" class="space-y-4">
                             <div class="grid gap-1.5">
-                                <Label for="cust-phone"
-                                    >Số điện thoại liên lạc
+                                <Label for="cust-name"
+                                    >Họ và tên khách hàng
                                     <span class="text-rose-500">*</span></Label
                                 >
                                 <Input
-                                    id="cust-phone"
-                                    v-model="form.phone"
-                                    placeholder="090..."
+                                    id="cust-name"
+                                    v-model="form.full_name"
+                                    placeholder="Nguyễn Văn A..."
                                     required
                                 />
                             </div>
+
+                            <div class="grid grid-cols-2 gap-4">
+                                <div class="grid gap-1.5">
+                                    <Label for="cust-phone"
+                                        >Số điện thoại liên lạc
+                                        <span class="text-rose-500">*</span></Label
+                                    >
+                                    <Input
+                                        id="cust-phone"
+                                        v-model="form.phone"
+                                        placeholder="090..."
+                                        required
+                                    />
+                                </div>
+                                <div class="grid gap-1.5">
+                                    <Label for="cust-email">Địa chỉ Email</Label>
+                                    <Input
+                                        id="cust-email"
+                                        type="email"
+                                        v-model="form.email"
+                                        placeholder="example@..."
+                                    />
+                                </div>
+                            </div>
+
+                            <div class="grid grid-cols-2 gap-4">
+                                <div class="grid gap-1.5">
+                                    <Label for="cust-gender"
+                                        >Giới tính thành viên</Label
+                                    >
+                                    <select
+                                        id="cust-gender"
+                                        v-model="form.gender"
+                                        class="w-full rounded-md border border-slate-200 bg-background px-3 py-2 text-sm focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:outline-none"
+                                    >
+                                        <option value="male">Nam</option>
+                                        <option value="female">Nữ</option>
+                                        <option value="other">Khác</option>
+                                    </select>
+                                </div>
+                                <div class="grid gap-1.5">
+                                    <Label for="cust-dob">Ngày sinh nhật</Label>
+                                    <Input
+                                        id="cust-dob"
+                                        type="date"
+                                        v-model="form.date_of_birth"
+                                    />
+                                </div>
+                            </div>
+
                             <div class="grid gap-1.5">
-                                <Label for="cust-email">Địa chỉ Email</Label>
-                                <Input
-                                    id="cust-email"
-                                    type="email"
-                                    v-model="form.email"
-                                    placeholder="example@..."
+                                <Label for="cust-notes"
+                                    >Ghi chú sở thích/thói quen ăn uống</Label
+                                >
+                                <textarea
+                                    id="cust-notes"
+                                    v-model="form.notes"
+                                    rows="3"
+                                    placeholder="Ghi chú sở thích ăn uống của khách (ít cay, nhiều hành...)"
+                                    class="w-full resize-none rounded-md border border-slate-200 bg-background px-3 py-2 text-sm focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:outline-none"
                                 />
                             </div>
-                        </div>
 
-                        <div class="grid grid-cols-2 gap-4">
-                            <div class="grid gap-1.5">
-                                <Label for="cust-gender"
-                                    >Giới tính thành viên</Label
+                            <div class="flex justify-end gap-2 border-t pt-2">
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    @click="showAddModal = false"
+                                    >Hủy</Button
                                 >
-                                <select
-                                    id="cust-gender"
-                                    v-model="form.gender"
-                                    class="w-full rounded-md border border-slate-200 bg-background px-3 py-2 text-sm focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:outline-none"
+                                <Button
+                                    type="submit"
+                                    size="sm"
+                                    class="bg-indigo-600 font-semibold text-white hover:bg-indigo-700"
+                                    :disabled="form.processing"
                                 >
-                                    <option value="male">Nam</option>
-                                    <option value="female">Nữ</option>
-                                    <option value="other">Khác</option>
-                                </select>
+                                    {{
+                                        form.processing
+                                            ? 'Đang lưu...'
+                                            : 'Thêm khách hàng'
+                                    }}
+                                </Button>
                             </div>
-                            <div class="grid gap-1.5">
-                                <Label for="cust-dob">Ngày sinh nhật</Label>
-                                <Input
-                                    id="cust-dob"
-                                    type="date"
-                                    v-model="form.date_of_birth"
-                                />
-                            </div>
-                        </div>
-
-                        <div class="grid gap-1.5">
-                            <Label for="cust-notes"
-                                >Ghi chú sở thích/thói quen ăn uống</Label
-                            >
-                            <textarea
-                                id="cust-notes"
-                                v-model="form.notes"
-                                rows="3"
-                                placeholder="Ghi chú sở thích ăn uống của khách (ít cay, nhiều hành...)"
-                                class="w-full resize-none rounded-md border border-slate-200 bg-background px-3 py-2 text-sm focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:outline-none"
-                            />
-                        </div>
-
-                        <div class="flex justify-end gap-2 border-t pt-2">
-                            <Button
-                                type="button"
-                                variant="outline"
-                                size="sm"
-                                @click="showAddModal = false"
-                                >Hủy</Button
-                            >
-                            <Button
-                                type="submit"
-                                size="sm"
-                                class="bg-indigo-600 font-semibold text-white hover:bg-indigo-700"
-                                :disabled="form.processing"
-                            >
-                                {{
-                                    form.processing
-                                        ? 'Đang lưu...'
-                                        : 'Thêm khách hàng'
-                                }}
-                            </Button>
-                        </div>
-                    </form>
-                </CardContent>
-            </Card>
-        </div>
+                        </form>
+                    </CardContent>
+                </Card>
+            </div>
+        </Teleport>
 
         <!-- MODAL: EDIT CUSTOMER -->
-        <div
-            v-if="editingCustomer"
-            class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs"
-        >
-            <Card
-                class="w-full max-w-md animate-in shadow-2xl duration-150 zoom-in-95 fade-in"
+        <Teleport to="body">
+            <div
+                v-if="editingCustomer"
+                class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs"
             >
-                <CardHeader
-                    class="flex flex-row items-center justify-between gap-4 border-b pb-3"
+                <Card
+                    class="w-full max-w-md animate-in shadow-2xl duration-150 zoom-in-95 fade-in"
                 >
-                    <div>
-                        <CardTitle
-                            class="flex items-center gap-1.5 text-base text-indigo-600"
-                        >
-                            <Pencil class="size-4" />
-                            Chỉnh Sửa Hồ Sơ Khách Hàng
-                        </CardTitle>
-                        <CardDescription
-                            >Cập nhật lại thông tin cá nhân của khách hàng trên
-                            hệ thống CRM.</CardDescription
-                        >
-                    </div>
-                    <button
-                        @click="editingCustomer = null"
-                        class="rounded-lg p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+                    <CardHeader
+                        class="flex flex-row items-center justify-between gap-4 border-b pb-3"
                     >
-                        <X class="size-4" />
-                    </button>
-                </CardHeader>
-
-                <CardContent class="space-y-4 pt-4">
-                    <form @submit.prevent="submitEdit" class="space-y-4">
-                        <div class="grid gap-1.5">
-                            <Label
-                                >Họ và tên khách hàng
-                                <span class="text-rose-500">*</span></Label
+                        <div>
+                            <CardTitle
+                                class="flex items-center gap-1.5 text-base text-indigo-600"
                             >
-                            <Input v-model="editForm.full_name" required />
+                                <Pencil class="size-4" />
+                                Chỉnh Sửa Hồ Sơ Khách Hàng
+                            </CardTitle>
+                            <CardDescription
+                                >Cập nhật lại thông tin cá nhân của khách hàng trên
+                                hệ thống CRM.</CardDescription
+                            >
                         </div>
+                        <button
+                            @click="editingCustomer = null"
+                            class="rounded-lg p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+                        >
+                            <X class="size-4" />
+                        </button>
+                    </CardHeader>
 
-                        <div class="grid grid-cols-2 gap-4">
+                    <CardContent class="space-y-4 pt-4">
+                        <form @submit.prevent="submitEdit" class="space-y-4">
                             <div class="grid gap-1.5">
                                 <Label
-                                    >Số điện thoại liên lạc
+                                    >Họ và tên khách hàng
                                     <span class="text-rose-500">*</span></Label
                                 >
-                                <Input v-model="editForm.phone" required />
+                                <Input v-model="editForm.full_name" required />
                             </div>
-                            <div class="grid gap-1.5">
-                                <Label>Địa chỉ Email</Label>
-                                <Input type="email" v-model="editForm.email" />
-                            </div>
-                        </div>
 
-                        <div class="grid grid-cols-2 gap-4">
-                            <div class="grid gap-1.5">
-                                <Label>Giới tính thành viên</Label>
-                                <select
-                                    v-model="editForm.gender"
-                                    class="w-full rounded-md border border-slate-200 bg-background px-3 py-2 text-sm focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:outline-none"
-                                >
-                                    <option value="male">Nam</option>
-                                    <option value="female">Nữ</option>
-                                    <option value="other">Khác</option>
-                                </select>
+                            <div class="grid grid-cols-2 gap-4">
+                                <div class="grid gap-1.5">
+                                    <Label
+                                        >Số điện thoại liên lạc
+                                        <span class="text-rose-500">*</span></Label
+                                    >
+                                    <Input v-model="editForm.phone" required />
+                                </div>
+                                <div class="grid gap-1.5">
+                                    <Label>Địa chỉ Email</Label>
+                                    <Input type="email" v-model="editForm.email" />
+                                </div>
                             </div>
+
+                            <div class="grid grid-cols-2 gap-4">
+                                <div class="grid gap-1.5">
+                                    <Label>Giới tính thành viên</Label>
+                                    <select
+                                        v-model="editForm.gender"
+                                        class="w-full rounded-md border border-slate-200 bg-background px-3 py-2 text-sm focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:outline-none"
+                                    >
+                                        <option value="male">Nam</option>
+                                        <option value="female">Nữ</option>
+                                        <option value="other">Khác</option>
+                                    </select>
+                                </div>
+                                <div class="grid gap-1.5">
+                                    <Label>Ngày sinh nhật</Label>
+                                    <Input
+                                        type="date"
+                                        v-model="editForm.date_of_birth"
+                                    />
+                                </div>
+                            </div>
+
                             <div class="grid gap-1.5">
-                                <Label>Ngày sinh nhật</Label>
-                                <Input
-                                    type="date"
-                                    v-model="editForm.date_of_birth"
+                                <Label>Ghi chú sở thích/thói quen ăn uống</Label>
+                                <textarea
+                                    v-model="editForm.notes"
+                                    rows="3"
+                                    class="w-full resize-none rounded-md border border-slate-200 bg-background px-3 py-2 text-sm focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:outline-none"
                                 />
                             </div>
-                        </div>
 
-                        <div class="grid gap-1.5">
-                            <Label>Ghi chú sở thích/thói quen ăn uống</Label>
-                            <textarea
-                                v-model="editForm.notes"
-                                rows="3"
-                                class="w-full resize-none rounded-md border border-slate-200 bg-background px-3 py-2 text-sm focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:outline-none"
-                            />
-                        </div>
-
-                        <div
-                            class="flex items-start gap-2 rounded-xl border border-amber-100 bg-amber-50/50 p-3 text-[10px] text-amber-700 dark:bg-amber-950/20 dark:text-amber-400"
-                        >
-                            <AlertCircle
-                                class="mt-0.5 size-4 shrink-0 text-amber-600"
-                            />
-                            <p>
-                                <strong>Lưu ý bảo mật:</strong> Mọi chỉnh sửa dữ
-                                liệu khách hàng sẽ được ghi nhận và lưu vết đầy
-                                đủ trong lịch sử hoạt động để phòng chống rủi ro
-                                giả mạo thông tin điểm thưởng.
-                            </p>
-                        </div>
-
-                        <div class="flex justify-end gap-2 border-t pt-2">
-                            <Button
-                                type="button"
-                                variant="outline"
-                                size="sm"
-                                @click="editingCustomer = null"
-                                >Hủy</Button
+                            <div
+                                class="flex items-start gap-2 rounded-xl border border-amber-100 bg-amber-50/50 p-3 text-[10px] text-amber-700 dark:bg-amber-950/20 dark:text-amber-400"
                             >
-                            <Button
-                                type="submit"
-                                size="sm"
-                                class="bg-indigo-600 font-semibold text-white hover:bg-indigo-700"
-                                :disabled="editForm.processing"
-                            >
-                                {{
-                                    editForm.processing
-                                        ? 'Đang lưu...'
-                                        : 'Lưu hồ sơ'
-                                }}
-                            </Button>
-                        </div>
-                    </form>
-                </CardContent>
-            </Card>
-        </div>
+                                <AlertCircle
+                                    class="mt-0.5 size-4 shrink-0 text-amber-600"
+                                />
+                                <p>
+                                    <strong>Lưu ý bảo mật:</strong> Mọi chỉnh sửa dữ
+                                    liệu khách hàng sẽ được ghi nhận và lưu vết đầy
+                                    đủ trong lịch sử hoạt động để phòng chống rủi ro
+                                    giả mạo thông tin điểm thưởng.
+                                </p>
+                            </div>
+
+                            <div class="flex justify-end gap-2 border-t pt-2">
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    @click="editingCustomer = null"
+                                    >Hủy</Button
+                                >
+                                <Button
+                                    type="submit"
+                                    size="sm"
+                                    class="bg-indigo-600 font-semibold text-white hover:bg-indigo-700"
+                                    :disabled="editForm.processing"
+                                >
+                                    {{
+                                        editForm.processing
+                                            ? 'Đang lưu...'
+                                            : 'Lưu hồ sơ'
+                                    }}
+                                </Button>
+                            </div>
+                        </form>
+                    </CardContent>
+                </Card>
+            </div>
+        </Teleport>
     </div>
 </template>

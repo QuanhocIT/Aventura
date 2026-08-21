@@ -26,6 +26,7 @@ const numberFormat = (value: number) =>
 </script>
 
 <template>
+    <Teleport to="body">
     <div
         v-if="open"
         class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur-sm"
@@ -185,4 +186,5 @@ const numberFormat = (value: number) =>
             </footer>
         </div>
     </div>
+    </Teleport>
 </template>

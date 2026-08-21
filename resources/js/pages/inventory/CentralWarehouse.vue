@@ -66,7 +66,7 @@ const props = defineProps<{
 }>();
 
 const activeTab = ref<
-    'all'
+    | 'all'
     | 'pending'
     | 'approved'
     | 'preparing'
@@ -74,6 +74,7 @@ const activeTab = ref<
     | 'dispatched'
     | 'partial_received'
     | 'disputed'
+    | 'exceptions'
     | 'completed'
     | 'task_board'
 >('all');
@@ -109,20 +110,30 @@ const taskForm = ref({
 
 const taskSummary = computed(() => ({
     total: taskAssignments.value.length,
-    assigned: taskAssignments.value.filter((task) => task.status === 'assigned').length,
-    in_progress: taskAssignments.value.filter((task) => task.status === 'in_progress').length,
-    completed: taskAssignments.value.filter((task) => task.status === 'completed').length,
-    unassigned: taskAssignments.value.filter((task) => !task.assigned_to && task.status !== 'completed').length,
+    assigned: taskAssignments.value.filter((task) => task.status === 'assigned')
+        .length,
+    in_progress: taskAssignments.value.filter(
+        (task) => task.status === 'in_progress',
+    ).length,
+    completed: taskAssignments.value.filter(
+        (task) => task.status === 'completed',
+    ).length,
+    unassigned: taskAssignments.value.filter(
+        (task) => !task.assigned_to && task.status !== 'completed',
+    ).length,
 }));
 
 const staffWorkload = computed(() =>
     props.warehouseStaff.map((staff) => ({
         ...staff,
         activeTasks: taskAssignments.value.filter(
-            (task) => task.assigned_to === staff.id && ['assigned', 'in_progress'].includes(task.status),
+            (task) =>
+                task.assigned_to === staff.id &&
+                ['assigned', 'in_progress'].includes(task.status),
         ).length,
         completedTasks: taskAssignments.value.filter(
-            (task) => task.assigned_to === staff.id && task.status === 'completed',
+            (task) =>
+                task.assigned_to === staff.id && task.status === 'completed',
         ).length,
     })),
 );
@@ -131,7 +142,11 @@ const staffWorkload = computed(() =>
 const filteredRequests = computed(() => {
     return props.supplyRequests.filter((req) => {
         const matchesTab =
-            activeTab.value === 'all' || activeTab.value === 'task_board' || req.status === activeTab.value;
+            activeTab.value === 'all' ||
+            activeTab.value === 'task_board' ||
+            (activeTab.value === 'exceptions' &&
+                ['partial_received', 'disputed'].includes(req.status)) ||
+            req.status === activeTab.value;
         const matchesBranch =
             selectedBranchFilter.value === 'all' ||
             req.to_branch_id === Number(selectedBranchFilter.value);
@@ -154,20 +169,151 @@ const filteredRequests = computed(() => {
 const stats = computed(() => ({
     total: props.supplyRequests.length,
     pending: props.supplyRequests.filter((r) => r.status === 'pending').length,
-    approved: props.supplyRequests.filter((r) => r.status === 'approved').length,
-    preparing: props.supplyRequests.filter((r) => r.status === 'preparing').length,
-    dispatch_pending: props.supplyRequests.filter((r) => r.status === 'dispatch_pending_approval').length,
-    dispatched: props.supplyRequests.filter((r) => r.status === 'dispatched').length,
-    partial_received: props.supplyRequests.filter((r) => r.status === 'partial_received').length,
-    disputed: props.supplyRequests.filter((r) => r.status === 'disputed').length,
-    completed: props.supplyRequests.filter((r) => r.status === 'completed').length,
+    approved: props.supplyRequests.filter((r) => r.status === 'approved')
+        .length,
+    preparing: props.supplyRequests.filter((r) => r.status === 'preparing')
+        .length,
+    dispatch_pending: props.supplyRequests.filter(
+        (r) => r.status === 'dispatch_pending_approval',
+    ).length,
+    dispatched: props.supplyRequests.filter((r) => r.status === 'dispatched')
+        .length,
+    partial_received: props.supplyRequests.filter(
+        (r) => r.status === 'partial_received',
+    ).length,
+    disputed: props.supplyRequests.filter((r) => r.status === 'disputed')
+        .length,
+    completed: props.supplyRequests.filter((r) => r.status === 'completed')
+        .length,
 }));
 
-const operationalSummary = computed(() => props.supplyAnalytics?.operations ?? {});
+const terminalStatuses = ['completed', 'cancelled', 'rejected'];
+const openRequests = computed(() =>
+    props.supplyRequests.filter(
+        (request) => !terminalStatuses.includes(request.status),
+    ),
+);
+const overdueRequests = computed(() =>
+    openRequests.value.filter(
+        (request) =>
+            request.requested_delivery_date &&
+            new Date(request.requested_delivery_date).getTime() < Date.now(),
+    ),
+);
+const attentionRequests = computed(() =>
+    [...openRequests.value]
+        .sort((a, b) => {
+            const overdueDelta = Number(isOverdue(b)) - Number(isOverdue(a));
+
+            if (overdueDelta !== 0) {
+                return overdueDelta;
+            }
+
+            const statusOrder: Record<string, number> = {
+                pending: 1,
+                dispatch_pending_approval: 2,
+                approved: 3,
+                preparing: 4,
+                partial_received: 5,
+                disputed: 6,
+                dispatched: 7,
+            };
+
+            return (
+                (statusOrder[a.status] ?? 99) - (statusOrder[b.status] ?? 99)
+            );
+        })
+        .slice(0, 6),
+);
+const actionQueue = computed(() => [
+    {
+        key: 'pending' as const,
+        label: 'Chờ duyệt đơn',
+        description: 'Kiểm tra nhu cầu, hạn mức và tồn khả dụng',
+        count: stats.value.pending,
+        tone: 'amber',
+        icon: Clock,
+    },
+    {
+        key: 'approved' as const,
+        label: 'Cần soạn hàng',
+        description: 'Chọn lô FEFO và chốt số lượng thực xuất',
+        count: stats.value.approved,
+        tone: 'blue',
+        icon: PackageCheck,
+    },
+    {
+        key: 'dispatch_pending_approval' as const,
+        label: 'Chờ duyệt xuất',
+        description: 'Trưởng kho xác nhận lệnh xuất cuối cùng',
+        count: stats.value.dispatch_pending,
+        tone: 'violet',
+        icon: ClipboardList,
+    },
+    {
+        key: 'exceptions' as const,
+        label: 'Theo dõi nhận hàng',
+        description: 'Thiếu hàng hoặc phát sinh chênh lệch tại chi nhánh',
+        count: stats.value.partial_received + stats.value.disputed,
+        tone: 'orange',
+        icon: AlertTriangle,
+    },
+]);
+const pipelineStages = computed(() => [
+    { key: 'pending' as const, label: 'Chờ duyệt', count: stats.value.pending },
+    {
+        key: 'approved' as const,
+        label: 'Đã duyệt',
+        count: stats.value.approved,
+    },
+    {
+        key: 'preparing' as const,
+        label: 'Đang soạn',
+        count: stats.value.preparing,
+    },
+    {
+        key: 'dispatch_pending_approval' as const,
+        label: 'Duyệt xuất',
+        count: stats.value.dispatch_pending,
+    },
+    {
+        key: 'dispatched' as const,
+        label: 'Đang giao',
+        count: stats.value.dispatched,
+    },
+    {
+        key: 'completed' as const,
+        label: 'Hoàn thành',
+        count: stats.value.completed,
+    },
+]);
+
+const operationalSummary = computed(
+    () => props.supplyAnalytics?.operations ?? {},
+);
 const warehouseKpi = computed(() => props.centralWarehouseAnalytics ?? {});
 const receivingVouchers = computed(() => props.receivingVouchers ?? []);
 const inventorySummary = computed(() => props.inventorySummary ?? {});
 const locations = ref<Array<any>>([...(props.warehouseLocations ?? [])]);
+
+const isOverdue = (request: any) =>
+    Boolean(
+        request?.requested_delivery_date &&
+        !terminalStatuses.includes(request.status) &&
+        new Date(request.requested_delivery_date).getTime() < Date.now(),
+    );
+
+const getDueLabel = (request: any) => {
+    if (!request?.requested_delivery_date) {
+        return 'Chưa đặt lịch giao';
+    }
+
+    if (isOverdue(request)) {
+        return `Quá hạn ${formatDate(request.requested_delivery_date)}`;
+    }
+
+    return `Giao ${formatDate(request.requested_delivery_date)}`;
+};
 const isLocationModalOpen = ref(false);
 const isSavingLocation = ref(false);
 const locationForm = ref({
@@ -188,12 +334,18 @@ const openLocationModal = () => {
 const saveLocation = async () => {
     if (!locationForm.value.zone || !locationForm.value.location_code) {
         toast.error('Vui lòng nhập khu vực và mã vị trí kho.');
+
         return;
     }
 
     isSavingLocation.value = true;
+
     try {
-        const res = await axios.post('/api/warehouse-locations', locationForm.value);
+        const res = await axios.post(
+            '/api/warehouse-locations',
+            locationForm.value,
+        );
+
         if (res.data.success) {
             locations.value.push(res.data.data);
             toast.success(res.data.message || 'Đã tạo vị trí kho.');
@@ -222,8 +374,14 @@ const openPickingModal = (req: any) => {
         ingredient_name: item.ingredient?.name,
         unit_symbol: item.unit_symbol || item.ingredient?.unit?.symbol || 'đv',
         requested_quantity: Number(item.requested_quantity),
-        approved_quantity: Number(item.approved_quantity ?? item.requested_quantity),
-        actual_dispatched_quantity: Number(item.actual_dispatched_quantity ?? item.approved_quantity ?? item.requested_quantity),
+        approved_quantity: Number(
+            item.approved_quantity ?? item.requested_quantity,
+        ),
+        actual_dispatched_quantity: Number(
+            item.actual_dispatched_quantity ??
+                item.approved_quantity ??
+                item.requested_quantity,
+        ),
         batch_id: item.batch_id || null,
         warehouse_location_id: item.warehouse_location_id || null,
         non_fefo_reason: item.non_fefo_reason || '',
@@ -243,15 +401,22 @@ const submitPreparePicking = async () => {
         const payload = {
             items: pickingItems.value.map((item) => ({
                 id: item.id,
-                actual_dispatched_quantity: Number(item.actual_dispatched_quantity),
+                actual_dispatched_quantity: Number(
+                    item.actual_dispatched_quantity,
+                ),
                 batch_id: item.batch_id ? Number(item.batch_id) : null,
-                warehouse_location_id: item.warehouse_location_id ? Number(item.warehouse_location_id) : null,
+                warehouse_location_id: item.warehouse_location_id
+                    ? Number(item.warehouse_location_id)
+                    : null,
                 non_fefo_reason: item.non_fefo_reason || null,
                 notes: item.notes || null,
             })),
         };
 
-        const res = await axios.post(`/api/supply-requests/${selectedRequest.value.id}/prepare`, payload);
+        const res = await axios.post(
+            `/api/supply-requests/${selectedRequest.value.id}/prepare`,
+            payload,
+        );
 
         if (res.data.success) {
             toast.success(res.data.message || 'Đã hoàn thành bước soạn hàng.');
@@ -260,7 +425,9 @@ const submitPreparePicking = async () => {
             router.reload();
         }
     } catch (e: any) {
-        toast.error(e.response?.data?.message || 'Có lỗi xảy ra khi soạn hàng.');
+        toast.error(
+            e.response?.data?.message || 'Có lỗi xảy ra khi soạn hàng.',
+        );
     } finally {
         isProcessing.value = false;
     }
@@ -274,7 +441,9 @@ const approveDispatchManager = async () => {
     isProcessing.value = true;
 
     try {
-        const res = await axios.post(`/api/supply-requests/${selectedRequest.value.id}/approve-dispatch`);
+        const res = await axios.post(
+            `/api/supply-requests/${selectedRequest.value.id}/approve-dispatch`,
+        );
 
         if (res.data.success) {
             toast.success('Đã duyệt lệnh xuất kho!');
@@ -282,7 +451,9 @@ const approveDispatchManager = async () => {
             router.reload();
         }
     } catch (e: any) {
-        toast.error(e.response?.data?.message || 'Có lỗi xảy ra khi duyệt xuất.');
+        toast.error(
+            e.response?.data?.message || 'Có lỗi xảy ra khi duyệt xuất.',
+        );
     } finally {
         isProcessing.value = false;
     }
@@ -356,13 +527,39 @@ const formatDate = (dt: string) => {
 
 const getRequestQuantitySummary = (request: any) => {
     const items = request?.items ?? [];
-    const dispatched = items.reduce((sum: number, item: any) => sum + Number(item.actual_dispatched_quantity ?? item.approved_quantity ?? item.requested_quantity ?? 0), 0);
-    const received = items.reduce((sum: number, item: any) => sum + Number(item.received_quantity ?? 0), 0);
+    const dispatched = items.reduce(
+        (sum: number, item: any) =>
+            sum +
+            Number(
+                item.actual_dispatched_quantity ??
+                    item.approved_quantity ??
+                    item.requested_quantity ??
+                    0,
+            ),
+        0,
+    );
+    const received = items.reduce(
+        (sum: number, item: any) => sum + Number(item.received_quantity ?? 0),
+        0,
+    );
 
     return {
         dispatched,
         received,
-        shortage: items.reduce((sum: number, item: any) => sum + Math.max(0, Number(item.actual_dispatched_quantity ?? item.approved_quantity ?? item.requested_quantity ?? 0) - Number(item.received_quantity ?? 0)), 0),
+        shortage: items.reduce(
+            (sum: number, item: any) =>
+                sum +
+                Math.max(
+                    0,
+                    Number(
+                        item.actual_dispatched_quantity ??
+                            item.approved_quantity ??
+                            item.requested_quantity ??
+                            0,
+                    ) - Number(item.received_quantity ?? 0),
+                ),
+            0,
+        ),
     };
 };
 
@@ -380,12 +577,12 @@ const getStatusBadge = (status: string) => {
             };
         case 'preparing':
             return {
-                label: 'Dang soan hang',
+                label: 'Đang soạn hàng',
                 color: 'border-indigo-300 bg-indigo-100 text-indigo-800 dark:border-indigo-900/50 dark:bg-indigo-950/30 dark:text-indigo-300',
             };
         case 'dispatch_pending_approval':
             return {
-                label: 'Cho duyet xuat',
+                label: 'Chờ duyệt xuất',
                 color: 'border-violet-300 bg-violet-100 text-violet-800 dark:border-violet-900/50 dark:bg-violet-950/30 dark:text-violet-300',
             };
         case 'dispatched':
@@ -400,17 +597,17 @@ const getStatusBadge = (status: string) => {
             };
         case 'partial_received':
             return {
-                label: 'Nhan mot phan',
+                label: 'Nhận một phần',
                 color: 'border-orange-300 bg-orange-100 text-orange-800 dark:border-orange-900/50 dark:bg-orange-950/30 dark:text-orange-300',
             };
         case 'disputed':
             return {
-                label: 'Dang tranh chap',
+                label: 'Đang tranh chấp',
                 color: 'border-rose-300 bg-rose-100 text-rose-800 dark:border-rose-900/50 dark:bg-rose-950/30 dark:text-rose-300',
             };
         case 'cancelled':
             return {
-                label: 'Da huy',
+                label: 'Đã hủy',
                 color: 'border-slate-300 bg-slate-100 text-slate-800 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300',
             };
         case 'rejected':
@@ -531,13 +728,19 @@ const cancelRequest = async () => {
     }
 
     const reason = prompt('Nhập lý do hủy đơn cấp phát:');
+
     if (!reason) {
         return;
     }
 
     isProcessing.value = true;
+
     try {
-        const res = await axios.post(`/api/supply-requests/${selectedRequest.value.id}/cancel`, { reason });
+        const res = await axios.post(
+            `/api/supply-requests/${selectedRequest.value.id}/cancel`,
+            { reason },
+        );
+
         if (res.data.success) {
             toast.success(res.data.message || 'Đã hủy đơn cấp phát.');
             isDetailModalOpen.value = false;
@@ -557,8 +760,14 @@ const createBackorder = async () => {
 
     const shortageItems = selectedRequest.value.items
         .map((item: any) => {
-            const dispatched = Number(item.actual_dispatched_quantity ?? item.approved_quantity ?? item.requested_quantity ?? 0);
+            const dispatched = Number(
+                item.actual_dispatched_quantity ??
+                    item.approved_quantity ??
+                    item.requested_quantity ??
+                    0,
+            );
             const received = Number(item.received_quantity ?? 0);
+
             return {
                 ingredient_id: Number(item.ingredient_id),
                 shortage_quantity: Math.max(0, dispatched - received),
@@ -568,6 +777,7 @@ const createBackorder = async () => {
 
     if (!shortageItems.length) {
         toast.info('Đơn này chưa có số lượng thiếu để tạo đơn giao bù.');
+
         return;
     }
 
@@ -576,8 +786,13 @@ const createBackorder = async () => {
     }
 
     isProcessing.value = true;
+
     try {
-        const res = await axios.post(`/api/supply-requests/${selectedRequest.value.id}/create-backorder`, { shortage_items: shortageItems });
+        const res = await axios.post(
+            `/api/supply-requests/${selectedRequest.value.id}/create-backorder`,
+            { shortage_items: shortageItems },
+        );
+
         if (res.data.success) {
             toast.success(res.data.message || 'Đã tạo đơn giao bù.');
             isDetailModalOpen.value = false;
@@ -592,15 +807,20 @@ const createBackorder = async () => {
 
 const confirmReceivingVoucher = async (voucher: any) => {
     try {
-        const res = await axios.post(`/api/warehouse/receiving-vouchers/${voucher.id}/confirm`, {
-            notes: 'Đã được Trưởng kho Tổng xác minh trên cockpit.',
-            quality_status: 'passed',
-            quality_notes: 'Đã xác minh trên cockpit.',
-        });
+        const res = await axios.post(
+            `/api/warehouse/receiving-vouchers/${voucher.id}/confirm`,
+            {
+                notes: 'Đã được Trưởng kho Tổng xác minh trên cockpit.',
+                quality_status: 'passed',
+                quality_notes: 'Đã xác minh trên cockpit.',
+            },
+        );
         toast.success(res.data.message || 'Đã xác minh phiếu nhập.');
         router.reload();
     } catch (e: any) {
-        toast.error(e.response?.data?.message || 'Không thể xác minh phiếu nhập.');
+        toast.error(
+            e.response?.data?.message || 'Không thể xác minh phiếu nhập.',
+        );
     }
 };
 
@@ -643,7 +863,11 @@ const openTaskModal = (request: any, taskType?: string) => {
     taskForm.value = {
         supply_request_id: request.id,
         assigned_to: props.warehouseStaff[0]?.id || '',
-        task_type: taskType || (request.status === 'dispatch_pending_approval' ? 'handover' : 'picking'),
+        task_type:
+            taskType ||
+            (request.status === 'dispatch_pending_approval'
+                ? 'handover'
+                : 'picking'),
         priority: request.is_emergency ? 'urgent' : 'normal',
         due_at: defaultDue,
         notes: '',
@@ -654,6 +878,7 @@ const openTaskModal = (request: any, taskType?: string) => {
 const submitTaskAssignment = async () => {
     if (!taskForm.value.supply_request_id || !taskForm.value.assigned_to) {
         toast.error('Vui lòng chọn đơn hàng và nhân viên nhận việc.');
+
         return;
     }
 
@@ -673,7 +898,10 @@ const submitTaskAssignment = async () => {
             router.reload();
         }
     } catch (e: any) {
-        toast.error(e.response?.data?.message || 'Không thể giao việc cho nhân viên Kho Tổng.');
+        toast.error(
+            e.response?.data?.message ||
+                'Không thể giao việc cho nhân viên Kho Tổng.',
+        );
     } finally {
         isTaskProcessing.value = false;
     }
@@ -681,14 +909,18 @@ const submitTaskAssignment = async () => {
 
 const updateTaskStatus = async (task: any, status: string) => {
     try {
-        const res = await axios.post(`/api/warehouse/tasks/${task.id}/status`, { status });
+        const res = await axios.post(`/api/warehouse/tasks/${task.id}/status`, {
+            status,
+        });
 
         if (res.data.success) {
             task.status = status;
             toast.success(res.data.message || 'Đã cập nhật tiến độ nhiệm vụ.');
         }
     } catch (e: any) {
-        toast.error(e.response?.data?.message || 'Không thể cập nhật nhiệm vụ.');
+        toast.error(
+            e.response?.data?.message || 'Không thể cập nhật nhiệm vụ.',
+        );
     }
 };
 
@@ -732,20 +964,26 @@ const runSmartAllocation = async () => {
 
     if (pendingIds.length === 0) {
         toast.info('Không có đơn hàng nào ở trạng thái chờ duyệt để phân bổ.');
+
         return;
     }
 
     isLoadingSmart.value = true;
+
     try {
         const res = await axios.post('/api/supply-requests/smart-allocation', {
             supply_request_ids: pendingIds,
         });
+
         if (res.data.success) {
             smartSuggestions.value = res.data.suggestions || [];
             isSmartModalOpen.value = true;
         }
     } catch (e: any) {
-        toast.error(e.response?.data?.message || 'Có lỗi khi tính toán phân bổ thông minh.');
+        toast.error(
+            e.response?.data?.message ||
+                'Có lỗi khi tính toán phân bổ thông minh.',
+        );
     } finally {
         isLoadingSmart.value = false;
     }
@@ -764,6 +1002,7 @@ const newWo = ref({
 
 const openKitchenModal = async () => {
     isKitchenModalOpen.value = true;
+
     try {
         const [resWo, resBom] = await Promise.all([
             axios.get('/api/central-kitchen/work-orders'),
@@ -778,8 +1017,13 @@ const openKitchenModal = async () => {
 
 const createWorkOrder = async () => {
     try {
-        const res = await axios.post('/api/central-kitchen/work-orders', newWo.value);
-        toast.success(res.data.message || 'Tạo đơn sơ chế sản xuất thành công.');
+        const res = await axios.post(
+            '/api/central-kitchen/work-orders',
+            newWo.value,
+        );
+        toast.success(
+            res.data.message || 'Tạo đơn sơ chế sản xuất thành công.',
+        );
         openKitchenModal();
     } catch (e: any) {
         toast.error(e.response?.data?.message || 'Lỗi khi tạo đơn sơ chế.');
@@ -787,7 +1031,10 @@ const createWorkOrder = async () => {
 };
 
 const executeWo = async (wo: any) => {
-    const yieldQtyStr = prompt(`Nhập số lượng thực tế sơ chế thu hồi (${wo.output_ingredient?.name}):`, wo.target_quantity);
+    const yieldQtyStr = prompt(
+        `Nhập số lượng thực tế sơ chế thu hồi (${wo.output_ingredient?.name}):`,
+        wo.target_quantity,
+    );
 
     if (!yieldQtyStr) {
         return;
@@ -800,13 +1047,20 @@ const executeWo = async (wo: any) => {
     }
 
     try {
-        const res = await axios.post(`/api/central-kitchen/work-orders/${wo.id}/execute`, {
-            actual_yield_quantity: yieldQty,
-        });
-        toast.success(res.data.message || 'Đã hoàn tất sơ chế & nhập kho lô mới.');
+        const res = await axios.post(
+            `/api/central-kitchen/work-orders/${wo.id}/execute`,
+            {
+                actual_yield_quantity: yieldQty,
+            },
+        );
+        toast.success(
+            res.data.message || 'Đã hoàn tất sơ chế & nhập kho lô mới.',
+        );
         openKitchenModal();
     } catch (e: any) {
-        toast.error(e.response?.data?.message || 'Lỗi khi hoàn tất đơn sơ chế.');
+        toast.error(
+            e.response?.data?.message || 'Lỗi khi hoàn tất đơn sơ chế.',
+        );
     }
 };
 
@@ -832,6 +1086,7 @@ const createManifest = async () => {
 
     if (selectedApproved.length === 0) {
         toast.info('Không có đơn hàng đã duyệt nào để gom chuyến xe.');
+
         return;
     }
 
@@ -851,9 +1106,12 @@ const createManifest = async () => {
 
 const dispatchManifest = async (m: any) => {
     try {
-        const res = await axios.post(`/api/delivery-manifests/${m.id}/dispatch`, {
-            seal_code: 'SEAL-' + Math.floor(Math.random() * 8999 + 1000),
-        });
+        const res = await axios.post(
+            `/api/delivery-manifests/${m.id}/dispatch`,
+            {
+                seal_code: 'SEAL-' + Math.floor(Math.random() * 8999 + 1000),
+            },
+        );
         toast.success(res.data.message || 'Đã xuất bến chuyến xe.');
         openManifestModal();
         router.reload();
@@ -882,6 +1140,7 @@ const openRecallModal = async () => {
 const submitRecall = async () => {
     if (!recallBatchId.value || !recallReason.value) {
         toast.error('Vui lòng nhập ID lô và lý do thu hồi.');
+
         return;
     }
 
@@ -891,7 +1150,10 @@ const submitRecall = async () => {
             severity: 'critical',
             reason: recallReason.value,
         });
-        toast.success(res.data.message || 'Đã phát lệnh thu hồi lô khẩn cấp toàn hệ thống!');
+        toast.success(
+            res.data.message ||
+                'Đã phát lệnh thu hồi lô khẩn cấp toàn hệ thống!',
+        );
         openRecallModal();
     } catch (e: any) {
         toast.error(e.response?.data?.message || 'Không thể thu hồi lô.');
@@ -902,10 +1164,17 @@ const submitRecall = async () => {
 <template>
     <Head title="Trung tâm Điều phối Kho Tổng" />
 
-    <div class="mx-auto w-full max-w-7xl space-y-6 p-4 sm:p-6">
+    <div class="mx-auto w-full max-w-[1600px] space-y-6 p-4 sm:p-6 lg:p-8">
         <div class="flex items-center justify-between gap-3 text-xs">
-            <Link href="/inventory/central-warehouse" class="inline-flex items-center gap-1 font-semibold text-indigo-300 hover:text-indigo-200">← Tổng quan Kho Tổng</Link>
-            <span class="rounded-full border border-indigo-500/20 bg-indigo-950/10 px-3 py-1 text-indigo-300">Workspace: Đơn cấp phát</span>
+            <Link
+                href="/inventory/central-warehouse"
+                class="inline-flex items-center gap-1 font-semibold text-indigo-300 hover:text-indigo-200"
+                >← Tổng quan Kho Tổng</Link
+            >
+            <span
+                class="rounded-full border border-indigo-500/20 bg-indigo-950/10 px-3 py-1 text-indigo-300"
+                >Workspace: Đơn cấp phát</span
+            >
         </div>
         <!-- Header Section -->
         <div
@@ -975,8 +1244,8 @@ const submitRecall = async () => {
             </Button>
         </div>
 
-        <!-- Metrics Overview -->
-        <div class="grid grid-cols-2 gap-4 md:grid-cols-5">
+        <!-- Metrics are represented in the action queue below; keep a single visual hierarchy. -->
+        <div class="hidden">
             <Card class="border-border/80 shadow-sm transition hover:shadow">
                 <CardContent class="flex items-center justify-between p-4">
                     <div>
@@ -1074,61 +1343,515 @@ const submitRecall = async () => {
             </Card>
         </div>
 
+        <div
+            class="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-card/70 px-4 py-3 shadow-sm"
+        >
+            <div>
+                <p
+                    class="text-xs font-bold tracking-[0.16em] text-indigo-400 uppercase"
+                >
+                    Điều hành hôm nay
+                </p>
+                <p class="mt-1 text-sm text-muted-foreground">
+                    {{ openRequests.length }} đơn đang mở ·
+                    {{ overdueRequests.length }} đơn quá hạn SLA
+                </p>
+            </div>
+            <div class="flex flex-wrap gap-2">
+                <Link
+                    href="/inventory/central-warehouse/stock"
+                    class="inline-flex items-center gap-1.5 rounded-lg border border-border bg-background px-3 py-2 text-xs font-semibold text-foreground transition hover:border-indigo-500/50 hover:text-indigo-300"
+                    ><Boxes class="h-3.5 w-3.5" /> Tồn kho</Link
+                >
+                <Link
+                    href="/inventory/central-warehouse/receiving"
+                    class="inline-flex items-center gap-1.5 rounded-lg border border-border bg-background px-3 py-2 text-xs font-semibold text-foreground transition hover:border-indigo-500/50 hover:text-indigo-300"
+                    ><PackageCheck class="h-3.5 w-3.5" /> Phiếu nhập</Link
+                >
+                <Button
+                    v-if="canManageWarehouse"
+                    variant="outline"
+                    size="sm"
+                    class="gap-1.5 text-xs"
+                    @click="runSmartAllocation"
+                    ><Lightbulb class="h-3.5 w-3.5" /> Phân bổ thông
+                    minh</Button
+                >
+                <Button
+                    v-if="canManageWarehouse"
+                    variant="outline"
+                    size="sm"
+                    class="gap-1.5 text-xs"
+                    @click="exportWarehouseReport"
+                    ><FileDown class="h-3.5 w-3.5" /> Xuất báo cáo</Button
+                >
+                <Button
+                    v-if="canManageWarehouse"
+                    variant="outline"
+                    size="sm"
+                    class="gap-1.5 text-xs"
+                    @click="openLocationModal"
+                    ><MapPin class="h-3.5 w-3.5" /> Vị trí ({{
+                        locations.length
+                    }})</Button
+                >
+            </div>
+        </div>
+
+        <section class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <button
+                v-for="item in actionQueue"
+                :key="item.key"
+                type="button"
+                class="group rounded-2xl border border-border bg-card p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-indigo-500/40 hover:shadow-lg"
+                @click="activeTab = item.key"
+            >
+                <div class="flex items-start justify-between gap-3">
+                    <div>
+                        <p
+                            class="text-xs font-bold tracking-wide text-muted-foreground uppercase"
+                        >
+                            {{ item.label }}
+                        </p>
+                        <p class="mt-2 text-3xl font-bold text-foreground">
+                            {{ item.count }}
+                        </p>
+                    </div>
+                    <div
+                        class="rounded-xl bg-indigo-500/10 p-2.5 text-indigo-300 transition group-hover:bg-indigo-500/20"
+                    >
+                        <component :is="item.icon" class="h-5 w-5" />
+                    </div>
+                </div>
+                <p class="mt-3 text-[11px] leading-4 text-muted-foreground">
+                    {{ item.description }}
+                </p>
+                <span
+                    class="mt-3 inline-flex items-center gap-1 text-[11px] font-semibold text-indigo-300"
+                    >Mở danh sách <ArrowUpRight class="h-3 w-3"
+                /></span>
+            </button>
+        </section>
+
+        <section class="grid gap-4 xl:grid-cols-[1.35fr_0.65fr]">
+            <Card class="overflow-hidden border-border shadow-sm">
+                <CardHeader class="border-b border-border bg-muted/20 py-4">
+                    <div class="flex items-start justify-between gap-3">
+                        <div>
+                            <CardTitle
+                                class="flex items-center gap-2 text-base font-bold text-foreground"
+                                ><AlertCircle class="h-4 w-4 text-amber-400" />
+                                Hàng đợi cần xử lý</CardTitle
+                            >
+                            <CardDescription class="mt-1 text-xs"
+                                >Ưu tiên đơn quá hạn và đơn đang chặn luồng xuất
+                                hàng.</CardDescription
+                            >
+                        </div>
+                        <span
+                            class="rounded-full border border-amber-500/20 bg-amber-500/10 px-2.5 py-1 text-[11px] font-semibold text-amber-300"
+                            >{{ overdueRequests.length }} quá hạn</span
+                        >
+                    </div>
+                </CardHeader>
+                <CardContent class="p-0">
+                    <div
+                        v-if="attentionRequests.length"
+                        class="divide-y divide-border"
+                    >
+                        <button
+                            v-for="request in attentionRequests"
+                            :key="request.id"
+                            type="button"
+                            class="flex w-full items-center gap-3 p-4 text-left transition hover:bg-muted/30"
+                            @click="openDetailModal(request)"
+                        >
+                            <div
+                                class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl"
+                                :class="
+                                    isOverdue(request)
+                                        ? 'bg-rose-500/10 text-rose-400'
+                                        : 'bg-indigo-500/10 text-indigo-300'
+                                "
+                            >
+                                <AlertTriangle
+                                    v-if="isOverdue(request)"
+                                    class="h-4 w-4"
+                                /><ClipboardList v-else class="h-4 w-4" />
+                            </div>
+                            <div class="min-w-0 flex-1">
+                                <div class="flex flex-wrap items-center gap-2">
+                                    <span
+                                        class="font-mono text-xs font-bold text-indigo-300"
+                                        >{{ request.request_code }}</span
+                                    >
+                                    <span
+                                        :class="[
+                                            'rounded-full border px-2 py-0.5 text-[10px] font-semibold',
+                                            getStatusBadge(request.status)
+                                                .color,
+                                        ]"
+                                        >{{
+                                            getStatusBadge(request.status).label
+                                        }}</span
+                                    >
+                                </div>
+                                <p
+                                    class="mt-1 truncate text-xs font-semibold text-foreground"
+                                >
+                                    {{
+                                        request.to_branch?.name ||
+                                        'Chưa xác định chi nhánh'
+                                    }}
+                                    · {{ request.items?.length || 0 }} mặt hàng
+                                </p>
+                                <p
+                                    class="mt-1 text-[11px]"
+                                    :class="
+                                        isOverdue(request)
+                                            ? 'text-rose-400'
+                                            : 'text-muted-foreground'
+                                    "
+                                >
+                                    {{ getDueLabel(request) }} ·
+                                    {{ formatCurrency(request.total_amount) }}
+                                </p>
+                            </div>
+                            <ArrowUpRight
+                                class="h-4 w-4 shrink-0 text-muted-foreground"
+                            />
+                        </button>
+                    </div>
+                    <div
+                        v-else
+                        class="flex flex-col items-center justify-center px-6 py-10 text-center"
+                    >
+                        <CheckCircle2 class="h-8 w-8 text-emerald-400" />
+                        <p class="mt-3 text-sm font-semibold text-foreground">
+                            Không có việc tồn đọng
+                        </p>
+                        <p class="mt-1 text-xs text-muted-foreground">
+                            Các đơn cấp phát đang nằm trong SLA xử lý.
+                        </p>
+                    </div>
+                </CardContent>
+            </Card>
+
+            <Card class="border-border shadow-sm">
+                <CardHeader class="border-b border-border bg-muted/20 py-4">
+                    <CardTitle
+                        class="flex items-center gap-2 text-base font-bold text-foreground"
+                        ><Activity class="h-4 w-4 text-sky-400" /> Sức khỏe Kho
+                        Tổng</CardTitle
+                    >
+                    <CardDescription class="mt-1 text-xs"
+                        >Các chỉ số giúp quyết định có thể duyệt và xuất
+                        hàng.</CardDescription
+                    >
+                </CardHeader>
+                <CardContent class="space-y-4 p-4">
+                    <div>
+                        <div class="flex items-center justify-between text-xs">
+                            <span class="text-muted-foreground"
+                                >Fill rate cấp phát</span
+                            ><strong class="text-emerald-300"
+                                >{{
+                                    operationalSummary.fill_rate_percent ?? 100
+                                }}%</strong
+                            >
+                        </div>
+                        <div
+                            class="mt-2 h-2 overflow-hidden rounded-full bg-muted"
+                        >
+                            <div
+                                class="h-full rounded-full bg-emerald-500 transition-all"
+                                :style="{
+                                    width: `${Math.min(Number(operationalSummary.fill_rate_percent ?? 100), 100)}%`,
+                                }"
+                            ></div>
+                        </div>
+                    </div>
+                    <div>
+                        <div class="flex items-center justify-between text-xs">
+                            <span class="text-muted-foreground"
+                                >OTIF giao đúng đủ</span
+                            ><strong class="text-indigo-300"
+                                >{{ warehouseKpi.otif_percent ?? 100 }}%</strong
+                            >
+                        </div>
+                        <div
+                            class="mt-2 h-2 overflow-hidden rounded-full bg-muted"
+                        >
+                            <div
+                                class="h-full rounded-full bg-indigo-500 transition-all"
+                                :style="{
+                                    width: `${Math.min(Number(warehouseKpi.otif_percent ?? 100), 100)}%`,
+                                }"
+                            ></div>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-2 gap-2 pt-1">
+                        <div
+                            class="rounded-xl border border-border bg-muted/20 p-3"
+                        >
+                            <p class="text-[11px] text-muted-foreground">
+                                Tồn khả dụng
+                            </p>
+                            <p class="mt-1 text-base font-bold text-foreground">
+                                {{
+                                    formatQuantity(
+                                        inventorySummary.available_quantity,
+                                    )
+                                }}
+                            </p>
+                        </div>
+                        <div
+                            class="rounded-xl border border-border bg-muted/20 p-3"
+                        >
+                            <p class="text-[11px] text-muted-foreground">
+                                Sắp hết hàng
+                            </p>
+                            <p class="mt-1 text-base font-bold text-amber-300">
+                                {{ inventorySummary.low_stock_count || 0 }}
+                            </p>
+                        </div>
+                        <div
+                            class="rounded-xl border border-border bg-muted/20 p-3"
+                        >
+                            <p class="text-[11px] text-muted-foreground">
+                                Lô sắp hết hạn
+                            </p>
+                            <p class="mt-1 text-base font-bold text-orange-300">
+                                {{ inventorySummary.expiring_soon_count || 0 }}
+                            </p>
+                        </div>
+                        <div
+                            class="rounded-xl border border-border bg-muted/20 p-3"
+                        >
+                            <p class="text-[11px] text-muted-foreground">
+                                Chênh lệch nhận
+                            </p>
+                            <p class="mt-1 text-base font-bold text-rose-300">
+                                {{
+                                    receivingSummary?.discrepancy_vouchers || 0
+                                }}
+                            </p>
+                        </div>
+                    </div>
+                </CardContent>
+            </Card>
+        </section>
+
+        <Card class="border-border shadow-sm">
+            <CardHeader class="border-b border-border bg-muted/20 py-4">
+                <div
+                    class="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between"
+                >
+                    <div>
+                        <CardTitle
+                            class="flex items-center gap-2 text-base font-bold text-foreground"
+                            ><TrendingUp class="h-4 w-4 text-indigo-400" />
+                            Luồng xử lý đơn cấp phát</CardTitle
+                        >
+                        <CardDescription class="mt-1 text-xs"
+                            >Chọn một bước để mở đúng danh sách cần thao
+                            tác.</CardDescription
+                        >
+                    </div>
+                    <div class="text-xs text-muted-foreground">
+                        {{ stats.total }} đơn trong kỳ dữ liệu
+                    </div>
+                </div>
+            </CardHeader>
+            <CardContent class="overflow-x-auto p-4">
+                <div class="grid min-w-[760px] grid-cols-6 gap-2">
+                    <button
+                        v-for="(stage, index) in pipelineStages"
+                        :key="stage.key"
+                        type="button"
+                        class="relative rounded-xl border p-3 text-left transition hover:border-indigo-500/50 hover:bg-indigo-500/5"
+                        :class="
+                            activeTab === stage.key
+                                ? 'border-indigo-500/60 bg-indigo-500/10'
+                                : 'border-border bg-background'
+                        "
+                        @click="activeTab = stage.key"
+                    >
+                        <span
+                            class="text-[10px] font-bold tracking-wide text-muted-foreground uppercase"
+                            >0{{ index + 1 }}</span
+                        >
+                        <p class="mt-2 text-xs font-semibold text-foreground">
+                            {{ stage.label }}
+                        </p>
+                        <p class="mt-1 text-xl font-bold text-indigo-300">
+                            {{ stage.count }}
+                        </p>
+                        <ArrowUpRight
+                            class="absolute right-3 bottom-3 h-3.5 w-3.5 text-muted-foreground"
+                        />
+                    </button>
+                </div>
+            </CardContent>
+        </Card>
+
         <!-- Operational cockpit -->
         <section v-if="false" class="space-y-4">
-            <div class="flex flex-col justify-between gap-2 sm:flex-row sm:items-end">
+            <div
+                class="flex flex-col justify-between gap-2 sm:flex-row sm:items-end"
+            >
                 <div>
-                    <p class="text-xs font-bold uppercase tracking-[0.16em] text-indigo-600">Cockpit vận hành</p>
-                    <h2 class="mt-1 text-xl font-bold tracking-tight text-foreground">Việc Trưởng kho cần xử lý ngay</h2>
-                    <p class="mt-1 text-xs text-muted-foreground">Đơn quá hạn, nhận hàng, tồn kho và tranh chấp được gom vào một màn hình.</p>
+                    <p
+                        class="text-xs font-bold tracking-[0.16em] text-indigo-600 uppercase"
+                    >
+                        Cockpit vận hành
+                    </p>
+                    <h2
+                        class="mt-1 text-xl font-bold tracking-tight text-foreground"
+                    >
+                        Việc Trưởng kho cần xử lý ngay
+                    </h2>
+                    <p class="mt-1 text-xs text-muted-foreground">
+                        Đơn quá hạn, nhận hàng, tồn kho và tranh chấp được gom
+                        vào một màn hình.
+                    </p>
                 </div>
-                <div class="text-[11px] text-muted-foreground">Cập nhật theo dữ liệu hiện tại</div>
+                <div class="text-[11px] text-muted-foreground">
+                    Cập nhật theo dữ liệu hiện tại
+                </div>
             </div>
 
             <div class="grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-8">
-                <button type="button" class="rounded-xl border border-amber-500/20 bg-amber-950/10 p-3 text-left" @click="activeTab = 'pending'">
-                    <p class="text-[10px] font-semibold uppercase text-amber-300">Chờ duyệt</p>
-                    <p class="mt-1 text-xl font-bold text-amber-100">{{ stats.pending }}</p>
+                <button
+                    type="button"
+                    class="rounded-xl border border-amber-500/20 bg-amber-950/10 p-3 text-left"
+                    @click="activeTab = 'pending'"
+                >
+                    <p
+                        class="text-[10px] font-semibold text-amber-300 uppercase"
+                    >
+                        Chờ duyệt
+                    </p>
+                    <p class="mt-1 text-xl font-bold text-amber-100">
+                        {{ stats.pending }}
+                    </p>
                 </button>
-                <button type="button" class="rounded-xl border border-rose-500/20 bg-rose-950/10 p-3 text-left" @click="searchQuery = ''; activeTab = 'all'">
-                    <p class="text-[10px] font-semibold uppercase text-rose-300">Quá hạn</p>
-                    <p class="mt-1 text-xl font-bold text-rose-100">{{ operationalSummary.overdue_requests || 0 }}</p>
+                <button
+                    type="button"
+                    class="rounded-xl border border-rose-500/20 bg-rose-950/10 p-3 text-left"
+                    @click="
+                        searchQuery = '';
+                        activeTab = 'all';
+                    "
+                >
+                    <p
+                        class="text-[10px] font-semibold text-rose-300 uppercase"
+                    >
+                        Quá hạn
+                    </p>
+                    <p class="mt-1 text-xl font-bold text-rose-100">
+                        {{ operationalSummary.overdue_requests || 0 }}
+                    </p>
                 </button>
-                <button type="button" class="rounded-xl border border-indigo-500/20 bg-indigo-950/10 p-3 text-left" @click="activeTab = 'preparing'">
-                    <p class="text-[10px] font-semibold uppercase text-indigo-300">Đang soạn</p>
-                    <p class="mt-1 text-xl font-bold text-indigo-100">{{ stats.preparing }}</p>
+                <button
+                    type="button"
+                    class="rounded-xl border border-indigo-500/20 bg-indigo-950/10 p-3 text-left"
+                    @click="activeTab = 'preparing'"
+                >
+                    <p
+                        class="text-[10px] font-semibold text-indigo-300 uppercase"
+                    >
+                        Đang soạn
+                    </p>
+                    <p class="mt-1 text-xl font-bold text-indigo-100">
+                        {{ stats.preparing }}
+                    </p>
                 </button>
-                <button type="button" class="rounded-xl border border-violet-500/20 bg-violet-950/10 p-3 text-left" @click="activeTab = 'dispatch_pending_approval'">
-                    <p class="text-[10px] font-semibold uppercase text-violet-300">Chờ duyệt xuất</p>
-                    <p class="mt-1 text-xl font-bold text-violet-100">{{ stats.dispatch_pending }}</p>
+                <button
+                    type="button"
+                    class="rounded-xl border border-violet-500/20 bg-violet-950/10 p-3 text-left"
+                    @click="activeTab = 'dispatch_pending_approval'"
+                >
+                    <p
+                        class="text-[10px] font-semibold text-violet-300 uppercase"
+                    >
+                        Chờ duyệt xuất
+                    </p>
+                    <p class="mt-1 text-xl font-bold text-violet-100">
+                        {{ stats.dispatch_pending }}
+                    </p>
                 </button>
-                <button type="button" class="rounded-xl border border-orange-500/20 bg-orange-950/10 p-3 text-left" @click="activeTab = 'partial_received'">
-                    <p class="text-[10px] font-semibold uppercase text-orange-300">Nhận một phần</p>
-                    <p class="mt-1 text-xl font-bold text-orange-100">{{ stats.partial_received }}</p>
+                <button
+                    type="button"
+                    class="rounded-xl border border-orange-500/20 bg-orange-950/10 p-3 text-left"
+                    @click="activeTab = 'partial_received'"
+                >
+                    <p
+                        class="text-[10px] font-semibold text-orange-300 uppercase"
+                    >
+                        Nhận một phần
+                    </p>
+                    <p class="mt-1 text-xl font-bold text-orange-100">
+                        {{ stats.partial_received }}
+                    </p>
                 </button>
-                <button type="button" class="rounded-xl border border-rose-500/20 bg-rose-950/10 p-3 text-left" @click="activeTab = 'disputed'">
-                    <p class="text-[10px] font-semibold uppercase text-rose-300">Tranh chấp</p>
-                    <p class="mt-1 text-xl font-bold text-rose-100">{{ stats.disputed }}</p>
+                <button
+                    type="button"
+                    class="rounded-xl border border-rose-500/20 bg-rose-950/10 p-3 text-left"
+                    @click="activeTab = 'disputed'"
+                >
+                    <p
+                        class="text-[10px] font-semibold text-rose-300 uppercase"
+                    >
+                        Tranh chấp
+                    </p>
+                    <p class="mt-1 text-xl font-bold text-rose-100">
+                        {{ stats.disputed }}
+                    </p>
                 </button>
-                <div class="rounded-xl border border-emerald-500/20 bg-emerald-950/10 p-3">
-                    <p class="text-[10px] font-semibold uppercase text-emerald-300">Fill rate</p>
-                    <p class="mt-1 text-xl font-bold text-emerald-100">{{ operationalSummary.fill_rate_percent ?? 100 }}%</p>
+                <div
+                    class="rounded-xl border border-emerald-500/20 bg-emerald-950/10 p-3"
+                >
+                    <p
+                        class="text-[10px] font-semibold text-emerald-300 uppercase"
+                    >
+                        Fill rate
+                    </p>
+                    <p class="mt-1 text-xl font-bold text-emerald-100">
+                        {{ operationalSummary.fill_rate_percent ?? 100 }}%
+                    </p>
                 </div>
-                <div class="rounded-xl border border-sky-500/20 bg-sky-950/10 p-3">
-                    <p class="text-[10px] font-semibold uppercase text-sky-300">Tồn thấp</p>
-                    <p class="mt-1 text-xl font-bold text-sky-100">{{ inventorySummary.low_stock_count || 0 }}</p>
+                <div
+                    class="rounded-xl border border-sky-500/20 bg-sky-950/10 p-3"
+                >
+                    <p class="text-[10px] font-semibold text-sky-300 uppercase">
+                        Tồn thấp
+                    </p>
+                    <p class="mt-1 text-xl font-bold text-sky-100">
+                        {{ inventorySummary.low_stock_count || 0 }}
+                    </p>
                 </div>
             </div>
 
-            <Card v-if="operationalSummary.branch_operations?.length" class="border-border shadow-sm">
+            <Card
+                v-if="operationalSummary.branch_operations?.length"
+                class="border-border shadow-sm"
+            >
                 <CardHeader class="border-b border-border bg-muted/20 py-3">
-                    <CardTitle class="text-sm font-bold text-foreground">SLA theo chi nhánh</CardTitle>
-                    <CardDescription class="text-xs">Chọn một dòng để lọc ngay các yêu cầu của chi nhánh cần ưu tiên.</CardDescription>
+                    <CardTitle class="text-sm font-bold text-foreground"
+                        >SLA theo chi nhánh</CardTitle
+                    >
+                    <CardDescription class="text-xs"
+                        >Chọn một dòng để lọc ngay các yêu cầu của chi nhánh cần
+                        ưu tiên.</CardDescription
+                    >
                 </CardHeader>
                 <CardContent class="p-0">
                     <div class="overflow-x-auto">
                         <table class="w-full text-left text-xs">
-                            <thead class="border-b border-border bg-muted/50 text-muted-foreground">
+                            <thead
+                                class="border-b border-border bg-muted/50 text-muted-foreground"
+                            >
                                 <tr>
                                     <th class="p-3">Chi nhánh</th>
                                     <th class="p-3 text-right">Đơn mở</th>
@@ -1142,13 +1865,35 @@ const submitRecall = async () => {
                                     v-for="branch in operationalSummary.branch_operations"
                                     :key="branch.id"
                                     class="cursor-pointer hover:bg-muted/30"
-                                    @click="selectedBranchFilter = branch.id; activeTab = 'all'"
+                                    @click="
+                                        selectedBranchFilter = branch.id;
+                                        activeTab = 'all';
+                                    "
                                 >
-                                    <td class="p-3 font-semibold text-foreground">{{ branch.name }}</td>
-                                    <td class="p-3 text-right text-indigo-300">{{ branch.open_requests }}</td>
-                                    <td class="p-3 text-right text-rose-400">{{ branch.overdue_requests }}</td>
-                                    <td class="p-3 text-right text-orange-300">{{ branch.disputed_requests }}</td>
-                                    <td class="p-3 text-right font-bold" :class="branch.fill_rate_percent < 90 ? 'text-rose-400' : 'text-emerald-400'">{{ branch.fill_rate_percent }}%</td>
+                                    <td
+                                        class="p-3 font-semibold text-foreground"
+                                    >
+                                        {{ branch.name }}
+                                    </td>
+                                    <td class="p-3 text-right text-indigo-300">
+                                        {{ branch.open_requests }}
+                                    </td>
+                                    <td class="p-3 text-right text-rose-400">
+                                        {{ branch.overdue_requests }}
+                                    </td>
+                                    <td class="p-3 text-right text-orange-300">
+                                        {{ branch.disputed_requests }}
+                                    </td>
+                                    <td
+                                        class="p-3 text-right font-bold"
+                                        :class="
+                                            branch.fill_rate_percent < 90
+                                                ? 'text-rose-400'
+                                                : 'text-emerald-400'
+                                        "
+                                    >
+                                        {{ branch.fill_rate_percent }}%
+                                    </td>
                                 </tr>
                             </tbody>
                         </table>
@@ -1159,32 +1904,102 @@ const submitRecall = async () => {
             <div class="grid gap-4 xl:grid-cols-[1.25fr_1fr]">
                 <Card class="border-border shadow-sm">
                     <CardHeader class="border-b border-border bg-muted/20 py-3">
-                        <CardTitle class="text-sm font-bold text-foreground">Phiếu nhập cần xác minh</CardTitle>
-                        <CardDescription class="text-xs">GRN có chênh lệch phải được Trưởng kho xem xét trước khi đóng.</CardDescription>
+                        <CardTitle class="text-sm font-bold text-foreground"
+                            >Phiếu nhập cần xác minh</CardTitle
+                        >
+                        <CardDescription class="text-xs"
+                            >GRN có chênh lệch phải được Trưởng kho xem xét
+                            trước khi đóng.</CardDescription
+                        >
                     </CardHeader>
                     <CardContent class="p-0">
                         <div class="overflow-x-auto">
                             <table class="w-full text-left text-xs">
-                                <thead class="border-b border-border bg-muted/50 text-muted-foreground">
+                                <thead
+                                    class="border-b border-border bg-muted/50 text-muted-foreground"
+                                >
                                     <tr>
                                         <th class="p-3">Mã phiếu</th>
                                         <th class="p-3">Người nhận</th>
                                         <th class="p-3">Ngày nhận</th>
-                                        <th class="p-3 text-right">Chênh lệch</th>
+                                        <th class="p-3 text-right">
+                                            Chênh lệch
+                                        </th>
                                         <th class="p-3 text-right">Xử lý</th>
                                     </tr>
                                 </thead>
                                 <tbody class="divide-y divide-border">
-                                    <tr v-if="receivingVouchers.filter((voucher) => ['discrepancy', 'pending_review'].includes(voucher.status)).length === 0">
-                                        <td colspan="5" class="p-5 text-center text-muted-foreground">Không có phiếu nhập đang chờ xử lý.</td>
+                                    <tr
+                                        v-if="
+                                            receivingVouchers.filter(
+                                                (voucher) =>
+                                                    [
+                                                        'discrepancy',
+                                                        'pending_review',
+                                                    ].includes(voucher.status),
+                                            ).length === 0
+                                        "
+                                    >
+                                        <td
+                                            colspan="5"
+                                            class="p-5 text-center text-muted-foreground"
+                                        >
+                                            Không có phiếu nhập đang chờ xử lý.
+                                        </td>
                                     </tr>
-                                    <tr v-for="voucher in receivingVouchers.filter((item) => ['discrepancy', 'pending_review'].includes(item.status)).slice(0, 8)" :key="voucher.id">
-                                        <td class="p-3 font-mono font-bold text-indigo-400">{{ voucher.voucher_code }}</td>
-                                        <td class="p-3 font-medium text-foreground">{{ voucher.received_by?.name || '-' }}</td>
-                                        <td class="p-3 text-muted-foreground">{{ formatDate(voucher.received_at) }}</td>
-                                        <td class="p-3 text-right font-bold text-rose-400">{{ formatQuantity(Math.abs(Number(voucher.total_discrepancy_qty || 0))) }}</td>
+                                    <tr
+                                        v-for="voucher in receivingVouchers
+                                            .filter((item) =>
+                                                [
+                                                    'discrepancy',
+                                                    'pending_review',
+                                                ].includes(item.status),
+                                            )
+                                            .slice(0, 8)"
+                                        :key="voucher.id"
+                                    >
+                                        <td
+                                            class="p-3 font-mono font-bold text-indigo-400"
+                                        >
+                                            {{ voucher.voucher_code }}
+                                        </td>
+                                        <td
+                                            class="p-3 font-medium text-foreground"
+                                        >
+                                            {{
+                                                voucher.received_by?.name || '-'
+                                            }}
+                                        </td>
+                                        <td class="p-3 text-muted-foreground">
+                                            {{
+                                                formatDate(voucher.received_at)
+                                            }}
+                                        </td>
+                                        <td
+                                            class="p-3 text-right font-bold text-rose-400"
+                                        >
+                                            {{
+                                                formatQuantity(
+                                                    Math.abs(
+                                                        Number(
+                                                            voucher.total_discrepancy_qty ||
+                                                                0,
+                                                        ),
+                                                    ),
+                                                )
+                                            }}
+                                        </td>
                                         <td class="p-3 text-right">
-                                            <Button size="sm" class="h-7 bg-indigo-600 text-[10px] text-white hover:bg-indigo-700" @click="confirmReceivingVoucher(voucher)">Xác minh</Button>
+                                            <Button
+                                                size="sm"
+                                                class="h-7 bg-indigo-600 text-[10px] text-white hover:bg-indigo-700"
+                                                @click="
+                                                    confirmReceivingVoucher(
+                                                        voucher,
+                                                    )
+                                                "
+                                                >Xác minh</Button
+                                            >
                                         </td>
                                     </tr>
                                 </tbody>
@@ -1195,19 +2010,114 @@ const submitRecall = async () => {
 
                 <Card class="border-border shadow-sm">
                     <CardHeader class="border-b border-border bg-muted/20 py-3">
-                        <CardTitle class="text-sm font-bold text-foreground">Sức khỏe tồn Kho Tổng</CardTitle>
-                        <CardDescription class="text-xs">Giá trị tồn và các tín hiệu cần kiểm tra trong ngày.</CardDescription>
+                        <CardTitle class="text-sm font-bold text-foreground"
+                            >Sức khỏe tồn Kho Tổng</CardTitle
+                        >
+                        <CardDescription class="text-xs"
+                            >Giá trị tồn và các tín hiệu cần kiểm tra trong
+                            ngày.</CardDescription
+                        >
                     </CardHeader>
                     <CardContent class="grid grid-cols-2 gap-3 p-4 text-xs">
-                        <div class="rounded-lg border border-border bg-muted/20 p-3"><span class="text-muted-foreground">Mặt hàng</span><strong class="mt-1 block text-lg text-foreground">{{ inventorySummary.ingredient_count || 0 }}</strong></div>
-                        <div class="rounded-lg border border-border bg-muted/20 p-3"><span class="text-muted-foreground">Số lượng tồn</span><strong class="mt-1 block text-lg text-foreground">{{ formatQuantity(inventorySummary.on_hand_quantity || 0) }}</strong></div>
-                        <div class="rounded-lg border border-border bg-muted/20 p-3"><span class="text-muted-foreground">Giá trị tồn</span><strong class="mt-1 block text-sm text-emerald-400">{{ formatCurrency(inventorySummary.on_hand_value || 0) }}</strong></div>
-                        <div class="rounded-lg border border-border bg-muted/20 p-3"><span class="text-muted-foreground">Lô sắp hết hạn</span><strong class="mt-1 block text-lg text-amber-300">{{ inventorySummary.expiring_soon_count || 0 }}</strong></div>
-                        <div class="rounded-lg border border-border bg-muted/20 p-3"><span class="text-muted-foreground">Vị trí cách ly</span><strong class="mt-1 block text-lg text-rose-300">{{ inventorySummary.quarantine_location_count || 0 }}</strong></div>
-                        <div class="rounded-lg border border-border bg-muted/20 p-3"><span class="text-muted-foreground">Vị trí hoạt động</span><strong class="mt-1 block text-lg text-sky-300">{{ inventorySummary.location_count || locations.length }}</strong></div>
-                        <div class="rounded-lg border border-border bg-muted/20 p-3"><span class="text-muted-foreground">FEFO tuân thủ</span><strong class="mt-1 block text-lg text-indigo-300">{{ warehouseKpi.fefo_compliance ?? 100 }}%</strong></div>
-                        <div class="rounded-lg border border-border bg-muted/20 p-3"><span class="text-muted-foreground">OTIF tháng</span><strong class="mt-1 block text-lg text-emerald-300">{{ warehouseKpi.otif_percent ?? 100 }}%</strong></div>
-                        <div class="col-span-2 rounded-lg border border-indigo-500/20 bg-indigo-950/10 p-3 text-indigo-200">{{ receivingSummary?.today || 0 }} phiếu nhập hôm nay · {{ receivingSummary?.pending_review || 0 }} phiếu cần kiểm tra · {{ receivingSummary?.discrepancy_quantity || 0 }} đơn vị chênh lệch.</div>
+                        <div
+                            class="rounded-lg border border-border bg-muted/20 p-3"
+                        >
+                            <span class="text-muted-foreground">Mặt hàng</span
+                            ><strong
+                                class="mt-1 block text-lg text-foreground"
+                                >{{
+                                    inventorySummary.ingredient_count || 0
+                                }}</strong
+                            >
+                        </div>
+                        <div
+                            class="rounded-lg border border-border bg-muted/20 p-3"
+                        >
+                            <span class="text-muted-foreground"
+                                >Số lượng tồn</span
+                            ><strong
+                                class="mt-1 block text-lg text-foreground"
+                                >{{
+                                    formatQuantity(
+                                        inventorySummary.on_hand_quantity || 0,
+                                    )
+                                }}</strong
+                            >
+                        </div>
+                        <div
+                            class="rounded-lg border border-border bg-muted/20 p-3"
+                        >
+                            <span class="text-muted-foreground"
+                                >Giá trị tồn</span
+                            ><strong
+                                class="mt-1 block text-sm text-emerald-400"
+                                >{{
+                                    formatCurrency(
+                                        inventorySummary.on_hand_value || 0,
+                                    )
+                                }}</strong
+                            >
+                        </div>
+                        <div
+                            class="rounded-lg border border-border bg-muted/20 p-3"
+                        >
+                            <span class="text-muted-foreground"
+                                >Lô sắp hết hạn</span
+                            ><strong
+                                class="mt-1 block text-lg text-amber-300"
+                                >{{
+                                    inventorySummary.expiring_soon_count || 0
+                                }}</strong
+                            >
+                        </div>
+                        <div
+                            class="rounded-lg border border-border bg-muted/20 p-3"
+                        >
+                            <span class="text-muted-foreground"
+                                >Vị trí cách ly</span
+                            ><strong class="mt-1 block text-lg text-rose-300">{{
+                                inventorySummary.quarantine_location_count || 0
+                            }}</strong>
+                        </div>
+                        <div
+                            class="rounded-lg border border-border bg-muted/20 p-3"
+                        >
+                            <span class="text-muted-foreground"
+                                >Vị trí hoạt động</span
+                            ><strong class="mt-1 block text-lg text-sky-300">{{
+                                inventorySummary.location_count ||
+                                locations.length
+                            }}</strong>
+                        </div>
+                        <div
+                            class="rounded-lg border border-border bg-muted/20 p-3"
+                        >
+                            <span class="text-muted-foreground"
+                                >FEFO tuân thủ</span
+                            ><strong class="mt-1 block text-lg text-indigo-300"
+                                >{{
+                                    warehouseKpi.fefo_compliance ?? 100
+                                }}%</strong
+                            >
+                        </div>
+                        <div
+                            class="rounded-lg border border-border bg-muted/20 p-3"
+                        >
+                            <span class="text-muted-foreground">OTIF tháng</span
+                            ><strong class="mt-1 block text-lg text-emerald-300"
+                                >{{ warehouseKpi.otif_percent ?? 100 }}%</strong
+                            >
+                        </div>
+                        <div
+                            class="col-span-2 rounded-lg border border-indigo-500/20 bg-indigo-950/10 p-3 text-indigo-200"
+                        >
+                            {{ receivingSummary?.today || 0 }} phiếu nhập hôm
+                            nay ·
+                            {{ receivingSummary?.pending_review || 0 }} phiếu
+                            cần kiểm tra ·
+                            {{ receivingSummary?.discrepancy_quantity || 0 }}
+                            đơn vị chênh lệch.
+                        </div>
                     </CardContent>
                 </Card>
             </div>
@@ -1695,7 +2605,10 @@ const submitRecall = async () => {
             </Card>
         </section>
 
-        <Card v-if="false && canManageWarehouse" class="border-border shadow-sm">
+        <Card
+            v-if="false && canManageWarehouse"
+            class="border-border shadow-sm"
+        >
             <CardHeader class="border-b border-border bg-muted/20 py-4">
                 <div class="flex items-center justify-between gap-3">
                     <div>
@@ -1783,46 +2696,82 @@ const submitRecall = async () => {
         </Card>
 
         <!-- Warehouse staff coordination -->
-        <Card v-if="false" class="border-indigo-500/20 shadow-sm">
-            <CardHeader class="border-b border-indigo-500/10 bg-indigo-950/10 py-4">
-                <div class="flex flex-col justify-between gap-3 lg:flex-row lg:items-center">
+        <Card v-if="canManageWarehouse" class="border-indigo-500/20 shadow-sm">
+            <CardHeader
+                class="border-b border-indigo-500/10 bg-indigo-950/10 py-4"
+            >
+                <div
+                    class="flex flex-col justify-between gap-3 lg:flex-row lg:items-center"
+                >
                     <div>
-                        <CardTitle class="flex items-center gap-2 text-base font-bold text-foreground">
-                            <UserCheck class="h-5 w-5 text-indigo-400" /> Điều phối nhân viên Kho Tổng
+                        <CardTitle
+                            class="flex items-center gap-2 text-base font-bold text-foreground"
+                        >
+                            <UserCheck class="h-5 w-5 text-indigo-400" /> Điều
+                            phối nhân viên Kho Tổng
                         </CardTitle>
                         <CardDescription class="mt-1 text-xs">
-                            Giao người phụ trách từng chặng soạn hàng và bàn giao để đơn từ chi nhánh không bị tồn giữa các bước.
+                            Giao người phụ trách từng chặng soạn hàng và bàn
+                            giao để đơn từ chi nhánh không bị tồn giữa các bước.
                         </CardDescription>
                     </div>
                     <div class="flex flex-wrap gap-2 text-[11px]">
-                        <span class="rounded-full border border-amber-500/20 bg-amber-500/10 px-2.5 py-1 font-semibold text-amber-300">
+                        <span
+                            class="rounded-full border border-amber-500/20 bg-amber-500/10 px-2.5 py-1 font-semibold text-amber-300"
+                        >
                             {{ taskSummary.assigned }} chờ nhận
                         </span>
-                        <span class="rounded-full border border-indigo-500/20 bg-indigo-500/10 px-2.5 py-1 font-semibold text-indigo-300">
+                        <span
+                            class="rounded-full border border-indigo-500/20 bg-indigo-500/10 px-2.5 py-1 font-semibold text-indigo-300"
+                        >
                             {{ taskSummary.in_progress }} đang làm
                         </span>
-                        <span class="rounded-full border border-rose-500/20 bg-rose-500/10 px-2.5 py-1 font-semibold text-rose-300">
+                        <span
+                            class="rounded-full border border-rose-500/20 bg-rose-500/10 px-2.5 py-1 font-semibold text-rose-300"
+                        >
                             {{ taskSummary.unassigned }} chưa giao
                         </span>
                     </div>
                 </div>
             </CardHeader>
             <CardContent class="space-y-4 p-4">
-                <div v-if="staffWorkload.length" class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                <div
+                    v-if="staffWorkload.length"
+                    class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4"
+                >
                     <div
                         v-for="staff in staffWorkload"
                         :key="staff.id"
                         class="rounded-xl border border-border bg-muted/20 p-3"
                     >
                         <div class="flex items-start gap-3">
-                            <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-indigo-500/15 text-sm font-bold text-indigo-300">
-                                {{ (staff.name || 'NV').slice(0, 2).toUpperCase() }}
+                            <div
+                                class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-indigo-500/15 text-sm font-bold text-indigo-300"
+                            >
+                                {{
+                                    (staff.name || 'NV')
+                                        .slice(0, 2)
+                                        .toUpperCase()
+                                }}
                             </div>
                             <div class="min-w-0 flex-1">
-                                <p class="truncate text-xs font-bold text-foreground">{{ staff.name }}</p>
-                                <p class="mt-0.5 truncate text-[10px] text-muted-foreground">{{ staff.job_title }}</p>
-                                <p class="mt-2 text-[11px] text-muted-foreground">
-                                    <strong class="text-indigo-300">{{ staff.activeTasks }}</strong> việc đang xử lý
+                                <p
+                                    class="truncate text-xs font-bold text-foreground"
+                                >
+                                    {{ staff.name }}
+                                </p>
+                                <p
+                                    class="mt-0.5 truncate text-[10px] text-muted-foreground"
+                                >
+                                    {{ staff.job_title }}
+                                </p>
+                                <p
+                                    class="mt-2 text-[11px] text-muted-foreground"
+                                >
+                                    <strong class="text-indigo-300">{{
+                                        staff.activeTasks
+                                    }}</strong>
+                                    việc đang xử lý
                                     <span class="mx-1 text-border">·</span>
                                     {{ staff.completedTasks }} hoàn tất
                                 </p>
@@ -1830,13 +2779,20 @@ const submitRecall = async () => {
                         </div>
                     </div>
                 </div>
-                <div v-else class="rounded-xl border border-dashed border-amber-500/30 bg-amber-500/5 p-4 text-xs text-amber-200">
-                    Chưa có nhân viên Kho Tổng đang hoạt động. Hãy tạo tài khoản với vai trò <strong>Nhân viên Kho Tổng</strong> trong mục Nhân viên trước khi giao việc.
+                <div
+                    v-else
+                    class="rounded-xl border border-dashed border-amber-500/30 bg-amber-500/5 p-4 text-xs text-amber-200"
+                >
+                    Chưa có nhân viên Kho Tổng đang hoạt động. Hãy tạo tài khoản
+                    với vai trò <strong>Nhân viên Kho Tổng</strong> trong mục
+                    Nhân viên trước khi giao việc.
                 </div>
 
                 <div class="overflow-x-auto rounded-xl border border-border">
                     <table class="w-full min-w-[760px] text-left text-xs">
-                        <thead class="border-b border-border bg-muted/50 font-semibold text-muted-foreground">
+                        <thead
+                            class="border-b border-border bg-muted/50 font-semibold text-muted-foreground"
+                        >
                             <tr>
                                 <th class="p-3 pl-4">Đơn / Chi nhánh</th>
                                 <th class="p-3">Chặng việc</th>
@@ -1848,39 +2804,106 @@ const submitRecall = async () => {
                         </thead>
                         <tbody class="divide-y divide-border">
                             <tr v-if="taskAssignments.length === 0">
-                                <td colspan="6" class="p-6 text-center text-muted-foreground">
-                                    Chưa có nhiệm vụ được giao. Hãy mở chi tiết một đơn đã duyệt để phân công soạn hàng.
+                                <td
+                                    colspan="6"
+                                    class="p-6 text-center text-muted-foreground"
+                                >
+                                    Chưa có nhiệm vụ được giao. Hãy mở chi tiết
+                                    một đơn đã duyệt để phân công soạn hàng.
                                 </td>
                             </tr>
-                            <tr v-for="task in taskAssignments.slice(0, 12)" :key="task.id" class="transition hover:bg-muted/30">
+                            <tr
+                                v-for="task in taskAssignments.slice(0, 12)"
+                                :key="task.id"
+                                class="transition hover:bg-muted/30"
+                            >
                                 <td class="p-3 pl-4">
-                                    <button class="text-left" @click="getSupplyRequestById(task.supply_request_id) && openDetailModal(getSupplyRequestById(task.supply_request_id))">
-                                        <span class="font-mono font-bold text-indigo-400">{{ task.request_code || `#${task.supply_request_id}` }}</span>
-                                        <span class="mt-0.5 block text-[10px] text-muted-foreground">{{ task.branch_name || 'Chi nhánh' }}</span>
+                                    <button
+                                        class="text-left"
+                                        @click="
+                                            getSupplyRequestById(
+                                                task.supply_request_id,
+                                            ) &&
+                                            openDetailModal(
+                                                getSupplyRequestById(
+                                                    task.supply_request_id,
+                                                ),
+                                            )
+                                        "
+                                    >
+                                        <span
+                                            class="font-mono font-bold text-indigo-400"
+                                            >{{
+                                                task.request_code ||
+                                                `#${task.supply_request_id}`
+                                            }}</span
+                                        >
+                                        <span
+                                            class="mt-0.5 block text-[10px] text-muted-foreground"
+                                            >{{
+                                                task.branch_name || 'Chi nhánh'
+                                            }}</span
+                                        >
                                     </button>
                                 </td>
-                                <td class="p-3 font-medium text-foreground">{{ taskTypeLabel(task.task_type) }}</td>
-                                <td class="p-3">
-                                    <span v-if="task.assignee_name" class="inline-flex items-center gap-1.5 font-semibold text-foreground">
-                                        <UserRound class="h-3.5 w-3.5 text-indigo-400" /> {{ task.assignee_name }}
-                                    </span>
-                                    <span v-else class="text-rose-400">Chưa giao</span>
+                                <td class="p-3 font-medium text-foreground">
+                                    {{ taskTypeLabel(task.task_type) }}
                                 </td>
                                 <td class="p-3">
-                                    <span :class="task.priority === 'urgent' ? 'text-rose-400' : task.priority === 'high' ? 'text-amber-300' : 'text-muted-foreground'" class="font-semibold">
+                                    <span
+                                        v-if="task.assignee_name"
+                                        class="inline-flex items-center gap-1.5 font-semibold text-foreground"
+                                    >
+                                        <UserRound
+                                            class="h-3.5 w-3.5 text-indigo-400"
+                                        />
+                                        {{ task.assignee_name }}
+                                    </span>
+                                    <span v-else class="text-rose-400"
+                                        >Chưa giao</span
+                                    >
+                                </td>
+                                <td class="p-3">
+                                    <span
+                                        :class="
+                                            task.priority === 'urgent'
+                                                ? 'text-rose-400'
+                                                : task.priority === 'high'
+                                                  ? 'text-amber-300'
+                                                  : 'text-muted-foreground'
+                                        "
+                                        class="font-semibold"
+                                    >
                                         {{ taskPriorityLabel(task.priority) }}
                                     </span>
                                 </td>
                                 <td class="p-3">
-                                    <span :class="task.status === 'completed' ? 'bg-emerald-500/10 text-emerald-400' : task.status === 'in_progress' ? 'bg-indigo-500/10 text-indigo-300' : 'bg-amber-500/10 text-amber-300'" class="rounded-full px-2 py-1 text-[10px] font-semibold">
+                                    <span
+                                        :class="
+                                            task.status === 'completed'
+                                                ? 'bg-emerald-500/10 text-emerald-400'
+                                                : task.status === 'in_progress'
+                                                  ? 'bg-indigo-500/10 text-indigo-300'
+                                                  : 'bg-amber-500/10 text-amber-300'
+                                        "
+                                        class="rounded-full px-2 py-1 text-[10px] font-semibold"
+                                    >
                                         {{ taskStatusLabel(task.status) }}
                                     </span>
                                 </td>
                                 <td class="p-3 pr-4 text-right">
                                     <div class="flex justify-end gap-1.5">
                                         <Button
-                                            v-if="task.status === 'assigned' && task.assigned_to"
-                                            @click="updateTaskStatus(task, 'in_progress')"
+                                            v-if="
+                                                task.status === 'assigned' &&
+                                                task.assigned_to
+                                            "
+                                            @click="
+                                                updateTaskStatus(
+                                                    task,
+                                                    'in_progress',
+                                                )
+                                            "
                                             size="sm"
                                             variant="outline"
                                             class="h-7 text-[10px]"
@@ -1889,15 +2912,32 @@ const submitRecall = async () => {
                                         </Button>
                                         <Button
                                             v-if="task.status === 'in_progress'"
-                                            @click="updateTaskStatus(task, 'completed')"
+                                            @click="
+                                                updateTaskStatus(
+                                                    task,
+                                                    'completed',
+                                                )
+                                            "
                                             size="sm"
                                             class="h-7 bg-emerald-600 text-[10px] text-white hover:bg-emerald-700"
                                         >
                                             Hoàn tất
                                         </Button>
                                         <Button
-                                            v-if="canManageWarehouse && getSupplyRequestById(task.supply_request_id)"
-                                            @click="openTaskModal(getSupplyRequestById(task.supply_request_id), task.task_type)"
+                                            v-if="
+                                                canManageWarehouse &&
+                                                getSupplyRequestById(
+                                                    task.supply_request_id,
+                                                )
+                                            "
+                                            @click="
+                                                openTaskModal(
+                                                    getSupplyRequestById(
+                                                        task.supply_request_id,
+                                                    ),
+                                                    task.task_type,
+                                                )
+                                            "
                                             size="sm"
                                             variant="ghost"
                                             class="h-7 text-[10px] text-indigo-300"
@@ -1914,12 +2954,29 @@ const submitRecall = async () => {
         </Card>
 
         <Card class="border-sky-500/20 bg-sky-950/5 shadow-sm">
-            <CardContent class="flex flex-col justify-between gap-3 p-4 sm:flex-row sm:items-center">
+            <CardContent
+                class="flex flex-col justify-between gap-3 p-4 sm:flex-row sm:items-center"
+            >
                 <div>
-                    <p class="flex items-center gap-2 text-sm font-bold text-foreground"><UserRound class="h-4 w-4 text-sky-300" /> Giao việc cho đội ngũ Kho Tổng</p>
-                    <p class="mt-1 text-xs text-muted-foreground">Quản lý nhân sự, tải việc và KPI đã được tách sang workspace riêng.</p>
+                    <p
+                        class="flex items-center gap-2 text-sm font-bold text-foreground"
+                    >
+                        <UserRound class="h-4 w-4 text-sky-300" /> Giao việc cho
+                        đội ngũ Kho Tổng
+                    </p>
+                    <p class="mt-1 text-xs text-muted-foreground">
+                        Quản lý nhân sự, tải việc và KPI đã được tách sang
+                        workspace riêng.
+                    </p>
                 </div>
-                <Link href="/warehouse/team"><Button variant="outline" size="sm" class="gap-1.5 text-xs text-sky-300">Mở Đội ngũ Kho Tổng <ArrowUpRight class="h-3.5 w-3.5" /></Button></Link>
+                <Link href="/warehouse/team"
+                    ><Button
+                        variant="outline"
+                        size="sm"
+                        class="gap-1.5 text-xs text-sky-300"
+                        >Mở Đội ngũ Kho Tổng
+                        <ArrowUpRight class="h-3.5 w-3.5" /></Button
+                ></Link>
             </CardContent>
         </Card>
 
@@ -1930,10 +2987,50 @@ const submitRecall = async () => {
             >
                 <!-- Status Tabs -->
                 <div class="flex flex-wrap gap-1">
-                    <button @click="activeTab = 'preparing'" :class="['rounded-lg px-3 py-1.5 text-xs font-semibold transition', activeTab === 'preparing' ? 'bg-background text-indigo-300 shadow-sm' : 'text-muted-foreground hover:text-foreground']">Đang soạn ({{ stats.preparing }})</button>
-                    <button @click="activeTab = 'dispatch_pending_approval'" :class="['rounded-lg px-3 py-1.5 text-xs font-semibold transition', activeTab === 'dispatch_pending_approval' ? 'bg-background text-violet-300 shadow-sm' : 'text-muted-foreground hover:text-foreground']">Chờ duyệt xuất ({{ stats.dispatch_pending }})</button>
-                    <button @click="activeTab = 'partial_received'" :class="['rounded-lg px-3 py-1.5 text-xs font-semibold transition', activeTab === 'partial_received' ? 'bg-background text-orange-300 shadow-sm' : 'text-muted-foreground hover:text-foreground']">Nhận một phần ({{ stats.partial_received }})</button>
-                    <button @click="activeTab = 'disputed'" :class="['rounded-lg px-3 py-1.5 text-xs font-semibold transition', activeTab === 'disputed' ? 'bg-background text-rose-300 shadow-sm' : 'text-muted-foreground hover:text-foreground']">Tranh chấp ({{ stats.disputed }})</button>
+                    <button
+                        @click="activeTab = 'preparing'"
+                        :class="[
+                            'rounded-lg px-3 py-1.5 text-xs font-semibold transition',
+                            activeTab === 'preparing'
+                                ? 'bg-background text-indigo-300 shadow-sm'
+                                : 'text-muted-foreground hover:text-foreground',
+                        ]"
+                    >
+                        Đang soạn ({{ stats.preparing }})
+                    </button>
+                    <button
+                        @click="activeTab = 'dispatch_pending_approval'"
+                        :class="[
+                            'rounded-lg px-3 py-1.5 text-xs font-semibold transition',
+                            activeTab === 'dispatch_pending_approval'
+                                ? 'bg-background text-violet-300 shadow-sm'
+                                : 'text-muted-foreground hover:text-foreground',
+                        ]"
+                    >
+                        Chờ duyệt xuất ({{ stats.dispatch_pending }})
+                    </button>
+                    <button
+                        @click="activeTab = 'partial_received'"
+                        :class="[
+                            'rounded-lg px-3 py-1.5 text-xs font-semibold transition',
+                            activeTab === 'partial_received'
+                                ? 'bg-background text-orange-300 shadow-sm'
+                                : 'text-muted-foreground hover:text-foreground',
+                        ]"
+                    >
+                        Nhận một phần ({{ stats.partial_received }})
+                    </button>
+                    <button
+                        @click="activeTab = 'disputed'"
+                        :class="[
+                            'rounded-lg px-3 py-1.5 text-xs font-semibold transition',
+                            activeTab === 'disputed'
+                                ? 'bg-background text-rose-300 shadow-sm'
+                                : 'text-muted-foreground hover:text-foreground',
+                        ]"
+                    >
+                        Tranh chấp ({{ stats.disputed }})
+                    </button>
                 </div>
                 <div
                     class="flex w-full flex-wrap gap-1 rounded-xl bg-muted p-1 md:w-auto"
@@ -2112,6 +3209,7 @@ const submitRecall = async () => {
         </Card>
 
         <!-- Detail & Action Modal -->
+        <Teleport to="body">
         <div
             v-if="isDetailModalOpen && selectedRequest"
             class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm"
@@ -2176,11 +3274,74 @@ const submitRecall = async () => {
                     </div>
 
                     <!-- Items List -->
-                    <div v-if="['dispatched', 'partial_received', 'disputed', 'completed'].includes(selectedRequest.status)" class="grid grid-cols-2 gap-3 sm:grid-cols-4">
-                        <div class="rounded-lg border border-border bg-muted/20 p-3"><span class="text-muted-foreground">Đã xuất</span><strong class="mt-1 block text-lg text-indigo-300">{{ formatQuantity(getRequestQuantitySummary(selectedRequest).dispatched) }}</strong></div>
-                        <div class="rounded-lg border border-border bg-muted/20 p-3"><span class="text-muted-foreground">Đã nhận</span><strong class="mt-1 block text-lg text-emerald-300">{{ formatQuantity(getRequestQuantitySummary(selectedRequest).received) }}</strong></div>
-                        <div class="rounded-lg border border-border bg-muted/20 p-3"><span class="text-muted-foreground">Còn thiếu</span><strong class="mt-1 block text-lg text-orange-300">{{ formatQuantity(getRequestQuantitySummary(selectedRequest).shortage) }}</strong></div>
-                        <div class="rounded-lg border border-border bg-muted/20 p-3"><span class="text-muted-foreground">Người nhận</span><strong class="mt-1 block truncate text-xs text-foreground">{{ selectedRequest.receiver?.name || 'Chưa xác nhận' }}</strong></div>
+                    <div
+                        v-if="
+                            [
+                                'dispatched',
+                                'partial_received',
+                                'disputed',
+                                'completed',
+                            ].includes(selectedRequest.status)
+                        "
+                        class="grid grid-cols-2 gap-3 sm:grid-cols-4"
+                    >
+                        <div
+                            class="rounded-lg border border-border bg-muted/20 p-3"
+                        >
+                            <span class="text-muted-foreground">Đã xuất</span
+                            ><strong
+                                class="mt-1 block text-lg text-indigo-300"
+                                >{{
+                                    formatQuantity(
+                                        getRequestQuantitySummary(
+                                            selectedRequest,
+                                        ).dispatched,
+                                    )
+                                }}</strong
+                            >
+                        </div>
+                        <div
+                            class="rounded-lg border border-border bg-muted/20 p-3"
+                        >
+                            <span class="text-muted-foreground">Đã nhận</span
+                            ><strong
+                                class="mt-1 block text-lg text-emerald-300"
+                                >{{
+                                    formatQuantity(
+                                        getRequestQuantitySummary(
+                                            selectedRequest,
+                                        ).received,
+                                    )
+                                }}</strong
+                            >
+                        </div>
+                        <div
+                            class="rounded-lg border border-border bg-muted/20 p-3"
+                        >
+                            <span class="text-muted-foreground">Còn thiếu</span
+                            ><strong
+                                class="mt-1 block text-lg text-orange-300"
+                                >{{
+                                    formatQuantity(
+                                        getRequestQuantitySummary(
+                                            selectedRequest,
+                                        ).shortage,
+                                    )
+                                }}</strong
+                            >
+                        </div>
+                        <div
+                            class="rounded-lg border border-border bg-muted/20 p-3"
+                        >
+                            <span class="text-muted-foreground">Người nhận</span
+                            ><strong
+                                class="mt-1 block truncate text-xs text-foreground"
+                                >{{
+                                    selectedRequest.receiver?.name ||
+                                    'Chưa xác nhận'
+                                }}</strong
+                            >
+                        </div>
                     </div>
 
                     <div>
@@ -2299,7 +3460,11 @@ const submitRecall = async () => {
 
                     <div class="flex items-center gap-2">
                         <Button
-                            v-if="['pending', 'approved', 'preparing'].includes(selectedRequest.status) && canManageWarehouse"
+                            v-if="
+                                ['pending', 'approved', 'preparing'].includes(
+                                    selectedRequest.status,
+                                ) && canManageWarehouse
+                            "
                             @click="cancelRequest"
                             variant="outline"
                             size="sm"
@@ -2309,7 +3474,11 @@ const submitRecall = async () => {
                             Hủy đơn
                         </Button>
                         <Button
-                            v-if="['partial_received', 'disputed'].includes(selectedRequest.status) && canManageWarehouse"
+                            v-if="
+                                ['partial_received', 'disputed'].includes(
+                                    selectedRequest.status,
+                                ) && canManageWarehouse
+                            "
                             @click="createBackorder"
                             variant="outline"
                             size="sm"
@@ -2349,7 +3518,8 @@ const submitRecall = async () => {
                             v-if="
                                 canManageWarehouse &&
                                 warehouseStaff.length > 0 &&
-                                (selectedRequest.status === 'approved' || selectedRequest.status === 'preparing')
+                                (selectedRequest.status === 'approved' ||
+                                    selectedRequest.status === 'preparing')
                             "
                             @click="openTaskModal(selectedRequest, 'picking')"
                             size="sm"
@@ -2362,7 +3532,8 @@ const submitRecall = async () => {
                         <!-- Nút 1: Soạn hàng (cho đơn đã duyệt status == 'approved' hoặc 'preparing') -->
                         <Button
                             v-if="
-                                (selectedRequest.status === 'approved' || selectedRequest.status === 'preparing') &&
+                                (selectedRequest.status === 'approved' ||
+                                    selectedRequest.status === 'preparing') &&
                                 (canDispatchRequests || canManageWarehouse)
                             "
                             @click="openPickingModal(selectedRequest)"
@@ -2383,13 +3554,16 @@ const submitRecall = async () => {
                             :disabled="isProcessing"
                             class="gap-1 bg-indigo-600 text-xs text-white hover:bg-indigo-700"
                         >
-                            <CheckCircle2 class="h-4 w-4" /> Trưởng Kho Duyệt Xuất
+                            <CheckCircle2 class="h-4 w-4" /> Trưởng Kho Duyệt
+                            Xuất
                         </Button>
 
                         <!-- Nút 3: Thật xuất kho & bàn giao -->
                         <Button
                             v-if="
-                                (selectedRequest.status === 'dispatch_pending_approval' || selectedRequest.status === 'approved') &&
+                                (selectedRequest.status ===
+                                    'dispatch_pending_approval' ||
+                                    selectedRequest.status === 'approved') &&
                                 canDispatchRequests
                             "
                             @click="dispatchRequest"
@@ -2404,7 +3578,8 @@ const submitRecall = async () => {
                             v-if="
                                 canManageWarehouse &&
                                 warehouseStaff.length > 0 &&
-                                selectedRequest.status === 'dispatch_pending_approval'
+                                selectedRequest.status ===
+                                    'dispatch_pending_approval'
                             "
                             @click="openTaskModal(selectedRequest, 'handover')"
                             size="sm"
@@ -2417,59 +3592,113 @@ const submitRecall = async () => {
                 </div>
             </div>
         </div>
+        </Teleport>
 
         <!-- Warehouse task assignment modal -->
+        
         <div
             v-if="isTaskModalOpen"
             class="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur-sm"
         >
-            <div class="w-full max-w-lg overflow-hidden rounded-2xl border border-indigo-500/30 bg-card shadow-2xl">
-                <div class="flex items-center justify-between border-b border-border bg-indigo-950/50 px-5 py-4">
+            <div
+                class="w-full max-w-lg overflow-hidden rounded-2xl border border-indigo-500/30 bg-card shadow-2xl"
+            >
+                <div
+                    class="flex items-center justify-between border-b border-border bg-indigo-950/50 px-5 py-4"
+                >
                     <div>
-                        <h3 class="flex items-center gap-2 text-base font-bold text-foreground">
-                            <ClipboardList class="h-5 w-5 text-indigo-300" /> Giao việc Kho Tổng
+                        <h3
+                            class="flex items-center gap-2 text-base font-bold text-foreground"
+                        >
+                            <ClipboardList class="h-5 w-5 text-indigo-300" />
+                            Giao việc Kho Tổng
                         </h3>
                         <p class="mt-1 text-[11px] text-indigo-200/80">
-                            Đơn {{ getSupplyRequestById(Number(taskForm.supply_request_id))?.request_code || `#${taskForm.supply_request_id}` }}
+                            Đơn
+                            {{
+                                getSupplyRequestById(
+                                    Number(taskForm.supply_request_id),
+                                )?.request_code ||
+                                `#${taskForm.supply_request_id}`
+                            }}
                         </p>
                     </div>
-                    <button @click="isTaskModalOpen = false" class="rounded-lg p-1 text-muted-foreground hover:text-foreground">
+                    <button
+                        @click="isTaskModalOpen = false"
+                        class="rounded-lg p-1 text-muted-foreground hover:text-foreground"
+                    >
                         <X class="h-5 w-5" />
                     </button>
                 </div>
                 <div class="space-y-4 p-5 text-xs">
                     <div class="grid gap-3 sm:grid-cols-2">
                         <div>
-                            <label class="mb-1 block font-semibold text-muted-foreground">Chặng việc</label>
-                            <select v-model="taskForm.task_type" class="w-full rounded-lg border border-input bg-background px-3 py-2 text-foreground">
+                            <label
+                                class="mb-1 block font-semibold text-muted-foreground"
+                                >Chặng việc</label
+                            >
+                            <select
+                                v-model="taskForm.task_type"
+                                class="w-full rounded-lg border border-input bg-background px-3 py-2 text-foreground"
+                            >
                                 <option value="picking">Soạn hàng FEFO</option>
-                                <option value="handover">Bàn giao / xuất xe</option>
+                                <option value="handover">
+                                    Bàn giao / xuất xe
+                                </option>
                             </select>
                         </div>
                         <div>
-                            <label class="mb-1 block font-semibold text-muted-foreground">Nhân viên nhận việc</label>
-                            <select v-model="taskForm.assigned_to" class="w-full rounded-lg border border-input bg-background px-3 py-2 text-foreground">
-                                <option value="" disabled>Chọn nhân viên</option>
-                                <option v-for="staff in warehouseStaff" :key="staff.id" :value="staff.id">
+                            <label
+                                class="mb-1 block font-semibold text-muted-foreground"
+                                >Nhân viên nhận việc</label
+                            >
+                            <select
+                                v-model="taskForm.assigned_to"
+                                class="w-full rounded-lg border border-input bg-background px-3 py-2 text-foreground"
+                            >
+                                <option value="" disabled>
+                                    Chọn nhân viên
+                                </option>
+                                <option
+                                    v-for="staff in warehouseStaff"
+                                    :key="staff.id"
+                                    :value="staff.id"
+                                >
                                     {{ staff.name }} · {{ staff.job_title }}
                                 </option>
                             </select>
                         </div>
                         <div>
-                            <label class="mb-1 block font-semibold text-muted-foreground">Ưu tiên</label>
-                            <select v-model="taskForm.priority" class="w-full rounded-lg border border-input bg-background px-3 py-2 text-foreground">
+                            <label
+                                class="mb-1 block font-semibold text-muted-foreground"
+                                >Ưu tiên</label
+                            >
+                            <select
+                                v-model="taskForm.priority"
+                                class="w-full rounded-lg border border-input bg-background px-3 py-2 text-foreground"
+                            >
                                 <option value="normal">Bình thường</option>
                                 <option value="high">Cao</option>
                                 <option value="urgent">Khẩn</option>
                             </select>
                         </div>
                         <div>
-                            <label class="mb-1 block font-semibold text-muted-foreground">Hạn hoàn tất</label>
-                            <Input v-model="taskForm.due_at" type="datetime-local" class="h-9 text-xs" />
+                            <label
+                                class="mb-1 block font-semibold text-muted-foreground"
+                                >Hạn hoàn tất</label
+                            >
+                            <Input
+                                v-model="taskForm.due_at"
+                                type="datetime-local"
+                                class="h-9 text-xs"
+                            />
                         </div>
                     </div>
                     <div>
-                        <label class="mb-1 block font-semibold text-muted-foreground">Ghi chú điều phối</label>
+                        <label
+                            class="mb-1 block font-semibold text-muted-foreground"
+                            >Ghi chú điều phối</label
+                        >
                         <textarea
                             v-model="taskForm.notes"
                             rows="3"
@@ -2478,16 +3707,30 @@ const submitRecall = async () => {
                         ></textarea>
                     </div>
                 </div>
-                <div class="flex justify-end gap-2 border-t border-border bg-muted/20 px-5 py-4">
-                    <Button @click="isTaskModalOpen = false" variant="outline" size="sm">Hủy</Button>
-                    <Button @click="submitTaskAssignment" size="sm" :disabled="isTaskProcessing || !warehouseStaff.length" class="gap-1.5 bg-indigo-600 text-white hover:bg-indigo-700">
+                <div
+                    class="flex justify-end gap-2 border-t border-border bg-muted/20 px-5 py-4"
+                >
+                    <Button
+                        @click="isTaskModalOpen = false"
+                        variant="outline"
+                        size="sm"
+                        >Hủy</Button
+                    >
+                    <Button
+                        @click="submitTaskAssignment"
+                        size="sm"
+                        :disabled="isTaskProcessing || !warehouseStaff.length"
+                        class="gap-1.5 bg-indigo-600 text-white hover:bg-indigo-700"
+                    >
                         <UserCheck class="h-4 w-4" /> Xác nhận giao việc
                     </Button>
                 </div>
             </div>
         </div>
+        
 
         <!-- Picking & FEFO Modal -->
+        
         <div
             v-if="isPickingModalOpen && selectedRequest"
             class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/70 p-4 backdrop-blur-sm"
@@ -2495,17 +3738,25 @@ const submitRecall = async () => {
             <div
                 class="flex max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-2xl"
             >
-                <div class="flex items-center justify-between border-b bg-amber-950 p-5 text-white">
+                <div
+                    class="flex items-center justify-between border-b bg-amber-950 p-5 text-white"
+                >
                     <div>
                         <h3 class="flex items-center gap-2 text-lg font-bold">
                             <Boxes class="h-5 w-5 text-amber-400" />
-                            Phiếu Soạn Hàng & Quét Mã Lô (FEFO) — {{ selectedRequest.request_code }}
+                            Phiếu Soạn Hàng & Quét Mã Lô (FEFO) —
+                            {{ selectedRequest.request_code }}
                         </h3>
                         <p class="text-xs text-amber-200">
-                            Nhập số lượng thực xuất, mã lô hàng và vị trí lưu trữ. Hệ thống yêu cầu nhập lý do nếu chọn lô khác FEFO.
+                            Nhập số lượng thực xuất, mã lô hàng và vị trí lưu
+                            trữ. Hệ thống yêu cầu nhập lý do nếu chọn lô khác
+                            FEFO.
                         </p>
                     </div>
-                    <button @click="isPickingModalOpen = false" class="rounded-lg p-1 text-amber-200 hover:text-white">
+                    <button
+                        @click="isPickingModalOpen = false"
+                        class="rounded-lg p-1 text-amber-200 hover:text-white"
+                    >
                         <X class="h-6 w-6" />
                     </button>
                 </div>
@@ -2513,7 +3764,9 @@ const submitRecall = async () => {
                 <div class="flex-1 space-y-4 overflow-y-auto p-6 text-xs">
                     <div class="overflow-x-auto rounded-xl border">
                         <table class="w-full text-left">
-                            <thead class="border-b bg-muted/50 font-semibold text-muted-foreground">
+                            <thead
+                                class="border-b bg-muted/50 font-semibold text-muted-foreground"
+                            >
                                 <tr>
                                     <th class="p-3">Nguyên Liệu</th>
                                     <th class="p-3 text-right">Duyệt</th>
@@ -2524,19 +3777,30 @@ const submitRecall = async () => {
                                 </tr>
                             </thead>
                             <tbody class="divide-y divide-border">
-                                <tr v-for="item in pickingItems" :key="item.id" class="hover:bg-muted/20">
-                                    <td class="p-3 font-semibold text-foreground">
+                                <tr
+                                    v-for="item in pickingItems"
+                                    :key="item.id"
+                                    class="hover:bg-muted/20"
+                                >
+                                    <td
+                                        class="p-3 font-semibold text-foreground"
+                                    >
                                         {{ item.ingredient_name }}
                                     </td>
-                                    <td class="p-3 text-right font-bold text-muted-foreground">
-                                        {{ item.approved_quantity }} {{ item.unit_symbol }}
+                                    <td
+                                        class="p-3 text-right font-bold text-muted-foreground"
+                                    >
+                                        {{ item.approved_quantity }}
+                                        {{ item.unit_symbol }}
                                     </td>
                                     <td class="p-3 text-right">
                                         <input
                                             type="number"
                                             step="0.1"
                                             min="0"
-                                            v-model.number="item.actual_dispatched_quantity"
+                                            v-model.number="
+                                                item.actual_dispatched_quantity
+                                            "
                                             class="w-24 rounded border border-input bg-background px-2 py-1 text-right font-bold text-indigo-400 focus:outline-none"
                                         />
                                     </td>
@@ -2545,14 +3809,16 @@ const submitRecall = async () => {
                                             type="number"
                                             placeholder="Batch ID"
                                             v-model.number="item.batch_id"
-                                            class="w-28 rounded border border-input bg-background px-2 py-1 text-xs font-mono text-foreground focus:outline-none"
+                                            class="w-28 rounded border border-input bg-background px-2 py-1 font-mono text-xs text-foreground focus:outline-none"
                                         />
                                     </td>
                                     <td class="p-3">
                                         <input
                                             type="number"
                                             placeholder="Location ID"
-                                            v-model.number="item.warehouse_location_id"
+                                            v-model.number="
+                                                item.warehouse_location_id
+                                            "
                                             class="w-24 rounded border border-input bg-background px-2 py-1 text-xs text-foreground focus:outline-none"
                                         />
                                     </td>
@@ -2570,47 +3836,118 @@ const submitRecall = async () => {
                     </div>
                 </div>
 
-                <div class="flex items-center justify-end gap-3 border-t bg-muted/20 p-4">
-                    <Button @click="isPickingModalOpen = false" variant="outline" size="sm">Hủy</Button>
-                    <Button @click="submitPreparePicking" size="sm" :disabled="isProcessing" class="bg-amber-600 text-white hover:bg-amber-700">
+                <div
+                    class="flex items-center justify-end gap-3 border-t bg-muted/20 p-4"
+                >
+                    <Button
+                        @click="isPickingModalOpen = false"
+                        variant="outline"
+                        size="sm"
+                        >Hủy</Button
+                    >
+                    <Button
+                        @click="submitPreparePicking"
+                        size="sm"
+                        :disabled="isProcessing"
+                        class="bg-amber-600 text-white hover:bg-amber-700"
+                    >
                         <Check class="mr-1 h-4 w-4" /> Xác Nhận Soạn Hàng
                     </Button>
                 </div>
             </div>
         </div>
+        
 
         <!-- ── MODAL 1: SMART ALLOCATION (FAIR-SHARE) ── -->
-        <div v-if="isSmartModalOpen" class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-            <div class="w-full max-w-3xl rounded-xl border border-border bg-card shadow-2xl overflow-hidden flex flex-col max-h-[85vh]">
-                <div class="flex items-center justify-between border-b bg-indigo-950/40 px-6 py-4">
+        
+        <div
+            v-if="isSmartModalOpen"
+            class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
+        >
+            <div
+                class="flex max-h-[85vh] w-full max-w-3xl flex-col overflow-hidden rounded-xl border border-border bg-card shadow-2xl"
+            >
+                <div
+                    class="flex items-center justify-between border-b bg-indigo-950/40 px-6 py-4"
+                >
                     <div class="flex items-center gap-2">
                         <Activity class="h-5 w-5 text-indigo-400" />
-                        <h3 class="text-base font-bold text-foreground">Gợi Ý Phân Bổ Fair-Share Khi Kho Tổng Thiếu Hàng</h3>
+                        <h3 class="text-base font-bold text-foreground">
+                            Gợi Ý Phân Bổ Fair-Share Khi Kho Tổng Thiếu Hàng
+                        </h3>
                     </div>
-                    <button @click="isSmartModalOpen = false" class="text-muted-foreground hover:text-foreground"><X class="h-5 w-5" /></button>
+                    <button
+                        @click="isSmartModalOpen = false"
+                        class="text-muted-foreground hover:text-foreground"
+                    >
+                        <X class="h-5 w-5" />
+                    </button>
                 </div>
-                <div class="p-6 overflow-y-auto space-y-4">
-                    <p class="text-xs text-muted-foreground">Thuật toán tự động tính toán dựa trên tổng tồn khả dụng Kho Tổng và tổng nhu cầu của các chi nhánh để gợi ý mức chia công bằng.</p>
-                    <div class="overflow-x-auto rounded-lg border border-border">
+                <div class="space-y-4 overflow-y-auto p-6">
+                    <p class="text-xs text-muted-foreground">
+                        Thuật toán tự động tính toán dựa trên tổng tồn khả dụng
+                        Kho Tổng và tổng nhu cầu của các chi nhánh để gợi ý mức
+                        chia công bằng.
+                    </p>
+                    <div
+                        class="overflow-x-auto rounded-lg border border-border"
+                    >
                         <table class="w-full text-left text-xs">
-                            <thead class="bg-muted/50 font-semibold text-muted-foreground">
+                            <thead
+                                class="bg-muted/50 font-semibold text-muted-foreground"
+                            >
                                 <tr>
                                     <th class="p-3">Chi Nhánh</th>
                                     <th class="p-3">Nguyên Liệu</th>
                                     <th class="p-3 text-right">Yêu Cầu</th>
-                                    <th class="p-3 text-right">Tồn Kho Khả Dụng</th>
-                                    <th class="p-3 text-right text-indigo-400 font-bold">Gợi Ý Phân Bổ</th>
-                                    <th class="p-3 text-right text-rose-400">Thiếu Hụt</th>
+                                    <th class="p-3 text-right">
+                                        Tồn Kho Khả Dụng
+                                    </th>
+                                    <th
+                                        class="p-3 text-right font-bold text-indigo-400"
+                                    >
+                                        Gợi Ý Phân Bổ
+                                    </th>
+                                    <th class="p-3 text-right text-rose-400">
+                                        Thiếu Hụt
+                                    </th>
                                 </tr>
                             </thead>
                             <tbody class="divide-y divide-border">
-                                <tr v-for="(s, idx) in smartSuggestions" :key="idx" class="hover:bg-muted/20">
-                                    <td class="p-3 font-semibold text-foreground">{{ s.branch_name }}</td>
-                                    <td class="p-3 text-muted-foreground">{{ s.ingredient_name }}</td>
-                                    <td class="p-3 text-right font-medium">{{ s.requested_qty }}</td>
-                                    <td class="p-3 text-right font-medium text-amber-400">{{ s.available_stock }}</td>
-                                    <td class="p-3 text-right font-bold text-indigo-400 bg-indigo-500/10">{{ s.suggested_qty }}</td>
-                                    <td class="p-3 text-right font-semibold" :class="s.is_shortage ? 'text-rose-400' : 'text-emerald-400'">
+                                <tr
+                                    v-for="(s, idx) in smartSuggestions"
+                                    :key="idx"
+                                    class="hover:bg-muted/20"
+                                >
+                                    <td
+                                        class="p-3 font-semibold text-foreground"
+                                    >
+                                        {{ s.branch_name }}
+                                    </td>
+                                    <td class="p-3 text-muted-foreground">
+                                        {{ s.ingredient_name }}
+                                    </td>
+                                    <td class="p-3 text-right font-medium">
+                                        {{ s.requested_qty }}
+                                    </td>
+                                    <td
+                                        class="p-3 text-right font-medium text-amber-400"
+                                    >
+                                        {{ s.available_stock }}
+                                    </td>
+                                    <td
+                                        class="bg-indigo-500/10 p-3 text-right font-bold text-indigo-400"
+                                    >
+                                        {{ s.suggested_qty }}
+                                    </td>
+                                    <td
+                                        class="p-3 text-right font-semibold"
+                                        :class="
+                                            s.is_shortage
+                                                ? 'text-rose-400'
+                                                : 'text-emerald-400'
+                                        "
+                                    >
                                         {{ s.shortage_qty }}
                                     </td>
                                 </tr>
@@ -2618,75 +3955,183 @@ const submitRecall = async () => {
                         </table>
                     </div>
                 </div>
-                <div class="flex items-center justify-end gap-3 border-t bg-muted/20 px-6 py-4">
-                    <Button @click="isSmartModalOpen = false" variant="outline" size="sm">Đóng</Button>
+                <div
+                    class="flex items-center justify-end gap-3 border-t bg-muted/20 px-6 py-4"
+                >
+                    <Button
+                        @click="isSmartModalOpen = false"
+                        variant="outline"
+                        size="sm"
+                        >Đóng</Button
+                    >
                 </div>
             </div>
         </div>
+        
 
         <!-- ── MODAL 2: CENTRAL KITCHEN (SƠ CHẾ & SẢN XUẤT) ── -->
-        <div v-if="isKitchenModalOpen" class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-            <div class="w-full max-w-4xl rounded-xl border border-border bg-card shadow-2xl overflow-hidden flex flex-col max-h-[85vh]">
-                <div class="flex items-center justify-between border-b bg-amber-950/40 px-6 py-4">
+        
+        <div
+            v-if="isKitchenModalOpen"
+            class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
+        >
+            <div
+                class="flex max-h-[85vh] w-full max-w-4xl flex-col overflow-hidden rounded-xl border border-border bg-card shadow-2xl"
+            >
+                <div
+                    class="flex items-center justify-between border-b bg-amber-950/40 px-6 py-4"
+                >
                     <div class="flex items-center gap-2">
                         <Boxes class="h-5 w-5 text-amber-400" />
-                        <h3 class="text-base font-bold text-foreground">Central Kitchen - Sơ Chế & Sản Xuất Trung Tâm</h3>
+                        <h3 class="text-base font-bold text-foreground">
+                            Central Kitchen - Sơ Chế & Sản Xuất Trung Tâm
+                        </h3>
                     </div>
-                    <button @click="isKitchenModalOpen = false" class="text-muted-foreground hover:text-foreground"><X class="h-5 w-5" /></button>
+                    <button
+                        @click="isKitchenModalOpen = false"
+                        class="text-muted-foreground hover:text-foreground"
+                    >
+                        <X class="h-5 w-5" />
+                    </button>
                 </div>
-                <div class="p-6 overflow-y-auto space-y-6">
+                <div class="space-y-6 overflow-y-auto p-6">
                     <!-- Tạo Đơn Sơ Chế Mới -->
-                    <div class="rounded-xl border border-amber-500/20 bg-amber-500/5 p-4 space-y-3">
-                        <h4 class="text-xs font-bold text-amber-400 uppercase tracking-wider">Tạo Lệnh Sơ Chế Mới (Work Order)</h4>
-                        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+                    <div
+                        class="space-y-3 rounded-xl border border-amber-500/20 bg-amber-500/5 p-4"
+                    >
+                        <h4
+                            class="text-xs font-bold tracking-wider text-amber-400 uppercase"
+                        >
+                            Tạo Lệnh Sơ Chế Mới (Work Order)
+                        </h4>
+                        <div
+                            class="grid grid-cols-1 gap-3 text-xs sm:grid-cols-3"
+                        >
                             <div>
-                                <label class="block text-muted-foreground mb-1">Thành Phẩm Sơ Chế</label>
-                                <select v-model="newWo.output_ingredient_id" class="w-full rounded border border-input bg-background px-3 py-1.5 text-foreground">
-                                    <option v-for="ing in ingredients" :key="ing.id" :value="ing.id">{{ ing.name }}</option>
+                                <label class="mb-1 block text-muted-foreground"
+                                    >Thành Phẩm Sơ Chế</label
+                                >
+                                <select
+                                    v-model="newWo.output_ingredient_id"
+                                    class="w-full rounded border border-input bg-background px-3 py-1.5 text-foreground"
+                                >
+                                    <option
+                                        v-for="ing in ingredients"
+                                        :key="ing.id"
+                                        :value="ing.id"
+                                    >
+                                        {{ ing.name }}
+                                    </option>
                                 </select>
                             </div>
                             <div>
-                                <label class="block text-muted-foreground mb-1">Số Lượng Mục Tiêu</label>
-                                <Input v-model.number="newWo.target_quantity" type="number" min="0.1" step="0.1" class="h-8" />
+                                <label class="mb-1 block text-muted-foreground"
+                                    >Số Lượng Mục Tiêu</label
+                                >
+                                <Input
+                                    v-model.number="newWo.target_quantity"
+                                    type="number"
+                                    min="0.1"
+                                    step="0.1"
+                                    class="h-8"
+                                />
                             </div>
                             <div class="flex items-end">
-                                <Button @click="createWorkOrder" size="sm" class="w-full bg-amber-600 text-white hover:bg-amber-700">Tạo Lệnh Sơ Chế</Button>
+                                <Button
+                                    @click="createWorkOrder"
+                                    size="sm"
+                                    class="w-full bg-amber-600 text-white hover:bg-amber-700"
+                                    >Tạo Lệnh Sơ Chế</Button
+                                >
                             </div>
                         </div>
                     </div>
 
                     <!-- Danh sách Work Orders -->
                     <div>
-                        <h4 class="text-xs font-bold text-foreground mb-2">Danh Sách Lệnh Sơ Chế Hiện Tại</h4>
-                        <div class="overflow-x-auto rounded-lg border border-border">
+                        <h4 class="mb-2 text-xs font-bold text-foreground">
+                            Danh Sách Lệnh Sơ Chế Hiện Tại
+                        </h4>
+                        <div
+                            class="overflow-x-auto rounded-lg border border-border"
+                        >
                             <table class="w-full text-left text-xs">
-                                <thead class="bg-muted/50 font-semibold text-muted-foreground">
+                                <thead
+                                    class="bg-muted/50 font-semibold text-muted-foreground"
+                                >
                                     <tr>
                                         <th class="p-3">Mã Lệnh</th>
                                         <th class="p-3">Thành Phẩm</th>
                                         <th class="p-3 text-right">Mục Tiêu</th>
                                         <th class="p-3 text-right">Thực Thu</th>
                                         <th class="p-3">Trạng Thái</th>
-                                        <th class="p-3 text-right">Hành Động</th>
+                                        <th class="p-3 text-right">
+                                            Hành Động
+                                        </th>
                                     </tr>
                                 </thead>
                                 <tbody class="divide-y divide-border">
                                     <tr v-if="workOrders.length === 0">
-                                        <td colspan="6" class="p-4 text-center text-muted-foreground">Chưa có lệnh sơ chế nào.</td>
+                                        <td
+                                            colspan="6"
+                                            class="p-4 text-center text-muted-foreground"
+                                        >
+                                            Chưa có lệnh sơ chế nào.
+                                        </td>
                                     </tr>
-                                    <tr v-for="wo in workOrders" :key="wo.id" class="hover:bg-muted/20">
-                                        <td class="p-3 font-mono font-bold text-foreground">{{ wo.work_order_code }}</td>
-                                        <td class="p-3 font-medium">{{ wo.output_ingredient?.name }}</td>
-                                        <td class="p-3 text-right font-bold text-muted-foreground">{{ wo.target_quantity }}</td>
-                                        <td class="p-3 text-right font-bold text-amber-400">{{ wo.actual_yield_quantity || '-' }}</td>
+                                    <tr
+                                        v-for="wo in workOrders"
+                                        :key="wo.id"
+                                        class="hover:bg-muted/20"
+                                    >
+                                        <td
+                                            class="p-3 font-mono font-bold text-foreground"
+                                        >
+                                            {{ wo.work_order_code }}
+                                        </td>
+                                        <td class="p-3 font-medium">
+                                            {{ wo.output_ingredient?.name }}
+                                        </td>
+                                        <td
+                                            class="p-3 text-right font-bold text-muted-foreground"
+                                        >
+                                            {{ wo.target_quantity }}
+                                        </td>
+                                        <td
+                                            class="p-3 text-right font-bold text-amber-400"
+                                        >
+                                            {{
+                                                wo.actual_yield_quantity || '-'
+                                            }}
+                                        </td>
                                         <td class="p-3">
-                                            <span class="rounded px-2 py-0.5 text-[10px] font-bold" :class="wo.status === 'completed' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-amber-500/20 text-amber-400'">
+                                            <span
+                                                class="rounded px-2 py-0.5 text-[10px] font-bold"
+                                                :class="
+                                                    wo.status === 'completed'
+                                                        ? 'bg-emerald-500/20 text-emerald-400'
+                                                        : 'bg-amber-500/20 text-amber-400'
+                                                "
+                                            >
                                                 {{ wo.status }}
                                             </span>
                                         </td>
                                         <td class="p-3 text-right">
-                                            <Button v-if="wo.status !== 'completed'" @click="executeWo(wo)" size="sm" class="bg-amber-600 text-white">Hoàn Tất Sơ Chế</Button>
-                                            <span v-else class="text-emerald-400 font-bold">Lô: {{ wo.created_batch_code }}</span>
+                                            <Button
+                                                v-if="wo.status !== 'completed'"
+                                                @click="executeWo(wo)"
+                                                size="sm"
+                                                class="bg-amber-600 text-white"
+                                                >Hoàn Tất Sơ Chế</Button
+                                            >
+                                            <span
+                                                v-else
+                                                class="font-bold text-emerald-400"
+                                                >Lô:
+                                                {{
+                                                    wo.created_batch_code
+                                                }}</span
+                                            >
                                         </td>
                                     </tr>
                                 </tbody>
@@ -2694,31 +4139,66 @@ const submitRecall = async () => {
                         </div>
                     </div>
                 </div>
-                <div class="flex items-center justify-end gap-3 border-t bg-muted/20 px-6 py-4">
-                    <Button @click="isKitchenModalOpen = false" variant="outline" size="sm">Đóng</Button>
+                <div
+                    class="flex items-center justify-end gap-3 border-t bg-muted/20 px-6 py-4"
+                >
+                    <Button
+                        @click="isKitchenModalOpen = false"
+                        variant="outline"
+                        size="sm"
+                        >Đóng</Button
+                    >
                 </div>
             </div>
         </div>
+        
 
         <!-- ── MODAL 3: DELIVERY MANIFESTS (GOM CHUYẾN XE) ── -->
-        <div v-if="isManifestModalOpen" class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-            <div class="w-full max-w-4xl rounded-xl border border-border bg-card shadow-2xl overflow-hidden flex flex-col max-h-[85vh]">
-                <div class="flex items-center justify-between border-b bg-purple-950/40 px-6 py-4">
+        
+        <div
+            v-if="isManifestModalOpen"
+            class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
+        >
+            <div
+                class="flex max-h-[85vh] w-full max-w-4xl flex-col overflow-hidden rounded-xl border border-border bg-card shadow-2xl"
+            >
+                <div
+                    class="flex items-center justify-between border-b bg-purple-950/40 px-6 py-4"
+                >
                     <div class="flex items-center gap-2">
                         <Truck class="h-5 w-5 text-purple-400" />
-                        <h3 class="text-base font-bold text-foreground">Gom Chuyến Xe Logistics & Master Packing List</h3>
+                        <h3 class="text-base font-bold text-foreground">
+                            Gom Chuyến Xe Logistics & Master Packing List
+                        </h3>
                     </div>
-                    <button @click="isManifestModalOpen = false" class="text-muted-foreground hover:text-foreground"><X class="h-5 w-5" /></button>
+                    <button
+                        @click="isManifestModalOpen = false"
+                        class="text-muted-foreground hover:text-foreground"
+                    >
+                        <X class="h-5 w-5" />
+                    </button>
                 </div>
-                <div class="p-6 overflow-y-auto space-y-6">
+                <div class="space-y-6 overflow-y-auto p-6">
                     <div class="flex items-center justify-between">
-                        <p class="text-xs text-muted-foreground">Gom tất cả đơn đã duyệt thành chuyến xe xuất bến cùng mã niêm phong.</p>
-                        <Button @click="createManifest" size="sm" class="bg-purple-600 text-white hover:bg-purple-700">Tạo Chuyến Xe Gom Đơn</Button>
+                        <p class="text-xs text-muted-foreground">
+                            Gom tất cả đơn đã duyệt thành chuyến xe xuất bến
+                            cùng mã niêm phong.
+                        </p>
+                        <Button
+                            @click="createManifest"
+                            size="sm"
+                            class="bg-purple-600 text-white hover:bg-purple-700"
+                            >Tạo Chuyến Xe Gom Đơn</Button
+                        >
                     </div>
 
-                    <div class="overflow-x-auto rounded-lg border border-border">
+                    <div
+                        class="overflow-x-auto rounded-lg border border-border"
+                    >
                         <table class="w-full text-left text-xs">
-                            <thead class="bg-muted/50 font-semibold text-muted-foreground">
+                            <thead
+                                class="bg-muted/50 font-semibold text-muted-foreground"
+                            >
                                 <tr>
                                     <th class="p-3">Mã Chuyến Xe</th>
                                     <th class="p-3">Tuyến Đường</th>
@@ -2730,153 +4210,369 @@ const submitRecall = async () => {
                             </thead>
                             <tbody class="divide-y divide-border">
                                 <tr v-if="manifests.length === 0">
-                                    <td colspan="6" class="p-4 text-center text-muted-foreground">Chưa có chuyến xe nào.</td>
+                                    <td
+                                        colspan="6"
+                                        class="p-4 text-center text-muted-foreground"
+                                    >
+                                        Chưa có chuyến xe nào.
+                                    </td>
                                 </tr>
-                                <tr v-for="m in manifests" :key="m.id" class="hover:bg-muted/20">
-                                    <td class="p-3 font-mono font-bold text-foreground">{{ m.manifest_code }}</td>
-                                    <td class="p-3 font-medium">{{ m.route_name }}</td>
-                                    <td class="p-3 text-muted-foreground">{{ m.driver_name }} ({{ m.vehicle_number }})</td>
-                                    <td class="p-3 font-mono text-purple-400">{{ m.seal_code || 'Chưa gán' }}</td>
+                                <tr
+                                    v-for="m in manifests"
+                                    :key="m.id"
+                                    class="hover:bg-muted/20"
+                                >
+                                    <td
+                                        class="p-3 font-mono font-bold text-foreground"
+                                    >
+                                        {{ m.manifest_code }}
+                                    </td>
+                                    <td class="p-3 font-medium">
+                                        {{ m.route_name }}
+                                    </td>
+                                    <td class="p-3 text-muted-foreground">
+                                        {{ m.driver_name }} ({{
+                                            m.vehicle_number
+                                        }})
+                                    </td>
+                                    <td class="p-3 font-mono text-purple-400">
+                                        {{ m.seal_code || 'Chưa gán' }}
+                                    </td>
                                     <td class="p-3">
-                                        <span class="rounded px-2 py-0.5 text-[10px] font-bold" :class="m.status === 'dispatched' ? 'bg-purple-500/20 text-purple-400' : 'bg-slate-500/20 text-slate-400'">
+                                        <span
+                                            class="rounded px-2 py-0.5 text-[10px] font-bold"
+                                            :class="
+                                                m.status === 'dispatched'
+                                                    ? 'bg-purple-500/20 text-purple-400'
+                                                    : 'bg-slate-500/20 text-slate-400'
+                                            "
+                                        >
                                             {{ m.status }}
                                         </span>
                                     </td>
                                     <td class="p-3 text-right">
-                                        <Button v-if="m.status !== 'dispatched'" @click="dispatchManifest(m)" size="sm" class="bg-purple-600 text-white">Xuất Bến Chuyến Xe</Button>
+                                        <Button
+                                            v-if="m.status !== 'dispatched'"
+                                            @click="dispatchManifest(m)"
+                                            size="sm"
+                                            class="bg-purple-600 text-white"
+                                            >Xuất Bến Chuyến Xe</Button
+                                        >
                                     </td>
                                 </tr>
                             </tbody>
                         </table>
                     </div>
                 </div>
-                <div class="flex items-center justify-end gap-3 border-t bg-muted/20 px-6 py-4">
-                    <Button @click="isManifestModalOpen = false" variant="outline" size="sm">Đóng</Button>
+                <div
+                    class="flex items-center justify-end gap-3 border-t bg-muted/20 px-6 py-4"
+                >
+                    <Button
+                        @click="isManifestModalOpen = false"
+                        variant="outline"
+                        size="sm"
+                        >Đóng</Button
+                    >
                 </div>
             </div>
         </div>
+        
 
         <!-- ── MODAL 4: BATCH RECALL (THU HỒI LÔ KHẨN CẤP) ── -->
-        <div v-if="isRecallModalOpen" class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-            <div class="w-full max-w-2xl rounded-xl border border-rose-500/30 bg-card shadow-2xl overflow-hidden flex flex-col max-h-[85vh]">
-                <div class="flex items-center justify-between border-b bg-rose-950/50 px-6 py-4">
+        
+        <div
+            v-if="isRecallModalOpen"
+            class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
+        >
+            <div
+                class="flex max-h-[85vh] w-full max-w-2xl flex-col overflow-hidden rounded-xl border border-rose-500/30 bg-card shadow-2xl"
+            >
+                <div
+                    class="flex items-center justify-between border-b bg-rose-950/50 px-6 py-4"
+                >
                     <div class="flex items-center gap-2">
                         <AlertTriangle class="h-5 w-5 text-rose-400" />
-                        <h3 class="text-base font-bold text-rose-300">Phát Lệnh Thu Hồi Lô Khẩn Cấp Toàn Chuỗi</h3>
+                        <h3 class="text-base font-bold text-rose-300">
+                            Phát Lệnh Thu Hồi Lô Khẩn Cấp Toàn Chuỗi
+                        </h3>
                     </div>
-                    <button @click="isRecallModalOpen = false" class="text-muted-foreground hover:text-foreground"><X class="h-5 w-5" /></button>
+                    <button
+                        @click="isRecallModalOpen = false"
+                        class="text-muted-foreground hover:text-foreground"
+                    >
+                        <X class="h-5 w-5" />
+                    </button>
                 </div>
-                <div class="p-6 overflow-y-auto space-y-6">
-                    <div class="rounded-xl border border-rose-500/30 bg-rose-500/10 p-4 space-y-3">
-                        <h4 class="text-xs font-bold text-rose-400 uppercase tracking-wider">Kích Hoạt Thu Hồi 1-Click</h4>
+                <div class="space-y-6 overflow-y-auto p-6">
+                    <div
+                        class="space-y-3 rounded-xl border border-rose-500/30 bg-rose-500/10 p-4"
+                    >
+                        <h4
+                            class="text-xs font-bold tracking-wider text-rose-400 uppercase"
+                        >
+                            Kích Hoạt Thu Hồi 1-Click
+                        </h4>
                         <div class="space-y-3 text-xs">
                             <div>
-                                <label class="block text-muted-foreground mb-1">ID Lô Hàng Cần Thu Hồi (Batch ID)</label>
-                                <Input v-model.number="recallBatchId" type="number" placeholder="Nhập Batch ID..." class="h-8" />
+                                <label class="mb-1 block text-muted-foreground"
+                                    >ID Lô Hàng Cần Thu Hồi (Batch ID)</label
+                                >
+                                <Input
+                                    v-model.number="recallBatchId"
+                                    type="number"
+                                    placeholder="Nhập Batch ID..."
+                                    class="h-8"
+                                />
                             </div>
                             <div>
-                                <label class="block text-muted-foreground mb-1">Lý Do Thu Hồi Khẩn Cấp</label>
-                                <Input v-model="recallReason" type="text" placeholder="VD: Lỗi kiểm nghiệm vi sinh / Hàng hết hạn sớm từ NCC..." class="h-8" />
+                                <label class="mb-1 block text-muted-foreground"
+                                    >Lý Do Thu Hồi Khẩn Cấp</label
+                                >
+                                <Input
+                                    v-model="recallReason"
+                                    type="text"
+                                    placeholder="VD: Lỗi kiểm nghiệm vi sinh / Hàng hết hạn sớm từ NCC..."
+                                    class="h-8"
+                                />
                             </div>
-                            <Button @click="submitRecall" size="sm" class="w-full bg-rose-600 text-white hover:bg-rose-700 font-bold">LẬP TỨC KHÓA & THU HỒI LÔ TOÀN CHUỖI</Button>
+                            <Button
+                                @click="submitRecall"
+                                size="sm"
+                                class="w-full bg-rose-600 font-bold text-white hover:bg-rose-700"
+                                >LẬP TỨC KHÓA & THU HỒI LÔ TOÀN CHUỖI</Button
+                            >
                         </div>
                     </div>
 
                     <div>
-                        <h4 class="text-xs font-bold text-foreground mb-2">Lịch Sử Lệnh Thu Hồi</h4>
-                        <div class="overflow-x-auto rounded-lg border border-border">
+                        <h4 class="mb-2 text-xs font-bold text-foreground">
+                            Lịch Sử Lệnh Thu Hồi
+                        </h4>
+                        <div
+                            class="overflow-x-auto rounded-lg border border-border"
+                        >
                             <table class="w-full text-left text-xs">
-                                <thead class="bg-muted/50 font-semibold text-muted-foreground">
+                                <thead
+                                    class="bg-muted/50 font-semibold text-muted-foreground"
+                                >
                                     <tr>
                                         <th class="p-3">Mã Thu Hồi</th>
                                         <th class="p-3">Tên Nguyên Liệu</th>
                                         <th class="p-3">Mức Độ</th>
                                         <th class="p-3">Lý Do</th>
-                                        <th class="p-3 text-right">Chi Nhánh Ảnh Hưởng</th>
+                                        <th class="p-3 text-right">
+                                            Chi Nhánh Ảnh Hưởng
+                                        </th>
                                     </tr>
                                 </thead>
                                 <tbody class="divide-y divide-border">
                                     <tr v-if="recallOrders.length === 0">
-                                        <td colspan="5" class="p-4 text-center text-muted-foreground">Chưa có lệnh thu hồi nào.</td>
+                                        <td
+                                            colspan="5"
+                                            class="p-4 text-center text-muted-foreground"
+                                        >
+                                            Chưa có lệnh thu hồi nào.
+                                        </td>
                                     </tr>
-                                    <tr v-for="r in recallOrders" :key="r.id" class="hover:bg-muted/20">
-                                        <td class="p-3 font-mono font-bold text-rose-400">{{ r.recall_code }}</td>
-                                        <td class="p-3 font-medium">{{ r.batch?.ingredient?.name }}</td>
-                                        <td class="p-3 uppercase font-bold text-rose-500">{{ r.severity }}</td>
-                                        <td class="p-3 text-muted-foreground max-w-xs truncate">{{ r.reason }}</td>
-                                        <td class="p-3 text-right font-bold text-amber-400">{{ r.affected_branches_count }} CN</td>
+                                    <tr
+                                        v-for="r in recallOrders"
+                                        :key="r.id"
+                                        class="hover:bg-muted/20"
+                                    >
+                                        <td
+                                            class="p-3 font-mono font-bold text-rose-400"
+                                        >
+                                            {{ r.recall_code }}
+                                        </td>
+                                        <td class="p-3 font-medium">
+                                            {{ r.batch?.ingredient?.name }}
+                                        </td>
+                                        <td
+                                            class="p-3 font-bold text-rose-500 uppercase"
+                                        >
+                                            {{ r.severity }}
+                                        </td>
+                                        <td
+                                            class="max-w-xs truncate p-3 text-muted-foreground"
+                                        >
+                                            {{ r.reason }}
+                                        </td>
+                                        <td
+                                            class="p-3 text-right font-bold text-amber-400"
+                                        >
+                                            {{ r.affected_branches_count }} CN
+                                        </td>
                                     </tr>
                                 </tbody>
                             </table>
                         </div>
                     </div>
                 </div>
-                <div class="flex items-center justify-end gap-3 border-t bg-muted/20 px-6 py-4">
-                    <Button @click="isRecallModalOpen = false" variant="outline" size="sm">Đóng</Button>
+                <div
+                    class="flex items-center justify-end gap-3 border-t bg-muted/20 px-6 py-4"
+                >
+                    <Button
+                        @click="isRecallModalOpen = false"
+                        variant="outline"
+                        size="sm"
+                        >Đóng</Button
+                    >
                 </div>
             </div>
         </div>
+        
 
         <!-- Warehouse locations modal -->
+        <Teleport to="body">
         <div
             v-if="isLocationModalOpen"
             class="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur-sm"
         >
-            <div class="flex max-h-[88vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-sky-500/30 bg-card shadow-2xl">
-                <div class="flex items-center justify-between border-b border-border bg-sky-950/40 px-5 py-4">
+            <div
+                class="flex max-h-[88vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-sky-500/30 bg-card shadow-2xl"
+            >
+                <div
+                    class="flex items-center justify-between border-b border-border bg-sky-950/40 px-5 py-4"
+                >
                     <div>
-                        <h3 class="flex items-center gap-2 text-base font-bold text-foreground">
-                            <MapPin class="h-5 w-5 text-sky-300" /> Vị trí Kho Tổng
+                        <h3
+                            class="flex items-center gap-2 text-base font-bold text-foreground"
+                        >
+                            <MapPin class="h-5 w-5 text-sky-300" /> Vị trí Kho
+                            Tổng
                         </h3>
-                        <p class="mt-1 text-[11px] text-sky-200/80">Quản lý zone, rack, kệ, bin và khu vực lạnh/cách ly.</p>
+                        <p class="mt-1 text-[11px] text-sky-200/80">
+                            Quản lý zone, rack, kệ, bin và khu vực lạnh/cách ly.
+                        </p>
                     </div>
-                    <button type="button" @click="isLocationModalOpen = false" class="rounded-lg p-1 text-muted-foreground hover:text-foreground">
+                    <button
+                        type="button"
+                        @click="isLocationModalOpen = false"
+                        class="rounded-lg p-1 text-muted-foreground hover:text-foreground"
+                    >
                         <X class="h-5 w-5" />
                     </button>
                 </div>
 
-                <div class="grid flex-1 gap-5 overflow-y-auto p-5 lg:grid-cols-[1fr_1.2fr]">
-                    <div v-if="canManageWarehouse" class="space-y-3 rounded-xl border border-border bg-muted/20 p-4">
-                        <h4 class="text-xs font-bold uppercase tracking-wider text-sky-300">Tạo vị trí mới</h4>
+                <div
+                    class="grid flex-1 gap-5 overflow-y-auto p-5 lg:grid-cols-[1fr_1.2fr]"
+                >
+                    <div
+                        v-if="canManageWarehouse"
+                        class="space-y-3 rounded-xl border border-border bg-muted/20 p-4"
+                    >
+                        <h4
+                            class="text-xs font-bold tracking-wider text-sky-300 uppercase"
+                        >
+                            Tạo vị trí mới
+                        </h4>
                         <div class="grid gap-3 sm:grid-cols-2">
                             <div>
-                                <label class="mb-1 block text-[11px] font-semibold text-muted-foreground">Khu vực / Zone</label>
-                                <Input v-model="locationForm.zone" placeholder="VD: KHO KHÔ" class="h-8 text-xs" />
+                                <label
+                                    class="mb-1 block text-[11px] font-semibold text-muted-foreground"
+                                    >Khu vực / Zone</label
+                                >
+                                <Input
+                                    v-model="locationForm.zone"
+                                    placeholder="VD: KHO KHÔ"
+                                    class="h-8 text-xs"
+                                />
                             </div>
                             <div>
-                                <label class="mb-1 block text-[11px] font-semibold text-muted-foreground">Mã vị trí</label>
-                                <Input v-model="locationForm.location_code" placeholder="VD: KHO-KHO-A01" class="h-8 text-xs" />
+                                <label
+                                    class="mb-1 block text-[11px] font-semibold text-muted-foreground"
+                                    >Mã vị trí</label
+                                >
+                                <Input
+                                    v-model="locationForm.location_code"
+                                    placeholder="VD: KHO-KHO-A01"
+                                    class="h-8 text-xs"
+                                />
                             </div>
                             <div>
-                                <label class="mb-1 block text-[11px] font-semibold text-muted-foreground">Rack</label>
-                                <Input v-model="locationForm.rack" placeholder="A" class="h-8 text-xs" />
+                                <label
+                                    class="mb-1 block text-[11px] font-semibold text-muted-foreground"
+                                    >Rack</label
+                                >
+                                <Input
+                                    v-model="locationForm.rack"
+                                    placeholder="A"
+                                    class="h-8 text-xs"
+                                />
                             </div>
                             <div>
-                                <label class="mb-1 block text-[11px] font-semibold text-muted-foreground">Kệ / Shelf</label>
-                                <Input v-model="locationForm.shelf" placeholder="01" class="h-8 text-xs" />
+                                <label
+                                    class="mb-1 block text-[11px] font-semibold text-muted-foreground"
+                                    >Kệ / Shelf</label
+                                >
+                                <Input
+                                    v-model="locationForm.shelf"
+                                    placeholder="01"
+                                    class="h-8 text-xs"
+                                />
                             </div>
                             <div>
-                                <label class="mb-1 block text-[11px] font-semibold text-muted-foreground">Bin</label>
-                                <Input v-model="locationForm.bin" placeholder="01" class="h-8 text-xs" />
+                                <label
+                                    class="mb-1 block text-[11px] font-semibold text-muted-foreground"
+                                    >Bin</label
+                                >
+                                <Input
+                                    v-model="locationForm.bin"
+                                    placeholder="01"
+                                    class="h-8 text-xs"
+                                />
                             </div>
                         </div>
                         <div class="space-y-2 text-xs text-muted-foreground">
-                            <label class="flex items-center gap-2"><input v-model="locationForm.is_cold_storage" type="checkbox" class="rounded border-input" /> Kho lạnh</label>
-                            <label class="flex items-center gap-2"><input v-model="locationForm.is_quarantine" type="checkbox" class="rounded border-input" /> Khu cách ly</label>
+                            <label class="flex items-center gap-2"
+                                ><input
+                                    v-model="locationForm.is_cold_storage"
+                                    type="checkbox"
+                                    class="rounded border-input"
+                                />
+                                Kho lạnh</label
+                            >
+                            <label class="flex items-center gap-2"
+                                ><input
+                                    v-model="locationForm.is_quarantine"
+                                    type="checkbox"
+                                    class="rounded border-input"
+                                />
+                                Khu cách ly</label
+                            >
                         </div>
-                        <Button @click="saveLocation" :disabled="isSavingLocation" size="sm" class="w-full bg-sky-600 text-white hover:bg-sky-700">
-                            {{ isSavingLocation ? 'Đang lưu...' : 'Lưu vị trí kho' }}
+                        <Button
+                            @click="saveLocation"
+                            :disabled="isSavingLocation"
+                            size="sm"
+                            class="w-full bg-sky-600 text-white hover:bg-sky-700"
+                        >
+                            {{
+                                isSavingLocation
+                                    ? 'Đang lưu...'
+                                    : 'Lưu vị trí kho'
+                            }}
                         </Button>
                     </div>
 
                     <div class="min-w-0">
                         <div class="mb-2 flex items-center justify-between">
-                            <h4 class="text-xs font-bold uppercase tracking-wider text-foreground">Danh sách vị trí</h4>
-                            <span class="text-[11px] text-muted-foreground">{{ locations.length }} vị trí</span>
+                            <h4
+                                class="text-xs font-bold tracking-wider text-foreground uppercase"
+                            >
+                                Danh sách vị trí
+                            </h4>
+                            <span class="text-[11px] text-muted-foreground"
+                                >{{ locations.length }} vị trí</span
+                            >
                         </div>
-                        <div class="max-h-[45vh] overflow-auto rounded-xl border border-border">
+                        <div
+                            class="max-h-[45vh] overflow-auto rounded-xl border border-border"
+                        >
                             <table class="w-full text-left text-xs">
-                                <thead class="sticky top-0 border-b border-border bg-muted/80 text-muted-foreground">
+                                <thead
+                                    class="sticky top-0 border-b border-border bg-muted/80 text-muted-foreground"
+                                >
                                     <tr>
                                         <th class="p-3">Mã</th>
                                         <th class="p-3">Zone</th>
@@ -2886,16 +4582,57 @@ const submitRecall = async () => {
                                 </thead>
                                 <tbody class="divide-y divide-border">
                                     <tr v-if="locations.length === 0">
-                                        <td colspan="4" class="p-5 text-center text-muted-foreground">Chưa có vị trí kho.</td>
+                                        <td
+                                            colspan="4"
+                                            class="p-5 text-center text-muted-foreground"
+                                        >
+                                            Chưa có vị trí kho.
+                                        </td>
                                     </tr>
-                                    <tr v-for="location in locations" :key="location.id" class="hover:bg-muted/20">
-                                        <td class="p-3 font-mono font-bold text-sky-300">{{ location.location_code }}</td>
-                                        <td class="p-3 text-foreground">{{ location.zone }}</td>
-                                        <td class="p-3 text-muted-foreground">{{ [location.rack, location.shelf, location.bin].filter(Boolean).join(' / ') || '-' }}</td>
-                                        <td class="p-3 text-right text-[10px] font-semibold uppercase">
-                                            <span v-if="location.is_quarantine" class="text-rose-400">Cách ly</span>
-                                            <span v-else-if="location.is_cold_storage" class="text-cyan-300">Kho lạnh</span>
-                                            <span v-else class="text-emerald-400">Thường</span>
+                                    <tr
+                                        v-for="location in locations"
+                                        :key="location.id"
+                                        class="hover:bg-muted/20"
+                                    >
+                                        <td
+                                            class="p-3 font-mono font-bold text-sky-300"
+                                        >
+                                            {{ location.location_code }}
+                                        </td>
+                                        <td class="p-3 text-foreground">
+                                            {{ location.zone }}
+                                        </td>
+                                        <td class="p-3 text-muted-foreground">
+                                            {{
+                                                [
+                                                    location.rack,
+                                                    location.shelf,
+                                                    location.bin,
+                                                ]
+                                                    .filter(Boolean)
+                                                    .join(' / ') || '-'
+                                            }}
+                                        </td>
+                                        <td
+                                            class="p-3 text-right text-[10px] font-semibold uppercase"
+                                        >
+                                            <span
+                                                v-if="location.is_quarantine"
+                                                class="text-rose-400"
+                                                >Cách ly</span
+                                            >
+                                            <span
+                                                v-else-if="
+                                                    location.is_cold_storage
+                                                "
+                                                class="text-cyan-300"
+                                                >Kho lạnh</span
+                                            >
+                                            <span
+                                                v-else
+                                                class="text-emerald-400"
+                                                >Thường</span
+                                            >
                                         </td>
                                     </tr>
                                 </tbody>
@@ -2904,10 +4641,18 @@ const submitRecall = async () => {
                     </div>
                 </div>
 
-                <div class="flex justify-end border-t border-border bg-muted/20 px-5 py-4">
-                    <Button @click="isLocationModalOpen = false" variant="outline" size="sm">Đóng</Button>
+                <div
+                    class="flex justify-end border-t border-border bg-muted/20 px-5 py-4"
+                >
+                    <Button
+                        @click="isLocationModalOpen = false"
+                        variant="outline"
+                        size="sm"
+                        >Đóng</Button
+                    >
                 </div>
             </div>
         </div>
+        </Teleport>
     </div>
 </template>

@@ -215,6 +215,7 @@ const openAnalyticsModal = async (item: any) => {
         </div>
 
         <!-- Add/Edit Modal -->
+        <Teleport to="body">
         <div
             v-if="showModal"
             class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
@@ -367,8 +368,10 @@ const openAnalyticsModal = async (item: any) => {
                 </form>
             </div>
         </div>
+        </Teleport>
 
         <!-- Price History & AI Analytics Modal -->
+        <Teleport to="body">
         <div
             v-if="showAnalyticsModal && selectedIngredient"
             class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
@@ -575,5 +578,6 @@ const openAnalyticsModal = async (item: any) => {
                 </div>
             </div>
         </div>
+        </Teleport>
     </div>
 </template>

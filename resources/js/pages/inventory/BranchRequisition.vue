@@ -365,6 +365,7 @@ const getStatusBadge = (status: string) => {
         </Card>
 
         <!-- Create Requisition Modal -->
+        <Teleport to="body">
         <div
             v-if="isCreateModalOpen"
             class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm"
@@ -573,8 +574,10 @@ const getStatusBadge = (status: string) => {
                 </div>
             </div>
         </div>
+        </Teleport>
 
         <!-- Detail / Receive Goods Modal -->
+        <Teleport to="body">
         <div
             v-if="isDetailModalOpen && selectedRequest"
             class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm"
@@ -746,5 +749,6 @@ const getStatusBadge = (status: string) => {
                 </div>
             </div>
         </div>
+        </Teleport>
     </div>
 </template>

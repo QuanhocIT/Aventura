@@ -871,6 +871,7 @@ const refreshPage = () => {
             </div>
         </div>
 
+        <Teleport to="body">
         <div
             v-if="showSubmitDialog"
             class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur-sm"
@@ -918,5 +919,6 @@ const refreshPage = () => {
                 </div>
             </div>
         </div>
+        </Teleport>
     </div>
 </template>

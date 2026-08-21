@@ -366,6 +366,7 @@ const printOrderSlip = () => {
         </div>
 
         <!-- Detail Modal -->
+        <Teleport to="body">
         <div
             v-if="showDetailModal"
             class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
@@ -492,8 +493,10 @@ const printOrderSlip = () => {
                 </div>
             </div>
         </div>
+        </Teleport>
 
         <!-- Workflow Update Modal -->
+        <Teleport to="body">
         <div
             v-if="showWorkflowModal"
             class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
@@ -595,5 +598,6 @@ const printOrderSlip = () => {
                 </form>
             </div>
         </div>
+        </Teleport>
     </div>
 </template>

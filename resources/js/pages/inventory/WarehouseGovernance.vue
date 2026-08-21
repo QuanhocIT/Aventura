@@ -544,6 +544,7 @@ const getResponsibleLabel = (type: string) => {
         </Card>
 
         <!-- Resolve Dispute Modal -->
+        <Teleport to="body">
         <div
             v-if="isResolveModalOpen && selectedDispute"
             class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur-sm"
@@ -682,5 +683,6 @@ const getResponsibleLabel = (type: string) => {
                 </div>
             </div>
         </div>
+        </Teleport>
     </div>
 </template>

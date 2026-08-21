@@ -1145,6 +1145,7 @@ const getRoleText = (role: string | null) => {
         </div>
 
         <!-- MODAL: KPI Details (Slide-over / Pop-up) -->
+        <Teleport to="body">
         <div
             v-if="activeEmployeeKpi"
             class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs"
@@ -1328,8 +1329,10 @@ const getRoleText = (role: string | null) => {
                 </CardContent>
             </Card>
         </div>
+        </Teleport>
 
         <!-- MODAL: Edit Metric Config Setup -->
+        
         <div
             v-if="activeConfigEdit"
             class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs"
@@ -1450,8 +1453,10 @@ const getRoleText = (role: string | null) => {
                 </form>
             </Card>
         </div>
+        
 
         <!-- MODAL: Submit 360-Degree Review Form -->
+        <Teleport to="body">
         <div
             v-if="isReviewModalOpen"
             class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs"
@@ -1696,6 +1701,7 @@ const getRoleText = (role: string | null) => {
                 </form>
             </Card>
         </div>
+        </Teleport>
     </div>
 </template>
 

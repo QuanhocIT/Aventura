@@ -122,6 +122,7 @@ const clearFilters = () => {
 </script>
 
 <template>
+    <Teleport to="body">
     <div
         v-if="isOpen"
         class="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/80 p-3 backdrop-blur-md sm:p-6"
@@ -378,4 +379,5 @@ const clearFilters = () => {
             </div>
         </section>
     </div>
+    </Teleport>
 </template>

@@ -1596,6 +1596,7 @@ const evidenceUrl = (path: string) =>
         </Card>
     </div>
 
+    <Teleport to="body">
     <div
         v-if="confirming"
         class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/75 p-4 backdrop-blur-sm"
@@ -1740,7 +1741,9 @@ const evidenceUrl = (path: string) =>
             </form>
         </div>
     </div>
+    </Teleport>
 
+    <Teleport to="body">
     <div
         v-if="showGrnForm"
         class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/75 p-3 backdrop-blur-sm sm:p-5"
@@ -2093,4 +2096,5 @@ const evidenceUrl = (path: string) =>
             </form>
         </div>
     </div>
+    </Teleport>
 </template>

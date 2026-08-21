@@ -1498,6 +1498,7 @@ const getLeaveTypeText = (type: string) => {
             </nav>
 
             <!-- Payslip Modal Details -->
+            <Teleport to="body">
             <div
                 v-if="showSalaryModal && selectedSalary"
                 class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-sm"
@@ -1589,6 +1590,7 @@ const getLeaveTypeText = (type: string) => {
                     </div>
                 </div>
             </div>
+            </Teleport>
         </section>
     </div>
 </template>

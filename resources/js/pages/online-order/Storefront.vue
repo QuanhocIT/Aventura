@@ -1147,6 +1147,7 @@ async function submitOrder() {
                 leave-from-class="opacity-100"
                 leave-to-class="opacity-0"
             >
+                <Teleport to="body">
                 <div
                     v-if="showCart"
                     class="fixed inset-0 z-50 flex items-end justify-center"
@@ -1302,6 +1303,7 @@ async function submitOrder() {
                         </div>
                     </div>
                 </div>
+                </Teleport>
             </Transition>
 
             <!-- CHECKOUT BOTTOM SHEET -->
@@ -1313,6 +1315,7 @@ async function submitOrder() {
                 leave-from-class="opacity-100"
                 leave-to-class="opacity-0"
             >
+                <Teleport to="body">
                 <div
                     v-if="showCheckout"
                     class="fixed inset-0 z-50 flex items-end justify-center"
@@ -1790,6 +1793,7 @@ async function submitOrder() {
                         </div>
                     </div>
                 </div>
+                </Teleport>
             </Transition>
         </div>
 

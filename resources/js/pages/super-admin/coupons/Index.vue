@@ -871,6 +871,7 @@ const chartAreaPath = computed(() => {
         leave-from-class="opacity-100 translate-y-0 sm:scale-100"
         leave-to-class="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
     >
+        <Teleport to="body">
         <div
             v-if="showForm"
             class="fixed inset-0 z-50 flex animate-in items-center justify-center bg-black/60 p-4 backdrop-blur-xs duration-300 fade-in"
@@ -1076,5 +1077,6 @@ const chartAreaPath = computed(() => {
                 </div>
             </div>
         </div>
+        </Teleport>
     </Transition>
 </template>

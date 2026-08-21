@@ -1914,6 +1914,7 @@ onUnmounted(() =>
             leave-from-class="opacity-100"
             leave-to-class="opacity-0"
         >
+            
             <div
                 v-if="showDialog"
                 class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs"
@@ -2148,7 +2149,8 @@ onUnmounted(() =>
                                 </div>
 
                                 <!-- Calendar Teleport -->
-                                <Teleport to="body">
+                                
+                                    
                                     <div
                                         v-if="showCalendar"
                                         class="fixed inset-0 z-[9998]"
@@ -2408,8 +2410,9 @@ onUnmounted(() =>
                                                 </button>
                                             </div>
                                         </div>
+                                    
                                     </Transition>
-                                </Teleport>
+                                
 
                                 <!-- Ca qua đêm notice -->
                                 <div
@@ -3710,6 +3713,7 @@ onUnmounted(() =>
                     </div>
                 </Card>
             </div>
+            
         </Transition>
     </Teleport>
 
@@ -3799,6 +3803,7 @@ onUnmounted(() =>
                     </div>
                 </Card>
             </div>
+            
         </Transition>
     </Teleport>
 </template>

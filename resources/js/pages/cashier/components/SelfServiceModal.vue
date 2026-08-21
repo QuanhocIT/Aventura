@@ -42,6 +42,7 @@ const emit = defineEmits<{
 </script>
 
 <template>
+    <Teleport to="body">
     <div
         v-if="showSelfServiceModal"
         class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
@@ -341,4 +342,5 @@ const emit = defineEmits<{
             </div>
         </div>
     </div>
+    </Teleport>
 </template>

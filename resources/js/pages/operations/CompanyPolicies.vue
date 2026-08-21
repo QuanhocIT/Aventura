@@ -477,6 +477,7 @@ const getCategoryTone = (category: string) => {
         </section>
 
         <!-- Create / Edit Policy Modal -->
+        <Teleport to="body">
         <div
             v-if="isModalOpen"
             class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur-sm"
@@ -645,8 +646,10 @@ const getCategoryTone = (category: string) => {
                 </div>
             </div>
         </div>
+        </Teleport>
 
         <!-- Create control category modal -->
+        <Teleport to="body">
         <div
             v-if="isCategoryModalOpen"
             class="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur-sm"
@@ -706,5 +709,6 @@ const getCategoryTone = (category: string) => {
                 </div>
             </div>
         </div>
+        </Teleport>
     </div>
 </template>

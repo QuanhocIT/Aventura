@@ -67,6 +67,7 @@ const numberFormat = (val: number) =>
 </script>
 
 <template>
+    <Teleport to="body">
     <div
         v-if="showPaymentModal"
         class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
@@ -624,4 +625,5 @@ const numberFormat = (val: number) =>
             </div>
         </div>
     </div>
+    </Teleport>
 </template>

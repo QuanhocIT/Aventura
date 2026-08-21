@@ -2254,6 +2254,7 @@ onUnmounted(() => {
             leave-from-class="opacity-100"
             leave-to-class="opacity-0"
         >
+        
         <div
             v-if="showWasteModal"
             class="fixed inset-0 z-50 overflow-y-auto bg-black/60 p-4 backdrop-blur-sm"
@@ -2365,6 +2366,7 @@ onUnmounted(() => {
                 </div>
             </div>
         </div>
+        
         </Transition>
 
     <!-- ── MODAL HỦY MÓN BẾP CHÍNH GIỮA MÀN HÌNH ── -->
@@ -2376,6 +2378,7 @@ onUnmounted(() => {
             leave-from-class="opacity-100 scale-100"
             leave-to-class="opacity-0 scale-95"
         >
+        
         <div
             v-if="showCancelItemModal && selectedCancelItem"
             class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm"
@@ -2524,6 +2527,7 @@ onUnmounted(() => {
                 </div>
             </div>
         </div>
+        
         </Transition>
     </Teleport>
 </template>

@@ -1381,6 +1381,7 @@ const chartMaxVal = computed(() => {
         </div>
 
         <!-- MODAL: Open Register -->
+        <Teleport to="body">
         <div
             v-if="showOpenModal"
             class="fixed inset-0 z-50 flex animate-in items-center justify-center bg-slate-900/60 p-4 backdrop-blur-md duration-200 fade-in"
@@ -1515,8 +1516,10 @@ const chartMaxVal = computed(() => {
                 </form>
             </Card>
         </div>
+        </Teleport>
 
         <!-- MODAL: Add Cash Transaction (In/Out) -->
+        <Teleport to="body">
         <div
             v-if="showTransactionModal"
             class="fixed inset-0 z-50 flex animate-in items-center justify-center bg-slate-900/60 p-4 backdrop-blur-md duration-200 fade-in"
@@ -1624,5 +1627,6 @@ const chartMaxVal = computed(() => {
                 </form>
             </Card>
         </div>
+        </Teleport>
     </div>
 </template>

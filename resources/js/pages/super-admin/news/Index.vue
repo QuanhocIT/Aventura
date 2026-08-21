@@ -1019,6 +1019,7 @@ const hasFilters = computed(
         leave-from-class="opacity-100"
         leave-to-class="opacity-0"
     >
+        <Teleport to="body">
         <div
             v-if="showDialog"
             class="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-900/60 p-4 pt-10 backdrop-blur-xs"
@@ -1328,5 +1329,6 @@ const hasFilters = computed(
                 </form>
             </div>
         </div>
+        </Teleport>
     </Transition>
 </template>

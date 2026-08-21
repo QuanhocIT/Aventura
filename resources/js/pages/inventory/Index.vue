@@ -3678,6 +3678,7 @@ const recallBatch = (batchId: number) => {
         leave-from-class="opacity-100"
         leave-to-class="opacity-0"
     >
+        <Teleport to="body">
         <div
             v-if="showAddIngredient"
             class="fixed inset-0 z-50 overflow-y-auto bg-black/60 p-4 backdrop-blur-sm"
@@ -3783,6 +3784,7 @@ const recallBatch = (batchId: number) => {
                 </Card>
             </div>
         </div>
+        </Teleport>
     </Transition>
 
     <!-- ══ Modal: Thiết lập công thức ═══════════════════════════════════════════ -->
@@ -3794,6 +3796,7 @@ const recallBatch = (batchId: number) => {
         leave-from-class="opacity-100"
         leave-to-class="opacity-0"
     >
+        <Teleport to="body">
         <div
             v-if="showAddRecipe && activeProduct"
             class="fixed inset-0 z-50 overflow-y-auto bg-black/60 p-4 backdrop-blur-sm"
@@ -4050,6 +4053,7 @@ const recallBatch = (batchId: number) => {
                 </Card>
             </div>
         </div>
+        </Teleport>
     </Transition>
 
     <!-- Ingredient Creation & Edit Modal -->

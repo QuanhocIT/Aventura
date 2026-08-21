@@ -1118,6 +1118,7 @@ function getPercentage(value: number, total: number) {
         <!-- ── MODALS ── -->
 
         <!-- Pay Supplier Modal -->
+        <Teleport to="body">
         <div
             v-if="showPayModal && selectedPayable"
             class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs"
@@ -1227,8 +1228,10 @@ function getPercentage(value: number, total: number) {
                 </div>
             </div>
         </div>
+        </Teleport>
 
         <!-- Collect Customer Modal -->
+        
         <div
             v-if="showCollectModal && selectedReceivable"
             class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs"
@@ -1336,8 +1339,10 @@ function getPercentage(value: number, total: number) {
                 </div>
             </div>
         </div>
+        
 
         <!-- Edit Customer Credit Limit Modal -->
+        <Teleport to="body">
         <div
             v-if="showCreditModal && selectedCustomer"
             class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs"
@@ -1434,5 +1439,6 @@ function getPercentage(value: number, total: number) {
                 </div>
             </div>
         </div>
+        </Teleport>
     </div>
 </template>

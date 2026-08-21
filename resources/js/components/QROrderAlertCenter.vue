@@ -476,6 +476,7 @@ onUnmounted(() => {
         </div>
 
         <!-- ── AI Upsell proposal modal ────────────────────────────────────── -->
+        <Teleport to="body">
         <div
             v-if="showUpsellModal && upsellData"
             class="pointer-events-auto fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-sm"
@@ -562,8 +563,10 @@ onUnmounted(() => {
                 </footer>
             </div>
         </div>
+        </Teleport>
 
         <!-- ── Cancellation Reason Modal ────────────────────────────────────── -->
+        <Teleport to="body">
         <div
             v-if="showCancelModal"
             class="pointer-events-auto fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-sm"
@@ -613,6 +616,7 @@ onUnmounted(() => {
                 </footer>
             </div>
         </div>
+        </Teleport>
     </div>
 </template>
 

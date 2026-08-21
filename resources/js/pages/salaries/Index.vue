@@ -633,6 +633,7 @@ const compact = (v: number) =>
                         </button>
 
                         <!-- Overlay backdrop -->
+                        <Teleport to="body">
                         <div
                             v-if="showMonthPicker"
                             class="fixed inset-0 z-40"
@@ -699,6 +700,7 @@ const compact = (v: number) =>
                                 </button>
                             </div>
                         </div>
+                        </Teleport>
                     </div>
                 </div>
 
@@ -1654,6 +1656,7 @@ const compact = (v: number) =>
         leave-from-class="opacity-100"
         leave-to-class="opacity-0"
     >
+        
         <div
             v-if="adjTarget"
             class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs"
@@ -1811,6 +1814,7 @@ const compact = (v: number) =>
                 </CardContent>
             </Card>
         </div>
+        
     </Transition>
 
     <!-- ══ Bulk Adjustment Dialog ═════════════════════════════════════════════ -->
@@ -1822,6 +1826,7 @@ const compact = (v: number) =>
         leave-from-class="opacity-100"
         leave-to-class="opacity-0"
     >
+        
         <div
             v-if="showBulkDialog"
             class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs"
@@ -1963,6 +1968,7 @@ const compact = (v: number) =>
                 </CardContent>
             </Card>
         </div>
+        
     </Transition>
 
     <!-- ══ Floating Bulk Action Bar ════════════════════════════════════════════ -->
@@ -2018,6 +2024,7 @@ const compact = (v: number) =>
         leave-from-class="opacity-100"
         leave-to-class="opacity-0"
     >
+        
         <div
             v-if="showBulkApproveModal"
             class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs"
@@ -2073,6 +2080,7 @@ const compact = (v: number) =>
                 </div>
             </Card>
         </div>
+        
     </Transition>
 
     <!-- ══ Pay Stub Preview Modal ═══════════════════════════════════════════════ -->
@@ -2084,6 +2092,7 @@ const compact = (v: number) =>
         leave-from-class="opacity-100"
         leave-to-class="opacity-0"
     >
+        <Teleport to="body">
         <div
             v-if="payStubTarget"
             class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs print:bg-white print:p-0"
@@ -2263,5 +2272,6 @@ const compact = (v: number) =>
                 </div>
             </div>
         </div>
+        </Teleport>
     </Transition>
 </template>

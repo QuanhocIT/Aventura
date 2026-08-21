@@ -656,6 +656,7 @@ const vnd = (value: number) => {
         </div>
 
         <!-- Add Area Modal -->
+        <Teleport to="body">
         <div
             v-if="showAddArea"
             class="fixed inset-0 z-50 overflow-y-auto bg-black/50 p-4 backdrop-blur-xs"
@@ -738,8 +739,10 @@ const vnd = (value: number) => {
                 </Card>
             </div>
         </div>
+        </Teleport>
 
         <!-- Add Table Modal -->
+        
         <div
             v-if="showAddTable"
             class="fixed inset-0 z-50 overflow-y-auto bg-black/50 p-4 backdrop-blur-xs"
@@ -852,8 +855,10 @@ const vnd = (value: number) => {
                 </Card>
             </div>
         </div>
+        
 
         <!-- Edit Table Modal -->
+        
         <div
             v-if="editingTable"
             class="fixed inset-0 z-50 overflow-y-auto bg-black/50 p-4 backdrop-blur-xs"
@@ -949,8 +954,10 @@ const vnd = (value: number) => {
                 </Card>
             </div>
         </div>
+        
 
         <!-- Delete Confirm -->
+        
         <div
             v-if="deletingTable"
             class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-xs"
@@ -985,8 +992,10 @@ const vnd = (value: number) => {
                 </CardContent>
             </Card>
         </div>
+        
 
         <!-- QR Code Modal -->
+        
         <div
             v-if="selectedQrTable"
             class="fixed inset-0 z-50 overflow-y-auto bg-black/50 p-4 backdrop-blur-xs"
@@ -1076,6 +1085,7 @@ const vnd = (value: number) => {
                 </Card>
             </div>
         </div>
+        
 
         <div class="grid grid-cols-1 gap-6 lg:grid-cols-4">
             <!-- Left: Area list selection -->

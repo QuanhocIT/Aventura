@@ -361,41 +361,43 @@ onUnmounted(() => {
         <LazyCommandPalette v-if="isSuperAdmin && deferredWidgetsReady" />
 
         <!-- Shift Expired Modal Overlay -->
-        <div
-            v-if="showShiftExpiredModal"
-            class="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur-md"
-        >
+        <Teleport to="body">
             <div
-                class="w-full max-w-md animate-in space-y-4 rounded-xl border border-slate-200 bg-white p-6 shadow-2xl duration-200 zoom-in-95 fade-in dark:border-slate-800 dark:bg-slate-900"
+                v-if="showShiftExpiredModal"
+                class="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur-md"
             >
-                <div class="flex items-center gap-3 text-red-600">
-                    <AlertTriangle class="size-6 shrink-0 animate-pulse" />
-                    <h3
-                        class="text-lg font-bold text-slate-900 dark:text-white"
-                    >
-                        Ca làm việc đã kết thúc
-                    </h3>
-                </div>
-                <p class="text-sm text-slate-600 dark:text-slate-400">
-                    Thời gian ca trực được xếp của bạn đã hết. Hệ thống sẽ tự
-                    động đăng xuất để bảo mật thông tin.
-                </p>
-                <p
-                    class="rounded-lg border border-amber-100 bg-amber-50 p-2.5 text-xs text-amber-600 dark:border-amber-900/30 dark:bg-amber-950/20 dark:text-amber-400"
+                <div
+                    class="w-full max-w-md animate-in space-y-4 rounded-xl border border-slate-200 bg-white p-6 shadow-2xl duration-200 zoom-in-95 fade-in dark:border-slate-800 dark:bg-slate-900"
                 >
-                    <strong>Lưu nháp:</strong> Giỏ hàng POS hoặc dữ liệu form
-                    đang thực hiện đã được tự động lưu tạm trên trình duyệt của
-                    bạn và sẽ khôi phục khi bạn vào ca trở lại.
-                </p>
-                <div class="flex justify-end pt-2">
-                    <button
-                        @click="confirmLogout"
-                        class="w-full cursor-pointer rounded-lg bg-red-600 px-4 py-2.5 font-semibold text-white transition-colors hover:bg-red-700"
+                    <div class="flex items-center gap-3 text-red-600">
+                        <AlertTriangle class="size-6 shrink-0 animate-pulse" />
+                        <h3
+                            class="text-lg font-bold text-slate-900 dark:text-white"
+                        >
+                            Ca làm việc đã kết thúc
+                        </h3>
+                    </div>
+                    <p class="text-sm text-slate-600 dark:text-slate-400">
+                        Thời gian ca trực được xếp của bạn đã hết. Hệ thống sẽ tự
+                        động đăng xuất để bảo mật thông tin.
+                    </p>
+                    <p
+                        class="rounded-lg border border-amber-100 bg-amber-50 p-2.5 text-xs text-amber-600 dark:border-amber-900/30 dark:bg-amber-950/20 dark:text-amber-400"
                     >
-                        Đăng xuất ngay
-                    </button>
+                        <strong>Lưu nháp:</strong> Giỏ hàng POS hoặc dữ liệu form
+                        đang thực hiện đã được tự động lưu tạm trên trình duyệt của
+                        bạn và sẽ khôi phục khi bạn vào ca trở lại.
+                    </p>
+                    <div class="flex justify-end pt-2">
+                        <button
+                            @click="confirmLogout"
+                            class="w-full cursor-pointer rounded-lg bg-red-600 px-4 py-2.5 font-semibold text-white transition-colors hover:bg-red-700"
+                        >
+                            Đăng xuất ngay
+                        </button>
+                    </div>
                 </div>
             </div>
-        </div>
+        </Teleport>
     </AppShell>
 </template>

@@ -1122,10 +1122,11 @@ onMounted(() => {
         </div>
 
         <!-- MODAL: ADD PROMOTION -->
-        <div
-            v-if="showAddModal"
-            class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs"
-        >
+        <Teleport to="body">
+            <div
+                v-if="showAddModal"
+                class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs"
+            >
             <Card
                 class="w-full max-w-md animate-in shadow-2xl duration-150 zoom-in-95 fade-in"
             >
@@ -1305,12 +1306,14 @@ onMounted(() => {
                 </CardContent>
             </Card>
         </div>
+    </Teleport>
 
         <!-- MODAL: EDIT PROMOTION -->
-        <div
-            v-if="showEditModal && editingPromotion"
-            class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs"
-        >
+        
+            <div
+                v-if="showEditModal && editingPromotion"
+                class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs"
+            >
             <Card
                 class="w-full max-w-md animate-in shadow-2xl duration-150 zoom-in-95 fade-in"
             >
@@ -1495,12 +1498,14 @@ onMounted(() => {
                 </CardContent>
             </Card>
         </div>
+    
 
         <!-- MODAL: QUICK COMBO CREATOR -->
-        <div
-            v-if="showQuickComboModal"
-            class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs"
-        >
+        <Teleport to="body">
+            <div
+                v-if="showQuickComboModal"
+                class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs"
+            >
             <Card
                 class="w-full max-w-md animate-in shadow-2xl duration-150 zoom-in-95 fade-in"
             >
@@ -1655,6 +1660,7 @@ onMounted(() => {
                 </CardContent>
             </Card>
         </div>
+    </Teleport>
     </div>
 </template>
 

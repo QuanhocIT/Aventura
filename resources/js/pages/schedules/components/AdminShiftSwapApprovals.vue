@@ -219,6 +219,7 @@ const submitRejectSwap = () => {
         </Card>
 
         <!-- Reject Swap Modal -->
+        <Teleport to="body">
         <div
             v-if="isRejectingSwap"
             class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs print:hidden"
@@ -292,5 +293,6 @@ const submitRejectSwap = () => {
                 </CardContent>
             </Card>
         </div>
+        </Teleport>
     </div>
 </template>

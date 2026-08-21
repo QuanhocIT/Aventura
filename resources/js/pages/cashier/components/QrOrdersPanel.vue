@@ -563,6 +563,7 @@ return;
             </div>
         </Teleport>
 
+        <Teleport to="body">
         <div
             v-if="rejectingOrder"
             class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm"
@@ -598,6 +599,7 @@ return;
                 </div>
             </div>
         </div>
+        </Teleport>
     </div>
 </template>
 

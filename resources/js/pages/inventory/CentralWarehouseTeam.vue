@@ -606,6 +606,7 @@ function getPriorityBadge(priority: string) {
         </div>
 
         <!-- MODAL: BỔ NHIỆM TRƯỞNG KHO TRỰC TIẾP -->
+        <Teleport to="body">
         <div v-if="showSupervisorModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
             <div class="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6 shadow-xl dark:border-slate-800 dark:bg-slate-900">
                 <h3 class="text-base font-bold text-slate-800 dark:text-slate-100">Bổ Nhiệm Trưởng Kho Trực Tiếp</h3>
@@ -637,8 +638,10 @@ function getPriorityBadge(priority: string) {
                 </form>
             </div>
         </div>
+        </Teleport>
 
         <!-- MODAL: GIAO NHIỆM VỤ MỚI -->
+        
         <div v-if="showAssignTaskModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
             <div class="w-full max-w-lg rounded-2xl border border-slate-200 bg-white p-6 shadow-xl dark:border-slate-800 dark:bg-slate-900">
                 <h3 class="text-base font-bold text-slate-800 dark:text-slate-100">Giao Nhiệm Vụ Kho Tổng</h3>
@@ -704,8 +707,10 @@ function getPriorityBadge(priority: string) {
                 </form>
             </div>
         </div>
+        
 
         <!-- MODAL: ĐIỀU CHUYỂN NHIỆM VỤ -->
+        <Teleport to="body">
         <div v-if="showReassignModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
             <div class="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6 shadow-xl dark:border-slate-800 dark:bg-slate-900">
                 <h3 class="text-base font-bold text-slate-800 dark:text-slate-100">Điều Chuyển Nhiệm Vụ #{{ selectedTaskForReassign?.id }}</h3>
@@ -735,5 +740,6 @@ function getPriorityBadge(priority: string) {
                 </form>
             </div>
         </div>
+        </Teleport>
     </div>
 </template>

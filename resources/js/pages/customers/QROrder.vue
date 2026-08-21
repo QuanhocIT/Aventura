@@ -1674,6 +1674,7 @@ onUnmounted(() => {
         </div>
 
         <!-- ── Cart Drawer Slide Up ────────────────────────────────────────── -->
+        <Teleport to="body">
         <div
             v-if="isCartOpen"
             class="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/60 backdrop-blur-sm"
@@ -2063,8 +2064,10 @@ onUnmounted(() => {
                 </footer>
             </div>
         </div>
+        </Teleport>
 
         <!-- ── Product Detail / Customize Notes Modal (Enhanced Details View) ── -->
+        
         <div
             v-if="isItemModalOpen && modalProduct"
             class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-5 backdrop-blur-sm"
@@ -2278,8 +2281,10 @@ onUnmounted(() => {
                 </footer>
             </div>
         </div>
+        
 
         <!-- ── Detailed Feedback Modal ─────────────────────────────────────── -->
+        
         <div
             v-if="showFeedbackSection"
             class="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/60 backdrop-blur-sm"
@@ -2555,8 +2560,10 @@ onUnmounted(() => {
                 </footer>
             </div>
         </div>
+        
 
         <!-- ── Call Staff Hub Modal ────────────────────────────────────────── -->
+        <Teleport to="body">
         <div
             v-if="isCallStaffHubOpen"
             class="fixed inset-0 z-50 flex animate-in items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm duration-200 fade-in"
@@ -2607,6 +2614,7 @@ onUnmounted(() => {
                 </div>
             </div>
         </div>
+        </Teleport>
     </div>
 </template>
 

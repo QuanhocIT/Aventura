@@ -1422,6 +1422,7 @@ const chartMaxVal = computed(() => {
         </div>
 
         <!-- ── MODAL: CREATE/EDIT OPERATING EXPENSE ── -->
+        <Teleport to="body">
         <div
             v-if="showExpenseModal"
             class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-xs"
@@ -1596,8 +1597,10 @@ const chartMaxVal = computed(() => {
                 </form>
             </Card>
         </div>
+        </Teleport>
 
         <!-- ── MODAL: CREATE/EDIT RECURRING EXPENSE ── -->
+        
         <div
             v-if="showRecurringModal"
             class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-xs"
@@ -1775,8 +1778,10 @@ const chartMaxVal = computed(() => {
                 </form>
             </Card>
         </div>
+        
 
         <!-- ── MODAL: CREATE CUSTOM CATEGORY ── -->
+        
         <div
             v-if="showCategoryModal"
             class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-xs"
@@ -1852,8 +1857,10 @@ const chartMaxVal = computed(() => {
                 </form>
             </Card>
         </div>
+        
 
         <!-- ── MODAL: DOCUMENT PREVIEW ── -->
+        
         <div
             v-if="invoicePreviewUrl"
             class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-xs"
@@ -1923,8 +1930,10 @@ const chartMaxVal = computed(() => {
                 </div>
             </Card>
         </div>
+        
 
         <!-- MODAL: ĐẶT HẠN MỨC CHI TIÊU CHI NHÁNH -->
+        <Teleport to="body">
         <div
             v-if="showBudgetPanel"
             class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm"
@@ -1981,5 +1990,6 @@ const chartMaxVal = computed(() => {
                 </form>
             </div>
         </div>
+        </Teleport>
     </div>
 </template>

@@ -425,6 +425,7 @@ defineExpose({
 <template>
     <div>
         <!-- Backdrop đè sáng đè lên phần tử được chọn -->
+        <Teleport to="body">
         <div
             v-if="isTourActive && targetRect && isCorrectPage"
             class="pointer-events-none fixed inset-0 transition-opacity duration-300"
@@ -539,8 +540,10 @@ defineExpose({
                 </button>
             </div>
         </div>
+        </Teleport>
 
         <!-- Success Modal (Hoàn thành cả ngày) -->
+        <Teleport to="body">
         <div
             v-if="isSuccessOpen"
             class="fixed inset-0 flex items-center justify-center bg-black/60 backdrop-blur-sm transition-opacity duration-300"
@@ -610,5 +613,6 @@ defineExpose({
                 </div>
             </div>
         </div>
+        </Teleport>
     </div>
 </template>

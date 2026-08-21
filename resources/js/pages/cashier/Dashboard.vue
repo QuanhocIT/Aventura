@@ -858,6 +858,7 @@ onUnmounted(() => {
         />
 
         <!-- MODAL HỦY MÓN TỪ POS -->
+        <Teleport to="body">
         <div
             v-if="cancelItemTarget"
             class="fixed inset-0 z-[90] flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur-sm"
@@ -948,6 +949,7 @@ onUnmounted(() => {
                 </div>
             </div>
         </div>
+        </Teleport>
 
         <!-- ── MODAL CỔNG HÀNH CHÍNH TỰ PHỤC VỤ ───────────────────────── -->
         <SelfServiceModal

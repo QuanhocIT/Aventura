@@ -340,12 +340,10 @@
 
 /* ── Glassmorphism + Gradient Motion System ── */
 
-/* GPU acceleration for blur elements */
+/* GPU acceleration for blur elements - avoid transform/will-change to prevent breaking fixed modal containment */
 [class*='blur-'],
 [class*='backdrop-blur'] {
-    transform: translateZ(0);
     backface-visibility: hidden;
-    will-change: transform;
 }
 
 /* Floating glow for decorative blobs */
@@ -524,11 +522,11 @@
     }
     to {
         opacity: 1;
-        transform: translateY(0);
+        transform: none;
     }
 }
 .page-enter {
-    animation: page-enter 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
+    animation: page-enter 0.35s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 /* Transition tiện ích cho chuyển đổi Tab / Nội dung động */

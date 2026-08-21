@@ -1135,6 +1135,7 @@ onMounted(() => {
         </div>
 
         <!-- ── Modal: Hoàn Thành Tác Vụ ── -->
+        <Teleport to="body">
         <div v-if="activeTaskId !== null" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
             <div class="w-full max-w-lg rounded-2xl border border-slate-200 bg-white p-6 shadow-xl dark:border-slate-800 dark:bg-slate-900">
                 <div class="flex items-center justify-between border-b border-slate-100 pb-4 dark:border-slate-800">
@@ -1182,8 +1183,10 @@ onMounted(() => {
                 </div>
             </div>
         </div>
+        </Teleport>
 
         <!-- ── Modal: Quét Mã QR / Barcode ── -->
+        <Teleport to="body">
         <div v-if="showScanModal" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4" @click.self="showScanModal = false; scanResult = null">
             <div class="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6 shadow-xl dark:border-slate-800 dark:bg-slate-900">
                 <div class="flex items-center justify-between border-b border-slate-100 pb-4 dark:border-slate-800">
@@ -1265,5 +1268,6 @@ onMounted(() => {
                 </div>
             </div>
         </div>
+        </Teleport>
     </div>
 </template>

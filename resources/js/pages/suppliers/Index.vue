@@ -3690,6 +3690,7 @@ onUnmounted(() => {
         </div>
 
         <!-- Manual Transfer Modal -->
+        <Teleport to="body">
         <div
             v-if="showManualTransferModal"
             class="fixed inset-0 z-50 overflow-y-auto bg-black/50 p-4 backdrop-blur-xs"
@@ -3885,8 +3886,10 @@ onUnmounted(() => {
                 </Card>
             </div>
         </div>
+        </Teleport>
 
         <!-- Add/Edit Supplier Modals -->
+        
         <div
             v-if="showAddModal || showEditModal"
             class="fixed inset-0 z-50 overflow-y-auto bg-black/60 p-4 backdrop-blur-sm"
@@ -4281,8 +4284,10 @@ onUnmounted(() => {
                 </Card>
             </div>
         </div>
+        
 
         <!-- Place PO Modal (2-Step Workflow) -->
+        
         <div
             v-if="showPoModal"
             class="fixed inset-0 z-50 overflow-y-auto bg-black/50 p-4 backdrop-blur-sm"
@@ -4782,8 +4787,10 @@ onUnmounted(() => {
                 </Card>
             </div>
         </div>
+        
 
         <!-- Verify & Deliver Dual-Verification Modal -->
+        <Teleport to="body">
         <div
             v-if="showVerifyModal"
             class="fixed inset-0 z-50 overflow-y-auto bg-black/50 p-4 backdrop-blur-sm"
@@ -5130,6 +5137,7 @@ onUnmounted(() => {
                 </Card>
             </div>
         </div>
+        </Teleport>
     </div>
 </template>
 

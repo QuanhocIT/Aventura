@@ -1314,6 +1314,7 @@ const formatDuration = (hours: number) => {
         </section>
     </div>
 
+    <Teleport to="body">
     <div
         v-if="
             routing ||
@@ -1810,4 +1811,5 @@ const formatDuration = (hours: number) => {
             </template>
         </div>
     </div>
+    </Teleport>
 </template>

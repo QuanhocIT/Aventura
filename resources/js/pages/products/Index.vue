@@ -1923,6 +1923,7 @@ const toggleAvailability = (p: Product) => {
     </div>
 
     <!-- Add Category Inline/Modal Card -->
+    <Teleport to="body">
     <div
         v-if="showAddCategory"
         class="fixed inset-0 z-50 overflow-y-auto bg-black/55 p-4 backdrop-blur-xs"
@@ -2042,8 +2043,10 @@ const toggleAvailability = (p: Product) => {
             </Card>
         </div>
     </div>
+    </Teleport>
 
     <!-- Add Product Modal -->
+    
     <div
         v-if="showAddProduct"
         class="fixed inset-0 z-50 overflow-y-auto bg-black/55 p-4 backdrop-blur-xs"
@@ -2337,8 +2340,10 @@ const toggleAvailability = (p: Product) => {
             </Card>
         </div>
     </div>
+    
 
     <!-- Edit Product Modal -->
+    
     <div
         v-if="editingProduct"
         class="fixed inset-0 z-50 overflow-y-auto bg-black/55 p-4 backdrop-blur-xs"
@@ -2589,8 +2594,10 @@ const toggleAvailability = (p: Product) => {
             </Card>
         </div>
     </div>
+    
 
     <!-- Delete Confirmation Modal -->
+    
     <div
         v-if="deletingProduct"
         class="fixed inset-0 z-50 flex items-center justify-center bg-black/55 p-4 backdrop-blur-xs"
@@ -2631,8 +2638,10 @@ const toggleAvailability = (p: Product) => {
             </CardContent>
         </Card>
     </div>
+    
 
     <!-- Quick Combo Creator Modal -->
+    <Teleport to="body">
     <div
         v-if="showComboModal"
         class="fixed inset-0 z-50 overflow-y-auto bg-black/55 p-4 backdrop-blur-xs"
@@ -2793,4 +2802,5 @@ const toggleAvailability = (p: Product) => {
             </Card>
         </div>
     </div>
+    </Teleport>
 </template>

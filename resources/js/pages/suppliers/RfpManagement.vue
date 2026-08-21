@@ -721,6 +721,7 @@ const getStatusLabel = (status: string) => {
         </div>
 
         <!-- Create RFP Modal -->
+        <Teleport to="body">
         <div
             v-if="showCreateModal"
             class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-xs"
@@ -906,5 +907,6 @@ const getStatusLabel = (status: string) => {
                 </form>
             </Card>
         </div>
+        </Teleport>
     </div>
 </template>

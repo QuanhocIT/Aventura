@@ -1,19 +1,35 @@
 <script setup lang="ts">
 import { Head, useForm } from '@inertiajs/vue3';
 import {
-    Flame,
-    ShieldAlert,
-    CheckCircle2,
-    Siren,
+    Activity,
+    AlertTriangle,
     ArrowUpCircle,
+    Camera,
+    CheckCircle2,
+    ChevronDown,
     ClipboardCheck,
-    Plus,
+    Clock3,
+    FileText,
+    Flame,
     HeartPulse,
-    Wrench,
+    Info,
     Lock,
+    MapPin,
+    Plus,
+    Search,
+    ShieldAlert,
+    ShieldCheck,
     ShieldQuestion,
+    Siren,
+    TimerReset,
+    UserRound,
+    Users,
+    Wrench,
+    X,
+    Zap,
 } from 'lucide-vue-next';
-import { ref, computed } from 'vue';
+import { computed, ref } from 'vue';
+import type { Component } from 'vue';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -21,20 +37,25 @@ import AppLayout from '@/layouts/AppLayout.vue';
 
 defineOptions({ layout: AppLayout });
 
+type IncidentStatus = 'open' | 'investigating' | 'escalated' | 'resolved';
+type SlaState = 'on_track' | 'acknowledged' | 'overdue' | 'breached' | 'met';
+
 interface Incident {
     id: number;
+    code: string;
     type: string;
     severity: 'low' | 'medium' | 'high' | 'critical';
     title: string;
     description: string;
     location: string | null;
-    occurred_at_display: string;
+    occurred_at_display: string | null;
     immediate_action: string | null;
     injured_count: number;
     needs_shift_cover: boolean;
-    status: 'open' | 'investigating' | 'escalated' | 'resolved';
+    status: IncidentStatus;
     escalated: boolean;
     escalated_to_name: string | null;
+    escalated_at_display: string | null;
     reported_by_name: string;
     branch_name: string | null;
     acknowledged_by_name: string | null;
@@ -42,23 +63,49 @@ interface Incident {
     resolution_report: string | null;
     resolved_by_name: string | null;
     resolved_at_display: string | null;
-    created_at_display: string;
+    created_at_display: string | null;
     has_photo: boolean;
+    photo_url: string | null;
+    response_due_at_display: string | null;
+    response_time_minutes: number | null;
+    resolution_time_minutes: number | null;
+    response_sla_minutes: number;
+    sla_state: SlaState;
+}
+
+interface KpiCard {
+    label: string;
+    helper: string;
+    value: number;
+    icon: Component;
+    cardClass: string;
+    iconClass: string;
+    valueClass: string;
 }
 
 const props = defineProps<{
     incidents: Incident[];
     stats: {
         open: number;
+        awaiting_ack: number;
         escalated: number;
         resolved: number;
         critical: number;
+        overdue: number;
+        needs_shift_cover: number;
+        last_24h: number;
     };
     canManage: boolean;
+    activeBranchName: string | null;
 }>();
 
 const showReportForm = ref(false);
 const activeFilter = ref<'active' | 'resolved' | 'all'>('active');
+const searchQuery = ref('');
+const severityFilter = ref('all');
+const typeFilter = ref('all');
+const sortMode = ref<'priority' | 'recent'>('priority');
+const expandedId = ref<number | null>(null);
 
 const reportForm = useForm({
     type: 'accident',
@@ -75,8 +122,318 @@ const reportForm = useForm({
     photo: null as File | null,
 });
 
+const showResolveModal = ref(false);
+const selected = ref<Incident | null>(null);
+const resolveForm = useForm({ resolution_report: '' });
+
+const typeConfig: Record<
+    string,
+    { label: string; icon: Component; iconClass: string; dotClass: string }
+> = {
+    accident: {
+        label: 'Tai nạn',
+        icon: HeartPulse,
+        iconClass: 'text-rose-400',
+        dotClass: 'bg-rose-500',
+    },
+    food_poisoning: {
+        label: 'Ngộ độc thực phẩm',
+        icon: Siren,
+        iconClass: 'text-orange-400',
+        dotClass: 'bg-orange-500',
+    },
+    fire: {
+        label: 'Cháy nổ',
+        icon: Flame,
+        iconClass: 'text-red-400',
+        dotClass: 'bg-red-500',
+    },
+    security: {
+        label: 'An ninh',
+        icon: ShieldAlert,
+        iconClass: 'text-indigo-400',
+        dotClass: 'bg-indigo-500',
+    },
+    equipment_failure: {
+        label: 'Hỏng thiết bị',
+        icon: Wrench,
+        iconClass: 'text-slate-300',
+        dotClass: 'bg-slate-500',
+    },
+    theft: {
+        label: 'Trộm cắp',
+        icon: ShieldQuestion,
+        iconClass: 'text-amber-400',
+        dotClass: 'bg-amber-500',
+    },
+    other: {
+        label: 'Khác',
+        icon: ShieldQuestion,
+        iconClass: 'text-slate-400',
+        dotClass: 'bg-slate-500',
+    },
+};
+
+const severityConfig: Record<
+    string,
+    { label: string; badgeClass: string; railClass: string; rank: number }
+> = {
+    low: {
+        label: 'Thấp',
+        badgeClass: 'border-slate-700 bg-slate-800 text-slate-300',
+        railClass: 'bg-slate-500',
+        rank: 1,
+    },
+    medium: {
+        label: 'Trung bình',
+        badgeClass: 'border-amber-900/80 bg-amber-950/50 text-amber-300',
+        railClass: 'bg-amber-500',
+        rank: 2,
+    },
+    high: {
+        label: 'Cao',
+        badgeClass: 'border-orange-900/80 bg-orange-950/50 text-orange-300',
+        railClass: 'bg-orange-500',
+        rank: 3,
+    },
+    critical: {
+        label: 'Nghiêm trọng',
+        badgeClass: 'border-rose-900/80 bg-rose-950/60 text-rose-300',
+        railClass: 'bg-rose-500',
+        rank: 4,
+    },
+};
+
+const statusConfig: Record<IncidentStatus, { label: string; class: string }> = {
+    open: {
+        label: 'Chờ tiếp nhận',
+        class: 'border-blue-900/60 bg-blue-950/50 text-blue-300',
+    },
+    investigating: {
+        label: 'Đang xử lý',
+        class: 'border-amber-900/60 bg-amber-950/50 text-amber-300',
+    },
+    escalated: {
+        label: 'Đã báo Chủ',
+        class: 'border-rose-900/60 bg-rose-950/50 text-rose-300',
+    },
+    resolved: {
+        label: 'Đã đóng',
+        class: 'border-emerald-900/60 bg-emerald-950/50 text-emerald-300',
+    },
+};
+
+const guidance: Record<
+    string,
+    { title: string; text: string; icon: Component }
+> = {
+    accident: {
+        title: 'Ưu tiên an toàn con người',
+        text: 'Sơ cứu trong khả năng, gọi 115 khi cần và cô lập khu vực nguy hiểm.',
+        icon: HeartPulse,
+    },
+    food_poisoning: {
+        title: 'Giữ lại mẫu và danh sách liên quan',
+        text: 'Tạm dừng phục vụ món nghi ngờ, lưu mẫu và báo ngay cho quản lý.',
+        icon: Siren,
+    },
+    fire: {
+        title: 'Báo động và sơ tán trước',
+        text: 'Kích hoạt báo cháy, gọi 114, cắt điện nếu an toàn và không quay lại khu vực.',
+        icon: Flame,
+    },
+    security: {
+        title: 'Bảo toàn hiện trường',
+        text: 'Ưu tiên an toàn, không tự đối đầu và giữ lại camera/nhân chứng liên quan.',
+        icon: ShieldAlert,
+    },
+    equipment_failure: {
+        title: 'Cô lập thiết bị',
+        text: 'Dừng sử dụng, ngắt nguồn nếu an toàn và ghi nhận mã thiết bị/sự cố.',
+        icon: Wrench,
+    },
+    theft: {
+        title: 'Không làm xáo trộn hiện trường',
+        text: 'Báo quản lý, khóa khu vực và giữ nguyên dữ liệu camera hoặc chứng từ.',
+        icon: ShieldQuestion,
+    },
+    other: {
+        title: 'Mô tả đúng sự thật',
+        text: 'Ghi nhận diễn biến, người liên quan và biện pháp đã thực hiện ngay tại chỗ.',
+        icon: Info,
+    },
+};
+
+const activeGuidance = computed(
+    () => guidance[reportForm.type] ?? guidance.other,
+);
+
+const kpis = computed<KpiCard[]>(() => [
+    {
+        label: 'Đang mở',
+        helper: 'Tất cả sự cố chưa đóng',
+        value: props.stats.open,
+        icon: Activity,
+        cardClass: 'border-blue-900/40 bg-blue-950/20',
+        iconClass: 'bg-blue-500/15 text-blue-300',
+        valueClass: 'text-blue-300',
+    },
+    {
+        label: 'Chờ tiếp nhận',
+        helper: 'Cần quản lý xác nhận',
+        value: props.stats.awaiting_ack,
+        icon: ClipboardCheck,
+        cardClass: 'border-amber-900/40 bg-amber-950/20',
+        iconClass: 'bg-amber-500/15 text-amber-300',
+        valueClass: 'text-amber-300',
+    },
+    {
+        label: 'Quá SLA',
+        helper: 'Chưa phản hồi đúng hạn',
+        value: props.stats.overdue,
+        icon: TimerReset,
+        cardClass: 'border-rose-900/50 bg-rose-950/20',
+        iconClass: 'bg-rose-500/15 text-rose-300',
+        valueClass: 'text-rose-300',
+    },
+    {
+        label: 'Đã báo Chủ',
+        helper: 'Đang ở cấp khẩn cấp',
+        value: props.stats.escalated,
+        icon: ArrowUpCircle,
+        cardClass: 'border-fuchsia-900/40 bg-fuchsia-950/20',
+        iconClass: 'bg-fuchsia-500/15 text-fuchsia-300',
+        valueClass: 'text-fuchsia-300',
+    },
+    {
+        label: 'Cần thay ca',
+        helper: 'Nhân sự chưa thể tiếp tục',
+        value: props.stats.needs_shift_cover,
+        icon: Users,
+        cardClass: 'border-cyan-900/40 bg-cyan-950/20',
+        iconClass: 'bg-cyan-500/15 text-cyan-300',
+        valueClass: 'text-cyan-300',
+    },
+    {
+        label: 'Đã đóng',
+        helper: `${props.stats.last_24h} phát sinh trong 24 giờ`,
+        value: props.stats.resolved,
+        icon: ShieldCheck,
+        cardClass: 'border-emerald-900/40 bg-emerald-950/20',
+        iconClass: 'bg-emerald-500/15 text-emerald-300',
+        valueClass: 'text-emerald-300',
+    },
+]);
+
+const filtered = computed(() => {
+    const query = searchQuery.value.trim().toLowerCase();
+    const result = props.incidents.filter((incident) => {
+        const matchesTab =
+            activeFilter.value === 'all' ||
+            (activeFilter.value === 'resolved'
+                ? incident.status === 'resolved'
+                : incident.status !== 'resolved');
+        const matchesSeverity =
+            severityFilter.value === 'all' ||
+            incident.severity === severityFilter.value;
+        const matchesType =
+            typeFilter.value === 'all' || incident.type === typeFilter.value;
+        const haystack = [
+            incident.code,
+            incident.title,
+            incident.description,
+            incident.location,
+            incident.reported_by_name,
+            incident.branch_name,
+        ]
+            .filter(Boolean)
+            .join(' ')
+            .toLowerCase();
+
+        return (
+            matchesTab &&
+            matchesSeverity &&
+            matchesType &&
+            (!query || haystack.includes(query))
+        );
+    });
+
+    return result.sort((a, b) => {
+        if (sortMode.value === 'recent') {
+            return b.id - a.id;
+        }
+
+        const severityGap =
+            (severityConfig[b.severity]?.rank ?? 0) -
+            (severityConfig[a.severity]?.rank ?? 0);
+
+        if (severityGap !== 0) {
+            return severityGap;
+        }
+
+        if (a.sla_state === 'overdue' && b.sla_state !== 'overdue') {
+            return -1;
+        }
+
+        if (b.sla_state === 'overdue' && a.sla_state !== 'overdue') {
+            return 1;
+        }
+
+        if (a.status === 'open' && b.status !== 'open') {
+            return -1;
+        }
+
+        if (b.status === 'open' && a.status !== 'open') {
+            return 1;
+        }
+
+        return b.id - a.id;
+    });
+});
+
+const priorityQueue = computed(() =>
+    props.incidents
+        .filter((incident) => incident.status !== 'resolved')
+        .sort((a, b) => {
+            const aScore =
+                (a.sla_state === 'overdue' ? 100 : 0) +
+                (severityConfig[a.severity]?.rank ?? 0);
+            const bScore =
+                (b.sla_state === 'overdue' ? 100 : 0) +
+                (severityConfig[b.severity]?.rank ?? 0);
+
+            return bScore - aScore || b.id - a.id;
+        })
+        .slice(0, 4),
+);
+
+const openResolve = (incident: Incident) => {
+    selected.value = incident;
+    resolveForm.reset();
+    resolveForm.clearErrors();
+    showResolveModal.value = true;
+};
+
+const submitResolve = () => {
+    if (!selected.value || resolveForm.processing) {
+        return;
+    }
+
+    resolveForm.post(`/incidents/${selected.value.id}/resolve`, {
+        preserveScroll: true,
+        onSuccess: () => {
+            showResolveModal.value = false;
+            resolveForm.reset();
+            selected.value = null;
+        },
+    });
+};
+
 const submitReport = () => {
-    if (reportForm.processing) return;
+    if (reportForm.processing) {
+        return;
+    }
+
     reportForm.post('/incidents', {
         preserveScroll: true,
         forceFormData: true,
@@ -87,177 +444,229 @@ const submitReport = () => {
     });
 };
 
-// Resolve modal
-const showResolveModal = ref(false);
-const selected = ref<Incident | null>(null);
-const resolveForm = useForm({ resolution_report: '' });
-
-const openResolve = (i: Incident) => {
-    selected.value = i;
-    resolveForm.reset();
-    resolveForm.clearErrors();
-    showResolveModal.value = true;
-};
-const submitResolve = () => {
-    if (!selected.value || resolveForm.processing) return;
-    resolveForm.post(`/incidents/${selected.value.id}/resolve`, {
-        preserveScroll: true,
-        onSuccess: () => {
-            showResolveModal.value = false;
-            resolveForm.reset();
-        },
-    });
-};
-
-const doAcknowledge = (i: Incident) => {
-    useForm({}).post(`/incidents/${i.id}/acknowledge`, {
+const doAcknowledge = (incident: Incident) =>
+    useForm({}).post(`/incidents/${incident.id}/acknowledge`, {
         preserveScroll: true,
     });
-};
-const doEscalate = (i: Incident) => {
-    useForm({}).post(`/incidents/${i.id}/escalate`, { preserveScroll: true });
-};
-
-const filtered = computed(() =>
-    props.incidents.filter((i) => {
-        if (activeFilter.value === 'all') return true;
-        if (activeFilter.value === 'resolved') return i.status === 'resolved';
-        return i.status !== 'resolved';
-    }),
-);
-
-const typeConfig: Record<string, { label: string; icon: any; cls: string }> = {
-    accident: { label: 'Tai nạn', icon: HeartPulse, cls: 'text-rose-600' },
-    food_poisoning: {
-        label: 'Ngộ độc TP',
-        icon: Siren,
-        cls: 'text-orange-600',
-    },
-    fire: { label: 'Cháy nổ', icon: Flame, cls: 'text-red-600' },
-    security: { label: 'An ninh', icon: ShieldAlert, cls: 'text-indigo-600' },
-    equipment_failure: {
-        label: 'Hỏng thiết bị',
-        icon: Wrench,
-        cls: 'text-slate-600',
-    },
-    theft: { label: 'Trộm cắp', icon: ShieldQuestion, cls: 'text-amber-600' },
-    other: { label: 'Khác', icon: ShieldAlert, cls: 'text-slate-500' },
+const doEscalate = (incident: Incident) =>
+    useForm({}).post(`/incidents/${incident.id}/escalate`, {
+        preserveScroll: true,
+    });
+const toggleExpanded = (incident: Incident) => {
+    expandedId.value = expandedId.value === incident.id ? null : incident.id;
 };
 
-const severityConfig: Record<string, { label: string; cls: string }> = {
-    low: { label: 'Thấp', cls: 'bg-slate-100 text-slate-600 border-slate-200' },
-    medium: {
-        label: 'Trung bình',
-        cls: 'bg-amber-50 text-amber-700 border-amber-200',
-    },
-    high: {
-        label: 'Cao',
-        cls: 'bg-orange-50 text-orange-700 border-orange-200',
-    },
-    critical: {
-        label: 'Nghiêm trọng',
-        cls: 'bg-rose-50 text-rose-700 border-rose-200',
-    },
+const formatMinutes = (minutes: number | null) => {
+    if (minutes === null || minutes === undefined) {
+        return '—';
+    }
+
+    if (minutes < 60) {
+        return `${minutes} phút`;
+    }
+
+    const hours = Math.floor(minutes / 60);
+    const remaining = minutes % 60;
+
+    return remaining ? `${hours}g ${remaining}p` : `${hours} giờ`;
 };
 
-const statusConfig: Record<string, { label: string; cls: string }> = {
-    open: { label: 'Mới báo', cls: 'bg-blue-50 text-blue-700' },
-    investigating: { label: 'Đang xử lý', cls: 'bg-amber-50 text-amber-700' },
-    escalated: { label: 'Đã báo Chủ', cls: 'bg-rose-50 text-rose-700' },
-    resolved: { label: 'Đã đóng', cls: 'bg-emerald-50 text-emerald-700' },
-};
+const slaLabel = (state: SlaState) =>
+    state === 'overdue'
+        ? 'Quá SLA'
+        : state === 'breached'
+          ? 'Phản hồi trễ'
+          : state === 'met'
+            ? 'Đã đạt SLA'
+            : state === 'acknowledged'
+              ? 'Đã tiếp nhận'
+              : 'Trong SLA';
+const slaClass = (state: SlaState) =>
+    state === 'overdue' || state === 'breached'
+        ? 'border-rose-900/60 bg-rose-950/50 text-rose-300'
+        : state === 'met' || state === 'acknowledged'
+          ? 'border-emerald-900/60 bg-emerald-950/40 text-emerald-300'
+          : 'border-sky-900/60 bg-sky-950/40 text-sky-300';
+const actionSummary = (incident: Incident) =>
+    incident.status === 'open'
+        ? 'Cần quản lý tiếp nhận'
+        : incident.sla_state === 'overdue'
+          ? 'Cần xử lý ngay — đã quá SLA'
+          : incident.escalated
+            ? 'Đang theo dõi cấp khẩn cấp'
+            : 'Đang điều tra và khắc phục';
 </script>
 
 <template>
     <Head title="Sự cố khẩn cấp" />
 
-    <div class="mx-auto flex w-full max-w-7xl flex-col gap-6 p-4 sm:p-6">
-        <!-- Header -->
-        <div
-            class="flex flex-col gap-4 border-b border-slate-200/80 pb-5 sm:flex-row sm:items-center sm:justify-between dark:border-slate-800"
+    <div
+        class="mx-auto flex w-full max-w-[1600px] flex-col gap-5 p-4 sm:p-6 lg:p-8"
+    >
+        <section
+            class="relative overflow-hidden rounded-[28px] border border-rose-900/50 bg-gradient-to-br from-rose-950 via-slate-950 to-slate-950 p-5 shadow-2xl shadow-rose-950/10 sm:p-7"
         >
-            <div class="flex items-center gap-3">
+            <div
+                class="pointer-events-none absolute -top-24 right-0 size-64 rounded-full bg-rose-500/10 blur-3xl"
+            />
+            <div
+                class="relative flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between"
+            >
+                <div class="flex items-start gap-4">
+                    <div
+                        class="flex size-14 shrink-0 items-center justify-center rounded-2xl border border-rose-700/70 bg-rose-500/15 text-rose-300 shadow-lg shadow-rose-950/30"
+                    >
+                        <Siren class="size-7" />
+                    </div>
+                    <div>
+                        <div class="mb-2 flex flex-wrap items-center gap-2">
+                            <span
+                                class="rounded-full border border-rose-800/70 bg-rose-950/60 px-2.5 py-1 text-[10px] font-bold tracking-[0.16em] text-rose-300 uppercase"
+                                >Safety Operations</span
+                            ><span
+                                class="flex items-center gap-1.5 text-[11px] text-slate-400"
+                                ><MapPin class="size-3.5 text-rose-400" />{{
+                                    props.activeBranchName || 'Toàn nhà hàng'
+                                }}</span
+                            >
+                        </div>
+                        <h1
+                            class="text-2xl font-black tracking-tight text-white sm:text-3xl"
+                        >
+                            Trung tâm Điều phối Sự cố
+                        </h1>
+                        <p
+                            class="mt-2 max-w-2xl text-sm leading-relaxed text-slate-300"
+                        >
+                            Tiếp nhận, phân loại, phản hồi và đóng sự cố có kiểm
+                            soát — mọi hành động đều để lại dấu vết vận hành.
+                        </p>
+                    </div>
+                </div>
                 <div
-                    class="flex size-12 items-center justify-center rounded-2xl border border-rose-100 bg-rose-50 text-rose-600 shadow-sm dark:border-rose-900/30 dark:bg-rose-950/60 dark:text-rose-400"
+                    class="flex shrink-0 flex-col gap-3 sm:flex-row sm:items-center"
                 >
-                    <Siren class="size-6" />
+                    <div
+                        class="rounded-2xl border border-white/10 bg-white/5 px-4 py-3"
+                    >
+                        <div
+                            class="flex items-center gap-2 text-[10px] font-bold tracking-wider text-rose-300 uppercase"
+                        >
+                            <AlertTriangle class="size-3.5" /> Ưu tiên hôm nay
+                        </div>
+                        <div class="mt-1 text-sm font-semibold text-white">
+                            {{ props.stats.critical }} nghiêm trọng ·
+                            {{ props.stats.overdue }} quá SLA
+                        </div>
+                    </div>
+                    <Button
+                        @click="showReportForm = !showReportForm"
+                        class="h-11 gap-2 rounded-xl border-0 bg-rose-500 px-5 font-bold text-white shadow-lg shadow-rose-950/40 hover:bg-rose-400"
+                        ><Plus class="size-4" />{{
+                            showReportForm ? 'Đóng biểu mẫu' : 'Báo sự cố'
+                        }}</Button
+                    >
+                </div>
+            </div>
+        </section>
+
+        <section class="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
+            <div
+                v-for="kpi in kpis"
+                :key="kpi.label"
+                class="rounded-2xl border p-4 transition hover:-translate-y-0.5"
+                :class="kpi.cardClass"
+            >
+                <div class="flex items-start justify-between gap-3">
+                    <div>
+                        <div
+                            class="text-2xl font-black"
+                            :class="kpi.valueClass"
+                        >
+                            {{ kpi.value }}
+                        </div>
+                        <div class="mt-1 text-xs font-bold text-slate-200">
+                            {{ kpi.label }}
+                        </div>
+                        <div
+                            class="mt-1 text-[10px] leading-relaxed text-slate-500"
+                        >
+                            {{ kpi.helper }}
+                        </div>
+                    </div>
+                    <div
+                        class="flex size-9 shrink-0 items-center justify-center rounded-xl"
+                        :class="kpi.iconClass"
+                    >
+                        <component :is="kpi.icon" class="size-4" />
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section
+            v-if="props.stats.critical > 0 || props.stats.overdue > 0"
+            class="flex flex-col gap-3 rounded-2xl border border-rose-900/60 bg-rose-950/25 p-4 sm:flex-row sm:items-center sm:justify-between"
+        >
+            <div class="flex items-start gap-3">
+                <div
+                    class="flex size-9 shrink-0 items-center justify-center rounded-xl bg-rose-500/15 text-rose-300"
+                >
+                    <Zap class="size-4" />
                 </div>
                 <div>
-                    <h1
-                        class="text-2xl font-bold tracking-tight text-slate-800 dark:text-slate-100"
-                    >
-                        Sổ Sự Cố Khẩn Cấp
-                    </h1>
-                    <p class="text-xs text-slate-500 dark:text-slate-400">
-                        Báo & xử lý tai nạn, ngộ độc, cháy nổ, an ninh — tự động
-                        báo Chủ khi nghiêm trọng.
+                    <div class="text-sm font-bold text-rose-200">
+                        Hàng đợi cần ưu tiên
+                    </div>
+                    <p class="mt-1 text-xs leading-relaxed text-rose-200/70">
+                        Có sự cố nghiêm trọng hoặc chưa được phản hồi đúng SLA.
+                        Hãy tiếp nhận trước khi xử lý tác vụ thường ngày.
                     </p>
                 </div>
             </div>
-            <Button
-                @click="showReportForm = !showReportForm"
-                class="gap-1.5 rounded-xl border-0 bg-gradient-to-r from-rose-600 to-red-600 font-bold text-white shadow-sm hover:from-rose-700 hover:to-red-700"
+            <button
+                type="button"
+                class="rounded-lg border border-rose-800/70 px-3 py-2 text-xs font-bold text-rose-200 transition hover:bg-rose-500/10"
+                @click="
+                    activeFilter = 'active';
+                    sortMode = 'priority';
+                "
             >
-                <Plus class="size-4" /> Báo sự cố
-            </Button>
-        </div>
+                Xem hàng đợi ưu tiên
+            </button>
+        </section>
 
-        <!-- Stats -->
-        <div class="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <div
-                class="rounded-2xl border border-blue-100 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 dark:border-blue-950/20 dark:bg-slate-900/40"
-            >
-                <div class="text-2xl font-black text-blue-600">
-                    {{ props.stats.open }}
-                </div>
-                <div class="text-[11px] font-semibold text-slate-500">
-                    Đang mở
-                </div>
-            </div>
-            <div
-                class="rounded-2xl border border-rose-100 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 dark:border-rose-950/20 dark:bg-slate-900/40"
-            >
-                <div class="text-2xl font-black text-rose-600">
-                    {{ props.stats.escalated }}
-                </div>
-                <div class="text-[11px] font-semibold text-slate-500">
-                    Đã báo Chủ
-                </div>
-            </div>
-            <div
-                class="rounded-2xl border border-orange-100 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 dark:border-orange-950/20 dark:bg-slate-900/40"
-            >
-                <div class="text-2xl font-black text-orange-600">
-                    {{ props.stats.critical }}
-                </div>
-                <div class="text-[11px] font-semibold text-slate-500">
-                    Nghiêm trọng đang mở
-                </div>
-            </div>
-            <div
-                class="rounded-2xl border border-emerald-100 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 dark:border-emerald-950/20 dark:bg-slate-900/40"
-            >
-                <div class="text-2xl font-black text-emerald-600">
-                    {{ props.stats.resolved }}
-                </div>
-                <div class="text-[11px] font-semibold text-slate-500">
-                    Đã đóng
-                </div>
-            </div>
-        </div>
-
-        <!-- Report form -->
-        <div
+        <section
             v-if="showReportForm"
-            class="animate-fade-in rounded-2xl border border-rose-100 bg-rose-50/40 p-5 shadow-sm dark:border-rose-950/40 dark:bg-rose-950/10"
+            class="rounded-3xl border border-rose-900/50 bg-slate-950 p-5 shadow-2xl shadow-black/20 sm:p-6"
         >
-            <form @submit.prevent="submitReport" class="flex flex-col gap-4">
-                <div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <div
+                class="mb-5 flex flex-col gap-2 border-b border-white/10 pb-4 sm:flex-row sm:items-center sm:justify-between"
+            >
+                <div>
+                    <div
+                        class="flex items-center gap-2 text-sm font-bold text-white"
+                    >
+                        <Plus class="size-4 text-rose-400" /> Ghi nhận sự cố mới
+                    </div>
+                    <p class="mt-1 text-xs text-slate-500">
+                        Ghi nhận ngay cả khi chưa đủ thông tin; quản lý sẽ bổ
+                        sung trong quá trình điều tra.
+                    </p>
+                </div>
+                <span
+                    class="text-[10px] font-bold tracking-wider text-rose-300 uppercase"
+                    >Bước 1 · Tiếp nhận</span
+                >
+            </div>
+            <form @submit.prevent="submitReport" class="flex flex-col gap-5">
+                <div class="grid gap-4 lg:grid-cols-4">
                     <div class="flex flex-col gap-1.5">
-                        <Label class="text-xs font-bold">Loại sự cố</Label>
-                        <select
+                        <Label class="text-xs font-bold text-slate-300"
+                            >Loại sự cố</Label
+                        ><select
                             v-model="reportForm.type"
-                            class="h-9 rounded-md border border-input bg-background px-3 text-sm"
+                            class="h-10 rounded-xl border border-white/10 bg-slate-900 px-3 text-sm text-slate-100 outline-none focus:border-rose-500"
                         >
                             <option value="accident">Tai nạn</option>
                             <option value="food_poisoning">
@@ -273,382 +682,996 @@ const statusConfig: Record<string, { label: string; cls: string }> = {
                         </select>
                     </div>
                     <div class="flex flex-col gap-1.5">
-                        <Label class="text-xs font-bold">Mức độ</Label>
-                        <select
+                        <Label class="text-xs font-bold text-slate-300"
+                            >Mức độ rủi ro</Label
+                        ><select
                             v-model="reportForm.severity"
-                            class="h-9 rounded-md border border-input bg-background px-3 text-sm"
+                            class="h-10 rounded-xl border border-white/10 bg-slate-900 px-3 text-sm text-slate-100 outline-none focus:border-rose-500"
                         >
-                            <option value="low">Thấp</option>
-                            <option value="medium">Trung bình</option>
-                            <option value="high">Cao</option>
-                            <option value="critical">Nghiêm trọng</option>
+                            <option value="low">Thấp · SLA 8 giờ</option>
+                            <option value="medium">
+                                Trung bình · SLA 2 giờ
+                            </option>
+                            <option value="high">Cao · SLA 30 phút</option>
+                            <option value="critical">
+                                Nghiêm trọng · SLA 15 phút
+                            </option>
                         </select>
                     </div>
                     <div class="flex flex-col gap-1.5">
-                        <Label class="text-xs font-bold"
+                        <Label class="text-xs font-bold text-slate-300"
                             >Thời điểm xảy ra</Label
-                        >
-                        <Input
+                        ><Input
                             v-model="reportForm.occurred_at"
                             type="datetime-local"
-                            class="h-9"
+                            class="h-10 border-white/10 bg-slate-900 text-slate-100"
                         />
                     </div>
-                </div>
-
-                <div class="flex flex-col gap-1.5">
-                    <Label class="text-xs font-bold"
-                        >Tiêu đề <span class="text-rose-500">*</span></Label
-                    >
-                    <Input
-                        v-model="reportForm.title"
-                        required
-                        placeholder="VD: Khách trượt ngã ở khu vực lễ tân"
-                    />
-                    <p
-                        v-if="reportForm.errors.title"
-                        class="text-[11px] font-semibold text-rose-500"
-                    >
-                        {{ reportForm.errors.title }}
-                    </p>
-                </div>
-
-                <div class="flex flex-col gap-1.5">
-                    <Label class="text-xs font-bold"
-                        >Mô tả chi tiết
-                        <span class="text-rose-500">*</span></Label
-                    >
-                    <textarea
-                        v-model="reportForm.description"
-                        rows="3"
-                        required
-                        minlength="10"
-                        placeholder="Diễn biến, nguyên nhân ban đầu, phạm vi ảnh hưởng (tối thiểu 10 ký tự)..."
-                        class="w-full resize-none rounded-xl border border-slate-200 bg-background px-3 py-2 text-xs focus:outline-none dark:border-slate-800"
-                    ></textarea>
-                    <p
-                        v-if="reportForm.errors.description"
-                        class="text-[11px] font-semibold text-rose-500"
-                    >
-                        {{ reportForm.errors.description }}
-                    </p>
-                </div>
-
-                <div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
                     <div class="flex flex-col gap-1.5">
-                        <Label class="text-xs font-bold">Vị trí</Label>
-                        <Input
+                        <Label class="text-xs font-bold text-slate-300"
+                            >Vị trí</Label
+                        ><Input
                             v-model="reportForm.location"
-                            placeholder="Khu bếp / Sảnh / Kho..."
-                        />
-                    </div>
-                    <div class="flex flex-col gap-1.5">
-                        <Label class="text-xs font-bold"
-                            >Số người bị thương</Label
-                        >
-                        <Input
-                            v-model="reportForm.injured_count"
-                            type="number"
-                            min="0"
-                        />
-                    </div>
-                    <div class="flex flex-col gap-1.5">
-                        <Label class="text-xs font-bold">Ảnh hiện trường</Label>
-                        <input
-                            type="file"
-                            accept="image/*"
-                            @input="
-                                reportForm.photo =
-                                    ($event.target as HTMLInputElement)
-                                        .files?.[0] ?? null
-                            "
-                            class="text-xs file:mr-2 file:rounded-lg file:border-0 file:bg-rose-100 file:px-2 file:py-1.5 file:text-xs file:font-bold file:text-rose-700"
+                            placeholder="Bếp, sảnh, kho..."
+                            class="h-10 border-white/10 bg-slate-900 text-slate-100 placeholder:text-slate-600"
                         />
                     </div>
                 </div>
-
-                <div class="flex flex-col gap-1.5">
-                    <Label class="text-xs font-bold"
-                        >Xử lý ngay tại chỗ (nếu có)</Label
-                    >
-                    <textarea
-                        v-model="reportForm.immediate_action"
-                        rows="2"
-                        placeholder="VD: Đã sơ cứu, ngắt điện khu vực, gọi cấp cứu 115..."
-                        class="w-full resize-none rounded-xl border border-slate-200 bg-background px-3 py-2 text-xs focus:outline-none dark:border-slate-800"
-                    ></textarea>
-                </div>
-
-                <label
-                    class="flex items-center gap-2 text-xs font-semibold text-slate-600 dark:text-slate-300"
-                >
-                    <input
-                        v-model="reportForm.needs_shift_cover"
-                        type="checkbox"
-                        class="rounded"
-                    />
-                    Cần thay ca gấp (nhân sự không thể tiếp tục làm việc)
-                </label>
-
-                <div
-                    class="flex items-start gap-2 rounded-xl border border-orange-100 bg-orange-50 p-3 text-[11px] font-semibold text-orange-700 dark:bg-orange-950/20"
-                >
-                    <ArrowUpCircle class="mt-0.5 size-4 shrink-0" />
-                    Sự cố Cháy nổ / Ngộ độc / Tai nạn hoặc mức độ Cao/Nghiêm
-                    trọng hoặc có người bị thương sẽ TỰ ĐỘNG báo lên Chủ nhà
-                    hàng ngay.
-                </div>
-
-                <div class="flex justify-end gap-2">
-                    <Button
-                        type="button"
-                        variant="outline"
-                        @click="showReportForm = false"
-                        class="rounded-xl"
-                        >Hủy</Button
-                    >
-                    <Button
-                        type="submit"
-                        :disabled="reportForm.processing"
-                        class="rounded-xl border-0 bg-rose-600 font-bold text-white hover:bg-rose-700"
-                    >
-                        Ghi nhận sự cố
-                    </Button>
-                </div>
-            </form>
-        </div>
-
-        <!-- Filters -->
-        <div
-            class="flex w-fit gap-1 rounded-xl border border-slate-200/60 bg-slate-100 p-1 dark:border-slate-800 dark:bg-slate-900"
-        >
-            <button
-                v-for="f in [
-                    { k: 'active', l: 'Đang xử lý' },
-                    { k: 'resolved', l: 'Đã đóng' },
-                    { k: 'all', l: 'Tất cả' },
-                ]"
-                :key="f.k"
-                @click="activeFilter = f.k as any"
-                :class="[
-                    'rounded-lg px-3.5 py-1.5 text-xs font-bold transition',
-                    activeFilter === f.k
-                        ? 'bg-white text-slate-800 shadow-sm dark:bg-slate-800 dark:text-slate-100'
-                        : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-300',
-                ]"
-            >
-                {{ f.l }}
-            </button>
-        </div>
-
-        <!-- List -->
-        <div
-            v-if="filtered.length === 0"
-            class="rounded-2xl border border-dashed border-slate-200 bg-white p-16 text-center text-sm text-slate-400 shadow-sm dark:border-slate-800 dark:bg-slate-900/40"
-        >
-            Không có sự cố nào trong nhóm này.
-        </div>
-
-        <div v-else class="flex flex-col gap-3">
-            <div
-                v-for="i in filtered"
-                :key="i.id"
-                class="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 dark:border-slate-800 dark:bg-slate-900"
-            >
-                <div class="flex flex-wrap items-start justify-between gap-3">
-                    <div class="flex items-start gap-3">
-                        <component
-                            :is="typeConfig[i.type]?.icon ?? ShieldAlert"
-                            :class="[
-                                'mt-0.5 size-6 shrink-0',
-                                typeConfig[i.type]?.cls,
-                            ]"
-                        />
-                        <div>
-                            <div class="flex flex-wrap items-center gap-1.5">
-                                <span
-                                    class="font-bold text-slate-800 dark:text-slate-100"
-                                    >{{ i.title }}</span
-                                >
-                                <span
-                                    :class="[
-                                        'rounded-md border px-1.5 py-0.5 text-[9px] font-extrabold',
-                                        severityConfig[i.severity]?.cls,
-                                    ]"
-                                    >{{
-                                        severityConfig[i.severity]?.label
-                                    }}</span
-                                >
-                                <span
-                                    v-if="i.escalated"
-                                    class="flex items-center gap-0.5 rounded-md bg-rose-100 px-1.5 py-0.5 text-[9px] font-extrabold text-rose-700"
-                                    ><ArrowUpCircle class="size-3" /> ĐÃ BÁO
-                                    CHỦ</span
-                                >
-                                <span
-                                    v-if="i.injured_count > 0"
-                                    class="rounded-md bg-red-100 px-1.5 py-0.5 text-[9px] font-extrabold text-red-700"
-                                    >{{ i.injured_count }} người bị thương</span
-                                >
-                                <span
-                                    v-if="i.needs_shift_cover"
-                                    class="rounded-md bg-amber-100 px-1.5 py-0.5 text-[9px] font-extrabold text-amber-700"
-                                    >Cần thay ca</span
-                                >
-                            </div>
+                <div class="grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
+                    <div class="flex flex-col gap-4">
+                        <div class="flex flex-col gap-1.5">
+                            <Label class="text-xs font-bold text-slate-300"
+                                >Tiêu đề
+                                <span class="text-rose-400">*</span></Label
+                            ><Input
+                                v-model="reportForm.title"
+                                required
+                                placeholder="Ví dụ: Khách trượt ngã tại khu vực lễ tân"
+                                class="h-10 border-white/10 bg-slate-900 text-slate-100 placeholder:text-slate-600"
+                            />
                             <p
-                                class="mt-1 text-xs leading-relaxed text-slate-600 dark:text-slate-300"
+                                v-if="reportForm.errors.title"
+                                class="text-[11px] font-semibold text-rose-400"
                             >
-                                {{ i.description }}
+                                {{ reportForm.errors.title }}
                             </p>
-                            <div
-                                class="mt-1.5 flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] text-slate-400"
-                            >
-                                <span>{{ typeConfig[i.type]?.label }}</span>
-                                <span v-if="i.location"
-                                    >📍 {{ i.location }}</span
-                                >
-                                <span>🕒 {{ i.occurred_at_display }}</span>
-                                <span>👤 {{ i.reported_by_name }}</span>
-                                <span v-if="i.branch_name"
-                                    >🏢 {{ i.branch_name }}</span
-                                >
-                                <span v-if="i.has_photo">📷 có ảnh</span>
-                            </div>
+                        </div>
+                        <div class="flex flex-col gap-1.5">
+                            <Label class="text-xs font-bold text-slate-300"
+                                >Mô tả diễn biến
+                                <span class="text-rose-400">*</span></Label
+                            ><textarea
+                                v-model="reportForm.description"
+                                rows="4"
+                                required
+                                minlength="10"
+                                placeholder="Điều gì đã xảy ra? Ai bị ảnh hưởng? Khu vực nào cần cô lập?"
+                                class="w-full resize-none rounded-xl border border-white/10 bg-slate-900 px-3 py-2.5 text-sm text-slate-100 outline-none placeholder:text-slate-600 focus:border-rose-500"
+                            ></textarea>
                             <p
-                                v-if="i.immediate_action"
-                                class="mt-1.5 text-[11px] text-slate-500"
+                                v-if="reportForm.errors.description"
+                                class="text-[11px] font-semibold text-rose-400"
                             >
-                                <span class="font-bold">Xử lý ngay:</span>
-                                {{ i.immediate_action }}
+                                {{ reportForm.errors.description }}
                             </p>
                         </div>
                     </div>
-                    <span
-                        :class="[
-                            'shrink-0 rounded-lg px-2 py-1 text-[10px] font-extrabold',
-                            statusConfig[i.status]?.cls,
-                        ]"
-                        >{{ statusConfig[i.status]?.label }}</span
-                    >
+                    <div class="flex flex-col gap-4">
+                        <div
+                            class="rounded-2xl border border-sky-900/60 bg-sky-950/30 p-4"
+                        >
+                            <div class="flex items-start gap-3">
+                                <component
+                                    :is="activeGuidance.icon"
+                                    class="mt-0.5 size-5 shrink-0 text-sky-300"
+                                />
+                                <div>
+                                    <div class="text-xs font-bold text-sky-200">
+                                        {{ activeGuidance.title }}
+                                    </div>
+                                    <p
+                                        class="mt-1 text-[11px] leading-relaxed text-sky-200/70"
+                                    >
+                                        {{ activeGuidance.text }}
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-2 gap-3">
+                            <div class="flex flex-col gap-1.5">
+                                <Label class="text-xs font-bold text-slate-300"
+                                    >Người bị thương</Label
+                                ><Input
+                                    v-model="reportForm.injured_count"
+                                    type="number"
+                                    min="0"
+                                    class="h-10 border-white/10 bg-slate-900 text-slate-100"
+                                />
+                            </div>
+                            <label
+                                class="flex cursor-pointer items-end gap-2 pb-2 text-xs font-semibold text-slate-300"
+                                ><input
+                                    v-model="reportForm.needs_shift_cover"
+                                    type="checkbox"
+                                    class="size-4 rounded border-white/20 bg-slate-900 text-rose-500"
+                                />
+                                Cần thay ca gấp</label
+                            >
+                        </div>
+                    </div>
                 </div>
-
-                <!-- Resolution report -->
+                <div class="grid gap-4 lg:grid-cols-[1fr_1fr_0.8fr]">
+                    <div class="flex flex-col gap-1.5">
+                        <Label class="text-xs font-bold text-slate-300"
+                            >Xử lý ngay tại chỗ</Label
+                        ><textarea
+                            v-model="reportForm.immediate_action"
+                            rows="3"
+                            placeholder="Đã sơ cứu, ngắt điện, gọi 115/114, cô lập khu vực..."
+                            class="w-full resize-none rounded-xl border border-white/10 bg-slate-900 px-3 py-2.5 text-sm text-slate-100 outline-none placeholder:text-slate-600 focus:border-rose-500"
+                        ></textarea>
+                    </div>
+                    <div class="flex flex-col gap-1.5">
+                        <Label class="text-xs font-bold text-slate-300"
+                            >Ảnh hiện trường</Label
+                        ><label
+                            class="flex min-h-[82px] cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed border-white/15 bg-slate-900 px-3 text-xs text-slate-400 transition hover:border-rose-500 hover:text-rose-300"
+                            ><Camera class="size-4" /><span>{{
+                                reportForm.photo?.name || 'Chọn ảnh bằng chứng'
+                            }}</span
+                            ><input
+                                type="file"
+                                accept="image/*"
+                                class="hidden"
+                                @input="
+                                    reportForm.photo =
+                                        ($event.target as HTMLInputElement)
+                                            .files?.[0] ?? null
+                                "
+                        /></label>
+                    </div>
+                    <div
+                        class="flex flex-col justify-end gap-2 sm:flex-row lg:flex-col"
+                    >
+                        <Button
+                            type="button"
+                            variant="outline"
+                            @click="showReportForm = false"
+                            class="h-10 rounded-xl border-white/10 bg-transparent text-slate-300 hover:bg-white/5 hover:text-white"
+                            >Hủy</Button
+                        ><Button
+                            type="submit"
+                            :disabled="reportForm.processing"
+                            class="h-10 rounded-xl border-0 bg-rose-500 font-bold text-white hover:bg-rose-400"
+                            >Ghi nhận sự cố</Button
+                        >
+                    </div>
+                </div>
                 <div
-                    v-if="i.status === 'resolved' && i.resolution_report"
-                    class="mt-3 rounded-xl border border-emerald-100 bg-emerald-50/50 p-3 dark:border-emerald-950/40 dark:bg-emerald-950/10"
+                    class="flex items-start gap-2 rounded-xl border border-amber-900/50 bg-amber-950/20 p-3 text-[11px] leading-relaxed text-amber-200/80"
+                >
+                    <Info class="mt-0.5 size-4 shrink-0 text-amber-300" />Cháy
+                    nổ, ngộ độc, tai nạn, mức Cao/Nghiêm trọng hoặc có người bị
+                    thương sẽ tự động báo Chủ nhà hàng.
+                </div>
+            </form>
+        </section>
+
+        <div
+            class="grid items-start gap-5 xl:grid-cols-[minmax(0,1.45fr)_360px]"
+        >
+            <section
+                class="min-w-0 rounded-3xl border border-white/10 bg-slate-950 p-4 shadow-xl shadow-black/10 sm:p-5"
+            >
+                <div class="flex flex-col gap-4 border-b border-white/10 pb-4">
+                    <div
+                        class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between"
+                    >
+                        <div>
+                            <div
+                                class="flex items-center gap-2 text-base font-bold text-white"
+                            >
+                                <ClipboardCheck
+                                    class="size-5 text-rose-400"
+                                />Sổ điều phối sự cố
+                            </div>
+                            <p class="mt-1 text-xs text-slate-500">
+                                {{ filtered.length }} kết quả · ưu tiên theo mức
+                                độ và SLA
+                            </p>
+                        </div>
+                        <div
+                            class="flex rounded-xl border border-white/10 bg-slate-900 p-1"
+                        >
+                            <button
+                                v-for="tab in [
+                                    { key: 'active', label: 'Đang xử lý' },
+                                    { key: 'resolved', label: 'Đã đóng' },
+                                    { key: 'all', label: 'Tất cả' },
+                                ]"
+                                :key="tab.key"
+                                type="button"
+                                class="rounded-lg px-3 py-1.5 text-[11px] font-bold transition"
+                                :class="
+                                    activeFilter === tab.key
+                                        ? 'bg-slate-700 text-white shadow-sm'
+                                        : 'text-slate-500 hover:text-slate-300'
+                                "
+                                @click="
+                                    activeFilter = tab.key as
+                                        | 'active'
+                                        | 'resolved'
+                                        | 'all'
+                                "
+                            >
+                                {{ tab.label }}
+                            </button>
+                        </div>
+                    </div>
+                    <div class="grid gap-2 md:grid-cols-[1fr_auto_auto_auto]">
+                        <div class="relative">
+                            <Search
+                                class="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-slate-600"
+                            /><Input
+                                v-model="searchQuery"
+                                placeholder="Tìm mã, tiêu đề, vị trí, người báo..."
+                                class="h-10 border-white/10 bg-slate-900 pl-9 text-xs text-slate-100 placeholder:text-slate-600"
+                            />
+                        </div>
+                        <select
+                            v-model="severityFilter"
+                            class="h-10 rounded-xl border border-white/10 bg-slate-900 px-3 text-xs text-slate-300 outline-none focus:border-rose-500"
+                        >
+                            <option value="all">Mọi mức độ</option>
+                            <option value="critical">Nghiêm trọng</option>
+                            <option value="high">Cao</option>
+                            <option value="medium">Trung bình</option>
+                            <option value="low">Thấp</option></select
+                        ><select
+                            v-model="typeFilter"
+                            class="h-10 rounded-xl border border-white/10 bg-slate-900 px-3 text-xs text-slate-300 outline-none focus:border-rose-500"
+                        >
+                            <option value="all">Mọi loại sự cố</option>
+                            <option
+                                v-for="(config, key) in typeConfig"
+                                :key="key"
+                                :value="key"
+                            >
+                                {{ config.label }}
+                            </option></select
+                        ><select
+                            v-model="sortMode"
+                            class="h-10 rounded-xl border border-white/10 bg-slate-900 px-3 text-xs text-slate-300 outline-none focus:border-rose-500"
+                        >
+                            <option value="priority">Ưu tiên xử lý</option>
+                            <option value="recent">Mới nhất</option>
+                        </select>
+                    </div>
+                </div>
+                <div
+                    v-if="filtered.length === 0"
+                    class="flex min-h-[360px] flex-col items-center justify-center rounded-2xl border border-dashed border-white/10 p-8 text-center"
                 >
                     <div
-                        class="flex items-center gap-1.5 text-[10px] font-extrabold tracking-wide text-emerald-700 uppercase"
+                        class="flex size-14 items-center justify-center rounded-2xl bg-emerald-500/10 text-emerald-300"
                     >
-                        <ClipboardCheck class="size-3.5" /> Báo cáo xử lý
+                        <ShieldCheck class="size-7" />
                     </div>
-                    <p class="mt-1 text-xs text-slate-600 dark:text-slate-300">
-                        {{ i.resolution_report }}
+                    <h2 class="mt-4 text-sm font-bold text-white">
+                        Không có sự cố trong nhóm này
+                    </h2>
+                    <p
+                        class="mt-1 max-w-sm text-xs leading-relaxed text-slate-500"
+                    >
+                        Hàng đợi đang sạch hoặc bộ lọc hiện tại không có kết quả
+                        phù hợp.
                     </p>
-                    <p class="mt-1 text-[10px] text-slate-400">
-                        — {{ i.resolved_by_name }} · {{ i.resolved_at_display }}
-                    </p>
+                    <Button
+                        @click="
+                            showReportForm = true;
+                            activeFilter = 'all';
+                            searchQuery = '';
+                            severityFilter = 'all';
+                            typeFilter = 'all';
+                        "
+                        class="mt-5 h-9 gap-2 rounded-xl border-0 bg-rose-500 text-xs font-bold text-white hover:bg-rose-400"
+                        ><Plus class="size-3.5" />Báo sự cố mới</Button
+                    >
                 </div>
+                <div v-else class="mt-4 flex flex-col gap-3">
+                    <article
+                        v-for="incident in filtered"
+                        :key="incident.id"
+                        class="relative overflow-hidden rounded-2xl border border-white/10 bg-slate-900/60 transition hover:border-white/20"
+                    >
+                        <div
+                            class="absolute inset-y-0 left-0 w-1"
+                            :class="
+                                severityConfig[incident.severity]?.railClass
+                            "
+                        />
+                        <div class="p-4 pl-5 sm:p-5 sm:pl-6">
+                            <div
+                                class="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between"
+                            >
+                                <div class="flex min-w-0 items-start gap-3">
+                                    <div
+                                        class="flex size-10 shrink-0 items-center justify-center rounded-xl bg-slate-800"
+                                    >
+                                        <component
+                                            :is="
+                                                typeConfig[incident.type]
+                                                    ?.icon ?? ShieldAlert
+                                            "
+                                            class="size-5"
+                                            :class="
+                                                typeConfig[incident.type]
+                                                    ?.iconClass
+                                            "
+                                        />
+                                    </div>
+                                    <div class="min-w-0">
+                                        <div
+                                            class="mb-1.5 flex flex-wrap items-center gap-1.5"
+                                        >
+                                            <span
+                                                class="font-mono text-[10px] font-bold text-slate-500"
+                                                >{{ incident.code }}</span
+                                            ><span
+                                                class="flex items-center gap-1 text-[10px] font-semibold text-slate-400"
+                                                ><span
+                                                    class="size-1.5 rounded-full"
+                                                    :class="
+                                                        typeConfig[
+                                                            incident.type
+                                                        ]?.dotClass
+                                                    "
+                                                />{{
+                                                    typeConfig[incident.type]
+                                                        ?.label
+                                                }}</span
+                                            ><span
+                                                class="rounded-md border px-1.5 py-0.5 text-[9px] font-extrabold"
+                                                :class="
+                                                    severityConfig[
+                                                        incident.severity
+                                                    ]?.badgeClass
+                                                "
+                                                >{{
+                                                    severityConfig[
+                                                        incident.severity
+                                                    ]?.label
+                                                }}</span
+                                            ><span
+                                                v-if="
+                                                    incident.injured_count > 0
+                                                "
+                                                class="rounded-md border border-red-900/70 bg-red-950/50 px-1.5 py-0.5 text-[9px] font-bold text-red-300"
+                                                >{{
+                                                    incident.injured_count
+                                                }}
+                                                người bị thương</span
+                                            ><span
+                                                v-if="
+                                                    incident.needs_shift_cover
+                                                "
+                                                class="rounded-md border border-cyan-900/70 bg-cyan-950/50 px-1.5 py-0.5 text-[9px] font-bold text-cyan-300"
+                                                >Cần thay ca</span
+                                            >
+                                        </div>
+                                        <h3
+                                            class="truncate text-sm font-bold text-white sm:text-base"
+                                        >
+                                            {{ incident.title }}
+                                        </h3>
+                                        <p
+                                            class="mt-1 text-xs leading-relaxed text-slate-400"
+                                        >
+                                            {{ incident.description }}
+                                        </p>
+                                        <div
+                                            class="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-slate-500"
+                                        >
+                                            <span
+                                                v-if="incident.location"
+                                                class="flex items-center gap-1"
+                                                ><MapPin class="size-3" />{{
+                                                    incident.location
+                                                }}</span
+                                            ><span
+                                                class="flex items-center gap-1"
+                                                ><Clock3 class="size-3" />{{
+                                                    incident.occurred_at_display
+                                                }}</span
+                                            ><span
+                                                class="flex items-center gap-1"
+                                                ><UserRound class="size-3" />{{
+                                                    incident.reported_by_name
+                                                }}</span
+                                            ><span
+                                                v-if="incident.branch_name"
+                                                >{{
+                                                    incident.branch_name
+                                                }}</span
+                                            ><a
+                                                v-if="incident.photo_url"
+                                                :href="incident.photo_url"
+                                                target="_blank"
+                                                class="flex items-center gap-1 text-sky-400 hover:text-sky-300"
+                                                ><Camera class="size-3" />Ảnh
+                                                bằng chứng</a
+                                            >
+                                        </div>
+                                    </div>
+                                </div>
+                                <div
+                                    class="flex shrink-0 items-center gap-2 lg:flex-col lg:items-end"
+                                >
+                                    <span
+                                        class="rounded-lg border px-2 py-1 text-[10px] font-bold"
+                                        :class="
+                                            statusConfig[incident.status].class
+                                        "
+                                        >{{
+                                            statusConfig[incident.status].label
+                                        }}</span
+                                    ><span
+                                        v-if="incident.escalated"
+                                        class="flex items-center gap-1 text-[10px] font-bold text-rose-300"
+                                        ><ArrowUpCircle class="size-3.5" />Đã
+                                        báo Chủ</span
+                                    >
+                                </div>
+                            </div>
+                            <div
+                                class="mt-4 grid gap-2 border-y border-white/10 py-3 sm:grid-cols-3"
+                            >
+                                <div class="flex items-center gap-2">
+                                    <TimerReset
+                                        class="size-4"
+                                        :class="
+                                            incident.sla_state === 'overdue' ||
+                                            incident.sla_state === 'breached'
+                                                ? 'text-rose-300'
+                                                : 'text-sky-300'
+                                        "
+                                    />
+                                    <div>
+                                        <div
+                                            class="text-[9px] font-bold tracking-wider text-slate-600 uppercase"
+                                        >
+                                            Phản hồi
+                                        </div>
+                                        <div
+                                            class="text-[11px] font-bold"
+                                            :class="
+                                                incident.sla_state ===
+                                                    'overdue' ||
+                                                incident.sla_state ===
+                                                    'breached'
+                                                    ? 'text-rose-300'
+                                                    : 'text-slate-300'
+                                            "
+                                        >
+                                            {{
+                                                incident.response_time_minutes !==
+                                                null
+                                                    ? formatMinutes(
+                                                          incident.response_time_minutes,
+                                                      )
+                                                    : 'Chưa tiếp nhận'
+                                            }}
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="flex items-center gap-2">
+                                    <Clock3 class="size-4 text-slate-500" />
+                                    <div>
+                                        <div
+                                            class="text-[9px] font-bold tracking-wider text-slate-600 uppercase"
+                                        >
+                                            Hạn phản hồi
+                                        </div>
+                                        <div
+                                            class="text-[11px] font-bold text-slate-300"
+                                        >
+                                            {{
+                                                incident.response_due_at_display ||
+                                                '—'
+                                            }}
+                                        </div>
+                                    </div>
+                                </div>
+                                <div
+                                    class="flex items-center justify-start gap-2 sm:justify-end"
+                                >
+                                    <span
+                                        class="rounded-lg border px-2 py-1 text-[10px] font-bold"
+                                        :class="slaClass(incident.sla_state)"
+                                        >{{
+                                            slaLabel(incident.sla_state)
+                                        }}</span
+                                    >
+                                </div>
+                            </div>
+                            <div
+                                class="flex flex-wrap items-center justify-between gap-2 pt-3"
+                            >
+                                <button
+                                    type="button"
+                                    class="flex items-center gap-1.5 text-[11px] font-bold text-slate-400 transition hover:text-white"
+                                    @click="toggleExpanded(incident)"
+                                >
+                                    <ChevronDown
+                                        class="size-3.5 transition"
+                                        :class="
+                                            expandedId === incident.id
+                                                ? 'rotate-180'
+                                                : ''
+                                        "
+                                    />{{
+                                        expandedId === incident.id
+                                            ? 'Thu gọn'
+                                            : 'Xem chi tiết & nhật ký'
+                                    }}
+                                </button>
+                                <div
+                                    v-if="
+                                        props.canManage &&
+                                        incident.status !== 'resolved'
+                                    "
+                                    class="flex flex-wrap gap-2"
+                                >
+                                    <Button
+                                        v-if="incident.status === 'open'"
+                                        size="sm"
+                                        variant="outline"
+                                        @click="doAcknowledge(incident)"
+                                        class="h-8 gap-1.5 rounded-lg border-white/10 bg-transparent text-[11px] text-slate-200 hover:bg-white/5"
+                                        ><ClipboardCheck class="size-3.5" />Tiếp
+                                        nhận</Button
+                                    ><Button
+                                        v-if="!incident.escalated"
+                                        size="sm"
+                                        variant="outline"
+                                        @click="doEscalate(incident)"
+                                        class="h-8 gap-1.5 rounded-lg border-rose-900/70 bg-transparent text-[11px] text-rose-300 hover:bg-rose-950/40"
+                                        ><ArrowUpCircle class="size-3.5" />Báo
+                                        Chủ</Button
+                                    ><Button
+                                        size="sm"
+                                        @click="openResolve(incident)"
+                                        class="h-8 gap-1.5 rounded-lg border-0 bg-emerald-600 text-[11px] font-bold text-white hover:bg-emerald-500"
+                                        ><CheckCircle2 class="size-3.5" />Đóng
+                                        sự cố</Button
+                                    >
+                                </div>
+                                <div
+                                    v-else-if="
+                                        !props.canManage &&
+                                        incident.status !== 'resolved'
+                                    "
+                                    class="flex items-center gap-1.5 text-[10px] text-slate-600"
+                                >
+                                    <Lock class="size-3.5" />Chỉ quản lý/Chủ
+                                    được xử lý
+                                </div>
+                            </div>
+                            <div
+                                v-if="expandedId === incident.id"
+                                class="mt-4 grid gap-4 border-t border-white/10 pt-4 lg:grid-cols-[1fr_1fr]"
+                            >
+                                <div class="space-y-3">
+                                    <div>
+                                        <div
+                                            class="mb-1 text-[10px] font-bold tracking-wider text-slate-500 uppercase"
+                                        >
+                                            Xử lý ngay tại chỗ
+                                        </div>
+                                        <p
+                                            class="text-xs leading-relaxed text-slate-300"
+                                        >
+                                            {{
+                                                incident.immediate_action ||
+                                                'Chưa ghi nhận hành động ban đầu.'
+                                            }}
+                                        </p>
+                                    </div>
+                                    <div
+                                        v-if="
+                                            incident.status === 'resolved' &&
+                                            incident.resolution_report
+                                        "
+                                    >
+                                        <div
+                                            class="mb-1 flex items-center gap-1.5 text-[10px] font-bold tracking-wider text-emerald-300 uppercase"
+                                        >
+                                            <FileText class="size-3.5" />Báo cáo
+                                            đóng sự cố
+                                        </div>
+                                        <p
+                                            class="text-xs leading-relaxed text-slate-300"
+                                        >
+                                            {{ incident.resolution_report }}
+                                        </p>
+                                        <p
+                                            class="mt-1 text-[10px] text-slate-600"
+                                        >
+                                            {{ incident.resolved_by_name }} ·
+                                            {{ incident.resolved_at_display }} ·
+                                            Thời gian xử lý
+                                            {{
+                                                formatMinutes(
+                                                    incident.resolution_time_minutes,
+                                                )
+                                            }}
+                                        </p>
+                                    </div>
+                                </div>
+                                <div
+                                    class="rounded-xl border border-white/10 bg-slate-950/60 p-3"
+                                >
+                                    <div
+                                        class="mb-3 text-[10px] font-bold tracking-wider text-slate-500 uppercase"
+                                    >
+                                        Nhật ký trạng thái
+                                    </div>
+                                    <div
+                                        class="grid grid-cols-1 gap-3 text-[10px]"
+                                    >
+                                        <div class="flex items-start gap-2">
+                                            <span
+                                                class="mt-0.5 size-2 rounded-full bg-blue-400"
+                                            />
+                                            <div>
+                                                <div
+                                                    class="font-bold text-slate-300"
+                                                >
+                                                    Đã báo ·
+                                                    {{
+                                                        incident.occurred_at_display
+                                                    }}
+                                                </div>
+                                                <div class="text-slate-600">
+                                                    {{
+                                                        incident.reported_by_name
+                                                    }}
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="flex items-start gap-2">
+                                            <span
+                                                class="mt-0.5 size-2 rounded-full"
+                                                :class="
+                                                    incident.acknowledged_at_display
+                                                        ? 'bg-amber-400'
+                                                        : 'bg-slate-700'
+                                                "
+                                            />
+                                            <div>
+                                                <div
+                                                    class="font-bold text-slate-300"
+                                                >
+                                                    {{
+                                                        incident.acknowledged_at_display
+                                                            ? `Đã tiếp nhận · ${incident.acknowledged_at_display}`
+                                                            : 'Chưa tiếp nhận'
+                                                    }}
+                                                </div>
+                                                <div class="text-slate-600">
+                                                    {{
+                                                        incident.acknowledged_by_name ||
+                                                        'Đang chờ quản lý'
+                                                    }}
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div
+                                            v-if="incident.escalated"
+                                            class="flex items-start gap-2"
+                                        >
+                                            <span
+                                                class="mt-0.5 size-2 rounded-full bg-rose-400"
+                                            />
+                                            <div>
+                                                <div
+                                                    class="font-bold text-slate-300"
+                                                >
+                                                    Đã báo Chủ ·
+                                                    {{
+                                                        incident.escalated_at_display ||
+                                                        'Đã ghi nhận'
+                                                    }}
+                                                </div>
+                                                <div class="text-slate-600">
+                                                    {{
+                                                        incident.escalated_to_name ||
+                                                        'Chủ nhà hàng'
+                                                    }}
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div
+                                            v-if="
+                                                incident.status === 'resolved'
+                                            "
+                                            class="flex items-start gap-2"
+                                        >
+                                            <span
+                                                class="mt-0.5 size-2 rounded-full bg-emerald-400"
+                                            />
+                                            <div>
+                                                <div
+                                                    class="font-bold text-slate-300"
+                                                >
+                                                    Đã đóng ·
+                                                    {{
+                                                        incident.resolved_at_display
+                                                    }}
+                                                </div>
+                                                <div class="text-slate-600">
+                                                    {{
+                                                        incident.resolved_by_name
+                                                    }}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </article>
+                </div>
+            </section>
 
-                <!-- Actions -->
-                <div
-                    v-if="props.canManage && i.status !== 'resolved'"
-                    class="mt-3 flex flex-wrap gap-2 border-t border-slate-100 pt-3 dark:border-slate-800"
+            <aside class="flex flex-col gap-5">
+                <section
+                    class="rounded-3xl border border-white/10 bg-slate-950 p-5 shadow-xl shadow-black/10"
                 >
-                    <Button
-                        v-if="i.status === 'open'"
-                        size="sm"
-                        variant="outline"
-                        @click="doAcknowledge(i)"
-                        class="h-8 gap-1.5 rounded-lg text-[11px]"
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <div
+                                class="flex items-center gap-2 text-sm font-bold text-white"
+                            >
+                                <AlertTriangle
+                                    class="size-4 text-rose-400"
+                                />Cần hành động
+                            </div>
+                            <p class="mt-1 text-[11px] text-slate-500">
+                                Ưu tiên theo SLA và mức độ
+                            </p>
+                        </div>
+                        <span
+                            class="rounded-full bg-rose-500/10 px-2 py-1 text-[10px] font-bold text-rose-300"
+                            >{{ priorityQueue.length }}</span
+                        >
+                    </div>
+                    <div v-if="priorityQueue.length" class="mt-4 space-y-2">
+                        <button
+                            v-for="incident in priorityQueue"
+                            :key="incident.id"
+                            type="button"
+                            class="group flex w-full items-start gap-3 rounded-xl border border-white/10 bg-slate-900/70 p-3 text-left transition hover:border-rose-900/70 hover:bg-rose-950/20"
+                            @click="
+                                activeFilter = 'active';
+                                searchQuery = incident.code;
+                                expandedId = incident.id;
+                            "
+                        >
+                            <span
+                                class="mt-1.5 size-2 shrink-0 rounded-full"
+                                :class="
+                                    severityConfig[incident.severity]?.railClass
+                                "
+                            /><span class="min-w-0 flex-1"
+                                ><span
+                                    class="block truncate text-xs font-bold text-slate-200 group-hover:text-white"
+                                    >{{ incident.title }}</span
+                                ><span
+                                    class="mt-1 block text-[10px] text-slate-500"
+                                    >{{ incident.code }} ·
+                                    {{ actionSummary(incident) }}</span
+                                ></span
+                            ><ArrowUpCircle
+                                v-if="incident.escalated"
+                                class="size-3.5 shrink-0 text-rose-400"
+                            />
+                        </button>
+                    </div>
+                    <div
+                        v-else
+                        class="mt-4 rounded-xl border border-dashed border-white/10 p-4 text-center text-[11px] text-slate-600"
                     >
-                        <ClipboardCheck class="size-3.5" /> Tiếp nhận
-                    </Button>
-                    <Button
-                        v-if="!i.escalated"
-                        size="sm"
-                        variant="outline"
-                        @click="doEscalate(i)"
-                        class="h-8 gap-1.5 rounded-lg text-[11px] text-rose-600"
-                    >
-                        <ArrowUpCircle class="size-3.5" /> Báo Chủ
-                    </Button>
-                    <Button
-                        size="sm"
-                        @click="openResolve(i)"
-                        class="h-8 gap-1.5 rounded-lg border-0 bg-emerald-600 text-[11px] font-bold text-white hover:bg-emerald-700"
-                    >
-                        <CheckCircle2 class="size-3.5" /> Đóng sự cố
-                    </Button>
-                </div>
-                <div
-                    v-else-if="!props.canManage && i.status !== 'resolved'"
-                    class="mt-3 flex items-center gap-1.5 border-t border-slate-100 pt-3 text-[11px] text-slate-400 dark:border-slate-800"
+                        Không có sự cố cần ưu tiên.
+                    </div>
+                </section>
+                <section
+                    class="rounded-3xl border border-white/10 bg-slate-950 p-5 shadow-xl shadow-black/10"
                 >
-                    <Lock class="size-3.5" /> Chỉ Quản lý/Chủ được tiếp nhận &
-                    đóng sự cố.
-                </div>
-            </div>
+                    <div
+                        class="flex items-center gap-2 text-sm font-bold text-white"
+                    >
+                        <ShieldCheck class="size-4 text-emerald-400" />Quy trình
+                        phản ứng
+                    </div>
+                    <p class="mt-1 text-[11px] text-slate-500">
+                        Mỗi sự cố đi qua 4 bước bắt buộc
+                    </p>
+                    <div class="mt-5 space-y-4">
+                        <div
+                            v-for="(step, index) in [
+                                {
+                                    title: 'Tiếp nhận',
+                                    text: 'Ghi nhận sự thật, vị trí và bằng chứng.',
+                                },
+                                {
+                                    title: 'Phân loại',
+                                    text: 'Xác định mức độ và hạn phản hồi SLA.',
+                                },
+                                {
+                                    title: 'Điều phối',
+                                    text: 'Quản lý tiếp nhận, báo Chủ khi cần.',
+                                },
+                                {
+                                    title: 'Đóng & học lại',
+                                    text: 'Bắt buộc báo cáo nguyên nhân và phòng ngừa.',
+                                },
+                            ]"
+                            :key="step.title"
+                            class="flex gap-3"
+                        >
+                            <div
+                                class="flex size-7 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-slate-900 text-[10px] font-black text-rose-300"
+                            >
+                                0{{ index + 1 }}
+                            </div>
+                            <div>
+                                <div class="text-xs font-bold text-slate-200">
+                                    {{ step.title }}
+                                </div>
+                                <p
+                                    class="mt-1 text-[10px] leading-relaxed text-slate-500"
+                                >
+                                    {{ step.text }}
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+                <section
+                    class="rounded-3xl border border-sky-900/50 bg-sky-950/20 p-5"
+                >
+                    <div class="flex items-start gap-3">
+                        <Info class="mt-0.5 size-4 shrink-0 text-sky-300" />
+                        <div>
+                            <div class="text-xs font-bold text-sky-200">
+                                Nguyên tắc an toàn
+                            </div>
+                            <p
+                                class="mt-1 text-[11px] leading-relaxed text-sky-200/70"
+                            >
+                                An toàn con người luôn trước tài sản. Không tự
+                                xử lý tình huống vượt quá thẩm quyền; báo quản
+                                lý hoặc cơ quan khẩn cấp phù hợp.
+                            </p>
+                        </div>
+                    </div>
+                    <div
+                        v-if="!props.canManage"
+                        class="mt-4 flex items-center gap-2 border-t border-sky-900/40 pt-3 text-[10px] text-sky-200/60"
+                    >
+                        <Lock class="size-3.5" />Bạn có thể báo và theo dõi,
+                        không thể tự đóng sự cố.
+                    </div>
+                </section>
+            </aside>
         </div>
     </div>
 
-    <!-- RESOLVE MODAL -->
+    <Teleport to="body">
     <div
         v-if="showResolveModal && selected"
-        class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm"
+        class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm"
     >
         <div
-            class="w-full max-w-lg rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl dark:border-slate-800 dark:bg-slate-900"
+            class="w-full max-w-xl rounded-3xl border border-white/10 bg-slate-950 p-5 shadow-2xl sm:p-6"
         >
             <div
-                class="mb-3 flex items-center gap-2 border-b pb-3 text-sm font-extrabold tracking-wider text-emerald-600 uppercase"
+                class="flex items-start justify-between gap-4 border-b border-white/10 pb-4"
             >
-                <CheckCircle2 class="size-4.5" /> Đóng sự cố kèm báo cáo
-            </div>
-            <div
-                class="mb-3 rounded-xl bg-slate-50 p-3 text-xs dark:bg-slate-800/40"
-            >
-                <span class="font-bold">{{ selected.title }}</span>
-            </div>
-            <form @submit.prevent="submitResolve" class="flex flex-col gap-3">
-                <div class="flex flex-col gap-1.5">
-                    <Label class="text-xs font-bold"
-                        >Báo cáo xử lý
-                        <span class="text-rose-500">*</span></Label
+                <div>
+                    <div
+                        class="flex items-center gap-2 text-sm font-bold text-white"
                     >
-                    <textarea
+                        <CheckCircle2 class="size-5 text-emerald-400" />Đóng sự
+                        cố kèm báo cáo
+                    </div>
+                    <p class="mt-1 text-xs text-slate-500">
+                        {{ selected.code }} · {{ selected.title }}
+                    </p>
+                </div>
+                <button
+                    type="button"
+                    class="rounded-lg p-1.5 text-slate-500 hover:bg-white/5 hover:text-white"
+                    @click="showResolveModal = false"
+                >
+                    <X class="size-4" />
+                </button>
+            </div>
+            <div class="mt-4 grid gap-3 sm:grid-cols-3">
+                <div class="rounded-xl bg-slate-900 p-3">
+                    <div
+                        class="text-[9px] font-bold tracking-wider text-slate-600 uppercase"
+                    >
+                        Mức độ
+                    </div>
+                    <div class="mt-1 text-xs font-bold text-rose-300">
+                        {{ severityConfig[selected.severity]?.label }}
+                    </div>
+                </div>
+                <div class="rounded-xl bg-slate-900 p-3">
+                    <div
+                        class="text-[9px] font-bold tracking-wider text-slate-600 uppercase"
+                    >
+                        Phản hồi
+                    </div>
+                    <div class="mt-1 text-xs font-bold text-slate-200">
+                        {{ formatMinutes(selected.response_time_minutes) }}
+                    </div>
+                </div>
+                <div class="rounded-xl bg-slate-900 p-3">
+                    <div
+                        class="text-[9px] font-bold tracking-wider text-slate-600 uppercase"
+                    >
+                        Người báo
+                    </div>
+                    <div class="mt-1 truncate text-xs font-bold text-slate-200">
+                        {{ selected.reported_by_name }}
+                    </div>
+                </div>
+            </div>
+            <form
+                @submit.prevent="submitResolve"
+                class="mt-5 flex flex-col gap-3"
+            >
+                <div class="flex flex-col gap-1.5">
+                    <Label class="text-xs font-bold text-slate-300"
+                        >Báo cáo xử lý
+                        <span class="text-rose-400">*</span></Label
+                    ><textarea
                         v-model="resolveForm.resolution_report"
-                        rows="5"
+                        rows="6"
                         required
                         minlength="20"
-                        placeholder="Nguyên nhân, biện pháp đã thực hiện, kết quả, phòng ngừa tái diễn (tối thiểu 20 ký tự)..."
-                        class="w-full resize-none rounded-xl border border-slate-200 bg-background px-3 py-2 text-xs focus:outline-none dark:border-slate-800"
+                        placeholder="Nguyên nhân, biện pháp đã thực hiện, kết quả và cách phòng ngừa tái diễn (tối thiểu 20 ký tự)..."
+                        class="w-full resize-none rounded-xl border border-white/10 bg-slate-900 px-3 py-2.5 text-sm text-slate-100 outline-none placeholder:text-slate-600 focus:border-emerald-500"
                     ></textarea>
                     <p
                         v-if="resolveForm.errors.resolution_report"
-                        class="text-[11px] font-semibold text-rose-500"
+                        class="text-[11px] font-semibold text-rose-400"
                     >
                         {{ resolveForm.errors.resolution_report }}
                     </p>
                 </div>
-                <div class="flex justify-end gap-2 border-t pt-3">
+                <div
+                    class="flex justify-end gap-2 border-t border-white/10 pt-4"
+                >
                     <Button
                         type="button"
                         variant="outline"
                         @click="showResolveModal = false"
-                        class="rounded-xl text-xs"
+                        class="rounded-xl border-white/10 bg-transparent text-xs text-slate-300 hover:bg-white/5"
                         >Hủy</Button
-                    >
-                    <Button
+                    ><Button
                         type="submit"
                         :disabled="resolveForm.processing"
-                        class="rounded-xl border-0 bg-emerald-600 text-xs font-bold text-white hover:bg-emerald-700"
+                        class="rounded-xl border-0 bg-emerald-600 text-xs font-bold text-white hover:bg-emerald-500"
+                        ><CheckCircle2 class="mr-1.5 size-3.5" />Đóng sự
+                        cố</Button
                     >
-                        Đóng sự cố
-                    </Button>
                 </div>
             </form>
         </div>
     </div>
+    </Teleport>
 </template>
