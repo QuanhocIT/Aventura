@@ -71,9 +71,11 @@ use App\Http\Controllers\ShiftHandoverController;
 use App\Http\Controllers\ShiftSwapController;
 use App\Http\Controllers\StaffQROrderController;
 use App\Http\Controllers\StockTransferRequestController;
+use App\Http\Controllers\CentralWarehousePriceController;
 use App\Http\Controllers\SupplierController;
 use App\Http\Controllers\SupplierPortalController;
 use App\Http\Controllers\SupplyRequestController;
+use App\Http\Controllers\WarehouseTaskController;
 use App\Http\Controllers\SupportController;
 use App\Http\Controllers\TableReservationController;
 use App\Http\Controllers\TablesController;
@@ -568,6 +570,9 @@ Route::middleware(['auth', 'verified', 'tenant.subscription', 'tenant.ratelimit'
         Route::patch('approvals/decisions/{decision}/acknowledge', [ApprovalController::class, 'acknowledge'])->name('approvals.decisions.acknowledge');
         Route::get('approvals/policies', [ApprovalPolicyController::class, 'index'])->name('approvals.policies.index');
         Route::put('approvals/policies', [ApprovalPolicyController::class, 'update'])->name('approvals.policies.update');
+        Route::delete('approvals/policies/{policy}', [ApprovalPolicyController::class, 'destroy'])->name('approvals.policies.destroy');
+        Route::post('approvals/delegations', [ApprovalPolicyController::class, 'storeDelegation'])->name('approvals.delegations.store');
+        Route::delete('approvals/delegations/{delegation}', [ApprovalPolicyController::class, 'destroyDelegation'])->name('approvals.delegations.destroy');
     });
 
     // Quản lý phản hồi khách hàng (Owner & Manager)
@@ -585,6 +590,7 @@ Route::middleware(['auth', 'verified', 'tenant.subscription', 'tenant.ratelimit'
     // Sự cố khẩn cấp: mọi nhân viên được báo; Quản lý/Chủ tiếp nhận & đóng.
     Route::get('incidents', [IncidentController::class, 'index'])->name('incidents.index');
     Route::post('incidents', [IncidentController::class, 'store'])->name('incidents.store');
+    Route::get('incidents/{incident}/photo', [IncidentController::class, 'photo'])->name('incidents.photo');
     Route::post('incidents/{incident}/acknowledge', [IncidentController::class, 'acknowledge'])->name('incidents.acknowledge');
     Route::post('incidents/{incident}/escalate', [IncidentController::class, 'escalate'])->name('incidents.escalate');
     Route::post('incidents/{incident}/resolve', [IncidentController::class, 'resolve'])->name('incidents.resolve');
@@ -630,7 +636,7 @@ Route::middleware(['auth', 'verified', 'tenant.subscription', 'tenant.ratelimit'
         Route::get('inventory/central-warehouse/stock', [SupplyRequestController::class, 'centralWarehouseInventoryPage'])->name('inventory.central-warehouse.stock');
         Route::get('inventory/central-warehouse/requests', [SupplyRequestController::class, 'centralWarehouseRequestsPage'])->name('inventory.central-warehouse.requests');
         Route::get('inventory/central-warehouse/receiving', [SupplyRequestController::class, 'centralWarehouseReceivingPage'])->name('inventory.central-warehouse.receiving');
-        Route::get('inventory/central-warehouse/prices', [SupplyRequestController::class, 'centralWarehousePricesPage'])
+        Route::get('inventory/central-warehouse/prices', [CentralWarehousePriceController::class, 'centralWarehousePricesPage'])
             ->middleware('role_or_permission:owner|super_admin|warehouse.view|warehouse_manager')
             ->name('inventory.central-warehouse.prices');
         Route::get('inventory/central-warehouse/export', [SupplyRequestController::class, 'export'])
@@ -640,9 +646,9 @@ Route::middleware(['auth', 'verified', 'tenant.subscription', 'tenant.ratelimit'
         Route::get('inventory/delivery-manifests', [DeliveryManifestController::class, 'page'])->name('inventory.delivery-manifests');
         Route::get('inventory/batch-recalls', [BatchRecallController::class, 'page'])->name('inventory.batch-recalls');
         Route::get('api/supply-requests', [SupplyRequestController::class, 'index'])->name('supply-requests.index');
-        Route::get('api/supply-requests/task-board', [SupplyRequestController::class, 'taskBoardData'])->name('supply-requests.task-board');
-        Route::post('api/warehouse/tasks/assign', [SupplyRequestController::class, 'assignWarehouseTask'])->middleware('role_or_permission:owner|super_admin|warehouse.manage|warehouse.task.assign')->name('warehouse.tasks.assign');
-        Route::post('api/warehouse/tasks/{id}/status', [SupplyRequestController::class, 'updateWarehouseTaskStatus'])->name('warehouse.tasks.status');
+        Route::get('api/supply-requests/task-board', [WarehouseTaskController::class, 'taskBoardData'])->name('supply-requests.task-board');
+        Route::post('api/warehouse/tasks/assign', [WarehouseTaskController::class, 'assignWarehouseTask'])->middleware('role_or_permission:owner|super_admin|warehouse.manage|warehouse.task.assign')->name('warehouse.tasks.assign');
+        Route::post('api/warehouse/tasks/{id}/status', [WarehouseTaskController::class, 'updateWarehouseTaskStatus'])->name('warehouse.tasks.status');
     });
 
     // ── Portal Nhân Viên Kho Tổng (tách riêng khỏi trang Trưởng kho) ─────────
@@ -680,17 +686,17 @@ Route::middleware(['auth', 'verified', 'tenant.subscription', 'tenant.ratelimit'
     Route::post('api/supply-requests/{id}/prepare', [SupplyRequestController::class, 'prepare'])->middleware('role_or_permission:owner|super_admin|warehouse.pack|warehouse.pick|supply_requests.dispatch')->name('supply-requests.prepare');
     Route::post('api/supply-requests/{id}/approve-dispatch', [SupplyRequestController::class, 'approveDispatch'])->middleware(['role_or_permission:owner|super_admin|supply_requests.dispatch_approve|supply_requests.dispatch', 'prevent_self_approval:dispatch_approve'])->name('supply-requests.approve-dispatch');
     Route::post('api/supply-requests/{id}/dispatch', [SupplyRequestController::class, 'dispatch'])->middleware(['role_or_permission:owner|super_admin|warehouse.handover|supply_requests.dispatch', 'prevent_self_approval:dispatch'])->name('supply-requests.dispatch');
-    Route::get('api/supply-requests/{id}/proof/{type}', [SupplyRequestController::class, 'viewProof'])->name('supply-requests.proof');
+    Route::get('api/supply-requests/{id}/proof/{type}', [WarehouseTaskController::class, 'viewProof'])->name('supply-requests.proof');
     Route::post('api/supply-requests/{id}/receive', [SupplyRequestController::class, 'receive'])->middleware(['role_or_permission:owner|super_admin|supply_requests.receive', 'prevent_self_approval:receive'])->name('supply-requests.receive');
     Route::post('api/supply-requests/{id}/reject', [SupplyRequestController::class, 'reject'])->middleware('role_or_permission:owner|super_admin|supply_requests.approve')->name('supply-requests.reject');
     Route::post('api/supply-requests/{id}/cancel', [SupplyRequestController::class, 'cancel'])->middleware('role_or_permission:owner|super_admin|supply_requests.cancel')->name('supply-requests.cancel');
     Route::post('api/supply-requests/set-central-branch', [SupplyRequestController::class, 'setCentralBranch'])->middleware('role_or_permission:owner|super_admin|warehouse.manage')->name('supply-requests.set-central-branch');
     Route::post('api/supply-requests/smart-allocation', [SupplyRequestController::class, 'smartAllocation'])->middleware('role_or_permission:owner|super_admin|warehouse.manage|supply_requests.approve')->name('supply-requests.smart-allocation');
     Route::post('api/supply-requests/{id}/create-backorder', [SupplyRequestController::class, 'createBackorder'])->middleware('role_or_permission:owner|super_admin|warehouse.manage|supply_requests.dispatch')->name('supply-requests.create-backorder');
-    Route::post('api/warehouse/ingredient-prices', [SupplyRequestController::class, 'updateIngredientPrices'])
+    Route::post('api/warehouse/ingredient-prices', [CentralWarehousePriceController::class, 'updateIngredientPrices'])
         ->middleware('role_or_permission:owner|super_admin')
         ->name('warehouse.ingredient-prices.update');
-    Route::post('api/warehouse/ingredient-prices/propose', [SupplyRequestController::class, 'proposeIngredientPrices'])
+    Route::post('api/warehouse/ingredient-prices/propose', [CentralWarehousePriceController::class, 'proposeIngredientPrices'])
         ->middleware('role_or_permission:owner|super_admin|warehouse_manager|warehouse.manage')
         ->name('warehouse.ingredient-prices.propose');
 

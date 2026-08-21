@@ -101,6 +101,9 @@ return function (Schedule $schedule): void {
     $schedule->command('checklist:send-reminders')->dailyAt('16:00');
     $schedule->command('system:audit-consistency')->dailyAt('03:00');
     $schedule->command('goals:sync')->hourly();
+    $schedule->call(function (): void {
+        app(\App\Services\ApprovalService::class)->autoEscalateOverdue();
+    })->everyMinute()->name('approval-auto-escalation')->withoutOverlapping();
 
     // ── [P1.11]: Quét phát hiện gian lận kho & Cảnh báo đơn cấp phát quá hạn ───────
     $schedule->call(function () {

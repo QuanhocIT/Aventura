@@ -32,7 +32,7 @@ class DeliveryManifestService
                 throw new InvalidArgumentException('Mỗi đơn cấp phát chỉ được chọn một lần.');
             }
 
-            $code = 'MNF-'.Carbon::now()->format('Ymd').'-'.str_pad((string) (DeliveryManifest::where('restaurant_id', $restaurantId)->count() + 1), 4, '0', STR_PAD_LEFT);
+            $code = $this->generateManifestCode($restaurantId);
 
             $manifest = DeliveryManifest::create([
                 'restaurant_id'         => $restaurantId,
@@ -54,15 +54,17 @@ class DeliveryManifestService
                 foreach ($requestIds as $requestId) {
                     $supplyRequest = SupplyRequest::where('restaurant_id', $restaurantId)
                         ->where('from_branch_id', $central->id)
-                        ->whereIn('status', [
-                            SupplyRequest::STATUS_APPROVED,
-                            SupplyRequest::STATUS_PREPARING,
-                            SupplyRequest::STATUS_DISPATCH_PENDING,
-                        ])
+                        ->where('status', SupplyRequest::STATUS_DISPATCH_PENDING)
                         ->find($requestId);
 
                     if (! $supplyRequest) {
-                        throw new InvalidArgumentException('Đơn cấp phát không thuộc Kho Tổng hoặc chưa ở trạng thái sẵn sàng gom chuyến.');
+                        throw new InvalidArgumentException('Đơn cấp phát phải được soạn hàng và Trưởng kho duyệt xuất trước khi gom chuyến.');
+                    }
+
+                    if (DeliveryManifestItem::where('supply_request_id', $supplyRequest->id)
+                        ->whereHas('manifest', fn ($query) => $query->whereIn('status', [DeliveryManifest::STATUS_DRAFT, DeliveryManifest::STATUS_PREPARING, DeliveryManifest::STATUS_DISPATCHED]))
+                        ->exists()) {
+                        throw new InvalidArgumentException('Đơn cấp phát đã thuộc một chuyến xe khác hoặc đã được xuất bến.');
                     }
 
                     DeliveryManifestItem::create([
@@ -132,8 +134,8 @@ class DeliveryManifestService
     {
         $this->assertManifestScope($manifest, $user);
 
-        if (in_array($manifest->status, [DeliveryManifest::STATUS_DISPATCHED, DeliveryManifest::STATUS_COMPLETED])) {
-            throw new InvalidArgumentException('Chuyến xe này đã được xuất bến.');
+        if (! in_array($manifest->status, [DeliveryManifest::STATUS_DRAFT, DeliveryManifest::STATUS_PREPARING], true)) {
+            throw new InvalidArgumentException('Chuyến xe không còn ở trạng thái có thể xuất bến.');
         }
 
         return DB::transaction(function () use ($manifest, $user, $sealCode) {
@@ -141,6 +143,10 @@ class DeliveryManifestService
             $effectiveSeal  = $sealCode ?: $manifest->seal_code;
 
             $manifest->loadMissing('items.supplyRequest');
+
+            if ($manifest->items->isEmpty()) {
+                throw new InvalidArgumentException('Chuyến xe phải có ít nhất một đơn cấp phát hợp lệ.');
+            }
 
             foreach ($manifest->items as $manifestItem) {
                 $req = $manifestItem->supplyRequest;
@@ -150,11 +156,16 @@ class DeliveryManifestService
 
                 if ((int) $req->restaurant_id !== (int) $manifest->restaurant_id
                     || (int) $req->from_branch_id !== (int) $manifest->from_branch_id
-                    || ! in_array($req->status, [SupplyRequest::STATUS_APPROVED, SupplyRequest::STATUS_PREPARING, SupplyRequest::STATUS_DISPATCH_PENDING])) {
+                    || $req->status !== SupplyRequest::STATUS_DISPATCH_PENDING) {
                     throw new InvalidArgumentException('Chuyến xe chứa đơn cấp phát không hợp lệ hoặc đã được xử lý.');
                 }
 
-                $centralService->dispatchSupplyRequest($req, $user, $effectiveSeal);
+                $lockedRequest = SupplyRequest::where('restaurant_id', $manifest->restaurant_id)
+                    ->where('from_branch_id', $manifest->from_branch_id)
+                    ->lockForUpdate()
+                    ->findOrFail($req->id);
+
+                $centralService->dispatchSupplyRequest($lockedRequest, $user, $effectiveSeal);
 
                 $manifestItem->update(['status' => 'loaded']);
             }
@@ -180,5 +191,25 @@ class DeliveryManifestService
         if (! $central || (int) $manifest->from_branch_id !== (int) $central->id) {
             throw new InvalidArgumentException('Chuyến xe không thuộc Kho Tổng đang hoạt động.');
         }
+    }
+
+    private function generateManifestCode(int $restaurantId): string
+    {
+        $prefix = 'MNF-'.$restaurantId.'-'.Carbon::now()->format('Ymd').'-';
+
+        for ($attempt = 0; $attempt < 20; $attempt++) {
+            $candidate = $prefix.str_pad(
+                (string) (DeliveryManifest::where('restaurant_id', $restaurantId)->whereDate('created_at', Carbon::today())->count() + 1 + $attempt),
+                4,
+                '0',
+                STR_PAD_LEFT,
+            );
+
+            if (! DeliveryManifest::where('restaurant_id', $restaurantId)->where('manifest_code', $candidate)->exists()) {
+                return $candidate;
+            }
+        }
+
+        return $prefix.strtoupper(bin2hex(random_bytes(3)));
     }
 }

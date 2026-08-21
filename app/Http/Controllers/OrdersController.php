@@ -25,6 +25,7 @@ use App\Services\ApprovalService;
 use App\Services\OrderService;
 use App\Services\OrderRefundService;
 use App\Services\OrderItemCancellationService;
+use App\Services\PolicyEnforcementService;
 use App\Support\Tenant\TenantContext;
 use App\Support\TenantRule;
 use Illuminate\Http\JsonResponse;
@@ -40,6 +41,7 @@ class OrdersController extends Controller
         protected OrderService $orderService,
         protected OrderRepositoryInterface $orderRepository,
         protected TenantContext $tenantContext,
+        protected PolicyEnforcementService $policy,
     ) {}
 
     public function create(Request $request): Response
@@ -423,18 +425,32 @@ class OrdersController extends Controller
             'bypass_code' => ['nullable', 'string'],
         ]);
 
-        if ($data['status'] === 'cancelled' && ! $user->can('approve_requests')) {
-            $approvingUser = User::validateManagerBypass($data['bypass_code'] ?? '', $order->restaurant_id);
-            if (! $approvingUser) {
-                return back()->withErrors(['status' => 'Bạn không có quyền hủy đơn hàng hoặc chưa cấu hình mã phê duyệt của quản lý.']);
+        if ($data['status'] === 'cancelled') {
+            if (! $this->policy->isWithinShiftHours($user)) {
+                return back()->withErrors(['status' => 'Bạn chỉ được hủy đơn trong giờ ca làm việc hiện tại theo chính sách nhà hàng.']);
             }
-            // Ghi log bypass huỷ đơn
-            AuditLog::log('order_cancelled_bypass', 'updated', $order, ['status' => $order->status], [
-                'status' => 'cancelled',
-                'bypass_code_used' => true,
-                'approved_by_user_id' => $approvingUser->id,
-                'approved_by_user_name' => $approvingUser->name,
-            ]);
+
+            $decision = $this->policy->canCancelOrder($user, (float) $order->total_amount);
+            if (! $decision['allowed'] && ! ($decision['requires_approval'] ?? false)) {
+                return back()->withErrors(['status' => $decision['message'] ?? 'Bạn không có quyền hủy đơn hàng này.']);
+            }
+
+            if (! $decision['allowed']) {
+                $approvingUser = User::validateManagerBypass($data['bypass_code'] ?? '', $order->restaurant_id);
+                if (! $approvingUser) {
+                    return back()->withErrors(['status' => $decision['message'].' Vui lòng nhập mã phê duyệt của quản lý.']);
+                }
+
+                // Ghi log bypass hủy đơn vượt hạn mức chính sách.
+                AuditLog::log('order_cancelled_bypass', 'updated', $order, ['status' => $order->status], [
+                    'status' => 'cancelled',
+                    'order_amount' => (float) $order->total_amount,
+                    'max_allowed' => $decision['max_allowed'] ?? null,
+                    'bypass_code_used' => true,
+                    'approved_by_user_id' => $approvingUser->id,
+                    'approved_by_user_name' => $approvingUser->name,
+                ]);
+            }
         }
 
         try {
@@ -603,10 +619,37 @@ class OrdersController extends Controller
             'bypass_code' => ['nullable', 'string'],
         ]);
 
-        if (array_key_exists('discount_amount', $data)
-            && ! $user->isOwner()
-            && ! $user->isSuperAdmin()) {
-            return back()->withErrors(['discount_amount' => 'Manual discount requires owner approval.']);
+        if (array_key_exists('discount_amount', $data)) {
+            if (! $this->policy->isWithinShiftHours($user)) {
+                return back()->withErrors(['discount_amount' => 'Bạn chỉ được áp dụng giảm giá trong giờ ca làm việc hiện tại theo chính sách nhà hàng.']);
+            }
+
+            $subtotal = max(0.0, (float) $order->subtotal);
+            $discountAmount = (float) $data['discount_amount'];
+            $discountPercent = $subtotal > 0 ? ($discountAmount / $subtotal) * 100 : 0;
+            $decision = $this->policy->canApplyDiscount($user, $discountPercent);
+
+            if (! $decision['allowed'] && ! ($decision['requires_approval'] ?? false)) {
+                return back()->withErrors(['discount_amount' => $decision['message'] ?? 'Bạn không có quyền áp dụng mức giảm giá này.']);
+            }
+
+            if (! $decision['allowed'] && ($decision['requires_approval'] ?? false)) {
+                $approvingUser = User::validateManagerBypass($data['bypass_code'] ?? '', $order->restaurant_id);
+                if (! $approvingUser) {
+                    return back()->withErrors(['discount_amount' => $decision['message'].' Vui lòng nhập mã phê duyệt của quản lý.']);
+                }
+
+                AuditLog::log('discount_applied_bypass', 'updated', $order, [
+                    'discount_amount' => (float) $order->discount_amount,
+                ], [
+                    'discount_amount' => $discountAmount,
+                    'discount_percent' => round($discountPercent, 2),
+                    'max_allowed_percent' => $decision['max_allowed'] ?? null,
+                    'bypass_code_used' => true,
+                    'approved_by_user_id' => $approvingUser->id,
+                    'approved_by_user_name' => $approvingUser->name,
+                ]);
+            }
         }
 
         if (isset($data['guests_count']) && $order->table_id) {

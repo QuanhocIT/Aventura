@@ -17,6 +17,11 @@ class DeliveryManifestItem extends Model
         return $this->belongsTo(DeliveryManifest::class, 'delivery_manifest_id');
     }
 
+    public function manifest(): BelongsTo
+    {
+        return $this->deliveryManifest();
+    }
+
     public function supplyRequest(): BelongsTo
     {
         return $this->belongsTo(SupplyRequest::class, 'supply_request_id');

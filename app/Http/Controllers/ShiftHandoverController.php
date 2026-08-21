@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\ChecklistItem;
 use App\Models\ChecklistTemplate;
+use App\Models\RestaurantBranch;
 use App\Models\ShiftHandover;
 use App\Models\ShiftHandoverCheck;
 use App\Models\User;
@@ -30,10 +31,21 @@ class ShiftHandoverController extends Controller
         $user = $request->user();
         $restaurantId = (int) $user->restaurant_id;
         $branchId = $this->tenantContext->activeBranchId() ?? $user->assignedBranchId();
+        $activeBranch = $branchId
+            ? RestaurantBranch::where('restaurant_id', $restaurantId)->find($branchId)
+            : null;
 
         $handovers = ShiftHandover::where('restaurant_id', $restaurantId)
             ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
-            ->with(['fromUser:id,name', 'toUser:id,name', 'fromShift:id,name', 'toShift:id,name', 'template:id,name'])
+            ->with([
+                'fromUser:id,name',
+                'toUser:id,name',
+                'fromShift:id,name,code,start_time,end_time,is_overnight',
+                'toShift:id,name,code,start_time,end_time,is_overnight',
+                'template:id,name',
+                'template.items:id,template_id,title,description,requires_photo,sort_order',
+                'checks:id,handover_id,item_id,is_done,photo_path,notes,checked_by,checked_at',
+            ])
             ->latest('handover_date')
             ->latest('id')
             ->paginate(25)
@@ -46,6 +58,9 @@ class ShiftHandoverController extends Controller
                 'to_user_name' => $h->toUser?->name,
                 'from_shift_name' => $h->fromShift?->name,
                 'to_shift_name' => $h->toShift?->name,
+                'from_shift' => $this->serializeShift($h->fromShift),
+                'to_shift' => $this->serializeShift($h->toShift),
+                'template_id' => $h->template_id,
                 'template_name' => $h->template?->name,
                 'cash_amount' => $h->cash_amount !== null ? (float) $h->cash_amount : null,
                 'equipment_notes' => $h->equipment_notes,
@@ -53,12 +68,32 @@ class ShiftHandoverController extends Controller
                 'pending_tasks' => $h->pending_tasks,
                 'dispute_reason' => $h->dispute_reason,
                 'unfinished_items' => $h->unfinishedItems(),
+                'checklist_total' => $h->template?->items?->count() ?? 0,
+                'checklist_done' => $h->checks->where('is_done', true)->count(),
+                'checklist' => $h->template?->items?->map(function (ChecklistItem $item) use ($h): array {
+                    $check = $h->checks->firstWhere('item_id', $item->id);
+
+                    return [
+                        'id' => $item->id,
+                        'title' => $item->title,
+                        'description' => $item->description,
+                        'requires_photo' => (bool) $item->requires_photo,
+                        'is_done' => (bool) ($check?->is_done ?? false),
+                        'notes' => $check?->notes,
+                        'photo_url' => $check?->photo_path ? Storage::disk('public')->url($check->photo_path) : null,
+                        'checked_at' => $check?->checked_at?->format('H:i d/m/Y'),
+                    ];
+                })->values()->all() ?? [],
                 'submitted_at' => $h->submitted_at?->format('H:i d/m/Y'),
                 'accepted_at' => $h->accepted_at?->format('H:i d/m/Y'),
             ]);
 
         return Inertia::render('shift-handovers/Index', [
             'handovers' => $handovers,
+            'activeBranch' => $activeBranch ? [
+                'id' => $activeBranch->id,
+                'name' => $activeBranch->name,
+            ] : null,
             'templates' => $branchId
                 ? ChecklistTemplate::where('restaurant_id', $restaurantId)
                     ->handover()
@@ -70,11 +105,14 @@ class ShiftHandoverController extends Controller
             'shifts' => WorkShift::where('restaurant_id', $restaurantId)
                 ->where('status', 'active')
                 ->when($branchId, fn ($q) => $q->where(fn ($s) => $s->where('branch_id', $branchId)->orWhereNull('branch_id')))
-                ->get(['id', 'name']),
+                ->orderBy('start_time')
+                ->get(['id', 'name', 'code', 'start_time', 'end_time', 'is_overnight']),
             'colleagues' => $branchId
                 ? User::where('restaurant_id', $restaurantId)
                     ->where('id', '!=', $user->id)
                     ->where('status', 'active')
+                    ->where(fn ($q) => $q->where('branch_id', $branchId)->orWhereNull('branch_id'))
+                    ->orderBy('name')
                     ->get(['id', 'name'])
                 : collect(),
             'activeBranchId' => $branchId,
@@ -99,6 +137,16 @@ class ShiftHandoverController extends Controller
             'shift_closing_id' => ['nullable', 'integer'],
             'handover_date' => ['required', 'date'],
         ]);
+
+        $shiftScope = WorkShift::where('restaurant_id', $restaurantId)
+            ->where('status', 'active')
+            ->where(fn ($q) => $q->where('branch_id', $branchId)->orWhereNull('branch_id'));
+
+        foreach (['from_shift_id', 'to_shift_id'] as $shiftKey) {
+            if (! empty($data[$shiftKey])) {
+                abort_unless((clone $shiftScope)->whereKey($data[$shiftKey])->exists(), 422, 'Ca được chọn không áp dụng cho chi nhánh này.');
+            }
+        }
 
         $template = null;
         if (! empty($data['template_id'])) {
@@ -156,7 +204,11 @@ class ShiftHandoverController extends Controller
         $item = ChecklistItem::where('template_id', $handover->template_id)->find($data['item_id']);
         abort_unless($item, 422, 'Mục không thuộc mẫu bàn giao này.');
 
-        if ($data['is_done'] && $item->requires_photo && blank($data['photo'] ?? null)) {
+        $existingCheck = ShiftHandoverCheck::where('handover_id', $handover->id)
+            ->where('item_id', $item->id)
+            ->first();
+
+        if ($data['is_done'] && $item->requires_photo && blank($data['photo'] ?? null) && blank($existingCheck?->photo_path)) {
             throw ValidationException::withMessages([
                 'photo' => 'Mục này bắt buộc chụp ảnh xác nhận.',
             ]);
@@ -166,7 +218,7 @@ class ShiftHandoverController extends Controller
             ['handover_id' => $handover->id, 'item_id' => $item->id],
             [
                 'is_done' => $data['is_done'],
-                'photo_path' => $this->storePhoto($data['photo'] ?? null, (int) $handover->restaurant_id),
+                'photo_path' => $this->storePhoto($data['photo'] ?? null, (int) $handover->restaurant_id) ?? $existingCheck?->photo_path,
                 'notes' => $data['notes'] ?? null,
                 'checked_by' => $user->id,
                 'checked_at' => now(),
@@ -193,7 +245,10 @@ class ShiftHandoverController extends Controller
             'pending_tasks' => ['nullable', 'string', 'max:2000'],
         ]);
 
-        $recipient = User::where('restaurant_id', $handover->restaurant_id)->find($data['to_user_id']);
+        $recipient = User::where('restaurant_id', $handover->restaurant_id)
+            ->where('status', 'active')
+            ->where(fn ($q) => $q->where('branch_id', $handover->branch_id)->orWhereNull('branch_id'))
+            ->find($data['to_user_id']);
         abort_unless($recipient, 422, 'Người nhận ca không hợp lệ.');
         abort_if((int) $recipient->id === (int) $user->id, 422, 'Người giao và người nhận phải khác nhau.');
 
@@ -287,5 +342,21 @@ class ShiftHandoverController extends Controller
         Storage::disk('public')->put($path, $binary);
 
         return $path;
+    }
+
+    private function serializeShift(?WorkShift $shift): ?array
+    {
+        if (! $shift) {
+            return null;
+        }
+
+        return [
+            'id' => $shift->id,
+            'name' => $shift->name,
+            'code' => $shift->code,
+            'start_time' => $shift->start_time,
+            'end_time' => $shift->end_time,
+            'is_overnight' => (bool) $shift->is_overnight,
+        ];
     }
 }

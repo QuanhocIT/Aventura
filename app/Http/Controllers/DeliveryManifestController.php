@@ -34,7 +34,7 @@ class DeliveryManifestController extends Controller
         $approvedRequests = SupplyRequest::where('restaurant_id', $user->restaurant_id)
             ->when($centralBranch, fn ($query) => $query->where('from_branch_id', $centralBranch->id))
             ->when(! $centralBranch, fn ($query) => $query->whereRaw('1 = 0'))
-            ->whereIn('status', [SupplyRequest::STATUS_APPROVED, SupplyRequest::STATUS_PREPARING])
+            ->where('status', SupplyRequest::STATUS_DISPATCH_PENDING)
             ->with(['toBranch', 'items.ingredient'])
             ->orderBy('id', 'desc')
             ->get();

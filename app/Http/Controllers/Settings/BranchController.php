@@ -132,10 +132,12 @@ class BranchController extends Controller
             ],
         ]);
 
-        if (($data['status'] ?? null) === 'inactive' && ($branch->is_central_warehouse || $branch->warehouse_type === 'central')) {
-            throw ValidationException::withMessages([
-                'status' => 'Không thể vô hiệu hóa Kho Tổng đang kích hoạt. Vui lòng thiết lập Kho Tổng sang chi nhánh khác trước.',
-            ]);
+        if (($data['status'] ?? null) === 'inactive') {
+            try {
+                app(\App\Services\CentralWarehouseService::class)->assertBranchCanBeDeactivated($branch);
+            } catch (\InvalidArgumentException $e) {
+                throw ValidationException::withMessages(['status' => $e->getMessage()]);
+            }
         }
 
         $managerAssignmentChanged = array_key_exists('manager_user_id', $data);

@@ -92,10 +92,14 @@ class ShiftHandover extends Model
     public function unfinishedItems(): int
     {
         $totalItems = $this->template
-            ? ChecklistItem::where('template_id', $this->template_id)->count()
+            ? ($this->template->relationLoaded('items')
+                ? $this->template->items->count()
+                : ChecklistItem::where('template_id', $this->template_id)->count())
             : 0;
 
-        $done = $this->checks()->where('is_done', true)->count();
+        $done = $this->relationLoaded('checks')
+            ? $this->checks->where('is_done', true)->count()
+            : $this->checks()->where('is_done', true)->count();
 
         return max(0, $totalItems - $done);
     }
