@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\AuditLog;
 use App\Models\Incident;
+use App\Models\RestaurantBranch;
 use App\Models\User;
 use App\Notifications\IncidentEscalatedNotification;
 use App\Support\Tenant\TenantContext;
@@ -47,20 +48,23 @@ class IncidentController extends Controller
             $query->where('branch_id', $tenantContext->activeBranchId());
         }
 
-        $incidents = $query->latest('occurred_at')->limit(200)->get()->map(fn (Incident $i) => [
+        $incidentModels = $query->latest('occurred_at')->limit(200)->get();
+        $incidents = $incidentModels->map(fn (Incident $i) => [
             'id' => $i->id,
+            'code' => 'INC-' . str_pad((string) $i->id, 6, '0', STR_PAD_LEFT),
             'type' => $i->type,
             'severity' => $i->severity,
             'title' => $i->title,
             'description' => $i->description,
             'location' => $i->location,
-            'occurred_at_display' => $i->occurred_at->format('d/m/Y H:i'),
+            'occurred_at_display' => $i->occurred_at?->format('d/m/Y H:i'),
             'immediate_action' => $i->immediate_action,
             'injured_count' => $i->injured_count,
             'needs_shift_cover' => $i->needs_shift_cover,
             'status' => $i->status,
             'escalated' => $i->escalated,
             'escalated_to_name' => $i->escalatedTo?->name,
+            'escalated_at_display' => $i->escalated_at?->format('d/m/Y H:i'),
             'reported_by_name' => $i->reportedBy?->name ?? 'Không xác định',
             'branch_name' => $i->branch?->name,
             'acknowledged_by_name' => $i->acknowledgedBy?->name,
@@ -68,21 +72,39 @@ class IncidentController extends Controller
             'resolution_report' => $i->resolution_report,
             'resolved_by_name' => $i->resolvedBy?->name,
             'resolved_at_display' => $i->resolved_at?->format('d/m/Y H:i'),
-            'created_at_display' => $i->created_at->format('d/m/Y H:i'),
+            'created_at_display' => $i->created_at?->format('d/m/Y H:i'),
             'has_photo' => (bool) $i->photo_path,
+            'photo_url' => $i->photo_path ? route('incidents.photo', $i) : null,
+            'response_due_at_display' => $i->responseDueAt()?->format('d/m/Y H:i'),
+            'response_time_minutes' => $i->responseTimeMinutes(),
+            'resolution_time_minutes' => $i->resolutionTimeMinutes(),
+            'response_sla_minutes' => $i->responseSlaMinutes(),
+            'sla_state' => $i->status === 'resolved'
+                ? ($i->isResponseOverdue() ? 'breached' : 'met')
+                : ($i->isResponseOverdue() ? 'overdue' : ($i->acknowledged_at ? 'acknowledged' : 'on_track')),
         ]);
 
+        $activeIncidents = $incidents->whereIn('status', ['open', 'investigating', 'escalated']);
         $stats = [
-            'open' => $incidents->whereIn('status', ['open', 'investigating', 'escalated'])->count(),
-            'escalated' => $incidents->where('escalated', true)->whereIn('status', ['open', 'investigating', 'escalated'])->count(),
+            'open' => $activeIncidents->count(),
+            'awaiting_ack' => $activeIncidents->where('status', 'open')->count(),
+            'escalated' => $activeIncidents->where('escalated', true)->count(),
             'resolved' => $incidents->where('status', 'resolved')->count(),
-            'critical' => $incidents->whereIn('severity', ['high', 'critical'])->whereIn('status', ['open', 'investigating', 'escalated'])->count(),
+            'critical' => $activeIncidents->whereIn('severity', ['high', 'critical'])->count(),
+            'overdue' => $activeIncidents->filter(fn (array $incident) => in_array($incident['sla_state'], ['overdue', 'breached'], true))->count(),
+            'needs_shift_cover' => $activeIncidents->where('needs_shift_cover', true)->count(),
+            'last_24h' => $incidentModels->filter(fn (Incident $incident) => $incident->occurred_at?->gte(now()->subDay()))->count(),
         ];
 
         return Inertia::render('incidents/Index', [
             'incidents' => $incidents->values(),
             'stats' => $stats,
             'canManage' => $this->canManageIncidents($user),
+            'activeBranchName' => $tenantContext->activeBranchId()
+                ? RestaurantBranch::where('restaurant_id', $restaurantId)
+                    ->whereKey($tenantContext->activeBranchId())
+                    ->value('name')
+                : null,
         ]);
     }
 
@@ -161,8 +183,7 @@ class IncidentController extends Controller
     public function acknowledge(Request $request, Incident $incident): RedirectResponse
     {
         $user = $request->user();
-        abort_if($incident->restaurant_id !== $user->restaurant_id, 403);
-        abort_unless($this->canManageIncidents($user), 403);
+        $this->authorizeIncidentScope($user, $incident, true);
 
         if ($incident->status === 'resolved') {
             return back()->with('error', 'Sự cố đã đóng, không thể tiếp nhận lại.');
@@ -183,8 +204,7 @@ class IncidentController extends Controller
     public function escalate(Request $request, Incident $incident): RedirectResponse
     {
         $user = $request->user();
-        abort_if($incident->restaurant_id !== $user->restaurant_id, 403);
-        abort_unless($this->canManageIncidents($user), 403);
+        $this->authorizeIncidentScope($user, $incident, true);
 
         if ($incident->status === 'resolved') {
             return back()->with('error', 'Sự cố đã đóng.');
@@ -210,8 +230,7 @@ class IncidentController extends Controller
     public function resolve(Request $request, Incident $incident): RedirectResponse
     {
         $user = $request->user();
-        abort_if($incident->restaurant_id !== $user->restaurant_id, 403);
-        abort_unless($this->canManageIncidents($user), 403);
+        $this->authorizeIncidentScope($user, $incident, true);
 
         if ($incident->status === 'resolved') {
             return back()->with('error', 'Sự cố này đã được đóng.');
@@ -234,5 +253,39 @@ class IncidentController extends Controller
         ]);
 
         return back()->with('success', 'Đã đóng sự cố kèm báo cáo xử lý.');
+    }
+
+    /** Xem bằng chứng ảnh từ private storage, chỉ trong phạm vi dữ liệu người dùng được phép xem. */
+    public function photo(Request $request, Incident $incident)
+    {
+        $this->authorizeIncidentScope($request->user(), $incident);
+
+        abort_unless($incident->photo_path, 404, 'Sự cố chưa có ảnh bằng chứng.');
+
+        $storage = Storage::disk('local');
+        abort_unless($storage->exists($incident->photo_path), 404, 'Không tìm thấy ảnh bằng chứng.');
+
+        return response()->file($storage->path($incident->photo_path));
+    }
+
+    private function authorizeIncidentScope(User $user, Incident $incident, bool $manage = false): void
+    {
+        abort_if($incident->restaurant_id !== $user->restaurant_id, 403);
+
+        $tenantContext = app(TenantContext::class);
+        if ($tenantContext->isBranchScoped()) {
+            abort_unless((int) $incident->branch_id === (int) $tenantContext->activeBranchId(), 403);
+        } elseif (! $user->canViewAllBranches()) {
+            $sameBranch = $incident->branch_id !== null
+                && $user->canAccessBranch((int) $incident->branch_id);
+            $isReporter = (int) $incident->reported_by === (int) $user->id;
+
+            abort_unless($sameBranch || $isReporter, 403);
+        }
+
+        if ($manage) {
+            abort_unless($this->canManageIncidents($user), 403);
+            abort_unless($user->canAccessBranch((int) $incident->branch_id), 403);
+        }
     }
 }

@@ -10,6 +10,7 @@ use App\Notifications\IncidentEscalatedNotification;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Notification;
+use Illuminate\Support\Facades\Storage;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
@@ -176,5 +177,47 @@ class IncidentTest extends TestCase
         ]);
         $this->assertContains($response->status(), [403, 404]);
         $this->assertEquals('open', $incident->refresh()->status);
+    }
+
+    public function test_branch_manager_cannot_operate_incident_from_another_branch(): void
+    {
+        $manager = User::factory()->create([
+            'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
+            'status' => 'active',
+        ]);
+        $manager->assignRole('manager');
+
+        $otherBranch = RestaurantBranch::factory()->create(['restaurant_id' => $this->restaurant->id]);
+        $incident = Incident::create($this->payload([
+            'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $otherBranch->id,
+            'reported_by' => $this->staff->id,
+            'status' => 'open',
+        ]));
+
+        $this->actingAs($manager)
+            ->post("/incidents/{$incident->id}/acknowledge")
+            ->assertForbidden();
+
+        $this->assertEquals('open', $incident->refresh()->status);
+    }
+
+    public function test_incident_photo_is_protected_and_available_in_branch_scope(): void
+    {
+        Storage::fake('local');
+        Storage::disk('local')->put('incidents/evidence.txt', 'private evidence');
+
+        $incident = Incident::create($this->payload([
+            'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
+            'reported_by' => $this->staff->id,
+            'photo_path' => 'incidents/evidence.txt',
+            'status' => 'open',
+        ]));
+
+        $this->actingAs($this->staff)
+            ->get("/incidents/{$incident->id}/photo")
+            ->assertOk();
     }
 }

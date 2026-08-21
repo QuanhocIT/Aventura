@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Models\Concerns\BelongsToRestaurant;
+use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
@@ -43,6 +44,49 @@ class Incident extends Model
         return in_array($this->type, self::CRITICAL_TYPES, true)
             || in_array($this->severity, ['high', 'critical'], true)
             || (int) $this->injured_count > 0;
+    }
+
+    /** Thời hạn phản hồi đầu tiên theo mức độ rủi ro của sự cố. */
+    public function responseSlaMinutes(): int
+    {
+        return match ($this->severity) {
+            'critical' => 15,
+            'high' => 30,
+            'medium' => 120,
+            default => 480,
+        };
+    }
+
+    public function responseDueAt(): ?Carbon
+    {
+        return $this->occurred_at?->copy()->addMinutes($this->responseSlaMinutes());
+    }
+
+    public function responseTimeMinutes(): ?int
+    {
+        if (! $this->acknowledged_at || ! $this->occurred_at) {
+            return null;
+        }
+
+        return (int) $this->occurred_at->diffInMinutes($this->acknowledged_at);
+    }
+
+    public function resolutionTimeMinutes(): ?int
+    {
+        if (! $this->resolved_at || ! $this->occurred_at) {
+            return null;
+        }
+
+        return (int) $this->occurred_at->diffInMinutes($this->resolved_at);
+    }
+
+    public function isResponseOverdue(?Carbon $now = null): bool
+    {
+        if ($this->acknowledged_at) {
+            return ($this->responseTimeMinutes() ?? 0) > $this->responseSlaMinutes();
+        }
+
+        return (bool) ($this->responseDueAt()?->isBefore($now ?? now()));
     }
 
     public function reportedBy(): BelongsTo
