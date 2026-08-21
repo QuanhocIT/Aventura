@@ -27,6 +27,7 @@ class WarehouseGovernanceController extends Controller
             ->where('status', 'active')
             ->whereHas('roles', fn ($query) => $query->whereIn('name', ['warehouse_staff', 'warehouse_manager', 'manager', 'branch_staff', 'staff']))
             ->select('id', 'name', 'email', 'branch_id', 'warehouse_branch_id')
+            ->with('roles:id,name')
             ->orderBy('name')
             ->get();
 

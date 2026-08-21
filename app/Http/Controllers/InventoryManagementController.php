@@ -17,17 +17,20 @@ use App\Models\SalaryAdjustment;
 use App\Models\Supplier;
 use App\Models\SystemSetting;
 use App\Models\Unit;
+use App\Models\User;
+use App\Notifications\BatchRecallRequestedNotification;
 use App\Notifications\ProductRecipeRequiredNotification;
 use App\Services\AnalyticsServiceClient;
 use App\Services\ApprovalService;
-use App\Services\CircuitBreaker;
 use App\Services\CentralWarehouseService;
+use App\Services\CircuitBreaker;
 use App\Services\InventoryReadinessService;
 use App\Services\InventoryService;
 use App\Services\ProductCostService;
 use App\Services\QuotaService;
 use App\Services\SalaryService;
 use App\Services\UnitConversionService;
+use App\Services\WarehouseGovernanceService;
 use App\Support\Tenant\TenantContext;
 use App\Support\TenantRule;
 use Carbon\Carbon;
@@ -1162,7 +1165,13 @@ class InventoryManagementController extends Controller
                 $wasteCost = (float) $transaction->total_cost;
 
                 // Nếu có nhân viên chịu trách nhiệm → tạo salary deduction
-                if (! empty($data['employee_id']) && $wasteCost > 0) {
+                if (
+                    app(WarehouseGovernanceService::class)
+                        ->getRules($user->restaurant_id)
+                        ->penalty_deduction_enabled
+                    && ! empty($data['employee_id'])
+                    && $wasteCost > 0
+                ) {
                     $employee = Employee::where('restaurant_id', $user->restaurant_id)
                         ->where('branch_id', $data['branch_id'])
                         ->find($data['employee_id']);
@@ -1216,18 +1225,18 @@ class InventoryManagementController extends Controller
             // [SECURITY P1] Tính tổng giá trị chênh lệch để ApprovalService kiểm tra hạn mức.
             $discrepancyCost = 0.0;
             foreach ($data['reconcile_items'] as $item) {
-                $ingredient = \App\Models\Ingredient::where('restaurant_id', $user->restaurant_id)
+                $ingredient = Ingredient::where('restaurant_id', $user->restaurant_id)
                     ->where('id', $item['ingredient_id'])
                     ->first();
                 if ($ingredient) {
-                    $inventory = \App\Models\Inventory::where('restaurant_id', $user->restaurant_id)
+                    $inventory = Inventory::where('restaurant_id', $user->restaurant_id)
                         ->where('branch_id', $branchId)
                         ->where('ingredient_id', $item['ingredient_id'])
                         ->first();
-                    $currentQty  = $inventory ? (float) $inventory->quantity_on_hand : 0.0;
+                    $currentQty = $inventory ? (float) $inventory->quantity_on_hand : 0.0;
                     $physicalQty = (float) $item['physical_qty'];
-                    $diff        = abs($currentQty - $physicalQty);
-                    $cost        = (float) ($ingredient->average_cost ?? $ingredient->last_cost ?? 0);
+                    $diff = abs($currentQty - $physicalQty);
+                    $cost = (float) ($ingredient->average_cost ?? $ingredient->last_cost ?? 0);
                     $discrepancyCost += $diff * $cost;
                 }
             }
@@ -1240,7 +1249,6 @@ class InventoryManagementController extends Controller
 
             return back()->with('success', 'Yêu cầu kiểm kê kho đã được gửi Chủ nhà hàng phê duyệt.');
         }
-
 
         try {
             DB::transaction(function () use ($user, $data, $branchId) {
@@ -1370,7 +1378,13 @@ class InventoryManagementController extends Controller
                 }
 
                 // Nếu chọn quy trách nhiệm cho nhân viên và có tổng thất thoát âm
-                if (! empty($data['employee_id']) && $totalNetDeficitCost > 0) {
+                if (
+                    app(WarehouseGovernanceService::class)
+                        ->getRules($user->restaurant_id)
+                        ->penalty_deduction_enabled
+                    && ! empty($data['employee_id'])
+                    && $totalNetDeficitCost > 0
+                ) {
                     $employee = Employee::where('restaurant_id', $user->restaurant_id)
                         ->where('branch_id', $branchId)
                         ->find($data['employee_id']);
@@ -1429,7 +1443,7 @@ class InventoryManagementController extends Controller
 
     // ── Khóa lô & thu hồi ─────────────────────────────────────────────────────
 
-    private function assertBatchManager(\App\Models\User $user): void
+    private function assertBatchManager(User $user): void
     {
         abort_unless(
             $user->isSuperAdmin() || $user->hasAnyRole(['owner', 'manager', 'warehouse_manager']),
@@ -1438,7 +1452,7 @@ class InventoryManagementController extends Controller
         );
     }
 
-    private function assertBatchBranchScope(\App\Models\User $user, InventoryBatch $batch): void
+    private function assertBatchBranchScope(User $user, InventoryBatch $batch): void
     {
         if ($user->hasAnyRole(['warehouse_manager', 'warehouse_staff'])) {
             $centralBranch = $this->centralWarehouseService->getCentralWarehouse($user->restaurant_id);
@@ -1528,12 +1542,12 @@ class InventoryManagementController extends Controller
         ]);
 
         // Báo Chủ + Trưởng kho để lên phương án xử lý.
-        $recipients = \App\Models\User::where('restaurant_id', $user->restaurant_id)
+        $recipients = User::where('restaurant_id', $user->restaurant_id)
             ->where('id', '!=', $user->id)
             ->role(['owner', 'warehouse_manager'])
             ->get();
         foreach ($recipients as $r) {
-            $r->notify(new \App\Notifications\BatchRecallRequestedNotification($batch, $user->name));
+            $r->notify(new BatchRecallRequestedNotification($batch, $user->name));
         }
 
         AuditLog::log('inventory_batch_recall_requested', 'updated', $batch, null, [

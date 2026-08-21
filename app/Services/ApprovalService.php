@@ -577,7 +577,12 @@ class ApprovalService
             ? (float) $transaction->total_cost
             : $wasteQty * (float) $ingredient->average_cost;
 
-        if ($transaction && ! empty($data['employee_id']) && $wasteCost > 0) {
+        if (
+            $transaction
+            && app(WarehouseGovernanceService::class)->getRules($restaurantId)->penalty_deduction_enabled
+            && ! empty($data['employee_id'])
+            && $wasteCost > 0
+        ) {
             $employee = Employee::withoutGlobalScopes()
                 ->where('restaurant_id', $restaurantId)
                 ->when(! empty($data['branch_id']), fn ($q) => $q->where('branch_id', $data['branch_id']))

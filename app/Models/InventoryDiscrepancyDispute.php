@@ -30,6 +30,11 @@ class InventoryDiscrepancyDispute extends Model
         return $this->belongsTo(SupplyRequest::class, 'supply_request_id');
     }
 
+    public function supplyRequestItem(): BelongsTo
+    {
+        return $this->belongsTo(SupplyRequestItem::class, 'supply_request_item_id');
+    }
+
     public function ingredient(): BelongsTo
     {
         return $this->belongsTo(Ingredient::class, 'ingredient_id');

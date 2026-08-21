@@ -13,7 +13,7 @@ import {
     UserCheck,
     X,
 } from 'lucide-vue-next';
-import { ref } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { toast } from 'vue-sonner';
 
 import { Button } from '@/components/ui/button';
@@ -44,9 +44,9 @@ const isResolveModalOpen = ref(false);
 // Governance Form State
 const rulesForm = ref({
     max_auto_approve_variance_amount:
-        props.rules?.max_auto_approve_variance_amount || 500000,
+        props.rules?.max_auto_approve_variance_amount ?? 500000,
     max_auto_approve_variance_percent:
-        props.rules?.max_auto_approve_variance_percent || 3,
+        props.rules?.max_auto_approve_variance_percent ?? 3,
     require_seal_code_on_dispatch:
         props.rules?.require_seal_code_on_dispatch ?? true,
     auto_dispute_on_discrepancy:
@@ -61,10 +61,61 @@ const resolutionForm = ref({
     resolution_notes: '',
 });
 
+const eligibleEmployees = computed(() => {
+    const type = resolutionForm.value.responsible_type;
+    const branchId = Number(selectedDispute.value?.supply_request?.to_branch_id ?? 0);
+
+    if (type === 'transporter' || type === 'unknown') {
+        return [];
+    }
+
+    return props.employees.filter((employee) => {
+        const roleNames = (employee.roles ?? []).map((role: any) => role.name);
+
+        if (type === 'warehouse_staff') {
+            return roleNames.includes('warehouse_staff') && employee.warehouse_staff_status !== 'inactive';
+        }
+
+        return roleNames.some((role: string) => ['branch_staff', 'staff', 'manager'].includes(role))
+            && (!branchId || Number(employee.branch_id) === branchId);
+    });
+});
+
+const canResolveDispute = (status: string) =>
+    ['open', 'investigating', 'appealed'].includes(status);
+
+const getStatusLabel = (status: string) => {
+    switch (status) {
+        case 'appealed':
+            return 'Đang khiếu nại';
+        case 'penalized':
+            return 'Đã phân bổ bồi thường';
+        case 'resolved':
+            return 'Đã giải quyết';
+        case 'investigating':
+        case 'open':
+            return 'Chờ xử lý';
+        default:
+            return status;
+    }
+};
+
+watch(
+    () => resolutionForm.value.responsible_type,
+    () => {
+        if (!eligibleEmployees.value.some((employee) => employee.id === resolutionForm.value.responsible_user_id)) {
+            resolutionForm.value.responsible_user_id = null;
+        }
+    },
+);
+
 const openResolveModal = (dispute: any) => {
     selectedDispute.value = dispute;
     resolutionForm.value = {
-        responsible_type: dispute.responsible_type || 'transporter',
+        responsible_type:
+            dispute.responsible_type === 'unassigned'
+                ? 'unknown'
+                : dispute.responsible_type || 'transporter',
         responsible_user_id: dispute.responsible_user_id || null,
         resolution_notes: '',
     };
@@ -145,6 +196,8 @@ const getResponsibleLabel = (type: string) => {
             return 'Đơn vị Vận chuyển / Tài xế';
         case 'branch_staff':
             return 'Nhân viên nhận Kho Chi nhánh';
+        case 'unassigned':
+            return 'Chưa phân công';
         default:
             return 'Chưa xác định';
     }
@@ -383,14 +436,21 @@ const getResponsibleLabel = (type: string) => {
                                         Chờ Xử Lý
                                     </span>
                                     <span
+                                        v-else-if="disp.status === 'appealed'"
+                                        class="rounded-full border border-amber-300 bg-amber-100 px-2.5 py-1 text-[11px] font-semibold text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-300"
+                                    >
+                                        {{ getStatusLabel(disp.status) }}
+                                    </span>
+                                    <span
                                         v-else
                                         class="rounded-full border border-emerald-300 bg-emerald-100 px-2.5 py-1 text-[11px] font-semibold text-emerald-800 dark:border-emerald-900/50 dark:bg-emerald-950/30 dark:text-emerald-300"
                                     >
-                                        Đã Giải Quyết
+                                        {{ getStatusLabel(disp.status) }}
                                     </span>
                                 </td>
                                 <td class="p-3 pr-4 text-right">
                                     <Button
+                                        v-if="canResolveDispute(disp.status)"
                                         @click="openResolveModal(disp)"
                                         size="sm"
                                         variant="outline"
@@ -399,6 +459,7 @@ const getResponsibleLabel = (type: string) => {
                                         <Gavel class="h-3.5 w-3.5" /> Quy Trách
                                         Nhiệm
                                     </Button>
+                                    <span v-else class="text-[11px] text-muted-foreground">Đã khóa xử lý</span>
                                 </td>
                             </tr>
                         </tbody>
@@ -640,7 +701,7 @@ const getResponsibleLabel = (type: string) => {
                                 -- Không gán cá nhân cụ thể --
                             </option>
                             <option
-                                v-for="emp in employees"
+                                v-for="emp in eligibleEmployees"
                                 :key="emp.id"
                                 :value="emp.id"
                             >
