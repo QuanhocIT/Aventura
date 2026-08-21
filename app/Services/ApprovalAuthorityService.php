@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Exceptions\AuthorityDeniedException;
 use App\Models\ApprovalDecision;
+use App\Models\ApprovalDelegation;
 use App\Models\ApprovalPolicy;
 use App\Models\ApprovalRequest;
 use App\Models\Employee;
@@ -78,8 +79,22 @@ class ApprovalAuthorityService
             $approval->branch_id ? (int) $approval->branch_id : null,
         );
 
-        if (! $policy || ! $policy->manager_can_approve) {
+        $delegation = $this->activeDelegation($actor, $approval->operation_type);
+        if (! $policy || (! $policy->manager_can_approve && ! $delegation)) {
             return AuthorityDecision::deny('Chủ doanh nghiệp chưa ủy quyền loại phê duyệt này cho Quản lý.');
+        }
+
+        if ($delegation?->max_amount_limit !== null) {
+            $amount = $approval->amount_involved !== null
+                ? (float) $approval->amount_involved
+                : ApprovalOperations::amountFor($approval->operation_type, $approval->operation_data ?? []);
+
+            if ($amount !== null && $amount > (float) $delegation->max_amount_limit) {
+                return AuthorityDecision::escalate(
+                    sprintf('Vượt hạn mức ủy quyền tạm thời của Quản lý (%sđ).', number_format((float) $delegation->max_amount_limit)),
+                    $policy,
+                );
+            }
         }
 
         // 7 ─ Hạn mức tiền.
@@ -141,6 +156,8 @@ class ApprovalAuthorityService
 
         $policy = ApprovalPolicy::resolve((int) $actor->restaurant_id, $operationType, $branchId);
 
+        // Ủy quyền tạm thời chỉ mở quyền xử lý ApprovalRequest, không được biến thành
+        // đường tắt để các controller tác nghiệp trực tiếp bỏ qua bước phê duyệt.
         return (bool) $policy?->manager_can_approve;
     }
 
@@ -239,6 +256,41 @@ class ApprovalAuthorityService
     public static function flushManagedBranchCache(int $userId): void
     {
         Cache::forget("managed_branches:{$userId}");
+    }
+
+    private function activeDelegation(User $actor, string $operationType): ?ApprovalDelegation
+    {
+        return ApprovalDelegation::withoutGlobalScopes()
+            ->where('restaurant_id', $actor->restaurant_id)
+            ->where('delegatee_id', $actor->id)
+            ->where('is_active', true)
+            ->whereDate('start_date', '<=', today())
+            ->whereDate('end_date', '>=', today())
+            ->where(function ($query) use ($operationType): void {
+                $query->where('module', 'all')
+                    ->orWhere('module', $this->delegationModuleFor($operationType));
+            })
+            ->orderByRaw('max_amount_limit IS NULL')
+            ->orderBy('max_amount_limit')
+            ->first();
+    }
+
+    private function delegationModuleFor(string $operationType): string
+    {
+        if (str_starts_with($operationType, 'warehouse_')) {
+            return str_starts_with($operationType, 'warehouse_supply_') ? 'supply_request' : 'inventory';
+        }
+
+        if (str_starts_with($operationType, 'inventory_')) {
+            return 'inventory';
+        }
+
+        return match (true) {
+            $operationType === 'supply_request' => 'supply_request',
+            str_starts_with($operationType, 'salary_') => 'expense',
+            in_array($operationType, ['order_refund', 'order_item_cancel'], true) => 'audit',
+            default => 'all',
+        };
     }
 
     // ─────────────────────────────────────────────────────────────────────────

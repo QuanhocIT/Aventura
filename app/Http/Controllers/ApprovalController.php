@@ -33,6 +33,7 @@ class ApprovalController extends Controller
         abort_unless($this->canReview($user), 403);
 
         $restaurantId = $user->restaurant_id;
+        $this->approvalService->autoEscalateOverdue((int) $restaurantId);
         $statusFilter = $request->input('status', 'open');
         $seesAllBranches = $user->isOwner() || $user->isSuperAdmin();
 

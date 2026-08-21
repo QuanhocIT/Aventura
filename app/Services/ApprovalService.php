@@ -222,6 +222,53 @@ class ApprovalService
     }
 
     /**
+     * Chuyển các yêu cầu bị bỏ quên lên Chủ theo SLA đã cấu hình trong chính sách.
+     * Được gọi từ scheduler và ngay trước khi mở hàng đợi để không phụ thuộc vào
+     * việc người dùng có đang mở màn hình phê duyệt hay không.
+     */
+    public function autoEscalateOverdue(?int $restaurantId = null): int
+    {
+        $owners = User::withoutGlobalScopes()
+            ->role('owner')
+            ->when($restaurantId !== null, fn ($query) => $query->where('restaurant_id', $restaurantId))
+            ->get()
+            ->groupBy('restaurant_id');
+
+        if ($owners->isEmpty()) {
+            return 0;
+        }
+
+        $requests = ApprovalRequest::withoutGlobalScopes()
+            ->where('status', ApprovalRequest::STATUS_PENDING)
+            ->whereNotNull('policy_id')
+            ->when($restaurantId !== null, fn ($query) => $query->where('restaurant_id', $restaurantId))
+            ->with('policy')
+            ->get();
+
+        $escalated = 0;
+        foreach ($requests as $approval) {
+            $minutes = $approval->policy?->auto_escalate_after_minutes;
+            if (! $minutes || $approval->created_at?->gt(now()->subMinutes($minutes))) {
+                continue;
+            }
+
+            $actor = $owners->get($approval->restaurant_id)?->first();
+            if (! $actor) {
+                continue;
+            }
+
+            $decision = AuthorityDecision::escalate(
+                "Tự động chuyển lên Chủ sau {$minutes} phút chưa có người xử lý.",
+                $approval->policy,
+            );
+            $this->escalate($approval, $actor, $decision);
+            $escalated++;
+        }
+
+        return $escalated;
+    }
+
+    /**
      * Hoàn tác các thay đổi trạng thái đã đặt trước khi chờ duyệt.
      */
     private function revertSideEffectsOnReject(ApprovalRequest $approval): void

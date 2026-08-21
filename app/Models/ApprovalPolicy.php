@@ -78,6 +78,8 @@ class ApprovalPolicy extends Model
             'manager_daily_limit' => $this->manager_daily_limit,
             'manager_monthly_limit' => $this->manager_monthly_limit,
             'requires_owner_countersign' => $this->requires_owner_countersign,
+            'auto_escalate_after_minutes' => $this->auto_escalate_after_minutes,
+            'is_active' => $this->is_active,
             'conditions' => $this->conditions,
         ];
     }
