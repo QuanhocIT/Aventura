@@ -2,7 +2,9 @@
 import { Head } from '@inertiajs/vue3';
 import {
     AlertTriangle,
+    ArrowRight,
     BarChart3,
+    BrainCircuit,
     Boxes,
     CalendarDays,
     CheckCircle2,
@@ -28,6 +30,7 @@ import {
     CardTitle,
 } from '@/components/ui/card';
 import AppLayout from '@/layouts/AppLayout.vue';
+import centralWarehouseRoutes from '@/routes/inventory/central-warehouse';
 
 defineOptions({ layout: AppLayout });
 
@@ -35,6 +38,7 @@ const props = defineProps<{
     centralBranch?: any;
     supplyAnalytics?: any;
     centralWarehouseAnalytics?: any;
+    centralWarehouseAi?: any;
     receivingSummary?: any;
     inventorySummary?: any;
 }>();
@@ -44,6 +48,7 @@ const summary = computed(() => analytics.value.summary ?? {});
 const inventory = computed(() => props.inventorySummary ?? {});
 const receiving = computed(() => props.receivingSummary ?? {});
 const warehouseKpi = computed(() => props.centralWarehouseAnalytics ?? {});
+const aiAssessment = computed(() => props.centralWarehouseAi ?? {});
 
 const daily = computed(() => analytics.value.daily ?? []);
 const branches = computed(() => analytics.value.branches ?? []);
@@ -206,6 +211,23 @@ const insightIconClass = (type: string) =>
         success: 'bg-emerald-500/15 text-emerald-300',
         info: 'bg-indigo-500/15 text-indigo-300',
     })[type] ?? 'bg-muted text-muted-foreground';
+
+const aiLevelClass = computed(() =>
+    ({
+        stable: 'border-emerald-500/25 bg-emerald-500/10 text-emerald-200',
+        watch: 'border-amber-500/25 bg-amber-500/10 text-amber-200',
+        risk: 'border-orange-500/25 bg-orange-500/10 text-orange-200',
+        critical: 'border-rose-500/25 bg-rose-500/10 text-rose-200',
+    })[aiAssessment.value.level as string] ?? 'border-indigo-500/25 bg-indigo-500/10 text-indigo-200',
+);
+
+const aiSignalClass = (severity: string) =>
+    ({
+        critical: 'border-rose-500/25 bg-rose-500/10',
+        high: 'border-orange-500/25 bg-orange-500/10',
+        medium: 'border-amber-500/25 bg-amber-500/10',
+        low: 'border-indigo-500/25 bg-indigo-500/10',
+    })[severity] ?? 'border-border bg-muted/20';
 </script>
 
 <template>
@@ -295,6 +317,66 @@ const insightIconClass = (type: string) =>
                     </div>
                     <p class="mt-3 text-2xl font-bold text-rose-100">{{ summary.urgent_recommendations ?? 0 }}</p>
                     <p class="mt-1 text-[11px] text-muted-foreground">Nguyên liệu rủi ro thiếu trong 7 ngày</p>
+                </CardContent>
+            </Card>
+        </section>
+
+        <section class="grid gap-4 xl:grid-cols-[0.9fr_1.6fr]">
+            <Card class="border-indigo-500/25 bg-gradient-to-br from-indigo-950/30 to-violet-950/10 shadow-sm">
+                <CardHeader class="border-b border-indigo-500/15 py-4">
+                    <div class="flex items-center justify-between gap-3">
+                        <div>
+                            <CardTitle class="flex items-center gap-2 text-base">
+                                <BrainCircuit class="h-5 w-5 text-indigo-300" /> AI đánh giá Kho Tổng
+                            </CardTitle>
+                            <CardDescription class="mt-1 text-xs">Tổng hợp rủi ro từ tồn kho, cấp phát, tiếp nhận và năng lực xử lý.</CardDescription>
+                        </div>
+                        <span class="rounded-full border px-2.5 py-1 text-[10px] font-bold" :class="aiLevelClass">
+                            {{ aiAssessment.label || 'Chưa đánh giá' }}
+                        </span>
+                    </div>
+                </CardHeader>
+                <CardContent class="space-y-4 p-5">
+                    <div class="flex items-end gap-4">
+                        <p class="text-5xl font-black tracking-tight text-foreground">{{ aiAssessment.score ?? '--' }}</p>
+                        <div class="pb-1 text-xs text-muted-foreground">
+                            <p>Điểm sức khỏe vận hành</p>
+                            <p class="mt-1">Độ tin cậy {{ formatPercent(Number(aiAssessment.confidence ?? 0) * 100) }}</p>
+                        </div>
+                    </div>
+                    <p class="text-xs leading-relaxed text-muted-foreground">{{ aiAssessment.summary || 'Chưa đủ dữ liệu để tạo đánh giá.' }}</p>
+                    <a
+                        :href="centralWarehouseRoutes.aiAdvisor.url()"
+                        class="inline-flex items-center gap-1.5 text-xs font-bold text-indigo-300 transition hover:text-indigo-200"
+                    >
+                        Mở Trợ lý AI Kho Tổng <ArrowRight class="h-3.5 w-3.5" />
+                    </a>
+                </CardContent>
+            </Card>
+
+            <Card class="border-border shadow-sm">
+                <CardHeader class="border-b border-border bg-muted/20 py-4">
+                    <div class="flex items-center justify-between gap-3">
+                        <div>
+                            <CardTitle class="text-base">Ưu tiên hành động</CardTitle>
+                            <CardDescription class="mt-1 text-xs">AI giải thích tín hiệu, bằng chứng và bước xử lý đề xuất.</CardDescription>
+                        </div>
+                        <span class="text-xs font-semibold text-muted-foreground">{{ aiAssessment.signal_count ?? 0 }} tín hiệu</span>
+                    </div>
+                </CardHeader>
+                <CardContent class="grid gap-3 p-4 md:grid-cols-2">
+                    <div v-if="!aiAssessment.signals?.length" class="rounded-xl border border-dashed border-border p-5 text-center text-xs text-muted-foreground md:col-span-2">
+                        Chưa phát hiện tín hiệu cần ưu tiên.
+                    </div>
+                    <div v-for="signal in (aiAssessment.signals ?? []).slice(0, 4)" :key="`${signal.metric}-${signal.title}`" class="rounded-xl border p-3" :class="aiSignalClass(signal.severity)">
+                        <div class="flex items-start justify-between gap-3">
+                            <p class="text-xs font-bold text-foreground">{{ signal.title }}</p>
+                            <span class="shrink-0 text-[10px] font-bold uppercase text-muted-foreground">{{ signal.severity }}</span>
+                        </div>
+                        <p class="mt-1.5 text-[11px] leading-relaxed text-muted-foreground">{{ signal.evidence }}</p>
+                        <p class="mt-2 text-[11px] font-semibold leading-relaxed text-foreground">Khuyến nghị: {{ signal.advice }}</p>
+                        <p class="mt-2 text-[10px] leading-relaxed text-muted-foreground">Bước tiếp theo: {{ signal.next_step }}</p>
+                    </div>
                 </CardContent>
             </Card>
         </section>

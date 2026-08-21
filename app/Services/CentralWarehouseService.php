@@ -26,12 +26,24 @@ class CentralWarehouseService
      */
     public function getCentralWarehouse(int $restaurantId): ?RestaurantBranch
     {
+        $assignment = DB::table('central_warehouse_assignments')
+            ->where('restaurant_id', $restaurantId)
+            ->first();
+
+        if ($assignment) {
+            return RestaurantBranch::where('restaurant_id', $restaurantId)
+                ->whereKey($assignment->branch_id)
+                ->where('status', 'active')
+                ->first();
+        }
+
         return RestaurantBranch::where('restaurant_id', $restaurantId)
             ->where('status', 'active')
             ->where(function ($q) {
                 $q->where('is_central_warehouse', true)
                   ->orWhere('warehouse_type', 'central');
             })
+            ->orderBy('id')
             ->first();
     }
 
@@ -42,19 +54,31 @@ class CentralWarehouseService
     {
         $warehouse = $this->getCentralWarehouse($restaurantId);
         if ($warehouse) {
+            $this->ensureCentralWarehouseAssignment($restaurantId, (int) $warehouse->id);
             return $warehouse;
         }
 
         $restaurant = \App\Models\Restaurant::findOrFail($restaurantId);
 
-        return RestaurantBranch::create([
-            'restaurant_id' => $restaurantId,
-            'code' => 'WH-CENTRAL-' . $restaurantId,
-            'name' => 'Kho Tổng ' . $restaurant->name,
-            'status' => 'active',
-            'is_central_warehouse' => true,
-            'warehouse_type' => 'central',
-        ]);
+        return DB::transaction(function () use ($restaurantId, $restaurant): RestaurantBranch {
+            $existing = $this->getCentralWarehouse($restaurantId);
+            if ($existing) {
+                $this->ensureCentralWarehouseAssignment($restaurantId, (int) $existing->id);
+                return $existing;
+            }
+
+            $warehouse = RestaurantBranch::create([
+                'restaurant_id' => $restaurantId,
+                'code' => 'WH-CENTRAL-' . $restaurantId,
+                'name' => 'Kho Tổng ' . $restaurant->name,
+                'status' => 'active',
+                'is_central_warehouse' => true,
+                'warehouse_type' => 'central',
+            ]);
+            $this->ensureCentralWarehouseAssignment($restaurantId, (int) $warehouse->id);
+
+            return $warehouse;
+        });
     }
 
     /**
@@ -70,6 +94,15 @@ class CentralWarehouseService
             throw new InvalidArgumentException('Chỉ có thể thiết lập chi nhánh đang hoạt động (active) làm Kho Tổng.');
         }
 
+        $currentCentral = $this->getCentralWarehouse($restaurantId);
+        if ($currentCentral && (int) $currentCentral->id === (int) $branch->id) {
+            return $branch->fresh();
+        }
+        if ($currentCentral && (int) $currentCentral->id !== (int) $branch->id) {
+            $this->assertBranchHasNoOperationalData($currentCentral, 'chuyển Kho Tổng sang chi nhánh khác');
+        }
+        $this->assertBranchHasNoOperationalData($branch, 'thiết lập làm Kho Tổng');
+
         DB::transaction(function () use ($restaurantId, $branch): void {
             // Reset central status for all other branches
             RestaurantBranch::where('restaurant_id', $restaurantId)
@@ -83,9 +116,20 @@ class CentralWarehouseService
                 'is_central_warehouse' => true,
                 'warehouse_type' => 'central',
             ]);
+
+            $this->ensureCentralWarehouseAssignment($restaurantId, (int) $branch->id);
         });
 
         return $branch->fresh();
+    }
+
+    public function assertBranchCanBeDeactivated(RestaurantBranch $branch): void
+    {
+        if ($branch->is_central_warehouse || $branch->warehouse_type === 'central') {
+            throw new InvalidArgumentException('Không thể vô hiệu hóa Kho Tổng đang hoạt động. Vui lòng thiết lập Kho Tổng sang chi nhánh khác trước.');
+        }
+
+        $this->assertBranchHasNoOperationalData($branch, 'vô hiệu hóa chi nhánh');
     }
 
     /**
@@ -93,7 +137,7 @@ class CentralWarehouseService
      */
     public function generateUniqueRequestCode(int $restaurantId): string
     {
-        $prefix = 'SR-' . Carbon::now()->format('Ymd') . '-';
+        $prefix = 'SR-' . $restaurantId . '-' . Carbon::now()->format('Ymd') . '-';
         for ($attempt = 0; $attempt < 20; $attempt++) {
             $count = SupplyRequest::where('restaurant_id', $restaurantId)
                 ->whereDate('created_at', Carbon::today())
@@ -120,6 +164,13 @@ class CentralWarehouseService
     ): SupplyRequest {
         if (! $creator->isSuperAdmin() && (int) $creator->restaurant_id !== $restaurantId) {
             throw new InvalidArgumentException('Bạn không thể tạo đơn cấp phát cho nhà hàng khác.');
+        }
+
+        if (! $creator->isSuperAdmin()
+            && ! $creator->isOwner()
+            && ! $creator->canAccessBranch($toBranchId)
+            && ! $creator->can('supply_requests.create')) {
+            throw new InvalidArgumentException('Tài khoản không thuộc phạm vi chi nhánh nhận hàng của đơn cấp phát.');
         }
 
         $central = $this->getCentralWarehouse($restaurantId);
@@ -240,10 +291,16 @@ class CentralWarehouseService
     public function approveSupplyRequest(SupplyRequest $request, User $approver, ?array $approvedItems = null, ?string $notes = null): SupplyRequest
     {
         $this->assertSameRestaurant($request, $approver);
+        $this->assertActorCan($approver, ['warehouse_manager'], ['supply_requests.approve', 'warehouse.manage'], 'Bạn không có quyền duyệt đơn cấp phát.');
+        $this->assertCentralWarehouseActor($approver, (int) $request->restaurant_id);
         $this->assertNotSelfApproval($request, $approver, 'created_by', 'Bạn không thể tự duyệt đơn cấp phát do chính mình tạo.');
 
         if (! in_array($request->status, [SupplyRequest::STATUS_PENDING, 'draft'])) {
             throw new InvalidArgumentException('Chỉ có thể duyệt đơn ở trạng thái chờ duyệt.');
+        }
+
+        if ($approvedItems !== null && ! empty($approvedItems)) {
+            $this->assertCompleteItemSet($request, $approvedItems, 'duyệt đơn');
         }
 
         $central = $this->getCentralWarehouse($request->restaurant_id);
@@ -272,6 +329,10 @@ class CentralWarehouseService
                 $approvedQty = is_array($itemApproval)
                     ? (float) ($itemApproval['approved_quantity'] ?? $item->requested_quantity)
                     : (float) $item->requested_quantity;
+
+                if ($approvedQty < 0) {
+                    throw new InvalidArgumentException('Số lượng duyệt không được âm.');
+                }
 
                 // Check stock availability again at approval time
                 $centralInventory = Inventory::where('restaurant_id', $request->restaurant_id)
@@ -324,6 +385,9 @@ class CentralWarehouseService
     public function prepareDispatch(SupplyRequest $request, User $picker, array $pickedItems): SupplyRequest
     {
         $this->assertSameRestaurant($request, $picker);
+        $this->assertActorCan($picker, ['warehouse_staff', 'warehouse_manager'], ['warehouse.manage'], 'Bạn không có quyền soạn hàng Kho Tổng.');
+        $this->assertCentralWarehouseActor($picker, (int) $request->restaurant_id);
+        $this->assertCompleteItemSet($request, $pickedItems, 'soạn hàng');
 
         if (! in_array($request->status, [SupplyRequest::STATUS_APPROVED, SupplyRequest::STATUS_PREPARING])) {
             throw new InvalidArgumentException('Chỉ đơn đã duyệt mới có thể soạn hàng.');
@@ -349,7 +413,7 @@ class CentralWarehouseService
                 $batchId   = $picked['batch_id'] ?? null;
 
                 // Khóa chặt: số lượng thực xuất không được vượt số lượng đã duyệt
-                if ($actualQty > (float) $item->approved_quantity) {
+                if ($actualQty < 0 || $actualQty > (float) $item->approved_quantity) {
                     throw new InvalidArgumentException("Số lượng thực soạn ({$actualQty}) không được vượt quá số lượng đã duyệt ({$item->approved_quantity}) cho nguyên liệu #{$item->ingredient_id}.");
                 }
 
@@ -417,6 +481,8 @@ class CentralWarehouseService
     public function approveDispatch(SupplyRequest $request, User $manager): SupplyRequest
     {
         $this->assertSameRestaurant($request, $manager);
+        $this->assertActorCan($manager, ['warehouse_manager'], ['warehouse.manage', 'warehouse.handover'], 'Bạn không có quyền duyệt xuất kho.');
+        $this->assertCentralWarehouseActor($manager, (int) $request->restaurant_id);
         $this->assertNotSelfApproval($request, $manager, 'prepared_by', 'Người soạn hàng không được tự duyệt số lượng xuất.');
 
         $central = $this->getCentralWarehouse($request->restaurant_id);
@@ -449,6 +515,8 @@ class CentralWarehouseService
         ?string $sealCode = null
     ): SupplyRequest {
         $this->assertSameRestaurant($request, $handoverPerson);
+        $this->assertActorCan($handoverPerson, ['warehouse_staff', 'warehouse_manager'], ['warehouse.handover', 'warehouse.manage'], 'Bạn không có quyền bàn giao hàng Kho Tổng.');
+        $this->assertCentralWarehouseActor($handoverPerson, (int) $request->restaurant_id);
         $this->assertNotSelfApproval($request, $handoverPerson, 'approved_by', 'Người duyệt đơn không được tự xuất kho.');
         $this->assertNotSelfApproval($request, $handoverPerson, 'dispatch_approved_by', 'Người duyệt xuất không được tự bàn giao hàng.');
 
@@ -474,10 +542,13 @@ class CentralWarehouseService
 
         return DB::transaction(function () use ($request, $handoverPerson, $sealCode) {
             foreach ($request->items as $item) {
+                if ($item->actual_dispatched_quantity === null) {
+                    throw new InvalidArgumentException('Đơn chưa có đủ số lượng thực soạn cho tất cả dòng hàng.');
+                }
                 $qtyToDeduct = (float) $item->effective_dispatched_quantity;
 
                 // Kiểm tra lại không vượt quá số lượng đã duyệt
-                if ($qtyToDeduct > (float) $item->approved_quantity) {
+                if ($qtyToDeduct < 0 || $qtyToDeduct > (float) $item->approved_quantity) {
                     throw new InvalidArgumentException("Số lượng thực xuất ({$qtyToDeduct}) vượt quá số lượng đã duyệt ({$item->approved_quantity}) cho nguyên liệu #{$item->ingredient_id}.");
                 }
 
@@ -573,6 +644,7 @@ class CentralWarehouseService
         ?string $signatureHash = null
     ): SupplyRequest {
         $this->assertSameRestaurant($request, $receiver);
+        $this->assertActorCanReceive($request, $receiver);
         $this->assertNotSelfApproval($request, $receiver, 'dispatched_by', 'Người xuất kho không được tự xác nhận nhận hàng.');
 
         $central = $this->getCentralWarehouse($request->restaurant_id);
@@ -593,6 +665,8 @@ class CentralWarehouseService
             return $request;
         }
 
+        $this->assertCompleteItemSet($request, $receivedItems ?? [], 'nhận hàng');
+
         return DB::transaction(function () use ($request, $receiver, $receivedItems, $receiptPhotoPath, $signaturePath, $notes, $receiptPhotoHash, $signatureHash) {
             $lockedRequest = SupplyRequest::where('id', $request->id)->lockForUpdate()->firstOrFail();
             $hasShortage = false;
@@ -601,15 +675,17 @@ class CentralWarehouseService
                 $item->lockForUpdate();
                 $dispatchedQty = (float) $item->effective_dispatched_quantity;
                 $previouslyReceivedQty = (float) ($item->received_quantity ?? 0);
-                $targetTotalRecQty = $dispatchedQty;
+                $targetTotalRecQty = null;
 
-                if (! empty($receivedItems)) {
-                    foreach ($receivedItems as $recItem) {
-                        if ($recItem['id'] == $item->id && isset($recItem['received_quantity'])) {
-                            $targetTotalRecQty = (float) $recItem['received_quantity'];
-                            break;
-                        }
+                foreach ($receivedItems as $recItem) {
+                    if ((int) ($recItem['id'] ?? 0) === (int) $item->id && isset($recItem['received_quantity'])) {
+                        $targetTotalRecQty = (float) $recItem['received_quantity'];
+                        break;
                     }
+                }
+
+                if ($targetTotalRecQty === null || $targetTotalRecQty < 0) {
+                    throw new InvalidArgumentException('Thiếu hoặc sai số lượng nhận của một dòng hàng.');
                 }
 
                 if ($targetTotalRecQty > $dispatchedQty) {
@@ -703,6 +779,7 @@ class CentralWarehouseService
     public function cancelSupplyRequest(SupplyRequest $request, User $user, string $reason): SupplyRequest
     {
         $this->assertSameRestaurant($request, $user);
+        $this->assertActorCan($user, ['warehouse_manager'], ['warehouse.manage', 'supply_requests.cancel'], 'Bạn không có quyền hủy đơn cấp phát.');
         $central = $this->getCentralWarehouse((int) $request->restaurant_id);
         if (! $central || (int) $request->from_branch_id !== (int) $central->id) {
             throw new InvalidArgumentException('Chỉ được hủy đơn cấp phát xuất từ Kho Tổng.');
@@ -735,6 +812,7 @@ class CentralWarehouseService
     public function rejectSupplyRequest(SupplyRequest $request, User $user, string $reason): SupplyRequest
     {
         $this->assertSameRestaurant($request, $user);
+        $this->assertActorCan($user, ['warehouse_manager'], ['warehouse.manage', 'supply_requests.approve'], 'Bạn không có quyền từ chối đơn cấp phát.');
 
         if (in_array($request->status, [SupplyRequest::STATUS_COMPLETED, SupplyRequest::STATUS_DISPATCHED])) {
             throw new InvalidArgumentException('Không thể từ chối đơn hàng đã xuất kho hoặc hoàn thành.');
@@ -787,6 +865,115 @@ class CentralWarehouseService
 
         if ((int) $actor->restaurant_id !== (int) $request->restaurant_id) {
             throw new InvalidArgumentException('Bạn không thể thao tác trên đơn cấp phát của nhà hàng khác.');
+        }
+    }
+
+    private function assertBranchHasNoOperationalData(RestaurantBranch $branch, string $action): void
+    {
+        $branchId = (int) $branch->id;
+
+        if (Inventory::where('restaurant_id', $branch->restaurant_id)->where('branch_id', $branchId)->where('quantity_on_hand', '>', 0)->exists()
+            || InventoryBatch::where('restaurant_id', $branch->restaurant_id)->where('branch_id', $branchId)->where('quantity_remaining', '>', 0)->exists()) {
+            throw new InvalidArgumentException("Không thể {$action} khi chi nhánh còn tồn kho hoặc lô hàng chưa xử lý.");
+        }
+
+        if (SupplyRequest::where('restaurant_id', $branch->restaurant_id)
+            ->where(fn ($query) => $query->where('from_branch_id', $branchId)->orWhere('to_branch_id', $branchId))
+            ->whereNotIn('status', [SupplyRequest::STATUS_COMPLETED, SupplyRequest::STATUS_REJECTED, SupplyRequest::STATUS_CANCELLED])
+            ->exists()) {
+            throw new InvalidArgumentException("Không thể {$action} khi chi nhánh còn đơn cấp phát đang xử lý.");
+        }
+
+        if (\App\Models\StockTransferRequest::where('restaurant_id', $branch->restaurant_id)
+            ->where(fn ($query) => $query->where('from_branch_id', $branchId)->orWhere('to_branch_id', $branchId))
+            ->whereNotIn('status', ['completed', 'cancelled', 'rejected'])
+            ->exists()) {
+            throw new InvalidArgumentException("Không thể {$action} khi chi nhánh còn đơn luân chuyển đang mở.");
+        }
+
+        if (\App\Models\InventoryCountSession::where('restaurant_id', $branch->restaurant_id)
+            ->where('branch_id', $branchId)
+            ->whereNotIn('status', ['approved', 'cancelled', 'rejected'])
+            ->exists()) {
+            throw new InvalidArgumentException("Không thể {$action} khi chi nhánh còn phiên kiểm kê chưa kết thúc.");
+        }
+
+        if (InventoryDiscrepancyDispute::whereHas('supplyRequest', fn ($query) => $query
+            ->where(fn ($scope) => $scope->where('from_branch_id', $branchId)->orWhere('to_branch_id', $branchId)))
+            ->where('status', 'open')
+            ->exists()) {
+            throw new InvalidArgumentException("Không thể {$action} khi chi nhánh còn tranh chấp kho đang mở.");
+        }
+
+        if (\App\Models\DeliveryManifest::where('restaurant_id', $branch->restaurant_id)
+            ->where('from_branch_id', $branchId)
+            ->whereIn('status', ['draft', 'preparing'])
+            ->exists()) {
+            throw new InvalidArgumentException("Không thể {$action} khi chi nhánh còn chuyến xe đang soạn.");
+        }
+    }
+
+    private function ensureCentralWarehouseAssignment(int $restaurantId, int $branchId): void
+    {
+        DB::table('central_warehouse_assignments')->updateOrInsert(
+            ['restaurant_id' => $restaurantId],
+            [
+                'branch_id' => $branchId,
+                'updated_at' => now(),
+                'created_at' => now(),
+            ],
+        );
+    }
+
+    private function assertActorCan(User $actor, array $roles, array $permissions, string $message): void
+    {
+        if ($actor->isSuperAdmin() || $actor->isOwner() || $actor->hasAnyRole($roles)) {
+            return;
+        }
+
+        foreach ($permissions as $permission) {
+            if ($actor->can($permission)) {
+                return;
+            }
+        }
+
+        throw new InvalidArgumentException($message);
+    }
+
+    private function assertActorCanReceive(SupplyRequest $request, User $receiver): void
+    {
+        if ($receiver->isSuperAdmin() || $receiver->isOwner()) {
+            return;
+        }
+
+        if (! $receiver->canAccessBranch((int) $request->to_branch_id)
+            && ! $receiver->can('supply_requests.receive')) {
+            throw new InvalidArgumentException('Người nhận không thuộc phạm vi chi nhánh nhận hàng.');
+        }
+    }
+
+    private function assertCentralWarehouseActor(User $actor, int $restaurantId): void
+    {
+        if ($actor->isSuperAdmin() || $actor->isOwner()) {
+            return;
+        }
+
+        $central = $this->getCentralWarehouse($restaurantId);
+        $assignedBranchId = $actor->warehouse_branch_id ?: $actor->assignedBranchId();
+        if (! $central || ! $assignedBranchId || (int) $assignedBranchId !== (int) $central->id) {
+            throw new InvalidArgumentException('Tài khoản chưa được gán đúng Kho Tổng hiện tại.');
+        }
+    }
+
+    private function assertCompleteItemSet(SupplyRequest $request, array $items, string $operation): void
+    {
+        $submitted = collect($items)->pluck('id')->map(fn ($id) => (int) $id)->values();
+        $uniqueSubmitted = $submitted->unique()->values();
+        $expected = $request->items->pluck('id')->map(fn ($id) => (int) $id)->values();
+
+        if ($submitted->count() !== $uniqueSubmitted->count()
+            || $uniqueSubmitted->sort()->values()->all() !== $expected->sort()->values()->all()) {
+            throw new InvalidArgumentException("Phải gửi đủ và đúng một lần tất cả dòng hàng của đơn khi {$operation}.");
         }
     }
 
@@ -1075,6 +1262,16 @@ class CentralWarehouseService
                 ->get();
             $recipients = $recipients->merge($warehouseManagers);
 
+            // Nhân viên đang được giao task phải nhận được cập nhật để phối hợp hai chiều.
+            $assignedStaff = \App\Models\WarehouseTaskAssignment::where('restaurant_id', $request->restaurant_id)
+                ->where('supply_request_id', $request->id)
+                ->whereNotNull('assigned_to')
+                ->with('assignee')
+                ->get()
+                ->pluck('assignee')
+                ->filter();
+            $recipients = $recipients->merge($assignedStaff);
+
             // 4. Nếu có tranh chấp (disputed): Bắt buộc gửi tới Owner
             if ($stage === 'disputed') {
                 $owners = User::where('restaurant_id', $request->restaurant_id)
@@ -1109,8 +1306,9 @@ class CentralWarehouseService
             ->get();
 
         foreach ($pendingOverdue as $req) {
-            $this->notifyStakeholders($req, 'overdue_alert', "Đơn cấp phát #{$req->request_code} đã chờ duyệt quá 24 giờ.");
-            $overdueCount++;
+            if ($this->notifyOverdueOnce($req, SupplyRequest::STATUS_PENDING, "Đơn cấp phát #{$req->request_code} đã chờ duyệt quá 24 giờ.")) {
+                $overdueCount++;
+            }
         }
 
         // Đơn đã duyệt nhưng chưa soạn hàng quá 24h
@@ -1120,10 +1318,28 @@ class CentralWarehouseService
             ->get();
 
         foreach ($preparingOverdue as $req) {
-            $this->notifyStakeholders($req, 'overdue_alert', "Đơn cấp phát #{$req->request_code} đã được duyệt hơn 24 giờ nhưng chưa hoàn tất soạn hàng.");
-            $overdueCount++;
+            if ($this->notifyOverdueOnce($req, SupplyRequest::STATUS_APPROVED, "Đơn cấp phát #{$req->request_code} đã được duyệt hơn 24 giờ nhưng chưa hoàn tất soạn hàng.")) {
+                $overdueCount++;
+            }
         }
 
         return $overdueCount;
+    }
+
+    private function notifyOverdueOnce(SupplyRequest $request, string $stage, string $message): bool
+    {
+        if ($request->last_overdue_alert_stage === $stage
+            && $request->last_overdue_alert_at
+            && $request->last_overdue_alert_at->gte(now()->subDay())) {
+            return false;
+        }
+
+        $request->update([
+            'last_overdue_alert_at' => now(),
+            'last_overdue_alert_stage' => $stage,
+        ]);
+        $this->notifyStakeholders($request, 'overdue_alert', $message);
+
+        return true;
     }
 }

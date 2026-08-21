@@ -7,6 +7,7 @@ use App\Models\Restaurant;
 use App\Models\RestaurantBranch;
 use App\Models\User;
 use App\Models\WarehouseTaskAssignment;
+use App\Models\WageTier;
 use App\Services\CentralWarehouseStaffKpiService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Spatie\Permission\Models\Role;
@@ -198,6 +199,14 @@ class CentralWarehouseTeamManagementTest extends TestCase
             'effective_month' => now()->startOfMonth(),
             'budget_amount' => 50000000,
         ]);
+        WageTier::create([
+            'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->centralBranch->id,
+            'name' => 'Nhân viên Kho Tổng',
+            'compensation_type' => 'fixed',
+            'rate' => 8000000,
+            'is_active' => true,
+        ]);
 
         \Illuminate\Support\Facades\Storage::fake('local');
 
@@ -212,6 +221,9 @@ class CentralWarehouseTeamManagementTest extends TestCase
             'citizen_id_back' => \Illuminate\Http\UploadedFile::fake()->image('back.jpg', 600, 400),
             'hire_date' => now()->toDateString(),
             'base_salary' => 8000000,
+            'wage_tier_id' => WageTier::where('restaurant_id', $this->restaurant->id)
+                ->where('branch_id', $this->centralBranch->id)
+                ->value('id'),
             'role' => 'warehouse_staff',
             'job_title' => 'Nhân viên Kho Tổng',
         ];

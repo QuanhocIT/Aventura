@@ -77,6 +77,10 @@ class SupplyRequestStatusNotification extends Notification
             ],
         };
 
+        $url = method_exists($notifiable, 'isBranchManager') && $notifiable->isBranchManager()
+            ? '/inventory/branch-requisition?branch_id=' . $this->supplyRequest->to_branch_id
+            : '/inventory/central-warehouse';
+
         return [
             'type' => 'supply_request_status_' . $this->stage,
             'stage' => $this->stage,
@@ -85,7 +89,7 @@ class SupplyRequestStatusNotification extends Notification
             'supply_request_id' => $this->supplyRequest->id,
             'request_code' => $requestCode,
             'branch_id' => $this->supplyRequest->to_branch_id,
-            'url' => '/inventory/central-warehouse',
+            'url' => $url,
         ];
     }
 }

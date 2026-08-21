@@ -63,11 +63,13 @@ class WarehouseGovernanceTest extends TestCase
             'restaurant_id' => $restaurant->id,
             'branch_id' => $centralBranch->id,
         ]);
+        $warehouseStaff->assignRole('warehouse_staff');
 
         $warehouseManager = User::factory()->create([
             'restaurant_id' => $restaurant->id,
             'branch_id' => $centralBranch->id,
         ]);
+        $warehouseManager->assignRole('warehouse_manager');
 
         $service = app(CentralWarehouseService::class);
         $govService = app(WarehouseGovernanceService::class);

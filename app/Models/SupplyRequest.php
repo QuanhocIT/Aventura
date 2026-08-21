@@ -42,6 +42,7 @@ class SupplyRequest extends Model
             'prepared_at'                   => 'datetime',
             'dispatch_approved_at'          => 'datetime',
             'handover_at'                   => 'datetime',
+            'last_overdue_alert_at'          => 'datetime',
         ];
     }
 
@@ -115,7 +116,7 @@ class SupplyRequest extends Model
      */
     public function originalRequest(): BelongsTo
     {
-        return $this->belongsTo(self::class, 'backorder_of');
+        return $this->belongsTo(self::class, 'parent_request_id');
     }
 
     /**
@@ -123,7 +124,7 @@ class SupplyRequest extends Model
      */
     public function backorders(): HasMany
     {
-        return $this->hasMany(self::class, 'backorder_of');
+        return $this->hasMany(self::class, 'parent_request_id');
     }
 
     // ── Helpers ────────────────────────────────────────────────────────────────

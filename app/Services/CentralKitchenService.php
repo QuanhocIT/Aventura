@@ -323,13 +323,8 @@ class CentralKitchenService
 
     private function centralBranchId(int $restaurantId): int
     {
-        $centralBranchId = RestaurantBranch::where('restaurant_id', $restaurantId)
-            ->where(function ($query) {
-                $query->where('is_central_warehouse', true)
-                    ->orWhere('warehouse_type', 'central');
-            })
-            ->where('status', 'active')
-            ->value('id');
+        $centralBranchId = app(CentralWarehouseService::class)
+            ->getCentralWarehouse($restaurantId)?->id;
 
         if (! $centralBranchId) {
             throw new InvalidArgumentException('ChÆ°a thiáº¿t láº­p Kho Tá»•ng.');

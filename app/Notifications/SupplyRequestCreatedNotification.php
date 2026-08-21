@@ -22,13 +22,17 @@ class SupplyRequestCreatedNotification extends Notification
         $branchName = $this->supplyRequest->toBranch?->name ?? 'Chi nhánh';
         $itemCount = $this->supplyRequest->items->count();
 
+        $url = method_exists($notifiable, 'isBranchManager') && $notifiable->isBranchManager()
+            ? '/inventory/branch-requisition?branch_id=' . $this->supplyRequest->to_branch_id
+            : '/inventory/central-warehouse';
+
         return [
             'type' => 'supply_request_created',
             'title' => 'Yêu cầu cấp hàng mới',
             'message' => "{$branchName} vừa gửi yêu cầu cấp {$itemCount} nguyên liệu từ Tổng kho.",
             'supply_request_id' => $this->supplyRequest->id,
             'request_code' => $this->supplyRequest->request_code,
-            'url' => '/inventory/central-warehouse',
+            'url' => $url,
         ];
     }
 }

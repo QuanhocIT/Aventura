@@ -50,6 +50,36 @@ class CentralWarehouseWorkspaceNavigationTest extends TestCase
             ->assertRedirect(route('inventory.central-warehouse.stock'));
     }
 
+    public function test_central_overview_exposes_ai_assessment_with_safe_recommendations(): void
+    {
+        $restaurant = Restaurant::factory()->create();
+        $central = RestaurantBranch::factory()->create([
+            'restaurant_id' => $restaurant->id,
+            'is_central_warehouse' => true,
+            'warehouse_type' => 'central',
+            'status' => 'active',
+        ]);
+        $manager = User::factory()->create([
+            'restaurant_id' => $restaurant->id,
+            'warehouse_branch_id' => $central->id,
+        ]);
+        $manager->assignRole('warehouse_manager');
+
+        $response = $this->actingAs($manager)->get(route('inventory.central-warehouse'));
+
+        $response->assertOk();
+        $response->assertInertia(function ($page): void {
+            $assessment = $page->toArray()['props']['centralWarehouseAi'];
+
+            $this->assertArrayHasKey('score', $assessment);
+            $this->assertArrayHasKey('signals', $assessment);
+            $this->assertArrayHasKey('confidence', $assessment);
+            $this->assertContains($assessment['level'], ['stable', 'watch', 'risk', 'critical']);
+            $this->assertLessThanOrEqual(100, $assessment['score']);
+            $this->assertGreaterThanOrEqual(0, $assessment['score']);
+        });
+    }
+
     public function test_central_stock_workspace_does_not_mix_branch_inventory(): void
     {
         $restaurant = Restaurant::factory()->create();

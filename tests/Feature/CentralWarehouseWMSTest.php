@@ -83,10 +83,18 @@ class CentralWarehouseWMSTest extends TestCase
             'quantity_on_hand' => 100,
         ]);
 
-        $picker = User::factory()->create(['restaurant_id' => $restaurant->id]);
+        $picker = User::factory()->create([
+            'restaurant_id' => $restaurant->id,
+            'branch_id' => $centralBranch->id,
+            'warehouse_branch_id' => $centralBranch->id,
+        ]);
         $picker->assignRole('warehouse_staff');
 
-        $manager = User::factory()->create(['restaurant_id' => $restaurant->id]);
+        $manager = User::factory()->create([
+            'restaurant_id' => $restaurant->id,
+            'branch_id' => $centralBranch->id,
+            'warehouse_branch_id' => $centralBranch->id,
+        ]);
         $manager->assignRole('warehouse_manager');
 
         $requester = User::factory()->create([

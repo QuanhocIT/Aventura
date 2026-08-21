@@ -174,12 +174,16 @@ class CentralWarehouseManagementTest extends TestCase
         $warehouseManager->assignRole('warehouse_manager');
 
         $approved = $centralService->approveSupplyRequest($req, $warehouseManager);
+        $prepared = $centralService->prepareDispatch($approved, $this->manager, [
+            ['id' => $approved->items->first()->id, 'actual_dispatched_quantity' => 20],
+        ]);
+        $dispatchApproved = $centralService->approveDispatch($prepared, $warehouseManager);
 
         $manifest = $manifestService->createManifest($this->restaurant->id, $this->centralWarehouse->id, [
             'route_name'         => 'Tuyến Q1 - Q3',
             'driver_name'        => 'Tài xế B',
             'vehicle_number'     => '51D-12345',
-            'supply_request_ids' => [$approved->id],
+            'supply_request_ids' => [$dispatchApproved->id],
         ], $this->manager);
 
         $this->assertDatabaseHas('delivery_manifests', ['id' => $manifest->id]);

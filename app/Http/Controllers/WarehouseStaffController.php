@@ -1250,12 +1250,10 @@ class WarehouseStaffController extends Controller
         // Lấy danh sách nhân viên kho active thuộc Kho Tổng
         $warehouseStaff = \App\Models\User::where('restaurant_id', $restaurantId)
             ->where('status', 'active')
+            ->whereHas('roles', fn ($q) => $q->where('name', 'warehouse_staff'))
             ->where(function ($query) use ($centralBranch) {
-                $query->whereHas('roles', fn ($q) => $q->where('name', 'warehouse_staff'))
-                    ->orWhere(function ($sub) use ($centralBranch) {
-                        $sub->where('warehouse_branch_id', $centralBranch->id)
-                            ->whereHas('roles', fn ($q) => $q->where('name', 'warehouse_staff'));
-                    });
+                $query->where('warehouse_branch_id', $centralBranch->id)
+                    ->orWhere('branch_id', $centralBranch->id);
             })
             ->get();
 
