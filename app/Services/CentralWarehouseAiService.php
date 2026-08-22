@@ -26,6 +26,7 @@ class CentralWarehouseAiService
         $kpi = $warehouseProps['centralWarehouseAnalytics'] ?? [];
         $recommendations = collect($supply['recommendations'] ?? []);
         $tasks = collect($warehouseProps['warehouseTasks'] ?? []);
+        $priceGovernance = $warehouseProps['priceGovernance'] ?? [];
 
         $signals = [];
         $score = 100;
@@ -158,6 +159,22 @@ class CentralWarehouseAiService
             );
         }
 
+        $stalePrices = (int) ($priceGovernance['stale_count'] ?? 0);
+        $largePriceChanges = (int) ($priceGovernance['large_change_count'] ?? 0);
+        $pendingPriceUpdates = (int) ($priceGovernance['pending_count'] ?? 0);
+        if ($stalePrices > 0 || $largePriceChanges > 0 || $pendingPriceUpdates > 0) {
+            $addSignal(
+                $pendingPriceUpdates > 0 || $largePriceChanges > 0 ? 'medium' : 'low',
+                'Giá vốn nguyên liệu cần rà soát',
+                sprintf('%d mặt hàng có giá cũ, %d mặt hàng biến động lớn và %d đề xuất đang chờ duyệt.', $stalePrices, $largePriceChanges, $pendingPriceUpdates),
+                'Kiểm tra lại giá nhập gần nhất, nhà cung cấp và lý do biến động trước khi cập nhật giá vốn dùng chung cho toàn chuỗi.',
+                'Mở bảng giá Kho Tổng, lọc các mặt hàng có biến động và gửi đề xuất kèm bằng chứng cho Chủ nhà hàng nếu cần.',
+                'price_governance',
+                $stalePrices + $largePriceChanges + $pendingPriceUpdates,
+                'price_governance',
+            );
+        }
+
         $trendLeader = $recommendations
             ->sortByDesc(fn (array $item): float => (float) ($item['trend_percent'] ?? 0))
             ->first();
@@ -197,6 +214,25 @@ class CentralWarehouseAiService
 
         $periodDays = (int) ($supply['period_days'] ?? 0);
         $confidence = $periodDays >= 28 && ($summary['last7_requests'] ?? 0) >= 3 ? 0.86 : ($periodDays >= 14 ? 0.7 : 0.52);
+
+        $actionMap = [
+            'inventory_forecast' => ['/inventory/central-warehouse/stock', 'Mở tồn kho'],
+            'fefo_monitoring' => ['/inventory/central-warehouse/stock', 'Kiểm tra lô hàng'],
+            'supply_request_sla' => ['/inventory/central-warehouse/requests', 'Mở đơn cấp phát'],
+            'receiving_control' => ['/inventory/central-warehouse/receiving', 'Mở tiếp nhận'],
+            'warehouse_workload' => ['/warehouse/team', 'Mở đội ngũ kho'],
+            'fulfillment_kpi' => ['/inventory/central-warehouse', 'Xem KPI Kho Tổng'],
+            'demand_trend' => ['/inventory/central-warehouse', 'Xem nhu cầu'],
+            'price_governance' => ['/inventory/central-warehouse/prices', 'Mở bảng giá'],
+        ];
+        $signals = array_map(function (array $signal) use ($actionMap): array {
+            [$url, $label] = $actionMap[$signal['source']] ?? ['/inventory/central-warehouse', 'Mở tổng quan'];
+
+            return $signal + [
+                'action_url' => url($url),
+                'action_label' => $label,
+            ];
+        }, $signals);
 
         return [
             'engine' => 'Aventura Warehouse AI v1',

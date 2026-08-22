@@ -33,6 +33,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import AppLayout from '@/layouts/AppLayout.vue';
+import WarehouseAiRecommendations from '@/components/WarehouseAiRecommendations.vue';
 
 defineOptions({ layout: AppLayout });
 
@@ -97,6 +98,7 @@ const props = defineProps<{
         large_change_count: number;
         pending_count: number;
     };
+    centralWarehouseAi?: any;
 }>();
 
 const page = usePage();
@@ -226,7 +228,7 @@ const savePrices = () => {
 
 const submitPrices = async () => {
     if (changeReason.value.trim().length < 5) {
-        toast.error('Vui lÃ²ng ghi rÃµ lÃ½ do thay Ä‘á»•i (tá»‘i thiá»ƒu 5 kÃ½ tá»±).');
+        toast.error('Vui lòng ghi rõ lý do thay đổi (tối thiểu 5 ký tự).');
 
         return;
     }
@@ -450,6 +452,8 @@ const refreshPage = () => {
                 </CardContent>
             </Card>
         </div>
+
+        <WarehouseAiRecommendations :initial-ai="props.centralWarehouseAi" context="prices" :max="3" />
 
         <!-- ── Policy / Approval Notice Banner ────────────────────────────── -->
         <section class="grid gap-4 lg:grid-cols-3">

@@ -30,6 +30,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import AppLayout from '@/layouts/AppLayout.vue';
+import NegativeInventoryCases from '@/components/NegativeInventoryCases.vue';
+import WarehouseAiRecommendations from '@/components/WarehouseAiRecommendations.vue';
 
 defineOptions({ layout: AppLayout });
 
@@ -102,6 +104,22 @@ const props = defineProps<{
     canManageWarehouse: boolean;
     canReconcile: boolean;
     canUnlockBatches: boolean;
+    centralWarehouseAi?: any;
+    negativeStockCases?: Array<{
+        id: number;
+        branch_name?: string | null;
+        ingredient_name?: string | null;
+        unit_symbol?: string | null;
+        status: 'open' | 'in_progress' | 'pending_owner_approval' | 'pending_verification';
+        negative_quantity: number;
+        on_hand: number;
+        estimated_value: number;
+        detected_at?: string | null;
+        auto_plan?: string | null;
+        handling_plan?: string | null;
+        responsible_user_name?: string | null;
+        expected_restock_at?: string | null;
+    }>;
 }>();
 
 const search = ref('');
@@ -459,6 +477,13 @@ const activityTypeLabel = (type: string) =>
                 ></Card
             >
         </section>
+
+        <WarehouseAiRecommendations :initial-ai="props.centralWarehouseAi" context="stock" :max="3" />
+
+        <NegativeInventoryCases
+            :cases="negativeStockCases"
+            title="Âm nguyên liệu tại Kho Tổng"
+        />
 
         <section class="grid gap-3 md:grid-cols-3">
             <button

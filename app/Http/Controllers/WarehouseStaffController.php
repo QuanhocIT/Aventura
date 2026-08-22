@@ -372,7 +372,7 @@ class WarehouseStaffController extends Controller
                 ->whereIn('id', $ingredientIds)
                 ->count() === $ingredientIds->count(),
             422,
-            'Phiáº¿u nháº­n hÃ ng chá»‰ Ä‘Æ°á»£c phÃ©p dÃ¹ng nguyÃªn liá»‡u toÃ n chuá»—i hoáº·c thuá»™c Kho Tá»•ng.'
+            'Phiếu nhận hàng chỉ được phép dùng nguyên liệu toàn chuỗi hoặc thuộc Kho Tổng.'
         );
 
         $locationIds = collect($request->input('items', []))
@@ -386,7 +386,7 @@ class WarehouseStaffController extends Controller
                 ->whereIn('id', $locationIds)
                 ->count() === $locationIds->count(),
             422,
-            'Vá»‹ trÃ­ cất hÃ ng pháº£i thuá»™c Kho Tá»•ng.'
+            'Vị trí cất hàng phải thuộc Kho Tổng.'
         );
 
         return DB::transaction(function () use ($request, $user, $restaurantId, $centralBranch, $purchaseOrder) {
@@ -529,7 +529,7 @@ class WarehouseStaffController extends Controller
 
         if ($voucher->status === 'pending_disposition') {
             return response()->json([
-                'message' => 'Phiáº¿u Ä‘ang chá» xá»­ lÃ½ tráº£ nhÃ  cung cáº¥p hoáº·c tiÃªu há»§y.',
+                'message' => 'Phiếu đang chờ xử lý trả nhà cung cấp hoặc tiêu hủy.',
                 'requires_disposition' => true,
             ], 422);
         }
@@ -559,7 +559,7 @@ class WarehouseStaffController extends Controller
             ]);
 
             return response()->json([
-                'message' => 'LÃ´ hÃ ng khÃ´ng Ä‘áº¡t. Phiáº¿u Ä‘Ã£ chuyá»ƒn sang chá» tráº£ nhÃ  cung cáº¥p/tiÃªu há»§y vÃ  chÆ°a háº¡ch toÃ¡n vÃ o kho.',
+                'message' => 'Lô hàng không đạt. Phiếu đã chuyển sang chờ trả nhà cung cấp/tiêu hủy và chưa hạch toán vào kho.',
                 'requires_disposition' => true,
                 'voucher' => $voucher->fresh(),
             ], 422);
@@ -590,10 +590,10 @@ class WarehouseStaffController extends Controller
         });
 
         if ($requiresTemperature && ! $hasTemperature) {
-            return response()->json(['message' => 'HÃ ng tÆ°Æ¡i/hÃ ng kho láº¡nh báº¯t buá»™c ghi nháº­n nhiá»‡t Ä‘á»™ nháº­n hÃ ng.'], 422);
+            return response()->json(['message' => 'Hàng tươi/hàng kho lạnh bắt buộc ghi nhận nhiệt độ nhận hàng.'], 422);
         }
         if ($hasTemperature && $temperatureMin > $temperatureMax) {
-            return response()->json(['message' => 'Nhiá»‡t Ä‘á»™ tháº¥p nháº¥t khÃ´ng Ä‘Æ°á»£c lá»›n hÆ¡n nhiá»‡t Ä‘á»™ cao nháº¥t.'], 422);
+            return response()->json(['message' => 'Nhiệt độ thấp nhất không được lớn hơn nhiệt độ cao nhất.'], 422);
         }
 
         $temperatureOutOfRange = $hasTemperature && $voucher->items->contains(function (WarehouseReceivingVoucherItem $item) use ($temperatureMin, $temperatureMax): bool {
@@ -603,15 +603,15 @@ class WarehouseStaffController extends Controller
         });
 
         if ($temperatureOutOfRange && $request->input('quality_status') === 'passed') {
-            return response()->json(['message' => 'Nhiá»‡t Ä‘á»™ nháº­n hÃ ng vÆ°á»£t ngÆ°á»¡ng cÃ i Ä‘áº·t cho nguyÃªn liá»‡u. HÃ£y chuyá»ƒn sang Kiá»ƒm tra cÃ³ Ä‘iá»‡u kiá»‡n hoáº·c xá»­ lÃ½ tá»« chá»‘i.'], 422);
+            return response()->json(['message' => 'Nhiệt độ nhận hàng vượt ngưỡng cài đặt cho nguyên liệu. Hãy chuyển sang Kiểm tra có điều kiện hoặc xử lý từ chối.'], 422);
         }
 
         $threeWayStatus = $voucher->purchaseOrder ? $this->threeWayMatchStatus($voucher) : 'not_applicable';
         if ($voucher->purchaseOrder && blank($voucher->invoice_number)) {
-            return response()->json(['message' => 'GRN gáº¯n vá»›i PO báº¯t buá»™c cÃ³ sá»‘ hÃ³a Ä‘Æ¡n Ä‘á»ƒ Ä‘á»‘i chiáº¿u 3 bÃªn.'], 422);
+            return response()->json(['message' => 'GRN gắn với PO bắt buộc có số hóa đơn để đối chiếu 3 bên.'], 422);
         }
         if ($threeWayStatus === 'discrepancy' && blank($request->input('notes'))) {
-            return response()->json(['message' => 'PO, há»“a Ä‘Æ¡n vÃ  thá»±c nháº­n cÃ³ chÃªnh lá»‡ch. BÃ¡º¯t buá»™c ghi chÃº Ä‘á»‘i soÃ¡t trÆ°á»›c khi xÃ¡c nháº­n.'], 422);
+            return response()->json(['message' => 'PO, hóa đơn và thực nhận có chênh lệch. Bắt buộc ghi chú đối soát trước khi xác nhận.'], 422);
         }
 
         DB::transaction(function () use (&$voucher, $id, $user, $centralBranch, $canVerifyOwnVoucher, $request, $temperatureMin, $temperatureMax, $hasTemperature, $temperatureOutOfRange, $threeWayStatus): void {
@@ -808,7 +808,7 @@ class WarehouseStaffController extends Controller
      * Báo chênh lệch và yêu cầu xem xét
      */
     /**
-     * Xá»­ lÃ½ hÃ ng khÃ´ng Ä‘áº¡t sau khi QC tá»« chá»‘i. HÃ ng chÆ°a tá»«ng Ä‘Æ°á»£c háº¡ch toÃ¡n vÃ o tá»“n kho.
+     * Xử lý hàng không đạt sau khi QC từ chối. Hàng chưa từng được hạch toán vào tồn kho.
      */
     public function disposeReceiving(Request $request, int $id): JsonResponse
     {
@@ -823,7 +823,7 @@ class WarehouseStaffController extends Controller
         ]);
 
         $centralBranch = $this->warehouseService->getCentralWarehouse($user->restaurant_id);
-        abort_unless($centralBranch, 422, 'ChÆ°a thiáº¿t láº­p Kho Tá»•ng.');
+        abort_unless($centralBranch, 422, 'Chưa thiết lập Kho Tổng.');
 
         $voucher = WarehouseReceivingVoucher::where('restaurant_id', $user->restaurant_id)
             ->where('branch_id', $centralBranch->id)
@@ -837,7 +837,7 @@ class WarehouseStaffController extends Controller
             }
         }
         if ($data['disposition'] === 'destroy' && $evidencePaths === []) {
-            return response()->json(['message' => 'TiÃªu há»§y hÃ ng báº¯t buá»™c cÃ³ áº£nh/biÃªn báº£n lÃ m báº±ng chá»©ng.'], 422);
+            return response()->json(['message' => 'Tiêu hủy hàng bắt buộc có ảnh/biên bản làm bằng chứng.'], 422);
         }
 
         $voucher->update([
@@ -931,7 +931,7 @@ class WarehouseStaffController extends Controller
                 ->whereKey((int) $request->location_id)
                 ->exists(),
             422,
-            'Vá»‹ trÃ­ cất hÃ ng khÃ´ng thuá»™c Kho Tá»•ng.'
+            'Vị trí cất hàng không thuộc Kho Tổng.'
         );
 
         $scanLog = array_merge($task->scan_log ?? [], $request->scan_log ?? []);
@@ -982,7 +982,7 @@ class WarehouseStaffController extends Controller
                     ->whereKey((int) $request->ingredient_id)
                     ->exists(),
                 422,
-                'NguyÃªn liá»‡u báo sá»± cá»‘ pháº£i thuá»™c Kho Tá»•ng hoáº·c catalog toÃ n chuá»—i.'
+                'Nguyên liệu báo sự cố phải thuộc Kho Tổng hoặc catalog toàn chuỗi.'
             );
         }
 
@@ -1434,7 +1434,7 @@ class WarehouseStaffController extends Controller
 
     // ── Helpers ───────────────────────────────────────────────────────────────
 
-    private function temperatureStatus($minimum, $maximum): string
+    private function temperatureStatus(float|int|string|null $minimum, float|int|string|null $maximum): string
     {
         return $minimum !== null && $maximum !== null ? 'recorded' : 'not_recorded';
     }
@@ -1511,7 +1511,7 @@ class WarehouseStaffController extends Controller
         ];
     }
 
-    private function logAudit($user, string $action, $model, array $metadata = []): void
+    private function logAudit(\App\Models\User $user, string $action, mixed $model, array $metadata = []): void
     {
         try {
             AuditLog::create([

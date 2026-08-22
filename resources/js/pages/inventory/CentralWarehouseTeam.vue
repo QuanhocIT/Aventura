@@ -21,6 +21,7 @@ import { Label } from '@/components/ui/label';
 import { assignSupervisor, toggleStatus } from '@/routes/warehouse/team';
 import { assign, reassign } from '@/routes/warehouse/team/tasks';
 import { approve } from '@/routes/warehouse/team/leave';
+import WarehouseAiRecommendations from '@/components/WarehouseAiRecommendations.vue';
 
 interface StaffMember {
     id: number;
@@ -91,6 +92,7 @@ const props = defineProps<{
     leaveRequests: LeaveReq[];
     teamKpi: KpiItem[];
     taskTypes: { value: string; label: string }[];
+    centralWarehouseAi?: any;
 }>();
 
 const activeTab = ref<'directory' | 'tasks' | 'shifts' | 'kpi'>('directory');
@@ -302,6 +304,8 @@ function getPriorityBadge(priority: string) {
                 </CardContent>
             </Card>
         </div>
+
+        <WarehouseAiRecommendations :initial-ai="props.centralWarehouseAi" context="team" :max="3" />
 
         <!-- Main Navigation Tabs -->
         <div class="flex items-center border-b border-slate-200 dark:border-slate-800">

@@ -9,6 +9,7 @@ use App\Models\WarehouseShiftHandover;
 use App\Models\WarehouseStaffSupervisorHistory;
 use App\Models\WarehouseTaskAssignment;
 use App\Services\CentralWarehouseService;
+use App\Services\CentralWarehouseAiService;
 use App\Services\CentralWarehouseStaffKpiService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -147,6 +148,9 @@ class CentralWarehouseTeamController extends Controller
             'recentTasks' => $recentTasks,
             'leaveRequests' => $leaveRequests,
             'teamKpi' => $teamKpi,
+            'centralWarehouseAi' => app(CentralWarehouseAiService::class)->analyze([
+                'warehouseTasks' => $recentTasks->toArray(),
+            ]),
             'taskTypes' => [
                 ['value' => 'receiving', 'label' => 'Nhận hàng (GRN)'],
                 ['value' => 'putaway', 'label' => 'Cất hàng vào vị trí'],

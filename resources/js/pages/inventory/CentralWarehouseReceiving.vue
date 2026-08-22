@@ -254,9 +254,9 @@ const formatDateOnly = (value: string | null | undefined) => {
 };
 
 const statusLabel = (status: string) =>
-    status === 'pending_disposition' ? 'Chá» tráº£/há»§y' :
-    status === 'returned' ? 'ÄÃ£ tráº£ NCC' :
-    status === 'destroyed' ? 'ÄÃ£ tiÃªu há»·' :
+    status === 'pending_disposition' ? 'Chờ trả/hủy' :
+    status === 'returned' ? 'Đã trả NCC' :
+    status === 'destroyed' ? 'Đã tiêu hủy' :
     ({
         draft: 'Chờ xác minh',
         discrepancy: 'Có chênh lệch',
@@ -466,13 +466,17 @@ const confirmVoucher = async () => {
                 formData.append('notes', confirmNotes.value.trim());
                 formData.append('quality_status', confirmQualityStatus.value);
                 formData.append('quality_notes', confirmQualityNotes.value.trim());
+
                 if (confirmTemperatureMin.value !== null && confirmTemperatureMin.value !== '') {
                     formData.append('temperature_min_c', String(confirmTemperatureMin.value));
                 }
+
                 if (confirmTemperatureMax.value !== null && confirmTemperatureMax.value !== '') {
                     formData.append('temperature_max_c', String(confirmTemperatureMax.value));
                 }
+
                 confirmEvidence.value.forEach((file) => formData.append('evidence[]', file));
+
                 return formData;
             })()
             : {
@@ -494,11 +498,13 @@ const confirmVoucher = async () => {
             (summary.value.pending_review ?? 1) - 1,
         );
         summary.value.confirmed = (summary.value.confirmed ?? 0) + 1;
+
         if (confirmQualityStatus.value === 'passed') {
             inventory.value.on_hand_quantity =
                 Number(inventory.value.on_hand_quantity ?? 0) +
                 Number(voucher.total_actual_qty ?? 0);
         }
+
         toast.success(
             `Đã xác minh ${voucher.voucher_code}; tồn kho và lô hàng đã được cập nhật.`,
         );
@@ -508,9 +514,11 @@ const confirmVoucher = async () => {
             voucher.status = 'pending_disposition';
             closeConfirm();
             openDisposition(voucher);
-            toast.warning('LÃ´ khÃ´ng Ä‘áº¡t Ä‘Ã£ Ä‘Æ°á»£c cÃ¡ch ly. HÃ£y ghi nháº­n tráº£ NCC hoáº·c tiÃªu há»§y.');
+            toast.warning('Lô không đạt đã được cách ly. Hãy ghi nhận trả NCC hoặc tiêu hủy.');
+
             return;
         }
+
         confirmError.value =
             error.response?.data?.message ??
             'Không thể xác minh phiếu nhận hàng.';
@@ -525,7 +533,8 @@ const disposeReceiving = async () => {
     }
 
     if (dispositionKind.value === 'destroy' && dispositionEvidence.value.length === 0) {
-        toast.error('TiÃªu há»§y pháº£i cÃ³ áº£nh/biÃªn báº£n lÃ m báº±ng chá»©ng.');
+        toast.error('Tiêu hủy phải có ảnh/biên bản làm bằng chứng.');
+
         return;
     }
 
@@ -540,9 +549,9 @@ const disposeReceiving = async () => {
         dispositionVoucher.value.status = dispositionKind.value === 'destroy' ? 'destroyed' : 'returned';
         summary.value.pending_review = Math.max(0, (summary.value.pending_review ?? 1) - 1);
         closeDisposition();
-        toast.success('ÄÃ£ ghi nháº­n xá»­ lÃ½ lÃ´ khÃ´ng Ä‘áº¡t.');
+        toast.success('Đã ghi nhận xử lý lô không đạt.');
     } catch (error: any) {
-        toast.error(error.response?.data?.message ?? 'KhÃ´ng thá»ƒ ghi nháº­n xá»­ lÃ½ lá»‡nh.');
+        toast.error(error.response?.data?.message ?? 'Không thể ghi nhận xử lý lệnh.');
     } finally {
         isDisposing.value = false;
     }
@@ -669,12 +678,13 @@ const validateGrn = () => {
             errors.push(`Dòng ${lineNo}: phải ghi lý do thiếu/thừa.`);
         }
     });
+
     if (
         grnForm.value.temperature_min_c !== null &&
         grnForm.value.temperature_max_c !== null &&
         Number(grnForm.value.temperature_min_c) > Number(grnForm.value.temperature_max_c)
     ) {
-        errors.push('Nhiá»‡t Ä‘á»™ tá»‘i thiá»ƒu khÃ´ng Ä‘Æ°á»£c lá»›n hÆ¡n nhiá»‡t Ä‘á»™ tá»‘i Ä‘a.');
+        errors.push('Nhiệt độ tối thiểu không được lớn hơn nhiệt độ tối đa.');
     }
 
     grnErrors.value = errors;
@@ -728,6 +738,7 @@ const submitGrn = async () => {
     if (grnForm.value.temperature_min_c !== null && grnForm.value.temperature_min_c !== '') {
         formData.append('temperature_min_c', String(grnForm.value.temperature_min_c));
     }
+
     if (grnForm.value.temperature_max_c !== null && grnForm.value.temperature_max_c !== '') {
         formData.append('temperature_max_c', String(grnForm.value.temperature_max_c));
     }
@@ -1802,15 +1813,15 @@ const evidenceUrl = (path: string) =>
                 <div class="rounded-xl border border-sky-400/20 bg-sky-500/5 p-4">
                     <div class="grid gap-3 sm:grid-cols-2">
                         <div class="flex flex-col gap-1.5">
-                            <Label>Nhiá»‡t Ä‘á»™ tháº¥p nháº¥t (Â°C)</Label>
-                            <Input v-model="confirmTemperatureMin" type="number" step="0.1" placeholder="VÃ­ dá»¥ 2" />
+                            <Label>Nhiệt độ thấp nhất (°C)</Label>
+                            <Input v-model="confirmTemperatureMin" type="number" step="0.1" placeholder="Ví dụ 2" />
                         </div>
                         <div class="flex flex-col gap-1.5">
-                            <Label>Nhiá»‡t Ä‘á»™ cao nháº¥t (Â°C)</Label>
-                            <Input v-model="confirmTemperatureMax" type="number" step="0.1" placeholder="VÃ­ dá»¥ 6" />
+                            <Label>Nhiệt độ cao nhất (°C)</Label>
+                            <Input v-model="confirmTemperatureMax" type="number" step="0.1" placeholder="Ví dụ 6" />
                         </div>
                     </div>
-                    <p class="mt-2 text-[11px] text-muted-foreground">Báº¯t buá»™c vá»›i hÃ ng tÆ°Æ¡i, kho láº¡nh hoáº·c nguyÃªn liá»‡u cÃ³ cÃ i ngÆ°á»¡ng.</p>
+                    <p class="mt-2 text-[11px] text-muted-foreground">Bắt buộc với hàng tươi, kho lạnh hoặc nguyên liệu có cài ngưỡng.</p>
                 </div>
                 <div class="grid gap-3 sm:grid-cols-2">
                     <div class="flex flex-col gap-1.5">
@@ -1839,7 +1850,7 @@ const evidenceUrl = (path: string) =>
                     </div>
                 </div>
                 <div class="flex flex-col gap-1.5">
-                    <Label>Báº±ng chá»©ng xá»­ lÃ½ cháº¥t lÆ°á»£ng (náº¿u khÃ´ng Ä‘áº¡t)</Label>
+                    <Label>Bằng chứng xử lý chất lượng (nếu không đạt)</Label>
                     <input type="file" multiple accept="image/*,.pdf" class="h-10 rounded-md border border-input bg-background px-3 py-2 text-xs" @change="handleConfirmEvidence" />
                 </div>
                 <div class="flex flex-col gap-1.5">
@@ -1897,31 +1908,31 @@ const evidenceUrl = (path: string) =>
         <div class="w-full max-w-xl rounded-3xl border border-rose-400/25 bg-background p-6 shadow-2xl">
             <div class="mb-5 flex items-start justify-between gap-3">
                 <div>
-                    <p class="text-[10px] font-bold uppercase tracking-wider text-rose-400">Xá»­ lÃ½ lÃ´ khÃ´ng Ä‘áº¡t</p>
+                    <p class="text-[10px] font-bold uppercase tracking-wider text-rose-400">Xử lý lô không đạt</p>
                     <h2 class="mt-1 text-xl font-black">{{ dispositionVoucher.voucher_code }}</h2>
-                    <p class="mt-1 text-xs text-muted-foreground">LÃ´ nÃ y chÆ°a Ä‘Æ°á»£c cá»™ng vÃ o tá»“n kho.</p>
+                    <p class="mt-1 text-xs text-muted-foreground">Lô này chưa được cộng vào tồn kho.</p>
                 </div>
                 <Button variant="ghost" size="icon" @click="closeDisposition"><X class="size-4" /></Button>
             </div>
             <form class="space-y-4" @submit.prevent="disposeReceiving">
                 <div class="flex flex-col gap-1.5">
-                    <Label>HÆ°á»›ng xá»­ lÃ½</Label>
+                    <Label>Hướng xử lý</Label>
                     <select v-model="dispositionKind" class="h-10 rounded-md border border-input bg-background px-3 text-sm">
-                        <option value="return_supplier">Tráº£ nhÃ  cung cáº¥p</option>
-                        <option value="destroy">TiÃªu há»§y</option>
+                        <option value="return_supplier">Trả nhà cung cấp</option>
+                        <option value="destroy">Tiêu hủy</option>
                     </select>
                 </div>
                 <div class="flex flex-col gap-1.5">
-                    <Label>LÃ½ do / biÃªn báº£n</Label>
-                    <textarea v-model="dispositionReason" rows="4" required class="rounded-md border border-input bg-background px-3 py-2 text-sm" placeholder="NÃªu rÃµ lÃ½ do, sá»‘ biÃªn báº£n, ngÆ°á»i bÃ n giao..." />
+                    <Label>Lý do / biên bản</Label>
+                    <textarea v-model="dispositionReason" rows="4" required class="rounded-md border border-input bg-background px-3 py-2 text-sm" placeholder="Nêu rõ lý do, số biên bản, người bàn giao..." />
                 </div>
                 <div class="flex flex-col gap-1.5">
-                    <Label>Báº±ng chá»©ng {{ dispositionKind === 'destroy' ? '(báº¯t buá»™c)' : '(khuyáº¿n nghá»‹)' }}</Label>
+                    <Label>Bằng chứng {{ dispositionKind === 'destroy' ? '(bắt buộc)' : '(khuyến nghị)' }}</Label>
                     <input type="file" multiple accept="image/*,.pdf" class="h-10 rounded-md border border-input bg-background px-3 py-2 text-xs" @change="handleDispositionEvidence" />
                 </div>
                 <div class="flex justify-end gap-2">
-                    <Button type="button" variant="outline" @click="closeDisposition">Há»§y</Button>
-                    <Button type="submit" class="bg-rose-600 text-white hover:bg-rose-700" :disabled="isDisposing">Ghi nháº­n xá»­ lÃ½</Button>
+                    <Button type="button" variant="outline" @click="closeDisposition">Hủy</Button>
+                    <Button type="submit" class="bg-rose-600 text-white hover:bg-rose-700" :disabled="isDisposing">Ghi nhận xử lý</Button>
                 </div>
             </form>
         </div>
@@ -2036,15 +2047,15 @@ const evidenceUrl = (path: string) =>
                 </div>
                 <div class="grid gap-3 md:grid-cols-4">
                     <div class="flex flex-col gap-1.5">
-                        <Label>Nhiá»‡t Ä‘á»™ tháº¥p nháº¥t (Â°C)</Label>
-                        <Input v-model="grnForm.temperature_min_c" type="number" step="0.1" placeholder="VÃ­ dá»¥ 2" />
+                        <Label>Nhiệt độ thấp nhất (°C)</Label>
+                        <Input v-model="grnForm.temperature_min_c" type="number" step="0.1" placeholder="Ví dụ 2" />
                     </div>
                     <div class="flex flex-col gap-1.5">
-                        <Label>Nhiá»‡t Ä‘á»™ cao nháº¥t (Â°C)</Label>
-                        <Input v-model="grnForm.temperature_max_c" type="number" step="0.1" placeholder="VÃ­ dá»¥ 6" />
+                        <Label>Nhiệt độ cao nhất (°C)</Label>
+                        <Input v-model="grnForm.temperature_max_c" type="number" step="0.1" placeholder="Ví dụ 6" />
                     </div>
                     <div class="flex items-end md:col-span-2">
-                        <p class="rounded-lg border border-sky-400/20 bg-sky-500/5 p-3 text-[11px] text-muted-foreground">HÃ ng tÆ°Æ¡i/kho láº¡nh sáº½ khÃ´ng Ä‘Æ°á»£c xÃ¡c minh náº¿u thiáº¿u nhiá»‡t Ä‘á»™ nháº­n hÃ ng.</p>
+                        <p class="rounded-lg border border-sky-400/20 bg-sky-500/5 p-3 text-[11px] text-muted-foreground">Hàng tươi/kho lạnh sẽ không được xác minh nếu thiếu nhiệt độ nhận hàng.</p>
                     </div>
                 </div>
                 <div class="rounded-2xl border border-border">

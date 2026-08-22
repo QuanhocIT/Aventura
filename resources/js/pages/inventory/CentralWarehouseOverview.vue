@@ -30,6 +30,7 @@ import {
     CardTitle,
 } from '@/components/ui/card';
 import AppLayout from '@/layouts/AppLayout.vue';
+import NegativeInventoryCases from '@/components/NegativeInventoryCases.vue';
 import centralWarehouseRoutes from '@/routes/inventory/central-warehouse';
 
 defineOptions({ layout: AppLayout });
@@ -43,6 +44,7 @@ const props = defineProps<{
     inventorySummary?: any;
     supplyChainAlerts?: any;
     supplyChainReconciliation?: any;
+    negativeStockCases?: any[];
 }>();
 
 const analytics = computed(() => props.supplyAnalytics ?? {});
@@ -325,6 +327,11 @@ const aiSignalClass = (severity: string) =>
             </Card>
         </section>
 
+        <NegativeInventoryCases
+            :cases="negativeStockCases"
+            title="Âm nguyên liệu tại Kho Tổng"
+        />
+
         <section class="grid gap-4 xl:grid-cols-[1.15fr_0.85fr]">
             <Card class="border-amber-500/25 bg-amber-950/5 shadow-sm">
                 <CardHeader class="border-b border-amber-500/15 py-4">
@@ -425,6 +432,9 @@ const aiSignalClass = (severity: string) =>
                         <p class="mt-1.5 text-[11px] leading-relaxed text-muted-foreground">{{ signal.evidence }}</p>
                         <p class="mt-2 text-[11px] font-semibold leading-relaxed text-foreground">Khuyến nghị: {{ signal.advice }}</p>
                         <p class="mt-2 text-[10px] leading-relaxed text-muted-foreground">Bước tiếp theo: {{ signal.next_step }}</p>
+                        <a v-if="signal.action_url" :href="signal.action_url" class="mt-2 inline-flex items-center gap-1 text-[10px] font-bold text-indigo-300 hover:underline">
+                            {{ signal.action_label || 'Mở chi tiết' }} <ArrowRight class="h-3 w-3" />
+                        </a>
                     </div>
                 </CardContent>
             </Card>

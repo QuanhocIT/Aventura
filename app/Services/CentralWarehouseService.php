@@ -424,9 +424,9 @@ class CentralWarehouseService
                 $ingredient = Ingredient::where('restaurant_id', $request->restaurant_id)
                     ->findOrFail($item->ingredient_id);
 
-                // TÃ­nh truy xuáº¥t lÃ´ theo máº·c Ä‘á»‹nh danh má»¥c. DÃ¹ng FEFO tá»± Ä‘á»™ng khi
+                // Tính truy xuất lô theo mặc định danh mục. Dùng FEFO tự động khi
                 // giao diá»‡n khÃ´ng truyá»n batch_id; dá»¯ liá»‡u legacy khÃ´ng cÃ³ lÃ´ váº«n
-                // Ä‘Æ°á»£c phÃ©p xuáº¥t Ä‘á»ƒ khÃ´ng lÃ m giÃ¡n Ä‘oáº¡n kho cÅ©.
+                // được phép xuất để không làm gián đoạn kho cũ.
                 if (! $batchId && $actualQty > 0) {
                     $requiresBatch = (bool) $ingredient->batch_tracking_required
                         || in_array($ingredient->storage_type, ['fresh', 'daily', 'short_shelf'], true);
@@ -446,7 +446,7 @@ class CentralWarehouseService
                     if ($fefoBatch) {
                         $batchId = $fefoBatch->id;
                     } elseif ($requiresBatch) {
-                        throw new InvalidArgumentException("NguyÃªn liá»‡u {$ingredient->name} báº¯t buá»™c truy xuáº¥t lÃ´ nhÆ°ng khÃ´ng cÃ³ lÃ´ FEFO Ä‘á»§ tá»“n.");
+                        throw new InvalidArgumentException("Nguyên liệu {$ingredient->name} bắt buộc truy xuất lô nhưng không có lô FEFO đủ tồn.");
                     }
                 }
 
@@ -599,20 +599,36 @@ class CentralWarehouseService
                 }
 
                 if ($request->from_branch_id) {
-                    // Lock inventory record for atomic update
+                    // Xuất kho là giao dịch thực tế. Nếu tồn hiện tại không đủ,
+                    // vẫn ghi nhận số xuất và để tồn âm đi qua workflow xử lý âm.
                     $centralInventory = Inventory::where('restaurant_id', $request->restaurant_id)
                         ->where('branch_id', $request->from_branch_id)
                         ->where('ingredient_id', $item->ingredient_id)
                         ->lockForUpdate()
                         ->first();
 
-                    if (! $centralInventory || (float) $centralInventory->quantity_on_hand < $qtyToDeduct) {
-                        $onHand = (float) ($centralInventory?->quantity_on_hand ?? 0);
-                        throw new InvalidArgumentException("Tồn Kho Tổng chỉ còn {$onHand}, không đủ để thực xuất {$qtyToDeduct} cho nguyên liệu #{$item->ingredient_id}.");
+                    if (! $centralInventory) {
+                        $centralInventory = Inventory::create([
+                            'restaurant_id' => $request->restaurant_id,
+                            'branch_id' => $request->from_branch_id,
+                            'ingredient_id' => $item->ingredient_id,
+                            'quantity_on_hand' => 0,
+                            'theoretical_quantity' => 0,
+                            'last_cost' => (float) ($ingredient->average_cost ?? 0),
+                        ]);
                     }
 
-                    // Trừ tồn Kho Tổng
-                    $centralInventory->decrement('quantity_on_hand', $qtyToDeduct);
+                    $centralInventory = Inventory::whereKey($centralInventory->id)
+                        ->lockForUpdate()
+                        ->firstOrFail();
+                    $centralBefore = (float) $centralInventory->quantity_on_hand;
+                    $centralAfter = $centralBefore - $qtyToDeduct;
+                    $centralTheoreticalBefore = $centralInventory->effectiveTheoreticalQuantity();
+                    $centralInventory->update([
+                        'quantity_on_hand' => $centralAfter,
+                        'theoretical_quantity' => $centralTheoreticalBefore - $qtyToDeduct,
+                    ]);
+                    $centralShortage = max(0, -$centralAfter);
 
                     // Trừ tồn theo lô nếu có chọn lô
                     if ($item->batch_id) {
@@ -627,10 +643,11 @@ class CentralWarehouseService
                             throw new InvalidArgumentException('LÃ´ xuáº¥t kho khÃ´ng cÃ²n tá»“n táº¡i hoáº·c khÃ´ng thuá»™c Kho Tá»•ng.');
                         }
                         if ($batch) {
-                            if ((float) $batch->quantity_remaining < $qtyToDeduct) {
-                                throw new InvalidArgumentException("Lô #{$batch->batch_code} không đủ tồn để trừ ({$batch->quantity_remaining} < {$qtyToDeduct}).");
-                            }
-                            $batch->decrement('quantity_remaining', $qtyToDeduct);
+                            $batchAfter = (float) $batch->quantity_remaining - $qtyToDeduct;
+                            $batch->update([
+                                'quantity_remaining' => $batchAfter,
+                                'status' => $batchAfter <= 0 ? 'depleted' : $batch->status,
+                            ]);
                             if ((float) $batch->quantity_remaining <= 0) {
                                 $batch->update(['status' => 'depleted']);
                             }
@@ -658,9 +675,13 @@ class CentralWarehouseService
                         'source_type' => 'supply_request',
                         'source_id' => $request->id,
                         'idempotency_key' => "dispatch_sr_{$request->id}_item_{$item->id}",
-                        'notes' => "Xuất kho cấp phát cho chi nhánh {$request->toBranch?->name} theo đơn {$request->request_code}",
+                        'notes' => "Xuất kho cấp phát cho chi nhánh {$request->toBranch?->name} theo đơn {$request->request_code}"
+                            .($centralShortage > 0 ? " | Tồn âm sau xuất: {$centralShortage}" : ''),
+                        'quantity_before' => $centralBefore,
+                        'quantity_after' => $centralAfter,
                         'occurred_at' => now(),
                     ]);
+                    app(NegativeInventoryService::class)->sync($centralInventory, $transaction);
 
                     if ($item->batch_id) {
                         InventoryBatchAllocation::create([
@@ -836,7 +857,13 @@ class CentralWarehouseService
                     );
 
                     $branchInventory = Inventory::whereKey($branchInventory->id)->lockForUpdate()->firstOrFail();
-                    $branchInventory->increment('quantity_on_hand', $incrementalGoodQty);
+                    $branchBefore = (float) $branchInventory->quantity_on_hand;
+                    $branchTheoreticalBefore = $branchInventory->effectiveTheoreticalQuantity();
+                    $branchAfter = $branchBefore + $incrementalGoodQty;
+                    $branchInventory->update([
+                        'quantity_on_hand' => $branchAfter,
+                        'theoretical_quantity' => $branchTheoreticalBefore + $incrementalGoodQty,
+                    ]);
 
                     // Ghi Ledger Nhập Kho Chi Nhánh
                     $idempotencyKey = "receive_sr_{$request->id}_item_{$item->id}_good_{$previousGoodQty}_to_{$targetGoodQty}";
@@ -859,6 +886,8 @@ class CentralWarehouseService
                         'source_id' => $request->id,
                         'idempotency_key' => $idempotencyKey,
                         'notes' => "Nhập hàng đạt từ Kho Tổng theo đơn {$request->request_code} (+{$incrementalGoodQty})",
+                        'quantity_before' => $branchBefore,
+                        'quantity_after' => $branchAfter,
                         'occurred_at' => now(),
                     ]);
 

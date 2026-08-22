@@ -43,6 +43,7 @@ import {
 } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import AppLayout from '@/layouts/AppLayout.vue';
+import WarehouseAiRecommendations from '@/components/WarehouseAiRecommendations.vue';
 
 defineOptions({ layout: AppLayout });
 
@@ -63,6 +64,7 @@ const props = defineProps<{
     receivingSummary?: any;
     inventorySummary?: any;
     warehouseLocations?: Array<any>;
+    centralWarehouseAi?: any;
 }>();
 
 const activeTab = ref<
@@ -1432,6 +1434,8 @@ const submitRecall = async () => {
                 /></span>
             </button>
         </section>
+
+        <WarehouseAiRecommendations :initial-ai="props.centralWarehouseAi" context="requests" :max="3" />
 
         <section class="grid gap-4 xl:grid-cols-[1.35fr_0.65fr]">
             <Card class="overflow-hidden border-border shadow-sm">

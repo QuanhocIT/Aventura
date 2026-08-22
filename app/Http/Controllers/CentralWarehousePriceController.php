@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\ApprovalRequest;
 use App\Models\IngredientPriceHistory;
 use App\Services\ApprovalService;
+use App\Services\CentralWarehouseAiService;
 use App\Services\CentralWarehouseService;
 use App\Services\SupplyRequestAnalyticsService;
 use App\Support\TenantRule;
@@ -84,6 +85,13 @@ class CentralWarehousePriceController extends Controller
             ->unique('ingredient_id')
             ->count();
 
+        $priceGovernance = [
+            'last_updated_at' => $priceHistory->first()?->created_at?->format('H:i d/m/Y'),
+            'stale_count' => $staleCount,
+            'large_change_count' => $largeChangeCount,
+            'pending_count' => $pendingPriceUpdates->count(),
+        ];
+
         return Inertia::render('inventory/CentralWarehousePrices', [
             'ingredients' => $ingredients,
             'canManageWarehouse' => $user->isOwner() || $user->isSuperAdmin(),
@@ -107,12 +115,10 @@ class CentralWarehousePriceController extends Controller
                 'created_at' => $history->created_at?->format('H:i d/m/Y'),
                 'approved_at' => $history->approved_at?->format('H:i d/m/Y'),
             ])->values(),
-            'priceGovernance' => [
-                'last_updated_at' => $priceHistory->first()?->created_at?->format('H:i d/m/Y'),
-                'stale_count' => $staleCount,
-                'large_change_count' => $largeChangeCount,
-                'pending_count' => $pendingPriceUpdates->count(),
-            ],
+            'priceGovernance' => $priceGovernance,
+            'centralWarehouseAi' => app(CentralWarehouseAiService::class)->analyze([
+                'priceGovernance' => $priceGovernance,
+            ]),
         ]);
     }
 

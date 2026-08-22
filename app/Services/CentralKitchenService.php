@@ -24,7 +24,7 @@ class CentralKitchenService
     public function createBom(int $restaurantId, array $data, User $creator): CentralBom
     {
         if (! $creator->isOwner() && ! $creator->isSuperAdmin()) {
-            throw new InvalidArgumentException('Chá»‰ Chá»§ doanh nghiá»‡p má»›i Ä‘Æ°á»£c thiáº¿t láº­p BOM.');
+            throw new InvalidArgumentException('Chỉ Chủ doanh nghiệp mới được thiết lập BOM.');
         }
 
         if ((int) $creator->restaurant_id !== $restaurantId) {
@@ -81,7 +81,7 @@ class CentralKitchenService
         return DB::transaction(function () use ($restaurantId, $branchId, $data, $creator) {
             $centralBranchId = $this->centralBranchId($restaurantId);
             if ($branchId !== $centralBranchId) {
-                throw new InvalidArgumentException('Lá»‡nh sÆ¡ cháº¿ chá»‰ Ä‘Æ°á»£c thá»±c hiá»‡n táº¡i Kho Tá»•ng.');
+                throw new InvalidArgumentException('Lệnh sơ chế chỉ được thực hiện tại Kho Tổng.');
             }
 
             if (! $this->centralIngredientQuery($restaurantId, $centralBranchId)->whereKey($data['output_ingredient_id'])->exists()) {
@@ -115,7 +115,7 @@ class CentralKitchenService
                     ->map(fn ($id) => (int) $id)
                     ->unique();
                 if ($this->centralIngredientQuery($restaurantId, $centralBranchId)->whereIn('id', $bomIngredientIds)->count() !== $bomIngredientIds->count()) {
-                    throw new InvalidArgumentException('BOM Ä‘Æ°á»£c chá»n cÃ³ nguyÃªn liá»‡u ngoÃ i pháº¡m vi Kho Tá»•ng.');
+                    throw new InvalidArgumentException('BOM được chọn có nguyên liệu ngoài phạm vi Kho Tổng.');
                 }
                 $multiplier = (float) $data['target_quantity'] / (float) ($bom->standard_output_qty > 0 ? $bom->standard_output_qty : 1);
                 foreach ($bom->items as $bomItem) {
@@ -217,12 +217,26 @@ class CentralKitchenService
                     ->lockForUpdate()
                     ->first();
 
-                if (! $inventory || (float) $inventory->quantity_on_hand < $actualUsed) {
-                    $onHand = $inventory ? $inventory->quantity_on_hand : 0;
-                    throw new InvalidArgumentException("Tồn kho nguyên liệu #{$ingredient->name} chỉ còn {$onHand}, không đủ để sơ chế {$actualUsed}.");
+                if (! $inventory) {
+                    $inventory = Inventory::create([
+                        'restaurant_id' => $restaurantId,
+                        'branch_id' => $branchId,
+                        'ingredient_id' => $item->input_ingredient_id,
+                        'quantity_on_hand' => 0,
+                        'theoretical_quantity' => 0,
+                        'last_cost' => $unitCost,
+                    ]);
                 }
 
-                $inventory->decrement('quantity_on_hand', $actualUsed);
+                $inventory = Inventory::whereKey($inventory->id)->lockForUpdate()->firstOrFail();
+                $inventoryBefore = (float) $inventory->quantity_on_hand;
+                $inventoryAfter = $inventoryBefore - $actualUsed;
+                $theoreticalBefore = $inventory->effectiveTheoreticalQuantity();
+                $inventory->update([
+                    'quantity_on_hand' => $inventoryAfter,
+                    'theoretical_quantity' => $theoreticalBefore - $actualUsed,
+                ]);
+                $shortageQuantity = max(0, -$inventoryAfter);
 
                 if ($batchId) {
                     $batch = InventoryBatch::where('restaurant_id', $restaurantId)
@@ -231,18 +245,22 @@ class CentralKitchenService
                         ->lockForUpdate()
                         ->find($batchId);
                     if ($batch) {
-                        $batch->decrement('quantity_remaining', $actualUsed);
+                        $batchAfter = (float) $batch->quantity_remaining - $actualUsed;
+                        $batch->update([
+                            'quantity_remaining' => $batchAfter,
+                            'status' => $batchAfter <= 0 ? 'depleted' : $batch->status,
+                        ]);
                     }
                 }
 
                 // Ledger Transaction (Raw Deduction)
-                InventoryTransaction::createWithIdempotency([
+                $transaction = InventoryTransaction::createWithIdempotency([
                     'restaurant_id'   => $restaurantId,
                     'branch_id'       => $branchId,
                     'ingredient_id'   => $item->input_ingredient_id,
                     'inventory_id'    => $inventory->id,
                     'performed_by'    => $user->id,
-                    'type'            => 'use',
+                    'type'            => 'usage',
                     'direction'       => 'out',
                     'quantity'        => $actualUsed,
                     'unit_cost'       => $unitCost,
@@ -250,9 +268,13 @@ class CentralKitchenService
                     'source_type'     => 'work_order',
                     'source_id'       => $workOrder->id,
                     'idempotency_key' => "wo_{$workOrder->id}_deduct_item_{$item->id}",
-                    'notes'           => "Xuất sơ chế sản xuất theo đơn {$workOrder->work_order_code}",
+                    'notes'           => "Xuất sơ chế sản xuất theo đơn {$workOrder->work_order_code}"
+                        .($shortageQuantity > 0 ? " | Tồn âm sau xuất: {$shortageQuantity}" : ''),
+                    'quantity_before' => $inventoryBefore,
+                    'quantity_after'  => $inventoryAfter,
                     'occurred_at'     => now(),
                 ]);
+                app(NegativeInventoryService::class)->sync($inventory, $transaction);
             }
 
             // 2. Tính Tỷ lệ Thu hồi (Yield %)
@@ -284,8 +306,14 @@ class CentralKitchenService
                     'quantity_on_hand' => 0,
                 ]
             );
-            $outputInventory->lockForUpdate();
-            $outputInventory->increment('quantity_on_hand', $actualYieldQty);
+            $outputInventory = Inventory::whereKey($outputInventory->id)->lockForUpdate()->firstOrFail();
+            $outputBefore = (float) $outputInventory->quantity_on_hand;
+            $outputTheoreticalBefore = $outputInventory->effectiveTheoreticalQuantity();
+            $outputAfter = $outputBefore + $actualYieldQty;
+            $outputInventory->update([
+                'quantity_on_hand' => $outputAfter,
+                'theoretical_quantity' => $outputTheoreticalBefore + $actualYieldQty,
+            ]);
 
             // Ledger Transaction (WIP Addition)
             InventoryTransaction::createWithIdempotency([
@@ -303,6 +331,8 @@ class CentralKitchenService
                 'source_id'       => $workOrder->id,
                 'idempotency_key' => "wo_{$workOrder->id}_in_wip",
                 'notes'           => "Nhập kho Bán thành phẩm từ đơn sơ chế {$workOrder->work_order_code} (Lô: {$batchCode})",
+                'quantity_before' => $outputBefore,
+                'quantity_after'  => $outputAfter,
                 'occurred_at'     => now(),
             ]);
 

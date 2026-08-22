@@ -6,6 +6,7 @@ use App\Models\CentralBom;
 use App\Models\Ingredient;
 use App\Models\Inventory;
 use App\Models\InventoryBatch;
+use App\Models\InventoryNegativeCase;
 use App\Models\Restaurant;
 use App\Models\RestaurantBranch;
 use App\Models\SupplyRequest;
@@ -130,6 +131,45 @@ class CentralWarehouseManagementTest extends TestCase
         ]);
     }
 
+    public function test_central_kitchen_records_negative_raw_stock_and_opens_case(): void
+    {
+        $service = app(CentralKitchenService::class);
+        $bom = $service->createBom($this->restaurant->id, [
+            'name' => 'Định mức vượt tồn',
+            'output_ingredient_id' => $this->wipIngredient->id,
+            'standard_output_qty' => 10,
+            'items' => [[
+                'input_ingredient_id' => $this->rawIngredient->id,
+                'required_quantity' => 120,
+            ]],
+        ], $this->manager);
+        $workOrder = $service->createWorkOrder($this->restaurant->id, $this->centralWarehouse->id, [
+            'central_bom_id' => $bom->id,
+            'output_ingredient_id' => $this->wipIngredient->id,
+            'target_quantity' => 10,
+        ], $this->manager);
+
+        $service->executeWorkOrder($workOrder, $this->manager, 10);
+
+        $this->assertDatabaseHas('inventories', [
+            'branch_id' => $this->centralWarehouse->id,
+            'ingredient_id' => $this->rawIngredient->id,
+            'quantity_on_hand' => -20.0,
+            'theoretical_quantity' => -20.0,
+        ]);
+        $this->assertDatabaseHas('inventory_negative_cases', [
+            'branch_id' => $this->centralWarehouse->id,
+            'ingredient_id' => $this->rawIngredient->id,
+            'negative_quantity' => 20,
+            'status' => 'open',
+        ]);
+        $this->assertSame(1, InventoryNegativeCase::withoutGlobalScopes()
+            ->where('branch_id', $this->centralWarehouse->id)
+            ->where('ingredient_id', $this->rawIngredient->id)
+            ->where('status', 'open')
+            ->count());
+    }
+
     public function test_smart_allocation_suggests_fair_share_when_stock_is_low(): void
     {
         $centralService = app(CentralWarehouseService::class);
@@ -190,6 +230,51 @@ class CentralWarehouseManagementTest extends TestCase
 
         $dispatched = $manifestService->dispatchManifest($manifest, $this->manager, 'SEAL-9999');
         $this->assertEquals('dispatched', $dispatched->status);
+    }
+
+    public function test_central_dispatch_keeps_shortage_as_negative_stock_case(): void
+    {
+        $centralService = app(CentralWarehouseService::class);
+        $request = $centralService->createSupplyRequest($this->restaurant->id, $this->branch->id, $this->manager, [
+            ['ingredient_id' => $this->rawIngredient->id, 'quantity' => 10],
+        ]);
+        $warehouseManager = User::factory()->create([
+            'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->centralWarehouse->id,
+        ]);
+        $warehouseManager->assignRole('warehouse_manager');
+        $warehouseStaff = User::factory()->create([
+            'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->centralWarehouse->id,
+        ]);
+        $warehouseStaff->assignRole('warehouse_staff');
+
+        $approved = $centralService->approveSupplyRequest($request, $warehouseManager);
+        $prepared = $centralService->prepareDispatch($approved, $warehouseStaff, [
+            ['id' => $approved->items->first()->id, 'actual_dispatched_quantity' => 10],
+        ]);
+        $dispatchApproved = $centralService->approveDispatch($prepared, $warehouseManager);
+
+        Inventory::where('restaurant_id', $this->restaurant->id)
+            ->where('branch_id', $this->centralWarehouse->id)
+            ->where('ingredient_id', $this->rawIngredient->id)
+            ->update(['quantity_on_hand' => 0, 'theoretical_quantity' => 0]);
+
+        $dispatched = $centralService->dispatchSupplyRequest($dispatchApproved, $warehouseStaff, 'SEAL-NEG-001');
+
+        $this->assertSame('dispatched', $dispatched->status);
+        $this->assertDatabaseHas('inventories', [
+            'branch_id' => $this->centralWarehouse->id,
+            'ingredient_id' => $this->rawIngredient->id,
+            'quantity_on_hand' => -10.0,
+            'theoretical_quantity' => -10.0,
+        ]);
+        $this->assertDatabaseHas('inventory_negative_cases', [
+            'branch_id' => $this->centralWarehouse->id,
+            'ingredient_id' => $this->rawIngredient->id,
+            'negative_quantity' => 10,
+            'status' => 'open',
+        ]);
     }
 
     public function test_batch_recall_order_locks_batch_systemwide(): void

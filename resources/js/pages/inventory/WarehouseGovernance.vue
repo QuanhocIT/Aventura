@@ -26,6 +26,7 @@ import {
 } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import AppLayout from '@/layouts/AppLayout.vue';
+import WarehouseAiRecommendations from '@/components/WarehouseAiRecommendations.vue';
 
 defineOptions({ layout: AppLayout });
 
@@ -310,6 +311,8 @@ const getResponsibleLabel = (type: string) => {
                 </CardContent>
             </Card>
         </div>
+
+        <WarehouseAiRecommendations context="receiving" :max="3" />
 
         <!-- Navigation Tabs -->
         <Card class="border-border">
