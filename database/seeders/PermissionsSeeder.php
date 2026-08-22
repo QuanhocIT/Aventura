@@ -109,6 +109,8 @@ class PermissionsSeeder extends Seeder
             'operational_audit.view',
             'operational_audit.report',
             'operational_audit.approve',
+            'operational_audit.manage',
+            'operational_audit.reinspect',
 
             // ── Nhà cung cấp ─────────────────────────────────────────────────
             'supplier.portal.view',
@@ -355,12 +357,15 @@ class PermissionsSeeder extends Seeder
             'company_policies.view',
             'operational_audit.view',
             'operational_audit.report',
+            'operational_audit.manage',
+            'operational_audit.reinspect',
             'warehouse.report',
             'warehouse.audit',
             'supply_requests.view',
             'price_management.view',
             'analytics.view',
             'audit.read',
+            'view_audit_log',
         ]);
 
         // ─────────────────────────────────────────────────────────────────────
@@ -376,8 +381,11 @@ class PermissionsSeeder extends Seeder
             'company_policies.view',
             'operational_audit.view',
             'operational_audit.report',
+            'operational_audit.manage',
+            'operational_audit.reinspect',
             'audit.read',
             'audit.manage',
+            'view_audit_log',
             'inspection.close',
         ]);
 

@@ -57,7 +57,7 @@ class DashboardController extends Controller
             return redirect()->route('supplier.dashboard');
         }
 
-        if ($user && $user->hasRole('operations_inspector')) {
+        if ($user && $user->hasAnyRole(['operations_inspector', 'compliance_auditor'])) {
             return redirect()->route('operations.audit');
         }
 

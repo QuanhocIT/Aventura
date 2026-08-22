@@ -27,6 +27,7 @@ use App\Services\CentralWarehouseService;
 use App\Services\CircuitBreaker;
 use App\Services\InventoryReadinessService;
 use App\Services\InventoryService;
+use App\Services\NegativeInventoryService;
 use App\Services\ProductCostService;
 use App\Services\QuotaService;
 use App\Services\SalaryService;
@@ -113,6 +114,10 @@ class InventoryManagementController extends Controller
         $activeBranchName = $branchId
             ? RestaurantBranch::where('restaurant_id', $user->restaurant_id)->whereKey($branchId)->value('name')
             : null;
+        $negativeStockCases = app(NegativeInventoryService::class)->activeFor(
+            (int) $user->restaurant_id,
+            $branchId,
+        );
 
         // Fix N+1: load toàn bộ inventory của nhà hàng một lần, key by ingredient_id để tra cứu O(1)
         $inventoryMap = Inventory::where('restaurant_id', $user->restaurant_id)
@@ -372,6 +377,7 @@ class InventoryManagementController extends Controller
             'safety' => $safety,
             'activeBranchId' => $branchId,
             'activeBranchName' => $activeBranchName,
+            'negativeStockCases' => $negativeStockCases,
             'centralBranch' => $centralBranch,
             'centralIngredients' => $centralIngredients,
             'branchReplenishmentSuggestions' => $branchReplenishmentSuggestions,

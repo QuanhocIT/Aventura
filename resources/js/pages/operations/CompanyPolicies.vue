@@ -35,6 +35,7 @@ const props = defineProps<{
         name: string;
         is_system?: boolean;
     }>;
+    canManage: boolean;
 }>();
 
 const isModalOpen = ref(false);
@@ -90,6 +91,7 @@ const openCategoryModal = () => {
 
 const submitCategory = async () => {
     const name = newCategoryName.value.trim();
+
     if (!name) {
         toast.error('Vui lòng nhập tên danh mục.');
 
@@ -246,6 +248,7 @@ const getCategoryTone = (category: string) => {
                 </div>
 
                 <Button
+                    v-if="canManage"
                     @click="openCreateModal"
                     class="h-10 shrink-0 gap-2 rounded-xl bg-indigo-600 px-4 text-xs font-bold text-white shadow-md shadow-indigo-600/20 hover:bg-indigo-700"
                 >
@@ -431,6 +434,7 @@ const getCategoryTone = (category: string) => {
                         </span>
                         <div class="flex items-center gap-1">
                             <Button
+                                v-if="canManage"
                                 @click="openEditModal(p)"
                                 variant="ghost"
                                 size="sm"
@@ -438,6 +442,7 @@ const getCategoryTone = (category: string) => {
                                 ><Edit3 class="size-3.5" /> Sửa</Button
                             >
                             <Button
+                                v-if="canManage"
                                 @click="deletePolicy(p.id)"
                                 variant="ghost"
                                 size="sm"
@@ -468,6 +473,7 @@ const getCategoryTone = (category: string) => {
                         vận hành.
                     </p>
                     <Button
+                        v-if="canManage"
                         @click="openCreateModal"
                         class="mt-5 h-9 gap-2 rounded-xl bg-indigo-600 text-xs font-bold text-white hover:bg-indigo-700"
                         ><Plus class="size-4" /> Tạo quy định đầu tiên</Button
@@ -530,6 +536,7 @@ const getCategoryTone = (category: string) => {
                                     >Danh mục kiểm soát</label
                                 >
                                 <button
+                                    v-if="canManage"
                                     type="button"
                                     @click="openCategoryModal"
                                     class="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-bold text-indigo-600 transition hover:bg-indigo-500/10 dark:text-indigo-300"

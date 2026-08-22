@@ -32,6 +32,7 @@ class CompanyPolicyController extends Controller
     public function page(Request $request): Response
     {
         $user = $request->user();
+        $canManage = $user->isOwner() || $user->isSuperAdmin() || $user->can('company_policies.manage');
         $categories = $this->categoriesForRestaurant($user->restaurant_id);
         $policies = CompanyPolicy::where('restaurant_id', $user->restaurant_id)
             ->orderByDesc('id')
@@ -46,6 +47,7 @@ class CompanyPolicyController extends Controller
             'policies' => $policies,
             'branches' => $branches,
             'categories' => $categories,
+            'canManage' => $canManage,
         ]);
     }
 

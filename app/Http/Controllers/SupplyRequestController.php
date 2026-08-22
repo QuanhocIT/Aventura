@@ -9,6 +9,7 @@ use App\Services\ApprovalService;
 use App\Services\CentralWarehouseAiService;
 use App\Services\CentralWarehouseService;
 use App\Services\DeliveryManifestService;
+use App\Services\NegativeInventoryService;
 use App\Services\SupplyRequestAnalyticsService;
 use App\Services\WarehouseTaskService;
 use App\Support\TenantRule;
@@ -44,6 +45,10 @@ class SupplyRequestController extends Controller
             'centralWarehouseAi'        => $props['centralWarehouseAi'],
             'supplyChainAlerts'         => $props['supplyChainAlerts'],
             'supplyChainReconciliation' => $props['supplyChainReconciliation'],
+            'negativeStockCases'        => app(NegativeInventoryService::class)->activeFor(
+                (int) $request->user()->restaurant_id,
+                $props['centralBranch']?->id,
+            ),
         ]);
     }
 
@@ -54,6 +59,7 @@ class SupplyRequestController extends Controller
     {
         $user = $request->user();
         $props = $this->analyticsService->getCentralWarehouseProps($request);
+        $props['centralWarehouseAi'] = app(CentralWarehouseAiService::class)->analyze($props);
 
         return Inertia::render('inventory/CentralWarehouseInventory', [
             'centralBranch'      => $props['centralBranch'],
@@ -64,6 +70,11 @@ class SupplyRequestController extends Controller
             'canManageWarehouse' => $props['canManageWarehouse'],
             'canReconcile'       => $props['canReconcile'],
             'canUnlockBatches'   => $user->isOwner() || $user->isSuperAdmin(),
+            'centralWarehouseAi' => $props['centralWarehouseAi'],
+            'negativeStockCases' => app(NegativeInventoryService::class)->activeFor(
+                (int) $user->restaurant_id,
+                $props['centralBranch']?->id,
+            ),
         ]);
     }
 
@@ -72,7 +83,10 @@ class SupplyRequestController extends Controller
      */
     public function centralWarehouseRequestsPage(Request $request): Response
     {
-        return Inertia::render('inventory/CentralWarehouse', $this->analyticsService->getCentralWarehouseProps($request));
+        $props = $this->analyticsService->getCentralWarehouseProps($request);
+        $props['centralWarehouseAi'] = app(CentralWarehouseAiService::class)->analyze($props);
+
+        return Inertia::render('inventory/CentralWarehouse', $props);
     }
 
     /**
@@ -82,6 +96,7 @@ class SupplyRequestController extends Controller
     {
         $user = $request->user();
         $props = $this->analyticsService->getCentralWarehouseProps($request);
+        $props['centralWarehouseAi'] = app(CentralWarehouseAiService::class)->analyze($props);
 
         return Inertia::render('inventory/CentralWarehouseReceiving', [
             'centralBranch'          => $props['centralBranch'],
@@ -94,6 +109,19 @@ class SupplyRequestController extends Controller
             'purchaseOrders'         => $props['warehousePurchaseOrders'],
             'canManageWarehouse'     => $props['canManageWarehouse'],
             'canCreateReceiving'     => $user->isOwner() || $user->isSuperAdmin() || $user->can('warehouse.receiving.create') || $user->can('warehouse.manage') || $user->hasAnyRole(['warehouse_manager', 'warehouse_staff']),
+            'centralWarehouseAi'     => $props['centralWarehouseAi'],
+        ]);
+    }
+
+    /**
+     * Gợi ý AI dùng chung cho các màn hình Kho Tổng không render qua Inertia props.
+     */
+    public function aiRecommendations(Request $request): JsonResponse
+    {
+        $props = $this->analyticsService->getCentralWarehouseProps($request);
+
+        return response()->json([
+            'ai' => app(CentralWarehouseAiService::class)->analyze($props),
         ]);
     }
 

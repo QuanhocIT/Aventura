@@ -235,7 +235,7 @@ const isWarehouseRole = (role: string) =>
     role === 'warehouse_manager' || role === 'warehouse_staff';
 
 const isInspectorRole = (role: string) =>
-    role === 'operations_inspector';
+    role === 'operations_inspector' || role === 'compliance_auditor';
 
 const isCentralBranch = (b: {
     id: number;
@@ -456,6 +456,8 @@ const handleRoleChange = (e: Event) => {
         employeeForm.job_title = 'Trưởng Kho Tổng';
     } else if (val === 'operations_inspector') {
         employeeForm.job_title = 'Giám Sát Viên Vận Hành / Thanh Tra';
+    } else if (val === 'compliance_auditor') {
+        employeeForm.job_title = 'Thanh Tra Tuân Thủ Độc Lập';
     }
 
     if (isWarehouseRole(val) && centralBranch.value) {
@@ -486,6 +488,7 @@ const roleLabels: Record<string, string> = {
     warehouse_staff: 'Nhân viên Kho Tổng',
     inventory_staff: 'Nhân viên Kho Chi Nhánh',
     operations_inspector: 'Giám sát / Thanh tra',
+    compliance_auditor: 'Thanh tra độc lập',
 };
 
 type RoleOption = { value: string; label: string; disabled?: boolean };
@@ -501,6 +504,7 @@ const allRoleOptions: RoleOption[] = [
     { value: 'warehouse_staff', label: 'Nhân viên Kho Tổng' },
     { value: 'warehouse_manager', label: 'Trưởng Kho Tổng' },
     { value: 'operations_inspector', label: 'Giám sát viên Vận hành / Thanh tra' },
+    { value: 'compliance_auditor', label: 'Thanh tra độc lập' },
 ];
 
 const createRoleOptions = computed(() => {
@@ -599,6 +603,7 @@ const roleColors: Record<string, string> = {
     warehouse_staff: 'bg-violet-100 text-violet-700 dark:bg-violet-950 dark:text-violet-300 border border-violet-200/50',
     inventory_staff: 'bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300 border border-blue-200/50',
     operations_inspector: 'bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300 border border-rose-200/50',
+    compliance_auditor: 'bg-sky-100 text-sky-700 dark:bg-sky-950 dark:text-sky-300 border border-sky-200/50',
     shipper: 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300 border border-amber-200/50',
 };
 

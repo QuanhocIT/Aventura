@@ -120,7 +120,9 @@ const isCashier = computed(() => hasRole('cashier'));
 const isWaiter = computed(() => hasRole('waiter'));
 const isKitchen = computed(() => hasRole('kitchen'));
 const isInventory = computed(() => hasRole('inventory_staff'));
-const isOperationsInspector = computed(() => hasRole('operations_inspector'));
+const isOperationsInspector = computed(() =>
+    hasRole('operations_inspector', 'compliance_auditor'),
+);
 const isWarehouseManager = computed(() => hasRole('warehouse_manager'));
 const isWarehouseStaff = computed(() => hasRole('warehouse_staff'));
 const isSupplier = computed(() => hasRole('supplier'));
@@ -372,6 +374,12 @@ const ownerNav = computed<NavItem[]>(() => {
             feature: 'inventory_basic',
         },
         {
+            title: 'Xử lý âm nguyên liệu',
+            href: '/inventory/negative-stock',
+            icon: ShieldAlert,
+            feature: 'inventory_basic',
+        },
+        {
             title: 'Điều chuyển kho',
             href: '/inventory/transfers',
             icon: ArrowLeftRight,
@@ -449,6 +457,12 @@ const ownerNav = computed<NavItem[]>(() => {
             title: 'Tổng quan Kho Tổng',
             href: '/inventory/central-warehouse',
             icon: LayoutGrid,
+            feature: 'inventory_basic',
+        },
+        {
+            title: 'Xử lý âm nguyên liệu',
+            href: '/inventory/negative-stock',
+            icon: ShieldAlert,
             feature: 'inventory_basic',
         },
         {
@@ -799,6 +813,12 @@ const managerNav = computed<NavItem[]>(() => {
             feature: 'inventory_basic',
         },
         {
+            title: 'Xử lý âm nguyên liệu',
+            href: '/inventory/negative-stock',
+            icon: ShieldAlert,
+            feature: 'inventory_basic',
+        },
+        {
             title: 'Điều chuyển kho',
             href: '/inventory/transfers',
             icon: ArrowLeftRight,
@@ -1100,6 +1120,12 @@ const inventoryNav = computed<NavItem[]>(() => {
             feature: 'inventory_basic',
         },
         {
+            title: 'Xử lý âm nguyên liệu',
+            href: '/inventory/negative-stock',
+            icon: ShieldAlert,
+            feature: 'inventory_basic',
+        },
+        {
             title: 'Nhà cung cấp',
             href: '/suppliers',
             icon: Truck,
@@ -1124,13 +1150,43 @@ const inventoryNav = computed<NavItem[]>(() => {
     );
 });
 
-// ─── SHIPPER MENU ────────────────────────────────────────────────────────────
+// ─── OPERATIONS INSPECTOR / COMPLIANCE MENU ──────────────────────────────────
 const operationsInspectorNav: NavItem[] = [
     { title: 'Tổng quan thanh tra', href: '/dashboard', icon: LayoutGrid },
     {
         title: 'Thanh tra & Biên bản Phạt',
         href: '/operations/audit',
         icon: ShieldAlert,
+    },
+    {
+        title: 'Bộ Quy định & Tiêu chuẩn',
+        href: '/operations/company-policies',
+        icon: BookOpen,
+    },
+    {
+        title: 'Checklist vận hành',
+        href: '/operations-checklist',
+        icon: CheckSquare,
+    },
+    {
+        title: 'Bàn giao ca',
+        href: '/shift-handovers',
+        icon: ArrowLeftRight,
+    },
+    {
+        title: 'Sự cố vận hành',
+        href: '/incidents',
+        icon: Siren,
+    },
+    {
+        title: 'Vi phạm nội bộ',
+        href: '/violations',
+        icon: FileSearch2,
+    },
+    {
+        title: 'Nhật ký kiểm toán',
+        href: '/audit-logs',
+        icon: ScrollText,
     },
     { title: 'Liên hệ & Hỗ trợ', href: '/support', icon: Headset },
 ];
@@ -1141,6 +1197,12 @@ const warehouseManagerNav = computed<NavItem[]>(() => {
             title: 'Tổng quan Kho Tổng',
             href: '/inventory/central-warehouse',
             icon: LayoutGrid,
+            feature: 'inventory_basic',
+        },
+        {
+            title: 'Xử lý âm nguyên liệu',
+            href: '/inventory/negative-stock',
+            icon: ShieldAlert,
             feature: 'inventory_basic',
         },
         {

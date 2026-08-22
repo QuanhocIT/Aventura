@@ -419,6 +419,9 @@ class QROrderController extends Controller
                 (int) $restaurantId,
                 (int) $table->branch_id,
                 $data['items'],
+                null,
+                false,
+                true,
             );
         } catch (\RuntimeException $exception) {
             $firstProduct = $products->get((int) ($data['items'][0]['product_id'] ?? 0));

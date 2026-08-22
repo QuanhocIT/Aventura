@@ -107,6 +107,9 @@ class OnlineOrderService
                         (int) $config->restaurant_id,
                         $branchId,
                         $items,
+                        null,
+                        false,
+                        true,
                     );
                 }
 

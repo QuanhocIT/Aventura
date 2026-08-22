@@ -25,7 +25,7 @@ class KitchenMenuControlController extends Controller
         abort_unless($user->can('manage_kitchen'), 403);
 
         $branchId = app(TenantContext::class)->activeBranchId();
-        abort_if($branchId === null, 403, 'Báº¿p pháº£i Ä‘Æ°á»£c má»Ÿ trong má»™t chi nhÃ¡nh cá»¥ thá»ƒ.');
+        abort_if($branchId === null, 403, 'Bếp phải được mở trong một chi nhánh cụ thể.');
         $branchName = (string) (RestaurantBranch::withoutGlobalScopes()
             ->where('restaurant_id', $user->restaurant_id)
             ->whereKey($branchId)
@@ -62,7 +62,7 @@ class KitchenMenuControlController extends Controller
         abort_unless($user->can('manage_kitchen'), 403);
 
         $branchId = app(TenantContext::class)->activeBranchId();
-        abort_if($branchId === null, 403, 'Báº¿p pháº£i Ä‘Æ°á»£c má»Ÿ trong má»™t chi nhÃ¡nh cá»¥ thá»ƒ.');
+        abort_if($branchId === null, 403, 'Bếp phải được mở trong một chi nhánh cụ thể.');
         $branchName = (string) (RestaurantBranch::withoutGlobalScopes()
             ->where('restaurant_id', $user->restaurant_id)
             ->whereKey($branchId)

@@ -678,9 +678,9 @@ class OrdersController extends Controller
                         && ! $user->isOwner() && ! $user->isSuperAdmin()) {
                         $approvingUser = User::validateManagerBypass($data['bypass_code'] ?? '', $order->restaurant_id);
                         if (! $approvingUser || (! $approvingUser->isOwner() && ! $approvingUser->isSuperAdmin())) {
-                            return back()->withErrors(['items' => 'Thay Ä‘á»•i Ä‘Æ¡n giÃ¡ mÃ³n trá»±c tiáº¿p yÃªu cáº§u mÃ£ phÃª duyá»‡t cá»§a Chá»§ doanh nghiá»‡p.']);
+                            return back()->withErrors(['items' => 'Thay đổi đơn giá món trực tiếp yêu cầu mã phê duyệt của Chủ doanh nghiệp.']);
                         }
-                        // Ghi log bypass thay Ä‘á»•i Ä‘Æ¡n giÃ¡ mÃ³n
+                        // Ghi log bypass thay đổi đơn giá món
                         AuditLog::log('price_discount_bypass', 'updated', $order, null, [
                             'product_id' => $prod->id,
                             'original_price' => $prod->price,

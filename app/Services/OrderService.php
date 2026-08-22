@@ -113,6 +113,8 @@ class OrderService
                         $branchId,
                         $reservationItems,
                         $existingActiveOrder->id,
+                        false,
+                        true,
                     );
 
                     foreach ($data['items'] as $itemData) {
@@ -252,7 +254,16 @@ class OrderService
                 ];
             }
 
-            $this->inventoryAvailabilityService->assertItemsAvailable($restaurantId, $branchId, $data['items']);
+            // POS ghi nhận đúng số bán thực tế. Nếu kho không đủ, giao dịch
+            // vẫn được tạo và InventoryService sẽ mở hồ sơ tồn âm để xử lý.
+            $this->inventoryAvailabilityService->assertItemsAvailable(
+                $restaurantId,
+                $branchId,
+                $data['items'],
+                null,
+                false,
+                true,
+            );
 
             $discountAmount = 0;
             $note = $data['note'] ?? null;
@@ -549,6 +560,8 @@ class OrderService
                     (int) $order->branch_id,
                     $data['items'],
                     $order->id,
+                    false,
+                    true,
                 );
                 $payloadItemIds = collect($data['items'])->pluck('id')->filter()->toArray();
 

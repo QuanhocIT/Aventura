@@ -37,6 +37,7 @@ use App\Http\Controllers\IntegrationSettingsController;
 use App\Http\Controllers\InternalTransferController;
 use App\Http\Controllers\InventoryCountController;
 use App\Http\Controllers\InventoryManagementController;
+use App\Http\Controllers\InventoryNegativeStockController;
 use App\Http\Controllers\KitchenController;
 use App\Http\Controllers\KitchenMenuControlController;
 use App\Http\Controllers\KpiController;
@@ -134,6 +135,30 @@ Route::middleware(['auth', 'verified', 'tenant.subscription', 'tenant.ratelimit'
     Route::post('inventory/purchases', [InventoryManagementController::class, 'storePurchase'])->name('inventory.purchases.store');
     Route::post('inventory/waste', [InventoryManagementController::class, 'storeWaste'])->name('inventory.waste.store');
     Route::post('inventory/reconcile', [InventoryManagementController::class, 'reconcile'])->name('inventory.reconcile');
+    Route::get('inventory/negative-stock', [InventoryNegativeStockController::class, 'page'])
+        ->middleware('role_or_permission:owner|super_admin|manager|inventory_staff|warehouse_manager|warehouse_staff')
+        ->name('inventory.negative-stock');
+    Route::get('api/inventory/negative-stock-cases', [InventoryNegativeStockController::class, 'index'])
+        ->middleware('role_or_permission:owner|super_admin|manager|inventory_staff|warehouse_manager|warehouse_staff')
+        ->name('inventory.negative-stock-cases.index');
+    Route::get('api/inventory/negative-stock-cases/{id}', [InventoryNegativeStockController::class, 'show'])
+        ->middleware('role_or_permission:owner|super_admin|manager|inventory_staff|warehouse_manager|warehouse_staff')
+        ->name('inventory.negative-stock-cases.show');
+    Route::post('api/inventory/negative-stock-cases/{id}/plan', [InventoryNegativeStockController::class, 'updatePlan'])
+        ->middleware('role_or_permission:owner|super_admin|manager|warehouse_manager')
+        ->name('inventory.negative-stock-cases.plan');
+    Route::post('api/inventory/negative-stock-cases/{id}/approve', [InventoryNegativeStockController::class, 'approve'])
+        ->middleware('role_or_permission:owner|super_admin')
+        ->name('inventory.negative-stock-cases.approve');
+    Route::post('api/inventory/negative-stock-cases/{id}/resolve', [InventoryNegativeStockController::class, 'resolve'])
+        ->middleware('role_or_permission:owner|super_admin|manager|warehouse_manager')
+        ->name('inventory.negative-stock-cases.resolve');
+    Route::post('api/inventory/negative-stock-cases/{id}/submit-verification', [InventoryNegativeStockController::class, 'submitVerification'])
+        ->middleware('role_or_permission:owner|super_admin|manager|warehouse_manager')
+        ->name('inventory.negative-stock-cases.submit-verification');
+    Route::post('api/inventory/negative-stock-cases/{id}/verify', [InventoryNegativeStockController::class, 'verify'])
+        ->middleware('role_or_permission:owner|super_admin|manager|warehouse_manager')
+        ->name('inventory.negative-stock-cases.verify');
     // Khóa lô / mở khóa / yêu cầu kho thu hồi.
     Route::post('inventory/batches/{batch}/lock', [InventoryManagementController::class, 'lockBatch'])->name('inventory.batches.lock');
     Route::post('inventory/batches/{batch}/unlock', [InventoryManagementController::class, 'unlockBatch'])->name('inventory.batches.unlock');
@@ -712,10 +737,13 @@ Route::middleware(['auth', 'verified', 'tenant.subscription', 'tenant.ratelimit'
         ->middleware('role_or_permission:owner|super_admin|warehouse_manager|warehouse.manage')
         ->name('warehouse.ingredient-prices.propose');
 
-    // Chuá»—i cung á»©ng Kho Tá»•ng: cáº£nh bÃ¡o nguá»“n cung, Ä‘á»‘i soÃ¡t tá»“n vÃ  NCC dá»± phÃ²ng.
+    // Chuỗi cung ứng Kho Tổng: cảnh báo nguồn cung, đối soát tồn và NCC dự phòng.
     Route::get('api/warehouse/supply-chain/alerts', [CentralWarehouseSupplyChainController::class, 'alerts'])
         ->middleware('role_or_permission:owner|super_admin|warehouse_manager|warehouse.view')
         ->name('warehouse.supply-chain.alerts');
+    Route::get('api/warehouse/ai-recommendations', [SupplyRequestController::class, 'aiRecommendations'])
+        ->middleware('role_or_permission:owner|super_admin|warehouse_manager|warehouse.view')
+        ->name('warehouse.ai-recommendations');
     Route::get('api/warehouse/supply-chain/reconciliation', [CentralWarehouseSupplyChainController::class, 'reconciliation'])
         ->middleware('role_or_permission:owner|super_admin|warehouse_manager|warehouse.view')
         ->name('warehouse.supply-chain.reconciliation');
@@ -840,7 +868,7 @@ Route::middleware(['auth', 'verified', 'tenant.subscription', 'tenant.ratelimit'
     Route::post('api/inventory/count-sessions/{id}/approve', [InventoryCountController::class, 'approve'])->middleware('role_or_permission:owner|super_admin|warehouse_manager|inventory.adjust.approve')->name('inventory.count-sessions.approve');
 
     // Bộ Quy Định & Tiêu Chuẩn Vận Hành Toàn Hệ Thống
-    Route::get('operations/company-policies', [CompanyPolicyController::class, 'page'])->middleware('role_or_permission:owner|super_admin|company_policies.manage')->name('operations.company-policies');
+    Route::get('operations/company-policies', [CompanyPolicyController::class, 'page'])->middleware('role_or_permission:owner|super_admin|company_policies.view|company_policies.manage')->name('operations.company-policies');
     // Nhân viên được phép tra cứu các quy định đã ban hành; quyền quản trị vẫn
     // được giữ riêng cho các route tạo, sửa và xóa bên dưới.
     Route::get('api/company-policies', [CompanyPolicyController::class, 'index'])->name('company-policies.index');
@@ -856,6 +884,15 @@ Route::middleware(['auth', 'verified', 'tenant.subscription', 'tenant.ratelimit'
     Route::post('api/operational-audit/reports', [OperationalAuditController::class, 'storeReport'])->middleware('role_or_permission:owner|super_admin|operational_audit.report')->name('operational-audit.reports.store');
     Route::post('api/operational-audit/reports/{id}/approve', [OperationalAuditController::class, 'approveReport'])->middleware('role_or_permission:owner|super_admin|operational_audit.approve')->name('operational-audit.reports.approve');
     Route::post('api/operational-audit/reports/{id}/reject', [OperationalAuditController::class, 'rejectReport'])->middleware('role_or_permission:owner|super_admin|operational_audit.approve')->name('operational-audit.reports.reject');
+    Route::post('api/operational-audit/reports/{id}/assign', [OperationalAuditController::class, 'assignReport'])->middleware('role_or_permission:owner|super_admin|operational_audit.manage|operational_audit.report')->name('operational-audit.reports.assign');
+    // Người được giao có thể nộp bằng chứng khắc phục; controller khóa theo assigned_to.
+    Route::post('api/operational-audit/reports/{id}/remediation', [OperationalAuditController::class, 'submitRemediation'])->name('operational-audit.reports.remediation');
+    Route::post('api/operational-audit/reports/{id}/reinspect', [OperationalAuditController::class, 'reinspectReport'])->middleware('role_or_permission:owner|super_admin|operational_audit.reinspect|inspection.close')->name('operational-audit.reports.reinspect');
+    Route::get('api/operational-audit/export', [OperationalAuditController::class, 'export'])->middleware('role_or_permission:owner|super_admin|operational_audit.view|operational_audit.report')->name('operational-audit.export');
+    Route::post('api/operational-audit/inspection-plans', [OperationalAuditController::class, 'storeInspectionPlan'])->middleware('role_or_permission:owner|super_admin|operational_audit.manage|operational_audit.report')->name('operational-audit.inspection-plans.store');
+    Route::post('api/operational-audit/inspection-plans/{id}/start', [OperationalAuditController::class, 'startInspectionPlan'])->middleware('role_or_permission:owner|super_admin|operational_audit.manage|operational_audit.report')->name('operational-audit.inspection-plans.start');
+    Route::post('api/operational-audit/inspection-plans/{id}/complete', [OperationalAuditController::class, 'completeInspectionPlan'])->middleware('role_or_permission:owner|super_admin|operational_audit.manage|operational_audit.report')->name('operational-audit.inspection-plans.complete');
+    Route::post('api/operational-audit/inspection-plans/{id}/cancel', [OperationalAuditController::class, 'cancelInspectionPlan'])->middleware('role_or_permission:owner|super_admin|operational_audit.manage|operational_audit.report')->name('operational-audit.inspection-plans.cancel');
 
     // Quản lý Đấu thầu RFP (Dành cho nhà hàng)
     Route::get('rfps', [RfpController::class, 'index'])->name('rfps.index');

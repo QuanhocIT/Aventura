@@ -19,7 +19,7 @@ class AuditLogController extends Controller
     public function index(Request $request): Response
     {
         $user = $request->user();
-        abort_unless($user->can('view_audit_log'), 403);
+        abort_unless($user->can('view_audit_log') || $user->can('audit.read') || $user->can('audit.manage'), 403);
 
         $restaurantId = $user->restaurant_id;
 
@@ -125,7 +125,7 @@ class AuditLogController extends Controller
     public function export(Request $request): StreamedResponse
     {
         $user = $request->user();
-        abort_unless($user->can('view_audit_log'), 403);
+        abort_unless($user->can('view_audit_log') || $user->can('audit.read') || $user->can('audit.manage'), 403);
 
         $restaurantId = $user->restaurant_id;
 
@@ -188,6 +188,12 @@ class AuditLogController extends Controller
                 'discount_applied' => 'Áp dụng giảm giá',
                 'violation_reported' => 'Báo cáo vi phạm',
                 'violation_resolved' => 'Xử lý vi phạm',
+                'operational_audit_report_created' => 'Lập biên bản thanh tra',
+                'operational_audit_report_approved' => 'Duyệt biên bản thanh tra',
+                'operational_audit_report_rejected' => 'Từ chối biên bản thanh tra',
+                'operational_audit_remediation_assigned' => 'Giao khắc phục',
+                'operational_audit_remediation_submitted' => 'Nộp khắc phục',
+                'operational_audit_reinspected' => 'Tái kiểm hồ sơ',
                 'test_data_seeded' => 'Seed dữ liệu test',
                 'seed_demo_order' => 'Seed đơn demo',
             ];

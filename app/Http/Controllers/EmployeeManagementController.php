@@ -449,7 +449,7 @@ class EmployeeManagementController extends Controller
             'compensation_type' => ['sometimes', 'string', 'in:fixed,hourly,shift'],
             'pay_rate' => ['nullable', 'numeric', 'min:0'],
             'base_salary' => ['required', 'numeric', 'min:0'],
-            'role' => ['required', 'string', 'in:cashier,kitchen,manager,waiter,shipper,inventory_staff,warehouse_staff,warehouse_manager,operations_inspector'],
+            'role' => ['required', 'string', 'in:cashier,kitchen,manager,waiter,shipper,inventory_staff,warehouse_staff,warehouse_manager,operations_inspector,compliance_auditor'],
             'job_title' => ['required', 'string', 'max:100'],
             // TRƯỚC ĐÂY KHÔNG CÓ — employees.branch_id/users.branch_id không
             // bao giờ được ghi, khiến việc gán nhân viên theo chi nhánh không
@@ -470,7 +470,7 @@ class EmployeeManagementController extends Controller
         $this->assertRoleAssignmentAllowed($user, $data['role']);
 
         $isWarehouseRole = in_array($data['role'], ['warehouse_staff', 'warehouse_manager'], true);
-        $isInspectorRole = $data['role'] === 'operations_inspector';
+        $isInspectorRole = in_array($data['role'], ['operations_inspector', 'compliance_auditor'], true);
 
         if ($isInspectorRole) {
             $branchId = null;
@@ -1224,7 +1224,7 @@ class EmployeeManagementController extends Controller
             'full_name' => ['sometimes', 'string', 'max:255'],
             'phone' => ['sometimes', 'nullable', 'string', 'max:20'],
             'job_title' => ['sometimes', 'string', 'max:100'],
-            'role' => ['sometimes', 'string', 'in:cashier,kitchen,manager,waiter,shipper,inventory_staff,warehouse_staff,warehouse_manager,operations_inspector'],
+            'role' => ['sometimes', 'string', 'in:cashier,kitchen,manager,waiter,shipper,inventory_staff,warehouse_staff,warehouse_manager,operations_inspector,compliance_auditor'],
             'compensation_type' => ['sometimes', 'string', 'in:fixed,hourly,shift'],
             'pay_rate' => ['sometimes', 'numeric', 'min:0'],
             'base_salary' => ['sometimes', 'numeric', 'min:0'],
@@ -1251,7 +1251,7 @@ class EmployeeManagementController extends Controller
         $newBranchId = $oldBranchId;
         $targetRole = $data['role'] ?? $oldRole;
         $isTargetWarehouseRole = in_array($targetRole, ['warehouse_staff', 'warehouse_manager'], true);
-        $isTargetInspectorRole = $targetRole === 'operations_inspector';
+        $isTargetInspectorRole = in_array($targetRole, ['operations_inspector', 'compliance_auditor'], true);
 
         if ($isTargetInspectorRole) {
             $newBranchId = null;

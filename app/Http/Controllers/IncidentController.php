@@ -23,7 +23,11 @@ class IncidentController extends Controller
 {
     private function canManageIncidents(User $user): bool
     {
-        return $user->isSuperAdmin() || $user->isOwner() || $user->isBranchManager();
+        return $user->isSuperAdmin()
+            || $user->isOwner()
+            || $user->isBranchManager()
+            || $user->can('operational_audit.manage')
+            || $user->hasAnyRole(['operations_inspector', 'compliance_auditor']);
     }
 
     public function index(Request $request): Response

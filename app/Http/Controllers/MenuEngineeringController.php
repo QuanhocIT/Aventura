@@ -210,7 +210,7 @@ class MenuEngineeringController extends Controller
         abort_unless(
             $request->user()->isOwner() || $request->user()->isSuperAdmin(),
             403,
-            'Chá»‰ Chá»§ doanh nghiá»‡p má»›i Ä‘Æ°á»£c thay Ä‘á»•i giÃ¡ bÃ¡n chÃ­nh thá»©c.'
+            'Chỉ Chủ doanh nghiệp mới được thay đổi giá bán chính thức.'
         );
     }
 
