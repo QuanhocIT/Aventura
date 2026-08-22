@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\Ingredient;
 use App\Models\Inventory;
 use App\Models\InventoryBatch;
+use App\Models\InventoryNegativeCase;
 use App\Models\Product;
 
 class InventoryReadinessService
@@ -18,6 +19,8 @@ class InventoryReadinessService
      */
     public function forBranch(int $restaurantId, int $branchId): array
     {
+        app(NegativeInventoryService::class)->ensureCasesForNegativeBalances($restaurantId, $branchId);
+
         $productsWithoutRecipes = Product::withoutGlobalScopes()
             ->where('restaurant_id', $restaurantId)
             ->where(fn ($q) => $q->whereNull('branch_id')->orWhere('branch_id', $branchId))
@@ -31,6 +34,12 @@ class InventoryReadinessService
             ->where('restaurant_id', $restaurantId)
             ->where('branch_id', $branchId)
             ->where('quantity_on_hand', '<', 0)
+            ->count();
+
+        $negativeCasesOpen = InventoryNegativeCase::withoutGlobalScopes()
+            ->where('restaurant_id', $restaurantId)
+            ->where('branch_id', $branchId)
+            ->whereIn('status', ['open', 'in_progress', 'pending_owner_approval', 'pending_verification'])
             ->count();
 
         $trackedIngredientIds = Product::withoutGlobalScopes()
@@ -70,10 +79,12 @@ class InventoryReadinessService
         return [
             'ready' => $productsWithoutRecipes === 0
                 && $negativeStocks === 0
+                && $negativeCasesOpen === 0
                 && $openingBalancePending === 0
                 && $legacyBatchesPending === 0,
             'products_without_recipes' => $productsWithoutRecipes,
             'negative_stocks' => $negativeStocks,
+            'negative_cases_open' => $negativeCasesOpen,
             'opening_balance_pending' => $openingBalancePending,
             'legacy_batches_pending' => $legacyBatchesPending,
         ];

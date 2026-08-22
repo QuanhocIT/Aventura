@@ -14,6 +14,10 @@ use InvalidArgumentException;
 
 class InventoryCountService
 {
+    public function __construct(
+        protected InventoryCountScopeService $countScope,
+    ) {}
+
     /**
      * Khởi tạo phiên kiểm kê mới.
      */
@@ -26,9 +30,10 @@ class InventoryCountService
         ?array $ingredientIds = null
     ): InventoryCountSession {
         return DB::transaction(function () use ($restaurantId, $branchId, $creator, $type, $blindCount, $ingredientIds) {
-            if ((int) $creator->restaurant_id !== $restaurantId || ! $creator->canAccessBranch($branchId)) {
+            if ((int) $creator->restaurant_id !== $restaurantId) {
                 throw new InvalidArgumentException('Tài khoản không được phép kiểm kê chi nhánh này.');
             }
+            $this->countScope->assertCanAccessBranch($creator, $branchId);
             $branch = RestaurantBranch::where('restaurant_id', $restaurantId)
                 ->where('status', 'active')
                 ->whereKey($branchId)
@@ -223,7 +228,7 @@ class InventoryCountService
                 throw new InvalidArgumentException('Người đếm 1 không thể đồng thời là người đếm 2.');
             }
             if ((int) $counter->restaurant_id !== (int) $assigner->restaurant_id
-                || ! $counter->canAccessBranch((int) $locked->branch_id)) {
+                || ! $this->countScope->canAccessBranch($counter, (int) $locked->branch_id)) {
                 throw new InvalidArgumentException('Người đếm 2 phải thuộc cùng phạm vi chi nhánh của phiên.');
             }
             if ($locked->second_counted_by && (int) $locked->second_counted_by !== (int) $counter->id) {
@@ -486,15 +491,20 @@ class InventoryCountService
 
                 $direction = $variance > 0 ? 'in' : 'out';
                 $absQty    = abs($variance);
-
-                if ($direction === 'in') {
-                    $inventory->increment('quantity_on_hand', $absQty);
-                } else {
-                    $inventory->decrement('quantity_on_hand', $absQty);
-                }
+                $quantityBefore = (float) $inventory->quantity_on_hand;
+                $quantityAfter = $direction === 'in'
+                    ? $quantityBefore + $absQty
+                    : $quantityBefore - $absQty;
+                $theoreticalBefore = $inventory->effectiveTheoreticalQuantity();
+                $inventory->update([
+                    'quantity_on_hand' => $quantityAfter,
+                    'theoretical_quantity' => $direction === 'in'
+                        ? $theoreticalBefore + $absQty
+                        : $theoreticalBefore - $absQty,
+                ]);
 
                 // Ghi Ledger Bất Biến
-                InventoryTransaction::createWithIdempotency([
+                $transaction = InventoryTransaction::createWithIdempotency([
                     'restaurant_id'   => $session->restaurant_id,
                     'branch_id'       => $session->branch_id,
                     'ingredient_id'   => $item->ingredient_id,
@@ -509,8 +519,11 @@ class InventoryCountService
                     'source_id'       => $session->id,
                     'idempotency_key' => "count_session_{$session->id}_item_{$item->id}",
                     'notes'           => "Điều chỉnh tồn kho theo Phiên kiểm kê #{$session->id} (Sai lệch: {$variance} {$item->ingredient->unit?->symbol})",
+                    'quantity_before' => $quantityBefore,
+                    'quantity_after'  => $quantityAfter,
                     'occurred_at'     => now(),
                 ]);
+                app(NegativeInventoryService::class)->sync($inventory, $transaction);
 
                 // Cập nhật last_counted_at
                 $inventory->update(['last_counted_at' => now()]);
@@ -520,6 +533,7 @@ class InventoryCountService
                 'status'      => 'approved',
                 'approved_by' => $approver->id,
                 'approved_at' => now(),
+                'completed_at' => now(),
             ]);
 
             return $session->fresh(['items.ingredient.unit', 'approver']);
@@ -529,7 +543,7 @@ class InventoryCountService
     private function assertSessionScope(InventoryCountSession $session, User $user): void
     {
         if ((int) $session->restaurant_id !== (int) $user->restaurant_id
-            || ! $user->canAccessBranch((int) $session->branch_id)
+            || ! $this->countScope->canAccessBranch($user, (int) $session->branch_id)
             || ! RestaurantBranch::where('restaurant_id', $session->restaurant_id)
                 ->where('status', 'active')
                 ->whereKey($session->branch_id)

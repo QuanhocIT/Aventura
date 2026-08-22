@@ -100,25 +100,12 @@ class InventoryService
                     }
 
                     $oldQty = (float) $inventory->quantity_on_hand;
-                    $oldTheoretical = (float) $inventory->theoretical_quantity;
+                    $oldTheoretical = $inventory->effectiveTheoreticalQuantity();
 
-                    // Do not allow an order to consume more than the aggregate stock.
-                    // The surrounding order transaction will roll back all payment/order
-                    // changes when this exception is raised.
-                    $reservedByOtherOrders = (float) InventoryReservation::withoutGlobalScopes()
-                        ->where('restaurant_id', $order->restaurant_id)
-                        ->where('branch_id', $order->branch_id)
-                        ->where('ingredient_id', $recipe->ingredient_id)
-                        ->where('status', 'holding')
-                        ->where('expires_at', '>', now())
-                        ->where('order_id', '!=', $order->id)
-                        ->sum('reserved_quantity');
-                    $this->assertSufficientStock(
-                        $recipe->ingredient,
-                        max(0.0, $oldQty - $reservedByOtherOrders),
-                        $totalUsed,
-                    );
-
+                    // POS records the actual sale even when physical stock is
+                    // insufficient. The negative balance is tracked by the
+                    // Inventory observer and must be resolved through the
+                    // negative-stock workflow.
                     $this->ensureLegacyBatchForInventory($inventory);
                     $batchConsumption = $this->consumeBatches(
                         $order->restaurant_id,
@@ -127,16 +114,21 @@ class InventoryService
                         $totalUsed,
                         false,
                         $recipe->ingredient->name,
+                        true,
                     );
                     $totalCost = $batchConsumption['total_cost'];
                     $unitCost = $totalUsed > 0
                         ? $totalCost / $totalUsed
                         : (float) ($recipe->ingredient->average_cost ?? 0);
 
-                    // Trừ kho vật lý và tồn lý thuyết (clamping max(0, ...))
+                    $shortageNote = $batchConsumption['shortage_quantity'] > 0
+                        ? " | Thiếu ghi nhận: {$batchConsumption['shortage_quantity']}"
+                        : '';
+
+                    // Giữ nguyên số âm để hệ thống có thể truy vết và xử lý.
                     $inventory->update([
-                        'quantity_on_hand' => max(0.0, $oldQty - $totalUsed),
-                        'theoretical_quantity' => max(0.0, $oldTheoretical - $totalUsed),
+                        'quantity_on_hand' => $oldQty - $totalUsed,
+                        'theoretical_quantity' => $oldTheoretical - $totalUsed,
                     ]);
 
                     // Tạo giao dịch nhập/xuất kho (loại usage, hướng out)
@@ -153,9 +145,12 @@ class InventoryService
                         'quantity' => $totalUsed,
                         'unit_cost' => $unitCost,
                         'total_cost' => $totalCost,
-                        'notes' => "Khấu hao nguyên vật liệu cho đơn hàng {$order->order_number} (Món: {$product->name})",
+                        'notes' => "Khấu hao nguyên vật liệu cho đơn hàng {$order->order_number} (Món: {$product->name}){$shortageNote}",
+                        'quantity_before' => $oldQty,
+                        'quantity_after' => $oldQty - $totalUsed,
                         'occurred_at' => now(),
                     ]);
+                    app(NegativeInventoryService::class)->sync($inventory, $transaction);
                     $this->recordBatchAllocations($transaction, $batchConsumption['allocations'], 'out');
 
                     // Cập nhật trạng thái bản ghi kho đệm (inventory_reservations) từ holding sang committed
@@ -704,7 +699,7 @@ class InventoryService
      * Empty allocations mean the ingredient is legacy aggregate stock and the
      * caller should keep its existing aggregate fallback behaviour.
      *
-     * @return array{allocations: array<int, array{batch_id:int, quantity:float, unit_cost:float}>, total_cost:float}
+     * @return array{allocations: array<int, array{batch_id:int, quantity:float, unit_cost:float}>, total_cost:float, shortage_quantity:float}
      */
     protected function consumeBatches(
         int $restaurantId,
@@ -713,8 +708,9 @@ class InventoryService
         float $quantity,
         bool $allowExpired = false,
         ?string $ingredientName = null,
+        bool $allowShortage = false,
     ): array {
-        $result = ['allocations' => [], 'total_cost' => 0.0];
+        $result = ['allocations' => [], 'total_cost' => 0.0, 'shortage_quantity' => 0.0];
 
         if ($quantity <= 0) {
             return $result;
@@ -765,7 +761,7 @@ class InventoryService
         }
 
         $available = (float) $eligible->sum(fn (InventoryBatch $batch): float => (float) $batch->quantity_remaining);
-        if ($available + 0.0005 < $quantity) {
+        if ($available + 0.0005 < $quantity && ! $allowShortage) {
             $ingredientLabel = $ingredientName !== null && trim($ingredientName) !== ''
                 ? ' nguyên liệu "'.$ingredientName.'"'
                 : '';
@@ -798,6 +794,8 @@ class InventoryService
             $result['total_cost'] += $take * (float) $batch->unit_cost;
             $remaining -= $take;
         }
+
+        $result['shortage_quantity'] = round(max(0, $remaining), 3);
 
         return $result;
     }

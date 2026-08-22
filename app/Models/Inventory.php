@@ -75,10 +75,36 @@ class Inventory extends Model
         return max(0, (float) $this->quantity_on_hand - $this->quantity_reserved);
     }
 
+    /**
+     * Legacy inventory rows often have the database default 0 for the
+     * theoretical balance while carrying a real opening on-hand quantity.
+     * Treat that un-reconciled zero as the opening balance before applying a
+     * new movement; otherwise the first movement creates a false variance.
+     */
+    public function effectiveTheoreticalQuantity(): float
+    {
+        $theoretical = (float) $this->theoretical_quantity;
+        $onHand = (float) $this->quantity_on_hand;
+
+        return $this->opening_balance_reconciled_at === null
+            && abs($theoretical) < 0.0005
+            && abs($onHand) > 0.0005
+            ? $onHand
+            : $theoretical;
+    }
+
     protected static function booted()
     {
+        static::created(function (Inventory $inventory) {
+            if ((float) $inventory->quantity_on_hand < -0.0005) {
+                app(\App\Services\NegativeInventoryService::class)->sync($inventory);
+            }
+        });
+
         static::updated(function (Inventory $inventory) {
             if ($inventory->wasChanged('quantity_on_hand')) {
+                app(\App\Services\NegativeInventoryService::class)->sync($inventory);
+
                 try {
                     $ingredient = Ingredient::withoutGlobalScopes()->find($inventory->ingredient_id);
                     if ($ingredient && (float) $inventory->quantity_on_hand < (float) $ingredient->min_stock_level) {

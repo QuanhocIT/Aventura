@@ -8,6 +8,7 @@ use App\Models\User;
 use App\Notifications\InventoryCountApprovalNotification;
 use App\Notifications\InventoryCountAssignmentNotification;
 use App\Services\InventoryCountService;
+use App\Services\InventoryCountScopeService;
 use App\Support\TenantRule;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -17,7 +18,8 @@ use Inertia\Response;
 class InventoryCountController extends Controller
 {
     public function __construct(
-        protected InventoryCountService $countService
+        protected InventoryCountService $countService,
+        protected InventoryCountScopeService $countScope,
     ) {}
 
     /**
@@ -27,17 +29,33 @@ class InventoryCountController extends Controller
     {
         $user = $request->user();
         $restaurantId = $user->restaurant_id;
+        $isCentralWarehouseScope = $this->countScope->isCentralWarehouseAccount($user);
+        $centralWarehouse = $isCentralWarehouseScope
+            ? $this->countScope->centralWarehouseFor($user)
+            : null;
 
-        $branches = RestaurantBranch::where('restaurant_id', $restaurantId)
-            ->where('status', 'active')
-            ->when(! $user->canViewAllBranches(), fn ($q) => $q->whereKey($user->assignedBranchId()))
-            ->get();
+        abort_unless(
+            ! $isCentralWarehouseScope
+                || ($centralWarehouse && $this->countScope->canAccessBranch($user, (int) $centralWarehouse->id)),
+            403,
+            'Tài khoản Kho Tổng chưa được gán đúng chi nhánh Kho Tổng đang hoạt động.'
+        );
 
-        $activeBranchId = $request->integer('branch_id') ?: ($user->canViewAllBranches() ? null : ($user->assignedBranchId() ?: $branches->first()?->id));
+        $branches = $this->countScope->branchesFor($user);
+        $requestedBranchId = $request->integer('branch_id');
+
+        $activeBranchId = $isCentralWarehouseScope
+            ? (int) $centralWarehouse->id
+            : ($requestedBranchId ?: ($user->canViewAllBranches() ? null : ($user->assignedBranchId() ?: $branches->first()?->id)));
         abort_unless(
             ! $activeBranchId || $branches->contains('id', (int) $activeBranchId),
             403,
             'Bạn chỉ có thể xem phiên kiểm kê trong phạm vi chi nhánh được phân công.'
+        );
+        abort_unless(
+            ! $isCentralWarehouseScope || ! $requestedBranchId || (int) $requestedBranchId === (int) $centralWarehouse->id,
+            403,
+            'Tài khoản Trưởng kho Tổng chỉ được xem phiên kiểm kê của Kho Tổng.'
         );
 
         $sessions = InventoryCountSession::where('restaurant_id', $restaurantId)
@@ -72,13 +90,23 @@ class InventoryCountController extends Controller
         });
 
         return Inertia::render('inventory/InventoryCount', [
-            'branches'       => $branches,
+            'branches'       => $branches->map(fn (RestaurantBranch $branch) => [
+                'id'         => (int) $branch->id,
+                'name'       => $branch->name,
+                'code'       => $branch->code,
+                'is_central' => (bool) ($branch->is_central_warehouse || $branch->warehouse_type === 'central'),
+            ])->values(),
             'activeBranchId' => $activeBranchId,
             'countSessions'  => $sessions,
             'counterCandidates' => $counterCandidates,
             'authUserId'     => $user->id,
             'canStartCount'  => $user->can('inventory.count') || $user->hasRole('warehouse_manager') || $user->isOwner() || $user->isSuperAdmin(),
             'canApprove'     => $user->can('inventory.adjust.approve') || $user->hasRole('warehouse_manager') || $user->isOwner() || $user->isSuperAdmin(),
+            'isCentralWarehouseScope' => $isCentralWarehouseScope,
+            'scopeLabel' => $isCentralWarehouseScope
+                ? ($centralWarehouse?->name ?? 'Kho Tổng')
+                : null,
+            'scopeMessage' => $isCentralWarehouseScope ? $this->countScope->centralScopeMessage() : null,
         ]);
     }
 
@@ -96,8 +124,13 @@ class InventoryCountController extends Controller
 
         $user = $request->user();
 
-        if (! $user->canAccessBranch((int) $data['branch_id'])) {
-            abort(403, 'Bạn chỉ có thể khởi tạo kiểm kê cho chi nhánh thuộc phạm vi quản lý.');
+        if (! $this->countScope->canAccessBranch($user, (int) $data['branch_id'])) {
+            abort(
+                403,
+                $this->countScope->isCentralWarehouseAccount($user)
+                    ? 'Tài khoản Trưởng kho Tổng chỉ được tạo phiên kiểm kê cho Kho Tổng.'
+                    : 'Bạn chỉ có thể khởi tạo kiểm kê cho chi nhánh thuộc phạm vi quản lý.'
+            );
         }
 
         try {
@@ -355,7 +388,13 @@ class InventoryCountController extends Controller
         ]);
 
         $branchId = (int) $data['branch_id'];
-        abort_unless($user->canAccessBranch($branchId), 403, 'Bạn không có quyền kiểm kê chi nhánh này.');
+        abort_unless(
+            $this->countScope->canAccessBranch($user, $branchId),
+            403,
+            $this->countScope->isCentralWarehouseAccount($user)
+                ? 'Tài khoản Trưởng kho Tổng chỉ được kiểm kê nhanh tại Kho Tổng.'
+                : 'Bạn không có quyền kiểm kê chi nhánh này.'
+        );
 
         $query = \App\Models\Ingredient::where('restaurant_id', $restaurantId)
             ->where(fn ($scope) => $scope->whereNull('branch_id')->orWhere('branch_id', $branchId));
@@ -453,9 +492,11 @@ class InventoryCountController extends Controller
     private function authorizeSessionBranch($user, InventoryCountSession $session): void
     {
         abort_unless(
-            $user->canAccessBranch((int) $session->branch_id) || $user->isWarehouseManager(),
+            $this->countScope->canAccessBranch($user, (int) $session->branch_id),
             403,
-            'Bạn không có quyền thao tác phiên kiểm kê của chi nhánh này.'
+            $this->countScope->isCentralWarehouseAccount($user)
+                ? 'Tài khoản Trưởng kho Tổng chỉ được thao tác phiên kiểm kê của Kho Tổng.'
+                : 'Bạn không có quyền thao tác phiên kiểm kê của chi nhánh này.'
         );
     }
 }

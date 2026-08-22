@@ -47,6 +47,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import AppLayout from '@/layouts/AppLayout.vue';
+import NegativeInventoryCases from '@/components/NegativeInventoryCases.vue';
 import IngredientModal from './components/IngredientModal.vue';
 
 defineOptions({ layout: AppLayout });
@@ -160,9 +161,25 @@ const props = defineProps<{
         ready: boolean;
         products_without_recipes: number;
         negative_stocks: number;
+        negative_cases_open?: number;
         opening_balance_pending: number;
         legacy_batches_pending: number;
     };
+    negativeStockCases?: Array<{
+        id: number;
+        branch_name?: string | null;
+        ingredient_name?: string | null;
+        unit_symbol?: string | null;
+        status: 'open' | 'in_progress' | 'pending_owner_approval' | 'pending_verification';
+        negative_quantity: number;
+        on_hand: number;
+        estimated_value: number;
+        detected_at?: string | null;
+        auto_plan?: string | null;
+        handling_plan?: string | null;
+        responsible_user_name?: string | null;
+        expected_restock_at?: string | null;
+    }>;
     activeBranchId?: number | null;
     activeBranchName?: string | null;
     centralBranch?: { id: number; name: string } | null;
@@ -1140,6 +1157,9 @@ const recallBatch = (batchId: number) => {
                     <span v-if="safety.negative_stocks > 0"
                         >{{ safety.negative_stocks }} nguyên liệu đang âm tồn;
                     </span>
+                    <span v-if="(safety.negative_cases_open ?? 0) > 0"
+                        >{{ safety.negative_cases_open }} hồ sơ âm tồn chưa đóng;
+                    </span>
                     <span v-if="safety.opening_balance_pending > 0"
                         >{{ safety.opening_balance_pending }} nguyên liệu chưa
                         đối soát số dư đầu kỳ;
@@ -1151,6 +1171,11 @@ const recallBatch = (batchId: number) => {
                 </p>
             </div>
         </div>
+
+        <NegativeInventoryCases
+            :cases="negativeStockCases"
+            title="Âm nguyên liệu tại chi nhánh"
+        />
 
         <!-- Zero-cost warning -->
         <div

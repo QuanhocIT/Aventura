@@ -49,6 +49,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select';
+import WarehouseAiRecommendations from '@/components/WarehouseAiRecommendations.vue';
 import AppLayout from '@/layouts/AppLayout.vue';
 
 defineOptions({ layout: AppLayout });
@@ -142,6 +143,9 @@ const props = defineProps<{
     authUserId: number;
     canStartCount: boolean;
     canApprove: boolean;
+    isCentralWarehouseScope: boolean;
+    scopeLabel?: string | null;
+    scopeMessage?: string | null;
 }>();
 
 // State bộ lọc & tìm kiếm
@@ -357,7 +361,11 @@ const getStatusBadge = (status: string) => {
 
 // 1. Tạo phiên mới
 const handleCreateSession = async () => {
-    if (!createForm.value.branch_id) {
+    const branchId = props.isCentralWarehouseScope
+        ? props.activeBranchId
+        : Number(createForm.value.branch_id);
+
+    if (!branchId) {
         toast.error('Vui lòng chọn chi nhánh thực hiện kiểm kê.');
 
         return;
@@ -367,7 +375,7 @@ const handleCreateSession = async () => {
 
     try {
         const res = await axios.post('/api/inventory/count-sessions', {
-            branch_id: Number(createForm.value.branch_id),
+            branch_id: Number(branchId),
             type: createForm.value.type,
             blind_count: createForm.value.blind_count,
         });
@@ -388,10 +396,11 @@ const handleCreateSession = async () => {
 const handleQuickPreset = async (
     preset: 'low_stock' | 'high_value' | 'expiring_soon' | 'used_today',
 ) => {
-    const branchId =
-        selectedBranch.value === 'all'
-            ? props.branches[0]?.id || 1
-            : Number(selectedBranch.value);
+    const branchId = props.isCentralWarehouseScope
+        ? props.activeBranchId || 0
+        : selectedBranch.value === 'all'
+          ? props.branches[0]?.id || 1
+          : Number(selectedBranch.value);
 
     isSubmitting.value = true;
 
@@ -422,9 +431,7 @@ const openCountModal = (session: CountSession) => {
 
     // Người không phải người đếm 1 sẽ đảm nhiệm lần đếm 2 khi phiên chưa
     // được gán người đếm 2; backend vẫn là nơi xác thực cuối cùng.
-    isSecondCounter.value =
-        !isCounter1 &&
-        isAssignedCounter2;
+    isSecondCounter.value = !isCounter1 && isAssignedCounter2;
 
     const isEditable = ['draft', 'in_progress'].includes(session.status);
     countRows.value = (session.items || []).map((item) => ({
@@ -461,6 +468,7 @@ const handleAssignSecondCounter = async (
     event: Event,
 ) => {
     const userId = Number((event.target as HTMLSelectElement).value);
+
     if (!userId) {
         return;
     }
@@ -797,6 +805,20 @@ const handleReconcile = async () => {
                             blind count), tính toán sai lệch và đối soát điều
                             chỉnh vào sổ cái bất biến.
                         </p>
+                        <div
+                            v-if="isCentralWarehouseScope"
+                            class="mt-4 flex max-w-2xl items-start gap-2 rounded-xl border border-emerald-400/25 bg-emerald-400/10 px-3 py-2 text-xs text-emerald-100"
+                        >
+                            <ShieldAlert
+                                class="mt-0.5 h-4 w-4 shrink-0 text-emerald-300"
+                            />
+                            <span>
+                                <strong class="text-emerald-200">{{
+                                    scopeLabel
+                                }}</strong>
+                                — {{ scopeMessage }}
+                            </span>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -932,6 +954,8 @@ const handleReconcile = async () => {
             </Card>
         </div>
 
+        <WarehouseAiRecommendations context="stock" :max="3" />
+
         <!-- Filter & Search Toolbar -->
         <Card class="border-border shadow-sm">
             <CardContent class="p-4">
@@ -954,7 +978,10 @@ const handleReconcile = async () => {
                         </div>
 
                         <!-- Branch Filter -->
-                        <div class="w-full sm:w-48">
+                        <div
+                            v-if="!isCentralWarehouseScope"
+                            class="w-full sm:w-48"
+                        >
                             <Select v-model="selectedBranch">
                                 <SelectTrigger class="h-9 text-xs">
                                     <SelectValue
@@ -975,6 +1002,13 @@ const handleReconcile = async () => {
                                     </SelectItem>
                                 </SelectContent>
                             </Select>
+                        </div>
+                        <div
+                            v-else
+                            class="flex h-9 items-center gap-2 rounded-md border border-emerald-500/20 bg-emerald-500/5 px-3 text-xs text-emerald-300"
+                        >
+                            <ShieldAlert class="h-3.5 w-3.5" />
+                            {{ scopeLabel }} · Phạm vi cố định
                         </div>
 
                         <!-- Status Filter -->
@@ -1243,9 +1277,10 @@ const handleReconcile = async () => {
                                         <select
                                             v-if="
                                                 canStartCount &&
-                                                ['draft', 'in_progress'].includes(
-                                                    session.status,
-                                                ) &&
+                                                [
+                                                    'draft',
+                                                    'in_progress',
+                                                ].includes(session.status) &&
                                                 !session.second_counted_by
                                             "
                                             class="h-7 max-w-[150px] rounded-md border border-border bg-background px-1.5 text-[10px] text-muted-foreground"
@@ -1256,7 +1291,9 @@ const handleReconcile = async () => {
                                                 )
                                             "
                                         >
-                                            <option value="">Phân công đếm 2</option>
+                                            <option value="">
+                                                Phân công đếm 2
+                                            </option>
                                             <option
                                                 v-for="candidate in counterCandidates.filter(
                                                     (candidate) =>
@@ -1417,7 +1454,17 @@ const handleReconcile = async () => {
                         Kiểm Kê
                     </DialogTitle>
                     <DialogDescription class="text-xs">
-                        Tạo phiên kiểm đếm thực tế cho kho chi nhánh được chọn.
+                        <template v-if="isCentralWarehouseScope">
+                            Tạo phiên kiểm đếm nguyên liệu và tồn kho riêng cho
+                            <strong class="text-foreground">{{
+                                scopeLabel
+                            }}</strong
+                            >. Phạm vi này không bao gồm các chi nhánh.
+                        </template>
+                        <template v-else>
+                            Tạo phiên kiểm đếm thực tế cho kho chi nhánh được
+                            chọn.
+                        </template>
                     </DialogDescription>
                 </DialogHeader>
 
@@ -1426,7 +1473,17 @@ const handleReconcile = async () => {
                         <Label class="text-xs font-semibold"
                             >Chi nhánh kiểm kê</Label
                         >
-                        <Select v-model="createForm.branch_id">
+                        <div
+                            v-if="isCentralWarehouseScope"
+                            class="rounded-lg border border-emerald-500/20 bg-emerald-500/5 px-3 py-2 text-xs text-emerald-200"
+                        >
+                            <div class="font-semibold">{{ scopeLabel }}</div>
+                            <div class="mt-0.5 text-[11px] text-emerald-300/70">
+                                Chi nhánh được khóa theo phạm vi tài khoản Kho
+                                Tổng.
+                            </div>
+                        </div>
+                        <Select v-else v-model="createForm.branch_id">
                             <SelectTrigger class="h-9 text-xs">
                                 <SelectValue placeholder="Chọn chi nhánh" />
                             </SelectTrigger>

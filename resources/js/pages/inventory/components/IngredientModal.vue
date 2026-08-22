@@ -220,18 +220,18 @@ const submitForm = () => {
                     <!-- Loại bảo quản & Hạn sử dụng -->
                     <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
                         <div class="space-y-1.5">
-                            <Label class="text-xs font-semibold">NhÃ  cung cáº¥p chÃ­nh</Label>
+                            <Label class="text-xs font-semibold">Nhà cung cấp chính</Label>
                             <select v-model="form.supplier_id" class="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs font-semibold">
-                                <option value="">ChÆ°a gÃ¡n nhÃ  cung cáº¥p</option>
+                                <option value="">Chưa gán nhà cung cấp</option>
                                 <option v-for="supplier in suppliers" :key="supplier.id" :value="String(supplier.id)">{{ supplier.name }}</option>
                             </select>
                         </div>
                         <div class="space-y-1.5">
-                            <Label class="text-xs font-semibold">NhÃ  cung cáº¥p dá»± phÃ²ng</Label>
+                            <Label class="text-xs font-semibold">Nhà cung cấp dự phòng</Label>
                             <select v-model="form.backup_supplier_ids" multiple class="min-h-20 w-full rounded-xl border border-border bg-background px-3 py-2 text-xs">
                                 <option v-for="supplier in suppliers" :key="supplier.id" :value="supplier.id">{{ supplier.name }}</option>
                             </select>
-                            <p class="text-[10px] text-muted-foreground">Giá»¯ Ctrl/Cmd Ä‘á»ƒ chá»n nhiá»u NCC.</p>
+                            <p class="text-[10px] text-muted-foreground">Giữ Ctrl/Cmd để chọn nhiều NCC.</p>
                         </div>
                     </div>
 

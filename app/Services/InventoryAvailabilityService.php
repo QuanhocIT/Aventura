@@ -114,6 +114,7 @@ class InventoryAvailabilityService
         array $items,
         ?int $ignoreOrderId = null,
         bool $enforceRecipes = false,
+        bool $allowNegative = false,
     ): void {
         $productIds = collect($items)->pluck('product_id')->filter()->unique()->values();
         if ($productIds->isEmpty()) {
@@ -182,7 +183,7 @@ class InventoryAvailabilityService
 
         foreach ($requirements as $ingredientId => $required) {
             $available = max(0.0, (float) ($stock[$ingredientId] ?? 0.0) - (float) ($reservations[$ingredientId] ?? 0.0));
-            if ($available + 0.0005 >= $required) {
+            if ($allowNegative || $available + 0.0005 >= $required) {
                 continue;
             }
 
