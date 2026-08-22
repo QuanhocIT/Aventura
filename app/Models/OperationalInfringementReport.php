@@ -20,14 +20,21 @@ class OperationalInfringementReport extends Model
             'penalty_amount' => 'decimal:2',
             'infringement_date' => 'date',
             'remediation_deadline' => 'date',
+            'remediation_submitted_at' => 'datetime',
             'approved_at' => 'datetime',
             'closed_at' => 'datetime',
+            'reinspected_at' => 'datetime',
         ];
     }
 
     public function branch(): BelongsTo
     {
         return $this->belongsTo(RestaurantBranch::class, 'branch_id');
+    }
+
+    public function inspectionPlan(): BelongsTo
+    {
+        return $this->belongsTo(OperationalInspectionPlan::class, 'inspection_plan_id');
     }
 
     public function inspector(): BelongsTo
@@ -58,5 +65,10 @@ class OperationalInfringementReport extends Model
     public function closer(): BelongsTo
     {
         return $this->belongsTo(User::class, 'closed_by');
+    }
+
+    public function reinspector(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'reinspected_by');
     }
 }
