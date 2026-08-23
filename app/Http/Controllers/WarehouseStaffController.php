@@ -16,6 +16,7 @@ use App\Models\RestaurantBranch;
 use App\Models\Supplier;
 use App\Models\SupplyRequest;
 use App\Models\WarehouseLocation;
+use App\Models\WarehouseReceivingDocument;
 use App\Models\WarehouseReceivingVoucher;
 use App\Models\WarehouseReceivingVoucherItem;
 use App\Models\WarehouseShiftHandover;
@@ -356,8 +357,15 @@ class WarehouseStaffController extends Controller
             'purchase_order_id'   => ['nullable', 'integer', TenantRule::exists('purchase_orders')],
             'delivery_note_number' => 'nullable|string|max:100',
             'invoice_number'      => 'nullable|string|max:100',
+            'invoice_series'      => 'nullable|string|max:80',
+            'invoice_date'        => 'nullable|date',
+            'invoice_total_amount' => 'nullable|numeric|min:0',
+            'vat_amount'          => 'nullable|numeric|min:0',
             'vehicle_number'      => 'nullable|string|max:50',
             'seal_code'           => 'nullable|string|max:50',
+            'carrier_name'        => 'nullable|string|max:120',
+            'receiving_dock'      => 'nullable|string|max:60',
+            'submit_for_review'   => 'nullable|boolean',
             'quality_status'      => 'nullable|in:pending,passed,conditional,failed',
             'quality_notes'       => 'nullable|string|max:1000',
             'temperature_min_c'   => 'nullable|numeric|between:-80,80',
@@ -372,8 +380,11 @@ class WarehouseStaffController extends Controller
             'items.*.expiry_date'   => 'nullable|date',
             'items.*.location_id'   => ['nullable', 'integer', TenantRule::exists('warehouse_locations')],
             'items.*.discrepancy_reason' => 'nullable|string|max:500',
+            'items.*.manufactured_date' => 'nullable|date',
             'evidence'            => 'nullable|array',
-            'evidence.*'          => 'file|mimes:jpg,jpeg,png,pdf|max:10240',
+            'evidence.*'          => 'file|mimes:jpg,jpeg,png,pdf,webp|max:10240',
+            'evidence_types'      => 'nullable|array',
+            'evidence_types.*'    => 'nullable|in:invoice,delivery_note,qc,receiving_photo,other',
         ]);
 
         $user         = $request->user();
@@ -383,7 +394,7 @@ class WarehouseStaffController extends Controller
         if ($request->filled('idempotency_key')) {
             $existing = WarehouseReceivingVoucher::where('restaurant_id', $restaurantId)
                 ->where('idempotency_key', $request->string('idempotency_key')->toString())
-                ->with(['items.ingredient.unit', 'items.location', 'receivedBy', 'supplier', 'purchaseOrder'])
+                ->with(['items.ingredient.unit', 'items.location', 'receivedBy', 'supplier', 'purchaseOrder', 'documents'])
                 ->first();
 
             if ($existing) {
@@ -469,9 +480,16 @@ class WarehouseStaffController extends Controller
         return DB::transaction(function () use ($request, $user, $restaurantId, $centralBranch, $purchaseOrder) {
             // Upload ảnh bằng chứng
             $evidencePaths = [];
+            $documentFiles = [];
             if ($request->hasFile('evidence')) {
-                foreach ($request->file('evidence') as $file) {
-                    $evidencePaths[] = $file->store('warehouse/grn/' . now()->format('Y/m'), 'public');
+                foreach ($request->file('evidence') as $index => $file) {
+                    $path = $file->store('warehouse/grn/' . now()->format('Y/m'), 'local');
+                    $evidencePaths[] = $path;
+                    $documentFiles[] = [
+                        'file' => $file,
+                        'path' => $path,
+                        'type' => $request->input("evidence_types.{$index}", 'other'),
+                    ];
                 }
             }
 
@@ -489,20 +507,30 @@ class WarehouseStaffController extends Controller
             }
 
             $discrepancyQty = $totalActual - $totalExpected;
-            $status = $hasDiscrepancy ? 'discrepancy' : 'draft';
+            $status = $request->boolean('submit_for_review')
+                ? 'pending_review'
+                : ($hasDiscrepancy ? 'discrepancy' : 'draft');
 
             $voucher = WarehouseReceivingVoucher::create([
                 'restaurant_id'          => $restaurantId,
                 'idempotency_key'        => $request->input('idempotency_key'),
                 'branch_id'              => $centralBranch->id,
                 'received_by'            => $user->id,
+                'submitted_by'           => $request->boolean('submit_for_review') ? $user->id : null,
+                'submitted_at'           => $request->boolean('submit_for_review') ? now() : null,
                 'received_at'            => $request->received_at,
                 'supplier_id'            => $request->supplier_id ?: $purchaseOrder?->supplier_id,
                 'purchase_order_id'      => $purchaseOrder?->id,
                 'delivery_note_number'  => $request->delivery_note_number,
                 'invoice_number'        => $request->invoice_number,
+                'invoice_series'        => $request->invoice_series,
+                'invoice_date'          => $request->invoice_date,
+                'invoice_total_amount'  => $request->input('invoice_total_amount', 0),
+                'vat_amount'            => $request->input('vat_amount', 0),
                 'vehicle_number'        => $request->vehicle_number,
                 'seal_code'             => $request->seal_code,
+                'carrier_name'          => $request->carrier_name,
+                'receiving_dock'        => $request->receiving_dock,
                 'quality_status'        => $request->input('quality_status', 'pending'),
                 'quality_notes'         => $request->quality_notes,
                 'temperature_min_c'     => $request->temperature_min_c,
@@ -539,6 +567,22 @@ class WarehouseStaffController extends Controller
                     'lot_number'          => $item['lot_number'] ?? null,
                     'expiry_date'         => $item['expiry_date'] ?? null,
                     'location_id'         => $item['location_id'] ?? null,
+                    'manufactured_date'   => $item['manufactured_date'] ?? null,
+                ]);
+            }
+
+            foreach ($documentFiles as $document) {
+                $file = $document['file'];
+                WarehouseReceivingDocument::create([
+                    'restaurant_id' => $restaurantId,
+                    'voucher_id' => $voucher->id,
+                    'document_type' => $document['type'],
+                    'original_name' => $file->getClientOriginalName(),
+                    'storage_path' => $document['path'],
+                    'mime_type' => $file->getClientMimeType(),
+                    'size_bytes' => $file->getSize() ?: 0,
+                    'sha256' => hash_file('sha256', $file->getRealPath()),
+                    'uploaded_by' => $user->id,
                 ]);
             }
 
@@ -550,7 +594,7 @@ class WarehouseStaffController extends Controller
 
             return response()->json([
                 'message' => 'Phiếu nhận hàng ' . $voucher->voucher_code . ' đã tạo thành công.',
-                'voucher' => $voucher->load(['items.ingredient.unit', 'items.location', 'receivedBy', 'supplier', 'purchaseOrder']),
+                'voucher' => $voucher->load(['items.ingredient.unit', 'items.location', 'receivedBy', 'supplier', 'purchaseOrder', 'documents']),
             ], 201);
         });
     }

@@ -506,7 +506,6 @@ const allRoleOptions: RoleOption[] = [
     { value: 'warehouse_staff', label: 'Nhân viên Kho Tổng' },
     { value: 'warehouse_manager', label: 'Trưởng Kho Tổng' },
     { value: 'operations_inspector', label: 'Giám sát viên Vận hành / Thanh tra' },
-    { value: 'compliance_auditor', label: 'Thanh tra độc lập' },
 ];
 
 const createRoleOptions = computed(() => {

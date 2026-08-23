@@ -740,6 +740,10 @@ Route::middleware(['auth', 'verified', 'tenant.subscription', 'tenant.ratelimit'
         Route::post('receiving-vouchers', [WarehouseStaffController::class, 'storeReceivingVoucher'])->middleware('role_or_permission:owner|super_admin|warehouse.receiving.create|warehouse_staff|warehouse_manager|warehouse.manage')->name('warehouse.receiving-vouchers.store');
         Route::post('receiving-vouchers/{id}/confirm', [WarehouseStaffController::class, 'confirmReceiving'])->middleware('role_or_permission:owner|super_admin|warehouse_manager|warehouse.manage')->name('warehouse.receiving-vouchers.confirm');
         Route::post('receiving-vouchers/{id}/dispose', [WarehouseStaffController::class, 'disposeReceiving'])->middleware('role_or_permission:owner|super_admin|warehouse_manager|warehouse.manage')->name('warehouse.receiving-vouchers.dispose');
+        Route::post('receiving-vouchers/{id}/submit', [WarehouseStaffController::class, 'submitReceiving'])->middleware('role_or_permission:owner|super_admin|warehouse.receiving.create|warehouse_staff|warehouse_manager|warehouse.manage')->name('warehouse.receiving-vouchers.submit');
+        Route::post('receiving-vouchers/{id}/reject', [WarehouseStaffController::class, 'rejectReceiving'])->middleware('role_or_permission:owner|super_admin|warehouse_manager|warehouse.manage')->name('warehouse.receiving-vouchers.reject');
+        Route::get('receiving-vouchers/{id}/documents/{document}', [WarehouseStaffController::class, 'viewReceivingDocument'])->name('warehouse.receiving-vouchers.documents.view');
+        Route::get('receiving-vouchers/{id}/evidence/{index}', [WarehouseStaffController::class, 'viewReceivingEvidence'])->name('warehouse.receiving-vouchers.evidence.view');
         Route::post('receiving-vouchers/{id}/discrepancy', [WarehouseStaffController::class, 'reportDiscrepancy'])->middleware('role_or_permission:owner|super_admin|warehouse.incident.report|warehouse_staff')->name('warehouse.receiving-vouchers.discrepancy');
         // Cất hàng
         Route::post('tasks/{taskId}/putaway-confirm', [WarehouseStaffController::class, 'confirmPutaway'])->name('warehouse.putaway.confirm');

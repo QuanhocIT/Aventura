@@ -18,6 +18,7 @@ class InventoryBatch extends Model
     {
         return [
             'purchased_at' => 'date',
+            'stored_at' => 'datetime',
             'expiry_date' => 'date',
             'reconciled_at' => 'datetime',
             'locked_at' => 'datetime',

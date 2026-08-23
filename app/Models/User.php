@@ -225,7 +225,7 @@ class User extends Authenticatable implements MustVerifyEmail
         return $this->isSuperAdmin()
             || $this->isOwner()
             || $this->hasPermissionTo('inspection.close')
-            || $this->hasRole('compliance_auditor');
+            || $this->hasAnyRole(['operations_inspector', 'compliance_auditor']);
     }
 
     public function isWarehouseManager(): bool

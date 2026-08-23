@@ -21,6 +21,7 @@ class WarehouseReceivingVoucherItem extends Model
             'expected_qty' => 'decimal:3',
             'actual_qty'   => 'decimal:3',
             'unit_cost'    => 'decimal:2',
+            'manufactured_date' => 'date',
         ];
     }
 

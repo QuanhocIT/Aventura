@@ -27,6 +27,13 @@ class WarehouseReceivingVoucher extends Model
             'total_expected_qty'     => 'decimal:3',
             'total_actual_qty'       => 'decimal:3',
             'total_discrepancy_qty'  => 'decimal:3',
+            'invoice_date'           => 'date',
+            'invoice_total_amount'   => 'decimal:2',
+            'vat_amount'             => 'decimal:2',
+            'submitted_at'           => 'datetime',
+            'rejected_at'            => 'datetime',
+            'putaway_started_at'     => 'datetime',
+            'putaway_completed_at'   => 'datetime',
             'temperature_min_c'      => 'decimal:2',
             'temperature_max_c'      => 'decimal:2',
             'disposition_evidence_paths' => 'array',
@@ -95,6 +102,16 @@ class WarehouseReceivingVoucher extends Model
         return $this->hasMany(WarehouseReceivingVoucherItem::class, 'voucher_id');
     }
 
+    public function documents(): HasMany
+    {
+        return $this->hasMany(WarehouseReceivingDocument::class, 'voucher_id');
+    }
+
+    public function submittedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'submitted_by');
+    }
+
     // ── Scopes ───────────────────────────────────────────────────────────────
 
     public function scopePendingVerification($query)
@@ -116,7 +133,12 @@ class WarehouseReceivingVoucher extends Model
 
     public function isEditable(): bool
     {
-        return in_array($this->status, ['draft', 'discrepancy']);
+        return in_array($this->status, ['draft', 'discrepancy', 'rejected']);
+    }
+
+    public function isAwaitingApproval(): bool
+    {
+        return in_array($this->status, ['draft', 'discrepancy', 'pending_review'], true);
     }
 
     public function requiresDisposition(): bool

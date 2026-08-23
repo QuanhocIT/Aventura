@@ -373,7 +373,9 @@ class PermissionsSeeder extends Seeder
             'price_management.view',
             'analytics.view',
             'audit.read',
+            'audit.manage',
             'view_audit_log',
+            'inspection.close',
         ]);
 
         // ─────────────────────────────────────────────────────────────────────
