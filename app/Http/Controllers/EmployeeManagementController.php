@@ -71,6 +71,34 @@ class EmployeeManagementController extends Controller
 
         $canViewSensitivePii = $user->hasAnyRole(['owner', 'manager']) || $user->hasRole('super_admin');
 
+        // Tự động đồng bộ tài khoản User chưa có hồ sơ Employee (ví dụ: Tài xế Logistics, Thủ kho phụ...)
+        $usersWithoutEmployee = User::where('restaurant_id', $user->restaurant_id)
+            ->whereDoesntHave('employee')
+            ->whereHas('roles', fn ($q) => $q->whereNotIn('name', ['owner', 'super_admin']))
+            ->get();
+
+        foreach ($usersWithoutEmployee as $u) {
+            $userBranchId = $u->warehouse_branch_id ?: $u->branch_id ?: $viewBranchId;
+            $code = 'EMP-'.strtoupper(Str::random(5));
+            while (Employee::where('restaurant_id', $user->restaurant_id)->where('employee_code', $code)->exists()) {
+                $code = 'EMP-'.strtoupper(Str::random(5));
+            }
+            Employee::create([
+                'restaurant_id' => $user->restaurant_id,
+                'branch_id' => $userBranchId,
+                'user_id' => $u->id,
+                'employee_code' => $code,
+                'full_name' => $u->name,
+                'email' => $u->email,
+                'phone' => $u->phone ?? '0900000000',
+                'job_title' => $u->roles->first()?->name === 'warehouse_staff' ? 'Nhân viên Kho Tổng' : 'Nhân viên',
+                'status' => $u->status ?? 'active',
+                'hire_date' => now()->toDateString(),
+                'base_salary' => 8000000,
+                'compensation_type' => 'fixed',
+            ]);
+        }
+
         $employees = Employee::where('restaurant_id', $user->restaurant_id)
             ->when($tenantContext->isBranchScoped() && ! $isWarehouseManager, fn ($q) => $q->where('branch_id', $branchId))
             ->when($isWarehouseManager && $payrollBranchId, fn ($q) => $q->where(function ($scope) use ($payrollBranchId) {
@@ -79,7 +107,10 @@ class EmployeeManagementController extends Controller
                         $userQuery->select(DB::raw('1'))
                             ->from('users')
                             ->whereColumn('users.id', 'employees.user_id')
-                            ->where('users.warehouse_branch_id', $payrollBranchId);
+                            ->where(function ($w) use ($payrollBranchId) {
+                                $w->where('users.warehouse_branch_id', $payrollBranchId)
+                                  ->orWhere('users.branch_id', $payrollBranchId);
+                            });
                     });
             }))
             ->when($restaurant?->owner_user_id, fn ($q, $ownerUserId) => $q->where(function ($ownerQuery) use ($ownerUserId) {
@@ -1568,9 +1599,9 @@ class EmployeeManagementController extends Controller
 
         if (! $isOwnerOrAdmin) {
             if ($user->hasRole('warehouse_manager')) {
-                if ($role !== 'warehouse_staff' && $role !== $existingRole) {
+                if (! in_array($role, ['warehouse_staff', 'inventory_staff'], true) && $role !== $existingRole) {
                     throw ValidationException::withMessages([
-                        'role' => 'Tài khoản Trưởng kho tổng chỉ được phép tạo hoặc phân quyền nhân sự với vai trò Nhân viên Kho Tổng.',
+                        'role' => 'Tài khoản Trưởng kho tổng chỉ được phép tạo hoặc phân quyền nhân sự với vai trò Nhân viên Kho Tổng và Nhân viên Kho Chi Nhánh.',
                     ]);
                 }
             } elseif ($user->isBranchManager()) {

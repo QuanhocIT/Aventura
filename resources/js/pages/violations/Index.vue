@@ -11,6 +11,7 @@ import {
     Clock,
     Scale,
     BadgeAlert,
+    Plus,
 } from 'lucide-vue-next';
 import { ref, computed } from 'vue';
 import { Button } from '@/components/ui/button';
@@ -74,6 +75,16 @@ const activeFilter = ref<'all' | 'open' | 'resolved' | 'dismissed'>('all');
 const showResolveModal = ref(false);
 const selectedReport = ref<Report | null>(null);
 const searchQuery = ref('');
+
+const switchTab = (tab: 'reports' | 'submit') => {
+    activeTab.value = tab;
+    if (tab === 'reports') {
+        searchQuery.value = '';
+        activeFilter.value = 'all';
+    } else if (tab === 'submit' && isOwner.value) {
+        reportForm.is_anonymous = false;
+    }
+};
 
 // Form Whistleblower Creation
 const reportForm = useForm({
@@ -357,7 +368,7 @@ const statusConfig: Record<
                 <Button
                     variant="outline"
                     size="sm"
-                    @click="activeTab = 'reports'"
+                    @click="switchTab('reports')"
                     :class="[
                         'rounded-xl text-xs font-bold transition-all',
                         activeTab === 'reports'
@@ -366,12 +377,28 @@ const statusConfig: Record<
                     ]"
                 >
                     <FileText class="mr-1.5 size-4" />
-                    Danh sách tố cáo
+                    Danh sách sai phạm & tố cáo
                 </Button>
                 <Button
+                    v-if="isOwner"
+                    variant="default"
+                    size="sm"
+                    @click="switchTab('submit')"
+                    :class="[
+                        'rounded-xl text-xs font-bold transition-all bg-gradient-to-r from-rose-600 to-indigo-600 text-white hover:from-rose-700 hover:to-indigo-700 shadow-sm',
+                        activeTab === 'submit'
+                            ? 'ring-2 ring-rose-400 ring-offset-1'
+                            : '',
+                    ]"
+                >
+                    <Plus class="mr-1.5 size-4" />
+                    Lập biên bản sai phạm
+                </Button>
+                <Button
+                    v-else
                     variant="outline"
                     size="sm"
-                    @click="activeTab = 'submit'"
+                    @click="switchTab('submit')"
                     :class="[
                         'rounded-xl text-xs font-bold transition-all',
                         activeTab === 'submit'
@@ -876,21 +903,24 @@ const statusConfig: Record<
                     class="border-b bg-slate-50/50 p-6 dark:bg-slate-900/10"
                 >
                     <div
+                        v-if="isOwner"
+                        class="mb-1 flex items-center gap-2 text-sm font-extrabold tracking-wider text-rose-600 uppercase select-none dark:text-rose-500"
+                    >
+                        <FileText class="size-4 shrink-0" />
+                        <span>Biên Bản Kỷ Luật Nội Bộ (Official Violation Record)</span>
+                    </div>
+                    <div
+                        v-else
                         class="mb-1 flex items-center gap-2 text-sm font-extrabold tracking-wider text-rose-600 uppercase select-none dark:text-rose-500"
                     >
                         <ShieldAlert class="size-4 shrink-0" />
-                        <span
-                            >Hòm Thư Tố Cáo Ẩn Danh (Whistleblower
-                            Safebox)</span
-                        >
+                        <span>Hòm Thư Tố Cáo Ẩn Danh (Whistleblower Safebox)</span>
                     </div>
-                    <CardTitle class="text-lg font-bold"
-                        >Báo Cáo Sai Phạm & Gian Lận Nội Bộ</CardTitle
-                    >
+                    <CardTitle class="text-lg font-bold">
+                        {{ isOwner ? 'Lập Biên Bản & Ghi Nhận Sai Phạm Nhân Sự' : 'Báo Cáo Sai Phạm & Gian Lận Nội Bộ' }}
+                    </CardTitle>
                     <CardDescription class="mt-1 text-xs leading-relaxed">
-                        Hãy cung cấp thông tin chi tiết và chính xác. Chúng tôi
-                        cam kết bảo mật tuyệt đối 100% danh tính của bạn để ngăn
-                        chặn sự lạm dụng trù dập của cấp trên.
+                        {{ isOwner ? 'Ghi nhận hành vi vi phạm kỷ luật của nhân sự để chuyển sang bước xem xét phê duyệt áp phạt & cấn trừ trực tiếp vào bảng lương.' : 'Hãy cung cấp thông tin chi tiết và chính xác. Chúng tôi cam kết bảo mật tuyệt đối 100% danh tính của bạn để ngăn chặn sự lạm dụng trù dập của cấp trên.' }}
                     </CardDescription>
                 </CardHeader>
                 <CardContent class="p-6">
@@ -997,14 +1027,21 @@ const statusConfig: Record<
                                 />
                             </div>
 
-                            <!-- Anonymity Toggle -->
+                            <!-- Anonymity Toggle / Official Record -->
                             <div class="flex flex-col gap-1.5">
                                 <Label
                                     class="text-xs font-bold text-slate-600 dark:text-slate-400"
                                 >
-                                    Cấu Hình Ẩn Danh (Bảo Vệ Người Gửi):
+                                    {{ isOwner ? 'Hình Thức Ghi Nhận Biên Bản:' : 'Cấu Hình Ẩn Danh (Bảo Vệ Người Gửi):' }}
                                 </Label>
                                 <div
+                                    v-if="isOwner"
+                                    class="flex h-9 w-full items-center justify-between gap-2 rounded-lg border border-indigo-200 bg-indigo-50/60 px-3 text-xs font-bold text-indigo-700 dark:border-indigo-900/40 dark:bg-indigo-950/30 dark:text-indigo-300"
+                                >
+                                    <span>📋 Biên bản xử lý chính thức bởi Quản lý/Chủ nhà hàng</span>
+                                </div>
+                                <div
+                                    v-else
                                     class="flex h-9 w-full items-center justify-between gap-2 rounded-lg border bg-slate-50 px-3 select-none dark:bg-slate-900"
                                 >
                                     <span
@@ -1071,8 +1108,9 @@ const statusConfig: Record<
                                 :disabled="reportForm.processing"
                                 class="to-orange-650 flex h-10 w-full items-center justify-center gap-1.5 rounded-xl border-0 bg-gradient-to-r from-rose-600 px-5 text-xs font-bold text-white shadow-lg shadow-rose-100 select-none hover:from-rose-700 hover:to-orange-700 hover:shadow-xl sm:w-auto dark:shadow-none"
                             >
-                                <Send class="size-4" />
-                                Gửi Báo Cáo Bảo Mật
+                                <FileText v-if="isOwner" class="size-4" />
+                                <Send v-else class="size-4" />
+                                {{ isOwner ? 'Tạo Biên Bản Sai Phạm' : 'Gửi Báo Cáo Bảo Mật' }}
                             </Button>
                         </div>
                     </form>

@@ -131,6 +131,20 @@ class WarehouseDemoDataSeeder extends Seeder
         if (!$taiXe->hasRole('warehouse_staff')) {
             $taiXe->assignRole('warehouse_staff');
         }
+        Employee::firstOrCreate(
+            ['restaurant_id' => $restaurantId, 'user_id' => $taiXe->id],
+            [
+                'branch_id' => $centralBranch->id,
+                'employee_code' => 'EMP-WS02',
+                'full_name' => 'Lê Văn Tài (Tài Xế Logistics)',
+                'email' => $taiXe->email,
+                'phone' => '0900000088',
+                'job_title' => 'Tài Xế Logistics',
+                'status' => 'active',
+                'hire_date' => now()->subMonths(6),
+                'base_salary' => 8500000,
+            ]
+        );
 
         $thuKho2 = User::firstOrCreate(
             ['email' => 'thukho2.khotong@test.com'],
@@ -146,6 +160,20 @@ class WarehouseDemoDataSeeder extends Seeder
         if (!$thuKho2->hasRole('warehouse_staff')) {
             $thuKho2->assignRole('warehouse_staff');
         }
+        Employee::firstOrCreate(
+            ['restaurant_id' => $restaurantId, 'user_id' => $thuKho2->id],
+            [
+                'branch_id' => $centralBranch->id,
+                'employee_code' => 'EMP-WS03',
+                'full_name' => 'Phạm Minh Kiểm (Thủ Kho Phụ)',
+                'email' => $thuKho2->email,
+                'phone' => '0900000089',
+                'job_title' => 'Thủ Kho Phụ',
+                'status' => 'active',
+                'hire_date' => now()->subMonths(5),
+                'base_salary' => 8000000,
+            ]
+        );
 
         // Quản lý các chi nhánh (Người lập yêu cầu cấp phát)
         $managerChinh = User::firstOrCreate(

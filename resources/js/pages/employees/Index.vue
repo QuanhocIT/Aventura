@@ -510,7 +510,7 @@ const allRoleOptions: RoleOption[] = [
 
 const createRoleOptions = computed(() => {
     if (props.isWarehouseManager) {
-        return allRoleOptions.filter((option) => option.value === 'warehouse_staff');
+        return allRoleOptions.filter((option) => ['warehouse_staff', 'inventory_staff'].includes(option.value));
     }
 
     if (props.isBranchManager) {
@@ -1682,7 +1682,7 @@ const submitSwapReject = () => {
                                     v-if="props.isWarehouseManager"
                                     class="text-xs text-amber-600 dark:text-amber-400"
                                 >
-                                    Trưởng kho tổng chỉ được phép tạo Nhân viên Kho Tổng.
+                                    Trưởng kho tổng có quyền tạo Nhân viên Kho & Kho Chi Nhánh (Tùy chỉnh chức danh như: Tài xế, Thủ kho phụ...).
                                 </p>
                                 <p
                                     v-else-if="props.isBranchManager"
