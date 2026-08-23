@@ -1540,6 +1540,42 @@ const documentTypeLabel = (type: string) =>
                                                                 )
                                                             }}
                                                         </p>
+                                                        <p>
+                                                            <span
+                                                                class="text-muted-foreground"
+                                                                >Cửa nhận:</span
+                                                            >
+                                                            {{ voucher.receiving_dock || '-' }}
+                                                        </p>
+                                                        <p>
+                                                            <span
+                                                                class="text-muted-foreground"
+                                                                >Đơn vị vận chuyển:</span
+                                                            >
+                                                            {{ voucher.carrier_name || '-' }}
+                                                        </p>
+                                                        <p>
+                                                            <span
+                                                                class="text-muted-foreground"
+                                                                >Bắt đầu cất:</span
+                                                            >
+                                                            {{
+                                                                voucher.putaway_started_at
+                                                                    ? formatDate(voucher.putaway_started_at)
+                                                                    : 'Chưa có'
+                                                            }}
+                                                        </p>
+                                                        <p>
+                                                            <span
+                                                                class="text-muted-foreground"
+                                                                >Hoàn tất cất:</span
+                                                            >
+                                                            {{
+                                                                voucher.putaway_completed_at
+                                                                    ? formatDate(voucher.putaway_completed_at)
+                                                                    : 'Chưa hoàn tất'
+                                                            }}
+                                                        </p>
                                                     </div>
                                                 </div>
                                                 <div

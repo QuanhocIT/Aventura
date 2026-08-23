@@ -488,7 +488,7 @@ class WarehouseStaffController extends Controller
                     $documentFiles[] = [
                         'file' => $file,
                         'path' => $path,
-                        'type' => $request->input("evidence_types.{$index}", 'other'),
+                        'type' => $request->input("evidence_types.{$index}") ?: 'other',
                     ];
                 }
             }
@@ -609,29 +609,33 @@ class WarehouseStaffController extends Controller
         $centralBranch = $this->warehouseService->getCentralWarehouse($user->restaurant_id);
         abort_unless($centralBranch, 422, 'Chưa thiết lập Kho Tổng.');
 
-        $voucher = WarehouseReceivingVoucher::where('restaurant_id', $user->restaurant_id)
-            ->where('branch_id', $centralBranch->id)
-            ->where('received_by', $user->id)
-            ->whereIn('status', ['draft', 'discrepancy', 'rejected'])
-            ->lockForUpdate()
-            ->findOrFail($id);
+        $voucher = DB::transaction(function () use ($user, $centralBranch, $id): WarehouseReceivingVoucher {
+            $voucher = WarehouseReceivingVoucher::where('restaurant_id', $user->restaurant_id)
+                ->where('branch_id', $centralBranch->id)
+                ->where('received_by', $user->id)
+                ->whereIn('status', ['draft', 'discrepancy', 'rejected'])
+                ->lockForUpdate()
+                ->findOrFail($id);
 
-        abort_if($voucher->items()->where('actual_qty', '>', 0)->whereNull('lot_number')->exists(), 422, 'Mỗi dòng có hàng thực nhận phải có số lô để truy xuất.');
+            abort_if($voucher->items()->where('actual_qty', '>', 0)->whereNull('lot_number')->exists(), 422, 'Mỗi dòng có hàng thực nhận phải có số lô để truy xuất.');
 
-        $voucher->update([
-            'status' => 'pending_review',
-            'submitted_by' => $user->id,
-            'submitted_at' => now(),
-            'rejected_by' => null,
-            'rejected_at' => null,
-            'rejection_reason' => null,
-        ]);
+            $voucher->update([
+                'status' => 'pending_review',
+                'submitted_by' => $user->id,
+                'submitted_at' => now(),
+                'rejected_by' => null,
+                'rejected_at' => null,
+                'rejection_reason' => null,
+            ]);
 
-        $this->logAudit($user, 'warehouse.receiving.submitted', $voucher, [
-            'voucher_code' => $voucher->voucher_code,
-        ]);
+            $this->logAudit($user, 'warehouse.receiving.submitted', $voucher, [
+                'voucher_code' => $voucher->voucher_code,
+            ]);
 
-        return response()->json(['message' => 'Phiếu đã được gửi vào hàng đợi Trưởng kho duyệt.', 'voucher' => $voucher->fresh(['documents'])]);
+            return $voucher->fresh(['documents']);
+        });
+
+        return response()->json(['message' => 'Phiếu đã được gửi vào hàng đợi Trưởng kho duyệt.', 'voucher' => $voucher]);
     }
 
     /**
@@ -648,28 +652,32 @@ class WarehouseStaffController extends Controller
         $centralBranch = $this->warehouseService->getCentralWarehouse($user->restaurant_id);
         abort_unless($centralBranch, 422, 'Chưa thiết lập Kho Tổng.');
 
-        $voucher = WarehouseReceivingVoucher::where('restaurant_id', $user->restaurant_id)
-            ->where('branch_id', $centralBranch->id)
-            ->whereIn('status', ['draft', 'discrepancy', 'pending_review'])
-            ->when(! ($user->isOwner() || $user->isSuperAdmin()), fn ($query) => $query->where(function ($scope) use ($user) {
-                $scope->whereNull('received_by')->orWhere('received_by', '!=', $user->id);
-            }))
-            ->lockForUpdate()
-            ->findOrFail($id);
+        $voucher = DB::transaction(function () use ($user, $centralBranch, $id, $data): WarehouseReceivingVoucher {
+            $voucher = WarehouseReceivingVoucher::where('restaurant_id', $user->restaurant_id)
+                ->where('branch_id', $centralBranch->id)
+                ->whereIn('status', ['draft', 'discrepancy', 'pending_review'])
+                ->when(! ($user->isOwner() || $user->isSuperAdmin()), fn ($query) => $query->where(function ($scope) use ($user) {
+                    $scope->whereNull('received_by')->orWhere('received_by', '!=', $user->id);
+                }))
+                ->lockForUpdate()
+                ->findOrFail($id);
 
-        $voucher->update([
-            'status' => 'rejected',
-            'rejected_by' => $user->id,
-            'rejected_at' => now(),
-            'rejection_reason' => $data['reason'],
-        ]);
+            $voucher->update([
+                'status' => 'rejected',
+                'rejected_by' => $user->id,
+                'rejected_at' => now(),
+                'rejection_reason' => $data['reason'],
+            ]);
 
-        $this->logAudit($user, 'warehouse.receiving.rejected', $voucher, [
-            'voucher_code' => $voucher->voucher_code,
-            'reason' => $data['reason'],
-        ]);
+            $this->logAudit($user, 'warehouse.receiving.rejected', $voucher, [
+                'voucher_code' => $voucher->voucher_code,
+                'reason' => $data['reason'],
+            ]);
 
-        return response()->json(['message' => 'Phiếu đã bị từ chối và chưa ghi nhận vào tồn kho.', 'voucher' => $voucher->fresh()]);
+            return $voucher->fresh();
+        });
+
+        return response()->json(['message' => 'Phiếu đã bị từ chối và chưa ghi nhận vào tồn kho.', 'voucher' => $voucher]);
     }
 
     /**
