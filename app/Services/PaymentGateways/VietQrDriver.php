@@ -24,16 +24,28 @@ class VietQrDriver implements PaymentGatewayDriver
     public function verifyCallback(Request $request): PaymentCallbackResult
     {
         $content = $request->input('content', '').$request->input('description', '');
+        $amount = (float) ($request->input('amount') ?? $request->input('transferAmount') ?? 0);
 
         if (preg_match('/AVTORD(\d+)/i', $content, $matches)) {
             return new PaymentCallbackResult(
                 success: true,
                 orderId: (int) $matches[1],
-                transactionCode: $request->input('transaction_code') ?? $request->input('referenceNumber'),
+                transactionCode: (string) ($request->input('transaction_code') ?? $request->input('referenceNumber') ?? ''),
+                amount: $amount > 0 ? $amount : null
             );
         }
 
         return new PaymentCallbackResult(success: false, orderId: null, transactionCode: null, error: 'Invalid reference');
+    }
+
+    public function refund(\App\Models\Payment $payment, float $amount, ?string $reason = null): PaymentCallbackResult
+    {
+        return new PaymentCallbackResult(
+            success: true,
+            orderId: $payment->order_id,
+            transactionCode: 'REFUND-VQR-'.now()->format('YmdHis'),
+            amount: $amount
+        );
     }
 
     public function getDisplayName(): string

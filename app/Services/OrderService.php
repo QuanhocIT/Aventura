@@ -883,6 +883,7 @@ class OrderService
                     'order_id' => $order->id,
                     'processed_by' => $user->id,
                     'payment_method' => $data['payment_method'],
+                    'transaction_code' => $data['transaction_code'] ?? null,
                     'status' => 'paid',
                     'amount' => $order->total_amount,
                     'cash_received' => $cashReceived,

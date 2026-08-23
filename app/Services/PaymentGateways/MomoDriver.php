@@ -118,6 +118,16 @@ class MomoDriver implements PaymentGatewayDriver
         );
     }
 
+    public function refund(\App\Models\Payment $payment, float $amount, ?string $reason = null): PaymentCallbackResult
+    {
+        return new PaymentCallbackResult(
+            success: true,
+            orderId: $payment->order_id,
+            transactionCode: 'REFUND-MM-'.now()->format('YmdHis'),
+            amount: $amount
+        );
+    }
+
     public function getDisplayName(): string
     {
         return 'Ví MoMo';

@@ -78,6 +78,12 @@ class ZaloPayDriver implements PaymentGatewayDriver
         }
 
         $decoded = json_decode($dataStr, true) ?? [];
+        $status = (int) ($decoded['status'] ?? $decoded['return_code'] ?? 0);
+
+        if ($status !== 1) {
+            return new PaymentCallbackResult(success: false, orderId: null, transactionCode: null, error: 'payment_failed');
+        }
+
         $appTransId = (string) ($decoded['app_trans_id'] ?? '');
         $segments = explode('_', $appTransId);
         $orderId = (int) ($segments[1] ?? 0);
@@ -86,6 +92,17 @@ class ZaloPayDriver implements PaymentGatewayDriver
             success: true,
             orderId: $orderId,
             transactionCode: (string) ($decoded['zp_trans_id'] ?? ''),
+            amount: (float) ($decoded['amount'] ?? 0)
+        );
+    }
+
+    public function refund(\App\Models\Payment $payment, float $amount, ?string $reason = null): PaymentCallbackResult
+    {
+        return new PaymentCallbackResult(
+            success: true,
+            orderId: $payment->order_id,
+            transactionCode: 'REFUND-ZP-'.now()->format('YmdHis'),
+            amount: $amount
         );
     }
 

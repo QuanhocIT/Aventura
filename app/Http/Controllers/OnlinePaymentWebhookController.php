@@ -69,6 +69,21 @@ class OnlinePaymentWebhookController extends Controller
                 $order = Order::find($result->orderId);
 
                 if ($order && $order->payment_status !== 'paid') {
+                    // Check idempotency by transaction_code if provided
+                    if (! empty($result->transactionCode)) {
+                        $existingPayment = \App\Models\Payment::where('order_id', $order->id)
+                            ->where(function ($q) use ($result) {
+                                $q->where('transaction_code', $result->transactionCode)
+                                    ->orWhere('meta->transaction_code', $result->transactionCode);
+                            })
+                            ->exists();
+
+                        if ($existingPayment) {
+                            Log::info("OnlinePaymentWebhook: {$gateway} transaction {$result->transactionCode} already processed.");
+                            return $result;
+                        }
+                    }
+
                     $paidAmount = $result->amount ?? (float) $order->total_amount;
 
                     if ($paidAmount < (float) $order->total_amount) {
@@ -97,7 +112,12 @@ class OnlinePaymentWebhookController extends Controller
 
                     app(OrderService::class)->payOrder(
                         $order,
-                        ['payment_method' => $gateway, 'cash_received' => $paidAmount, 'change_amount' => max(0, $paidAmount - (float) $order->total_amount)],
+                        [
+                            'payment_method' => $gateway,
+                            'transaction_code' => $result->transactionCode,
+                            'cash_received' => $paidAmount,
+                            'change_amount' => max(0, $paidAmount - (float) $order->total_amount),
+                        ],
                         $systemUser,
                         true
                     );
