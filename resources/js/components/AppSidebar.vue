@@ -830,6 +830,10 @@ const ownerNav = computed<NavItem[]>(() => {
                 }
             }
 
+            if ((item.href === '/suppliers' || item.href === '/rfps') && !supplierPortalEnabled.value) {
+                return false;
+            }
+
             if (item.permission && !can(item.permission)) {
                 return false;
             }
