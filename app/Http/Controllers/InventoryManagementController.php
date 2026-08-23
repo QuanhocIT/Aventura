@@ -119,11 +119,13 @@ class InventoryManagementController extends Controller
             $branchId,
         );
 
-        // Fix N+1: load toàn bộ inventory của nhà hàng một lần, key by ingredient_id để tra cứu O(1)
-        $inventoryMap = Inventory::where('restaurant_id', $user->restaurant_id)
-            ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
-            ->get()
-            ->keyBy('ingredient_id');
+        // Một nguyên liệu có thể có một bản ghi tồn kho ở mỗi chi nhánh. Khi
+        // xem toàn chuỗi, không được keyBy() trực tiếp vì như vậy sẽ làm mất
+        // toàn bộ các dòng trùng ingredient_id và chỉ giữ lại một chi nhánh.
+        $inventoryMap = $this->inventoryBalancesByIngredient(
+            (int) $user->restaurant_id,
+            $branchId,
+        );
 
         $activeBatchesMap = InventoryBatch::where('restaurant_id', $user->restaurant_id)
             // Gồm cả lô đã khóa/thu hồi để hiển thị trạng thái + cho phép mở khóa.
@@ -144,8 +146,8 @@ class InventoryManagementController extends Controller
             ->get()
             ->map(function ($ing) use ($inventoryMap, $activeBatchesMap) {
                 $inventory = $inventoryMap->get($ing->id);
-                $onHand = $inventory ? (float) $inventory->quantity_on_hand : 0.0;
-                $theoretical = $inventory ? (float) ($inventory->theoretical_quantity ?? $onHand) : 0.0;
+                $onHand = (float) ($inventory['quantity_on_hand'] ?? 0.0);
+                $theoretical = (float) ($inventory['theoretical_quantity'] ?? $onHand);
                 $variance = round($theoretical - $onHand, 2);
 
                 $batches = $activeBatchesMap->get($ing->id, collect())->map(function ($b) {
@@ -204,7 +206,7 @@ class InventoryManagementController extends Controller
                     'stock' => $onHand,
                     'theoretical_stock' => $theoretical,
                     'variance' => $variance,
-                    'last_cost' => $inventory ? (float) $inventory->last_cost : null,
+                    'last_cost' => $inventory ? (float) ($inventory['last_cost'] ?? 0.0) : null,
                     'batches' => $batches,
                 ];
             });
@@ -460,6 +462,33 @@ class InventoryManagementController extends Controller
             ->values()
             ->take(30)
             ->all();
+    }
+
+    /**
+     * Load inventory balances by ingredient without dropping rows from other
+     * branches when the active scope is the whole chain.
+     *
+     * @return Collection<int, array{quantity_on_hand: float, theoretical_quantity: float, last_cost: float}>
+     */
+    private function inventoryBalancesByIngredient(int $restaurantId, ?int $branchId): Collection
+    {
+        return Inventory::where('restaurant_id', $restaurantId)
+            ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
+            ->get()
+            ->groupBy('ingredient_id')
+            ->map(function (Collection $inventories): array {
+                $latestInventory = $inventories->sortByDesc('updated_at')->first();
+
+                return [
+                    'quantity_on_hand' => round((float) $inventories->sum(
+                        fn (Inventory $inventory): float => (float) $inventory->quantity_on_hand,
+                    ), 3),
+                    'theoretical_quantity' => round((float) $inventories->sum(
+                        fn (Inventory $inventory): float => $inventory->effectiveTheoreticalQuantity(),
+                    ), 3),
+                    'last_cost' => (float) ($latestInventory?->last_cost ?? 0.0),
+                ];
+            });
     }
 
     /**
@@ -800,8 +829,131 @@ class InventoryManagementController extends Controller
         abort_unless($request->user()->hasAnyRole(['owner', 'manager', 'inventory_staff', 'warehouse_manager', 'warehouse_staff']), 403);
 
         $branchId = $this->requireInventoryOperationBranch($request);
-
         $maxSize = SystemSetting::get('upload_invoice_image_max', 4096);
+
+        // Hỗ trợ nhập kho danh sách nhiều nguyên liệu trên cùng 1 hóa đơn chứng từ
+        if ($request->has('items') && is_array($request->input('items')) && count($request->input('items')) > 0) {
+            $data = $request->validate([
+                'items' => ['required', 'array', 'min:1'],
+                'items.*.ingredient_id' => ['required', TenantRule::exists('ingredients')],
+                'items.*.batch_number' => ['nullable', 'string', 'max:50'],
+                'items.*.quantity' => ['required', 'numeric', 'min:0.001'],
+                'items.*.unit_cost' => ['required', 'numeric', 'min:0'],
+                'items.*.expiry_date' => ['nullable', 'date'],
+                'items.*.notes' => ['nullable', 'string', 'max:500'],
+                'notes' => ['nullable', 'string', 'max:500'],
+                'occurred_at' => ['nullable', 'date'],
+                'invoice_file' => ['required', 'file', 'image', 'mimes:jpeg,png,jpg,gif,pdf', 'max:'.$maxSize],
+            ]);
+
+            $invoiceFileUrl = null;
+            if ($request->hasFile('invoice_file')) {
+                $path = $request->file('invoice_file')->store('invoices', 'public');
+                $invoiceFileUrl = '/storage/'.$path;
+            }
+
+            unset($data['invoice_file']);
+            $user = $request->user();
+
+            if (! $user->isOwner() && ! $user->isSuperAdmin()) {
+                $this->approvalService->submitRequest('inventory_purchase_batch', array_merge($data, [
+                    'branch_id' => $branchId,
+                    'invoice_file_url' => $invoiceFileUrl,
+                ]), $user);
+
+                return back()->with('success', 'Yêu cầu nhập kho lô hàng đã được gửi Chủ nhà hàng phê duyệt.');
+            }
+
+            try {
+                DB::transaction(function () use ($user, $branchId, $data, $invoiceFileUrl) {
+                    foreach ($data['items'] as $item) {
+                        $ingredientId = $item['ingredient_id'];
+                        $newQty = (float) $item['quantity'];
+                        $newCost = (float) $item['unit_cost'];
+
+                        $ingredient = Ingredient::where('restaurant_id', $user->restaurant_id)
+                            ->where(fn ($scope) => $scope->whereNull('branch_id')->orWhere('branch_id', $branchId))
+                            ->where('id', $ingredientId)
+                            ->lockForUpdate()
+                            ->firstOrFail();
+
+                        $inventory = Inventory::where('restaurant_id', $user->restaurant_id)
+                            ->where('ingredient_id', $ingredientId)
+                            ->where('branch_id', $branchId)
+                            ->lockForUpdate()
+                            ->first();
+
+                        if (! $inventory) {
+                            $inventory = Inventory::create([
+                                'restaurant_id' => $user->restaurant_id,
+                                'branch_id' => $branchId,
+                                'ingredient_id' => $ingredientId,
+                                'quantity_on_hand' => 0,
+                                'theoretical_quantity' => 0,
+                                'last_cost' => 0,
+                            ]);
+                            $inventory = Inventory::where('id', $inventory->id)->lockForUpdate()->firstOrFail();
+                        }
+
+                        $oldQty = (float) $inventory->quantity_on_hand;
+                        $oldAvg = (float) $ingredient->average_cost;
+                        app(InventoryService::class)->ensureLegacyBatchForInventory($inventory);
+
+                        $newAvg = ($oldQty + $newQty) > 0
+                            ? (($oldQty * $oldAvg) + ($newQty * $newCost)) / ($oldQty + $newQty)
+                            : $newCost;
+
+                        $itemNotes = $item['notes'] ?? $data['notes'] ?? null;
+                        if (! empty($item['expiry_date'])) {
+                            $expiry = Carbon::parse($item['expiry_date']);
+                            $expiryStr = '[HSD: '.$expiry->format('d/m/Y').']';
+                            $itemNotes = empty($itemNotes) ? $expiryStr : $itemNotes.' '.$expiryStr;
+                        }
+
+                        InventoryTransaction::create([
+                            'restaurant_id' => $user->restaurant_id,
+                            'branch_id' => $branchId,
+                            'ingredient_id' => $ingredient->id,
+                            'inventory_id' => $inventory->id,
+                            'performed_by' => $user->id,
+                            'type' => 'purchase',
+                            'direction' => 'in',
+                            'quantity' => $newQty,
+                            'unit_cost' => $newCost,
+                            'total_cost' => $newQty * $newCost,
+                            'invoice_file_url' => $invoiceFileUrl,
+                            'notes' => $itemNotes,
+                            'occurred_at' => $data['occurred_at'] ?? now(),
+                        ]);
+
+                        $inventory->update([
+                            'quantity_on_hand' => $oldQty + $newQty,
+                            'theoretical_quantity' => $inventory->theoretical_quantity + $newQty,
+                            'last_cost' => $newCost,
+                        ]);
+
+                        $ingredient->update(['average_cost' => round($newAvg, 2)]);
+
+                        InventoryBatch::create([
+                            'restaurant_id' => $user->restaurant_id,
+                            'branch_id' => $branchId,
+                            'ingredient_id' => $ingredient->id,
+                            'batch_number' => $this->resolveBatchNumber($item),
+                            'quantity_remaining' => $newQty,
+                            'unit_cost' => $newCost,
+                            'purchased_at' => $data['occurred_at'] ?? now(),
+                            'expiry_date' => $item['expiry_date'] ?? null,
+                            'status' => 'active',
+                        ]);
+                    }
+                });
+            } catch (\Exception $e) {
+                return back()->withErrors(['items' => $e->getMessage()]);
+            }
+
+            return back()->with('success', 'Đã ghi nhận nhập kho thành công cho '.count($data['items']).' nguyên liệu.');
+        }
+
         $data = $request->validate([
             'ingredient_id' => ['required', TenantRule::exists('ingredients')],
             'batch_number' => ['nullable', 'string', 'max:50'],
@@ -984,11 +1136,9 @@ class InventoryManagementController extends Controller
             ->with(['unit'])
             ->get();
 
-        // Fix N+1: batch load inventories
-        $inventories = Inventory::where('restaurant_id', $restaurantId)
-            ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
-            ->get()
-            ->keyBy('ingredient_id');
+        // Aggregate balances by ingredient in the all-branch scope. A direct
+        // keyBy('ingredient_id') would silently keep only one branch's stock.
+        $inventories = $this->inventoryBalancesByIngredient($restaurantId, $branchId);
 
         // Fix N+1: batch load 30-day transactions grouped by ingredient_id
         $thirtyDaysAgo = now()->subDays(30);
@@ -1006,7 +1156,7 @@ class InventoryManagementController extends Controller
         $ingredientsData = [];
         foreach ($ingredients as $ing) {
             $inventory = $inventories->get($ing->id);
-            $currentStock = $inventory ? (float) $inventory->quantity_on_hand : 0.0;
+            $currentStock = (float) ($inventory['quantity_on_hand'] ?? 0.0);
 
             $historyPayload = [];
             $transactions = $transactionsGrouped->get($ing->id) ?? collect();
@@ -1076,11 +1226,9 @@ class InventoryManagementController extends Controller
     {
         $thirtyDaysAgo = now()->subDays(30);
 
-        // Fix N+1: Pre-load all inventories for this restaurant
-        $inventories = Inventory::where('restaurant_id', $restaurantId)
-            ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
-            ->get()
-            ->keyBy('ingredient_id');
+        // Keep the fallback consistent with the AI path: all-chain stock must
+        // be the sum of every branch, not the last row returned by the query.
+        $inventories = $this->inventoryBalancesByIngredient($restaurantId, $branchId);
 
         // Fix N+1: Pre-load total usages in the last 30 days grouped by ingredient_id
         $usageStats = InventoryTransaction::where('restaurant_id', $restaurantId)
@@ -1098,7 +1246,7 @@ class InventoryManagementController extends Controller
             $totalUsage = $stat ? (float) $stat->total_qty : 0.0;
             $activeDays = $stat ? (int) $stat->active_days : 0;
             $inventory = $inventories->get($ing->id);
-            $currentStock = $inventory ? (float) $inventory->quantity_on_hand : 0.0;
+            $currentStock = (float) ($inventory['quantity_on_hand'] ?? 0.0);
             $minStock = (float) $ing->min_stock_level;
 
             if ($activeDays < 2 || $totalUsage <= 0) {
@@ -1120,7 +1268,7 @@ class InventoryManagementController extends Controller
                 ];
             }
 
-            $avgDailyUsage = round($totalUsage / 30.0, 2);
+            $avgDailyUsage = round($totalUsage / max(1, $activeDays), 2);
             $predictedUsageNext7Days = round($avgDailyUsage * 7 * 1.10, 2);
             // Chỉ cộng buffer lead-time khi nguyên liệu có cấu hình rõ ràng;
             // không tự bịa 2 ngày khi schema/dữ liệu cũ chưa có trường này.
@@ -1128,7 +1276,7 @@ class InventoryManagementController extends Controller
             $bufferSafetyStock = round($avgDailyUsage * $leadTimeDays, 2);
             $suggestedPurchase = max(0.0, round(($predictedUsageNext7Days + $bufferSafetyStock + $minStock) - $currentStock, 2));
             $confidenceScore = min(95.0, round(50.0 + ($activeDays / 30.0 * 45.0), 1));
-            $reason = "Dự báo dựa trên mức tiêu thụ trung bình {$avgDailyUsage} {$ing->unit?->symbol}/ngày ({$activeDays} ngày có phát sinh xuất kho 30 ngày qua). [Nguồn: Laravel Fallback]";
+            $reason = "Dự báo dựa trên mức tiêu thụ trung bình {$avgDailyUsage} {$ing->unit?->symbol}/ngày ({$activeDays} ngày có phát sinh xuất kho trong 30 ngày qua). [Nguồn: Laravel Fallback]";
 
             return [
                 'ingredient_id' => $ing->id,
@@ -1262,6 +1410,12 @@ class InventoryManagementController extends Controller
                 || $request->user()->can('adjust_inventory'),
             403,
             'Bạn không có quyền điều chỉnh tồn kho.'
+        );
+
+        abort_if(
+            $this->tenantContext->isAllBranches(),
+            422,
+            'Phạm vi Toàn chuỗi chỉ dùng để xem tổng hợp. Hãy chọn một chi nhánh trước khi cân bằng tồn kho.',
         );
 
         $branchId = $this->requireInventoryOperationBranch($request);

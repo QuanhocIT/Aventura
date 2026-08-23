@@ -805,20 +805,6 @@ const handleReconcile = async () => {
                             blind count), tính toán sai lệch và đối soát điều
                             chỉnh vào sổ cái bất biến.
                         </p>
-                        <div
-                            v-if="isCentralWarehouseScope"
-                            class="mt-4 flex max-w-2xl items-start gap-2 rounded-xl border border-emerald-400/25 bg-emerald-400/10 px-3 py-2 text-xs text-emerald-100"
-                        >
-                            <ShieldAlert
-                                class="mt-0.5 h-4 w-4 shrink-0 text-emerald-300"
-                            />
-                            <span>
-                                <strong class="text-emerald-200">{{
-                                    scopeLabel
-                                }}</strong>
-                                — {{ scopeMessage }}
-                            </span>
-                        </div>
                     </div>
                 </div>
             </div>

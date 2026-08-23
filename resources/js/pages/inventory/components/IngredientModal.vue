@@ -18,7 +18,7 @@ const props = defineProps<{
     isOpen: boolean;
     ingredient?: any | null;
     units: Array<{ id: number; name: string; symbol: string }>;
-    suppliers: Array<{ id: number; name: string }>;
+    suppliers?: Array<{ id: number; name: string }>;
 }>();
 
 const emit = defineEmits<{
@@ -151,35 +151,41 @@ const submitForm = () => {
     <Teleport to="body">
     <div
         v-if="isOpen"
-        class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs overflow-y-auto"
+        class="fixed inset-0 z-50 overflow-y-auto bg-black/60 p-3 sm:p-4 backdrop-blur-xs"
+        @click.self="emit('close')"
     >
-        <Card
-            class="w-full max-w-xl animate-in shadow-2xl duration-150 zoom-in-95 fade-in my-8"
+        <div
+            class="flex min-h-full items-start sm:items-center justify-center py-6 sm:py-10"
+            @click.self="emit('close')"
         >
-            <CardHeader
-                class="flex flex-row items-center justify-between gap-4 border-b pb-3"
+            <Card
+                class="w-full max-w-xl max-h-[calc(100vh-3rem)] flex flex-col animate-in shadow-2xl duration-150 zoom-in-95 fade-in border bg-card text-card-foreground overflow-hidden"
             >
-                <div>
-                    <CardTitle
-                        class="flex items-center gap-1.5 text-base font-bold text-indigo-700 dark:text-indigo-400"
-                    >
-                        <Package class="size-5" />
-                        {{ ingredient ? 'Chỉnh Sửa Nguyên Liệu Master' : 'Thêm Nguyên Liệu & Phân Loại Bảo Quản' }}
-                    </CardTitle>
-                    <CardDescription
-                        >Khai báo loại bảo quản (Tươi sống, Đồ khô, Bán trong ngày), thời hạn sử dụng & định mức tồn kho.</CardDescription
-                    >
-                </div>
-                <button
-                    @click="emit('close')"
-                    class="cursor-pointer rounded-lg p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+                <CardHeader
+                    class="flex flex-row items-center justify-between gap-4 border-b pb-3 pt-4 px-6 shrink-0 bg-background/95 backdrop-blur-xs sticky top-0 z-10"
                 >
-                    <X class="size-4" />
-                </button>
-            </CardHeader>
+                    <div>
+                        <CardTitle
+                            class="flex items-center gap-1.5 text-base font-bold text-indigo-700 dark:text-indigo-400"
+                        >
+                            <Package class="size-5 shrink-0" />
+                            <span>{{ ingredient ? 'Chỉnh Sửa Nguyên Liệu Master' : 'Thêm Nguyên Liệu & Phân Loại Bảo Quản' }}</span>
+                        </CardTitle>
+                        <CardDescription
+                            >Khai báo loại bảo quản (Tươi sống, Đồ khô, Bán trong ngày), thời hạn sử dụng & định mức tồn kho.</CardDescription
+                        >
+                    </div>
+                    <button
+                        type="button"
+                        @click="emit('close')"
+                        class="cursor-pointer rounded-lg p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground shrink-0"
+                    >
+                        <X class="size-4" />
+                    </button>
+                </CardHeader>
 
-            <CardContent class="space-y-4 pt-4">
-                <form @submit.prevent="submitForm" class="space-y-4">
+                <CardContent class="flex-1 overflow-y-auto p-6 space-y-4">
+                    <form @submit.prevent="submitForm" class="space-y-4">
                     <!-- Tên & Danh mục -->
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <div class="space-y-1.5">
@@ -215,24 +221,6 @@ const submitForm = () => {
                             v-model="form.category"
                             placeholder="Ví dụ: Thực phẩm tươi, Đồ khô, Gia vị, Đồ uống..."
                         />
-                    </div>
-
-                    <!-- Loại bảo quản & Hạn sử dụng -->
-                    <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                        <div class="space-y-1.5">
-                            <Label class="text-xs font-semibold">Nhà cung cấp chính</Label>
-                            <select v-model="form.supplier_id" class="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs font-semibold">
-                                <option value="">Chưa gán nhà cung cấp</option>
-                                <option v-for="supplier in suppliers" :key="supplier.id" :value="String(supplier.id)">{{ supplier.name }}</option>
-                            </select>
-                        </div>
-                        <div class="space-y-1.5">
-                            <Label class="text-xs font-semibold">Nhà cung cấp dự phòng</Label>
-                            <select v-model="form.backup_supplier_ids" multiple class="min-h-20 w-full rounded-xl border border-border bg-background px-3 py-2 text-xs">
-                                <option v-for="supplier in suppliers" :key="supplier.id" :value="supplier.id">{{ supplier.name }}</option>
-                            </select>
-                            <p class="text-[10px] text-muted-foreground">Giữ Ctrl/Cmd để chọn nhiều NCC.</p>
-                        </div>
                     </div>
 
                     <div class="rounded-xl border border-indigo-100 bg-indigo-50/40 p-3.5 space-y-3 dark:border-indigo-900/40 dark:bg-indigo-950/20">
@@ -390,7 +378,8 @@ const submitForm = () => {
                     </div>
                 </form>
             </CardContent>
-        </Card>
+            </Card>
+        </div>
     </div>
     </Teleport>
 </template>

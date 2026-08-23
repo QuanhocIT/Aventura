@@ -75,6 +75,8 @@ class InventoryReplenishService
         // 3. Prepare payload
         $inventories = Inventory::where('restaurant_id', $restaurantId)
             ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
+            ->select('ingredient_id', DB::raw('SUM(quantity_on_hand) as quantity_on_hand'))
+            ->groupBy('ingredient_id')
             ->get()
             ->keyBy('ingredient_id');
 

@@ -345,7 +345,65 @@ const purchaseForm = useForm({
     occurred_at: new Date().toISOString().slice(0, 10),
     expiry_date: '',
     invoice_file: null as File | null,
+    items: [
+        {
+            ingredient_id: '',
+            quantity: '',
+            unit_cost: '',
+            batch_number: '',
+            expiry_date: '',
+        },
+    ] as Array<{
+        ingredient_id: string;
+        quantity: string;
+        unit_cost: string;
+        batch_number?: string;
+        expiry_date?: string;
+        notes?: string;
+    }>,
 });
+
+const addPurchaseItemRow = (ingredientId = '', qty = '', unitCost = '') => {
+    purchaseForm.items.push({
+        ingredient_id: ingredientId,
+        quantity: qty,
+        unit_cost: unitCost,
+        batch_number: '',
+        expiry_date: '',
+    });
+};
+
+const removePurchaseItemRow = (index: number) => {
+    if (purchaseForm.items.length > 1) {
+        purchaseForm.items.splice(index, 1);
+    } else {
+        purchaseForm.items[0] = {
+            ingredient_id: '',
+            quantity: '',
+            unit_cost: '',
+            batch_number: '',
+            expiry_date: '',
+        };
+    }
+};
+
+const totalPurchaseReceiptCost = computed(() => {
+    return purchaseForm.items.reduce((sum, item) => {
+        const qty = Number(item.quantity) || 0;
+        const cost = Number(item.unit_cost) || 0;
+
+        return sum + qty * cost;
+    }, 0);
+});
+
+const onPurchaseIngredientChange = (item: any) => {
+    if (item.ingredient_id) {
+        const ing = props.ingredients?.find((i) => String(i.id) === String(item.ingredient_id));
+        if (ing && (!item.unit_cost || Number(item.unit_cost) === 0)) {
+            item.unit_cost = String(ing.average_cost ?? ing.last_cost ?? 0);
+        }
+    }
+};
 
 const centralIngredientSearch = ref('');
 const centralIngredientCategory = ref('all');
@@ -571,11 +629,84 @@ const fetchAiForecast = async () => {
 };
 
 const applyForecast = (item: any) => {
-    purchaseForm.ingredient_id = String(item.ingredient_id);
-    purchaseForm.quantity = String(item.suggested_purchase);
-    toast.success(
-        `Đã áp dụng đề xuất AI cho ${item.ingredient_name}: ${item.suggested_purchase} ${item.unit_symbol}`,
+    const qty = Number(item.suggested_purchase ?? 0);
+
+    if (qty <= 0) {
+        toast.warning(
+            `Mặt hàng ${item.ingredient_name} hiện đã đủ tồn kho, không cần nhập thêm.`,
+        );
+
+        return;
+    }
+
+    const ingModel = props.ingredients?.find((i) => String(i.id) === String(item.ingredient_id));
+    const avgCost = ingModel?.average_cost ? String(ingModel.average_cost) : '0';
+
+    const existingIndex = purchaseForm.items.findIndex(
+        (row: any) => String(row.ingredient_id) === String(item.ingredient_id),
     );
+
+    if (existingIndex >= 0) {
+        purchaseForm.items[existingIndex].quantity = String(qty);
+
+        if (!purchaseForm.items[existingIndex].unit_cost || Number(purchaseForm.items[existingIndex].unit_cost) === 0) {
+            purchaseForm.items[existingIndex].unit_cost = avgCost;
+        }
+    } else {
+        if (purchaseForm.items.length === 1 && !purchaseForm.items[0].ingredient_id) {
+            purchaseForm.items[0] = {
+                ingredient_id: String(item.ingredient_id),
+                quantity: String(qty),
+                unit_cost: avgCost,
+                batch_number: '',
+                expiry_date: '',
+            };
+        } else {
+            addPurchaseItemRow(String(item.ingredient_id), String(qty), avgCost);
+        }
+    }
+
+    toast.success(
+        `Đã thêm ${item.ingredient_name} (${qty} ${item.unit_symbol}) vào phiếu nhập kho!`,
+    );
+};
+
+const submitPurchaseForm = () => {
+    if (!purchaseForm.invoice_file) {
+        toast.error('Vui lòng tải lên ảnh chụp hóa đơn / chứng từ cứng.');
+
+        return;
+    }
+
+    const invalidItem = purchaseForm.items.find(
+        (item: any) => !item.ingredient_id || Number(item.quantity) <= 0,
+    );
+
+    if (invalidItem) {
+        toast.error('Vui lòng chọn nguyên liệu và nhập số lượng > 0 cho tất cả các dòng trong phiếu nhập.');
+
+        return;
+    }
+
+    purchaseForm.post('/inventory/purchase', {
+        onSuccess: () => {
+            toast.success(`Đã lưu phiếu nhập kho thành công cho ${purchaseForm.items.length} nguyên liệu!`);
+            purchaseForm.reset();
+            purchaseForm.items = [
+                {
+                    ingredient_id: '',
+                    quantity: '',
+                    unit_cost: '',
+                    batch_number: '',
+                    expiry_date: '',
+                },
+            ];
+            router.reload();
+        },
+        onError: () => {
+            toast.error('Vui lòng kiểm tra lại thông tin trên phiếu nhập kho.');
+        },
+    });
 };
 
 onMounted(() => {
@@ -701,6 +832,14 @@ const filteredReconcileIngredients = computed(() => {
 });
 
 const submitReconcile = () => {
+    if (!props.activeBranchId) {
+        toast.error(
+            'Phạm vi Toàn chuỗi chỉ dùng để xem tổng hợp. Hãy chọn một chi nhánh trước khi cân bằng tồn kho.',
+        );
+
+        return;
+    }
+
     isReconciling.value = true;
     const items = props.ingredients.map((ing) => ({
         ingredient_id: ing.id,
@@ -1880,280 +2019,169 @@ const recallBatch = (batchId: number) => {
             <div
                 class="grid animate-in gap-6 duration-200 fade-in lg:grid-cols-5"
             >
-                <!-- Form -->
+                <!-- Form nhập hàng lô (nhiều nguyên liệu trên 1 hóa đơn) -->
                 <div ref="purchaseFormCard" class="h-fit lg:col-span-2">
                     <Card class="border-slate-200/80 shadow-sm">
                         <CardHeader class="border-b border-border pb-3">
-                            <CardTitle
-                                class="flex items-center gap-2 text-sm font-bold"
-                            >
-                                <ArrowDownToLine
-                                    class="size-4 text-indigo-500"
-                                />Ghi nhận nhập hàng
+                            <CardTitle class="flex items-center gap-2 text-sm font-bold">
+                                <ArrowDownToLine class="size-4 text-indigo-500" />
+                                Ghi nhận nhập kho theo hóa đơn
                             </CardTitle>
-                            <CardDescription class="text-[11px]"
-                                >Cập nhật tồn kho và tính toán giá vốn bình
-                                quân.</CardDescription
-                            >
+                            <CardDescription class="text-[11px]">
+                                Nhập danh sách nhiều nguyên liệu trên cùng 1 chứng từ/hóa đơn nhập kho.
+                            </CardDescription>
                         </CardHeader>
-                        <CardContent class="pt-5">
-                            <form
-                                @submit.prevent="submitPurchase"
-                                class="space-y-4"
-                            >
-                                <!-- Nguyên liệu -->
-                                <div class="space-y-1.5">
-                                    <Label class="text-xs"
-                                        >Nguyên liệu
-                                        <span class="text-rose-500"
-                                            >*</span
-                                        ></Label
-                                    >
-                                    <select
-                                        v-model="purchaseForm.ingredient_id"
-                                        required
-                                        class="w-full rounded-xl border border-border bg-background px-3 py-2.5 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 focus:outline-none"
-                                        :class="{
-                                            'border-rose-400':
-                                                purchaseForm.errors
-                                                    .ingredient_id,
-                                        }"
-                                    >
-                                        <option value="" disabled>
-                                            Chọn nguyên liệu...
-                                        </option>
-                                        <option
-                                            v-for="ing in ingredients"
-                                            :key="ing.id"
-                                            :value="ing.id"
-                                        >
-                                            {{ ing.name }} (tồn:
-                                            {{ ing.stock?.toFixed(1) ?? '—' }}
-                                            {{ ing.unit?.symbol ?? '' }})
-                                        </option>
-                                    </select>
-                                    <p
-                                        v-if="selectedPurchaseIngredient"
-                                        class="text-[11px] text-indigo-500"
-                                    >
-                                        Giá vốn TB hiện tại:
-                                        <strong
-                                            >{{
-                                                vnd(
-                                                    selectedPurchaseIngredient.average_cost,
-                                                )
-                                            }}/{{
-                                                selectedPurchaseIngredient.unit
-                                                    ?.symbol ?? 'đv'
-                                            }}</strong
-                                        >
-                                    </p>
-                                </div>
-
-                                <div class="grid grid-cols-2 gap-3">
-                                    <!-- Số lượng -->
-                                    <div class="space-y-1.5">
-                                        <Label class="text-xs"
-                                            >Số lượng
-                                            <span class="text-rose-500"
-                                                >*</span
-                                            ></Label
-                                        >
-                                        <div class="relative">
-                                            <Input
-                                                v-model="purchaseForm.quantity"
-                                                type="number"
-                                                step="0.001"
-                                                min="0.001"
-                                                placeholder="0"
-                                                required
-                                                class="pr-10"
-                                                :class="{
-                                                    'border-rose-400':
-                                                        purchaseForm.errors
-                                                            .quantity,
-                                                }"
-                                            />
-                                            <span
-                                                class="absolute top-1/2 right-3 -translate-y-1/2 text-xs font-medium text-muted-foreground"
-                                            >
-                                                {{
-                                                    selectedPurchaseIngredient
-                                                        ?.unit?.symbol ?? 'đv'
-                                                }}
-                                            </span>
-                                        </div>
-                                    </div>
-                                    <!-- Đơn giá -->
-                                    <div class="space-y-1.5">
-                                        <Label class="text-xs"
-                                            >Đơn giá (đ)
-                                            <span class="text-rose-500"
-                                                >*</span
-                                            ></Label
-                                        >
-                                        <Input
-                                            v-model="purchaseForm.unit_cost"
-                                            type="number"
-                                            step="1"
-                                            min="0"
-                                            placeholder="0"
-                                            required
-                                            :class="{
-                                                'border-rose-400':
-                                                    purchaseForm.errors
-                                                        .unit_cost,
-                                            }"
-                                        />
-                                    </div>
-                                </div>
-
-                                <!-- Thành tiền preview -->
-                                <div
-                                    v-if="
-                                        purchaseForm.quantity &&
-                                        purchaseForm.unit_cost
-                                    "
-                                    class="flex items-center justify-between rounded-xl border border-indigo-500/20 bg-indigo-500/10 px-4 py-2.5 text-sm"
-                                >
-                                    <span class="text-muted-foreground"
-                                        >Thành tiền</span
-                                    >
-                                    <span
-                                        class="font-bold text-indigo-600 dark:text-indigo-400"
-                                    >
-                                        {{
-                                            vnd(
-                                                Number(purchaseForm.quantity) *
-                                                    Number(
-                                                        purchaseForm.unit_cost,
-                                                    ),
-                                            )
-                                        }}
-                                    </span>
-                                </div>
-
-                                <!-- Nhà cung cấp -->
-                                <div class="space-y-1.5">
-                                    <Label class="text-xs">Nhà cung cấp</Label>
-                                    <select
-                                        v-model="purchaseForm.supplier_id"
-                                        class="w-full rounded-xl border border-border bg-background px-3 py-2.5 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 focus:outline-none"
-                                    >
-                                        <option value="">Không chọn</option>
-                                        <option
-                                            v-for="s in suppliers"
-                                            :key="s.id"
-                                            :value="s.id"
-                                        >
-                                            {{ s.name }}
-                                        </option>
-                                    </select>
-                                </div>
-
-                                <!-- Mã lô nhà cung cấp -->
-                                <div class="space-y-1.5">
-                                    <Label class="text-xs"
-                                        >Mã lô / Batch No.</Label
-                                    >
-                                    <Input
-                                        v-model="purchaseForm.batch_number"
-                                        maxlength="50"
-                                        placeholder="VD: LOT-20260806-A01 (để trống sẽ tự tạo)"
-                                    />
-                                    <p
-                                        class="text-[10px] text-muted-foreground"
-                                    >
-                                        Mỗi lần nhập là một lô riêng, không gộp
-                                        với lô cũ.
-                                    </p>
-                                </div>
-
-                                <!-- Ngày nhập & Hạn sử dụng -->
-                                <div class="grid grid-cols-2 gap-3">
+                        <CardContent class="pt-4">
+                            <form @submit.prevent="submitPurchaseForm" class="space-y-4">
+                                <!-- Thông tin chung hóa đơn -->
+                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                     <div class="space-y-1.5">
                                         <Label class="text-xs">Ngày nhập</Label>
-                                        <Input
-                                            v-model="purchaseForm.occurred_at"
-                                            type="date"
-                                        />
+                                        <Input v-model="purchaseForm.occurred_at" type="date" />
                                     </div>
                                     <div class="space-y-1.5">
-                                        <Label
-                                            class="text-xs font-semibold text-amber-700 dark:text-amber-400"
-                                        >
-                                            Hạn sử dụng (HSD)
-                                        </Label>
-                                        <Input
-                                            v-model="purchaseForm.expiry_date"
-                                            type="date"
-                                        />
+                                        <Label class="text-xs">Ghi chú / Số hóa đơn</Label>
+                                        <Input v-model="purchaseForm.notes" placeholder="VD: HD-00123 / Nhập kho định kỳ" />
                                     </div>
                                 </div>
 
-                                <!-- Ghi chú -->
+                                <!-- Ảnh chứng từ / Hóa đơn cứng -->
                                 <div class="space-y-1.5">
-                                    <Label class="text-xs">Ghi chú</Label>
-                                    <Input
-                                        v-model="purchaseForm.notes"
-                                        placeholder="Số hóa đơn, ghi chú..."
-                                    />
-                                </div>
-
-                                <!-- Tải ảnh hóa đơn cứng bắt buộc -->
-                                <div class="space-y-1.5">
-                                    <Label
-                                        class="text-xs font-semibold text-slate-700 dark:text-slate-300"
-                                    >
-                                        Hóa đơn cứng (Ảnh chụp chứng từ)
-                                        <span class="font-bold text-rose-500"
-                                            >*</span
-                                        >
+                                    <Label class="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                                        Hóa đơn cứng (Ảnh chụp chứng từ) <span class="font-bold text-rose-500">*</span>
                                     </Label>
                                     <input
                                         type="file"
-                                        @change="
-                                            (e) =>
-                                                (purchaseForm.invoice_file =
-                                                    (
-                                                        e.target as HTMLInputElement
-                                                    ).files?.[0] || null)
-                                        "
+                                        @change="(e) => (purchaseForm.invoice_file = (e.target as HTMLInputElement).files?.[0] || null)"
                                         accept="image/*,.pdf"
                                         required
                                         class="w-full rounded-xl border border-slate-200 bg-background p-2 text-xs text-slate-500 file:mr-4 file:rounded-xl file:border-0 file:bg-indigo-50 file:px-4 file:py-2 file:text-xs file:font-semibold file:text-indigo-700 hover:file:bg-indigo-100 focus:ring-2 focus:ring-indigo-500/20 focus:outline-none"
                                     />
-                                    <p
-                                        class="text-[10px] text-muted-foreground"
-                                    >
-                                        Chấp nhận JPG, PNG, PDF tối đa 2MB.
-                                    </p>
+                                    <p class="text-[10px] text-muted-foreground">Tải lên 1 ảnh hóa đơn dùng chung cho tất cả các dòng trong phiếu.</p>
                                 </div>
 
-                                <div
-                                    class="flex items-start gap-2 text-[11px] text-muted-foreground"
-                                >
-                                    <Info
-                                        class="mt-0.5 size-3.5 shrink-0 text-indigo-400"
-                                    />
-                                    <span
-                                        >Nhân viên kho nhập hàng sẽ được Chủ
-                                        doanh nghiệp kiểm duyệt chéo và phê
-                                        duyệt trước khi cộng kho.</span
-                                    >
+                                <!-- Table các dòng nguyên liệu nhập -->
+                                <div class="space-y-2 border-t pt-3">
+                                    <div class="flex items-center justify-between">
+                                        <Label class="text-xs font-bold text-slate-800 dark:text-slate-200">
+                                            Danh sách nguyên liệu nhập kho ({{ purchaseForm.items.length }})
+                                        </Label>
+                                        <Button
+                                            type="button"
+                                            size="sm"
+                                            variant="outline"
+                                            @click="addPurchaseItemRow()"
+                                            class="h-7 text-[11px] font-semibold text-indigo-600 border-indigo-200 hover:bg-indigo-50 dark:border-indigo-800 dark:text-indigo-400"
+                                        >
+                                            <Plus class="mr-1 size-3.5" /> Thêm nguyên liệu
+                                        </Button>
+                                    </div>
+
+                                    <div class="space-y-3">
+                                        <div
+                                            v-for="(item, idx) in purchaseForm.items"
+                                            :key="idx"
+                                            class="relative space-y-2.5 rounded-xl border border-slate-200 bg-slate-50/50 p-3 dark:border-slate-800 dark:bg-slate-900/40"
+                                        >
+                                            <div class="flex items-center justify-between gap-2 border-b pb-1.5 dark:border-slate-800">
+                                                <span class="text-[11px] font-bold text-indigo-600 dark:text-indigo-400">
+                                                    #{{ Number(idx) + 1 }}
+                                                </span>
+                                                <button
+                                                    type="button"
+                                                    @click="removePurchaseItemRow(Number(idx))"
+                                                    class="rounded-lg p-1 text-slate-400 hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-950/40"
+                                                    title="Xóa dòng này"
+                                                >
+                                                    <Trash2 class="size-3.5" />
+                                                </button>
+                                            </div>
+
+                                            <!-- Nguyên liệu select -->
+                                            <div class="space-y-1">
+                                                <Label class="text-[11px] font-medium">Nguyên liệu <span class="text-rose-500">*</span></Label>
+                                                <select
+                                                    v-model="item.ingredient_id"
+                                                    @change="onPurchaseIngredientChange(item)"
+                                                    required
+                                                    class="w-full rounded-lg border border-border bg-background px-2.5 py-1.5 text-xs font-semibold focus:border-indigo-500 focus:outline-none"
+                                                >
+                                                    <option value="" disabled>Chọn nguyên liệu...</option>
+                                                    <option v-for="ing in ingredients" :key="ing.id" :value="String(ing.id)">
+                                                        {{ ing.name }} (tồn: {{ ing.stock?.toFixed(1) ?? '—' }} {{ ing.unit?.symbol ?? '' }})
+                                                    </option>
+                                                </select>
+                                            </div>
+
+                                            <!-- Số lượng & Đơn giá -->
+                                            <div class="grid grid-cols-2 gap-2">
+                                                <div class="space-y-1">
+                                                    <Label class="text-[11px] font-medium">Số lượng <span class="text-rose-500">*</span></Label>
+                                                    <Input
+                                                        v-model="item.quantity"
+                                                        type="number"
+                                                        step="0.001"
+                                                        min="0.001"
+                                                        placeholder="0"
+                                                        required
+                                                        class="h-8 text-xs font-mono"
+                                                    />
+                                                </div>
+                                                <div class="space-y-1">
+                                                    <Label class="text-[11px] font-medium">Đơn giá (đ) <span class="text-rose-500">*</span></Label>
+                                                    <Input
+                                                        v-model="item.unit_cost"
+                                                        type="number"
+                                                        step="1"
+                                                        min="0"
+                                                        placeholder="0"
+                                                        required
+                                                        class="h-8 text-xs font-mono"
+                                                    />
+                                                </div>
+                                            </div>
+
+                                            <!-- Mã lô & Hạn sử dụng (optional) -->
+                                            <div class="grid grid-cols-2 gap-2 pt-1">
+                                                <div class="space-y-1">
+                                                    <Label class="text-[10px] text-muted-foreground">Mã lô (tùy chọn)</Label>
+                                                    <Input
+                                                        v-model="item.batch_number"
+                                                        placeholder="Tự tạo nếu trống"
+                                                        class="h-7 text-[11px]"
+                                                    />
+                                                </div>
+                                                <div class="space-y-1">
+                                                    <Label class="text-[10px] text-amber-600 dark:text-amber-400">Hạn sử dụng</Label>
+                                                    <Input
+                                                        v-model="item.expiry_date"
+                                                        type="date"
+                                                        class="h-7 text-[11px]"
+                                                    />
+                                                </div>
+                                            </div>
+
+                                            <!-- Subtotal row preview -->
+                                            <div v-if="Number(item.quantity) > 0 && Number(item.unit_cost) >= 0" class="flex justify-end text-[11px] font-semibold text-slate-600 dark:text-slate-300">
+                                                Thành tiền: <span class="ml-1.5 font-mono text-indigo-600 dark:text-indigo-400">{{ vnd(Number(item.quantity) * Number(item.unit_cost)) }}</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Total Receipt Summary KPI Card -->
+                                <div class="flex items-center justify-between rounded-xl border border-indigo-500/20 bg-indigo-500/10 px-4 py-3 text-sm font-bold">
+                                    <span class="text-indigo-900 dark:text-indigo-200">Tổng cộng phiếu nhập:</span>
+                                    <span class="font-mono text-base text-indigo-700 dark:text-indigo-300">{{ vnd(totalPurchaseReceiptCost) }}</span>
                                 </div>
 
                                 <Button
                                     type="submit"
-                                    class="w-full rounded-xl bg-indigo-600 text-white hover:bg-indigo-700"
+                                    class="w-full rounded-xl bg-indigo-600 text-white hover:bg-indigo-700 font-semibold"
                                     :disabled="purchaseForm.processing"
                                 >
                                     <ArrowDownToLine class="mr-2 size-4" />
-                                    {{
-                                        purchaseForm.processing
-                                            ? 'Đang gửi phê duyệt...'
-                                            : 'Gửi yêu cầu nhập hàng'
-                                    }}
+                                    {{ purchaseForm.processing ? 'Đang gửi phê duyệt...' : `Lưu phiếu nhập kho (${purchaseForm.items.length} mặt hàng)` }}
                                 </Button>
                             </form>
                         </CardContent>
@@ -2186,9 +2214,9 @@ const recallBatch = (batchId: number) => {
                                 >
                             </div>
                             <span
-                                class="animate-bounce rounded-full bg-indigo-100 px-2 py-0.5 text-[10px] font-bold text-indigo-800 dark:bg-indigo-950 dark:text-indigo-300"
+                                class="rounded-full bg-indigo-100 px-2 py-0.5 text-[10px] font-bold text-indigo-800 dark:bg-indigo-950 dark:text-indigo-300"
                             >
-                                Độ tin cậy > 92%
+                                Tối ưu tự động
                             </span>
                         </div>
                     </CardHeader>
@@ -2226,10 +2254,23 @@ const recallBatch = (batchId: number) => {
                                             >{{ item.ingredient_name }}</span
                                         >
                                         <span
-                                            class="rounded-md bg-emerald-100 px-1.5 py-0.5 text-[9px] font-bold text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300"
+                                            v-if="item.confidence_score !== null && item.confidence_score !== undefined"
+                                            :class="[
+                                                'rounded-md px-1.5 py-0.5 text-[9px] font-bold',
+                                                item.confidence_score >= 80
+                                                    ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'
+                                                    : item.confidence_score >= 60
+                                                      ? 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300'
+                                                      : 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300',
+                                            ]"
                                         >
-                                            Độ tin cậy:
-                                            {{ item.confidence_score }}%
+                                            Độ tin cậy: {{ item.confidence_score }}%
+                                        </span>
+                                        <span
+                                            v-else
+                                            class="rounded-md border border-amber-200/60 bg-amber-50 px-1.5 py-0.5 text-[9px] font-semibold text-amber-700 dark:border-amber-900/30 dark:bg-amber-950/40 dark:text-amber-400"
+                                        >
+                                            Chờ thêm dữ liệu
                                         </span>
                                     </div>
                                     <p
@@ -2276,10 +2317,11 @@ const recallBatch = (batchId: number) => {
                                         size="sm"
                                         variant="outline"
                                         type="button"
-                                        class="h-7 border-indigo-200 text-[10px] text-indigo-600 hover:bg-indigo-50 dark:border-indigo-800 dark:text-indigo-400"
+                                        :disabled="!item.suggested_purchase || Number(item.suggested_purchase) <= 0"
+                                        class="h-7 border-indigo-200 text-[10px] text-indigo-600 hover:bg-indigo-50 disabled:opacity-50 dark:border-indigo-800 dark:text-indigo-400"
                                         @click="applyForecast(item)"
                                     >
-                                        Áp dụng đề xuất
+                                        {{ Number(item.suggested_purchase) > 0 ? 'Áp dụng đề xuất' : 'Đủ tồn kho' }}
                                     </Button>
                                 </div>
                             </div>
@@ -3053,6 +3095,15 @@ const recallBatch = (batchId: number) => {
         <!-- ══ TAB: KIỂM KÊ & ĐỐI SOÁT KHO ══════════════════════════════════════ -->
         <template v-if="activeTab === 'reconcile'">
             <div class="space-y-6">
+                <div
+                    v-if="!activeBranchId"
+                    class="rounded-xl border border-indigo-200 bg-indigo-50/70 px-4 py-3 text-xs text-indigo-800 dark:border-indigo-900 dark:bg-indigo-950/30 dark:text-indigo-200"
+                >
+                    Đang xem số liệu tồn kho đã cộng dồn của toàn bộ chi nhánh.
+                    Vui lòng chọn một chi nhánh cụ thể để nhập số đếm và cân bằng
+                    tồn kho.
+                </div>
+
                 <!-- Top Stats Cards -->
                 <div
                     class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4"
@@ -3225,6 +3276,7 @@ const recallBatch = (batchId: number) => {
                                                     v-model="
                                                         physicalStockMap[ing.id]
                                                     "
+                                                    :disabled="!activeBranchId"
                                                     class="h-8 w-28 text-center font-mono font-bold"
                                                 />
                                                 <span
@@ -3302,6 +3354,7 @@ const recallBatch = (batchId: number) => {
                                     <input
                                         v-model="reconcileOpeningBalance"
                                         type="checkbox"
+                                        :disabled="!activeBranchId"
                                         class="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
                                     />
                                     Đây là đối soát số dư đầu kỳ
@@ -3322,6 +3375,7 @@ const recallBatch = (batchId: number) => {
                                     </Label>
                                     <select
                                         v-model="reconcileEmployeeId"
+                                        :disabled="!activeBranchId"
                                         class="h-9 rounded-xl border border-rose-300 bg-card px-3 text-xs font-medium text-foreground focus:ring-2 focus:ring-rose-500/20 focus:outline-none dark:border-rose-800"
                                     >
                                         <option value="">
@@ -3346,13 +3400,15 @@ const recallBatch = (batchId: number) => {
                             <Button
                                 @click="submitReconcile"
                                 class="h-9 cursor-pointer rounded-xl bg-emerald-600 font-bold text-white shadow-sm hover:bg-emerald-700"
-                                :disabled="isReconciling"
+                                :disabled="isReconciling || !activeBranchId"
                             >
                                 <ClipboardCheck class="mr-1.5 size-4" />
                                 {{
                                     isReconciling
                                         ? 'Đang cân bằng kho...'
-                                        : 'Xác nhận & Cân bằng tồn kho'
+                                        : activeBranchId
+                                          ? 'Xác nhận & Cân bằng tồn kho'
+                                          : 'Chọn chi nhánh để cân bằng kho'
                                 }}
                             </Button>
                         </div>
@@ -3717,7 +3773,7 @@ const recallBatch = (batchId: number) => {
             @click.self="showAddIngredient = false"
         >
             <div
-                class="flex min-h-full items-center justify-center"
+                class="flex min-h-full items-start sm:items-center justify-center py-6 sm:py-10"
                 @click.self="showAddIngredient = false"
             >
                 <Card class="w-full max-w-md">
@@ -3835,10 +3891,10 @@ const recallBatch = (batchId: number) => {
             @click.self="showAddRecipe = false"
         >
             <div
-                class="flex min-h-full items-center justify-center"
+                class="flex min-h-full items-start sm:items-center justify-center py-6 sm:py-10"
                 @click.self="showAddRecipe = false"
             >
-                <Card class="w-full max-w-2xl">
+                <Card class="w-full max-w-2xl max-h-[calc(100vh-4rem)] flex flex-col overflow-hidden">
                     <CardHeader>
                         <div class="flex items-center justify-between">
                             <CardTitle
