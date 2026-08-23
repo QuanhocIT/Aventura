@@ -349,13 +349,13 @@ const maxDiscountPercent = computed(() => {
                                     name="captcha_token"
                                     :value="captchaToken"
                                 />
-                                <Input
+                                <input
                                     id="captcha_answer"
                                     type="number"
                                     name="captcha_answer"
                                     required
                                     placeholder="Nhập kết quả"
-                                    class="h-9 rounded-xl border-zinc-200 text-xs font-semibold shadow-sm transition-all duration-300 focus-visible:border-primary focus-visible:ring-primary/20 dark:border-zinc-800"
+                                    class="flex h-9 w-full rounded-xl border border-zinc-200 bg-transparent px-3 py-1 text-xs font-semibold shadow-sm transition-all duration-300 outline-none focus-visible:border-primary focus-visible:ring-primary/20 dark:border-zinc-800"
                                 />
                             </div>
                         </div>
