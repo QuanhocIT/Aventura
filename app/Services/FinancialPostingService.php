@@ -210,12 +210,11 @@ class FinancialPostingService
                 ->findOrFail((int) $account);
         }
 
-        $definition = self::DEFAULT_ACCOUNTS[$code] ?? [
-            'name' => 'Tài khoản '.$code,
-            'type' => 'expense',
-            'normal_balance' => 'debit',
-            'is_system' => false,
-        ];
+        if (! isset(self::DEFAULT_ACCOUNTS[$code])) {
+            throw new RuntimeException("Mã tài khoản kế toán '{$code}' không hợp lệ hoặc chưa được định nghĩa trong hệ thống.");
+        }
+
+        $definition = self::DEFAULT_ACCOUNTS[$code];
 
         return FinancialAccount::withoutGlobalScopes()->firstOrCreate(
             ['restaurant_id' => $restaurantId, 'code' => $code],

@@ -862,12 +862,28 @@ class OrdersController extends Controller
                     // Create AccountReceivable record
                     AccountReceivable::create([
                         'restaurant_id' => $order->restaurant_id,
+                        'branch_id' => $order->branch_id,
                         'order_id' => $order->id,
                         'customer_id' => $customer->id,
                         'amount' => $order->total_amount,
                         'received_amount' => 0,
                         'due_date' => now()->addDays(30)->toDateString(), // 30-day payment term
                         'status' => 'unpaid',
+                    ]);
+
+                    // Ghi nhận doanh thu và phải thu cho đơn bán ghi nợ
+                    app(\App\Services\FinancialPostingService::class)->post([
+                        'restaurant_id' => $order->restaurant_id,
+                        'branch_id' => $order->branch_id,
+                        'entry_date' => now()->toDateString(),
+                        'source_type' => 'order',
+                        'source_id' => $order->id,
+                        'idempotency_key' => "order_credit_sale_{$order->id}",
+                        'description' => "Doanh thu bán ghi nợ đơn hàng #{$order->order_number}",
+                        'lines' => [
+                            ['account_id' => '1311', 'debit' => (float) $order->total_amount, 'credit' => 0],
+                            ['account_id' => '5111', 'debit' => 0, 'credit' => (float) $order->total_amount],
+                        ],
                     ]);
 
                     // Create Payment record

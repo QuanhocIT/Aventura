@@ -18,7 +18,6 @@ use App\Models\Unit;
 use App\Services\AnalyticsServiceClient;
 use App\Services\InventoryReplenishService;
 use App\Services\PriceAnalyticsService;
-use App\Services\QuotaService;
 use App\Services\SupplierSlaService;
 use App\Support\Tenant\TenantContext;
 use App\Support\TenantRule;
@@ -58,16 +57,6 @@ class SupplierController extends Controller
         if (! $restaurant && ! $request->user()->hasRole('super_admin')) {
             abort(403, 'Không tìm thấy nhà hàng.');
         }
-        $restaurant?->loadMissing('plan');
-        if ($restaurant && ! app(QuotaService::class)->hasFeature($restaurant, 'supplier_portal')) {
-            return Inertia::render('FeatureGate', [
-                'feature' => 'supplier_portal',
-                'feature_label' => 'Cổng Nhà Cung Cấp',
-                'plan_name' => $restaurant->plan?->name ?? 'Miễn Phí',
-                'required_plan' => 'Doanh Nghiệp',
-            ]);
-        }
-
         $suppliers = Supplier::where('restaurant_id', $user->restaurant_id)
             ->when($this->tenantContext->isBranchScoped(), fn ($q) => $q->where(fn ($scope) => $scope
                 ->whereNull('branch_id')->orWhere('branch_id', $this->tenantContext->activeBranchId())))
@@ -544,9 +533,25 @@ class SupplierController extends Controller
                     'payment_status' => $paymentStatus,
                 ]);
 
+                $creditAccount = $isCod ? '1121' : '3311';
+                app(\App\Services\FinancialPostingService::class)->post([
+                    'restaurant_id' => $purchaseOrder->restaurant_id,
+                    'branch_id' => $purchaseOrder->branch_id,
+                    'entry_date' => now()->toDateString(),
+                    'source_type' => 'purchase_order',
+                    'source_id' => $purchaseOrder->id,
+                    'idempotency_key' => "po_delivered_{$purchaseOrder->id}",
+                    'description' => "Nhập kho mua hàng PO #{$purchaseOrder->po_number}",
+                    'lines' => [
+                        ['account_id' => '1521', 'debit' => $invoiceTotalAmount, 'credit' => 0],
+                        ['account_id' => $creditAccount, 'debit' => 0, 'credit' => $invoiceTotalAmount],
+                    ],
+                ]);
+
                 if (! $isCod) {
                     AccountPayable::create([
                         'restaurant_id' => $purchaseOrder->restaurant_id,
+                        'branch_id' => $purchaseOrder->branch_id,
                         'purchase_order_id' => $purchaseOrder->id,
                         'supplier_id' => $purchaseOrder->supplier_id,
                         'amount' => $invoiceTotalAmount,
@@ -884,6 +889,23 @@ class SupplierController extends Controller
             'payment_status' => 'escrow_locked',
             'escrow_transaction_id' => 'ESC-'.now()->format('Ymd').'-'.Str::upper(Str::random(8)),
         ]);
+
+        $amount = (float) ($po->total_amount ?? 0);
+        if ($amount > 0) {
+            app(\App\Services\FinancialPostingService::class)->post([
+                'restaurant_id' => $po->restaurant_id,
+                'branch_id' => $po->branch_id,
+                'entry_date' => now()->toDateString(),
+                'source_type' => 'purchase_order_escrow',
+                'source_id' => $po->id,
+                'idempotency_key' => "po_escrow_lock_{$po->id}",
+                'description' => "Khóa tiền ký quỹ Escrow đơn mua hàng #{$po->po_number}",
+                'lines' => [
+                    ['account_id' => '1122', 'debit' => $amount, 'credit' => 0],
+                    ['account_id' => '1121', 'debit' => 0, 'credit' => $amount],
+                ],
+            ]);
+        }
     }
 
     /**
@@ -910,6 +932,23 @@ class SupplierController extends Controller
             'is_frozen' => false,
         ]);
 
+        $amount = (float) ($purchaseOrder->total_amount ?? 0);
+        if ($amount > 0) {
+            app(\App\Services\FinancialPostingService::class)->post([
+                'restaurant_id' => $purchaseOrder->restaurant_id,
+                'branch_id' => $purchaseOrder->branch_id,
+                'entry_date' => now()->toDateString(),
+                'source_type' => 'purchase_order_escrow',
+                'source_id' => $purchaseOrder->id,
+                'idempotency_key' => "po_escrow_release_{$purchaseOrder->id}",
+                'description' => "Giải ngân tiền ký quỹ Escrow cho đơn mua hàng #{$purchaseOrder->po_number}",
+                'lines' => [
+                    ['account_id' => '3311', 'debit' => $amount, 'credit' => 0],
+                    ['account_id' => '1122', 'debit' => 0, 'credit' => $amount],
+                ],
+            ]);
+        }
+
         return back()->with('success', 'Đã thủ công giải ngân tiền ký quỹ (Escrow Released) cho nhà cung cấp thành công.');
     }
 
@@ -927,6 +966,23 @@ class SupplierController extends Controller
             'status' => 'cancelled',
             'is_frozen' => false,
         ]);
+
+        $amount = (float) ($purchaseOrder->total_amount ?? 0);
+        if ($amount > 0) {
+            app(\App\Services\FinancialPostingService::class)->post([
+                'restaurant_id' => $purchaseOrder->restaurant_id,
+                'branch_id' => $purchaseOrder->branch_id,
+                'entry_date' => now()->toDateString(),
+                'source_type' => 'purchase_order_escrow',
+                'source_id' => $purchaseOrder->id,
+                'idempotency_key' => "po_escrow_refund_{$purchaseOrder->id}",
+                'description' => "Hoàn trả tiền ký quỹ Escrow về tài khoản cho đơn mua hàng #{$purchaseOrder->po_number}",
+                'lines' => [
+                    ['account_id' => '1121', 'debit' => $amount, 'credit' => 0],
+                    ['account_id' => '1122', 'debit' => 0, 'credit' => $amount],
+                ],
+            ]);
+        }
 
         return back()->with('success', 'Đã hoàn trả tiền ký quỹ (Escrow Refunded) về tài khoản nhà hàng thành công.');
     }

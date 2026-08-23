@@ -145,14 +145,22 @@ class FixedAssetController extends Controller
             'supplier' => ['nullable', 'string', 'max:150'],
             'invoice_number' => ['nullable', 'string', 'max:100'],
             'warranty_until' => ['nullable', 'date', 'after_or_equal:purchase_date'],
+            'useful_life_months' => ['nullable', 'integer', 'min:1', 'max:600'],
+            'payment_method' => ['nullable', 'string', 'in:bank_transfer,cash,credit'],
             'specifications' => ['nullable', 'string', 'max:5000'],
             'notes' => ['nullable', 'string', 'max:2000'],
         ]);
         $data['quantity'] = (int) ($data['quantity'] ?? 1);
         $data['unit'] = $data['unit'] ?: 'cái';
         $data['unit_cost'] = $data['unit_cost'] ?? round((float) $data['cost'] / $data['quantity'], 2);
+        $data['useful_life_months'] = (int) ($data['useful_life_months'] ?? 36);
+        $creditAccount = match ($data['payment_method'] ?? 'credit') {
+            'cash' => '1111',
+            'bank_transfer' => '1121',
+            default => '3311',
+        };
 
-        $asset = DB::transaction(function () use ($data, $user): FixedAsset {
+        $asset = DB::transaction(function () use ($data, $user, $creditAccount): FixedAsset {
             $asset = FixedAsset::create([
                 'restaurant_id' => $user->restaurant_id,
                 'branch_id' => $data['branch_id'],
@@ -173,7 +181,7 @@ class FixedAssetController extends Controller
                 'warranty_until' => $data['warranty_until'] ?? null,
                 'specifications' => $data['specifications'] ?? null,
                 'residual_value' => 0,
-                'useful_life_months' => 0,
+                'useful_life_months' => $data['useful_life_months'],
                 'notes' => $data['notes'] ?? null,
                 'custody_status' => 'unassigned',
                 'condition_status' => 'unassessed',
@@ -192,7 +200,7 @@ class FixedAssetController extends Controller
                 'posted_by' => $user->id,
                 'lines' => [
                     ['account' => '2111', 'debit' => $asset->cost, 'credit' => 0],
-                    ['account' => '3311', 'debit' => 0, 'credit' => $asset->cost],
+                    ['account' => $creditAccount, 'debit' => 0, 'credit' => $asset->cost],
                 ],
             ]);
 

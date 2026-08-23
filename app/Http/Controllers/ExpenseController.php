@@ -440,6 +440,18 @@ class ExpenseController extends Controller
             $amount = (float) $lockedExpense->amount;
             $idempotencyKey = 'expense-payment:'.$lockedExpense->id;
 
+            $taxAmount = (float) ($lockedExpense->tax_amount ?? 0);
+            $netAmount = max(0.0, $amount - $taxAmount);
+
+            $postingLines = $taxAmount > 0 && $netAmount > 0 ? [
+                ['account' => '6271', 'debit' => $netAmount, 'credit' => 0],
+                ['account' => '3331', 'debit' => $taxAmount, 'credit' => 0],
+                ['account' => $data['payment_method'] === 'cash' ? '1111' : '1121', 'debit' => 0, 'credit' => $amount],
+            ] : [
+                ['account' => '6271', 'debit' => $amount, 'credit' => 0],
+                ['account' => $data['payment_method'] === 'cash' ? '1111' : '1121', 'debit' => 0, 'credit' => $amount],
+            ];
+
             if ($data['payment_method'] === 'cash') {
                 $this->cashPostingService->record([
                     'restaurant_id' => $lockedExpense->restaurant_id,
@@ -450,8 +462,7 @@ class ExpenseController extends Controller
                     'reference_id' => $lockedExpense->id,
                     'reference_type' => OperatingExpense::class,
                     'idempotency_key' => $idempotencyKey,
-                    'debit_account' => '6271',
-                    'credit_account' => '1111',
+                    'lines' => $postingLines,
                     'journal_source_type' => OperatingExpense::class,
                     'journal_source_id' => $lockedExpense->id,
                     'notes' => 'Thanh toán chi phí #'.$lockedExpense->id,
@@ -470,10 +481,7 @@ class ExpenseController extends Controller
                     'created_by' => $request->user()->id,
                     'posted_by' => $request->user()->id,
                     'metadata' => ['payment_method' => 'bank_transfer', 'payment_reference' => $data['payment_reference'] ?? null],
-                    'lines' => [
-                        ['account' => '6271', 'debit' => $amount, 'credit' => 0],
-                        ['account' => '1121', 'debit' => 0, 'credit' => $amount],
-                    ],
+                    'lines' => $postingLines,
                 ]);
             }
 

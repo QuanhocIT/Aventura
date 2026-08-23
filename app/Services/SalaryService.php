@@ -275,6 +275,45 @@ class SalaryService
                 'status' => $data['status'] ?? 'applied',
             ]));
 
+            if (($data['type'] ?? null) === 'advance' && ($data['status'] ?? 'applied') === 'applied') {
+                $amount = (float) $data['amount'];
+                if ($amount > 0) {
+                    $method = $data['payment_method'] ?? 'cash';
+                    $idempotencyKey = 'salary-advance:'.$adjustment->id;
+                    if ($method === 'cash') {
+                        app(CashPostingService::class)->record([
+                            'restaurant_id' => $salary->restaurant_id,
+                            'branch_id' => $salary->branch_id,
+                            'type' => 'out',
+                            'amount' => $amount,
+                            'source' => 'payroll',
+                            'idempotency_key' => $idempotencyKey,
+                            'debit_account' => '3341',
+                            'credit_account' => '1111',
+                            'journal_source_type' => SalaryAdjustment::class,
+                            'journal_source_id' => $adjustment->id,
+                            'notes' => 'Tạm ứng lương nhân viên #'.$salary->employee_id,
+                            'created_by' => $data['created_by'] ?? null,
+                            'occurred_at' => now(),
+                        ]);
+                    } else {
+                        app(FinancialPostingService::class)->post([
+                            'restaurant_id' => $salary->restaurant_id,
+                            'branch_id' => $salary->branch_id,
+                            'entry_date' => today(),
+                            'source_type' => SalaryAdjustment::class,
+                            'source_id' => $adjustment->id,
+                            'idempotency_key' => $idempotencyKey,
+                            'description' => 'Tạm ứng lương nhân viên #'.$salary->employee_id,
+                            'lines' => [
+                                ['account' => '3341', 'debit' => $amount, 'credit' => 0],
+                                ['account' => '1121', 'debit' => 0, 'credit' => $amount],
+                            ],
+                        ]);
+                    }
+                }
+            }
+
             $this->recalculate($salary);
 
             return $adjustment;

@@ -105,6 +105,33 @@ class OrderItemCancellationService
                 $normalizedReason,
             );
 
+            // Ghi đảo giá vốn (COGS) nếu việc hủy món có hoàn trả nguyên liệu vào kho
+            $restoredCost = (float) \App\Models\InventoryTransaction::withoutGlobalScopes()
+                ->where('restaurant_id', $order->restaurant_id)
+                ->where('order_id', $order->id)
+                ->where('direction', 'in')
+                ->whereIn('type', ['return', 'adjustment'])
+                ->latest('id')
+                ->value('total_cost');
+
+            if ($restoredCost > 0) {
+                app(\App\Services\FinancialPostingService::class)->post([
+                    'restaurant_id' => $order->restaurant_id,
+                    'branch_id' => $order->branch_id,
+                    'entry_date' => today(),
+                    'source_type' => OrderItem::class,
+                    'source_id' => $lockedItem->id,
+                    'idempotency_key' => 'order-item:cogs-refund:'.$lockedItem->id,
+                    'description' => 'Đảo giá vốn do hủy món '.$lockedItem->product?->name.' đơn hàng #'.$order->order_number,
+                    'created_by' => $user->id,
+                    'posted_by' => $user->id,
+                    'lines' => [
+                        ['account' => '1521', 'debit' => $restoredCost, 'credit' => 0],
+                        ['account' => '6211', 'debit' => 0, 'credit' => $restoredCost],
+                    ],
+                ]);
+            }
+
             $activeSubtotal = (float) OrderItem::where('order_id', $order->id)
                 ->where('status', '!=', 'cancelled')
                 ->sum('line_total');

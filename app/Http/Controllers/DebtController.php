@@ -298,26 +298,28 @@ class DebtController extends Controller
                         ->where('status', 'open')
                         ->first();
 
-                    if ($register) {
-                        $this->cashPostingService->record([
-                            'restaurant_id' => $lockedPayable->restaurant_id,
-                            'branch_id' => $branchId,
-                            'cash_register_id' => $register->id,
-                            'type' => 'out',
-                            'amount' => $payAmount,
-                            'source' => 'expense',
-                            'idempotency_key' => 'payable-payment:'.$lockedPayable->id.':'.$newPaidAmount,
-                            'debit_account' => '3311',
-                            'credit_account' => '1111',
-                            'journal_source_type' => AccountPayable::class,
-                            'journal_source_id' => $lockedPayable->id,
-                            'reference_id' => $lockedPayable->id,
-                            'reference_type' => AccountPayable::class,
-                            'notes' => "Thanh toán công nợ nhà cung cấp cho PO #{$lockedPayable->purchaseOrder?->po_number}. Ghi chú: {$notes}",
-                            'created_by' => $user->id,
-                            'occurred_at' => now(),
-                        ]);
+                    if (! $register) {
+                        throw new \RuntimeException('Chi nhánh chưa mở két tiền mặt. Vui lòng mở két tiền mặt trước khi thanh toán bằng tiền mặt.');
                     }
+
+                    $this->cashPostingService->record([
+                        'restaurant_id' => $lockedPayable->restaurant_id,
+                        'branch_id' => $branchId,
+                        'cash_register_id' => $register->id,
+                        'type' => 'out',
+                        'amount' => $payAmount,
+                        'source' => 'expense',
+                        'idempotency_key' => 'payable-payment:'.$lockedPayable->id.':'.$newPaidAmount,
+                        'debit_account' => '3311',
+                        'credit_account' => '1111',
+                        'journal_source_type' => AccountPayable::class,
+                        'journal_source_id' => $lockedPayable->id,
+                        'reference_id' => $lockedPayable->id,
+                        'reference_type' => AccountPayable::class,
+                        'notes' => "Thanh toán công nợ nhà cung cấp cho PO #{$lockedPayable->purchaseOrder?->po_number}. Ghi chú: {$notes}",
+                        'created_by' => $user->id,
+                        'occurred_at' => now(),
+                    ]);
                 }
             });
         } catch (\Exception $e) {
@@ -421,26 +423,28 @@ class DebtController extends Controller
                         ->where('status', 'open')
                         ->first();
 
-                    if ($register) {
-                        $this->cashPostingService->record([
-                            'restaurant_id' => $lockedReceivable->restaurant_id,
-                            'branch_id' => $branchId,
-                            'cash_register_id' => $register->id,
-                            'type' => 'in',
-                            'amount' => $collectAmount,
-                            'source' => 'order',
-                            'idempotency_key' => 'receivable-collection:'.$lockedReceivable->id.':'.$newReceivedAmount,
-                            'debit_account' => '1111',
-                            'credit_account' => '1311',
-                            'journal_source_type' => AccountReceivable::class,
-                            'journal_source_id' => $lockedReceivable->id,
-                            'reference_id' => $lockedReceivable->id,
-                            'reference_type' => AccountReceivable::class,
-                            'notes' => "Thu hồi công nợ khách hàng cho đơn hàng #{$lockedReceivable->order?->order_number}. Ghi chú: {$notes}",
-                            'created_by' => $user->id,
-                            'occurred_at' => now(),
-                        ]);
+                    if (! $register) {
+                        throw new \RuntimeException('Chi nhánh chưa mở két tiền mặt. Vui lòng mở két tiền mặt trước khi thu nợ bằng tiền mặt.');
                     }
+
+                    $this->cashPostingService->record([
+                        'restaurant_id' => $lockedReceivable->restaurant_id,
+                        'branch_id' => $branchId,
+                        'cash_register_id' => $register->id,
+                        'type' => 'in',
+                        'amount' => $collectAmount,
+                        'source' => 'order',
+                        'idempotency_key' => 'receivable-collection:'.$lockedReceivable->id.':'.$newReceivedAmount,
+                        'debit_account' => '1111',
+                        'credit_account' => '1311',
+                        'journal_source_type' => AccountReceivable::class,
+                        'journal_source_id' => $lockedReceivable->id,
+                        'reference_id' => $lockedReceivable->id,
+                        'reference_type' => AccountReceivable::class,
+                        'notes' => "Thu hồi công nợ khách hàng cho đơn hàng #{$lockedReceivable->order?->order_number}. Ghi chú: {$notes}",
+                        'created_by' => $user->id,
+                        'occurred_at' => now(),
+                    ]);
                 }
             });
         } catch (\Exception $e) {
