@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Models\SystemSetting;
 use App\Support\Partitioning\PartitionHelper;
 use Illuminate\Console\Command;
 
@@ -10,6 +11,7 @@ class ManagePartitions extends Command
     protected $signature = 'db:manage-partitions
         {--forward= : Số tháng partition tương lai cần đảm bảo luôn có sẵn (mặc định lấy từ config(partitioning.months_forward))}
         {--prune : Dọn các partition đã quá hạn retention_months cấu hình (bỏ qua bảng retention_months=null — giữ vĩnh viễn)}
+        {--dry-run : Chỉ hiển thị partition đủ điều kiện dọn, không thay đổi database}
         {--table= : Chỉ chạy cho 1 bảng cụ thể thay vì toàn bộ danh sách trong config(partitioning.tables)}';
 
     protected $description = 'Đảm bảo mọi bảng đã đăng ký trong config(partitioning.tables) luôn có sẵn partition cho các tháng tới; tùy chọn --prune để dọn partition quá hạn retention';
@@ -43,11 +45,13 @@ class ManagePartitions extends Command
             return self::FAILURE;
         }
 
-        foreach ($tables as $table => $columnConfig) {
-            $this->ensureFuture($helper, $table, $columnConfig['type'], $forward);
+        if (! $this->option('dry-run')) {
+            foreach ($tables as $table => $columnConfig) {
+                $this->ensureFuture($helper, $table, $columnConfig['type'], $forward);
+            }
         }
 
-        if (! $only) {
+        if (! $only && ! $this->option('dry-run')) {
             foreach (self::LEGACY_TABLES as $table => $type) {
                 $this->ensureFuture($helper, $table, $type, $forward);
             }
@@ -58,7 +62,10 @@ class ManagePartitions extends Command
                 if ($columnConfig['retention_months'] === null) {
                     continue;
                 }
-                $this->prune($helper, $table, $columnConfig['retention_months']);
+                $retention = $table === 'audit_logs'
+                    ? (int) SystemSetting::get('audit_retention_months', $columnConfig['retention_months'])
+                    : $columnConfig['retention_months'];
+                $this->prune($helper, $table, $retention, (bool) $this->option('dry-run'));
             }
         }
 
@@ -76,16 +83,23 @@ class ManagePartitions extends Command
         }
     }
 
-    private function prune(PartitionHelper $helper, string $table, int $retentionMonths): void
+    private function prune(PartitionHelper $helper, string $table, int $retentionMonths, bool $dryRun): void
     {
-        $dropped = $helper->pruneOldPartitions($table, $retentionMonths);
+        $eligible = $helper->oldPartitions($table, $retentionMonths);
 
-        if (empty($dropped)) {
+        if (empty($eligible)) {
             $this->info("{$table}: không có partition nào cần dọn (retention {$retentionMonths} tháng).");
 
             return;
         }
 
+        if ($dryRun) {
+            $this->warn("{$table}: sẽ DROP ".count($eligible)." partition cũ hơn {$retentionMonths} tháng (".implode(', ', $eligible).') — dry-run.');
+
+            return;
+        }
+
+        $dropped = $helper->pruneOldPartitions($table, $retentionMonths);
         $this->warn("{$table}: đã DROP ".count($dropped)." partition cũ hơn {$retentionMonths} tháng (".implode(', ', $dropped).').');
     }
 }

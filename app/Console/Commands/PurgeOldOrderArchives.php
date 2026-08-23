@@ -2,9 +2,13 @@
 
 namespace App\Console\Commands;
 
+use App\Models\DataCleanupRun;
+use App\Models\Restaurant;
 use Carbon\Carbon;
+use Carbon\CarbonInterface;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 /**
  * Xóa các partition cũ của orders_archive và order_items_archive
@@ -24,11 +28,12 @@ class PurgeOldOrderArchives extends Command
 {
     protected $signature = 'orders:purge
         {--months=36 : Số tháng retention (partition cũ hơn số này sẽ bị DROP)}
-        {--confirm   : Thực sự DROP partition (không có flag này = dry-run)}';
+        {--confirm   : Thực sự DROP partition (không có flag này = dry-run)}
+        {--approval-run= : Approved data_cleanup_runs ID for production purge}';
 
     protected $description = 'DROP partition cũ của orders_archive và order_items_archive (MySQL only). Mặc định là dry-run, thêm --confirm để thực thi.';
 
-    private const ARCHIVE_TABLES = ['orders_archive', 'order_items_archive'];
+    private const ARCHIVE_TABLES = ['orders_archive', 'order_items_archive', 'order_related_archives'];
 
     public function handle(): int
     {
@@ -41,6 +46,32 @@ class PurgeOldOrderArchives extends Command
         $months = (int) $this->option('months');
         $confirm = (bool) $this->option('confirm');
         $cutoff = now()->subMonths($months)->startOfMonth();
+
+        if ($confirm) {
+            if (app()->isProduction()
+                && ! config('data_lifecycle.allow_direct_cli_purge', false)
+                && ! $this->option('approval-run')) {
+                $this->error('Production purge requires an approved cleanup run or DATA_LIFECYCLE_ALLOW_DIRECT_CLI_PURGE=true.');
+
+                return self::FAILURE;
+            }
+
+            if ($this->option('approval-run')) {
+                $run = DataCleanupRun::query()->find((int) $this->option('approval-run'));
+                if (! $run || ! in_array($run->status, ['pending', 'running'], true) || ! in_array($run->action, ['partitions', 'orders-purge', 'all'], true)) {
+                    $this->error('The supplied approval run is missing, already used, or does not authorize order purge.');
+
+                    return self::FAILURE;
+                }
+            }
+
+            if (Schema::hasColumn('restaurants', 'data_legal_hold')
+                && Restaurant::query()->where('data_legal_hold', true)->exists()) {
+                $this->error('Purge is blocked because at least one tenant has an active data legal hold.');
+
+                return self::FAILURE;
+            }
+        }
 
         $this->info("orders:purge — retention {$months} tháng (cutoff: {$cutoff->format('Y-m')})");
         $this->info($confirm ? '⚠️  Chế độ THỰC THI — các partition sẽ bị DROP vĩnh viễn.' : '🔍 Chế độ DRY-RUN — không có thay đổi nào được thực hiện.');
@@ -61,10 +92,19 @@ class PurgeOldOrderArchives extends Command
             $this->comment('👆 Chạy lại với --confirm để thực sự xóa các partition trên.');
         }
 
+        if ($confirm && $this->option('approval-run')) {
+            DataCleanupRun::query()->whereKey((int) $this->option('approval-run'))->update([
+                'status' => 'success',
+                'approved_at' => now(),
+                'finished_at' => now(),
+                'result' => ['dropped_partitions' => $totalDropped],
+            ]);
+        }
+
         return self::SUCCESS;
     }
 
-    private function processTable(string $table, Carbon $cutoff, bool $confirm): int
+    private function processTable(string $table, CarbonInterface $cutoff, bool $confirm): int
     {
         $partitions = $this->getPartitions($table);
 

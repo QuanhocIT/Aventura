@@ -31,6 +31,7 @@ return [
         'audit_logs' => ['column' => 'created_at', 'type' => 'timestamp', 'retention_months' => 24],
         'orders_archive' => ['column' => 'created_at', 'type' => 'timestamp', 'retention_months' => 36],
         'order_items_archive' => ['column' => 'created_at', 'type' => 'timestamp', 'retention_months' => 36],
+        'order_related_archives' => ['column' => 'created_at', 'type' => 'timestamp', 'retention_months' => 36],
 
         // Bảng log tăng trưởng vô hạn — trước đây KHÔNG partition, mọi truy vấn
         // theo khoảng ngày quét toàn bảng dù chỉ cần 1 tháng dữ liệu.

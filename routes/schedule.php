@@ -1,7 +1,12 @@
 <?php
 
 use App\Jobs\RecalculateTrustScoresJob;
+use App\Models\Restaurant;
+use App\Models\ScheduledTaskRun;
+use App\Services\ApprovalService;
+use App\Services\CentralWarehouseService;
 use App\Services\SupportPortalService;
+use App\Services\WarehouseFraudDetectionService;
 use App\Support\MaterializedViews\MaterializedViewRegistry;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Support\Facades\Log;
@@ -35,28 +40,29 @@ return function (Schedule $schedule): void {
         $startTime = microtime(true);
         $runId = null;
         try {
-            $run = \App\Models\ScheduledTaskRun::create([
+            $run = ScheduledTaskRun::create([
                 'task_name' => $taskName,
                 'started_at' => now(),
                 'status' => 'running',
             ]);
             $runId = $run->id;
-        } catch (\Throwable) {}
+        } catch (Throwable) {
+        }
 
         try {
             $callback();
             $durationMs = (int) round((microtime(true) - $startTime) * 1000);
             if ($runId) {
-                \App\Models\ScheduledTaskRun::where('id', $runId)->update([
+                ScheduledTaskRun::where('id', $runId)->update([
                     'finished_at' => now(),
                     'status' => 'success',
                     'duration_ms' => $durationMs,
                 ]);
             }
-        } catch (\Throwable $e) {
+        } catch (Throwable $e) {
             $durationMs = (int) round((microtime(true) - $startTime) * 1000);
             if ($runId) {
-                \App\Models\ScheduledTaskRun::where('id', $runId)->update([
+                ScheduledTaskRun::where('id', $runId)->update([
                     'finished_at' => now(),
                     'status' => 'failed',
                     'error_message' => $e->getMessage(),
@@ -92,7 +98,10 @@ return function (Schedule $schedule): void {
     $schedule->command('services:check-health')->everyFiveMinutes();
     $schedule->command('system:check-maintenance')->everyMinute();
     $schedule->command('db:backup')->dailyAt('02:00');
-    $schedule->command('db:optimize')->weeklyOn(0, '03:00');
+    $schedule->command('data:cleanup --action=technical --confirm --automatic')->weeklyOn(0, '03:00');
+    $schedule->command('data:cleanup --action=audit --confirm --automatic')->weeklyOn(0, '03:10');
+    $schedule->command('data:storage-snapshot')->dailyAt('03:20');
+    $schedule->command('data:health-check')->everyFiveMinutes()->withoutOverlapping();
     $schedule->command('loyalty:expire-points')->dailyAt('00:30');
     $schedule->command('loyalty:birthday-bonuses')->dailyAt('09:00');
     $schedule->command('inventory:check-expiry')->dailyAt('07:00');
@@ -102,21 +111,21 @@ return function (Schedule $schedule): void {
     $schedule->command('system:audit-consistency')->dailyAt('03:00');
     $schedule->command('goals:sync')->hourly();
     $schedule->call(function (): void {
-        app(\App\Services\ApprovalService::class)->autoEscalateOverdue();
+        app(ApprovalService::class)->autoEscalateOverdue();
     })->everyMinute()->name('approval-auto-escalation')->withoutOverlapping();
 
     // ── [P1.11]: Quét phát hiện gian lận kho & Cảnh báo đơn cấp phát quá hạn ───────
     $schedule->call(function () {
-        $restaurants = \App\Models\Restaurant::where('status', 'active')->get();
-        $fraudService = app(\App\Services\WarehouseFraudDetectionService::class);
-        $centralService = app(\App\Services\CentralWarehouseService::class);
+        $restaurants = Restaurant::where('status', 'active')->get();
+        $fraudService = app(WarehouseFraudDetectionService::class);
+        $centralService = app(CentralWarehouseService::class);
 
         foreach ($restaurants as $restaurant) {
             try {
                 $fraudService->analyzeRiskAndFraudPatterns((int) $restaurant->id);
                 $centralService->checkAndAlertOverdueRequests((int) $restaurant->id);
-            } catch (\Throwable $e) {
-                \Illuminate\Support\Facades\Log::warning("Lỗi scheduler kiểm tra kho cho nhà hàng #{$restaurant->id}: " . $e->getMessage());
+            } catch (Throwable $e) {
+                Log::warning("Lỗi scheduler kiểm tra kho cho nhà hàng #{$restaurant->id}: ".$e->getMessage());
             }
         }
     })->everyTenMinutes()->name('warehouse-fraud-and-overdue-monitoring')->withoutOverlapping();
@@ -142,7 +151,7 @@ return function (Schedule $schedule): void {
     // Kernel.php cũ định làm). Vì quyết định KHÔNG partition bảng `orders` (giữ FK),
     // việc giữ bảng hot nhỏ qua archive hàng ngày là cơ chế hiệu năng chính. Lên dần:
     // bắt đầu 3 tháng/ngày, xác nhận ổn định vài ngày rồi mới xiết còn 1 tháng.
-    $schedule->command('orders:archive-old --months=3')
+    $schedule->command('orders:archive-old --months='.config('data_lifecycle.orders.archive_months', 3))
         ->dailyAt('02:30')
         ->withoutOverlapping(60)
         ->onOneServer()
@@ -163,15 +172,24 @@ return function (Schedule $schedule): void {
     // --prune: dọn partition quá hạn retention_months (config/partitioning.php) —
     // bảng retention_months=null (tiền mặt, hoa hồng, điểm thưởng...) tự bỏ qua.
     // Chạy riêng, sau job đảm bảo partition tương lai ở trên, hàng tháng cùng ngày.
-    $schedule->command('db:manage-partitions --prune')
+    $schedule->command('db:manage-partitions --prune --dry-run')
         ->monthlyOn(1, '03:45')
         ->withoutOverlapping()
         ->onOneServer();
 
-    // orders:purge: TỪNG KHÔNG được lên lịch ở đâu cả — phải chạy tay. Mặc định lệnh
-    // là dry-run (an toàn), phải thêm --confirm mới thực sự DROP partition.
-    $schedule->command('orders:purge --months=36 --confirm')
+    // orders:purge chỉ tạo báo cáo dry-run định kỳ. Xóa partition phải đi qua
+    // data_cleanup_runs và được Super Admin phê duyệt.
+    $schedule->command('orders:purge --months='.config('data_lifecycle.orders.purge_months', 36))
         ->monthlyOn(1, '04:00')
+        ->withoutOverlapping()
+        ->onOneServer();
+
+    $schedule->command('data:cleanup --action=backups --confirm --automatic')
+        ->weeklyOn(0, '04:10')
+        ->withoutOverlapping()
+        ->onOneServer();
+    $schedule->command('data:cleanup --action=snapshots --confirm --automatic')
+        ->monthlyOn(1, '04:20')
         ->withoutOverlapping()
         ->onOneServer();
 

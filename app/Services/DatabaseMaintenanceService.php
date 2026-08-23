@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\DbMaintenanceLog;
+use App\Models\SystemSetting;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
@@ -33,6 +34,9 @@ class DatabaseMaintenanceService
                         break;
                     case 'archive_audit_logs':
                         $results['archive_audit_logs'] = $this->archiveAuditLogs();
+                        break;
+                    case 'cleanup_temporary':
+                        $results['cleanup_temporary'] = $this->cleanupTemporaryFiles();
                         break;
                     default:
                         Log::warning("Unknown optimization action requested: {$action}");
@@ -148,7 +152,11 @@ class DatabaseMaintenanceService
      */
     private function archiveAuditLogs(): array
     {
-        $cutoffDate = now()->subMonths(6);
+        $auditRetentionMonths = (int) SystemSetting::get(
+            'audit_retention_months',
+            config('data_lifecycle.audit.archive_months', 6),
+        );
+        $cutoffDate = now()->subMonths(max(1, $auditRetentionMonths));
 
         if (! Schema::hasTable('audit_logs')) {
             return [
@@ -165,7 +173,7 @@ class DatabaseMaintenanceService
             return [
                 'status' => 'success',
                 'archived_count' => 0,
-                'message' => 'Không có bản ghi audit_logs nào cũ hơn 6 tháng để lưu trữ.',
+                'message' => "Không có bản ghi audit_logs nào cũ hơn {$auditRetentionMonths} tháng để lưu trữ.",
             ];
         }
 
@@ -216,11 +224,11 @@ class DatabaseMaintenanceService
         }
 
         // Upload lên Cloud Storage S3 hoặc Local fallback
-        $disk = 'local';
+        $disk = config('data_lifecycle.archives.disk', 'local');
         $destination = 'archives/audit-logs/'.$archiveFilename.'.gz';
         $uploaded = false;
 
-        if ($this->isS3Configured()) {
+        if ($disk === 's3' && $this->isS3Configured()) {
             try {
                 $fileStream = fopen($gzFile, 'r');
                 Storage::disk('s3')->put($destination, $fileStream);
@@ -254,7 +262,43 @@ class DatabaseMaintenanceService
             'archived_count' => $deletedCount,
             'disk' => $disk,
             'archive_file' => $destination,
-            'message' => "Đã sao lưu thành công {$deletedCount} bản ghi audit log cũ hơn 6 tháng lên bộ nhớ lưu trữ {$disk} ({$destination}) và giải phóng khỏi cơ sở dữ liệu chính.",
+            'message' => "Đã sao lưu thành công {$deletedCount} bản ghi audit log cũ hơn {$auditRetentionMonths} tháng lên bộ nhớ lưu trữ {$disk} ({$destination}) và giải phóng khỏi cơ sở dữ liệu chính.",
+        ];
+    }
+
+    /**
+     * Remove stale temporary backup/archive files left by interrupted jobs.
+     */
+    public function cleanupTemporaryFiles(): array
+    {
+        $retentionSeconds = (int) config('data_lifecycle.temporary.retention_hours', 24) * 3600;
+        $cutoff = time() - $retentionSeconds;
+        $deleted = 0;
+        $bytes = 0;
+
+        foreach ((array) config('data_lifecycle.temporary.directories', []) as $directory) {
+            $path = storage_path('app/'.$directory);
+            if (! is_dir($path)) {
+                continue;
+            }
+
+            foreach (glob($path.'/*') ?: [] as $file) {
+                if (! is_file($file) || filemtime($file) >= $cutoff) {
+                    continue;
+                }
+
+                $bytes += (int) filesize($file);
+                if (@unlink($file)) {
+                    $deleted++;
+                }
+            }
+        }
+
+        return [
+            'status' => 'success',
+            'files_deleted' => $deleted,
+            'bytes_freed' => $bytes,
+            'message' => "Đã dọn {$deleted} tệp tạm, giải phóng ".round($bytes / 1024 / 1024, 2).' MB.',
         ];
     }
 

@@ -122,8 +122,16 @@ class DatabaseBackupService
         $destination = 'backups/'.$filename.'.gz';
         $uploadedToS3 = false;
         $s3Required = app()->environment('production') || config('backup.s3_required', false);
+        $preferredDisk = config('data_lifecycle.backups.disk', 'local');
 
-        if ($this->isS3Configured()) {
+        if ($s3Required && $preferredDisk !== 's3') {
+            if (file_exists($gzFile)) {
+                unlink($gzFile);
+            }
+            throw new \RuntimeException('Production backup policy requires BACKUP_DISK=s3 and a configured remote object store.');
+        }
+
+        if ($preferredDisk === 's3' && $this->isS3Configured()) {
             try {
                 $fileStream = fopen($gzFile, 'r');
                 Storage::disk('s3')->put($destination, $fileStream);

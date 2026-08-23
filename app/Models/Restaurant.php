@@ -66,6 +66,9 @@ class Restaurant extends Model
             'inactive_flagged_at' => 'datetime',
             'is_inactive_flagged' => 'boolean',
             'storage_warning_sent_at' => 'datetime',
+            'data_legal_hold' => 'boolean',
+            'data_legal_hold_at' => 'datetime',
+            'data_retention_override' => 'array',
             'sandbox_mode' => 'boolean',
             'sandbox_seeded_at' => 'datetime',
             'health_score' => 'integer',
@@ -180,6 +183,11 @@ class Restaurant extends Model
     public function media(): MorphMany
     {
         return $this->morphMany(MediaAsset::class, 'attachable');
+    }
+
+    public function storageSnapshots(): HasMany
+    {
+        return $this->hasMany(TenantStorageSnapshot::class);
     }
 
     public function isActive(): bool

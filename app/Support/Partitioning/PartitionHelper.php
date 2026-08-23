@@ -72,6 +72,10 @@ class PartitionHelper
     /** @return array<int, object{name: string}> */
     public function getPartitions(string $table): array
     {
+        if (DB::connection()->getDriverName() !== 'mysql') {
+            return [];
+        }
+
         // information_schema.partitions là metadata cấu trúc bảng dùng chung mọi tenant,
         // không có khái niệm restaurant_id/branch_id.
         return DB::select( // @bypass-tenant-check
@@ -132,13 +136,32 @@ class PartitionHelper
      *
      * @return array<int, string>
      */
-    public function pruneOldPartitions(string $table, int $retentionMonths): array
+    public function pruneOldPartitions(string $table, int $retentionMonths, bool $dryRun = false): array
+    {
+        $toDrop = $this->oldPartitions($table, $retentionMonths);
+
+        if ($dryRun || empty($toDrop)) {
+            return [];
+        }
+
+        $list = implode(', ', $toDrop);
+        DB::statement("ALTER TABLE {$table} DROP PARTITION {$list}"); // @bypass-tenant-check: DDL cấu trúc bảng, không phải truy vấn dữ liệu tenant
+
+        return $toDrop;
+    }
+
+    /**
+     * Return partition names eligible for retention cleanup without mutating
+     * the database. Used by dry-run reports and approval screens.
+     *
+     * @return array<int, string>
+     */
+    public function oldPartitions(string $table, int $retentionMonths): array
     {
         $cutoff = now()->subMonths($retentionMonths)->startOfMonth();
-        $existing = $this->getPartitions($table);
         $toDrop = [];
 
-        foreach ($existing as $partition) {
+        foreach ($this->getPartitions($table) as $partition) {
             if ($partition->name === 'pFuture') {
                 continue;
             }
@@ -155,13 +178,6 @@ class PartitionHelper
                 $toDrop[] = $partition->name;
             }
         }
-
-        if (empty($toDrop)) {
-            return [];
-        }
-
-        $list = implode(', ', $toDrop);
-        DB::statement("ALTER TABLE {$table} DROP PARTITION {$list}"); // @bypass-tenant-check: DDL cấu trúc bảng, không phải truy vấn dữ liệu tenant
 
         return $toDrop;
     }
