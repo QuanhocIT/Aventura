@@ -175,7 +175,14 @@ class DailyReportService
         $discountTotal = $orders->sum('discount_amount');
         $serviceCharge = $orders->sum('service_charge');
         $taxTotal = $orders->sum('tax_amount');
-        $netRevenue = $grossRevenue - $discountTotal;
+
+        $refundTotal = (float) Payment::withoutGlobalScopes()
+            ->where('restaurant_id', $restaurantId)
+            ->where('status', 'refunded')
+            ->whereBetween('created_at', [$start, $end])
+            ->sum('amount');
+
+        $netRevenue = max(0.0, $grossRevenue - $refundTotal);
         $completedCount = $orders->count();
         $cancelledCount = (int) ($allOrders->get('cancelled', 0));
         $orderCount = $allOrders->sum();

@@ -53,7 +53,8 @@ class BankReconciliationController extends Controller
             'reconciledBy',
         ])
         ->where('restaurant_id', $user->restaurant_id)
-        ->whereIn('payment_method', ['bank_transfer', 'vietqr'])
+        ->where('status', 'paid')
+        ->whereIn('payment_method', ['bank_transfer', 'vietqr', 'vnpay', 'momo', 'zalopay', 'card'])
         ->when($selectedBranchId !== null, fn ($q) => $q->where('branch_id', $selectedBranchId))
         ->whereBetween(DB::raw('DATE(COALESCE(paid_at, created_at))'), [$dateFrom, $dateTo]);
 
@@ -380,15 +381,19 @@ class BankReconciliationController extends Controller
         ]);
 
         $model = $data['matched_type'] === 'payment'
-            ? Payment::where('restaurant_id', $line->restaurant_id)->findOrFail($data['matched_id'])
+            ? Payment::where('restaurant_id', $line->restaurant_id)->where('status', 'paid')->whereNull('reconciled_at')->findOrFail($data['matched_id'])
             : FinancialJournalEntry::withoutGlobalScopes()->where('restaurant_id', $line->restaurant_id)->findOrFail($data['matched_id']);
+
+        if ($data['matched_type'] === 'payment' && (float) $line->amount_in <= 0) {
+            return back()->withErrors(['matched_id' => 'Giao dịch thanh toán đơn hàng phải khớp với dòng tiền vào (amount_in) trên sao kê ngân hàng.']);
+        }
 
         $amount = $line->amount_in > 0 ? (float) $line->amount_in : (float) $line->amount_out;
         $matchedAmount = $data['matched_type'] === 'payment'
             ? (float) $model->amount
             : (float) $model->total_debit;
         if (abs($matchedAmount - $amount) > 0.01) {
-            return back()->withErrors(['matched_id' => 'Số tiền sao kê không khớp với payment.']);
+            return back()->withErrors(['matched_id' => 'Số tiền sao kê không khớp với thanh toán đơn hàng.']);
         }
 
         $line->update([
@@ -396,6 +401,13 @@ class BankReconciliationController extends Controller
             'matched_type' => $model::class,
             'matched_id' => $model->id,
         ]);
+
+        if ($data['matched_type'] === 'payment') {
+            $model->update([
+                'reconciled_at' => now(),
+                'reconciled_by' => $request->user()->id,
+            ]);
+        }
 
         if ($request->expectsJson()) {
             return response()->json(['status' => 'matched']);
