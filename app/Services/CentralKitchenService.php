@@ -287,7 +287,7 @@ class CentralKitchenService
                 'restaurant_id'      => $restaurantId,
                 'branch_id'          => $branchId,
                 'ingredient_id'      => $workOrder->output_ingredient_id,
-                'batch_code'         => $batchCode,
+                'batch_number'       => $batchCode,
                 'quantity_remaining' => $actualYieldQty,
                 'unit_cost'          => $unitCostOutput,
                 'purchased_at'       => now(),

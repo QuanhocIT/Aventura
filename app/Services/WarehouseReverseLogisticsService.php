@@ -80,7 +80,6 @@ class WarehouseReverseLogisticsService
             'branch_id' => $branchId,
             'location_id' => $locationId,
             'ingredient_id' => $ingredientId,
-            'batch_code' => $batchCode,
             'batch_number' => substr($batchCode, 0, 50),
             'quantity_remaining' => $quantity,
             'unit_cost' => $unitCost,

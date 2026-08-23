@@ -33,8 +33,7 @@ class BatchRecallService
                 ->where(function ($query) use ($batch, $batchCode) {
                     $query->where('id', $batch->id);
                     if ($batchCode) {
-                        $query->orWhere('batch_code', $batchCode)
-                              ->orWhere('batch_number', $batchCode);
+                        $query->orWhere('batch_number', $batchCode);
                     }
                 })
                 ->get();

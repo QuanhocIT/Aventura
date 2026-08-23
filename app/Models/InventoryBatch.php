@@ -69,27 +69,36 @@ class InventoryBatch extends Model
 
     protected static function booted(): void
     {
-        static::saving(function (InventoryBatch $batch) {
-            $code = $batch->batch_code ?: $batch->batch_number;
-            if ($code) {
-                if (empty($batch->batch_code)) {
-                    $batch->batch_code = $code;
+        $cleaner = function (InventoryBatch $batch) {
+            if (array_key_exists('batch_code', $batch->attributes)) {
+                $code = $batch->attributes['batch_code'];
+                if (! empty($code) && empty($batch->attributes['batch_number'])) {
+                    $batch->attributes['batch_number'] = $code;
                 }
-                if (empty($batch->batch_number)) {
-                    $batch->batch_number = $code;
-                }
+                unset($batch->attributes['batch_code']);
             }
-        });
+        };
+
+        static::creating($cleaner);
+        static::saving($cleaner);
+    }
+
+    protected function batchCode(): \Illuminate\Database\Eloquent\Casts\Attribute
+    {
+        return \Illuminate\Database\Eloquent\Casts\Attribute::make(
+            get: fn ($value, $attributes) => $attributes['batch_number'] ?? null,
+            set: fn ($value) => ['batch_number' => $value],
+        );
     }
 
     public function getBatchCodeAttribute(): ?string
     {
-        return $this->attributes['batch_code'] ?? $this->attributes['batch_number'] ?? null;
+        return $this->attributes['batch_number'] ?? null;
     }
 
     public function getBatchNumberAttribute(): ?string
     {
-        return $this->attributes['batch_number'] ?? $this->attributes['batch_code'] ?? null;
+        return $this->attributes['batch_number'] ?? null;
     }
 
     public function isExpired(): bool
