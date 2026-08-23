@@ -74,6 +74,20 @@ class SetTenantContext
 
         if ($user && $user->restaurant_id) {
             $tenantContext->setRestaurantId($user->restaurant_id);
+
+            // Cố định phạm vi cho Trưởng kho Tổng luôn thuộc chi nhánh Kho Tổng
+            if ($user->hasRole('warehouse_manager') && ! $user->isOwner() && ! $user->isSuperAdmin()) {
+                $centralBranch = app(\App\Services\CentralWarehouseService::class)->getCentralWarehouse((int) $user->restaurant_id);
+                $targetBranchId = $user->warehouse_branch_id ?: $centralBranch?->id ?: $user->assignedBranchId();
+                if ($targetBranchId) {
+                    session([
+                        'active_branch_id' => $targetBranchId,
+                        'active_branch_scope' => TenantContext::SCOPE_BRANCH,
+                    ]);
+                    $tenantContext->setActiveBranchId($targetBranchId);
+                }
+            }
+
             $assignedBranchId = $user->assignedBranchId();
             $requestedBranchId = session('active_branch_id');
 

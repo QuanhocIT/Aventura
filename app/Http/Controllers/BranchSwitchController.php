@@ -15,6 +15,10 @@ class BranchSwitchController extends Controller
         ]);
 
         $user = $request->user();
+        if ($user->hasRole('warehouse_manager') && ! $user->isOwner() && ! $user->isSuperAdmin()) {
+            abort(403, 'Tài khoản Trưởng kho Tổng được cố định phạm vi tại Kho Tổng, không thể chuyển đổi chi nhánh.');
+        }
+
         if (! $user->canViewAllBranches() && ! $user->isBranchManager()) {
             abort(403, 'Bạn không có quyền chuyển đổi chi nhánh.');
         }

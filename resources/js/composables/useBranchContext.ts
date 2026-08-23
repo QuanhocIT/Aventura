@@ -50,12 +50,12 @@ export function useBranchContext() {
     );
 
     const canSelectBranch = computed(() =>
-        isOwner.value ||
+        (isOwner.value ||
         roles.value.includes('operations_inspector') ||
         roles.value.includes('compliance_auditor') ||
-        roles.value.includes('warehouse_manager') ||
         roles.value.includes('accountant') ||
-        roles.value.includes('super_admin')
+        roles.value.includes('super_admin')) &&
+        !roles.value.includes('warehouse_manager')
     );
 
     const switchBranch = (branchId: number | null) => {

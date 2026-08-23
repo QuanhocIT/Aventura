@@ -127,6 +127,9 @@ const isOperationsInspector = computed(() =>
 );
 const isWarehouseManager = computed(() => hasRole('warehouse_manager'));
 const isWarehouseStaff = computed(() => hasRole('warehouse_staff'));
+const usesManagementSidebar = computed(
+    () => isOwner.value || isManager.value || isWarehouseManager.value,
+);
 const isSupplier = computed(() => hasRole('supplier'));
 const supplierPortalEnabled = computed(
     () => Boolean((page.props as any).supplier_portal_enabled),
@@ -508,12 +511,6 @@ const ownerNav = computed<NavItem[]>(() => {
             href: '/warehouse/team',
             icon: Users,
             permission: 'warehouse.staff.view',
-            feature: 'inventory_basic',
-        },
-        {
-            title: 'Cổng nhân sự Kho',
-            href: '/inventory/staff-portal',
-            icon: CheckSquare,
             feature: 'inventory_basic',
         },
         {
@@ -1053,15 +1050,9 @@ const cashierNav = computed<NavItem[]>(() => {
         { title: 'Cổng nhân sự', href: '/employee-portal', icon: UserCheck },
         { title: 'Lịch sử đơn', href: '/orders', icon: ScrollText },
         {
-            title: 'Quản lý dòng tiền',
+            title: 'Két tiền ca',
             href: '/cash-flow',
             icon: Wallet,
-            feature: 'inventory_basic',
-        },
-        {
-            title: 'Doanh thu ca',
-            href: '/shift-closings',
-            icon: ClipboardCheck,
             feature: 'inventory_basic',
         },
         {
@@ -1096,12 +1087,6 @@ const waiterNav = computed<NavItem[]>(() => {
     const nav = [
         { title: 'Trang chủ', href: '/dashboard', icon: LayoutGrid },
         { title: 'Cổng nhân sự', href: '/employee-portal', icon: UserCheck },
-        {
-            title: 'Doanh thu ca',
-            href: '/shift-closings',
-            icon: ClipboardCheck,
-            feature: 'inventory_basic',
-        },
         {
             title: 'Bàn giao ca',
             href: '/shift-handovers',
@@ -1143,12 +1128,6 @@ const kitchenNav = computed<NavItem[]>(() => {
             href: '/schedules',
             icon: CalendarDays,
             feature: 'hr_timekeeping',
-        },
-        {
-            title: 'Doanh thu ca',
-            href: '/shift-closings',
-            icon: ClipboardCheck,
-            feature: 'inventory_basic',
         },
         {
             title: 'Bàn giao ca',
@@ -1548,8 +1527,10 @@ const footerNavItems: NavItem[] = [];
             <NavMain
                 v-if="mainNavItems.length"
                 :items="mainNavItems"
-                :collapsible-groups="isOwner || isManager"
-                :enable-search="isOwner || isManager"
+                :collapsible-groups="usesManagementSidebar"
+                :enable-search="usesManagementSidebar"
+                :disable-grouping="isCashier || isWaiter || isKitchen"
+                :hide-group-label="isCashier || isWaiter || isKitchen"
             />
             <div v-else class="px-4 py-6 text-xs text-muted-foreground">
                 Không có menu khả dụng cho tài khoản này.
