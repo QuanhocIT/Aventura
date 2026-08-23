@@ -127,6 +127,7 @@ type Forecast = {
 
 const props = defineProps<{
     isAllBranches: boolean;
+    isManager?: boolean;
     activeRegister: ActiveRegister | null;
     activeTransactions: Transaction[];
     registers: Register[];
@@ -400,13 +401,12 @@ const chartMaxVal = computed(() => {
                         <h1
                             class="bg-gradient-to-r from-slate-900 via-slate-800 to-indigo-950 bg-clip-text text-2xl font-black tracking-tight text-transparent dark:from-slate-100 dark:via-slate-200 dark:to-indigo-300"
                         >
-                            Quỹ Tiền Mặt & Dòng Tiền
+                            {{ isManager !== false ? 'Quỹ Tiền Mặt & Dòng Tiền' : 'Két Tiền Ca Trực' }}
                         </h1>
                         <p
                             class="mt-1 text-xs font-semibold text-slate-500 dark:text-slate-400"
                         >
-                            Quản lý két tiền ca, kiểm soát thu chi tại quầy, dự
-                            báo dòng tiền an toàn.
+                            {{ isManager !== false ? 'Quản lý két tiền ca, kiểm soát thu chi tại quầy, dự báo dòng tiền an toàn.' : 'Mở két đầu ca và theo dõi két tiền mặt trực tiếp tại quầy trong ca.' }}
                         </p>
                     </div>
                 </div>
@@ -424,8 +424,9 @@ const chartMaxVal = computed(() => {
             </div>
         </div>
 
-        <!-- Navigation Tabs with modern Pill design -->
+        <!-- Navigation Tabs with modern Pill design (Only for Managers / Owners) -->
         <div
+            v-if="isManager !== false"
             class="border-slate-150 flex shrink-0 gap-2 overflow-x-auto border-b pb-1.5 dark:border-slate-800/80"
         >
             <button

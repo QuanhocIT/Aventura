@@ -51,7 +51,7 @@ return new class extends Migration
             if (! $this->indexExists('cash_transactions', 'cash_tx_restaurant_idempotency_unique')) {
                 Schema::table('cash_transactions', function (Blueprint $table): void {
                     $table->unique(
-                        ['restaurant_id', 'idempotency_key'],
+                        ['restaurant_id', 'idempotency_key', 'occurred_at'],
                         'cash_tx_restaurant_idempotency_unique',
                     );
                 });
@@ -60,7 +60,7 @@ return new class extends Migration
             if (! $this->indexExists('cash_transactions', 'cash_tx_restaurant_voucher_unique')) {
                 Schema::table('cash_transactions', function (Blueprint $table): void {
                     $table->unique(
-                        ['restaurant_id', 'voucher_code'],
+                        ['restaurant_id', 'voucher_code', 'occurred_at'],
                         'cash_tx_restaurant_voucher_unique',
                     );
                 });

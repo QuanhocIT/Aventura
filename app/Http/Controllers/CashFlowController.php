@@ -152,6 +152,7 @@ class CashFlowController extends Controller
 
         return Inertia::render('cash-flow/Index', [
             'isAllBranches' => $isAllBranches,
+            'isManager' => $user->hasAnyRole(['owner', 'manager', 'accountant', 'super_admin']) || $user->hasPermissionTo('cashflow.manage'),
             'activeRegister' => $activeRegister,
             'activeTransactions' => $activeTransactions,
             'registers' => $registers,
