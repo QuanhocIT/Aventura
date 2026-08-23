@@ -129,7 +129,12 @@ class ProfitLossService
                 COALESCE(SUM(subtotal), 0) as gross_revenue,
                 COALESCE(SUM(discount_amount), 0) as discount_total,
                 COALESCE(SUM(service_charge), 0) as service_charge_total,
-                COALESCE(SUM(total_amount), 0) as net_revenue
+                COALESCE(SUM(CASE
+                    WHEN total_amount - COALESCE(refund_amount, 0) > 0
+                    THEN total_amount - COALESCE(refund_amount, 0)
+                    ELSE 0
+                END), 0) as net_revenue,
+                COALESCE(SUM(COALESCE(refund_amount, 0)), 0) as refund_total
             ')
             ->first();
 
@@ -139,12 +144,32 @@ class ProfitLossService
             'discount_total' => round((float) $row->discount_total),
             'service_charge_total' => round((float) $row->service_charge_total),
             'net_revenue' => round((float) $row->net_revenue),
+            'refund_total' => round((float) $row->refund_total),
         ];
     }
 
     /** Cùng công thức COGS với DailyReportService: định lượng BOM x (1 + hao hụt) x giá vốn TB. */
     private function cogsForPeriod(int $restaurantId, CarbonImmutable $start, CarbonImmutable $end, ?int $branchId = null): float
     {
+        // Prefer the immutable inventory usage ledger: it stores the actual
+        // batch/average cost selected when the order consumed stock. The BOM
+        // query below remains a compatibility fallback for legacy orders
+        // created before inventory usage transactions existed.
+        $usage = DB::table('inventory_transactions as transactions')
+            ->join('orders', 'transactions.order_id', '=', 'orders.id')
+            ->where('transactions.restaurant_id', $restaurantId)
+            ->where('transactions.type', 'usage')
+            ->where('transactions.direction', 'out')
+            ->where('orders.status', 'completed')
+            ->whereBetween('orders.completed_at', [$start, $end])
+            ->when($branchId !== null, fn ($query) => $query->where('orders.branch_id', $branchId))
+            ->selectRaw('COUNT(*) as usage_count, COALESCE(SUM(transactions.total_cost), 0) as total_cogs')
+            ->first();
+
+        if ((int) ($usage->usage_count ?? 0) > 0) {
+            return (float) ($usage->total_cogs ?? 0);
+        }
+
         $result = DB::table('order_items')
             ->join('orders', 'order_items.order_id', '=', 'orders.id')
             ->join('product_recipes', 'product_recipes.product_id', '=', 'order_items.product_id')
@@ -190,6 +215,7 @@ class ProfitLossService
         $expenses = OperatingExpense::withoutGlobalScopes()
             ->with('category:id,name')
             ->where('restaurant_id', $restaurantId)
+            ->whereIn('status', ['approved', 'paid'])
             ->whereBetween('expense_date', [$start->toDateString(), $end->toDateString()])
             ->when($branchId !== null, fn ($query) => $query->where('branch_id', $branchId))
             ->get(['id', 'category_id', 'amount']);

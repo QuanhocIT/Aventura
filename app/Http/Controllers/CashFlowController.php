@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\CashRegister;
 use App\Models\CashTransaction;
 use App\Models\WorkShift;
+use App\Services\CashPostingService;
 use App\Services\QuotaService;
 use App\Support\MaterializedViews\MaterializedViewReader;
 use App\Support\Tenant\TenantContext;
@@ -21,6 +22,7 @@ class CashFlowController extends Controller
     public function __construct(
         private MaterializedViewReader $mvReader,
         private TenantContext $tenantContext,
+        private CashPostingService $cashPostingService,
     ) {}
 
     public function index(Request $request): Response
@@ -235,13 +237,17 @@ class CashFlowController extends Controller
             $notes .= ' [Mã chứng từ: '.$data['voucher_code'].']';
         }
 
-        CashTransaction::create([
+        $isExpense = $data['type'] === 'out' || $data['source'] === 'expense';
+        $this->cashPostingService->record([
             'restaurant_id' => $restaurantId,
             'branch_id' => $branchId,
             'cash_register_id' => $activeRegister->id,
             'type' => $data['type'],
             'amount' => $data['amount'],
             'source' => $data['source'],
+            'idempotency_key' => 'manual-cash:'.($data['voucher_code'] ?? uniqid('', true)),
+            'debit_account' => $isExpense ? '6271' : '1111',
+            'credit_account' => $isExpense ? '1111' : '5112',
             'notes' => $notes,
             'created_by' => $user->id,
             'occurred_at' => now(),
@@ -259,19 +265,38 @@ class CashFlowController extends Controller
         abort_if($transaction->restaurant_id !== $user->restaurant_id, 403);
         $branchId = $this->requireActiveBranch($user);
 
-        if ($transaction->source === 'reversal') {
+        if ($transaction->source === 'reversal' || $transaction->reversal_of_id !== null) {
             return back()->withErrors(['transaction' => 'Không thể tạo giao dịch đảo cho một giao dịch đảo khác.']);
         }
 
         $oppositeType = $transaction->type === 'in' ? 'out' : 'in';
+        $register = CashRegister::where('restaurant_id', $user->restaurant_id)
+            ->where('branch_id', $branchId)
+            ->where('status', 'open')
+            ->first();
+        abort_unless($register, 422, 'Phải mở két tiền mặt hiện tại trước khi đảo giao dịch.');
 
-        CashTransaction::create([
+        $isOrderIncome = $transaction->source === 'order';
+        $isRefund = $transaction->source === 'refund';
+        $this->cashPostingService->record([
             'restaurant_id' => $user->restaurant_id,
             'branch_id' => $branchId,
-            'cash_register_id' => $transaction->cash_register_id,
+            'cash_register_id' => $register->id,
             'type' => $oppositeType,
             'amount' => $transaction->amount,
             'source' => 'reversal',
+            'reversal_of_id' => $transaction->id,
+            'idempotency_key' => 'cash-reversal:'.$transaction->id,
+            'debit_account' => $oppositeType === 'in'
+                ? '1111'
+                : ($isOrderIncome ? '5211' : '5112'),
+            'credit_account' => $oppositeType === 'in'
+                ? ($isRefund ? '5211' : '6271')
+                : '1111',
+            'reference_id' => $transaction->id,
+            'reference_type' => CashTransaction::class,
+            'journal_source_type' => CashTransaction::class,
+            'journal_source_id' => $transaction->id,
             'notes' => 'Đảo giao dịch #'.$transaction->id.': '.$transaction->notes,
             'created_by' => $user->id,
             'occurred_at' => now(),

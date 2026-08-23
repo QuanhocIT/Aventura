@@ -7,11 +7,14 @@ use App\Models\Employee;
 use App\Models\RestaurantBranch;
 use App\Models\Salary;
 use App\Models\SalaryAdjustment;
+use App\Models\SalaryPayment;
 use App\Models\User;
 use App\Notifications\SalaryDisputeNotification;
 use App\Notifications\SalaryReadyNotification;
 use App\Services\ApprovalAuthorityService;
 use App\Services\ApprovalService;
+use App\Services\CashPostingService;
+use App\Services\FinancialPostingService;
 use App\Services\QuotaService;
 use App\Services\SalaryService;
 use App\Support\Tenant\TenantContext;
@@ -31,6 +34,8 @@ class SalaryController extends Controller
         private ApprovalService $approvalService,
         private TenantContext $tenantContext,
         private ApprovalAuthorityService $authorityService,
+        private CashPostingService $cashPostingService,
+        private FinancialPostingService $financialPostingService,
     ) {}
 
     public function index(Request $request): Response
@@ -246,10 +251,71 @@ class SalaryController extends Controller
         );
         abort_unless($salary->status === 'approved', 422);
 
-        $salary->update([
-            'status' => 'paid',
-            'paid_at' => now(),
+        $data = $request->validate([
+            'payment_method' => ['nullable', 'in:cash,bank_transfer'],
+            'payment_reference' => ['nullable', 'string', 'max:150'],
         ]);
+        $paymentMethod = $data['payment_method'] ?? 'bank_transfer';
+
+        DB::transaction(function () use ($salary, $request, $paymentMethod, $data): void {
+            $lockedSalary = Salary::withoutGlobalScopes()->lockForUpdate()->findOrFail($salary->id);
+            abort_unless($lockedSalary->status === 'approved', 422, 'Bảng lương đã được xử lý.');
+            $amount = (float) $lockedSalary->net_salary;
+            $idempotencyKey = 'salary-payment:'.$lockedSalary->id;
+
+            if ($paymentMethod === 'cash') {
+                $this->cashPostingService->record([
+                    'restaurant_id' => $lockedSalary->restaurant_id,
+                    'branch_id' => $lockedSalary->branch_id,
+                    'type' => 'out',
+                    'amount' => $amount,
+                    'source' => 'payroll',
+                    'reference_id' => $lockedSalary->id,
+                    'reference_type' => Salary::class,
+                    'idempotency_key' => $idempotencyKey,
+                    'debit_account' => '6221',
+                    'credit_account' => '1111',
+                    'journal_source_type' => Salary::class,
+                    'journal_source_id' => $lockedSalary->id,
+                    'notes' => 'Thanh toán lương #'.$lockedSalary->id,
+                    'created_by' => $request->user()->id,
+                    'occurred_at' => now(),
+                ]);
+            } else {
+                $this->financialPostingService->post([
+                    'restaurant_id' => $lockedSalary->restaurant_id,
+                    'branch_id' => $lockedSalary->branch_id,
+                    'entry_date' => today(),
+                    'source_type' => Salary::class,
+                    'source_id' => $lockedSalary->id,
+                    'idempotency_key' => $idempotencyKey,
+                    'description' => 'Thanh toán lương #'.$lockedSalary->id,
+                    'created_by' => $request->user()->id,
+                    'posted_by' => $request->user()->id,
+                    'metadata' => ['payment_method' => $paymentMethod, 'payment_reference' => $data['payment_reference'] ?? null],
+                    'lines' => [
+                        ['account' => '6221', 'debit' => $amount, 'credit' => 0],
+                        ['account' => '1121', 'debit' => 0, 'credit' => $amount],
+                    ],
+                ]);
+            }
+
+            SalaryPayment::firstOrCreate(
+                ['restaurant_id' => $lockedSalary->restaurant_id, 'idempotency_key' => $idempotencyKey],
+                [
+                    'salary_id' => $lockedSalary->id,
+                    'branch_id' => $lockedSalary->branch_id,
+                    'amount' => $amount,
+                    'payment_method' => $paymentMethod,
+                    'payment_reference' => $data['payment_reference'] ?? null,
+                    'paid_at' => now(),
+                    'created_by' => $request->user()->id,
+                ],
+            );
+
+            $lockedSalary->update(['status' => 'paid', 'paid_at' => now()]);
+        });
+        $salary->refresh();
 
         $employeeUser = $salary->employee?->user;
         if ($employeeUser) {

@@ -31,6 +31,11 @@ class CashTransaction extends Model
         return $this->belongsTo(User::class, 'created_by');
     }
 
+    public function payment(): BelongsTo
+    {
+        return $this->belongsTo(Payment::class, 'payment_id');
+    }
+
     public function branch(): BelongsTo
     {
         return $this->belongsTo(RestaurantBranch::class, 'branch_id');

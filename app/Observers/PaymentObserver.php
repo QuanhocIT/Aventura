@@ -2,10 +2,10 @@
 
 namespace App\Observers;
 
-use App\Models\CashRegister;
-use App\Models\CashTransaction;
 use App\Models\Order;
 use App\Models\Payment;
+use App\Services\CashPostingService;
+use App\Services\FinancialPostingService;
 
 class PaymentObserver
 {
@@ -21,53 +21,64 @@ class PaymentObserver
 
     protected function handlePayment(Payment $payment): void
     {
-        // Only proceed if payment is paid, method is cash, and has not been logged as a cash transaction yet
-        if ($payment->status !== 'paid' || $payment->payment_method !== 'cash') {
+        if (! in_array($payment->status, ['paid', 'refunded'], true)) {
             return;
         }
 
-        // Avoid duplicate logging by checking if cash transaction for this order reference already exists
-        $alreadyLogged = CashTransaction::where('reference_id', $payment->order_id)
-            ->where('reference_type', Order::class)
-            ->exists();
+        $isRefund = $payment->status === 'refunded';
+        $userId = $payment->processed_by ?? auth()->id();
+        $account = match (strtolower((string) $payment->payment_method)) {
+            'cash' => '1111',
+            'bank_transfer', 'vietqr', 'vnpay' => '1121',
+            'card' => '1122',
+            'ewallet', 'momo', 'zalopay' => '1123',
+            default => '1121',
+        };
+        $orderNumber = $payment->order?->order_number ?? $payment->order_id;
+        $postingKey = 'payment:'.($isRefund ? 'refund' : 'paid').':'.$payment->id;
 
-        if ($alreadyLogged) {
-            return;
-        }
-
-        // Find the active open cash register for the branch/restaurant
-        $register = CashRegister::where('restaurant_id', $payment->restaurant_id)
-            ->where('branch_id', $payment->branch_id)
-            ->where('status', 'open')
-            ->first();
-
-        if ($register) {
-            $userId = $payment->processed_by ?? auth()->id();
-
-            // Load order if not loaded to get order number
-            $orderNumber = $payment->order_id;
-            if ($payment->order) {
-                $orderNumber = $payment->order->order_number;
-            } else {
-                $order = Order::find($payment->order_id);
-                if ($order) {
-                    $orderNumber = $order->order_number;
-                }
-            }
-
-            CashTransaction::create([
+        if ($payment->payment_method === 'cash') {
+            app(CashPostingService::class)->record([
                 'restaurant_id' => $payment->restaurant_id,
                 'branch_id' => $payment->branch_id,
-                'cash_register_id' => $register->id,
-                'type' => 'in',
+                'payment_id' => $payment->id,
+                'type' => $isRefund ? 'out' : 'in',
                 'amount' => $payment->amount,
-                'source' => 'order',
+                'source' => $isRefund ? 'refund' : 'order',
                 'reference_id' => $payment->order_id,
                 'reference_type' => Order::class,
-                'notes' => "Thanh toán đơn hàng #{$orderNumber}",
+                'idempotency_key' => $postingKey,
+                'journal_idempotency_key' => $postingKey,
+                'debit_account' => $isRefund ? '5211' : '1111',
+                'credit_account' => $isRefund ? '1111' : '5111',
+                'journal_source_type' => Payment::class,
+                'journal_source_id' => $payment->id,
+                'journal_description' => ($isRefund ? 'Hoàn tiền' : 'Thanh toán').' đơn hàng #'.$orderNumber,
+                'notes' => ($isRefund ? 'Hoàn tiền' : 'Thanh toán').' đơn hàng #'.$orderNumber,
                 'created_by' => $userId,
                 'occurred_at' => $payment->paid_at ?? now(),
             ]);
+
+            return;
         }
+
+        app(FinancialPostingService::class)->post([
+            'restaurant_id' => $payment->restaurant_id,
+            'branch_id' => $payment->branch_id,
+            'entry_date' => $payment->paid_at ?? now(),
+            'source_type' => Payment::class,
+            'source_id' => $payment->id,
+            'idempotency_key' => $postingKey,
+            'description' => ($isRefund ? 'Hoàn tiền' : 'Thanh toán').' đơn hàng #'.$orderNumber,
+            'created_by' => $userId,
+            'posted_by' => $userId,
+            'lines' => $isRefund ? [
+                ['account' => '5211', 'debit' => $payment->amount, 'credit' => 0],
+                ['account' => $account, 'debit' => 0, 'credit' => $payment->amount],
+            ] : [
+                ['account' => $account, 'debit' => $payment->amount, 'credit' => 0],
+                ['account' => '5111', 'debit' => 0, 'credit' => $payment->amount],
+            ],
+        ]);
     }
 }

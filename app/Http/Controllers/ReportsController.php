@@ -322,6 +322,7 @@ class ReportsController extends Controller
 
         $totalOpex = (float) OperatingExpense::whereBetween('expense_date', [$startDate->toDateString(), $endDate->toDateString()])
             ->where('restaurant_id', $restaurantId)
+            ->whereIn('status', ['approved', 'paid'])
             ->when($branchId !== null, fn ($query) => $query->where('branch_id', $branchId))
             ->sum('amount');
 

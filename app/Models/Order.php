@@ -99,6 +99,11 @@ class Order extends Model
         return $this->hasMany(OrderItem::class);
     }
 
+    public function eInvoice(): HasOne
+    {
+        return $this->hasOne(EInvoice::class);
+    }
+
     /**
      * Đơn vẫn đang chiếm bàn về mặt vận hành.
      *

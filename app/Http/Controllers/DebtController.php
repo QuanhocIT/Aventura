@@ -3,12 +3,16 @@
 namespace App\Http\Controllers;
 
 use App\Models\AccountPayable;
+use App\Models\AccountPayablePayment;
 use App\Models\AccountReceivable;
+use App\Models\AccountReceivablePayment;
 use App\Models\CashRegister;
 use App\Models\CashTransaction;
 use App\Models\Customer;
 use App\Models\Order;
 use App\Models\PurchaseOrder;
+use App\Services\CashPostingService;
+use App\Services\FinancialPostingService;
 use App\Services\QuotaService;
 use App\Support\Tenant\TenantContext;
 use Carbon\Carbon;
@@ -20,7 +24,11 @@ use Inertia\Response;
 
 class DebtController extends Controller
 {
-    public function __construct(private TenantContext $tenantContext) {}
+    public function __construct(
+        private TenantContext $tenantContext,
+        private CashPostingService $cashPostingService,
+        private FinancialPostingService $financialPostingService,
+    ) {}
 
     /**
      * Display the debts dashboard & list of accounts payable/receivable.
@@ -224,7 +232,7 @@ class DebtController extends Controller
         $notes = $request->input('notes');
 
         try {
-            DB::transaction(function () use ($payable, $payAmount, $method, $notes, $user, $branchId) {
+            DB::transaction(function () use ($payable, $payAmount, $method, $notes, $user, $branchId, $request) {
                 $lockedPayable = AccountPayable::where('id', $payable->id)->lockForUpdate()->firstOrFail();
                 $rem = (float) $lockedPayable->amount - (float) $lockedPayable->paid_amount;
                 if ($payAmount > $rem) {
@@ -240,10 +248,46 @@ class DebtController extends Controller
                     'notes' => $notes ? ($lockedPayable->notes ? $lockedPayable->notes."\n" : '').'['.now()->format('d/m/Y').'] Trả nợ: '.number_format($payAmount).'đ. Ghi chú: '.$notes : $lockedPayable->notes,
                 ]);
 
+                AccountPayablePayment::firstOrCreate(
+                    [
+                        'restaurant_id' => $lockedPayable->restaurant_id,
+                        'idempotency_key' => 'payable-payment:'.$lockedPayable->id.':'.$newPaidAmount,
+                    ],
+                    [
+                        'account_payable_id' => $lockedPayable->id,
+                        'branch_id' => $branchId,
+                        'amount' => $payAmount,
+                        'payment_method' => $method,
+                        'payment_reference' => $request->input('payment_reference'),
+                        'paid_at' => now(),
+                        'created_by' => $user->id,
+                        'notes' => $notes,
+                    ],
+                );
+
                 // Update PurchaseOrder payment status if fully paid
                 if ($status === 'paid' && $lockedPayable->purchase_order_id) {
                     PurchaseOrder::where('id', $lockedPayable->purchase_order_id)->update([
                         'payment_status' => 'paid',
+                    ]);
+                }
+
+                if ($method !== 'cash') {
+                    $this->financialPostingService->post([
+                        'restaurant_id' => $lockedPayable->restaurant_id,
+                        'branch_id' => $branchId,
+                        'entry_date' => today(),
+                        'source_type' => AccountPayable::class,
+                        'source_id' => $lockedPayable->id,
+                        'idempotency_key' => 'payable-payment:'.$lockedPayable->id.':'.$newPaidAmount,
+                        'description' => 'Thanh toán công nợ nhà cung cấp #'.$lockedPayable->id,
+                        'created_by' => $user->id,
+                        'posted_by' => $user->id,
+                        'metadata' => ['payment_method' => $method],
+                        'lines' => [
+                            ['account' => '3311', 'debit' => $payAmount, 'credit' => 0],
+                            ['account' => '1121', 'debit' => 0, 'credit' => $payAmount],
+                        ],
                     ]);
                 }
 
@@ -255,13 +299,18 @@ class DebtController extends Controller
                         ->first();
 
                     if ($register) {
-                        CashTransaction::create([
+                        $this->cashPostingService->record([
                             'restaurant_id' => $lockedPayable->restaurant_id,
                             'branch_id' => $branchId,
                             'cash_register_id' => $register->id,
                             'type' => 'out',
                             'amount' => $payAmount,
                             'source' => 'expense',
+                            'idempotency_key' => 'payable-payment:'.$lockedPayable->id.':'.$newPaidAmount,
+                            'debit_account' => '3311',
+                            'credit_account' => '1111',
+                            'journal_source_type' => AccountPayable::class,
+                            'journal_source_id' => $lockedPayable->id,
                             'reference_id' => $lockedPayable->id,
                             'reference_type' => AccountPayable::class,
                             'notes' => "Thanh toán công nợ nhà cung cấp cho PO #{$lockedPayable->purchaseOrder?->po_number}. Ghi chú: {$notes}",
@@ -301,7 +350,7 @@ class DebtController extends Controller
         $notes = $request->input('notes');
 
         try {
-            DB::transaction(function () use ($receivable, $collectAmount, $method, $notes, $user, $branchId) {
+            DB::transaction(function () use ($receivable, $collectAmount, $method, $notes, $user, $branchId, $request) {
                 // Khóa bản ghi AccountReceivable
                 $lockedReceivable = AccountReceivable::where('id', $receivable->id)->lockForUpdate()->firstOrFail();
                 $rem = (float) $lockedReceivable->amount - (float) $lockedReceivable->received_amount;
@@ -329,6 +378,42 @@ class DebtController extends Controller
                     ]);
                 }
 
+                AccountReceivablePayment::firstOrCreate(
+                    [
+                        'restaurant_id' => $lockedReceivable->restaurant_id,
+                        'idempotency_key' => 'receivable-collection:'.$lockedReceivable->id.':'.$newReceivedAmount,
+                    ],
+                    [
+                        'account_receivable_id' => $lockedReceivable->id,
+                        'branch_id' => $branchId,
+                        'amount' => $collectAmount,
+                        'payment_method' => $method,
+                        'payment_reference' => $request->input('payment_reference'),
+                        'received_at' => now(),
+                        'created_by' => $user->id,
+                        'notes' => $notes,
+                    ],
+                );
+
+                if ($method !== 'cash') {
+                    $this->financialPostingService->post([
+                        'restaurant_id' => $lockedReceivable->restaurant_id,
+                        'branch_id' => $branchId,
+                        'entry_date' => today(),
+                        'source_type' => AccountReceivable::class,
+                        'source_id' => $lockedReceivable->id,
+                        'idempotency_key' => 'receivable-collection:'.$lockedReceivable->id.':'.$newReceivedAmount,
+                        'description' => 'Thu hồi công nợ khách hàng #'.$lockedReceivable->id,
+                        'created_by' => $user->id,
+                        'posted_by' => $user->id,
+                        'metadata' => ['payment_method' => $method],
+                        'lines' => [
+                            ['account' => '1121', 'debit' => $collectAmount, 'credit' => 0],
+                            ['account' => '1311', 'debit' => 0, 'credit' => $collectAmount],
+                        ],
+                    ]);
+                }
+
                 // Record cash transaction if cash register is open and payment method is cash
                 if ($method === 'cash') {
                     $register = CashRegister::where('restaurant_id', $lockedReceivable->restaurant_id)
@@ -337,13 +422,18 @@ class DebtController extends Controller
                         ->first();
 
                     if ($register) {
-                        CashTransaction::create([
+                        $this->cashPostingService->record([
                             'restaurant_id' => $lockedReceivable->restaurant_id,
                             'branch_id' => $branchId,
                             'cash_register_id' => $register->id,
                             'type' => 'in',
                             'amount' => $collectAmount,
                             'source' => 'order',
+                            'idempotency_key' => 'receivable-collection:'.$lockedReceivable->id.':'.$newReceivedAmount,
+                            'debit_account' => '1111',
+                            'credit_account' => '1311',
+                            'journal_source_type' => AccountReceivable::class,
+                            'journal_source_id' => $lockedReceivable->id,
                             'reference_id' => $lockedReceivable->id,
                             'reference_type' => AccountReceivable::class,
                             'notes' => "Thu hồi công nợ khách hàng cho đơn hàng #{$lockedReceivable->order?->order_number}. Ghi chú: {$notes}",

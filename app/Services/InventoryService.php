@@ -172,6 +172,31 @@ class InventoryService
                 }
             }
         }
+
+        $usageCost = (float) InventoryTransaction::withoutGlobalScopes()
+            ->where('restaurant_id', $order->restaurant_id)
+            ->where('order_id', $order->id)
+            ->where('type', 'usage')
+            ->where('direction', 'out')
+            ->sum('total_cost');
+
+        if ($usageCost > 0) {
+            app(FinancialPostingService::class)->post([
+                'restaurant_id' => $order->restaurant_id,
+                'branch_id' => $order->branch_id,
+                'entry_date' => $order->completed_at ?? today(),
+                'source_type' => Order::class,
+                'source_id' => $order->id,
+                'idempotency_key' => 'order:cogs:'.$order->id,
+                'description' => 'Ghi nhận giá vốn đơn hàng '.$order->order_number,
+                'created_by' => $user->id,
+                'posted_by' => $user->id,
+                'lines' => [
+                    ['account' => '6211', 'debit' => $usageCost, 'credit' => 0],
+                    ['account' => '1521', 'debit' => 0, 'credit' => $usageCost],
+                ],
+            ]);
+        }
         $this->broadcastStockUpdatedSafely($order->restaurant_id);
         app(InventoryAvailabilityService::class)->refreshBranch($order->restaurant_id, (int) $order->branch_id);
     }

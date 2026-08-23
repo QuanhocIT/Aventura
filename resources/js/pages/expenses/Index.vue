@@ -58,6 +58,7 @@ type OperatingExpense = {
     expense_date: string;
     description: string | null;
     invoice_path: string | null;
+    status: 'draft' | 'approved' | 'rejected' | 'paid' | string;
     created_by: number | null;
     category?: Category | null;
     creator?: UserCreator | null;
@@ -132,6 +133,8 @@ const props = defineProps<{
     }>;
     canManageBudget?: boolean;
     canManageExpenses?: boolean;
+    canSubmitExpenses?: boolean;
+    canApproveExpenses?: boolean;
 }>();
 
 // --- HẠN MỨC CHI TIÊU CHI NHÁNH ---
@@ -313,6 +316,40 @@ async function deleteExpense(expense: OperatingExpense) {
             onError: () => toast.error('Có lỗi xảy ra khi xóa.'),
         });
     }
+}
+
+function expenseStatusLabel(status: string) {
+    return {
+        draft: 'Chờ duyệt',
+        approved: 'Đã duyệt',
+        rejected: 'Từ chối',
+        paid: 'Đã thanh toán',
+    }[status] || status;
+}
+
+function expenseStatusClass(status: string) {
+    return {
+        draft: 'bg-amber-50 text-amber-700 dark:bg-amber-950/20 dark:text-amber-400',
+        approved: 'bg-blue-50 text-blue-700 dark:bg-blue-950/20 dark:text-blue-400',
+        rejected: 'bg-rose-50 text-rose-700 dark:bg-rose-950/20 dark:text-rose-400',
+        paid: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/20 dark:text-emerald-400',
+    }[status] || 'bg-slate-100 text-slate-600';
+}
+
+function approveExpense(expense: OperatingExpense) {
+    router.patch('/expenses/' + expense.id + '/approve', {}, { preserveScroll: true });
+}
+
+function rejectExpense(expense: OperatingExpense) {
+    const reason = window.prompt('Lý do từ chối chứng từ chi phí:');
+    if (!reason?.trim()) return;
+    router.patch('/expenses/' + expense.id + '/reject', { reason }, { preserveScroll: true });
+}
+
+function payExpense(expense: OperatingExpense) {
+    const method = window.prompt('Phương thức thanh toán: cash hoặc bank_transfer', 'bank_transfer');
+    if (!method || !['cash', 'bank_transfer'].includes(method)) return;
+    router.patch('/expenses/' + expense.id + '/pay', { payment_method: method }, { preserveScroll: true });
 }
 
 // --- RECURRING FORM ---
@@ -519,7 +556,7 @@ const chartMaxVal = computed(() => {
             <!-- Page Action Buttons based on active tab -->
             <div class="flex items-center gap-2">
                 <Button
-                    v-if="activeTab === 'expenses' && props.canManageExpenses"
+                    v-if="activeTab === 'expenses' && props.canSubmitExpenses"
                     @click="openNewExpenseModal"
                     class="h-9 bg-amber-600 text-xs font-bold text-white hover:bg-amber-700"
                 >
@@ -1046,6 +1083,7 @@ const chartMaxVal = computed(() => {
                                 <th class="p-3 text-right">Số tiền</th>
                                 <th class="p-3 text-center">Nguồn</th>
                                 <th class="p-3 text-center">Chứng từ</th>
+                                <th class="p-3 text-center">Trạng thái</th>
                                 <th class="p-3 text-center">Người tạo</th>
                                 <th class="p-3 text-center">Hành động</th>
                             </tr>
@@ -1055,7 +1093,7 @@ const chartMaxVal = computed(() => {
                         >
                             <tr v-if="expenses.data.length === 0">
                                 <td
-                                    colspan="8"
+                                    colspan="9"
                                     class="p-12 text-center font-bold text-slate-400"
                                 >
                                     Không tìm thấy bản ghi chi phí nào.
@@ -1115,6 +1153,11 @@ const chartMaxVal = computed(() => {
                                     </button>
                                     <span v-else class="text-slate-400">—</span>
                                 </td>
+                                <td class="p-3 text-center">
+                                    <span :class="['rounded-full px-2 py-0.5 text-[9px] font-bold', expenseStatusClass(e.status)]">
+                                        {{ expenseStatusLabel(e.status) }}
+                                    </span>
+                                </td>
                                 <td class="p-3 text-center text-slate-400">
                                     {{
                                         e.creator ? e.creator.name : 'Hệ thống'
@@ -1124,6 +1167,24 @@ const chartMaxVal = computed(() => {
                                     <div
                                         class="flex items-center justify-center gap-1.5"
                                     >
+                                        <button
+                                            v-if="props.canApproveExpenses && ['draft', 'rejected'].includes(e.status)"
+                                            @click="approveExpense(e)"
+                                            class="rounded-sm p-1 text-emerald-600 hover:bg-emerald-50"
+                                            title="Duyệt chứng từ"
+                                        >Duyệt</button>
+                                        <button
+                                            v-if="props.canApproveExpenses && ['draft', 'approved'].includes(e.status)"
+                                            @click="rejectExpense(e)"
+                                            class="rounded-sm p-1 text-rose-600 hover:bg-rose-50"
+                                            title="Từ chối chứng từ"
+                                        >Từ chối</button>
+                                        <button
+                                            v-if="props.canApproveExpenses && e.status === 'approved'"
+                                            @click="payExpense(e)"
+                                            class="rounded-sm p-1 text-blue-600 hover:bg-blue-50"
+                                            title="Ghi nhận thanh toán"
+                                        >Trả</button>
                                         <button
                                             v-if="props.canManageExpenses"
                                             @click="openEditExpenseModal(e)"

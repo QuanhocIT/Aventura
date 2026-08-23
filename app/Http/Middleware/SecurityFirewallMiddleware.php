@@ -20,6 +20,7 @@ class SecurityFirewallMiddleware
         'up',
         'api/health',
         'webhooks/payments',
+        'webhooks/sepay/bank',
         'api/webhooks/payments/*',
         'api/webhooks/delivery/*',
         'api/pos/*',

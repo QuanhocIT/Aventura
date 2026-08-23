@@ -19,10 +19,11 @@ class EInvoiceService
     {
         $order->loadMissing(['items.product', 'restaurant', 'customer']);
         $restaurant = $order->restaurant;
+        $vatRate = (float) ($order->tax_rate ?? self::VAT_RATE);
 
         // Tổng thanh toán đã gồm VAT → tách ngược ra tiền hàng + thuế
         $totalWithVat = (float) $order->total_amount;
-        $totalWithoutVat = round($totalWithVat / (1 + self::VAT_RATE / 100), 2);
+        $totalWithoutVat = round($totalWithVat / (1 + $vatRate / 100), 2);
         $vatAmount = round($totalWithVat - $totalWithoutVat, 2);
 
         $xml = new \SimpleXMLElement('<?xml version="1.0" encoding="UTF-8"?><HDon/>');
@@ -50,7 +51,7 @@ class EInvoiceService
         // Người mua
         $nMua = $ndHDon->addChild('NMua');
         $this->addCData($nMua->addChild('Ten'), $order->customer?->full_name ?? 'Khách lẻ không lấy hóa đơn');
-        $nMua->addChild('MST', '');
+        $nMua->addChild('MST', $order->customer?->tax_code ?? '');
         $nMua->addChild('SDThoai', $order->customer?->phone ?? '');
 
         // Danh sách hàng hóa dịch vụ
@@ -58,7 +59,7 @@ class EInvoiceService
         $line = 1;
 
         foreach ($order->items as $item) {
-            $unitPriceNoVat = round((float) $item->unit_price / (1 + self::VAT_RATE / 100), 2);
+            $unitPriceNoVat = round((float) $item->unit_price / (1 + $vatRate / 100), 2);
             $lineTotalNoVat = round($unitPriceNoVat * (float) $item->quantity, 2);
 
             $hhdv = $dsHHDVu->addChild('HHDVu');
@@ -69,7 +70,7 @@ class EInvoiceService
             $hhdv->addChild('SLuong', $this->num((float) $item->quantity));
             $hhdv->addChild('DGia', $this->num($unitPriceNoVat));
             $hhdv->addChild('ThTien', $this->num($lineTotalNoVat));
-            $hhdv->addChild('TSuat', self::VAT_RATE.'%');
+            $hhdv->addChild('TSuat', $vatRate.'%');
         }
 
         // Tổng hợp thanh toán

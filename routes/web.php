@@ -24,6 +24,7 @@ use App\Http\Controllers\OnlineOrderController;
 use App\Http\Controllers\OnlinePaymentWebhookController;
 use App\Http\Controllers\OrderPaymentQrController;
 use App\Http\Controllers\OrderPaymentWebhookController;
+use App\Http\Controllers\SepayBankWebhookController;
 use App\Http\Controllers\PlatformFeedbackController;
 use App\Http\Controllers\PosDeviceController;
 use App\Http\Controllers\PublicStatusController;
@@ -191,6 +192,7 @@ Route::get('api/ready', function () {
 })->name('ready');
 
 Route::post('webhooks/payments', PaymentWebhookController::class)->name('billing.webhook');
+Route::post('webhooks/sepay/bank', SepayBankWebhookController::class)->name('webhooks.sepay.bank');
 Route::post('api/webhooks/payments/vietqr', OrderPaymentWebhookController::class)->name('api.webhooks.payments.vietqr');
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('billing/checkout', CheckoutController::class)->name('billing.checkout');

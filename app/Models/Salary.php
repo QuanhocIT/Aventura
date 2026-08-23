@@ -42,6 +42,11 @@ class Salary extends Model
         return $this->hasMany(SalaryAdjustment::class);
     }
 
+    public function payments(): HasMany
+    {
+        return $this->hasMany(SalaryPayment::class);
+    }
+
     /**
      * Kiểm tra xem một ngày cụ thể của nhân viên hoặc nhà hàng có bị khóa bảng lương hay chưa.
      */

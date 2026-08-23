@@ -6,8 +6,6 @@ use App\Events\Customer\ProductStockUpdated;
 use App\Events\Kitchen\KitchenUpdated;
 use App\Jobs\ProcessPostPaymentActions;
 use App\Models\AuditLog;
-use App\Models\CashRegister;
-use App\Models\CashTransaction;
 use App\Models\Customer;
 use App\Models\InventoryReservation;
 use App\Models\Order;
@@ -821,12 +819,40 @@ class OrderService
             }
 
             // 1. Tạo Payment record (Hỗ trợ Thanh toán kết hợp - Multi-Tender)
-            $cashAmountToRecord = 0.0;
+            $paymentTotalForValidation = 0.0;
+            $paymentRowsForValidation = ! empty($data['payments']) && is_array($data['payments'])
+                ? $data['payments']
+                : [[
+                    'payment_method' => $data['payment_method'] ?? 'cash',
+                    'amount' => $order->total_amount,
+                    'cash_received' => $data['cash_received'] ?? $order->total_amount,
+                ] + (array_key_exists('change_amount', $data)
+                    ? ['change_amount' => $data['change_amount']]
+                    : [])];
+
+            foreach ($paymentRowsForValidation as $paymentRow) {
+                $rowAmount = round((float) ($paymentRow['amount'] ?? 0), 2);
+                $paymentTotalForValidation += $rowAmount;
+                if (($paymentRow['payment_method'] ?? 'cash') === 'cash') {
+                    $received = round((float) ($paymentRow['cash_received'] ?? $rowAmount), 2);
+                    if ($received + 0.01 < $rowAmount) {
+                        throw new \RuntimeException('Tiền khách đưa, tiền thanh toán và tiền thừa không khớp.');
+                    }
+                }
+            }
+
+            if (abs(round($paymentTotalForValidation, 2) - (float) $order->total_amount) > 0.01) {
+                throw new \RuntimeException('Tổng các phương thức thanh toán phải bằng tổng tiền đơn hàng.');
+            }
 
             if (! empty($data['payments']) && is_array($data['payments'])) {
                 foreach ($data['payments'] as $p) {
                     $pAmount = (float) ($p['amount'] ?? 0);
                     if ($pAmount <= 0) continue;
+                    $pCashReceived = round((float) ($p['cash_received'] ?? $pAmount), 2);
+                    $pChange = ($p['payment_method'] ?? 'cash') === 'cash'
+                        ? round(max(0, $pCashReceived - $pAmount), 2)
+                        : round((float) ($p['change_amount'] ?? 0), 2);
 
                     Payment::create([
                         'restaurant_id' => $order->restaurant_id,
@@ -836,16 +862,21 @@ class OrderService
                         'payment_method' => $p['payment_method'] ?? 'cash',
                         'status' => 'paid',
                         'amount' => $pAmount,
-                        'cash_received' => $p['cash_received'] ?? $pAmount,
-                        'change_amount' => $p['change_amount'] ?? 0,
+                        'cash_received' => $pCashReceived,
+                        'change_amount' => $pChange,
                         'paid_at' => now(),
                     ]);
 
                     if (($p['payment_method'] ?? '') === 'cash') {
-                        $cashAmountToRecord += $pAmount;
+                        // Cash is posted exactly once by PaymentObserver.
                     }
                 }
             } else {
+                $cashReceived = round((float) ($data['cash_received'] ?? $order->total_amount), 2);
+                $changeAmount = ($data['payment_method'] ?? 'cash') === 'cash'
+                    ? round(max(0, $cashReceived - (float) $order->total_amount), 2)
+                    : round((float) ($data['change_amount'] ?? 0), 2);
+
                 Payment::create([
                     'restaurant_id' => $order->restaurant_id,
                     'branch_id' => $order->branch_id,
@@ -854,13 +885,13 @@ class OrderService
                     'payment_method' => $data['payment_method'],
                     'status' => 'paid',
                     'amount' => $order->total_amount,
-                    'cash_received' => $data['cash_received'] ?? $order->total_amount,
-                    'change_amount' => $data['change_amount'] ?? 0,
+                    'cash_received' => $cashReceived,
+                    'change_amount' => $changeAmount,
                     'paid_at' => now(),
                 ]);
 
                 if (($data['payment_method'] ?? '') === 'cash') {
-                    $cashAmountToRecord = (float) $order->total_amount;
+                    // Cash is posted exactly once by PaymentObserver.
                 }
             }
 
@@ -876,32 +907,6 @@ class OrderService
             // 4. Chỉ giải phóng bàn khi toàn bộ món đã được phục vụ.
             // Thanh toán xong chưa đồng nghĩa với kết thúc phục vụ.
             $this->releaseTableIfNoActiveServiceOrder($order);
-
-            // Ghi CashTransaction cho số tiền mặt thực tế nhận được (kể cả trong đơn thanh toán đa phương thức)
-            if ($cashAmountToRecord > 0) {
-                $cashRegister = CashRegister::where('restaurant_id', $order->restaurant_id)
-                    ->where('branch_id', $order->branch_id)
-                    ->where('status', 'open')
-                    ->first();
-
-                if ($cashRegister) {
-                    CashTransaction::create([
-                        'restaurant_id' => $order->restaurant_id,
-                        'branch_id' => $order->branch_id,
-                        'cash_register_id' => $cashRegister->id,
-                        'type' => 'in',
-                        'source' => 'order',
-                        'amount' => $cashAmountToRecord,
-                        'notes' => "Thanh toán đơn hàng {$order->order_number}",
-                        'reference_type' => Order::class,
-                        'reference_id' => $order->id,
-                        'created_by' => $user->id,
-                        'occurred_at' => now(),
-                    ]);
-
-                    $cashRegister->increment('expected_closing_balance', $cashAmountToRecord);
-                }
-            }
 
             if ($queuePostPayment) {
                 // Keep the queue for heavy loyalty/CDP work, but commit BOM

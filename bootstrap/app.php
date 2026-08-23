@@ -62,6 +62,7 @@ return Application::configure(basePath: dirname(__DIR__))
 
         $middleware->validateCsrfTokens(except: [
             'webhooks/payments',
+            'webhooks/sepay/bank',
             'api/webhooks/payments/vietqr',
             'api/webhooks/payments/vnpay',
             'api/webhooks/payments/momo',

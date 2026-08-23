@@ -5,12 +5,16 @@ namespace App\Services;
 use App\Models\AuditLog;
 use App\Models\Order;
 use App\Models\Payment;
+use App\Models\InventoryTransaction;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 
 class OrderRefundService
 {
-    public function __construct(private InventoryService $inventoryService) {}
+    public function __construct(
+        private InventoryService $inventoryService,
+        private FinancialPostingService $financialPostingService,
+    ) {}
 
     /**
      * Thực hiện hoàn tiền sau khi đã được chủ doanh nghiệp phê duyệt.
@@ -67,6 +71,29 @@ class OrderRefundService
 
             if ($data['refund_type'] === 'full' && ! $lockedOrder->inventory_restored_at) {
                 $this->inventoryService->restoreStockForOrder($lockedOrder);
+                $restoredCost = (float) InventoryTransaction::withoutGlobalScopes()
+                    ->where('restaurant_id', $lockedOrder->restaurant_id)
+                    ->where('order_id', $lockedOrder->id)
+                    ->where('direction', 'in')
+                    ->whereIn('type', ['return', 'adjustment'])
+                    ->sum('total_cost');
+                if ($restoredCost > 0) {
+                    $this->financialPostingService->post([
+                        'restaurant_id' => $lockedOrder->restaurant_id,
+                        'branch_id' => $lockedOrder->branch_id,
+                        'entry_date' => today(),
+                        'source_type' => Order::class,
+                        'source_id' => $lockedOrder->id,
+                        'idempotency_key' => 'order:cogs-refund:'.$lockedOrder->id,
+                        'description' => 'Đảo giá vốn do hoàn toàn bộ đơn hàng '.$lockedOrder->order_number,
+                        'created_by' => $processor->id,
+                        'posted_by' => $processor->id,
+                        'lines' => [
+                            ['account' => '1521', 'debit' => $restoredCost, 'credit' => 0],
+                            ['account' => '6211', 'debit' => 0, 'credit' => $restoredCost],
+                        ],
+                    ]);
+                }
                 $lockedOrder->update([
                     'status' => 'cancelled',
                     'inventory_restored_at' => now(),

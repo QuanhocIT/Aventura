@@ -42,6 +42,7 @@ class Payment extends Model
     {
         return [
             'paid_at' => 'datetime',
+            'reconciled_at' => 'datetime',
             'meta' => 'array',
         ];
     }
@@ -49,6 +50,21 @@ class Payment extends Model
     public function order(): BelongsTo
     {
         return $this->belongsTo(Order::class);
+    }
+
+    public function branch(): BelongsTo
+    {
+        return $this->belongsTo(RestaurantBranch::class, 'branch_id');
+    }
+
+    public function processedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'processed_by');
+    }
+
+    public function reconciledBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'reconciled_by');
     }
 
     protected static function newFactory(): Factory
