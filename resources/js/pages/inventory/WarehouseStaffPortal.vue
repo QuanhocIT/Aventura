@@ -29,7 +29,7 @@ import {
     X,
     Zap,
 } from 'lucide-vue-next';
-import { computed, onMounted, ref } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import { toast } from 'vue-sonner';
 
 import { Badge } from '@/components/ui/badge';
@@ -51,6 +51,9 @@ const props = defineProps<{
     handoverRecipients: Array<any>;
     locations: Array<any>;
     ingredients: Array<any>;
+    suppliers: Array<any>;
+    purchaseOrders: Array<any>;
+    notifications: Array<any>;
     canManageWarehouse: boolean;
     currentUser: any;
 }>();
@@ -65,16 +68,33 @@ const taskList = ref([...props.myTasks]);
 const voucherList = ref([...props.myVouchers]);
 const handoverList = ref([...props.myHandovers]);
 const disputeList = ref([...props.myDisputes]);
+const notificationList = ref([...props.notifications]);
+const historyList = ref<any[]>([]);
 const taskSummaryData = ref({ ...props.taskSummary });
 const scanInput = ref('');
 const scanResult = ref<any>(null);
 const isScanLoading = ref(false);
 const showScanModal = ref(false);
+const showNotifications = ref(false);
+const showHistory = ref(false);
+const isCameraScanning = ref(false);
+const cameraError = ref('');
+let refreshTimer: ReturnType<typeof setInterval> | null = null;
+let cameraStream: MediaStream | null = null;
 
 // GRN Form
 const grnForm = ref({
     received_at: new Date().toISOString().slice(0, 16),
     supplier_id: null as number | null,
+    purchase_order_id: null as number | null,
+    delivery_note_number: '',
+    invoice_number: '',
+    vehicle_number: '',
+    seal_code: '',
+    quality_status: 'pending' as 'pending' | 'passed' | 'conditional' | 'failed',
+    quality_notes: '',
+    temperature_min_c: undefined as number | undefined,
+    temperature_max_c: undefined as number | undefined,
     notes: '',
     items: [] as Array<{
         ingredient_id: number | null;
@@ -96,6 +116,8 @@ const incidentForm = ref({
     incident_type: 'shortage' as 'shortage' | 'damage' | 'expired' | 'wrong_item' | 'other',
     description: '',
     ingredient_id: null as number | null,
+    batch_id: undefined as number | undefined,
+    location_id: undefined as number | undefined,
     quantity_affected: undefined as number | undefined,
 });
 const incidentFiles = ref<File[]>([]);
@@ -234,13 +256,14 @@ function voucherStatusLabel(s: string): string {
 
 // ── API Actions ───────────────────────────────────────────────────────────────
 
-async function refreshTasks() {
+async function refreshTasks(silent = false) {
     isLoading.value = true;
 
     try {
         const { data } = await axios.get('/api/warehouse/my-tasks');
         taskList.value = data.tasks;
         taskSummaryData.value = data.summary;
+        if (silent) return;
         toast.success('Đã làm mới danh sách tác vụ.');
     } catch {
         toast.error('Không thể tải danh sách công việc.');
@@ -271,6 +294,10 @@ async function startTask(taskId: number) {
 async function completeTask(taskId: number) {
     isProcessingTask.value = true;
     const formData = new FormData();
+    const idempotencyKey = typeof crypto !== 'undefined' && crypto.randomUUID
+        ? crypto.randomUUID()
+        : `task-${taskId}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    formData.append('idempotency_key', idempotencyKey);
     if (taskResultNote.value) {
         formData.append('result_notes', taskResultNote.value);
     }
@@ -321,6 +348,25 @@ async function submitGrn() {
     isSubmittingGrn.value = true;
     const formData = new FormData();
     formData.append('received_at', grnForm.value.received_at);
+    const idempotencyKey = typeof crypto !== 'undefined' && crypto.randomUUID
+        ? crypto.randomUUID()
+        : `grn-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    formData.append('idempotency_key', idempotencyKey);
+    if (grnForm.value.supplier_id) formData.append('supplier_id', String(grnForm.value.supplier_id));
+    if (grnForm.value.purchase_order_id) formData.append('purchase_order_id', String(grnForm.value.purchase_order_id));
+    const grnMeta = {
+        delivery_note_number: grnForm.value.delivery_note_number,
+        invoice_number: grnForm.value.invoice_number,
+        vehicle_number: grnForm.value.vehicle_number,
+        seal_code: grnForm.value.seal_code,
+        quality_status: grnForm.value.quality_status,
+        quality_notes: grnForm.value.quality_notes,
+        temperature_min_c: grnForm.value.temperature_min_c,
+        temperature_max_c: grnForm.value.temperature_max_c,
+    };
+    Object.entries(grnMeta).forEach(([key, value]) => {
+        if (value !== '' && value !== null && value !== undefined) formData.append(key, String(value));
+    });
     if (grnForm.value.notes) {
         formData.append('notes', grnForm.value.notes);
     }
@@ -374,13 +420,26 @@ async function submitIncident() {
         return;
     }
 
+    if (['damage', 'expired'].includes(incidentForm.value.incident_type)
+        && incidentForm.value.batch_id
+        && (incidentForm.value.quantity_affected ?? 0) > 0
+        && !window.confirm('Báo cáo này sẽ chuyển số lượng batch sang khu cách ly và trừ tồn khả dụng. Bạn có chắc chắn không?')) {
+        return;
+    }
+
     isSubmittingIncident.value = true;
     const formData = new FormData();
+    const idempotencyKey = typeof crypto !== 'undefined' && crypto.randomUUID
+        ? crypto.randomUUID()
+        : `incident-${Date.now()}-${Math.random().toString(16).slice(2)}`;
     formData.append('incident_type', incidentForm.value.incident_type);
+    formData.append('idempotency_key', idempotencyKey);
     formData.append('description', incidentForm.value.description);
     if (incidentForm.value.ingredient_id) {
         formData.append('ingredient_id', String(incidentForm.value.ingredient_id));
     }
+    if (incidentForm.value.batch_id) formData.append('batch_id', String(incidentForm.value.batch_id));
+    if (incidentForm.value.location_id) formData.append('location_id', String(incidentForm.value.location_id));
     if (incidentForm.value.quantity_affected !== null && incidentForm.value.quantity_affected !== undefined) {
         formData.append('quantity_affected', String(incidentForm.value.quantity_affected));
     }
@@ -391,7 +450,7 @@ async function submitIncident() {
             headers: { 'Content-Type': 'multipart/form-data' },
         });
         toast.success(data.message || 'Đã gửi báo cáo sự cố kho thành công.');
-        incidentForm.value = { incident_type: 'shortage', description: '', ingredient_id: null, quantity_affected: undefined };
+        incidentForm.value = { incident_type: 'shortage', description: '', ingredient_id: null, batch_id: undefined, location_id: undefined, quantity_affected: undefined };
         incidentFiles.value = [];
         activeTab.value = 'today';
     } catch (e: any) {
@@ -438,6 +497,110 @@ async function respondToDispute(dispute: any) {
     } catch (e: any) {
         toast.error(e.response?.data?.message ?? 'Không thể gửi phản hồi tranh chấp.');
     }
+}
+
+async function confirmHandover(handoverId: number) {
+    try {
+        await axios.post(`/api/warehouse/shift-handover/${handoverId}/confirm`, {});
+        toast.success('Đã xác nhận bàn giao ca.');
+        handoverList.value = handoverList.value.map((item) => item.id === handoverId ? { ...item, status: 'confirmed' } : item);
+    } catch (e: any) {
+        toast.error(e.response?.data?.message ?? 'Không thể xác nhận bàn giao ca.');
+    }
+}
+
+async function loadHistory() {
+    try {
+        const { data } = await axios.get('/api/warehouse/my-history');
+        historyList.value = data.history ?? [];
+    } catch {
+        toast.error('Không thể tải lịch sử thao tác.');
+    }
+}
+
+async function markNotificationRead(notification: any) {
+    try {
+        await axios.post(`/notifications/${notification.id}/read`);
+        notificationList.value = notificationList.value.filter((item) => item.id !== notification.id);
+    } catch {
+        // Notification failures must not block warehouse work.
+    }
+}
+
+async function confirmPutaway(task: any) {
+    const locationId = window.prompt('Nhập ID vị trí đã quét:');
+    if (!locationId || Number.isNaN(Number(locationId))) return;
+    const putawayItems = task.receiving_voucher?.items ?? [];
+    const defaultBatchId = putawayItems.length === 1 ? putawayItems[0].batch_id : null;
+    const batchInput = defaultBatchId || window.prompt('Nhập ID batch/lô cần cất:', '');
+    if (putawayItems.length > 1 && (!batchInput || Number.isNaN(Number(batchInput)))) return;
+    try {
+        await axios.post(`/api/warehouse/tasks/${task.id}/putaway-confirm`, {
+            location_id: Number(locationId),
+            batch_id: batchInput ? Number(batchInput) : undefined,
+            scan_log: [{ code: locationId, type: 'location', scanned_at: new Date().toISOString() }],
+        });
+        toast.success('Đã xác nhận cất hàng.');
+        await refreshTasks(true);
+    } catch (e: any) {
+        toast.error(e.response?.data?.message ?? 'Không thể xác nhận cất hàng.');
+    }
+}
+
+async function preparePickingTask(task: any) {
+    const items = task.supply_request?.items ?? [];
+    if (!task.supply_request?.id || items.length === 0) {
+        toast.error('Task soạn hàng chưa có dữ liệu đơn cấp phát.');
+        return;
+    }
+    const preparedItems = [];
+    for (const item of items) {
+        const actual = window.prompt(`SL soạn cho ${item.ingredient_name} (tối đa ${item.approved_quantity}):`, String(item.approved_quantity));
+        if (actual === null) return;
+        const batchId = window.prompt(`ID batch FEFO cho ${item.ingredient_name} (để trống để hệ thống tự chọn):`, item.batch_id ? String(item.batch_id) : '');
+        const locationId = window.prompt(`ID vị trí lấy hàng cho ${item.ingredient_name} (nếu có):`, item.warehouse_location_id ? String(item.warehouse_location_id) : '');
+        preparedItems.push({
+            id: item.id,
+            actual_dispatched_quantity: Number(actual),
+            batch_id: batchId ? Number(batchId) : null,
+            warehouse_location_id: locationId ? Number(locationId) : null,
+        });
+    }
+    try {
+        await axios.post(`/api/supply-requests/${task.supply_request.id}/prepare`, { items: preparedItems });
+        toast.success('Đã ghi nhận soạn hàng FEFO.');
+        await refreshTasks(true);
+    } catch (e: any) {
+        toast.error(e.response?.data?.message ?? 'Không thể ghi nhận soạn hàng.');
+    }
+}
+
+async function dispatchHandoverTask(task: any) {
+    if (!task.supply_request?.id) {
+        toast.error('Task bàn giao chưa có đơn cấp phát.');
+        return;
+    }
+    const sealCode = window.prompt('Nhập mã niêm phong trước khi bàn giao:', '');
+    if (sealCode === null) return;
+    try {
+        await axios.post(`/api/supply-requests/${task.supply_request.id}/dispatch`, { seal_code: sealCode || null });
+        toast.success('Đã ghi nhận bàn giao Kho Tổng.');
+        await refreshTasks(true);
+    } catch (e: any) {
+        toast.error(e.response?.data?.message ?? 'Không thể bàn giao đơn cấp phát.');
+    }
+}
+
+function openTaskCompletion(task: any) {
+    if (task.task_type === 'putaway') return confirmPutaway(task);
+    if (task.task_type === 'picking') return preparePickingTask(task);
+    if (task.task_type === 'handover') return dispatchHandoverTask(task);
+    if (task.task_type === 'packing') {
+        const packingNote = window.prompt('Nhập số kiện/carton, seal và ghi chú đóng gói:');
+        if (packingNote === null) return;
+        taskResultNote.value = packingNote;
+    }
+    activeTaskId.value = task.id;
 }
 
 // Scan
@@ -487,9 +650,56 @@ function removeFile(index: number, target: 'grn' | 'incident' | 'task') {
     }
 }
 
+async function startCameraScan() {
+    cameraError.value = '';
+    if (!("BarcodeDetector" in window) || !navigator.mediaDevices?.getUserMedia) {
+        cameraError.value = 'Trình duyệt chưa hỗ trợ quét camera. Hãy nhập mã thủ công.';
+        return;
+    }
+    try {
+        cameraStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' } } });
+        isCameraScanning.value = true;
+        const video = document.querySelector<HTMLVideoElement>('#warehouse-scan-video');
+        if (!video) return;
+        video.srcObject = cameraStream;
+        await video.play();
+        const detector = new (window as any).BarcodeDetector({ formats: ['qr_code', 'code_128', 'ean_13', 'ean_8'] });
+        const scanFrame = async () => {
+            if (!isCameraScanning.value) return;
+            try {
+                const detected = await detector.detect(video);
+                if (detected?.[0]?.rawValue) {
+                    scanInput.value = detected[0].rawValue;
+                    stopCameraScan();
+                    await handleScan();
+                    return;
+                }
+            } catch {
+                // Continue scanning; unsupported formats are handled by the manual field.
+            }
+            window.requestAnimationFrame(scanFrame);
+        };
+        window.requestAnimationFrame(scanFrame);
+    } catch (error: any) {
+        cameraError.value = error?.message ?? 'Không thể mở camera.';
+        stopCameraScan();
+    }
+}
+
+function stopCameraScan() {
+    isCameraScanning.value = false;
+    cameraStream?.getTracks().forEach((track) => track.stop());
+    cameraStream = null;
+}
+
 onMounted(() => {
     // Tự refresh task mỗi 5 phút
-    setInterval(refreshTasks, 5 * 60 * 1000);
+    refreshTimer = setInterval(() => refreshTasks(true), 5 * 60 * 1000);
+});
+
+onBeforeUnmount(() => {
+    if (refreshTimer) clearInterval(refreshTimer);
+    stopCameraScan();
 });
 </script>
 
@@ -514,6 +724,15 @@ onMounted(() => {
             </div>
 
             <div class="flex flex-wrap items-center gap-2">
+                <Button variant="outline" class="relative gap-2" @click="showNotifications = !showNotifications">
+                    <AlertCircle class="size-4 text-indigo-500" />
+                    Thông báo
+                    <span v-if="notificationList.length" class="rounded-full bg-rose-500 px-1.5 text-[10px] text-white">{{ notificationList.length }}</span>
+                </Button>
+                <Button variant="outline" class="gap-2" @click="showHistory = !showHistory; loadHistory()">
+                    <Clock class="size-4 text-slate-500" />
+                    Lịch sử
+                </Button>
                 <Button
                     variant="outline"
                     class="gap-2 border-slate-200 bg-white hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:hover:bg-slate-800"
@@ -543,6 +762,37 @@ onMounted(() => {
         </div>
 
         <!-- ── Summary Metric Cards ── -->
+        <Card v-if="showNotifications" class="border-indigo-200 bg-indigo-50/50 shadow-sm dark:border-indigo-900 dark:bg-indigo-950/30">
+            <CardHeader class="flex flex-row items-center justify-between py-3">
+                <div>
+                    <CardTitle class="text-sm">Thông báo công việc</CardTitle>
+                    <CardDescription class="text-xs">Task mới, bàn giao ca và kiểm kê cần xử lý.</CardDescription>
+                </div>
+                <Button size="sm" variant="ghost" @click="showNotifications = false">Đóng</Button>
+            </CardHeader>
+            <CardContent class="space-y-2 pt-0">
+                <div v-if="notificationList.length === 0" class="text-xs text-muted-foreground">Không có thông báo chưa đọc.</div>
+                <button v-for="notification in notificationList" :key="notification.id" class="flex w-full items-start justify-between gap-3 rounded-lg border bg-white p-3 text-left text-xs dark:bg-slate-900" @click="markNotificationRead(notification)">
+                    <span><strong>{{ notification.data?.title || notification.data?.message || 'Thông báo Kho Tổng' }}</strong><br /><span class="text-muted-foreground">{{ notification.data?.message }}</span></span>
+                    <CheckCircle class="size-4 shrink-0 text-emerald-500" />
+                </button>
+            </CardContent>
+        </Card>
+
+        <Card v-if="showHistory" class="border-slate-200 shadow-sm dark:border-slate-800">
+            <CardHeader class="flex flex-row items-center justify-between py-3">
+                <CardTitle class="text-sm">Lịch sử thao tác của tôi</CardTitle>
+                <Button size="sm" variant="ghost" @click="showHistory = false">Đóng</Button>
+            </CardHeader>
+            <CardContent class="space-y-2 pt-0">
+                <div v-if="historyList.length === 0" class="text-xs text-muted-foreground">Chưa có dữ liệu lịch sử.</div>
+                <div v-for="item in historyList" :key="item.id" class="flex items-center justify-between rounded-lg border p-2 text-xs">
+                    <span class="font-medium">{{ item.action }}</span>
+                    <span class="text-muted-foreground">{{ new Date(item.created_at).toLocaleString('vi-VN') }}</span>
+                </div>
+            </CardContent>
+        </Card>
+
         <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <Card class="border-amber-200/60 bg-gradient-to-br from-amber-500/5 to-transparent shadow-sm dark:border-amber-950/30">
                 <CardHeader class="flex flex-row items-center justify-between pb-2">
@@ -676,6 +926,18 @@ onMounted(() => {
                                 {{ priorityLabel(task.priority) }}
                             </span>
                         </div>
+                        <div v-if="task.evidence_urls?.length" class="mt-3 flex flex-wrap gap-2">
+                            <a
+                                v-for="(url, index) in task.evidence_urls"
+                                :key="url"
+                                :href="url"
+                                target="_blank"
+                                rel="noopener"
+                                class="rounded-md border border-indigo-200 px-2 py-1 text-[11px] font-semibold text-indigo-600 hover:bg-indigo-50 dark:border-indigo-900 dark:text-indigo-300 dark:hover:bg-indigo-950/40"
+                            >
+                                Chứng từ {{ Number(index) + 1 }}
+                            </a>
+                        </div>
                     </div>
 
                     <div class="border-t border-slate-100 bg-slate-50/50 p-3 dark:border-slate-800 dark:bg-slate-900/30">
@@ -693,7 +955,7 @@ onMounted(() => {
                                 v-if="task.status === 'in_progress'"
                                 size="sm"
                                 class="w-full gap-1.5 bg-emerald-600 text-xs font-semibold text-white hover:bg-emerald-700 dark:bg-emerald-500"
-                                @click="activeTaskId = task.id"
+                                @click="openTaskCompletion(task)"
                             >
                                 <CheckCircle class="size-3.5" /> Xác nhận hoàn tất
                             </Button>
@@ -730,6 +992,36 @@ onMounted(() => {
                             <Label class="text-xs font-bold text-slate-700 dark:text-slate-300">Ghi chú chung</Label>
                             <Input v-model="grnForm.notes" placeholder="Tình trạng niêm phong, số xe giao hàng..." class="h-9 text-xs" />
                         </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 gap-3 rounded-xl border border-indigo-100 bg-indigo-50/40 p-4 sm:grid-cols-2 lg:grid-cols-4 dark:border-indigo-900/50 dark:bg-indigo-950/20">
+                        <div class="flex flex-col gap-1">
+                            <Label class="text-[11px] font-semibold">Nhà cung cấp</Label>
+                            <select v-model="grnForm.supplier_id" class="h-9 rounded-md border bg-white px-2 text-xs dark:bg-slate-900">
+                                <option :value="null">-- Chọn nhà cung cấp --</option>
+                                <option v-for="supplier in suppliers" :key="supplier.id" :value="supplier.id">{{ supplier.name }}</option>
+                            </select>
+                        </div>
+                        <div class="flex flex-col gap-1">
+                            <Label class="text-[11px] font-semibold">Đơn mua hàng (PO)</Label>
+                            <select v-model="grnForm.purchase_order_id" class="h-9 rounded-md border bg-white px-2 text-xs dark:bg-slate-900">
+                                <option :value="null">-- Không gắn PO --</option>
+                                <option v-for="po in purchaseOrders" :key="po.id" :value="po.id">{{ po.po_number }} - {{ po.supplier?.name }}</option>
+                            </select>
+                        </div>
+                        <Input v-model="grnForm.delivery_note_number" placeholder="Số phiếu giao hàng" class="h-9 text-xs" />
+                        <Input v-model="grnForm.invoice_number" placeholder="Số hóa đơn" class="h-9 text-xs" />
+                        <Input v-model="grnForm.vehicle_number" placeholder="Biển số xe" class="h-9 text-xs" />
+                        <Input v-model="grnForm.seal_code" placeholder="Mã niêm phong" class="h-9 text-xs" />
+                        <div class="flex flex-col gap-1">
+                            <Label class="text-[11px] font-semibold">Kết quả QC</Label>
+                            <select v-model="grnForm.quality_status" class="h-9 rounded-md border bg-white px-2 text-xs dark:bg-slate-900">
+                                <option value="pending">Chờ QC</option><option value="passed">Đạt</option><option value="conditional">Đạt có điều kiện</option><option value="failed">Không đạt</option>
+                            </select>
+                        </div>
+                        <Input v-model.number="grnForm.temperature_min_c" type="number" placeholder="Nhiệt độ min °C" class="h-9 text-xs" />
+                        <Input v-model.number="grnForm.temperature_max_c" type="number" placeholder="Nhiệt độ max °C" class="h-9 text-xs" />
+                        <Input v-model="grnForm.quality_notes" placeholder="Ghi chú QC / cold-chain" class="h-9 text-xs lg:col-span-2" />
                     </div>
 
                     <div v-if="grnForm.items.length === 0" class="flex flex-col items-center justify-center rounded-xl border border-dashed border-slate-200 p-8 text-center dark:border-slate-800">
@@ -889,7 +1181,7 @@ onMounted(() => {
                             <Button v-if="task.status === 'assigned'" size="sm" class="gap-1.5 bg-amber-600 text-xs font-semibold text-white" @click="startTask(task.id)">
                                 <ArrowRight class="size-3.5" /> Bắt đầu cất hàng
                             </Button>
-                            <Button v-if="task.status === 'in_progress'" size="sm" class="gap-1.5 bg-emerald-600 text-xs font-semibold text-white" @click="activeTaskId = task.id">
+                            <Button v-if="task.status === 'in_progress'" size="sm" class="gap-1.5 bg-emerald-600 text-xs font-semibold text-white" @click="openTaskCompletion(task)">
                                 <CheckCircle class="size-3.5" /> Hoàn thành
                             </Button>
                         </div>
@@ -931,7 +1223,7 @@ onMounted(() => {
                             <Button v-if="task.status === 'assigned'" size="sm" class="gap-1.5 bg-amber-600 text-xs font-semibold text-white" @click="startTask(task.id)">
                                 <ArrowRight class="size-3.5" /> Bắt đầu soạn
                             </Button>
-                            <Button v-if="task.status === 'in_progress'" size="sm" class="gap-1.5 bg-emerald-600 text-xs font-semibold text-white" @click="activeTaskId = task.id">
+                            <Button v-if="task.status === 'in_progress'" size="sm" class="gap-1.5 bg-emerald-600 text-xs font-semibold text-white" @click="openTaskCompletion(task)">
                                 <CheckCircle class="size-3.5" /> Đã soạn xong
                             </Button>
                         </div>
@@ -960,7 +1252,7 @@ onMounted(() => {
                             <Button v-if="task.status === 'assigned'" size="sm" class="gap-1.5 bg-amber-600 text-xs font-semibold text-white" @click="startTask(task.id)">
                                 <ArrowRight class="size-3.5" /> Bắt đầu đóng gói
                             </Button>
-                            <Button v-if="task.status === 'in_progress'" size="sm" class="gap-1.5 bg-emerald-600 text-xs font-semibold text-white" @click="activeTaskId = task.id">
+                            <Button v-if="task.status === 'in_progress'" size="sm" class="gap-1.5 bg-emerald-600 text-xs font-semibold text-white" @click="openTaskCompletion(task)">
                                 <CheckCircle class="size-3.5" /> Đã đóng gói xong
                             </Button>
                         </div>
@@ -971,6 +1263,11 @@ onMounted(() => {
 
         <!-- 6. KIỂM KÊ (COUNTING) -->
         <div v-if="activeTab === 'counting'" class="flex flex-col gap-4">
+            <div class="flex justify-end">
+                <Link href="/inventory/count-sessions">
+                    <Button variant="outline" size="sm" class="gap-2">Mở phiên kiểm kê chính thức <ArrowRight class="size-3.5" /></Button>
+                </Link>
+            </div>
             <h2 class="text-lg font-bold text-slate-900 dark:text-slate-100">Kiểm Kê Tồn Kho Theo Phiên</h2>
             <div v-if="tasksByType('counting').length === 0" class="flex flex-col items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-slate-50/50 p-12 text-center dark:border-slate-800">
                 <BadgeCheck class="size-8 text-slate-400" />
@@ -989,7 +1286,7 @@ onMounted(() => {
                             <Button v-if="task.status === 'assigned'" size="sm" class="gap-1.5 bg-amber-600 text-xs font-semibold text-white" @click="startTask(task.id)">
                                 <ArrowRight class="size-3.5" /> Bắt đầu đếm
                             </Button>
-                            <Button v-if="task.status === 'in_progress'" size="sm" class="gap-1.5 bg-emerald-600 text-xs font-semibold text-white" @click="activeTaskId = task.id">
+                            <Button v-if="task.status === 'in_progress'" size="sm" class="gap-1.5 bg-emerald-600 text-xs font-semibold text-white" @click="openTaskCompletion(task)">
                                 <CheckCircle class="size-3.5" /> Nộp kết quả
                             </Button>
                         </div>
@@ -1049,6 +1346,13 @@ onMounted(() => {
 
                     <div class="flex flex-col gap-1.5">
                         <Label class="text-xs font-bold text-slate-700 dark:text-slate-300">Mô tả chi tiết sự cố *</Label>
+                        <div class="mb-2 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                            <Input v-model.number="incidentForm.batch_id" type="number" placeholder="ID batch/lô hàng (nếu có)" class="h-9 text-xs" />
+                            <select v-model="incidentForm.location_id" class="h-9 rounded-md border bg-white px-2 text-xs dark:bg-slate-900">
+                                <option :value="null">-- Vị trí phát hiện (nếu có) --</option>
+                                <option v-for="loc in locations" :key="loc.id" :value="loc.id">{{ loc.code }} — {{ loc.name }}</option>
+                            </select>
+                        </div>
                         <textarea
                             v-model="incidentForm.description"
                             rows="3"
@@ -1183,6 +1487,9 @@ onMounted(() => {
                             <div v-if="handover.is_system_locked" class="mt-2 flex items-center gap-1 text-xs font-bold text-rose-600">
                                 <AlertTriangle class="size-3.5" /> {{ handover.lock_reason }}
                             </div>
+                            <Button v-if="handover.status === 'pending' && handover.received_by === currentUser?.id" size="sm" class="mt-3 w-full bg-emerald-600 text-xs text-white" @click="confirmHandover(handover.id)">
+                                Xác nhận đã nhận bàn giao
+                            </Button>
                         </CardContent>
                     </Card>
                 </div>
@@ -1242,7 +1549,7 @@ onMounted(() => {
 
         <!-- ── Modal: Quét Mã QR / Barcode ── -->
         <Teleport to="body">
-        <div v-if="showScanModal" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4" @click.self="showScanModal = false; scanResult = null">
+        <div v-if="showScanModal" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4" @click.self="stopCameraScan(); showScanModal = false; scanResult = null">
             <div class="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6 shadow-xl dark:border-slate-800 dark:bg-slate-900">
                 <div class="flex items-center justify-between border-b border-slate-100 pb-4 dark:border-slate-800">
                     <div class="flex items-center gap-2">
@@ -1251,7 +1558,7 @@ onMounted(() => {
                         </div>
                         <h3 class="text-base font-bold text-slate-900 dark:text-slate-100">Quét Mã QR / Barcode Kho</h3>
                     </div>
-                    <button class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200" @click="showScanModal = false; scanResult = null">
+                    <button class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200" @click="stopCameraScan(); showScanModal = false; scanResult = null">
                         <X class="size-5" />
                     </button>
                 </div>
@@ -1273,6 +1580,17 @@ onMounted(() => {
                         <Button class="gap-1.5 bg-amber-600 font-semibold text-white hover:bg-amber-700" :disabled="isScanLoading" @click="handleScan">
                             <Scan class="size-4" />
                         </Button>
+                    </div>
+
+                    <div class="flex flex-col gap-2">
+                        <Button v-if="!isCameraScanning" variant="outline" size="sm" class="gap-2" @click="startCameraScan">
+                            <QrCode class="size-4" /> Mở camera quét mã
+                        </Button>
+                        <div v-if="isCameraScanning" class="overflow-hidden rounded-xl border bg-black">
+                            <video id="warehouse-scan-video" class="aspect-video w-full object-cover" muted playsinline></video>
+                            <Button size="sm" variant="secondary" class="m-2" @click="stopCameraScan">Dừng camera</Button>
+                        </div>
+                        <p v-if="cameraError" class="text-xs text-rose-600">{{ cameraError }}</p>
                     </div>
 
                     <div v-if="isScanLoading" class="flex items-center justify-center gap-2 py-4 text-xs font-semibold text-slate-500">

@@ -22,6 +22,7 @@ class WarehouseTaskService
 
         return User::where('restaurant_id', $restaurantId)
             ->where('status', 'active')
+            ->where('warehouse_staff_status', 'active')
             ->whereHas('roles', fn ($query) => $query->where('name', 'warehouse_staff'))
             ->when($centralBranch, fn ($query) => $query->where(function ($scope) use ($centralBranch) {
                 $scope->where('warehouse_branch_id', $centralBranch->id)
@@ -105,6 +106,12 @@ class WarehouseTaskService
     public function assignTask(User $user, array $data): WarehouseTaskAssignment
     {
         $this->assertWarehouseManager($user);
+        $data['task_type'] = [
+            'inventory_count' => 'counting',
+            'discrepancy_resolution' => 'incident',
+            'incident_resolution' => 'incident',
+            'shift_handover' => 'handover',
+        ][$data['task_type']] ?? $data['task_type'];
         $centralBranch = $this->warehouseService->getCentralWarehouse($user->restaurant_id);
         abort_unless($centralBranch, 422, 'Nhà hàng chưa cấu hình Kho Tổng đang hoạt động.');
 
@@ -114,6 +121,7 @@ class WarehouseTaskService
 
         $assignee = User::where('restaurant_id', $user->restaurant_id)
             ->where('status', 'active')
+            ->where('warehouse_staff_status', 'active')
             ->whereKey((int) $data['assigned_to'])
             ->whereHas('roles', fn ($query) => $query->where('name', 'warehouse_staff'))
             ->where(function ($query) use ($centralBranch) {
@@ -187,10 +195,21 @@ class WarehouseTaskService
             ]);
         }
 
-        $task->update([
+        $updates = [
             'status' => $newStatus,
             'notes'  => $notes ?? $task->notes,
-        ]);
+        ];
+        if ($newStatus === 'in_progress' && $currentStatus !== 'in_progress') {
+            $updates['started_at'] = $task->started_at ?? now();
+        }
+        if ($newStatus === 'completed' && $currentStatus !== 'completed') {
+            $updates['completed_at'] = now();
+        }
+        if (in_array($newStatus, ['assigned', 'pending'], true) && $currentStatus === 'completed') {
+            $updates['completed_at'] = null;
+        }
+
+        $task->update($updates);
 
         return $task;
     }

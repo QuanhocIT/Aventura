@@ -5,12 +5,14 @@ namespace App\Http\Controllers;
 use App\Models\RestaurantBranch;
 use App\Models\SupplyRequest;
 use App\Models\User;
+use App\Notifications\WarehouseTaskAssignedNotification;
 use App\Services\ApprovalService;
 use App\Services\CentralWarehouseAiService;
 use App\Services\CentralWarehouseService;
 use App\Services\DeliveryManifestService;
 use App\Services\NegativeInventoryService;
 use App\Services\SupplyRequestAnalyticsService;
+use App\Services\WarehouseStaffAccessService;
 use App\Services\WarehouseTaskService;
 use App\Support\TenantRule;
 use Illuminate\Http\JsonResponse;
@@ -26,6 +28,7 @@ class SupplyRequestController extends Controller
         protected SupplyRequestAnalyticsService $analyticsService,
         protected WarehouseTaskService $taskService,
         protected ApprovalService $approvalService,
+        protected WarehouseStaffAccessService $staffAccess,
     ) {}
 
     /**
@@ -442,8 +445,10 @@ class SupplyRequestController extends Controller
     public function prepare(Request $request, int $id): JsonResponse
     {
         $user = $request->user();
+        $this->assertWarehouseStaffCanOperate($user);
         $supplyRequest = SupplyRequest::where('restaurant_id', $user->restaurant_id)->findOrFail($id);
         $this->authorizeSupplyRequestScope($user, $supplyRequest);
+        $this->assertAssignedWarehouseTask($user, $supplyRequest, ['picking']);
 
         $data = $request->validate([
             'items'                              => 'required|array|min:1',
@@ -462,7 +467,30 @@ class SupplyRequestController extends Controller
                 ->where('supply_request_id', $supplyRequest->id)
                 ->where('task_type', 'picking')
                 ->whereIn('status', ['assigned', 'in_progress'])
-                ->update(['status' => 'completed']);
+                ->update(['status' => 'completed', 'completed_at' => now()]);
+
+            $assignee = $this->preferredCentralWarehouseStaff($user);
+            $packingTask = \App\Models\WarehouseTaskAssignment::firstOrCreate(
+                [
+                    'restaurant_id' => $user->restaurant_id,
+                    'supply_request_id' => $supplyRequest->id,
+                    'task_type' => 'packing',
+                ],
+                [
+                    'assigned_to' => $assignee?->id,
+                    'assigned_by' => $user->id,
+                    'status' => $assignee ? 'assigned' : 'pending',
+                    'priority' => 'normal',
+                    'due_at' => now()->addHours(2),
+                    'notes' => 'Đóng gói đơn '.$supplyRequest->request_code.' sau khi hoàn tất soạn FEFO.',
+                ],
+            );
+            if ($packingTask->assigned_to === null && $assignee) {
+                $packingTask->update(['assigned_to' => $assignee->id, 'status' => 'assigned']);
+            }
+            if ($packingTask->wasRecentlyCreated || $packingTask->wasChanged('assigned_to')) {
+                $assignee?->notify(new WarehouseTaskAssignedNotification($packingTask));
+            }
 
             return response()->json([
                 'success' => true,
@@ -483,11 +511,35 @@ class SupplyRequestController extends Controller
     public function approveDispatch(Request $request, int $id): JsonResponse
     {
         $user = $request->user();
+        $this->assertWarehouseStaffCanOperate($user);
         $supplyRequest = SupplyRequest::where('restaurant_id', $user->restaurant_id)->findOrFail($id);
         $this->authorizeSupplyRequestScope($user, $supplyRequest);
 
         try {
             $updated = $this->warehouseService->approveDispatch($supplyRequest, $user);
+
+            $assignee = $this->preferredCentralWarehouseStaff($user);
+            $handoverTask = \App\Models\WarehouseTaskAssignment::firstOrCreate(
+                [
+                    'restaurant_id' => $user->restaurant_id,
+                    'supply_request_id' => $supplyRequest->id,
+                    'task_type' => 'handover',
+                ],
+                [
+                    'assigned_to' => $assignee?->id,
+                    'assigned_by' => $user->id,
+                    'status' => $assignee ? 'assigned' : 'pending',
+                    'priority' => 'high',
+                    'due_at' => now()->addHours(2),
+                    'notes' => 'Bàn giao đơn '.$supplyRequest->request_code.' cho vận chuyển sau khi được duyệt xuất.',
+                ],
+            );
+            if ($handoverTask->assigned_to === null && $assignee) {
+                $handoverTask->update(['assigned_to' => $assignee->id, 'status' => 'assigned']);
+            }
+            if ($handoverTask->wasRecentlyCreated || $handoverTask->wasChanged('assigned_to')) {
+                $assignee?->notify(new WarehouseTaskAssignedNotification($handoverTask));
+            }
 
             return response()->json([
                 'success' => true,
@@ -507,6 +559,7 @@ class SupplyRequestController extends Controller
      */
     public function dispatch(Request $request, int $id): JsonResponse
     {
+        $this->assertWarehouseStaffCanOperate($request->user());
         $request->validate([
             'seal_code' => 'nullable|string|max:100',
         ]);
@@ -514,6 +567,7 @@ class SupplyRequestController extends Controller
         $user = $request->user();
         $supplyRequest = SupplyRequest::where('restaurant_id', $user->restaurant_id)->findOrFail($id);
         $this->authorizeSupplyRequestScope($user, $supplyRequest);
+        $this->assertAssignedWarehouseTask($user, $supplyRequest, ['handover']);
 
         if (! $this->canDispatchSupplyRequests($user)) {
             $this->approvalService->submitRequest('warehouse_supply_dispatch', [
@@ -532,7 +586,7 @@ class SupplyRequestController extends Controller
                 ->where('supply_request_id', $supplyRequest->id)
                 ->where('task_type', 'handover')
                 ->whereIn('status', ['assigned', 'in_progress'])
-                ->update(['status' => 'completed']);
+                ->update(['status' => 'completed', 'completed_at' => now()]);
 
             return response()->json([
                 'success' => true,
@@ -893,6 +947,59 @@ class SupplyRequestController extends Controller
     {
         return $user->canViewAllBranches()
             || $user->hasAnyRole(['warehouse_manager', 'warehouse_staff']);
+    }
+
+    private function assertWarehouseStaffCanOperate(User $user): void
+    {
+        if ($user->hasRole('warehouse_staff')) {
+            $this->staffAccess->assertCanOperate($user);
+        }
+    }
+
+    private function assertAssignedWarehouseTask(User $user, SupplyRequest $supplyRequest, array $taskTypes): void
+    {
+        if (! $user->hasRole('warehouse_staff')) {
+            return;
+        }
+
+        abort_unless(
+            \App\Models\WarehouseTaskAssignment::where('restaurant_id', $user->restaurant_id)
+                ->where('supply_request_id', $supplyRequest->id)
+                ->where('assigned_to', $user->id)
+                ->whereIn('task_type', $taskTypes)
+                ->whereIn('status', ['pending', 'assigned', 'in_progress'])
+                ->exists(),
+            403,
+            'Bạn chỉ được xử lý đơn cấp phát khi đã được giao đúng nhiệm vụ Kho Tổng.'
+        );
+    }
+
+    private function preferredCentralWarehouseStaff(User $actor): ?User
+    {
+        $centralBranch = $this->warehouseService->getCentralWarehouse($actor->restaurant_id);
+
+        if ($actor->hasRole('warehouse_staff')
+            && $actor->status === 'active'
+            && $actor->warehouse_staff_status === 'active'
+            && $centralBranch
+            && (int) ($actor->warehouse_branch_id ?: $actor->branch_id) === (int) $centralBranch->id) {
+            return $actor;
+        }
+
+        return User::query()
+            ->where('restaurant_id', $actor->restaurant_id)
+            ->where('status', 'active')
+            ->where(function ($query) {
+                $query->whereNull('warehouse_staff_status')
+                    ->orWhere('warehouse_staff_status', 'active');
+            })
+            ->whereHas('roles', fn ($query) => $query->where('name', 'warehouse_staff'))
+            ->when($centralBranch, fn ($query) => $query->where(function ($scope) use ($centralBranch) {
+                $scope->where('warehouse_branch_id', $centralBranch->id)
+                    ->orWhere('branch_id', $centralBranch->id);
+            }), fn ($query) => $query->whereRaw('1 = 0'))
+            ->orderBy('id')
+            ->first();
     }
 
     private function canApproveSupplyRequests(User $user): bool

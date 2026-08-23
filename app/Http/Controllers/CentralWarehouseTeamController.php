@@ -156,10 +156,9 @@ class CentralWarehouseTeamController extends Controller
                 ['value' => 'putaway', 'label' => 'Cất hàng vào vị trí'],
                 ['value' => 'picking', 'label' => 'Soạn hàng theo đơn'],
                 ['value' => 'packing', 'label' => 'Đóng gói hàng hóa'],
-                ['value' => 'inventory_count', 'label' => 'Kiểm kê tồn kho'],
-                ['value' => 'discrepancy_resolution', 'label' => 'Xử lý sai lệch'],
-                ['value' => 'incident_resolution', 'label' => 'Xử lý sự cố'],
-                ['value' => 'shift_handover', 'label' => 'Bàn giao ca'],
+                ['value' => 'counting', 'label' => 'Kiểm kê tồn kho'],
+                ['value' => 'incident', 'label' => 'Xử lý sự cố / sai lệch'],
+                ['value' => 'handover', 'label' => 'Bàn giao ca'],
             ],
         ]);
     }
@@ -268,13 +267,20 @@ class CentralWarehouseTeamController extends Controller
 
         $data = $request->validate([
             'assigned_to' => ['required', TenantRule::exists('users')],
-            'task_type' => ['required', 'string', 'in:receiving,putaway,picking,packing,inventory_count,discrepancy_resolution,incident_resolution,shift_handover'],
+            'task_type' => ['required', 'string', 'in:receiving,putaway,picking,packing,counting,incident,handover,inventory_count,discrepancy_resolution,incident_resolution,shift_handover'],
             'priority' => ['required', 'in:low,normal,high,urgent'],
             'due_at' => ['nullable', 'date', 'after:now'],
             'notes' => ['nullable', 'string', 'max:1000'],
             'supply_request_id' => ['nullable', TenantRule::exists('central_supply_requests')],
             'receiving_voucher_id' => ['nullable', TenantRule::exists('warehouse_receiving_vouchers')],
         ]);
+
+        $data['task_type'] = [
+            'inventory_count' => 'counting',
+            'discrepancy_resolution' => 'incident',
+            'incident_resolution' => 'incident',
+            'shift_handover' => 'handover',
+        ][$data['task_type']] ?? $data['task_type'];
 
         $centralBranch = $this->warehouseService->getCentralWarehouse($user->restaurant_id);
         abort_unless($centralBranch, 422, 'Nhà hàng chưa cấu hình Kho Tổng đang hoạt động.');
@@ -314,7 +320,7 @@ class CentralWarehouseTeamController extends Controller
             return back()->withErrors(['assigned_to' => 'Nhiệm vụ Kho Tổng chỉ được phép giao cho Nhân viên kho (warehouse_staff).']);
         }
 
-        if (($assignee->warehouse_staff_status ?? 'active') === 'paused') {
+        if (($assignee->warehouse_staff_status ?? 'active') !== 'active') {
             return back()->withErrors(['assigned_to' => 'Nhân viên này đang tạm dừng nhận việc. Vui lòng chọn nhân viên khác.']);
         }
 
@@ -330,6 +336,8 @@ class CentralWarehouseTeamController extends Controller
             'due_at' => $data['due_at'] ?? null,
             'notes' => $data['notes'] ?? null,
         ]);
+
+        $assignee->notify(new \App\Notifications\WarehouseTaskAssignedNotification($task));
 
         AuditLog::log('warehouse_task_assigned', 'created', $task);
 

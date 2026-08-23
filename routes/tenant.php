@@ -29,6 +29,10 @@ use App\Http\Controllers\EmployeePortalController;
 use App\Http\Controllers\EnterpriseCommandCenterController;
 use App\Http\Controllers\EquipmentController;
 use App\Http\Controllers\ExpenseController;
+use App\Http\Controllers\FinancialController;
+use App\Http\Controllers\BankReconciliationController;
+use App\Http\Controllers\FinancialBudgetController;
+use App\Http\Controllers\FixedAssetController;
 use App\Http\Controllers\FeedbackController;
 use App\Http\Controllers\FraudController;
 use App\Http\Controllers\GeoAnalyticsController;
@@ -502,12 +506,42 @@ Route::middleware(['auth', 'verified', 'tenant.subscription', 'tenant.ratelimit'
     Route::get('reports/export-excel', [ReportsController::class, 'exportExcel'])->name('reports.export-excel');
     Route::get('reports/reconciliation', [ReportsController::class, 'crossReconciliation'])->name('reports.reconciliation');
 
+    // Financial journal, trial balance and accounting periods.
+    Route::get('finance', [FinancialController::class, 'index'])->name('finance.index');
+    Route::post('finance/accounts', [FinancialController::class, 'storeAccount'])->name('finance.accounts.store');
+    Route::patch('finance/periods/{period}/close', [FinancialController::class, 'closePeriod'])->name('finance.periods.close');
+    Route::post('finance/entries/{entry}/reverse', [FinancialController::class, 'reverseEntry'])->name('finance.entries.reverse');
+    Route::get('financial-budgets', [FinancialBudgetController::class, 'index'])->name('financial-budgets.index');
+    Route::post('financial-budgets', [FinancialBudgetController::class, 'store'])->name('financial-budgets.store');
+    Route::patch('financial-budgets/{budget}/approve', [FinancialBudgetController::class, 'approve'])->name('financial-budgets.approve');
+    Route::get('fixed-assets', [FixedAssetController::class, 'index'])->name('fixed-assets.index');
+    Route::post('fixed-assets', [FixedAssetController::class, 'store'])->name('fixed-assets.store');
+    Route::patch('fixed-assets/{asset}', [FixedAssetController::class, 'update'])->name('fixed-assets.update');
+    Route::post('fixed-assets/{asset}/handovers', [FixedAssetController::class, 'storeHandover'])->name('fixed-assets.handovers.store');
+    Route::post('fixed-asset-handovers/{handover}/accept', [FixedAssetController::class, 'acceptHandover'])->name('fixed-asset-handovers.accept');
+    Route::post('fixed-asset-handovers/{handover}/reject', [FixedAssetController::class, 'rejectHandover'])->name('fixed-asset-handovers.reject');
+    Route::post('fixed-assets/{asset}/inspections', [FixedAssetController::class, 'inspect'])->name('fixed-assets.inspections.store');
+
+    Route::prefix('bank-reconciliation')->name('bank-reconciliation.')->group(function () {
+        Route::get('/', [BankReconciliationController::class, 'index'])->name('index');
+        Route::post('/payments/{payment}/reconcile', [BankReconciliationController::class, 'reconcile'])->name('payments.reconcile');
+        Route::post('/payments/{payment}/unreconcile', [BankReconciliationController::class, 'unreconcile'])->name('payments.unreconcile');
+        Route::post('/batch-reconcile', [BankReconciliationController::class, 'batchReconcile'])->name('batch-reconcile');
+        Route::post('/accounts', [BankReconciliationController::class, 'storeAccount'])->name('accounts.store');
+        Route::post('/import', [BankReconciliationController::class, 'import'])->name('import');
+        Route::post('/sync-sepay', [BankReconciliationController::class, 'syncSepay'])->name('sync-sepay');
+        Route::patch('/lines/{line}/match', [BankReconciliationController::class, 'match'])->name('lines.match');
+    });
+
     // Expenses / OPEX Tracker
     Route::prefix('expenses')->name('expenses.')->group(function () {
         Route::get('/', [ExpenseController::class, 'index'])->name('index');
         Route::post('/', [ExpenseController::class, 'store'])->name('store');
         Route::patch('/{expense}', [ExpenseController::class, 'update'])->name('update');
         Route::delete('/{expense}', [ExpenseController::class, 'destroy'])->name('destroy');
+        Route::patch('/{expense}/approve', [ExpenseController::class, 'approveExpense'])->name('approve');
+        Route::patch('/{expense}/reject', [ExpenseController::class, 'rejectExpense'])->name('reject');
+        Route::patch('/{expense}/pay', [ExpenseController::class, 'payExpense'])->name('pay');
 
         Route::post('/recurring', [ExpenseController::class, 'storeRecurring'])->name('recurring.store');
         Route::patch('/recurring/{recurring}', [ExpenseController::class, 'updateRecurring'])->name('recurring.update');
@@ -698,6 +732,7 @@ Route::middleware(['auth', 'verified', 'tenant.subscription', 'tenant.ratelimit'
         Route::get('my-tasks', [WarehouseStaffController::class, 'myTasks'])->name('warehouse.my-tasks');
         Route::post('tasks/{id}/start', [WarehouseStaffController::class, 'startTask'])->name('warehouse.tasks.start');
         Route::post('tasks/{id}/complete', [WarehouseStaffController::class, 'completeTask'])->name('warehouse.tasks.complete');
+        Route::get('tasks/{id}/evidence/{index}', [WarehouseStaffController::class, 'viewTaskEvidence'])->name('warehouse.tasks.evidence');
         // Phiếu nhận hàng GRN
         Route::post('receiving-vouchers', [WarehouseStaffController::class, 'storeReceivingVoucher'])->middleware('role_or_permission:owner|super_admin|warehouse.receiving.create|warehouse_staff|warehouse_manager|warehouse.manage')->name('warehouse.receiving-vouchers.store');
         Route::post('receiving-vouchers/{id}/confirm', [WarehouseStaffController::class, 'confirmReceiving'])->middleware('role_or_permission:owner|super_admin|warehouse_manager|warehouse.manage')->name('warehouse.receiving-vouchers.confirm');
@@ -854,13 +889,13 @@ Route::middleware(['auth', 'verified', 'tenant.subscription', 'tenant.ratelimit'
     Route::post('api/warehouse-governance/disputes/{id}/respond', [WarehouseGovernanceController::class, 'respondDispute'])->middleware('role_or_permission:owner|super_admin|warehouse_manager|warehouse_staff|manager')->name('warehouse-governance.respond-dispute');
 
     // Kiểm kê tồn kho nâng cao (Periodic, Spot check, Blind count)
-    Route::get('inventory/count-sessions', [InventoryCountController::class, 'page'])->middleware('role_or_permission:owner|super_admin|warehouse_manager|inventory.count|inventory.adjust.approve')->name('inventory.count-sessions');
-    Route::post('api/inventory/count-sessions', [InventoryCountController::class, 'store'])->middleware('role_or_permission:owner|super_admin|warehouse_manager|inventory.count')->name('inventory.count-sessions.store');
-    Route::post('api/inventory/count-sessions/{id}/counts', [InventoryCountController::class, 'submitCounts'])->middleware('role_or_permission:owner|super_admin|warehouse_manager|inventory.count')->name('inventory.count-sessions.counts');
-    Route::post('api/inventory/count-sessions/{id}/second-counter', [InventoryCountController::class, 'assignSecondCounter'])->middleware('role_or_permission:owner|super_admin|warehouse_manager|inventory.count')->name('inventory.count-sessions.second-counter');
-    Route::post('api/inventory/count-sessions/{id}/items/{itemId}/reconcile', [InventoryCountController::class, 'reconcileItem'])->middleware('role_or_permission:owner|super_admin|warehouse_manager|inventory.count')->name('inventory.count-sessions.items.reconcile');
-    Route::post('api/inventory/count-sessions/{id}/submit-approval', [InventoryCountController::class, 'submitForApproval'])->middleware('role_or_permission:owner|super_admin|warehouse_manager|inventory.count')->name('inventory.count-sessions.submit-approval');
-    Route::post('api/inventory/count-sessions/{id}/upload-proof', [InventoryCountController::class, 'uploadVarianceProof'])->middleware('role_or_permission:owner|super_admin|warehouse_manager|inventory.count')->name('inventory.count-sessions.upload-proof');
+    Route::get('inventory/count-sessions', [InventoryCountController::class, 'page'])->middleware('role_or_permission:owner|super_admin|warehouse_manager|inventory.count|inventory.count.execute|inventory.adjust.approve')->name('inventory.count-sessions');
+    Route::post('api/inventory/count-sessions', [InventoryCountController::class, 'store'])->middleware('role_or_permission:owner|super_admin|warehouse_manager|inventory.count|inventory.count.execute')->name('inventory.count-sessions.store');
+    Route::post('api/inventory/count-sessions/{id}/counts', [InventoryCountController::class, 'submitCounts'])->middleware('role_or_permission:owner|super_admin|warehouse_manager|inventory.count|inventory.count.execute')->name('inventory.count-sessions.counts');
+    Route::post('api/inventory/count-sessions/{id}/second-counter', [InventoryCountController::class, 'assignSecondCounter'])->middleware('role_or_permission:owner|super_admin|warehouse_manager|inventory.count|inventory.count.execute')->name('inventory.count-sessions.second-counter');
+    Route::post('api/inventory/count-sessions/{id}/items/{itemId}/reconcile', [InventoryCountController::class, 'reconcileItem'])->middleware('role_or_permission:owner|super_admin|warehouse_manager|inventory.count|inventory.count.execute')->name('inventory.count-sessions.items.reconcile');
+    Route::post('api/inventory/count-sessions/{id}/submit-approval', [InventoryCountController::class, 'submitForApproval'])->middleware('role_or_permission:owner|super_admin|warehouse_manager|inventory.count|inventory.count.execute')->name('inventory.count-sessions.submit-approval');
+    Route::post('api/inventory/count-sessions/{id}/upload-proof', [InventoryCountController::class, 'uploadVarianceProof'])->middleware('role_or_permission:owner|super_admin|warehouse_manager|inventory.count|inventory.count.execute')->name('inventory.count-sessions.upload-proof');
     Route::get('api/inventory/count-sessions/{id}/proof', [InventoryCountController::class, 'viewVarianceProof'])->name('inventory.count-sessions.proof');
     Route::post('api/inventory/count-sessions/{id}/reject', [InventoryCountController::class, 'reject'])->middleware('role_or_permission:owner|super_admin|warehouse_manager|inventory.adjust.approve')->name('inventory.count-sessions.reject');
     Route::post('api/inventory/count-sessions/{id}/reopen', [InventoryCountController::class, 'reopen'])->middleware('role_or_permission:owner|super_admin|warehouse_manager|inventory.count')->name('inventory.count-sessions.reopen');
@@ -982,7 +1017,7 @@ Route::middleware(['auth', 'verified', 'tenant.subscription', 'tenant.ratelimit'
     // Quick Actions API Routes (Batch 1)
     Route::post('reservations/{reservation}/auto-assign', [TableReservationController::class, 'autoAssignTable'])->name('reservations.auto-assign');
     Route::post('orders/batch-approve-qr', [OrdersController::class, 'batchApproveQrOrders'])->name('orders.batch-approve-qr');
-    Route::post('inventory/counts/quick-preset', [InventoryCountController::class, 'quickCountPreset'])->middleware('role_or_permission:owner|super_admin|warehouse_manager|inventory.count')->name('inventory.counts.quick-preset');
+    Route::post('inventory/counts/quick-preset', [InventoryCountController::class, 'quickCountPreset'])->middleware('role_or_permission:owner|super_admin|warehouse_manager|inventory.count|inventory.count.execute')->name('inventory.counts.quick-preset');
     Route::post('supply-requests/quick-recommended', [SupplyRequestController::class, 'quickRecommendedRequest'])->middleware('role_or_permission:owner|super_admin|supply_requests.create')->name('supply-requests.quick-recommended');
     Route::post('kitchen/items/{item}/notify-waiter', [KitchenController::class, 'notifyWaiterOverdue'])->name('kitchen.items.notify-waiter');
     Route::post('approvals/batch-approve-low-risk', [ApprovalController::class, 'batchApproveLowRisk'])->name('approvals.batch-approve-low-risk');

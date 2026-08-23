@@ -7,6 +7,7 @@ use App\Models\InventoryReturn;
 use App\Models\SupplierClaim;
 use App\Models\StockTransferRequest;
 use App\Services\WarehouseReverseLogisticsService;
+use App\Services\WarehouseStaffAccessService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -16,7 +17,10 @@ use Inertia\Response;
 
 class WarehouseReverseLogisticsController extends Controller
 {
-    public function __construct(protected WarehouseReverseLogisticsService $service) {}
+    public function __construct(
+        protected WarehouseReverseLogisticsService $service,
+        protected WarehouseStaffAccessService $staffAccess,
+    ) {}
 
     public function page(Request $request): Response
     {
@@ -33,6 +37,10 @@ class WarehouseReverseLogisticsController extends Controller
         $this->assertView($request);
         $rows = InventoryQuarantine::query()
             ->where('restaurant_id', $request->user()->restaurant_id)
+            ->when($request->user()->hasRole('warehouse_staff'), function ($query) use ($request) {
+                $branchId = $this->staffAccess->centralWarehouseFor($request->user())?->id;
+                $query->where('branch_id', $branchId ?: -1);
+            })
             ->with(['branch:id,name', 'ingredient:id,name', 'batch:id,batch_code,batch_number,expiry_date,status'])
             ->when($request->filled('status'), fn ($query) => $query->where('status', $request->string('status')->toString()))
             ->latest('id')
@@ -47,6 +55,10 @@ class WarehouseReverseLogisticsController extends Controller
         $this->assertView($request);
         $rows = InventoryReturn::query()
             ->where('restaurant_id', $request->user()->restaurant_id)
+            ->when($request->user()->hasRole('warehouse_staff'), function ($query) use ($request) {
+                $branchId = $this->staffAccess->centralWarehouseFor($request->user())?->id;
+                $query->where('from_branch_id', $branchId ?: -1);
+            })
             ->with(['items.ingredient', 'items.batch', 'fromBranch:id,name', 'toBranch:id,name', 'supplier:id,name'])
             ->latest('id')
             ->limit(300)
@@ -66,7 +78,9 @@ class WarehouseReverseLogisticsController extends Controller
             'notes' => ['nullable', 'string', 'max:1000'],
             'evidence' => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp,pdf', 'max:10240'],
         ]);
-        $quarantine = InventoryQuarantine::where('restaurant_id', $request->user()->restaurant_id)->findOrFail($id);
+        $quarantine = InventoryQuarantine::where('restaurant_id', $request->user()->restaurant_id)
+            ->when($request->user()->hasRole('warehouse_staff'), fn ($query) => $query->where('branch_id', $this->staffAccess->centralWarehouseFor($request->user())?->id ?: -1))
+            ->findOrFail($id);
         $evidencePaths = [];
         if ($request->hasFile('evidence')) {
             $evidencePaths[] = $request->file('evidence')->store('warehouse/returns/'.now()->format('Y/m'), 'local');
@@ -210,12 +224,14 @@ class WarehouseReverseLogisticsController extends Controller
     private function assertView(Request $request): void
     {
         $user = $request->user();
+        $this->staffAccess->assertCanAccessCentral($user);
         abort_unless($user->isOwner() || $user->isSuperAdmin() || $user->hasAnyRole(['warehouse_manager', 'warehouse_staff', 'manager']) || $user->can('warehouse.view'), 403);
     }
 
     private function assertOperate(Request $request): void
     {
         $user = $request->user();
+        $this->staffAccess->assertCanOperate($user);
         abort_unless($user->isOwner() || $user->isSuperAdmin() || $user->hasAnyRole(['warehouse_manager', 'warehouse_staff', 'manager']) || $user->can('warehouse.manage'), 403);
     }
 }

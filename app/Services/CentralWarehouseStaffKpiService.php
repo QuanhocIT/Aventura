@@ -2,7 +2,6 @@
 
 namespace App\Services;
 
-use App\Models\OperationalInfringementReport;
 use App\Models\User;
 use App\Models\WarehouseReceivingVoucher;
 use App\Models\WarehouseShiftHandover;
@@ -56,12 +55,13 @@ class CentralWarehouseStaffKpiService
 
         $totalVouchers = $vouchers->count();
         $discrepantVouchers = $vouchers->filter(function ($v) {
-            return $v->status === 'discrepancy' || $v->items->contains(fn ($i) => (float) $i->received_quantity !== (float) $i->expected_quantity);
+            return $v->status === 'discrepancy' || $v->items->contains(fn ($i) => abs((float) $i->actual_qty - (float) $i->expected_qty) > 0.001);
         })->count();
 
         // 4. Số lần báo sự cố / vi phạm bị ghi nhận
-        $incidentsCount = OperationalInfringementReport::where('restaurant_id', $restaurantId)
+        $incidentsCount = WarehouseTaskAssignment::where('restaurant_id', $restaurantId)
             ->where('assigned_to', $staffUserId)
+            ->where('task_type', 'incident')
             ->whereBetween('created_at', [$startDate, $endDate])
             ->count();
 
@@ -72,7 +72,7 @@ class CentralWarehouseStaffKpiService
             ->get();
 
         $totalHandovers = $handovers->count();
-        $verifiedHandovers = $handovers->where('status', 'completed')->count();
+        $verifiedHandovers = $handovers->whereIn('status', ['confirmed', 'completed'])->count();
 
         // Đánh giá dữ liệu phát sinh
         $hasTaskData = $totalTasks > 0;
@@ -134,10 +134,17 @@ class CentralWarehouseStaffKpiService
     public function getTeamKpiReport(int $restaurantId, ?int $warehouseBranchId = null, ?Carbon $startDate = null, ?Carbon $endDate = null): Collection
     {
         $query = User::where('restaurant_id', $restaurantId)
-            ->role('warehouse_staff');
+            ->role('warehouse_staff')
+            ->where(function ($scope) {
+                $scope->whereNull('warehouse_staff_status')
+                    ->orWhere('warehouse_staff_status', 'active');
+            });
 
         if ($warehouseBranchId) {
-            $query->where('warehouse_branch_id', $warehouseBranchId);
+            $query->where(function ($scope) use ($warehouseBranchId) {
+                $scope->where('warehouse_branch_id', $warehouseBranchId)
+                    ->orWhere('branch_id', $warehouseBranchId);
+            });
         }
 
         $staffMembers = $query->with(['supervisor:id,name', 'warehouseBranch:id,name'])->get();

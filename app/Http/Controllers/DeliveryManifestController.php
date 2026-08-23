@@ -11,12 +11,14 @@ use Inertia\Inertia;
 use Inertia\Response;
 use App\Models\SupplyRequest;
 use App\Services\CentralWarehouseService;
+use App\Services\WarehouseStaffAccessService;
 
 class DeliveryManifestController extends Controller
 {
     public function __construct(
         protected DeliveryManifestService $manifestService,
-        protected CentralWarehouseService $warehouseService
+        protected CentralWarehouseService $warehouseService,
+        protected WarehouseStaffAccessService $staffAccess,
     ) {}
 
     public function page(Request $request): Response
@@ -133,6 +135,7 @@ class DeliveryManifestController extends Controller
     public function complete(Request $request, int $id): JsonResponse
     {
         $user = $request->user();
+        abort_if($user->hasRole('warehouse_staff'), 403, 'Nhân viên Kho Tổng không xác nhận hoàn tất chuyến xe giao đến chi nhánh.');
         $request->validate(['notes' => 'nullable|string|max:1000']);
 
         $manifest = DeliveryManifest::where('restaurant_id', $user->restaurant_id)->findOrFail($id);
@@ -146,6 +149,7 @@ class DeliveryManifestController extends Controller
 
     private function authorizeWarehouseView($user): void
     {
+        $this->staffAccess->assertCanAccessCentral($user);
         abort_unless(
             $user->isOwner() || $user->isSuperAdmin() || $user->hasRole('warehouse_manager') || $user->hasRole('warehouse_staff') || $user->can('warehouse.view'),
             403,
@@ -173,6 +177,7 @@ class DeliveryManifestController extends Controller
 
     private function authorizeManifestDispatch($user): void
     {
+        $this->staffAccess->assertCanOperate($user);
         abort_unless(
             $user->isOwner() || $user->isSuperAdmin() || $user->hasRole('warehouse_manager') || $user->can('warehouse.manage') || $user->can('warehouse.handover'),
             403,

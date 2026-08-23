@@ -94,7 +94,7 @@ class WarehouseTaskAssignment extends Model
 
     public function scopePending($query)
     {
-        return $query->whereIn('status', ['assigned', 'in_progress']);
+        return $query->whereIn('status', ['pending', 'assigned', 'in_progress']);
     }
 
     // ── Helpers ──────────────────────────────────────────────────────────────

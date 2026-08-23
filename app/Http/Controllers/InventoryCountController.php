@@ -66,6 +66,10 @@ class InventoryCountController extends Controller
 
         $counterCandidates = User::where('restaurant_id', $restaurantId)
             ->where('status', 'active')
+            ->where(function ($query) {
+                $query->whereNull('warehouse_staff_status')
+                    ->orWhere('warehouse_staff_status', 'active');
+            })
             ->where(function ($query) use ($activeBranchId) {
                 if ($activeBranchId) {
                     $query->where('branch_id', $activeBranchId)
@@ -100,7 +104,7 @@ class InventoryCountController extends Controller
             'countSessions'  => $sessions,
             'counterCandidates' => $counterCandidates,
             'authUserId'     => $user->id,
-            'canStartCount'  => $user->can('inventory.count') || $user->hasRole('warehouse_manager') || $user->isOwner() || $user->isSuperAdmin(),
+            'canStartCount'  => $user->can('inventory.count') || $user->can('inventory.count.execute') || $user->hasRole('warehouse_manager') || $user->isOwner() || $user->isSuperAdmin(),
             'canApprove'     => $user->can('inventory.adjust.approve') || $user->hasRole('warehouse_manager') || $user->isOwner() || $user->isSuperAdmin(),
             'isCentralWarehouseScope' => $isCentralWarehouseScope,
             'scopeLabel' => $isCentralWarehouseScope
@@ -210,6 +214,10 @@ class InventoryCountController extends Controller
         try {
             $counter = User::where('restaurant_id', $user->restaurant_id)
                 ->where('status', 'active')
+                ->where(function ($query) {
+                    $query->whereNull('warehouse_staff_status')
+                        ->orWhere('warehouse_staff_status', 'active');
+                })
                 ->whereKey((int) $data['user_id'])
                 ->whereHas('roles', fn ($query) => $query->whereIn('name', ['warehouse_staff', 'warehouse_manager', 'manager']))
                 ->firstOrFail();
@@ -375,7 +383,7 @@ class InventoryCountController extends Controller
     {
         $user = $request->user();
         abort_unless(
-            $user->isOwner() || $user->isSuperAdmin() || $user->hasRole('warehouse_manager') || $user->can('inventory.count'),
+            $user->isOwner() || $user->isSuperAdmin() || $user->hasRole('warehouse_manager') || $user->can('inventory.count') || $user->can('inventory.count.execute'),
             403,
             'Bạn không có quyền tạo kiểm kê nhanh.'
         );

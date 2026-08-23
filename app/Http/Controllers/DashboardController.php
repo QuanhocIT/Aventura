@@ -61,6 +61,14 @@ class DashboardController extends Controller
             return redirect()->route('operations.audit');
         }
 
+        // Nhân viên Kho Tổng có cổng tác vụ riêng, tối ưu cho thao tác hằng ngày
+        // trên thiết bị di động. Trưởng kho/Owner vẫn vào cockpit điều phối.
+        if ($user
+            && $user->hasRole('warehouse_staff')
+            && ! $user->hasAnyRole(['warehouse_manager', 'owner', 'super_admin'])) {
+            return redirect()->route('inventory.staff-portal');
+        }
+
         if ($user && $user->hasAnyRole(['warehouse_manager', 'warehouse_staff'])) {
             return redirect()->route('inventory.central-warehouse');
         }

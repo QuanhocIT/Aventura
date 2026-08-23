@@ -650,9 +650,13 @@ class ScheduleAssignmentService
         $startOfWeek = $requestedAt->copy()->startOfWeek(Carbon::MONDAY)->startOfDay();
         $endOfWeek = $requestedAt->copy()->endOfWeek(Carbon::SUNDAY)->startOfDay();
 
+        // Các role quản lý / chủ doanh nghiệp không được xếp bằng "Thiết lập ca nhanh"
+        $excludedRolesForQuickSchedule = ['owner', 'manager', 'warehouse_manager'];
+
         $activeEmployees = Employee::where('restaurant_id', $restaurant->id)
             ->when(app(TenantContext::class)->isBranchScoped(), fn ($q) => $q->where('branch_id', app(TenantContext::class)->activeBranchId()))
             ->where('status', 'active')
+            ->whereDoesntHave('roles', fn ($q) => $q->whereIn('name', $excludedRolesForQuickSchedule))
             ->get();
 
         $activeShifts = WorkShift::where('restaurant_id', $restaurant->id)

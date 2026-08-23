@@ -38,6 +38,11 @@ class InventoryCountScopeService
             return false;
         }
 
+        if ($user->hasRole('warehouse_staff')
+            && ($user->status !== 'active' || ($user->warehouse_staff_status ?? 'active') !== 'active')) {
+            return false;
+        }
+
         if ($this->isCentralWarehouseAccount($user)) {
             $centralWarehouse = $this->centralWarehouseFor($user);
             $assignedBranchId = $user->warehouse_branch_id ?: $user->assignedBranchId();

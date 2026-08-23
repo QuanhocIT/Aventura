@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\SupplyRequest;
 use App\Models\WarehouseTaskAssignment;
 use App\Services\CentralWarehouseService;
+use App\Services\WarehouseStaffAccessService;
 use App\Services\WarehouseTaskService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -15,6 +16,7 @@ class WarehouseTaskController extends Controller
     public function __construct(
         protected WarehouseTaskService $taskService,
         protected CentralWarehouseService $warehouseService,
+        protected WarehouseStaffAccessService $staffAccess,
     ) {}
 
     /**
@@ -69,6 +71,9 @@ class WarehouseTaskController extends Controller
     public function updateWarehouseTaskStatus(Request $request, int $id): JsonResponse
     {
         $user = $request->user();
+        if ($user->hasRole('warehouse_staff')) {
+            $this->staffAccess->assertCanOperate($user);
+        }
         $task = WarehouseTaskAssignment::where('restaurant_id', $user->restaurant_id)->findOrFail($id);
 
         $isManager = $user->isOwner() || $user->isSuperAdmin() || $user->can('warehouse.manage');

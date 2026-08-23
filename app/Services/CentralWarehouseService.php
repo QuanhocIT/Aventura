@@ -1142,6 +1142,11 @@ class CentralWarehouseService
 
     private function assertActorCan(User $actor, array $roles, array $permissions, string $message): void
     {
+        if ($actor->hasRole('warehouse_staff')
+            && ($actor->status !== 'active' || ($actor->warehouse_staff_status ?? 'active') !== 'active')) {
+            throw new InvalidArgumentException('Tài khoản Nhân viên kho Tổng đang tạm dừng hoặc không còn hoạt động.');
+        }
+
         if ($actor->isSuperAdmin() || $actor->isOwner() || $actor->hasAnyRole($roles)) {
             return;
         }
@@ -1174,6 +1179,10 @@ class CentralWarehouseService
         }
 
         $central = $this->getCentralWarehouse($restaurantId);
+        if ($actor->hasRole('warehouse_staff')
+            && ($actor->status !== 'active' || ($actor->warehouse_staff_status ?? 'active') !== 'active')) {
+            throw new InvalidArgumentException('Tài khoản Nhân viên kho Tổng đang tạm dừng hoặc không còn hoạt động.');
+        }
         $assignedBranchId = $actor->warehouse_branch_id ?: $actor->assignedBranchId();
         if (! $central || ! $assignedBranchId || (int) $assignedBranchId !== (int) $central->id) {
             throw new InvalidArgumentException('Tài khoản chưa được gán đúng Kho Tổng hiện tại.');
