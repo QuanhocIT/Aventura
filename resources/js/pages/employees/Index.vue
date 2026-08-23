@@ -1598,6 +1598,7 @@ const submitSwapReject = () => {
                                     id="emp-name"
                                     v-model="employeeForm.name"
                                     placeholder="Ví dụ: Nguyễn Văn A"
+                                    @input="(e: Event) => { employeeForm.name = (e.target as HTMLInputElement).value.replace(/[^\p{L}\s]/gu, ''); }"
                                     required
                                 />
                             </div>
@@ -1626,6 +1627,8 @@ const submitSwapReject = () => {
                                     id="emp-phone"
                                     v-model="employeeForm.phone"
                                     placeholder="0900 000 000"
+                                    maxlength="15"
+                                    @input="(e: Event) => { employeeForm.phone = (e.target as HTMLInputElement).value.replace(/\D/g, ''); }"
                                     required
                                 />
                             </div>
@@ -2018,14 +2021,23 @@ const submitSwapReject = () => {
                                     >Họ và tên
                                     <span class="text-rose-500">*</span></Label
                                 >
-                                <Input v-model="editForm.full_name" required />
+                                <Input
+                                    v-model="editForm.full_name"
+                                    @input="(e: Event) => { editForm.full_name = (e.target as HTMLInputElement).value.replace(/[^\p{L}\s]/gu, ''); }"
+                                    required
+                                />
                             </div>
                             <div class="grid gap-1.5">
                                 <Label
                                     >Số điện thoại
                                     <span class="text-rose-500">*</span></Label
                                 >
-                                <Input v-model="editForm.phone" required />
+                                <Input
+                                    v-model="editForm.phone"
+                                    maxlength="15"
+                                    @input="(e: Event) => { editForm.phone = (e.target as HTMLInputElement).value.replace(/\D/g, ''); }"
+                                    required
+                                />
                             </div>
                         </div>
 

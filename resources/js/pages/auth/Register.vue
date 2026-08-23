@@ -315,6 +315,10 @@ const passwordStrength = computed(
                                 :tabindex="2"
                                 autocomplete="name"
                                 placeholder="Nguyễn Văn A"
+                                @input="(e: Event) => {
+                                    const target = e.target as HTMLInputElement;
+                                    target.value = target.value.replace(/[^\p{L}\s]/gu, '');
+                                }"
                                 class="rounded-xl border-zinc-200 shadow-sm transition-all duration-300 hover:border-zinc-300 focus-visible:border-primary focus-visible:ring-primary/20 dark:border-zinc-800 dark:hover:border-zinc-700"
                             />
                             <InputError :message="errors.name" />
@@ -354,6 +358,11 @@ const passwordStrength = computed(
                                     :tabindex="4"
                                     autocomplete="tel"
                                     placeholder="0900 000 000"
+                                    maxlength="15"
+                                    @input="(e: Event) => {
+                                        const target = e.target as HTMLInputElement;
+                                        target.value = target.value.replace(/\D/g, '');
+                                    }"
                                     class="rounded-xl border-zinc-200 shadow-sm transition-all duration-300 hover:border-zinc-300 focus-visible:border-primary focus-visible:ring-primary/20 dark:border-zinc-800 dark:hover:border-zinc-700"
                                 />
                                 <InputError :message="errors.phone" />
