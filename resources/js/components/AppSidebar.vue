@@ -128,6 +128,9 @@ const isOperationsInspector = computed(() =>
 const isWarehouseManager = computed(() => hasRole('warehouse_manager'));
 const isWarehouseStaff = computed(() => hasRole('warehouse_staff'));
 const isSupplier = computed(() => hasRole('supplier'));
+const supplierPortalEnabled = computed(
+    () => Boolean((page.props as any).supplier_portal_enabled),
+);
 const isShipper = computed(() => hasRole('shipper'));
 
 // Lấy danh sách permissions từ Inertia shared state
@@ -693,6 +696,12 @@ const ownerNav = computed<NavItem[]>(() => {
             permission: 'finance.view',
         },
         {
+            title: 'Giá trị nhập nguyên liệu',
+            href: '/finance/ingredient-spend',
+            icon: BadgeDollarSign,
+            permission: 'finance.view',
+        },
+        {
             title: 'Ngân sách tài chính',
             href: '/financial-budgets',
             icon: Calculator,
@@ -777,6 +786,7 @@ const ownerNav = computed<NavItem[]>(() => {
         '/expenses': 'finance',
         '/debts': 'finance',
         '/finance': 'finance',
+        '/finance/ingredient-spend': 'finance',
         '/financial-budgets': 'finance',
         '/bank-reconciliation': 'finance',
         '/fixed-assets': 'finance',
@@ -1429,7 +1439,7 @@ const mainNavItems = computed<NavItem[]>(() => {
 
     if (isSuperAdmin.value) {
         items = superAdminNav.value;
-    } else if (isSupplier.value) {
+    } else if (isSupplier.value && supplierPortalEnabled.value) {
         items = supplierNav;
     } else if (isOperationsInspector.value) {
         items = operationsInspectorNav;
@@ -1453,6 +1463,15 @@ const mainNavItems = computed<NavItem[]>(() => {
         items = [...kitchenNav.value];
     } else if (isInventory.value) {
         items = [...inventoryNav.value];
+    }
+
+    // Hide supplier-facing and supplier-entry navigation while the external
+    // portal is disabled. Internal supplier routes remain available for
+    // controlled/direct operational use.
+    if (!supplierPortalEnabled.value) {
+        items = items.filter(
+            (item) => item.href !== '/suppliers' && item.href !== '/rfps',
+        );
     }
 
     const showPortalLink =

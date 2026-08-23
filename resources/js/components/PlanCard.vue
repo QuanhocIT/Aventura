@@ -109,7 +109,7 @@ const defaultDescriptions: Record<string, string> = {
     starter: 'Đầy đủ vận hành: bếp, QR, chấm công, tồn kho.',
     pro: 'Nâng cao toàn diện: AI, nhân sự, báo cáo, chống gian lận.',
     enterprise:
-        'Giải pháp doanh nghiệp: nhà cung cấp, AI dự báo, API không giới hạn.',
+        'Giải pháp doanh nghiệp: AI dự báo, API không giới hạn.',
 };
 
 const description = computed(
@@ -156,7 +156,6 @@ const ALL_FEATURES = [
     { key: 'fraud_detection', label: 'Phát hiện Gian lận' },
     { key: 'email_reports', label: 'Email Báo cáo tự động' },
     { key: 'ai_advisor', label: 'AI Tư vấn chiến lược' },
-    { key: 'supplier_portal', label: 'Cổng Nhà cung cấp (Supplier)' },
     { key: 'ai_forecasting', label: 'AI Dự báo Tồn kho' },
     { key: 'api_access', label: 'Truy cập API' },
 ];

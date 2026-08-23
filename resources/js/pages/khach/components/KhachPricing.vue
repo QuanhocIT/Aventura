@@ -59,7 +59,6 @@ const staticPlans = [
             'Phát hiện Gian lận',
             'Email Báo cáo tự động',
             'AI Tư vấn chiến lược',
-            'Cổng Nhà cung cấp (Supplier)',
             'AI Dự báo Tồn kho',
             'Truy cập API',
         ],
@@ -92,7 +91,6 @@ const staticPlans = [
             'Phát hiện Gian lận',
             'Email Báo cáo tự động',
             'AI Tư vấn chiến lược',
-            'Cổng Nhà cung cấp (Supplier)',
             'AI Dự báo Tồn kho',
             'Truy cập API',
         ],
@@ -125,7 +123,6 @@ const staticPlans = [
             'AI Tư vấn chiến lược',
         ],
         unsupportedFeatures: [
-            'Cổng Nhà cung cấp (Supplier)',
             'AI Dự báo Tồn kho',
             'Truy cập API',
         ],
@@ -139,7 +136,7 @@ const staticPlans = [
         maxBranches: 'Không giới hạn chi nhánh',
         maxTables: 'Không giới hạn bàn',
         maxUsers: 'Không giới hạn nhân viên',
-        note: 'Giải pháp doanh nghiệp: nhà cung cấp, AI dự báo, API không giới hạn.',
+        note: 'Giải pháp doanh nghiệp: AI dự báo, API không giới hạn.',
         features: [
             'Không giới hạn chi nhánh',
             'Không giới hạn bàn',
@@ -156,7 +153,6 @@ const staticPlans = [
             'Phát hiện Gian lận',
             'Email Báo cáo tự động',
             'AI Tư vấn chiến lược',
-            'Cổng Nhà cung cấp (Supplier)',
             'AI Dự báo Tồn kho',
             'Truy cập API',
         ],
@@ -170,7 +166,7 @@ const planNotes: Record<string, string> = {
     starter: 'Đầy đủ vận hành: bếp, QR, chấm công, tồn kho.',
     pro: 'Nâng cao toàn diện: AI, nhân sự, báo cáo, chống gian lận.',
     enterprise:
-        'Giải pháp doanh nghiệp: nhà cung cấp, AI dự báo, API không giới hạn.',
+        'Giải pháp doanh nghiệp: AI dự báo, API không giới hạn.',
 };
 
 const ALL_FEATURES = [
@@ -184,7 +180,6 @@ const ALL_FEATURES = [
     { key: 'fraud_detection', label: 'Phát hiện Gian lận' },
     { key: 'email_reports', label: 'Email Báo cáo tự động' },
     { key: 'ai_advisor', label: 'AI Tư vấn chiến lược' },
-    { key: 'supplier_portal', label: 'Cổng Nhà cung cấp (Supplier)' },
     { key: 'ai_forecasting', label: 'AI Dự báo Tồn kho' },
     { key: 'api_access', label: 'Truy cập API' },
 ];

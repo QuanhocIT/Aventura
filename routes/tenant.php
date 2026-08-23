@@ -30,6 +30,7 @@ use App\Http\Controllers\EnterpriseCommandCenterController;
 use App\Http\Controllers\EquipmentController;
 use App\Http\Controllers\ExpenseController;
 use App\Http\Controllers\FinancialController;
+use App\Http\Controllers\IngredientSpendController;
 use App\Http\Controllers\BankReconciliationController;
 use App\Http\Controllers\FinancialBudgetController;
 use App\Http\Controllers\FixedAssetController;
@@ -508,6 +509,7 @@ Route::middleware(['auth', 'verified', 'tenant.subscription', 'tenant.ratelimit'
 
     // Financial journal, trial balance and accounting periods.
     Route::get('finance', [FinancialController::class, 'index'])->name('finance.index');
+    Route::get('finance/ingredient-spend', [IngredientSpendController::class, 'index'])->name('finance.ingredient-spend.index');
     Route::post('finance/accounts', [FinancialController::class, 'storeAccount'])->name('finance.accounts.store');
     Route::patch('finance/periods/{period}/close', [FinancialController::class, 'closePeriod'])->name('finance.periods.close');
     Route::post('finance/entries/{entry}/reverse', [FinancialController::class, 'reverseEntry'])->name('finance.entries.reverse');
@@ -608,6 +610,7 @@ Route::middleware(['auth', 'verified', 'tenant.subscription', 'tenant.ratelimit'
     // Cash Flow Management
     Route::get('cash-flow', [CashFlowController::class, 'index'])->name('cash-flow.index');
     Route::post('cash-flow/registers', [CashFlowController::class, 'openRegister'])->name('cash-flow.registers.open');
+    Route::post('cash-flow/registers/{register}/reconcile-opening', [CashFlowController::class, 'reconcileOpening'])->name('cash-flow.registers.reconcile-opening');
     Route::post('cash-flow/transactions', [CashFlowController::class, 'storeTransaction'])->name('cash-flow.transactions.store');
     Route::post('cash-flow/transactions/{transaction}/reversal', [CashFlowController::class, 'reversalTransaction'])->name('cash-flow.transactions.reversal');
     Route::get('cash-flow/forecast', [CashFlowController::class, 'getForecast'])->name('cash-flow.forecast');
@@ -809,13 +812,13 @@ Route::middleware(['auth', 'verified', 'tenant.subscription', 'tenant.ratelimit'
         ->middleware('role_or_permission:owner|super_admin|warehouse.manage|warehouse_manager')
         ->name('warehouse.reverse-logistics.returns.complete');
     Route::get('api/warehouse/reverse-logistics/claims', [WarehouseReverseLogisticsController::class, 'claims'])
-        ->middleware('role_or_permission:owner|super_admin|warehouse.view|warehouse_manager')
+        ->middleware('role_or_permission:owner|super_admin|warehouse.view|warehouse_manager|warehouse_staff|manager')
         ->name('warehouse.reverse-logistics.claims');
     Route::post('api/warehouse/reverse-logistics/claims', [WarehouseReverseLogisticsController::class, 'storeClaim'])
-        ->middleware('role_or_permission:owner|super_admin|warehouse.manage|warehouse_manager')
+        ->middleware('role_or_permission:owner|super_admin|warehouse.manage|warehouse_manager|warehouse_staff|manager')
         ->name('warehouse.reverse-logistics.claims.store');
     Route::post('api/warehouse/reverse-logistics/claims/{id}/resolve', [WarehouseReverseLogisticsController::class, 'resolveClaim'])
-        ->middleware('role_or_permission:owner|super_admin|warehouse.manage|warehouse_manager')
+        ->middleware('role_or_permission:owner|super_admin|warehouse.manage|warehouse_manager|manager')
         ->name('warehouse.reverse-logistics.claims.resolve');
 
     // Central Kitchen (Sơ chế & Sản xuất Trung tâm)
@@ -930,13 +933,15 @@ Route::middleware(['auth', 'verified', 'tenant.subscription', 'tenant.ratelimit'
     Route::post('api/operational-audit/inspection-plans/{id}/cancel', [OperationalAuditController::class, 'cancelInspectionPlan'])->middleware('role_or_permission:owner|super_admin|operational_audit.manage|operational_audit.report')->name('operational-audit.inspection-plans.cancel');
 
     // Quản lý Đấu thầu RFP (Dành cho nhà hàng)
-    Route::get('rfps', [RfpController::class, 'index'])->name('rfps.index');
-    Route::post('rfps', [RfpController::class, 'store'])->name('rfps.store');
-    Route::post('rfps/{rfp}/close', [RfpController::class, 'close'])->name('rfps.close');
-    Route::post('rfps/bids/{bid}/accept', [RfpController::class, 'acceptBid'])->name('rfps.bids.accept');
+    Route::middleware('supplier.portal')->group(function () {
+        Route::get('rfps', [RfpController::class, 'index'])->name('rfps.index');
+        Route::post('rfps', [RfpController::class, 'store'])->name('rfps.store');
+        Route::post('rfps/{rfp}/close', [RfpController::class, 'close'])->name('rfps.close');
+        Route::post('rfps/bids/{bid}/accept', [RfpController::class, 'acceptBid'])->name('rfps.bids.accept');
+    });
 
     // Portal Chuỗi cung ứng (Dành cho nhà cung cấp)
-    Route::prefix('supplier')->name('supplier.')->middleware('role:supplier')->group(function () {
+    Route::prefix('supplier')->name('supplier.')->middleware(['role:supplier', 'supplier.portal'])->group(function () {
         Route::get('dashboard', [SupplierPortalController::class, 'supplierDashboard'])->name('dashboard');
         Route::get('catalog', [SupplierPortalController::class, 'supplierCatalog'])->name('catalog');
         Route::post('catalog', [SupplierPortalController::class, 'storeCatalogItem'])->name('catalog.store');

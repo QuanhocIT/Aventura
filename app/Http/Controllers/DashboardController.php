@@ -19,6 +19,7 @@ use App\Services\QuotaService;
 use App\Support\Tenant\TenantContext;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
 use Inertia\Inertia;
 
@@ -54,6 +55,16 @@ class DashboardController extends Controller
         }
 
         if ($user && $user->hasRole('supplier')) {
+            if (! (bool) config('portal.supplier_portal_enabled', false)) {
+                Auth::logout();
+                $request->session()->invalidate();
+                $request->session()->regenerateToken();
+
+                return redirect('/login')->withErrors([
+                    'email' => 'Cổng Nhà cung cấp hiện đã được tắt. Vui lòng liên hệ quản lý nhà hàng.',
+                ]);
+            }
+
             return redirect()->route('supplier.dashboard');
         }
 

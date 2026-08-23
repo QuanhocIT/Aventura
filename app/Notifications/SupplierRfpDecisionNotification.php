@@ -19,7 +19,9 @@ class SupplierRfpDecisionNotification extends Notification
 
     public function via(object $notifiable): array
     {
-        return ['database'];
+        return (bool) config('portal.supplier_portal_enabled', false)
+            ? ['database']
+            : [];
     }
 
     public function toArray(object $notifiable): array

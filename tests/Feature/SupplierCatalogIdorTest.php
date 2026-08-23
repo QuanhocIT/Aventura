@@ -15,6 +15,15 @@ class SupplierCatalogIdorTest extends TestCase
 {
     use RefreshDatabase;
 
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        // Keep the IDOR regression tests focused on supplier authorization;
+        // portal availability itself is covered by the disabled-portal tests.
+        config(['portal.supplier_portal_enabled' => true]);
+    }
+
     public function test_supplier_cannot_update_another_suppliers_ingredient(): void
     {
         Role::firstOrCreate(['name' => 'supplier', 'guard_name' => 'web']);

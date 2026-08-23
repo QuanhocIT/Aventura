@@ -484,6 +484,7 @@ class ShiftClosingController extends Controller
             $closingDate,
             $branchId,
             now(),
+            is_numeric($data['area_id'] ?? null) ? (int) $data['area_id'] : null,
         );
         $expectedCash = (float) $calculated['expected_cash'];
 
@@ -668,11 +669,25 @@ class ShiftClosingController extends Controller
         $areaFilter = $data['area_id'] ?? null;
         $areaName = $this->areaSelectionName($restaurantId, $branchId, $areaFilter);
         $isAreaScoped = $this->isAreaScoped($areaFilter);
+        $areaId = $isAreaScoped ? (int) $areaFilter : null;
         $isLastShift = $this->checkIsLastShift($restaurantId, $data['shift_id'], $branchId);
         $autoPayEnabled = $this->isAutoPayEnabled($restaurantId, $branchId);
 
+        $openRegistersForShift = CashRegister::where('restaurant_id', $restaurantId)
+            ->where('branch_id', $branchId)
+            ->where('shift_id', $data['shift_id'])
+            ->where('status', 'open')
+            ->when($isAreaScoped, fn ($query) => $query->where('area_id', $areaId))
+            ->get();
+
+        if (! $isAreaScoped && $openRegistersForShift->count() > 1) {
+            return back()->withErrors([
+                'area_id' => 'Chi nhánh có nhiều két theo khu vực. Vui lòng chọn khu vực để chốt đúng két.',
+            ]);
+        }
+
         try {
-            DB::transaction(function () use ($restaurantId, $branchId, $data, $user, $isLastShift, $autoPayEnabled, $status, $closingAt, $areaFilter, $areaName, $isAreaScoped, &$notes) {
+            DB::transaction(function () use ($restaurantId, $branchId, $data, $user, $isLastShift, $autoPayEnabled, $status, $closingAt, $areaFilter, $areaName, $isAreaScoped, $areaId, &$notes) {
                 // Kiểm tra lại trong transaction với lock để tránh race condition
                 $existsInLock = ShiftClosing::withoutGlobalScopes()
                     ->where('restaurant_id', $restaurantId)
@@ -719,6 +734,7 @@ class ShiftClosingController extends Controller
                     $data['closing_date'],
                     $branchId,
                     $closingAt,
+                    $areaId,
                 );
                 $areasBreakdown = $this->getAreaBreakdownForShift(
                     $restaurantId,
@@ -731,9 +747,18 @@ class ShiftClosingController extends Controller
                     $areasBreakdown = $this->filterBreakdownForArea($areasBreakdown, $areaFilter);
                 }
                 $summary = $this->summarizeBreakdown($areasBreakdown, $areaName);
-                $expectedCashForSlip = $isAreaScoped
-                    ? $summary['cash_sales_amount']
-                    : $calculated['expected_cash'];
+                $expectedCashForSlip = $calculated['expected_cash'];
+
+                if ($status === 'submitted' && $calculated['register_id']) {
+                    $registerForClose = CashRegister::where('restaurant_id', $restaurantId)
+                        ->whereKey($calculated['register_id'])
+                        ->first();
+                    if ($registerForClose?->requires_opening_reconciliation) {
+                        throw ValidationException::withMessages([
+                            'area_id' => 'Két được tự mở vì nhân viên quên mở ca. Quản lý phải đối soát số dư đầu ca trước khi chốt.',
+                        ]);
+                    }
+                }
                 $transferAmountForSlip = $isAreaScoped
                     ? $summary['transfer_amount']
                     : $calculated['transfer_amount'];
@@ -823,13 +848,14 @@ class ShiftClosingController extends Controller
                 // Gắn phiếu đếm vào phiếu chốt để nó không bị dùng lại cho ca sau.
                 $cashCount?->update(['shift_closing_id' => $closing->id]);
 
-                if ($calculated['register_id'] && $status === 'submitted' && ! $isAreaScoped) {
+                if ($calculated['register_id'] && $status === 'submitted') {
                     $register = CashRegister::where('restaurant_id', $restaurantId)
                         ->where('branch_id', $branchId)
                         ->find($calculated['register_id']);
                     if ($register) {
                         $register->update([
                             'status' => 'closed',
+                            'open_scope_key' => null,
                             'closed_by' => $user->id,
                             'closed_at' => now(),
                             'closing_balance' => $data['actual_cash'],
@@ -964,7 +990,7 @@ class ShiftClosingController extends Controller
 
     // ── Private helpers ───────────────────────────────────────────────────────
 
-    private function calculateShiftRevenue(int $restaurantId, int $shiftId, string $date, ?int $branchId = null, ?CarbonInterface $closingAt = null): array
+    private function calculateShiftRevenue(int $restaurantId, int $shiftId, string $date, ?int $branchId = null, ?CarbonInterface $closingAt = null, ?int $areaId = null): array
     {
         $shift = WorkShift::withoutGlobalScopes()
             ->where('restaurant_id', $restaurantId)
@@ -979,6 +1005,7 @@ class ShiftClosingController extends Controller
         $orderIds = Order::withoutGlobalScopes()
             ->where('restaurant_id', $restaurantId)
             ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
+            ->when($areaId !== null, fn ($q) => $q->whereHas('table', fn ($tableQuery) => $tableQuery->where('area_id', $areaId)))
             ->where('status', 'completed')
             ->whereBetween('completed_at', [$startDt, $endDt])
             ->pluck('id');
@@ -1007,11 +1034,12 @@ class ShiftClosingController extends Controller
         $register = CashRegister::where('restaurant_id', $restaurantId)
             ->where('branch_id', $branchId)
             ->where('shift_id', $shiftId)
+            ->when($areaId !== null, fn ($q) => $q->where('area_id', $areaId))
             ->where('status', 'open')
-            ->where(function ($q) {
-                $q->where('cashier_user_id', Auth::id())
+            ->when($areaId === null, fn ($q) => $q->where(function ($scope) {
+                $scope->where('cashier_user_id', Auth::id())
                     ->orWhere('opened_by', Auth::id());
-            })
+            }))
             ->first();
 
         $openingBalance = 0.0;

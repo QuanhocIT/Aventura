@@ -98,6 +98,19 @@ class FortifyServiceProvider extends ServiceProvider
                 ]);
             }
 
+            // Supplier accounts are retained for historical data and internal
+            // supplier records, but cannot authenticate while the external
+            // supplier portal is disabled.
+            $activeUsers = $activeUsers
+                ->reject(fn (User $user) => $this->isDisabledSupplier($user))
+                ->values();
+
+            if ($activeUsers->isEmpty()) {
+                throw ValidationException::withMessages([
+                    'email' => ['Cổng Nhà cung cấp hiện đã được tắt. Vui lòng liên hệ quản lý nhà hàng.'],
+                ]);
+            }
+
             // Nếu chỉ có đúng 1 tài khoản hoạt động, áp dụng kiểm tra ca làm việc ngay lập tức
             if ($activeUsers->count() === 1) {
                 $user = $activeUsers->first();
@@ -122,6 +135,12 @@ class FortifyServiceProvider extends ServiceProvider
 
             return $user;
         });
+    }
+
+    private function isDisabledSupplier(User $user): bool
+    {
+        return ! (bool) config('portal.supplier_portal_enabled', false)
+            && $user->hasRole('supplier');
     }
 
     private function configureActions(): void

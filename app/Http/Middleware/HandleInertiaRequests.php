@@ -158,6 +158,7 @@ class HandleInertiaRequests extends Middleware
                 'shift_lock_exempt' => $user?->isExemptFromShiftLock() ?? false,
             ],
             'roles' => $roles,
+            'supplier_portal_enabled' => (bool) config('portal.supplier_portal_enabled', false),
             'tenant' => $tenant,
             'available_plans' => $availablePlans,
             'pendingApprovalCount' => Inertia::defer(fn () => $this->pendingApprovalCount($user)),

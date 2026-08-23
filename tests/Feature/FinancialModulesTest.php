@@ -10,10 +10,13 @@ use App\Models\FinancialBudget;
 use App\Models\FinancialBudgetLine;
 use App\Models\FinancialJournalEntry;
 use App\Models\FixedAsset;
+use App\Models\Ingredient;
+use App\Models\InventoryTransaction;
 use App\Models\OperatingExpense;
 use App\Models\Employee;
 use App\Models\Salary;
 use App\Models\Restaurant;
+use App\Models\Unit;
 use App\Models\User;
 use App\Services\FinancialBudgetService;
 use App\Services\FinancialPostingService;
@@ -158,6 +161,48 @@ class FinancialModulesTest extends TestCase
         $this->assertEquals(125000, $serialized['lines'][0]['variance_amount']);
     }
 
+    public function test_financial_budget_supports_demo_material_account_alias_and_explains_its_actual_basis(): void
+    {
+        $restaurant = Restaurant::factory()->create();
+        $unit = Unit::factory()->create(['restaurant_id' => $restaurant->id]);
+        $ingredient = Ingredient::factory()->create([
+            'restaurant_id' => $restaurant->id,
+            'branch_id' => null,
+            'unit_id' => $unit->id,
+        ]);
+        InventoryTransaction::create([
+            'restaurant_id' => $restaurant->id,
+            'ingredient_id' => $ingredient->id,
+            'type' => 'usage',
+            'direction' => 'out',
+            'quantity' => 2,
+            'unit_cost' => 225000,
+            'total_cost' => 450000,
+            'occurred_at' => today()->startOfMonth()->addDays(3)->setTime(10, 0),
+        ]);
+        $budget = FinancialBudget::create([
+            'restaurant_id' => $restaurant->id,
+            'name' => 'Ngân sách nguyên liệu tháng này',
+            'period_start' => today()->startOfMonth()->toDateString(),
+            'period_end' => today()->endOfMonth()->toDateString(),
+            'status' => 'approved',
+            'total_amount' => 500000,
+        ]);
+        FinancialBudgetLine::create([
+            'restaurant_id' => $restaurant->id,
+            'financial_budget_id' => $budget->id,
+            'period_month' => today()->startOfMonth()->toDateString(),
+            'account_code' => '6321',
+            'budget_amount' => 500000,
+        ]);
+
+        $serialized = app(FinancialBudgetService::class)->serialize($budget);
+
+        $this->assertEquals(450000, $serialized['lines'][0]['actual_amount']);
+        $this->assertSame('Chi phí nguyên liệu trực tiếp', $serialized['lines'][0]['account_name']);
+        $this->assertStringContainsString('không phải tiền mua nhập kho', $serialized['lines'][0]['actual_basis']);
+    }
+
     public function test_fixed_asset_depreciation_is_idempotent_and_posts_the_correct_entry(): void
     {
         $restaurant = Restaurant::factory()->create();
@@ -271,7 +316,9 @@ class FinancialModulesTest extends TestCase
         ]);
 
         $this->actingAs($owner)
-            ->post(route('cash-flow.transactions.reversal', $original), [])
+            ->post(route('cash-flow.transactions.reversal', $original), [
+                'reason' => 'Ghi nhầm khoản chi kiểm thử và cần hoàn tác.',
+            ])
             ->assertRedirect();
 
         $reversal = CashTransaction::withoutGlobalScopes()

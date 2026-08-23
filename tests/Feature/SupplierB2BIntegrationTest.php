@@ -44,6 +44,10 @@ class SupplierB2BIntegrationTest extends TestCase
     {
         parent::setUp();
 
+        // Portal behavior is opt-in; these tests cover the retained portal
+        // implementation without changing the product default.
+        config(['portal.supplier_portal_enabled' => true]);
+
         Storage::fake('public');
 
         // Create roles

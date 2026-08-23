@@ -5,6 +5,9 @@ import { computed } from 'vue';
 
 const page = usePage();
 const currentUrl = computed(() => page.url);
+const supplierPortalEnabled = computed(
+    () => Boolean((page.props as any).supplier_portal_enabled),
+);
 
 const emit = defineEmits(['open-po-modal', 'toggle-chatbot']);
 </script>
@@ -27,6 +30,7 @@ const emit = defineEmits(['open-po-modal', 'toggle-chatbot']);
         </Link>
 
         <Link
+            v-if="supplierPortalEnabled"
             href="/suppliers"
             class="flex flex-col items-center gap-1 rounded-xl px-3 py-1 text-[10px] font-bold transition-all"
             :class="

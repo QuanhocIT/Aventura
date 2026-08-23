@@ -1228,11 +1228,11 @@ onUnmounted(() => {
                 </div>
                 <div>
                     <h1 class="text-xl font-bold tracking-tight">
-                        Portal Chuỗi cung ứng & Nhà cung cấp
+                        Quản lý nhà cung cấp nội bộ
                     </h1>
                     <p class="text-sm text-muted-foreground">
-                        Quản lý danh sách đối tác cung ứng, đặt hàng hàng ngày,
-                        đối soát chéo 3 bên triệt tiêu gian lận.
+                        Quản lý danh mục nhà cung cấp, đơn nhập kho và công nợ
+                        nội bộ của nhà hàng.
                     </p>
                 </div>
             </div>

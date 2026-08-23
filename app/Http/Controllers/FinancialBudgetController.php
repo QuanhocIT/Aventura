@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\FinancialBudget;
+use App\Models\FinancialAccount;
 use App\Models\RestaurantBranch;
 use App\Services\FinancialBudgetService;
 use App\Support\TenantRule;
@@ -11,6 +12,8 @@ use Carbon\CarbonImmutable;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -32,6 +35,7 @@ class FinancialBudgetController extends Controller
         return Inertia::render('financial-budgets/Index', [
             'budgets' => $budgets,
             'branches' => RestaurantBranch::where('restaurant_id', $user->restaurant_id)->where('status', 'active')->orderBy('name')->get(['id', 'name']),
+            'budgetAccounts' => $this->budgetAccountsForRestaurant((int) $user->restaurant_id),
             'canApprove' => $user->isOwner() || $user->isSuperAdmin(),
         ]);
     }
@@ -47,10 +51,20 @@ class FinancialBudgetController extends Controller
             'notes' => ['nullable', 'string', 'max:1000'],
             'lines' => ['required', 'array', 'min:1'],
             'lines.*.period_month' => ['required', 'date_format:Y-m'],
-            'lines.*.account_code' => ['required', 'string', 'max:30'],
+            'lines.*.account_code' => ['required', 'string', Rule::in(array_column($this->budgetAccountsForRestaurant((int) $request->user()->restaurant_id), 'code'))],
             'lines.*.category_id' => ['nullable', TenantRule::exists('expense_categories')],
             'lines.*.budget_amount' => ['required', 'numeric', 'min:0'],
         ]);
+
+        $startMonth = CarbonImmutable::parse($data['period_start'])->format('Y-m');
+        $endMonth = CarbonImmutable::parse($data['period_end'])->format('Y-m');
+        foreach ($data['lines'] as $index => $line) {
+            if ($line['period_month'] < $startMonth || $line['period_month'] > $endMonth) {
+                throw ValidationException::withMessages([
+                    "lines.{$index}.period_month" => 'Tháng của khoản mục phải nằm trong kỳ ngân sách đã chọn.',
+                ]);
+            }
+        }
 
         DB::transaction(function () use ($request, $data): void {
             $total = collect($data['lines'])->sum(fn ($line) => (float) $line['budget_amount']);
@@ -98,5 +112,29 @@ class FinancialBudgetController extends Controller
     private function authorizeManage(Request $request): void
     {
         abort_unless($request->user()->isOwner() || $request->user()->isSuperAdmin() || $request->user()->hasRole('accountant'), 403);
+    }
+
+    /**
+     * Keep the standard aliases used by existing budgets, then add tenant
+     * expense accounts so a custom chart of accounts remains supported.
+     *
+     * @return array<int, array{code: string, name: string, actual_basis: string}>
+     */
+    private function budgetAccountsForRestaurant(int $restaurantId): array
+    {
+        $standard = collect($this->budgetService->budgetAccountOptions())->keyBy('code');
+        $custom = FinancialAccount::withoutGlobalScopes()
+            ->where('restaurant_id', $restaurantId)
+            ->where('type', 'expense')
+            ->get(['code', 'name'])
+            ->mapWithKeys(fn (FinancialAccount $account): array => [
+                $account->code => [
+                    'code' => $account->code,
+                    'name' => $account->name,
+                    'actual_basis' => 'Phiếu chi phí đã duyệt hoặc đã trả trong tháng.',
+                ],
+            ]);
+
+        return $standard->union($custom)->values()->all();
     }
 }
