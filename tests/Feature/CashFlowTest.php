@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\Area;
 use App\Models\CashRegister;
 use App\Models\CashTransaction;
 use App\Models\Employee;
@@ -168,6 +169,7 @@ class CashFlowTest extends TestCase
         $response = $this->post(route('cash-flow.transactions.store'), [
             'type' => 'out',
             'amount' => 75000,
+            'voucher_code' => 'HD-TEST-001',
             'notes' => 'Chi tiền mua xà phòng',
             'source' => 'expense',
         ]);
@@ -542,5 +544,217 @@ class CashFlowTest extends TestCase
         $chartData2 = $response2->original->getData()['page']['props']['chartData'];
         $todayEntry2 = collect($chartData2)->last();
         $this->assertEquals(500000, $todayEntry2['in'], 'Trang phải đọc rollup đã materialize, không quét lại cash_transactions mỗi request.');
+
+        // Integrity constraints are covered by dedicated endpoint tests below.
+    }
+
+    public function test_only_one_register_can_be_open_in_a_branch(): void
+    {
+        CashRegister::create([
+            'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
+            'shift_id' => $this->shift->id,
+            'closing_date' => today(),
+            'opened_by' => $this->cashier->id,
+            'cashier_user_id' => $this->cashier->id,
+            'opening_balance' => 500000,
+            'status' => 'open',
+            'opened_at' => now(),
+        ]);
+
+        $anotherCashier = User::factory()->create([
+            'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
+        ]);
+        $anotherCashier->assignRole($this->cashierRole);
+
+        $response = $this->actingAs($anotherCashier)->post(route('cash-flow.registers.open'), [
+            'shift_id' => $this->shift->id,
+            'opening_balance' => 100000,
+        ]);
+
+        $response->assertSessionHasErrors('shift_id');
+        $this->assertDatabaseCount('cash_registers', 1);
+    }
+
+    public function test_branch_can_open_independent_registers_per_cashier_area(): void
+    {
+        $frontArea = Area::factory()->create([
+            'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
+            'name' => 'Sảnh trước',
+            'code' => 'FRONT',
+        ]);
+        $terraceArea = Area::factory()->create([
+            'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
+            'name' => 'Sân vườn',
+            'code' => 'GARDEN',
+        ]);
+
+        $secondCashier = User::factory()->create([
+            'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
+        ]);
+        $secondCashier->assignRole($this->cashierRole);
+
+        $this->actingAs($this->cashier)->post(route('cash-flow.registers.open'), [
+            'shift_id' => $this->shift->id,
+            'area_id' => $frontArea->id,
+            'opening_balance' => 300000,
+        ])->assertRedirect();
+
+        $this->actingAs($secondCashier)->post(route('cash-flow.registers.open'), [
+            'shift_id' => $this->shift->id,
+            'area_id' => $terraceArea->id,
+            'opening_balance' => 200000,
+        ])->assertRedirect();
+
+        $this->assertDatabaseCount('cash_registers', 2);
+        $this->assertDatabaseHas('cash_registers', [
+            'branch_id' => $this->branch->id,
+            'area_id' => $frontArea->id,
+            'status' => 'open',
+        ]);
+        $this->assertDatabaseHas('cash_registers', [
+            'branch_id' => $this->branch->id,
+            'area_id' => $terraceArea->id,
+            'status' => 'open',
+        ]);
+    }
+
+    public function test_cash_payment_without_opening_creates_a_reconciliation_exception(): void
+    {
+        $order = Order::factory()->create([
+            'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
+            'table_id' => null,
+            'created_by' => $this->cashier->id,
+            'total_amount' => 150000,
+            'payment_status' => 'unpaid',
+        ]);
+
+        Payment::create([
+            'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
+            'order_id' => $order->id,
+            'processed_by' => $this->cashier->id,
+            'payment_method' => 'cash',
+            'status' => 'paid',
+            'amount' => 150000,
+            'cash_received' => 150000,
+            'change_amount' => 0,
+            'paid_at' => now(),
+        ]);
+
+        $register = CashRegister::where('restaurant_id', $this->restaurant->id)->firstOrFail();
+        $this->assertTrue((bool) $register->auto_opened);
+        $this->assertTrue((bool) $register->requires_opening_reconciliation);
+        $this->assertEquals(0, (float) $register->opening_balance);
+        $this->assertDatabaseHas('cash_transactions', [
+            'cash_register_id' => $register->id,
+            'amount' => 150000,
+            'source' => 'order',
+        ]);
+
+        $blockedExpense = $this->actingAs($this->cashier)->post(route('cash-flow.transactions.store'), [
+            'type' => 'out',
+            'amount' => 10000,
+            'notes' => 'Mua vật tư vệ sinh',
+            'source' => 'expense',
+            'voucher_code' => 'HD-AUTO-001',
+        ]);
+        $blockedExpense->assertSessionHasErrors('amount');
+
+        $this->actingAs($this->owner)->post(
+            route('cash-flow.registers.reconcile-opening', $register),
+            [
+                'opening_balance' => 500000,
+                'notes' => 'Quản lý đã kiểm đếm cùng thu ngân.',
+            ],
+        )->assertRedirect();
+
+        $register->refresh();
+        $this->assertFalse((bool) $register->requires_opening_reconciliation);
+        $this->assertEquals(650000, (float) $register->expected_closing_balance);
+    }
+
+    public function test_manual_expense_requires_a_unique_voucher_code(): void
+    {
+        CashRegister::create([
+            'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
+            'shift_id' => $this->shift->id,
+            'closing_date' => today(),
+            'opened_by' => $this->cashier->id,
+            'opening_balance' => 500000,
+            'status' => 'open',
+            'opened_at' => now(),
+        ]);
+
+        $response = $this->actingAs($this->cashier)->post(route('cash-flow.transactions.store'), [
+            'type' => 'out',
+            'amount' => 75000,
+            'notes' => 'Chi mua vật tư vệ sinh',
+            'source' => 'expense',
+        ]);
+
+        $response->assertSessionHasErrors('voucher_code');
+        $this->assertDatabaseCount('cash_transactions', 0);
+    }
+
+    public function test_manual_expense_cannot_make_the_register_balance_negative(): void
+    {
+        CashRegister::create([
+            'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
+            'shift_id' => $this->shift->id,
+            'closing_date' => today(),
+            'opened_by' => $this->cashier->id,
+            'opening_balance' => 50000,
+            'status' => 'open',
+            'opened_at' => now(),
+        ]);
+
+        $response = $this->actingAs($this->cashier)->post(route('cash-flow.transactions.store'), [
+            'type' => 'out',
+            'amount' => 75000,
+            'notes' => 'Chi mua vật tư vệ sinh',
+            'source' => 'expense',
+            'voucher_code' => 'HD-NEGATIVE-001',
+        ]);
+
+        $response->assertSessionHasErrors('amount');
+        $this->assertDatabaseCount('cash_transactions', 0);
+    }
+
+    public function test_repeating_a_cash_request_is_idempotent(): void
+    {
+        CashRegister::create([
+            'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
+            'shift_id' => $this->shift->id,
+            'closing_date' => today(),
+            'opened_by' => $this->cashier->id,
+            'opening_balance' => 500000,
+            'status' => 'open',
+            'opened_at' => now(),
+        ]);
+
+        $payload = [
+            'type' => 'out',
+            'amount' => 75000,
+            'notes' => 'Chi mua vật tư vệ sinh',
+            'source' => 'expense',
+            'voucher_code' => 'HD-IDEMPOTENT-001',
+            'idempotency_key' => 'cash-request-test-001',
+        ];
+
+        $this->actingAs($this->cashier)->post(route('cash-flow.transactions.store'), $payload)
+            ->assertRedirect();
+        $this->actingAs($this->cashier)->post(route('cash-flow.transactions.store'), $payload)
+            ->assertRedirect();
+
+        $this->assertDatabaseCount('cash_transactions', 1);
     }
 }

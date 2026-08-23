@@ -2,9 +2,11 @@
 
 namespace App\Services;
 
+use App\Models\AuditLog;
 use App\Models\CashRegister;
 use App\Models\CashTransaction;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 
 /**
  * Records a cash movement and its matching double-entry posting atomically.
@@ -20,33 +22,128 @@ class CashPostingService
         $idempotencyKey = $data['idempotency_key'] ?? null;
 
         return DB::transaction(function () use ($data, $restaurantId, $amount, $idempotencyKey): ?CashTransaction {
-            if ($idempotencyKey) {
-                $existing = CashTransaction::withoutGlobalScopes()
-                    ->where('restaurant_id', $restaurantId)
-                    ->where('idempotency_key', $idempotencyKey)
-                    ->first();
-
-                if ($existing) {
-                    return $existing;
-                }
-            }
-
             $register = null;
             if (! empty($data['cash_register_id'])) {
                 $register = CashRegister::withoutGlobalScopes()
                     ->where('restaurant_id', $restaurantId)
                     ->whereKey($data['cash_register_id'])
+                    ->when(isset($data['branch_id']), fn ($query) => $query->where('branch_id', $data['branch_id']))
+                    ->when(array_key_exists('area_id', $data), fn ($query) => is_null($data['area_id'])
+                        ? $query->whereNull('area_id')
+                        : $query->where('area_id', $data['area_id']))
                     ->where('status', 'open')
                     ->lockForUpdate()
                     ->first();
             } else {
-                $register = CashRegister::withoutGlobalScopes()
+                $registerCandidates = CashRegister::withoutGlobalScopes()
                     ->where('restaurant_id', $restaurantId)
                     ->when(isset($data['branch_id']), fn ($query) => $query->where('branch_id', $data['branch_id']))
+                    ->when(array_key_exists('area_id', $data), fn ($query) => is_null($data['area_id'])
+                        ? $query->whereNull('area_id')
+                        : $query->where('area_id', $data['area_id']))
                     ->where('status', 'open')
-                    ->latest('id')
                     ->lockForUpdate()
-                    ->first();
+                    ->get();
+
+                if (! array_key_exists('area_id', $data) && $registerCandidates->count() > 1) {
+                    throw ValidationException::withMessages([
+                        'cash_register_id' => 'Chi nhánh có nhiều két đang mở. Vui lòng chỉ rõ khu vực/két nhận giao dịch.',
+                    ]);
+                }
+
+                $register = $registerCandidates->sortByDesc('id')->first();
+            }
+
+            // Khóa két trước khi kiểm tra idempotency để hai request đồng thời
+            // cùng một mã không thể tạo hai dòng tiền.
+            if ($idempotencyKey) {
+                $existingQuery = CashTransaction::withoutGlobalScopes()
+                    ->where('restaurant_id', $restaurantId)
+                    ->where('idempotency_key', $idempotencyKey);
+
+                if ($register) {
+                    $existingQuery->lockForUpdate();
+                }
+
+                $existing = $existingQuery->first();
+                if ($existing) {
+                    return $this->assertIdempotentReplay($existing, $data, $amount);
+                }
+            }
+
+            if (! $register && ($data['auto_open_if_missing'] ?? false)) {
+                $areaId = array_key_exists('area_id', $data) ? $data['area_id'] : null;
+                $register = CashRegister::withoutGlobalScopes()->create([
+                    'restaurant_id' => $restaurantId,
+                    'branch_id' => $data['branch_id'] ?? null,
+                    'area_id' => $areaId,
+                    'shift_id' => $data['shift_id'] ?? null,
+                    'closing_date' => $data['closing_date'] ?? today(),
+                    'opened_by' => $data['created_by'] ?? null,
+                    'cashier_user_id' => $data['cashier_user_id'] ?? $data['created_by'] ?? null,
+                    'opening_balance' => 0,
+                    'expected_closing_balance' => 0,
+                    'expense_budget' => 0,
+                    'open_scope_key' => $this->openScopeKey(
+                        $restaurantId,
+                        (int) ($data['branch_id'] ?? 0),
+                        $areaId,
+                    ),
+                    'auto_opened' => true,
+                    'requires_opening_reconciliation' => true,
+                    'status' => 'open',
+                    'opened_at' => $data['occurred_at'] ?? now(),
+                    'notes' => 'Tự động mở do phát sinh thanh toán tiền mặt khi nhân viên chưa mở ca. Chờ quản lý đối soát số dư đầu ca.',
+                ]);
+
+                AuditLog::log('cash_register_auto_opened', 'created', $register, null, [
+                    'branch_id' => $register->branch_id,
+                    'area_id' => $register->area_id,
+                    'reason' => 'cash_payment_without_open_register',
+                    'created_by' => $data['created_by'] ?? null,
+                ]);
+            }
+
+            if ($register?->requires_opening_reconciliation && ($data['type'] ?? null) === 'out') {
+                throw ValidationException::withMessages([
+                    'amount' => 'Két đang chờ quản lý đối soát số dư đầu ca; chưa được phép ghi nhận khoản chi tiền mặt.',
+                ]);
+            }
+
+            if ($register && ($data['enforce_cash_balance'] ?? false)) {
+                $currentCash = $this->calculateRegisterCash($register->id, (float) $register->opening_balance);
+
+                if (($data['type'] ?? null) === 'out' && $currentCash + 0.01 < $amount) {
+                    throw ValidationException::withMessages([
+                        'amount' => sprintf(
+                            'Không thể chi %sđ: số dư két khả dụng chỉ còn %sđ.',
+                            number_format($amount),
+                            number_format(max(0, $currentCash)),
+                        ),
+                    ]);
+                }
+
+                $budget = (float) ($data['budget_limit'] ?? 0);
+                if (($data['type'] ?? null) === 'out' && $budget > 0) {
+                    $existingOut = (float) CashTransaction::withoutGlobalScopes()
+                        ->where('cash_register_id', $register->id)
+                        ->where('type', 'out')
+                        ->sum('amount');
+
+                    if ($existingOut + $amount > $budget && ! ($data['allow_budget_overrun'] ?? false)) {
+                        throw ValidationException::withMessages([
+                            'amount' => sprintf(
+                                'Khoản chi vượt ngân sách ca: đã chi %sđ / tối đa %sđ.',
+                                number_format($existingOut),
+                                number_format($budget),
+                            ),
+                        ]);
+                    }
+                }
+
+                if ($register->expected_closing_balance === null) {
+                    $register->update(['expected_closing_balance' => $currentCash]);
+                }
             }
 
             $journal = $this->financialPosting->post([
@@ -62,6 +159,8 @@ class CashPostingService
                 'metadata' => [
                     'cash_register_id' => $register?->id,
                     'cash_register_missing' => $register === null,
+                    'cash_register_auto_opened' => (bool) ($register?->auto_opened),
+                    'voucher_code' => $data['voucher_code'] ?? null,
                 ],
                 'lines' => $data['lines'] ?? [
                     ['account' => $data['debit_account'] ?? '1111', 'debit' => $amount, 'credit' => 0],
@@ -70,9 +169,26 @@ class CashPostingService
             ]);
 
             if (! $register) {
-                // The payment remains financially recorded, but the missing
-                // register is visible in journal metadata for reconciliation.
-                return null;
+                $branchId = $data['branch_id'] ?? null;
+                if ($branchId) {
+                    $register = CashRegister::withoutGlobalScopes()->create([
+                        'restaurant_id' => $restaurantId,
+                        'branch_id' => (int) $branchId,
+                        'area_id' => $data['area_id'] ?? null,
+                        'opened_by' => $data['created_by'] ?? ($data['cashier_user_id'] ?? null),
+                        'register_name' => 'Két tiền mặt tự động - Chi nhánh #'.$branchId,
+                        'opening_balance' => 0.0,
+                        'auto_opened' => true,
+                        'requires_opening_reconciliation' => true,
+                        'status' => 'open',
+                        'opened_at' => $data['occurred_at'] ?? now(),
+                        'notes' => 'Tự động mở két để lưu vết giao dịch tiền mặt ca.',
+                    ]);
+                } else {
+                    throw ValidationException::withMessages([
+                        'cash' => 'Giao dịch tiền mặt bắt buộc phải thuộc một chi nhánh có két tiền mặt.',
+                    ]);
+                }
             }
 
             $transaction = CashTransaction::withoutGlobalScopes()->create([
@@ -88,6 +204,7 @@ class CashPostingService
                 'reference_id' => $data['reference_id'] ?? null,
                 'reference_type' => $data['reference_type'] ?? null,
                 'idempotency_key' => $idempotencyKey,
+                'voucher_code' => $data['voucher_code'] ?? null,
                 'notes' => $data['notes'] ?? null,
                 'created_by' => $data['created_by'] ?? null,
                 'occurred_at' => $data['occurred_at'] ?? now(),
@@ -106,5 +223,46 @@ class CashPostingService
 
             return $transaction;
         }, 3);
+    }
+
+    private function openScopeKey(int $restaurantId, int $branchId, ?int $areaId): string
+    {
+        return "{$restaurantId}:{$branchId}:".($areaId ?? 'default');
+    }
+
+    private function calculateRegisterCash(int $registerId, float $openingBalance): float
+    {
+        $in = (float) CashTransaction::withoutGlobalScopes()
+            ->where('cash_register_id', $registerId)
+            ->where('type', 'in')
+            ->sum('amount');
+        $out = (float) CashTransaction::withoutGlobalScopes()
+            ->where('cash_register_id', $registerId)
+            ->where('type', 'out')
+            ->sum('amount');
+
+        return round($openingBalance + $in - $out, 2);
+    }
+
+    private function assertIdempotentReplay(CashTransaction $existing, array $data, float $amount): CashTransaction
+    {
+        $sameRegister = empty($data['cash_register_id'])
+            || (int) $existing->cash_register_id === (int) $data['cash_register_id'];
+        $sameVoucher = ! array_key_exists('voucher_code', $data)
+            || (string) ($existing->voucher_code ?? '') === (string) ($data['voucher_code'] ?? '');
+
+        if (
+            ($data['type'] ?? null) !== $existing->type
+            || abs((float) $existing->amount - $amount) > 0.01
+            || (! empty($data['source']) && $data['source'] !== $existing->source)
+            || ! $sameRegister
+            || ! $sameVoucher
+        ) {
+            throw ValidationException::withMessages([
+                'idempotency_key' => 'Mã gửi lặp đã được dùng cho một giao dịch khác.',
+            ]);
+        }
+
+        return $existing;
     }
 }

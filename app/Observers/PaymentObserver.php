@@ -4,6 +4,7 @@ namespace App\Observers;
 
 use App\Models\Order;
 use App\Models\Payment;
+use App\Models\WorkShift;
 use App\Services\CashPostingService;
 use App\Services\FinancialPostingService;
 
@@ -35,12 +36,31 @@ class PaymentObserver
             default => '1121',
         };
         $orderNumber = $payment->order?->order_number ?? $payment->order_id;
+        $table = $payment->order?->table;
+        $areaId = $table
+            && (int) $table->restaurant_id === (int) $payment->restaurant_id
+            && ($table->branch_id === null || (int) $table->branch_id === (int) $payment->branch_id)
+            ? $table->area_id
+            : null;
+        $shiftId = WorkShift::withoutGlobalScopes()
+            ->where('restaurant_id', $payment->restaurant_id)
+            ->where('status', 'active')
+            ->where(function ($query) use ($payment): void {
+                $query->where('branch_id', $payment->branch_id)->orWhereNull('branch_id');
+            })
+            ->orderBy('id')
+            ->value('id');
         $postingKey = 'payment:'.($isRefund ? 'refund' : 'paid').':'.$payment->id;
 
         if ($payment->payment_method === 'cash') {
             app(CashPostingService::class)->record([
                 'restaurant_id' => $payment->restaurant_id,
                 'branch_id' => $payment->branch_id,
+                'area_id' => $areaId,
+                'shift_id' => $shiftId,
+                'cashier_user_id' => $userId,
+                'auto_open_if_missing' => ! $isRefund && $payment->branch_id !== null,
+                'enforce_cash_balance' => $isRefund,
                 'payment_id' => $payment->id,
                 'type' => $isRefund ? 'out' : 'in',
                 'amount' => $payment->amount,

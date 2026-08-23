@@ -24,6 +24,8 @@ class CashRegister extends Model
             'difference' => 'decimal:2',
             'opened_at' => 'datetime',
             'closed_at' => 'datetime',
+            'auto_opened' => 'boolean',
+            'requires_opening_reconciliation' => 'boolean',
         ];
     }
 
@@ -55,5 +57,10 @@ class CashRegister extends Model
     public function branch(): BelongsTo
     {
         return $this->belongsTo(RestaurantBranch::class, 'branch_id');
+    }
+
+    public function area(): BelongsTo
+    {
+        return $this->belongsTo(Area::class, 'area_id');
     }
 }

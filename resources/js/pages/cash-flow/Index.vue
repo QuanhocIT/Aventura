@@ -39,6 +39,8 @@ type Register = {
     closing_date: string;
     branch_id: number | null;
     branch_name: string;
+    area_id: number | null;
+    area_name: string;
     shift_name: string;
     opened_by_name: string;
     closed_by_name: string;
@@ -51,12 +53,16 @@ type Register = {
     opened_at: string;
     closed_at: string | null;
     notes: string | null;
+    auto_opened: boolean;
+    requires_opening_reconciliation: boolean;
 };
 
 type ActiveRegister = {
     id: number | null;
     branch_id: number | null;
     branch_name: string;
+    area_id: number | null;
+    area_name: string;
     opening_balance: number;
     expense_budget: number;
     opened_at: string;
@@ -66,12 +72,21 @@ type ActiveRegister = {
     expected_cash: number;
     is_aggregate: boolean;
     register_count: number;
+    needs_opening_reconciliation: boolean;
+};
+
+type ActiveRegisterRow = {
+    id: number;
+    area_id: number | null;
+    area_name: string;
+    requires_opening_reconciliation: boolean;
 };
 
 type Transaction = {
     id: number;
     branch_id: number | null;
     branch_name: string;
+    area_name: string;
     type: 'in' | 'out';
     amount: number;
     source: string;
@@ -81,6 +96,12 @@ type Transaction = {
 };
 
 type Shift = {
+    id: number;
+    name: string;
+    code: string;
+};
+
+type Area = {
     id: number;
     name: string;
     code: string;
@@ -111,6 +132,8 @@ const props = defineProps<{
     registers: Register[];
     chartData: ChartData[];
     shifts: Shift[];
+    areas: Area[];
+    activeRegisters: ActiveRegisterRow[];
     forecast: Forecast;
 }>();
 
@@ -154,11 +177,24 @@ const goToPage = (p: number) => {
 // Modals
 const showOpenModal = ref(false);
 const showTransactionModal = ref(false);
+const showReconcileModal = ref(false);
 const transactionModalType = ref<'in' | 'out'>('out');
+
+const newIdempotencyKey = (): string => {
+    if (
+        typeof globalThis.crypto !== 'undefined' &&
+        typeof globalThis.crypto.randomUUID === 'function'
+    ) {
+        return globalThis.crypto.randomUUID();
+    }
+
+    return `cash-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+};
 
 // Open Register Form
 const openForm = useForm({
     shift_id: '',
+    area_id: '',
     opening_balance: 0,
     expense_budget: 0,
     notes: '',
@@ -167,14 +203,29 @@ const openForm = useForm({
 // Transaction Form
 const txForm = useForm({
     type: 'out',
+    area_id: '',
     amount: 0,
     source: 'expense',
+    notes: '',
+    voucher_code: '',
+    idempotency_key: newIdempotencyKey(),
+});
+
+const reconcileForm = useForm({
+    register_id: 0,
+    opening_balance: 0,
     notes: '',
 });
 
 function handleOpenRegister() {
     if (!openForm.shift_id) {
         toast.error('Vui lòng chọn ca làm việc');
+
+        return;
+    }
+
+    if (props.areas.length > 1 && !openForm.area_id) {
+        toast.error('Vui lòng chọn khu vực thu ngân');
 
         return;
     }
@@ -204,13 +255,27 @@ function handleAddTransaction() {
         return;
     }
 
+    if (props.areas.length > 1 && !txForm.area_id) {
+        toast.error('Vui lòng chọn khu vực thu ngân');
+
+        return;
+    }
+
+    if (transactionModalType.value === 'out' && !txForm.voucher_code.trim()) {
+        toast.error('Khoản chi bắt buộc phải có mã chứng từ');
+
+        return;
+    }
+
     txForm.type = transactionModalType.value;
     txForm.source = transactionModalType.value === 'out' ? 'expense' : 'other';
+    txForm.idempotency_key ||= newIdempotencyKey();
 
     txForm.post('/cash-flow/transactions', {
         onSuccess: () => {
             showTransactionModal.value = false;
             txForm.reset();
+            txForm.idempotency_key = newIdempotencyKey();
             toast.success('Đã ghi nhận giao dịch dòng tiền!');
         },
         onError: (err: any) => {
@@ -219,10 +284,37 @@ function handleAddTransaction() {
     });
 }
 
+function beginReconcile(row: ActiveRegisterRow) {
+    reconcileForm.reset();
+    reconcileForm.register_id = row.id;
+    reconcileForm.opening_balance = 0;
+    showReconcileModal.value = true;
+}
+
+function handleReconcileOpening() {
+    if (reconcileForm.notes.trim().length < 10) {
+        toast.error('Vui lòng ghi rõ biên bản đối soát (tối thiểu 10 ký tự)');
+
+        return;
+    }
+
+    reconcileForm.post(`/cash-flow/registers/${reconcileForm.register_id}/reconcile-opening`, {
+        onSuccess: () => {
+            showReconcileModal.value = false;
+            toast.success('Đã đối soát số dư đầu ca');
+        },
+        onError: (err: any) => {
+            toast.error((Object.values(err)[0] as string) || 'Không thể đối soát két');
+        },
+    });
+}
+
 function openTxModal(type: 'in' | 'out') {
     transactionModalType.value = type;
     txForm.reset();
     txForm.type = type;
+    txForm.area_id = props.areas.length === 1 ? String(props.areas[0].id) : '';
+    txForm.idempotency_key = newIdempotencyKey();
     showTransactionModal.value = true;
 }
 
@@ -320,13 +412,13 @@ const chartMaxVal = computed(() => {
                 </div>
 
                 <!-- Open drawer button (only if no active drawer) -->
-                <div v-if="!activeRegister && !isAllBranches" class="shrink-0">
+                <div v-if="!isAllBranches" class="shrink-0">
                     <Button
                         @click="showOpenModal = true"
                         class="h-10 cursor-pointer rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 px-5 text-xs font-bold text-white shadow-lg shadow-indigo-500/20 transition-all hover:from-indigo-700 hover:to-violet-700 hover:shadow-indigo-600/30 active:scale-95"
                     >
                         <PlusCircle class="mr-2 size-4" />
-                        Mở két đầu ca
+                        {{ activeRegister ? 'Mở thêm két / khu vực' : 'Mở két đầu ca' }}
                     </Button>
                 </div>
             </div>
@@ -392,6 +484,32 @@ const chartMaxVal = computed(() => {
                 v-if="activeRegister"
                 class="grid grid-cols-1 gap-6 lg:grid-cols-3"
             >
+                <div
+                    v-if="activeRegister.needs_opening_reconciliation"
+                    class="flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-amber-800 lg:col-span-3 dark:border-amber-900/50 dark:bg-amber-950/20 dark:text-amber-300"
+                >
+                    <ShieldAlert class="mt-0.5 size-5 shrink-0" />
+                    <div class="min-w-0 flex-1">
+                        <p class="text-xs font-black">
+                            Có két tự động mở do nhân viên chưa mở ca
+                        </p>
+                        <p class="mt-1 text-[11px] font-medium">
+                            Doanh thu tiền mặt vẫn được ghi nhận, nhưng các khoản chi và chốt ca đang khóa cho đến khi quản lý xác nhận số dư đầu ca.
+                        </p>
+                    </div>
+                    <div class="flex shrink-0 flex-wrap gap-2">
+                        <Button
+                            v-for="row in activeRegisters.filter((item) => item.requires_opening_reconciliation)"
+                            :key="row.id"
+                            type="button"
+                            variant="outline"
+                            class="h-8 rounded-lg border-amber-300 px-3 text-[10px] font-black text-amber-800 hover:bg-amber-100 dark:border-amber-800 dark:text-amber-300"
+                            @click="beginReconcile(row)"
+                        >
+                            Đối soát {{ row.area_name }}
+                        </Button>
+                    </div>
+                </div>
                 <!-- Left panel: drawer stats card -->
                 <div class="space-y-6 lg:col-span-1">
                     <!-- Shift info card -->
@@ -421,6 +539,18 @@ const chartMaxVal = computed(() => {
                                     class="rounded-md bg-indigo-50 px-2 py-0.5 font-extrabold text-indigo-600 dark:bg-indigo-950/40 dark:text-indigo-400"
                                 >
                                     {{ activeRegister.branch_name }}
+                                </span>
+                            </div>
+                            <div
+                                class="flex items-center justify-between py-2.5"
+                            >
+                                <span class="font-semibold text-slate-400"
+                                    >Khu vực thu ngân</span
+                                >
+                                <span
+                                    class="rounded-md bg-violet-50 px-2 py-0.5 font-extrabold text-violet-600 dark:bg-violet-950/40 dark:text-violet-400"
+                                >
+                                    {{ activeRegister.area_name }}
                                 </span>
                             </div>
                             <div
@@ -773,10 +903,12 @@ const chartMaxVal = computed(() => {
                                                     Chi nhánh:
                                                     <strong
                                                         class="text-slate-500"
-                                                        >{{
+                                                    >{{
                                                             tx.branch_name
                                                         }}</strong
                                                     >
+                                                    · Khu vực:
+                                                    <strong class="text-slate-500">{{ tx.area_name }}</strong>
                                                     · Nhân viên:
                                                     <strong
                                                         class="text-slate-500"
@@ -882,6 +1014,7 @@ const chartMaxVal = computed(() => {
                             >
                                 <th class="p-3.5 pl-6">Ngày chốt</th>
                                 <th class="p-3.5">Chi nhánh</th>
+                                <th class="p-3.5">Khu vực</th>
                                 <th class="p-3.5">Ca trực</th>
                                 <th class="p-3.5">Thủ quỹ mở / đóng</th>
                                 <th
@@ -938,6 +1071,11 @@ const chartMaxVal = computed(() => {
                                         class="rounded bg-indigo-50 px-2 py-0.5 text-[10px] font-bold text-indigo-600 dark:bg-indigo-950/40 dark:text-indigo-400"
                                     >
                                         {{ r.branch_name }}
+                                    </span>
+                                </td>
+                                <td class="p-3.5">
+                                    <span class="rounded bg-violet-50 px-2 py-0.5 text-[10px] font-bold text-violet-600 dark:bg-violet-950/40 dark:text-violet-400">
+                                        {{ r.area_name }}
                                     </span>
                                 </td>
                                 <td class="p-3.5">
@@ -1407,6 +1545,27 @@ const chartMaxVal = computed(() => {
                 </CardHeader>
                 <form @submit.prevent="handleOpenRegister">
                     <CardContent class="space-y-4.5 p-5">
+                        <!-- Cashier area -->
+                        <div v-if="areas.length" class="space-y-1.5">
+                            <Label
+                                for="open-area"
+                                class="text-xs font-bold tracking-wider text-slate-400 uppercase"
+                            >
+                                Khu vực thu ngân<span v-if="areas.length > 1" class="text-rose-500"> *</span>:
+                            </Label>
+                            <select
+                                id="open-area"
+                                v-model="openForm.area_id"
+                                class="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-3 text-xs font-bold text-slate-700 outline-hidden transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/10 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-200"
+                            >
+                                <option value="" :disabled="areas.length > 1">
+                                    {{ areas.length > 1 ? '-- Chọn khu vực --' : '-- Khu vực mặc định --' }}
+                                </option>
+                                <option v-for="area in areas" :key="area.id" :value="area.id">
+                                    {{ area.name }} ({{ area.code }})
+                                </option>
+                            </select>
+                        </div>
                         <!-- Shift select -->
                         <div class="space-y-1.5">
                             <Label
@@ -1445,6 +1604,8 @@ const chartMaxVal = computed(() => {
                                 id="open-balance"
                                 v-model.number="openForm.opening_balance"
                                 type="number"
+                                min="0"
+                                step="1"
                                 placeholder="Ví dụ: 2000000"
                                 class="h-11 w-full rounded-xl text-xs font-bold focus:ring-2 focus:ring-indigo-500/10"
                             />
@@ -1462,6 +1623,8 @@ const chartMaxVal = computed(() => {
                                 id="open-budget"
                                 v-model.number="openForm.expense_budget"
                                 type="number"
+                                min="0"
+                                step="1"
                                 placeholder="Ví dụ: 1000000"
                                 class="h-11 w-full rounded-xl text-xs font-bold focus:ring-2 focus:ring-indigo-500/10"
                             />
@@ -1562,6 +1725,27 @@ const chartMaxVal = computed(() => {
                 </CardHeader>
                 <form @submit.prevent="handleAddTransaction">
                     <CardContent class="space-y-4.5 p-5">
+                        <!-- Cashier area -->
+                        <div v-if="areas.length" class="space-y-1.5">
+                            <Label
+                                for="tx-area"
+                                class="text-xs font-bold tracking-wider text-slate-400 uppercase"
+                            >
+                                Khu vực nhận giao dịch<span v-if="areas.length > 1" class="text-rose-500"> *</span>:
+                            </Label>
+                            <select
+                                id="tx-area"
+                                v-model="txForm.area_id"
+                                class="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-3 text-xs font-bold text-slate-700 outline-hidden transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/10 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-200"
+                            >
+                                <option value="" :disabled="areas.length > 1">
+                                    {{ areas.length > 1 ? '-- Chọn khu vực --' : '-- Khu vực mặc định --' }}
+                                </option>
+                                <option v-for="area in areas" :key="area.id" :value="area.id">
+                                    {{ area.name }} ({{ area.code }})
+                                </option>
+                            </select>
+                        </div>
                         <!-- Amount -->
                         <div class="space-y-1.5">
                             <Label
@@ -1574,9 +1758,36 @@ const chartMaxVal = computed(() => {
                                 id="tx-amount"
                                 v-model.number="txForm.amount"
                                 type="number"
+                                min="1"
+                                step="1"
                                 placeholder="Nhập số tiền..."
                                 class="h-11 w-full rounded-xl text-xs font-bold focus:ring-2 focus:ring-indigo-500/10"
                             />
+                        </div>
+
+                        <!-- Supporting document -->
+                        <div
+                            v-if="transactionModalType === 'out'"
+                            class="space-y-1.5"
+                        >
+                            <Label
+                                for="tx-voucher-code"
+                                class="text-xs font-bold tracking-wider text-slate-400 uppercase"
+                            >
+                                Mã chứng từ / hóa đơn <span class="text-rose-500">*</span>
+                            </Label>
+                            <Input
+                                id="tx-voucher-code"
+                                v-model="txForm.voucher_code"
+                                type="text"
+                                required
+                                maxlength="100"
+                                placeholder="Ví dụ: HD-2026-001"
+                                class="h-11 w-full rounded-xl text-xs font-bold uppercase focus:ring-2 focus:ring-indigo-500/10"
+                            />
+                            <p class="text-[10px] font-medium text-slate-400/90">
+                                Mỗi mã chỉ được dùng một lần; giao dịch đã ghi không thể sửa hoặc xóa.
+                            </p>
                         </div>
 
                         <!-- Notes -->
@@ -1622,6 +1833,63 @@ const chartMaxVal = computed(() => {
                                 class="size-4 animate-spin"
                             />
                             Ghi nhận giao dịch
+                        </Button>
+                    </div>
+                </form>
+            </Card>
+        </div>
+        </Teleport>
+
+        <!-- MODAL: Reconcile auto-opened register -->
+        <Teleport to="body">
+        <div
+            v-if="showReconcileModal"
+            class="fixed inset-0 z-50 flex animate-in items-center justify-center bg-slate-900/60 p-4 backdrop-blur-md duration-200 fade-in"
+        >
+            <Card class="w-full max-w-md animate-in border-amber-200 shadow-2xl duration-200 zoom-in-95 dark:border-amber-900/50">
+                <CardHeader class="border-b border-amber-100 pb-3 dark:border-amber-900/30">
+                    <CardTitle class="flex items-center gap-2 text-sm font-black text-amber-700 uppercase dark:text-amber-300">
+                        <ShieldAlert class="size-5" />
+                        Đối soát số dư đầu ca
+                    </CardTitle>
+                    <CardDescription class="text-xs">
+                        Xác nhận số tiền thực tế có trong két tại thời điểm bắt đầu ca. Thao tác được ghi audit và không thể sửa lại bằng giao diện thu ngân.
+                    </CardDescription>
+                </CardHeader>
+                <form @submit.prevent="handleReconcileOpening">
+                    <CardContent class="space-y-4.5 p-5">
+                        <div class="space-y-1.5">
+                            <Label for="reconcile-opening" class="text-xs font-bold tracking-wider text-slate-400 uppercase">
+                                Số dư đầu ca thực tế (VND)
+                            </Label>
+                            <Input
+                                id="reconcile-opening"
+                                v-model.number="reconcileForm.opening_balance"
+                                type="number"
+                                min="0"
+                                step="1"
+                                class="h-11 w-full rounded-xl text-xs font-bold"
+                            />
+                        </div>
+                        <div class="space-y-1.5">
+                            <Label for="reconcile-notes" class="text-xs font-bold tracking-wider text-slate-400 uppercase">
+                                Biên bản / lý do xác nhận <span class="text-rose-500">*</span>
+                            </Label>
+                            <textarea
+                                id="reconcile-notes"
+                                v-model="reconcileForm.notes"
+                                rows="3"
+                                class="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-3 text-xs font-bold text-slate-700 outline-hidden focus:border-amber-500 focus:ring-2 focus:ring-amber-500/10 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-200"
+                                placeholder="Ví dụ: Đã kiểm đếm cùng thu ngân Nguyễn Văn A..."
+                            ></textarea>
+                        </div>
+                    </CardContent>
+                    <div class="flex justify-end gap-2 border-t border-amber-100 bg-amber-50/40 p-4 dark:border-amber-900/30 dark:bg-amber-950/10">
+                        <Button type="button" variant="outline" @click="showReconcileModal = false" class="h-10 cursor-pointer rounded-xl text-xs font-bold">
+                            Hủy
+                        </Button>
+                        <Button type="submit" :disabled="reconcileForm.processing" class="h-10 cursor-pointer rounded-xl bg-amber-600 px-5 text-xs font-bold text-white hover:bg-amber-700">
+                            Xác nhận đối soát
                         </Button>
                     </div>
                 </form>
