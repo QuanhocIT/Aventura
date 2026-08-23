@@ -484,7 +484,9 @@ async function loadPreview(options: { keepCount?: boolean } = {}) {
         });
 
         if (!res.ok) {
-            previewError.value = 'Không thể tải dữ liệu. Thử lại.';
+            const errData = await res.json().catch(() => null);
+            const serverMsg = errData?.message || (errData?.errors ? Object.values(errData.errors)[0]?.[0] : null);
+            previewError.value = serverMsg || 'Không thể tải dữ liệu. Thử lại.';
 
             return;
         }

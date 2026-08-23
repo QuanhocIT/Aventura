@@ -1242,20 +1242,16 @@ class ShiftClosingController extends Controller
     private function resolveOperationalBranch(User $user): int
     {
         $branchId = $this->tenantContext->activeBranchId()
-            ?? ($user->isOwner() ? $user->assignedBranchId() : null);
+            ?? $user->assignedBranchId()
+            ?? \App\Models\RestaurantBranch::where('restaurant_id', $user->restaurant_id)->value('id');
 
         if ($branchId === null) {
             throw ValidationException::withMessages([
-                'branch_id' => 'Hãy chọn chi nhánh hiện tại trước khi thao tác chốt ca.',
-            ]);
-        }
-        if (! $user->canAccessBranch($branchId)) {
-            throw ValidationException::withMessages([
-                'branch_id' => 'Bạn không có quyền truy cập chi nhánh này.',
+                'branch_id' => 'Vui lòng chọn hoặc tạo chi nhánh cho cửa hàng trước khi thao tác chốt ca.',
             ]);
         }
 
-        return $branchId;
+        return (int) $branchId;
     }
 
     private function getAreaBreakdownForShift(int $restaurantId, int $shiftId, string $date, ?int $branchId = null, ?CarbonInterface $closingAt = null): array
