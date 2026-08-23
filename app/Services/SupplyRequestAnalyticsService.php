@@ -104,6 +104,7 @@ class SupplyRequestAnalyticsService
                 'items.ingredient.unit',
                 'items.batch.location',
                 'items.location',
+                'documents',
                 'receivedBy',
                 'verifiedBy',
                 'supplier:id,name,phone',

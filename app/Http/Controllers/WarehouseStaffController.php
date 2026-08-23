@@ -600,6 +600,126 @@ class WarehouseStaffController extends Controller
     }
 
     /**
+     * Gửi phiếu nháp sang hàng đợi Trưởng kho duyệt.
+     */
+    public function submitReceiving(Request $request, int $id): JsonResponse
+    {
+        $user = $request->user();
+        $this->staffAccess->assertCanOperate($user);
+        $centralBranch = $this->warehouseService->getCentralWarehouse($user->restaurant_id);
+        abort_unless($centralBranch, 422, 'Chưa thiết lập Kho Tổng.');
+
+        $voucher = WarehouseReceivingVoucher::where('restaurant_id', $user->restaurant_id)
+            ->where('branch_id', $centralBranch->id)
+            ->where('received_by', $user->id)
+            ->whereIn('status', ['draft', 'discrepancy', 'rejected'])
+            ->lockForUpdate()
+            ->findOrFail($id);
+
+        abort_if($voucher->items()->where('actual_qty', '>', 0)->whereNull('lot_number')->exists(), 422, 'Mỗi dòng có hàng thực nhận phải có số lô để truy xuất.');
+
+        $voucher->update([
+            'status' => 'pending_review',
+            'submitted_by' => $user->id,
+            'submitted_at' => now(),
+            'rejected_by' => null,
+            'rejected_at' => null,
+            'rejection_reason' => null,
+        ]);
+
+        $this->logAudit($user, 'warehouse.receiving.submitted', $voucher, [
+            'voucher_code' => $voucher->voucher_code,
+        ]);
+
+        return response()->json(['message' => 'Phiếu đã được gửi vào hàng đợi Trưởng kho duyệt.', 'voucher' => $voucher->fresh(['documents'])]);
+    }
+
+    /**
+     * Từ chối phiếu trước khi hạch toán. Tồn kho không thay đổi.
+     */
+    public function rejectReceiving(Request $request, int $id): JsonResponse
+    {
+        $data = $request->validate([
+            'reason' => 'required|string|max:1000',
+        ]);
+
+        $user = $request->user();
+        abort_unless($user->isOwner() || $user->isSuperAdmin() || $user->hasRole('warehouse_manager') || $user->can('warehouse.manage'), 403, 'Bạn không có quyền từ chối phiếu nhập.');
+        $centralBranch = $this->warehouseService->getCentralWarehouse($user->restaurant_id);
+        abort_unless($centralBranch, 422, 'Chưa thiết lập Kho Tổng.');
+
+        $voucher = WarehouseReceivingVoucher::where('restaurant_id', $user->restaurant_id)
+            ->where('branch_id', $centralBranch->id)
+            ->whereIn('status', ['draft', 'discrepancy', 'pending_review'])
+            ->when(! ($user->isOwner() || $user->isSuperAdmin()), fn ($query) => $query->where(function ($scope) use ($user) {
+                $scope->whereNull('received_by')->orWhere('received_by', '!=', $user->id);
+            }))
+            ->lockForUpdate()
+            ->findOrFail($id);
+
+        $voucher->update([
+            'status' => 'rejected',
+            'rejected_by' => $user->id,
+            'rejected_at' => now(),
+            'rejection_reason' => $data['reason'],
+        ]);
+
+        $this->logAudit($user, 'warehouse.receiving.rejected', $voucher, [
+            'voucher_code' => $voucher->voucher_code,
+            'reason' => $data['reason'],
+        ]);
+
+        return response()->json(['message' => 'Phiếu đã bị từ chối và chưa ghi nhận vào tồn kho.', 'voucher' => $voucher->fresh()]);
+    }
+
+    /**
+     * Xem chứng từ GRN qua endpoint có kiểm tra tenant và đúng Kho Tổng.
+     */
+    public function viewReceivingDocument(Request $request, int $id, int $document): mixed
+    {
+        $user = $request->user();
+        $this->staffAccess->assertCanAccessCentral($user);
+        $centralBranch = $this->warehouseService->getCentralWarehouse($user->restaurant_id);
+        $voucher = WarehouseReceivingVoucher::where('restaurant_id', $user->restaurant_id)
+            ->where('branch_id', $centralBranch?->id)
+            ->findOrFail($id);
+        $document = $voucher->documents()->findOrFail($document);
+
+        if (Storage::disk('local')->exists($document->storage_path)) {
+            return Storage::disk('local')->response($document->storage_path, $document->original_name);
+        }
+
+        abort_unless(Storage::disk('public')->exists($document->storage_path), 404, 'Không tìm thấy chứng từ.');
+
+        return response()->file(Storage::disk('public')->path($document->storage_path), [
+            'Content-Disposition' => 'inline; filename="'.addslashes($document->original_name).'"',
+        ]);
+    }
+
+    /**
+     * Tương thích với chứng từ GRN cũ được lưu trong evidence_paths.
+     */
+    public function viewReceivingEvidence(Request $request, int $id, int $index): mixed
+    {
+        $user = $request->user();
+        $this->staffAccess->assertCanAccessCentral($user);
+        $centralBranch = $this->warehouseService->getCentralWarehouse($user->restaurant_id);
+        $voucher = WarehouseReceivingVoucher::where('restaurant_id', $user->restaurant_id)
+            ->where('branch_id', $centralBranch?->id)
+            ->findOrFail($id);
+        $path = $voucher->evidence_paths[$index] ?? null;
+        abort_unless(is_string($path) && $path !== '', 404, 'Không tìm thấy chứng từ.');
+
+        if (Storage::disk('local')->exists($path)) {
+            return Storage::disk('local')->response($path);
+        }
+
+        abort_unless(Storage::disk('public')->exists($path), 404, 'Không tìm thấy chứng từ.');
+
+        return response()->file(Storage::disk('public')->path($path));
+    }
+
+    /**
      * Xác nhận phiếu nhận hàng (không có chênh lệch hoặc đã giải trình)
      */
     public function confirmReceiving(Request $request, int $id): JsonResponse
@@ -688,7 +808,13 @@ class WarehouseStaffController extends Controller
             ], 422);
         }
 
-        $voucher->loadMissing(['items.location', 'items.ingredient', 'purchaseOrder.items']);
+        $voucher->loadMissing(['items.location', 'items.ingredient', 'purchaseOrder.items', 'documents']);
+
+        foreach ($voucher->items as $voucherItem) {
+            if ((float) $voucherItem->actual_qty > 0 && $voucherItem->ingredient?->batch_tracking_required && blank($voucherItem->lot_number)) {
+                return response()->json(['message' => 'Nguyên liệu yêu cầu truy xuất bắt buộc phải có số lô trước khi duyệt nhập kho.'], 422);
+            }
+        }
         $temperatureMin = $request->filled('temperature_min_c') ? (float) $request->temperature_min_c : $voucher->temperature_min_c;
         $temperatureMax = $request->filled('temperature_max_c') ? (float) $request->temperature_max_c : $voucher->temperature_max_c;
         $hasTemperature = $temperatureMin !== null && $temperatureMax !== null;
@@ -717,6 +843,20 @@ class WarehouseStaffController extends Controller
             return response()->json(['message' => 'Nhiệt độ nhận hàng vượt ngưỡng cài đặt cho nguyên liệu. Hãy chuyển sang Kiểm tra có điều kiện hoặc xử lý từ chối.'], 422);
         }
 
+        if ($voucher->purchaseOrder) {
+            $orderedByIngredient = $voucher->purchaseOrder->items->groupBy('ingredient_id');
+            $currentByIngredient = $voucher->items->groupBy('ingredient_id');
+            foreach ($currentByIngredient as $ingredientId => $currentItems) {
+                $poItem = $orderedByIngredient->get($ingredientId)?->first();
+                $alreadyReceived = (float) ($poItem?->quantity_received ?? 0);
+                $ordered = (float) ($poItem?->quantity_ordered ?? 0);
+                $incoming = (float) $currentItems->sum(fn ($item): float => (float) $item->actual_qty);
+                if (! $poItem || $alreadyReceived + $incoming > $ordered + 0.0005) {
+                    return response()->json(['message' => 'Số lượng duyệt vượt phần còn lại của PO. Hãy đối chiếu các lần nhận trước khi nhập kho.'], 422);
+                }
+            }
+        }
+
         $threeWayStatus = $voucher->purchaseOrder ? $this->threeWayMatchStatus($voucher) : 'not_applicable';
         if ($voucher->purchaseOrder && blank($voucher->invoice_number)) {
             return response()->json(['message' => 'GRN gắn với PO bắt buộc có số hóa đơn để đối chiếu 3 bên.'], 422);
@@ -737,7 +877,26 @@ class WarehouseStaffController extends Controller
                 ->lockForUpdate()
                 ->findOrFail($id);
 
-            $voucher->loadMissing(['items.location', 'purchaseOrder.items']);
+            $voucher->loadMissing(['items.location', 'items.ingredient', 'purchaseOrder.items']);
+
+            // Serialize approvals on the same PO so two GRNs cannot consume the
+            // remaining quantity concurrently.
+            if ($voucher->purchase_order_id) {
+                $lockedPurchaseOrder = PurchaseOrder::where('restaurant_id', $user->restaurant_id)
+                    ->whereKey($voucher->purchase_order_id)
+                    ->lockForUpdate()
+                    ->firstOrFail();
+                $lockedPurchaseOrder->load('items');
+                $voucher->setRelation('purchaseOrder', $lockedPurchaseOrder);
+
+                foreach ($voucher->items->groupBy('ingredient_id') as $ingredientId => $currentItems) {
+                    $poItem = $lockedPurchaseOrder->items->firstWhere('ingredient_id', $ingredientId);
+                    $alreadyReceived = (float) ($poItem?->quantity_received ?? 0);
+                    $ordered = (float) ($poItem?->quantity_ordered ?? 0);
+                    $incoming = (float) $currentItems->sum(fn ($item): float => (float) $item->actual_qty);
+                    abort_if(! $poItem || $alreadyReceived + $incoming > $ordered + 0.0005, 422, 'Số lượng duyệt vượt phần còn lại của PO.');
+                }
+            }
 
             if ($voucher->status === 'discrepancy' && blank($request->input('notes'))) {
                 abort(422, 'Phiếu nhận hàng có chênh lệch so với đơn đặt. Bắt buộc nhập ghi chú giải trình trước khi xác nhận nhập kho.');
@@ -824,6 +983,7 @@ class WarehouseStaffController extends Controller
                     'quantity_remaining' => $actualQty,
                     'unit_cost' => $unitCost,
                     'purchased_at' => optional($voucher->received_at)->toDateString() ?: now()->toDateString(),
+                    'stored_at' => $voucherItem->location_id ? now() : null,
                     'expiry_date' => $expiryDate,
                     'supplier_id' => $voucher->supplier_id,
                     'status' => $isExpired ? 'expired' : ($isQuarantine ? 'locked' : 'active'),
@@ -889,6 +1049,11 @@ class WarehouseStaffController extends Controller
                 }
             }
 
+            $needsPutaway = $voucher->items()
+                ->where('actual_qty', '>', 0)
+                ->whereNull('location_id')
+                ->exists();
+
             $voucher->update([
                 'status' => 'confirmed',
                 'notes' => $request->notes ?? $voucher->notes,
@@ -901,12 +1066,9 @@ class WarehouseStaffController extends Controller
                 'disposition' => 'accepted',
                 'verified_by' => $user->id,
                 'verified_at' => now(),
+                'putaway_started_at' => $needsPutaway ? now() : null,
+                'putaway_completed_at' => $needsPutaway ? null : now(),
             ]);
-
-            $needsPutaway = $voucher->items()
-                ->where('actual_qty', '>', 0)
-                ->whereNull('location_id')
-                ->exists();
 
             if ($needsPutaway) {
                 $assignee = User::where('restaurant_id', $user->restaurant_id)
@@ -1125,10 +1287,23 @@ class WarehouseStaffController extends Controller
             ]]);
 
             if ($batch) {
-                $batch->update(['location_id' => (int) $request->location_id]);
+                $batch->update([
+                    'location_id' => (int) $request->location_id,
+                    'stored_at' => now(),
+                ]);
             }
             if ($voucherItem) {
                 $voucherItem->update(['location_id' => (int) $request->location_id]);
+            }
+
+            if ($task->receiving_voucher_id) {
+                $voucher = WarehouseReceivingVoucher::where('restaurant_id', $user->restaurant_id)
+                    ->where('branch_id', $centralBranch->id)
+                    ->lockForUpdate()
+                    ->findOrFail($task->receiving_voucher_id);
+                if (! $voucher->items()->where('actual_qty', '>', 0)->whereNull('location_id')->exists()) {
+                    $voucher->update(['putaway_completed_at' => now()]);
+                }
             }
 
             $task->update([
@@ -1684,15 +1859,17 @@ class WarehouseStaffController extends Controller
             return 'discrepancy';
         }
 
-        foreach ($voucher->items as $item) {
-            $poItem = $poItems->get($item->ingredient_id);
+        foreach ($voucher->items->groupBy('ingredient_id') as $ingredientId => $items) {
+            $poItem = $poItems->get($ingredientId);
             if (! $poItem) {
                 return 'discrepancy';
             }
 
-            $quantityMismatch = (float) $item->actual_qty > (float) $poItem->quantity_ordered + 0.0005;
+            $cumulativeQuantity = (float) $poItem->quantity_received
+                + (float) $items->sum(fn ($item): float => (float) $item->actual_qty);
+            $quantityMismatch = $cumulativeQuantity > (float) $poItem->quantity_ordered + 0.0005;
             $expectedPrice = (float) $poItem->price_per_unit;
-            $actualPrice = (float) $item->unit_cost;
+            $actualPrice = (float) $items->first()->unit_cost;
             $priceMismatch = $expectedPrice > 0 && $actualPrice > 0 && abs($actualPrice - $expectedPrice) > max(0.01, $expectedPrice * 0.1);
 
             if ($quantityMismatch || $priceMismatch) {

@@ -100,6 +100,7 @@ type VoucherItem = {
     discrepancy_reason: string | null;
     lot_number: string | null;
     expiry_date: string | null;
+    manufactured_date?: string | null;
     batch_id: number | null;
     batch?: { batch_number?: string | null; status?: string | null } | null;
     location_id: number | null;
@@ -114,8 +115,14 @@ type Voucher = {
     verified_at: string | null;
     delivery_note_number: string | null;
     invoice_number: string | null;
+    invoice_series?: string | null;
+    invoice_date?: string | null;
+    invoice_total_amount?: number | string | null;
+    vat_amount?: number | string | null;
     vehicle_number: string | null;
     seal_code: string | null;
+    carrier_name?: string | null;
+    receiving_dock?: string | null;
     quality_status: 'pending' | 'passed' | 'conditional' | 'failed' | string;
     quality_notes: string | null;
     temperature_min_c?: number | string | null;
@@ -129,11 +136,23 @@ type Voucher = {
     discrepancy_reason: string | null;
     evidence_paths: string[] | null;
     notes: string | null;
-    received_by?: { name: string } | null;
-    verified_by?: { name: string } | null;
+    rejection_reason?: string | null;
+    putaway_started_at?: string | null;
+    putaway_completed_at?: string | null;
+    documents?: ReceivingDocument[];
+    received_by?: { id?: number; name: string } | null;
+    verified_by?: { id?: number; name: string } | null;
     supplier?: SupplierOption | null;
     purchase_order?: { po_number: string; status: string } | null;
     items: VoucherItem[];
+};
+
+type ReceivingDocument = {
+    id: number;
+    document_type: 'invoice' | 'delivery_note' | 'qc' | 'receiving_photo' | 'other' | string;
+    original_name: string;
+    mime_type?: string | null;
+    size_bytes?: number | null;
 };
 
 type GrnLine = {
@@ -143,6 +162,7 @@ type GrnLine = {
     unit_cost: number;
     lot_number: string;
     expiry_date: string;
+    manufactured_date: string;
     location_id: number | null;
     discrepancy_reason: string;
 };
@@ -158,6 +178,8 @@ const props = defineProps<{
     purchaseOrders: PurchaseOrderOption[];
     canManageWarehouse: boolean;
     canCreateReceiving: boolean;
+    currentUserId: number;
+    canApproveOwnReceiving: boolean;
 }>();
 
 const vouchers = ref<Voucher[]>([...props.receivingVouchers]);
@@ -168,6 +190,9 @@ const search = ref('');
 const expandedId = ref<number | null>(null);
 const isProcessing = ref<number | null>(null);
 const confirming = ref<Voucher | null>(null);
+const rejecting = ref<Voucher | null>(null);
+const rejectReason = ref('');
+const isRejecting = ref(false);
 const confirmNotes = ref('');
 const confirmError = ref('');
 const confirmQualityStatus = ref<'passed' | 'conditional' | 'failed'>('passed');
@@ -184,6 +209,7 @@ const showGrnForm = ref(false);
 const isSubmittingGrn = ref(false);
 const grnErrors = ref<string[]>([]);
 const grnFiles = ref<File[]>([]);
+const grnDocumentType = ref<'invoice' | 'delivery_note' | 'qc' | 'receiving_photo' | 'other'>('other');
 
 const emptyLine = (): GrnLine => ({
     ingredient_id: null,
@@ -192,6 +218,7 @@ const emptyLine = (): GrnLine => ({
     unit_cost: 0,
     lot_number: '',
     expiry_date: '',
+    manufactured_date: '',
     location_id: null,
     discrepancy_reason: '',
 });
@@ -205,8 +232,14 @@ const grnForm = ref({
     notes: '',
     delivery_note_number: '',
     invoice_number: '',
+    invoice_series: '',
+    invoice_date: '',
+    invoice_total_amount: '' as string | number,
+    vat_amount: '' as string | number,
     vehicle_number: '',
     seal_code: '',
+    carrier_name: '',
+    receiving_dock: '',
     quality_status: 'pending',
     quality_notes: '',
     temperature_min_c: '' as string | number,
@@ -257,6 +290,7 @@ const statusLabel = (status: string) =>
     status === 'pending_disposition' ? 'Chờ trả/hủy' :
     status === 'returned' ? 'Đã trả NCC' :
     status === 'destroyed' ? 'Đã tiêu hủy' :
+    status === 'rejected' ? 'Bị từ chối — cần sửa' :
     ({
         draft: 'Chờ xác minh',
         discrepancy: 'Có chênh lệch',
@@ -269,6 +303,7 @@ const statusClass = (status: string) =>
     status === 'pending_disposition' ? 'border-rose-400/30 bg-rose-500/10 text-rose-300' :
     status === 'returned' ? 'border-sky-400/30 bg-sky-500/10 text-sky-300' :
     status === 'destroyed' ? 'border-slate-400/30 bg-slate-500/10 text-slate-300' :
+    status === 'rejected' ? 'border-red-400/30 bg-red-500/10 text-red-300' :
     ({
         draft: 'border-orange-400/30 bg-orange-500/10 text-orange-300',
         discrepancy: 'border-rose-400/30 bg-rose-500/10 text-rose-300',
@@ -299,6 +334,10 @@ const ingredientUnit = (ingredientId: number | null) =>
     props.ingredients.find((item) => item.id === ingredientId)?.unit?.symbol ??
     'đv';
 
+const canReview = (voucher: Voucher) =>
+    props.canManageWarehouse &&
+    (props.canApproveOwnReceiving || voucher.received_by?.id !== props.currentUserId);
+
 const selectedPurchaseOrder = computed(() =>
     props.purchaseOrders.find(
         (order) => order.id === grnForm.value.purchase_order_id,
@@ -312,7 +351,7 @@ const filteredVouchers = computed(() => {
         const matchesFilter =
             filter.value === 'all' ||
             (filter.value === 'pending' &&
-                ['draft', 'discrepancy', 'pending_review', 'pending_disposition'].includes(
+                ['draft', 'discrepancy', 'pending_review', 'pending_disposition', 'rejected'].includes(
                     voucher.status,
                 )) ||
             (filter.value === 'discrepancy' &&
@@ -396,6 +435,37 @@ const closeConfirm = () => {
     confirmTemperatureMin.value = undefined;
     confirmTemperatureMax.value = undefined;
     confirmEvidence.value = [];
+};
+
+const openReject = (voucher: Voucher) => {
+    rejecting.value = voucher;
+    rejectReason.value = '';
+};
+
+const closeReject = () => {
+    rejecting.value = null;
+    rejectReason.value = '';
+};
+
+const rejectVoucher = async () => {
+    if (!rejecting.value || !rejectReason.value.trim() || isRejecting.value) {
+        return;
+    }
+
+    isRejecting.value = true;
+    try {
+        await axios.post(`/api/warehouse/receiving-vouchers/${rejecting.value.id}/reject`, {
+            reason: rejectReason.value.trim(),
+        });
+        rejecting.value.status = 'rejected';
+        rejecting.value.rejection_reason = rejectReason.value.trim();
+        closeReject();
+        toast.success('Đã từ chối phiếu. Phiếu chưa làm thay đổi tồn kho.');
+    } catch (error: any) {
+        toast.error(error.response?.data?.message ?? 'Không thể từ chối phiếu.');
+    } finally {
+        isRejecting.value = false;
+    }
 };
 
 const handleConfirmEvidence = (event: Event) => {
@@ -622,6 +692,7 @@ const onPurchaseOrderChange = () => {
             unit_cost: item.price_per_unit,
             lot_number: '',
             expiry_date: '',
+            manufactured_date: '',
             location_id: null,
             discrepancy_reason: '',
         }))
@@ -665,6 +736,10 @@ const validateGrn = () => {
             errors.push(`Dòng ${lineNo}: số lượng thực nhận không được âm.`);
         }
 
+        if (line.actual_qty > 0 && !line.lot_number.trim()) {
+            errors.push(`Dòng ${lineNo}: phải nhập số lô để truy xuất nguồn gốc.`);
+        }
+
         if (line.actual_qty > 0 && !line.location_id) {
             errors.push(
                 `Dòng ${lineNo}: phải chọn vị trí cất hàng để truy vết lô.`,
@@ -685,6 +760,14 @@ const validateGrn = () => {
         Number(grnForm.value.temperature_min_c) > Number(grnForm.value.temperature_max_c)
     ) {
         errors.push('Nhiệt độ tối thiểu không được lớn hơn nhiệt độ tối đa.');
+    }
+
+    if (
+        grnForm.value.invoice_total_amount !== '' &&
+        grnForm.value.vat_amount !== '' &&
+        Number(grnForm.value.vat_amount) > Number(grnForm.value.invoice_total_amount)
+    ) {
+        errors.push('Tiền thuế không được lớn hơn tổng tiền hóa đơn.');
     }
 
     grnErrors.value = errors;
@@ -712,6 +795,8 @@ const submitGrn = async () => {
         );
     }
 
+    formData.append('submit_for_review', '1');
+
     if (grnForm.value.notes.trim()) {
         formData.append('notes', grnForm.value.notes.trim());
     }
@@ -727,12 +812,36 @@ const submitGrn = async () => {
         formData.append('invoice_number', grnForm.value.invoice_number.trim());
     }
 
+    if (grnForm.value.invoice_series.trim()) {
+        formData.append('invoice_series', grnForm.value.invoice_series.trim());
+    }
+
+    if (grnForm.value.invoice_date) {
+        formData.append('invoice_date', grnForm.value.invoice_date);
+    }
+
+    if (grnForm.value.invoice_total_amount !== '') {
+        formData.append('invoice_total_amount', String(grnForm.value.invoice_total_amount));
+    }
+
+    if (grnForm.value.vat_amount !== '') {
+        formData.append('vat_amount', String(grnForm.value.vat_amount));
+    }
+
     if (grnForm.value.vehicle_number.trim()) {
         formData.append('vehicle_number', grnForm.value.vehicle_number.trim());
     }
 
     if (grnForm.value.seal_code.trim()) {
         formData.append('seal_code', grnForm.value.seal_code.trim());
+    }
+
+    if (grnForm.value.carrier_name.trim()) {
+        formData.append('carrier_name', grnForm.value.carrier_name.trim());
+    }
+
+    if (grnForm.value.receiving_dock.trim()) {
+        formData.append('receiving_dock', grnForm.value.receiving_dock.trim());
     }
 
     if (grnForm.value.temperature_min_c !== null && grnForm.value.temperature_min_c !== '') {
@@ -766,6 +875,10 @@ const submitGrn = async () => {
             formData.append(`items[${index}][expiry_date]`, line.expiry_date);
         }
 
+        if (line.manufactured_date) {
+            formData.append(`items[${index}][manufactured_date]`, line.manufactured_date);
+        }
+
         if (line.location_id) {
             formData.append(
                 `items[${index}][location_id]`,
@@ -780,7 +893,10 @@ const submitGrn = async () => {
             );
         }
     });
-    grnFiles.value.forEach((file) => formData.append('evidence[]', file));
+    grnFiles.value.forEach((file, index) => {
+        formData.append('evidence[]', file);
+        formData.append(`evidence_types[${index}]`, grnDocumentType.value);
+    });
 
     try {
         const { data } = await axios.post(
@@ -814,8 +930,14 @@ const submitGrn = async () => {
             notes: '',
             delivery_note_number: '',
             invoice_number: '',
+            invoice_series: '',
+            invoice_date: '',
+            invoice_total_amount: '',
+            vat_amount: '',
             vehicle_number: '',
             seal_code: '',
+            carrier_name: '',
+            receiving_dock: '',
             quality_status: 'pending',
             quality_notes: '',
             temperature_min_c: '',
@@ -823,6 +945,7 @@ const submitGrn = async () => {
             items: [emptyLine()],
         };
         grnFiles.value = [];
+        grnDocumentType.value = 'other';
         grnErrors.value = [];
     } catch (error: any) {
         const responseErrors = error.response?.data?.errors;
@@ -837,10 +960,22 @@ const submitGrn = async () => {
     }
 };
 
-const evidenceUrl = (path: string) =>
+const evidenceUrl = (voucher: Voucher, path: string) =>
     path.startsWith('http://') || path.startsWith('https://')
         ? path
-        : `/storage/${path}`;
+        : `/api/warehouse/receiving-vouchers/${voucher.id}/evidence/${Math.max(0, voucher.evidence_paths?.indexOf(path) ?? 0)}`;
+
+const documentUrl = (voucher: Voucher, document: ReceivingDocument) =>
+    `/api/warehouse/receiving-vouchers/${voucher.id}/documents/${document.id}`;
+
+const documentTypeLabel = (type: string) =>
+    ({
+        invoice: 'Hóa đơn',
+        delivery_note: 'Phiếu giao hàng',
+        qc: 'Biên bản QC',
+        receiving_photo: 'Ảnh giao nhận',
+        other: 'Chứng từ khác',
+    })[type] || 'Chứng từ';
 </script>
 
 <template>
@@ -1194,7 +1329,7 @@ const evidenceUrl = (path: string) =>
                                         <div class="flex justify-end gap-1.5">
                                             <Button
                                                 v-if="
-                                                    canManageWarehouse &&
+                                                    canReview(voucher) &&
                                                     [
                                                         'draft',
                                                         'discrepancy',
@@ -1209,6 +1344,16 @@ const evidenceUrl = (path: string) =>
                                                 @click="openConfirm(voucher)"
                                                 ><CheckCircle2 class="size-3" />
                                                 Xác minh</Button
+                                            ><Button
+                                                v-if="
+                                                    canReview(voucher) &&
+                                                    ['draft', 'discrepancy', 'pending_review'].includes(voucher.status)
+                                                "
+                                                size="sm"
+                                                variant="outline"
+                                                class="h-7 border-red-400/30 text-[10px] text-red-300 hover:bg-red-500/10"
+                                                @click="openReject(voucher)"
+                                                >Từ chối</Button
                                             ><Button
                                                 size="icon"
                                                 variant="ghost"
@@ -1401,7 +1546,8 @@ const evidenceUrl = (path: string) =>
                                                     v-if="
                                                         voucher.notes ||
                                                         voucher.discrepancy_reason ||
-                                                        voucher.quality_notes
+                                                        voucher.quality_notes ||
+                                                        voucher.rejection_reason
                                                     "
                                                     class="rounded-xl border border-amber-400/20 bg-amber-500/5 p-4 text-xs"
                                                 >
@@ -1437,6 +1583,31 @@ const evidenceUrl = (path: string) =>
                                                             voucher.quality_notes
                                                         }}
                                                     </p>
+                                                    <p
+                                                        v-if="voucher.rejection_reason"
+                                                        class="mt-2 text-red-300"
+                                                    >
+                                                        Từ chối: {{ voucher.rejection_reason }}
+                                                    </p>
+                                                </div>
+                                                <div
+                                                    v-if="voucher.documents?.length"
+                                                    class="rounded-xl border border-indigo-400/20 bg-indigo-500/5 p-4 text-xs"
+                                                >
+                                                    <p class="mb-2 flex items-center gap-2 font-bold text-foreground">
+                                                        <FileText class="size-4 text-indigo-300" />
+                                                        Chứng từ đã phân loại
+                                                    </p>
+                                                    <a
+                                                        v-for="document in voucher.documents"
+                                                        :key="document.id"
+                                                        :href="documentUrl(voucher, document)"
+                                                        target="_blank"
+                                                        rel="noreferrer"
+                                                        class="mb-1 block truncate text-indigo-300 hover:text-indigo-200"
+                                                    >
+                                                        {{ documentTypeLabel(document.document_type) }} · {{ document.original_name }}
+                                                    </a>
                                                 </div>
                                                 <div
                                                     v-if="
@@ -1459,7 +1630,7 @@ const evidenceUrl = (path: string) =>
                                                         ) in voucher.evidence_paths"
                                                         :key="path"
                                                         :href="
-                                                            evidenceUrl(path)
+                                                            evidenceUrl(voucher, path)
                                                         "
                                                         target="_blank"
                                                         class="block truncate text-indigo-300 hover:text-indigo-200"
@@ -1712,7 +1883,7 @@ const evidenceUrl = (path: string) =>
                                             </div>
                                             <Button
                                                 v-if="
-                                                    canManageWarehouse &&
+                                                    canReview(voucher) &&
                                                     [
                                                         'draft',
                                                         'discrepancy',
@@ -1901,6 +2072,35 @@ const evidenceUrl = (path: string) =>
 
     <Teleport to="body">
     <div
+        v-if="rejecting"
+        class="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-sm"
+        @click.self="closeReject"
+    >
+        <div class="w-full max-w-xl rounded-3xl border border-red-400/25 bg-background p-6 shadow-2xl">
+            <div class="mb-5 flex items-start justify-between gap-3">
+                <div>
+                    <p class="text-[10px] font-bold uppercase tracking-wider text-red-400">Từ chối phiếu nhập</p>
+                    <h2 class="mt-1 text-xl font-black">{{ rejecting.voucher_code }}</h2>
+                    <p class="mt-1 text-xs text-muted-foreground">Phiếu bị từ chối sẽ không tạo giao dịch, lô hàng hoặc cộng tồn kho.</p>
+                </div>
+                <Button variant="ghost" size="icon" @click="closeReject"><X class="size-4" /></Button>
+            </div>
+            <form class="space-y-4" @submit.prevent="rejectVoucher">
+                <div class="flex flex-col gap-1.5">
+                    <Label>Lý do từ chối / yêu cầu bổ sung</Label>
+                    <textarea v-model="rejectReason" rows="5" required class="rounded-md border border-input bg-background px-3 py-2 text-sm" placeholder="Thiếu hóa đơn, sai số lô, chênh lệch chưa có biên bản..." />
+                </div>
+                <div class="flex justify-end gap-2">
+                    <Button type="button" variant="outline" @click="closeReject">Hủy</Button>
+                    <Button type="submit" class="bg-red-600 text-white hover:bg-red-700" :disabled="isRejecting">{{ isRejecting ? 'Đang lưu...' : 'Từ chối phiếu' }}</Button>
+                </div>
+            </form>
+        </div>
+    </div>
+    </Teleport>
+
+    <Teleport to="body">
+    <div
         v-if="dispositionVoucher"
         class="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-sm"
         @click.self="closeDisposition"
@@ -2017,6 +2217,37 @@ const evidenceUrl = (path: string) =>
                 </div>
                 <div class="grid gap-3 md:grid-cols-4">
                     <div class="flex flex-col gap-1.5">
+                        <Label>Ký hiệu / mẫu số hóa đơn</Label>
+                        <Input v-model="grnForm.invoice_series" placeholder="01GTKT0/001" />
+                    </div>
+                    <div class="flex flex-col gap-1.5">
+                        <Label>Ngày hóa đơn</Label>
+                        <Input v-model="grnForm.invoice_date" type="date" />
+                    </div>
+                    <div class="flex flex-col gap-1.5">
+                        <Label>Tổng tiền hóa đơn (đ)</Label>
+                        <Input v-model="grnForm.invoice_total_amount" type="number" min="0" step="1" />
+                    </div>
+                    <div class="flex flex-col gap-1.5">
+                        <Label>Thuế GTGT (đ)</Label>
+                        <Input v-model="grnForm.vat_amount" type="number" min="0" step="1" />
+                    </div>
+                </div>
+                <div class="grid gap-3 md:grid-cols-4">
+                    <div class="flex flex-col gap-1.5">
+                        <Label>Đơn vị vận chuyển</Label>
+                        <Input v-model="grnForm.carrier_name" placeholder="Tên đơn vị / tài xế" />
+                    </div>
+                    <div class="flex flex-col gap-1.5">
+                        <Label>Cửa / khu tiếp nhận</Label>
+                        <Input v-model="grnForm.receiving_dock" placeholder="Cửa nhập số 1" />
+                    </div>
+                    <div class="flex items-end md:col-span-2">
+                        <p class="rounded-lg border border-amber-400/20 bg-amber-500/5 p-3 text-[11px] text-muted-foreground">Phiếu sẽ được gửi thẳng vào hàng đợi duyệt. Tồn kho chỉ tăng sau khi Trưởng kho hoặc người có thẩm quyền xác minh.</p>
+                    </div>
+                </div>
+                <div class="grid gap-3 md:grid-cols-4">
+                    <div class="flex flex-col gap-1.5">
                         <Label>Số phiếu giao hàng</Label
                         ><Input
                             v-model="grnForm.delivery_note_number"
@@ -2094,6 +2325,7 @@ const evidenceUrl = (path: string) =>
                                     </th>
                                     <th class="w-32 p-2 text-right">Đơn giá</th>
                                     <th class="w-36 p-2">Số lô</th>
+                                    <th class="w-36 p-2">NSX</th>
                                     <th class="w-36 p-2">HSD</th>
                                     <th class="w-52 p-2">Vị trí cất</th>
                                     <th class="w-56 p-2">Lý do chênh lệch</th>
@@ -2172,6 +2404,13 @@ const evidenceUrl = (path: string) =>
                                     </td>
                                     <td class="p-2">
                                         <Input
+                                            v-model="line.manufactured_date"
+                                            type="date"
+                                            class="h-9 text-xs"
+                                        />
+                                    </td>
+                                    <td class="p-2">
+                                        <Input
                                             v-model="line.expiry_date"
                                             type="date"
                                             class="h-9 text-xs"
@@ -2242,6 +2481,16 @@ const evidenceUrl = (path: string) =>
                             class="h-10 rounded-md border border-input bg-background px-3 py-2 text-xs"
                             @change="handleGrnFiles"
                         />
+                        <select
+                            v-model="grnDocumentType"
+                            class="h-9 rounded-md border border-input bg-background px-3 text-xs"
+                        >
+                            <option value="invoice">Hóa đơn</option>
+                            <option value="delivery_note">Phiếu giao hàng</option>
+                            <option value="qc">Biên bản QC</option>
+                            <option value="receiving_photo">Ảnh giao nhận</option>
+                            <option value="other">Chứng từ khác</option>
+                        </select>
                         <div
                             v-if="grnFiles.length"
                             class="mt-1 flex flex-wrap gap-1.5"

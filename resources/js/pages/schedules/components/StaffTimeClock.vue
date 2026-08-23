@@ -40,7 +40,7 @@ const handleRequestCheckIn = () => {
         {
             onSuccess: () => {
                 import('vue-sonner').then((m) =>
-                    m.toast.success('🚀 Đã gửi yêu cầu xác nhận vào ca tới Chủ doanh nghiệp! Vui lòng chờ Chủ quán phê duyệt trong ngày.'),
+                    m.toast.success('🚀 Đã gửi yêu cầu xác nhận vào ca tới Quản lý chi nhánh & Chủ doanh nghiệp! Hệ thống tạm thời ghi nhận chấm công (Tự động hủy sau 24h nếu không duyệt).'),
                 );
             },
             onError: (errors: any) => {
@@ -62,7 +62,7 @@ const handleRequestCheckOut = () => {
         {
             onSuccess: () => {
                 import('vue-sonner').then((m) =>
-                    m.toast.success('🚀 Đã gửi yêu cầu xác nhận hết ca tới Chủ doanh nghiệp! Vui lòng chờ Chủ quán phê duyệt.'),
+                    m.toast.success('🚀 Đã gửi yêu cầu xác nhận hết ca tới Quản lý chi nhánh & Chủ doanh nghiệp! Vui lòng chờ phê duyệt.'),
                 );
             },
             onError: (errors: any) => {
@@ -222,13 +222,13 @@ onUnmounted(() => {
                         v-else-if="todayActiveAssignment?.status === 'pending_checkout'"
                         class="animate-pulse rounded-full bg-amber-500 px-2 py-0.5 text-[9px] font-extrabold text-white uppercase"
                     >
-                        Chờ Chủ quán duyệt hết ca
+                        Chờ Quản lý / Chủ duyệt hết ca
                     </span>
                     <span
                         v-else-if="todayActiveAssignment?.status === 'pending_checkin'"
                         class="animate-pulse rounded-full bg-amber-500 px-2 py-0.5 text-[9px] font-extrabold text-white uppercase"
                     >
-                        Chờ Chủ quán duyệt vào ca
+                        Tạm thời đã chấm công (Chờ Quản lý / Chủ duyệt)
                     </span>
                     <span
                         v-else-if="todayActiveAssignment?.status === 'completed'"
@@ -317,7 +317,7 @@ onUnmounted(() => {
         <CardContent
             class="space-y-2.5 rounded-b-2xl border-t border-indigo-50/60 bg-slate-50/50 p-6 pt-0 pb-6 dark:bg-slate-950/20"
         >
-            <!-- 1. NÚT XÁC NHẬN VÀO CA (Gửi Chủ Doanh Nghiệp Duyệt) -->
+            <!-- 1. NÚT XÁC NHẬN VÀO CA (Gửi Quản Lý / Chủ Doanh Nghiệp Duyệt) -->
             <Button
                 v-if="todayActiveAssignment && ['scheduled', 'pending_checkin'].includes(todayActiveAssignment?.status)"
                 @click="handleRequestCheckIn"
@@ -325,10 +325,10 @@ onUnmounted(() => {
                 class="flex h-12 w-full cursor-pointer items-center justify-center gap-2 bg-emerald-600 text-xs font-black text-white shadow-md transition-all hover:bg-emerald-700 active:scale-98 disabled:opacity-75"
             >
                 <LogIn class="size-4" />
-                {{ todayActiveAssignment?.status === 'pending_checkin' ? '⏳ ĐANG CHỜ CHỦ QUÁN XÁC NHẬN VÀO CA...' : '📩 XÁC NHẬN VÀO CA (GỬI CHỦ QUÁN)' }}
+                {{ todayActiveAssignment?.status === 'pending_checkin' ? '⏳ ĐÃ TẠM CHẤM CÔNG (CHỜ QUẢN LÝ / CHỦ DUYỆT)...' : '📩 XÁC NHẬN VÀO CA (GỬI QUẢN LÝ / CHỦ)' }}
             </Button>
 
-            <!-- 2. NÚT XÁC NHẬN HẾT CA (Gửi Chủ Doanh Nghiệp Duyệt) -->
+            <!-- 2. NÚT XÁC NHẬN HẾT CA (Gửi Quản Lý / Chủ Doanh Nghiệp Duyệt) -->
             <Button
                 v-else-if="todayActiveAssignment && ['checked_in', 'pending_checkout'].includes(todayActiveAssignment?.status)"
                 @click="handleRequestCheckOut"
@@ -336,7 +336,7 @@ onUnmounted(() => {
                 class="flex h-12 w-full cursor-pointer items-center justify-center gap-2 bg-amber-600 text-xs font-black text-white shadow-md transition-all hover:bg-amber-700 active:scale-98 disabled:opacity-75"
             >
                 <LogOut class="size-4" />
-                {{ todayActiveAssignment?.status === 'pending_checkout' ? '⏳ ĐANG CHỜ CHỦ QUÁN XÁC NHẬN HẾT CA...' : '📤 XÁC NHẬN HẾT CA (GỬI CHỦ QUÁN)' }}
+                {{ todayActiveAssignment?.status === 'pending_checkout' ? '⏳ ĐANG CHỜ QUẢN LÝ / CHỦ DUYỆT HẾT CA...' : '📤 XÁC NHẬN HẾT CA (GỬI QUẢN LÝ / CHỦ)' }}
             </Button>
 
             <!-- Option 3a: Tự Chấm Công Bằng GPS / Selfie (Check-In) -->

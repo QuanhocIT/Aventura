@@ -591,10 +591,12 @@ class AttendanceController extends Controller
     }
 
     /**
-     * Nhân viên (trừ Quản lý) gửi yêu cầu xác nhận vào ca tới Chủ doanh nghiệp (thay cho checkin GPS/QR cũ).
+     * Nhân viên gửi yêu cầu xác nhận vào ca tới Quản lý chi nhánh / Chủ doanh nghiệp.
      */
     public function requestCheckIn(Request $request): RedirectResponse
     {
+        app(\App\Services\AttendanceCancellationService::class)->cancelExpiredAttendanceRequests();
+
         $user = $request->user();
         if ($user->hasAnyRole(['owner', 'manager'])) {
             return back()->withErrors(['email' => 'Tài khoản Chủ quán / Quản lý không cần gửi yêu cầu xác nhận vào ca.']);
@@ -621,25 +623,34 @@ class AttendanceController extends Controller
             return back()->with('success', 'Bạn đã được xác nhận vào ca trực này trước đó.');
         }
 
-        // Gửi yêu cầu phê duyệt cho Chủ doanh nghiệp
+        $now = now();
+
+        // Gửi yêu cầu phê duyệt tới Quản lý chi nhánh và Chủ doanh nghiệp
         app(ApprovalService::class)->submitRequest('shift_checkin', [
             'assignment_id' => $assignment->id,
             'employee_id' => $employee->id,
+            'branch_id' => $employee->branch_id ?? $assignment->branch_id,
             'shift_name' => $assignment->shift?->name ?? 'Ca trực',
-            'requested_at' => now()->toIso8601String(),
+            'requested_at' => $now->toIso8601String(),
             'notes' => 'Yêu cầu xác nhận vào ca từ nhân viên '.$user->name.' ('.($employee->job_title ?? 'Nhân viên').')',
         ], $user);
 
-        $assignment->update(['status' => 'pending_checkin']);
+        // Tạm thời ghi nhận chấm công thời điểm gửi yêu cầu (nếu sau 24h không duyệt sẽ tự động hủy)
+        $assignment->update([
+            'status' => 'pending_checkin',
+            'check_in_at' => $assignment->check_in_at ?? $now,
+        ]);
 
-        return back()->with('success', '🚀 Đã gửi yêu cầu xác nhận vào ca tới Chủ doanh nghiệp! Vui lòng chờ Chủ quán phê duyệt trong ngày.');
+        return back()->with('success', '🚀 Đã gửi yêu cầu xác nhận vào ca tới Quản lý chi nhánh & Chủ doanh nghiệp! Hệ thống tạm thời ghi nhận chấm công lúc '.$now->format('H:i').' (Sẽ tự động hủy sau 24h nếu không được xác nhận).');
     }
 
     /**
-     * Nhân viên gửi yêu cầu xác nhận hết ca tới Chủ doanh nghiệp cho họ phê duyệt.
+     * Nhân viên gửi yêu cầu xác nhận hết ca tới Quản lý chi nhánh / Chủ doanh nghiệp.
      */
     public function requestCheckOut(Request $request): RedirectResponse
     {
+        app(\App\Services\AttendanceCancellationService::class)->cancelExpiredAttendanceRequests();
+
         $user = $request->user();
         if ($user->hasAnyRole(['owner', 'manager'])) {
             return back()->withErrors(['email' => 'Tài khoản Chủ quán / Quản lý không cần gửi yêu cầu xác nhận hết ca.']);
@@ -660,25 +671,32 @@ class AttendanceController extends Controller
         }
 
         if ($assignment->status === 'pending_checkout') {
-            return back()->with('info', 'Yêu cầu xác nhận hết ca của bạn đang chờ Chủ quán phê duyệt.');
+            return back()->with('info', 'Yêu cầu xác nhận hết ca của bạn đang chờ Quản lý chi nhánh / Chủ quán phê duyệt.');
         }
 
         if ($assignment->status === 'completed') {
             return back()->with('success', 'Bạn đã hoàn thành ca trực này trước đó.');
         }
 
-        // Gửi yêu cầu phê duyệt cho Chủ doanh nghiệp
+        $now = now();
+
+        // Gửi yêu cầu phê duyệt tới Quản lý chi nhánh và Chủ doanh nghiệp
         app(ApprovalService::class)->submitRequest('shift_checkout', [
             'assignment_id' => $assignment->id,
             'employee_id' => $employee->id,
+            'branch_id' => $employee->branch_id ?? $assignment->branch_id,
             'shift_name' => $assignment->shift?->name ?? 'Ca trực',
-            'requested_at' => now()->toIso8601String(),
+            'requested_at' => $now->toIso8601String(),
             'notes' => 'Yêu cầu xác nhận hết ca từ nhân viên '.$user->name.' ('.($employee->job_title ?? 'Nhân viên').')',
         ], $user);
 
-        $assignment->update(['status' => 'pending_checkout']);
+        // Tạm thời ghi nhận thời gian hết ca tại thời điểm gửi yêu cầu
+        $assignment->update([
+            'status' => 'pending_checkout',
+            'check_out_at' => $assignment->check_out_at ?? $now,
+        ]);
 
-        return back()->with('success', '🚀 Đã gửi yêu cầu xác nhận hết ca tới Chủ doanh nghiệp! Vui lòng chờ Chủ quán phê duyệt.');
+        return back()->with('success', '🚀 Đã gửi yêu cầu xác nhận hết ca tới Quản lý chi nhánh & Chủ doanh nghiệp! Vui lòng chờ xác nhận.');
     }
 
     /**

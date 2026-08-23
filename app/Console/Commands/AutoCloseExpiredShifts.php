@@ -163,20 +163,11 @@ class AutoCloseExpiredShifts extends Command
             }
         }
 
-        // Clean up unapproved shift_checkin requests and mark past unapproved shifts as absent (coi như nghỉ)
-        ApprovalRequest::withoutGlobalScopes()
-            ->where('operation_type', 'shift_checkin')
-            ->where('status', 'pending')
-            ->whereDate('created_at', '<', $todayStr)
-            ->update([
-                'status' => 'rejected',
-                'rejection_reason' => 'Yêu cầu vào ca đã hết hạn do Chủ doanh nghiệp không xác nhận trong ngày (Coi như nghỉ).',
-            ]);
-
-        ScheduleAssignment::withoutGlobalScopes()
-            ->whereIn('status', ['scheduled', 'pending_checkin'])
-            ->whereDate('scheduled_date', '<', $todayStr)
-            ->update(['status' => 'absent']);
+        // Trigger 24h attendance cancellation service for unapproved checkin/checkout requests
+        $cancelledCount = app(\App\Services\AttendanceCancellationService::class)->cancelExpiredAttendanceRequests();
+        if ($cancelledCount > 0) {
+            $this->info("Đã tự động hủy {$cancelledCount} yêu cầu chấm công quá 24h không duyệt.");
+        }
 
         $this->info("Completed auto-closing {$closedCount} shifts.");
 
