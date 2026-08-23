@@ -171,6 +171,7 @@ const props = defineProps<{
     kpi: KPI;
     filters: { status: string; month: string };
     canConfirm: boolean;
+    isManager?: boolean;
     isOwner?: boolean;
     cashControl?: {
         blind_cash_count_enabled: boolean;
@@ -179,6 +180,22 @@ const props = defineProps<{
         cash_handover_required: boolean;
     };
 }>();
+
+const isManagerRole = computed(() => {
+    if (props.isManager !== undefined) {
+        return props.isManager;
+    }
+
+    if (props.canConfirm || props.isOwner) {
+        return true;
+    }
+
+    const roles = (usePage().props.auth?.user as any)?.roles ?? [];
+
+    return roles.some((r: string) =>
+        ['owner', 'manager', 'accountant', 'super_admin'].includes(r),
+    );
+});
 
 // ── Cấu hình kiểm soát tiền mặt (Chủ) ─────────────────────────────────────────
 const showCashControl = ref(false);
@@ -948,7 +965,7 @@ onUnmounted(() =>
 </script>
 
 <template>
-    <Head title="Chốt Ca & Doanh Thu" />
+    <Head :title="isManagerRole ? 'Chốt Ca & Doanh Thu' : 'Chốt Ca Trực'" />
 
     <div class="mx-auto flex w-full max-w-7xl flex-col gap-6 p-6">
         <!-- ── Page Header ─────────────────────────────────────────────────── -->
@@ -965,11 +982,14 @@ onUnmounted(() =>
                     <h1
                         class="text-2xl font-bold tracking-tight text-slate-800 dark:text-slate-100"
                     >
-                        Chốt Ca & Doanh Thu
+                        {{ isManagerRole ? 'Chốt Ca & Doanh Thu' : 'Chốt Ca Trực' }}
                     </h1>
                     <p class="text-sm text-slate-500 dark:text-slate-400">
-                        Quản lý phiếu chốt ca, đối soát tiền mặt và doanh thu
-                        chi tiết.
+                        {{
+                            isManagerRole
+                                ? 'Quản lý phiếu chốt ca, đối soát tiền mặt và doanh thu chi tiết.'
+                                : 'Quản lý phiếu chốt ca, kiểm đếm két tiền mặt và gửi báo cáo cho Quản lý.'
+                        }}
                     </p>
                 </div>
             </div>
@@ -1062,7 +1082,13 @@ onUnmounted(() =>
         </div>
 
         <!-- ── KPI Cards ───────────────────────────────────────────────────── -->
-        <div class="grid grid-cols-2 gap-4 lg:grid-cols-4">
+        <div
+            :class="
+                isManagerRole
+                    ? 'grid grid-cols-2 gap-4 lg:grid-cols-4'
+                    : 'grid grid-cols-1 gap-4 sm:grid-cols-2'
+            "
+        >
             <!-- Tổng phiếu -->
             <Card
                 class="shadow-xs transition-transform duration-200 hover:translate-y-[-2px]"
@@ -1088,8 +1114,9 @@ onUnmounted(() =>
                 </CardContent>
             </Card>
 
-            <!-- Tổng doanh thu gộp -->
+            <!-- Tổng doanh thu gộp (chỉ Quản lý) -->
             <Card
+                v-if="isManagerRole"
                 class="border-emerald-100 shadow-xs transition-transform duration-200 hover:translate-y-[-2px] dark:border-emerald-950/20"
             >
                 <CardHeader
@@ -1113,8 +1140,9 @@ onUnmounted(() =>
                 </CardContent>
             </Card>
 
-            <!-- Tiền mặt thực -->
+            <!-- Tiền mặt thực (chỉ Quản lý) -->
             <Card
+                v-if="isManagerRole"
                 class="border-blue-100 shadow-xs transition-transform duration-200 hover:translate-y-[-2px] dark:border-blue-950/20"
             >
                 <CardHeader
@@ -1138,8 +1166,9 @@ onUnmounted(() =>
                 </CardContent>
             </Card>
 
-            <!-- Chênh lệch tổng -->
+            <!-- Chênh lệch tổng (chỉ Quản lý) -->
             <Card
+                v-if="isManagerRole"
                 class="shadow-xs transition-transform duration-200 hover:translate-y-[-2px]"
                 :class="
                     kpi.total_difference >= 0
@@ -1272,17 +1301,24 @@ onUnmounted(() =>
                 <template v-else>
                     <!-- Table Header -->
                     <div
-                        class="hidden grid-cols-[auto_1.1fr_1.1fr_1fr_1.1fr_1.1fr_1fr_1fr_1.2fr_auto] gap-2.5 border-b border-slate-100 bg-slate-50/50 px-5 py-3 text-[10px] font-bold tracking-wider text-slate-500 uppercase lg:grid dark:border-slate-800 dark:bg-slate-900/30"
+                        class="hidden gap-2.5 border-b border-slate-100 bg-slate-50/50 px-5 py-3 text-[10px] font-bold tracking-wider text-slate-500 uppercase lg:grid dark:border-slate-800 dark:bg-slate-900/30"
+                        :class="
+                            isManagerRole
+                                ? 'grid-cols-[auto_1.1fr_1.1fr_1fr_1.1fr_1.1fr_1fr_1fr_1.2fr_1fr_1fr_auto]'
+                                : 'grid-cols-[auto_1.5fr_1.5fr_1.2fr_1fr_1fr_auto]'
+                        "
                     >
                         <div></div>
                         <div>Ngày / Ca</div>
                         <div>Khu vực</div>
                         <div>Đơn vào</div>
-                        <div class="text-right">Thanh toán TM</div>
-                        <div class="text-right">Thanh toán CK</div>
+                        <div v-if="isManagerRole" class="text-right">Thanh toán TM</div>
+                        <div v-if="isManagerRole" class="text-right">Thanh toán CK</div>
                         <div class="text-right">Đơn hủy</div>
                         <div class="text-right">Hoàn tiền</div>
-                        <div class="text-right">Tổng doanh thu</div>
+                        <div v-if="isManagerRole" class="text-right">Tổng doanh thu</div>
+                        <div v-if="isManagerRole" class="text-right">Tiền mặt thực</div>
+                        <div v-if="isManagerRole" class="text-right">Chênh lệch</div>
                         <div class="text-right">Trạng thái</div>
                     </div>
 
@@ -1294,7 +1330,12 @@ onUnmounted(() =>
                     >
                         <!-- Main Row -->
                         <div
-                            class="grid cursor-pointer grid-cols-[auto_1fr_auto] items-center gap-3 px-4 py-4 transition hover:bg-slate-50/60 lg:grid-cols-[auto_1.1fr_1.1fr_1fr_1.1fr_1.1fr_1fr_1fr_1.2fr_auto] lg:gap-2.5 lg:px-5 dark:hover:bg-slate-900/30"
+                            class="grid cursor-pointer grid-cols-[auto_1fr_auto] items-center gap-3 px-4 py-4 transition hover:bg-slate-50/60 lg:gap-2.5 lg:px-5 dark:hover:bg-slate-900/30"
+                            :class="
+                                isManagerRole
+                                    ? 'lg:grid-cols-[auto_1.1fr_1.1fr_1fr_1.1fr_1.1fr_1fr_1fr_1.2fr_1fr_1fr_auto]'
+                                    : 'lg:grid-cols-[auto_1.5fr_1.5fr_1.2fr_1fr_1fr_auto]'
+                            "
                             @click="toggleExpand(closing.id)"
                         >
                             <!-- Expand toggle -->
@@ -1353,7 +1394,7 @@ onUnmounted(() =>
                             </div>
 
                             <!-- Thanh toán TM -->
-                            <div class="hidden text-right font-mono lg:block">
+                            <div v-if="isManagerRole" class="hidden text-right font-mono lg:block">
                                 <p
                                     class="text-xs font-bold text-blue-600 dark:text-blue-400"
                                 >
@@ -1365,7 +1406,7 @@ onUnmounted(() =>
                             </div>
 
                             <!-- Thanh toán CK -->
-                            <div class="hidden text-right font-mono lg:block">
+                            <div v-if="isManagerRole" class="hidden text-right font-mono lg:block">
                                 <p
                                     class="text-xs font-bold text-violet-600 dark:text-violet-400"
                                 >
@@ -1408,7 +1449,7 @@ onUnmounted(() =>
                             </div>
 
                             <!-- Tổng doanh thu (= TM + CK - Hoàn tiền) -->
-                            <div class="hidden text-right font-mono lg:block">
+                            <div v-if="isManagerRole" class="hidden text-right font-mono lg:block">
                                 <p
                                     class="text-sm font-black text-emerald-600 dark:text-emerald-400"
                                 >
@@ -1420,7 +1461,7 @@ onUnmounted(() =>
                             </div>
 
                             <!-- Tiền mặt thực -->
-                            <div class="hidden text-right font-mono lg:block">
+                            <div v-if="isManagerRole" class="hidden text-right font-mono lg:block">
                                 <p
                                     class="text-sm font-bold text-slate-700 dark:text-slate-300"
                                 >
@@ -1429,7 +1470,7 @@ onUnmounted(() =>
                             </div>
 
                             <!-- Chênh lệch -->
-                            <div class="hidden text-right font-mono lg:block">
+                            <div v-if="isManagerRole" class="hidden text-right font-mono lg:block">
                                 <p
                                     class="text-sm font-bold"
                                     :class="
@@ -1481,8 +1522,9 @@ onUnmounted(() =>
                                 <div
                                     class="grid gap-6 sm:grid-cols-2 lg:grid-cols-4"
                                 >
-                                    <!-- Revenue breakdown -->
+                                    <!-- Revenue breakdown (chỉ Quản lý) -->
                                     <div
+                                        v-if="isManagerRole"
                                         class="space-y-3 rounded-xl border bg-white p-4 shadow-2xs dark:bg-slate-950"
                                     >
                                         <p

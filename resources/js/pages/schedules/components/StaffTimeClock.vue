@@ -197,7 +197,7 @@ onUnmounted(() => {
         >
             <!-- Clock Display Face -->
             <div
-                class="relative flex h-44 w-44 flex-col items-center justify-center rounded-full border-4 border-indigo-200 bg-white shadow-inner dark:bg-slate-950"
+                class="relative flex h-48 w-48 flex-col items-center justify-center rounded-full border-4 border-indigo-200 bg-white p-3 text-center shadow-inner dark:bg-slate-950 overflow-hidden"
             >
                 <div
                     class="absolute inset-0 rounded-full bg-indigo-500/5 blur-xs"
@@ -211,34 +211,34 @@ onUnmounted(() => {
                     >{{ currentTime }}</span
                 >
                 <!-- Live Status Indicator -->
-                <div class="mt-2 shrink-0">
+                <div class="mt-2 flex shrink-0 justify-center">
                     <span
                         v-if="todayActiveAssignment?.status === 'checked_in'"
-                        class="animate-pulse rounded-full bg-emerald-600 px-2 py-0.5 text-[9px] font-extrabold text-white uppercase"
+                        class="animate-pulse rounded-full bg-emerald-600 px-2.5 py-0.5 text-[9px] font-extrabold text-white uppercase text-center"
                     >
                         Đang làm việc
                     </span>
                     <span
                         v-else-if="todayActiveAssignment?.status === 'pending_checkout'"
-                        class="animate-pulse rounded-full bg-amber-500 px-2 py-0.5 text-[9px] font-extrabold text-white uppercase"
+                        class="animate-pulse rounded-full bg-amber-500 px-2.5 py-1 text-[9px] font-extrabold text-white uppercase text-center leading-tight max-w-[140px] whitespace-normal block"
                     >
-                        Chờ Quản lý / Chủ duyệt hết ca
+                        Chờ duyệt hết ca
                     </span>
                     <span
                         v-else-if="todayActiveAssignment?.status === 'pending_checkin'"
-                        class="animate-pulse rounded-full bg-amber-500 px-2 py-0.5 text-[9px] font-extrabold text-white uppercase"
+                        class="animate-pulse rounded-full bg-amber-500 px-2.5 py-1 text-[9px] font-extrabold text-white uppercase text-center leading-tight max-w-[140px] whitespace-normal block"
                     >
-                        Tạm thời đã chấm công (Chờ Quản lý / Chủ duyệt)
+                        Đã chấm công (Chờ duyệt)
                     </span>
                     <span
                         v-else-if="todayActiveAssignment?.status === 'completed'"
-                        class="rounded-full bg-indigo-500 px-2 py-0.5 text-[9px] font-extrabold text-white uppercase"
+                        class="rounded-full bg-indigo-500 px-2.5 py-0.5 text-[9px] font-extrabold text-white uppercase text-center"
                     >
                         Đã hoàn thành ca
                     </span>
                     <span
                         v-else
-                        class="rounded-full bg-slate-300 px-2 py-0.5 text-[9px] font-extrabold text-slate-600 uppercase dark:bg-slate-800 dark:text-slate-400"
+                        class="rounded-full bg-slate-300 px-2.5 py-0.5 text-[9px] font-extrabold text-slate-600 uppercase dark:bg-slate-800 dark:text-slate-400 text-center"
                     >
                         Chờ vào ca
                     </span>
@@ -322,10 +322,12 @@ onUnmounted(() => {
                 v-if="todayActiveAssignment && ['scheduled', 'pending_checkin'].includes(todayActiveAssignment?.status)"
                 @click="handleRequestCheckIn"
                 :disabled="isRequestingCheckIn || todayActiveAssignment?.status === 'pending_checkin'"
-                class="flex h-12 w-full cursor-pointer items-center justify-center gap-2 bg-emerald-600 text-xs font-black text-white shadow-md transition-all hover:bg-emerald-700 active:scale-98 disabled:opacity-75"
+                class="flex min-h-[48px] h-auto w-full cursor-pointer items-center justify-center gap-2 rounded-xl bg-emerald-600 px-3 py-2.5 text-xs font-bold leading-snug text-white shadow-md transition-all hover:bg-emerald-700 active:scale-98 disabled:opacity-90"
             >
-                <LogIn class="size-4" />
-                {{ todayActiveAssignment?.status === 'pending_checkin' ? '⏳ ĐÃ TẠM CHẤM CÔNG (CHỜ QUẢN LÝ / CHỦ DUYỆT)...' : '📩 XÁC NHẬN VÀO CA (GỬI QUẢN LÝ / CHỦ)' }}
+                <LogIn class="size-4 shrink-0" />
+                <span class="min-w-0 text-center leading-tight">
+                    {{ todayActiveAssignment?.status === 'pending_checkin' ? '⏳ Đã tạm chấm công (Chờ Quản lý / Chủ duyệt)' : '📩 Xác nhận vào ca (Gửi Quản lý / Chủ)' }}
+                </span>
             </Button>
 
             <!-- 2. NÚT XÁC NHẬN HẾT CA (Gửi Quản Lý / Chủ Doanh Nghiệp Duyệt) -->
@@ -333,10 +335,12 @@ onUnmounted(() => {
                 v-else-if="todayActiveAssignment && ['checked_in', 'pending_checkout'].includes(todayActiveAssignment?.status)"
                 @click="handleRequestCheckOut"
                 :disabled="isRequestingCheckOut || todayActiveAssignment?.status === 'pending_checkout'"
-                class="flex h-12 w-full cursor-pointer items-center justify-center gap-2 bg-amber-600 text-xs font-black text-white shadow-md transition-all hover:bg-amber-700 active:scale-98 disabled:opacity-75"
+                class="flex min-h-[48px] h-auto w-full cursor-pointer items-center justify-center gap-2 rounded-xl bg-amber-600 px-3 py-2.5 text-xs font-bold leading-snug text-white shadow-md transition-all hover:bg-amber-700 active:scale-98 disabled:opacity-90"
             >
-                <LogOut class="size-4" />
-                {{ todayActiveAssignment?.status === 'pending_checkout' ? '⏳ ĐANG CHỜ QUẢN LÝ / CHỦ DUYỆT HẾT CA...' : '📤 XÁC NHẬN HẾT CA (GỬI QUẢN LÝ / CHỦ)' }}
+                <LogOut class="size-4 shrink-0" />
+                <span class="min-w-0 text-center leading-tight">
+                    {{ todayActiveAssignment?.status === 'pending_checkout' ? '⏳ Đang chờ Quản lý / Chủ duyệt hết ca' : '📤 Xác nhận hết ca (Gửi Quản lý / Chủ)' }}
+                </span>
             </Button>
 
             <!-- Option 3a: Tự Chấm Công Bằng GPS / Selfie (Check-In) -->

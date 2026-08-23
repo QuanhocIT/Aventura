@@ -251,11 +251,16 @@ class AdvisorQueryEngine
     private function handleInventory(): array
     {
         $lowStock = Inventory::query()
-            ->select('inventories.*')
             ->join('ingredients', 'inventories.ingredient_id', '=', 'ingredients.id')
-            ->whereColumn('inventories.quantity_on_hand', '<=', 'ingredients.min_stock_level')
             ->where('inventories.restaurant_id', $this->restaurantId)
-            ->with(['ingredient:id,name,unit_id', 'ingredient.unit:id,name'])
+            ->leftJoin('units', 'ingredients.unit_id', '=', 'units.id')
+            ->selectRaw('ingredients.id as ingredient_id, ingredients.name as ingredient_name,
+                SUM(inventories.quantity_on_hand) as quantity_on_hand,
+                MAX(ingredients.min_stock_level) as min_stock_level,
+                units.name as unit_name')
+            ->groupBy('ingredients.id', 'ingredients.name', 'units.name')
+            ->havingRaw('SUM(inventories.quantity_on_hand) <= MAX(ingredients.min_stock_level)')
+            ->orderByRaw('SUM(inventories.quantity_on_hand) asc')
             ->limit(15)
             ->get();
 
@@ -268,8 +273,8 @@ class AdvisorQueryEngine
 
         $lines = ["📦 **{$lowStock->count()} nguyên liệu sắp hết / đã hết:**\n"];
         foreach ($lowStock as $inv) {
-            $name    = $inv->ingredient?->name ?? "Nguyên liệu #{$inv->ingredient_id}";
-            $unit    = $inv->ingredient?->unit?->name ?? '';
+            $name    = $inv->ingredient_name ?? "Nguyên liệu #{$inv->ingredient_id}";
+            $unit    = $inv->unit_name ?? '';
             $qty     = number_format((float) $inv->quantity_on_hand, 2);
             $icon    = $inv->quantity_on_hand <= 0 ? '🔴' : '🟡';
             $lines[] = "{$icon} **{$name}** — còn {$qty} {$unit}";
@@ -396,8 +401,11 @@ class AdvisorQueryEngine
 
         $lowStock = Inventory::query()
             ->join('ingredients', 'inventories.ingredient_id', '=', 'ingredients.id')
-            ->whereColumn('inventories.quantity_on_hand', '<=', 'ingredients.min_stock_level')
             ->where('inventories.restaurant_id', $this->restaurantId)
+            ->select('inventories.ingredient_id')
+            ->groupBy('inventories.ingredient_id')
+            ->havingRaw('SUM(inventories.quantity_on_hand) <= MAX(ingredients.min_stock_level)')
+            ->get()
             ->count();
 
         $lines = [

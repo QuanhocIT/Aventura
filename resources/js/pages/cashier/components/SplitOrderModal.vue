@@ -98,14 +98,19 @@ const numberFormat = (val: number) =>
                             :key="idx"
                             class="flex items-center justify-between border-b border-slate-100 p-2 last:border-0 dark:border-slate-800"
                         >
-                            <span
-                                class="text-xs font-bold text-slate-800 dark:text-slate-200"
-                            >
-                                {{
-                                    item.product_name ||
-                                    `Món #${item.product_id}`
-                                }}
-                            </span>
+                            <div class="flex flex-col text-left">
+                                <span
+                                    class="text-xs font-bold text-slate-800 dark:text-slate-200"
+                                >
+                                    {{
+                                        item.product_name ||
+                                        `Món #${item.product_id}`
+                                    }}
+                                </span>
+                                <span class="text-[10px] text-slate-400">
+                                    Đơn gốc: {{ item.max_quantity ?? item.quantity }} món
+                                </span>
+                            </div>
                             <div class="flex items-center gap-2">
                                 <Button
                                     size="icon"
@@ -117,19 +122,29 @@ const numberFormat = (val: number) =>
                                     <Minus class="size-3" />
                                 </Button>
                                 <span
-                                    class="w-4 text-center font-mono text-xs font-bold"
+                                    class="w-5 text-center font-mono text-xs font-bold"
                                     >{{ item.quantity }}</span
                                 >
                                 <Button
                                     size="icon"
                                     variant="outline"
                                     class="size-6 rounded-lg"
+                                    :disabled="
+                                        item.quantity >= (item.max_quantity ?? item.quantity) ||
+                                        (Boolean(splitProjection) && splitProjection.totalRemainingQty <= 1)
+                                    "
                                     @click="item.quantity++"
                                 >
                                     <Plus class="size-3" />
                                 </Button>
                             </div>
                         </div>
+                    </div>
+                    <div
+                        v-if="splitProjection && splitProjection.totalRemainingQty <= 1 && splitProjection.totalSplitQty > 0"
+                        class="mt-2 rounded-xl border border-amber-200 bg-amber-50 p-2.5 text-center text-xs font-bold text-amber-700 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-300"
+                    >
+                        ⚠️ Đơn gốc phải giữ lại tối thiểu 1 món. Không thể tách thêm.
                     </div>
                 </div>
 

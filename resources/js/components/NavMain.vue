@@ -34,10 +34,14 @@ const props = withDefaults(
         items: NavItem[];
         collapsibleGroups?: boolean;
         enableSearch?: boolean;
+        disableGrouping?: boolean;
+        hideGroupLabel?: boolean;
     }>(),
     {
         collapsibleGroups: false,
         enableSearch: false,
+        disableGrouping: false,
+        hideGroupLabel: false,
     },
 );
 
@@ -258,7 +262,13 @@ const groupDefinitions: {
     },
 ];
 
-const shouldGroup = computed(() => props.items.length > 8);
+const shouldGroup = computed(() => {
+    if (props.disableGrouping) {
+        return false;
+    }
+
+    return props.items.length > 8;
+});
 
 type NavigationGroup = {
     key: string;
@@ -555,6 +565,7 @@ watch(
     <template v-else>
         <SidebarGroup class="px-2 py-0 select-none">
             <SidebarGroupLabel
+                v-if="!props.hideGroupLabel"
                 class="text-slate-450 px-2.5 py-1 text-[10px] font-bold tracking-widest uppercase dark:text-slate-500"
             >
                 Quản trị hệ thống

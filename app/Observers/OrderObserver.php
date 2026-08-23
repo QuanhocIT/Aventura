@@ -15,13 +15,21 @@ class OrderObserver
             $order->tracking_token
             && ($order->isDirty('status') || $order->isDirty('payment_status'))
         ) {
-            event(new OrderStatusUpdated($order));
+            try {
+                event(new OrderStatusUpdated($order));
+            } catch (\Throwable $e) {
+                \Illuminate\Support\Facades\Log::warning('Broadcast OrderStatusUpdated failed: ' . $e->getMessage());
+            }
         }
 
         if ($order->isDirty('status') && $order->status === 'completed') {
             $order->loadMissing('customer');
             if ($order->customer && ! empty($order->customer->email)) {
-                SendReviewRequestEmail::dispatch($order->id)->delay(now()->addHours(2));
+                try {
+                    SendReviewRequestEmail::dispatch($order->id)->delay(now()->addHours(2));
+                } catch (\Throwable $e) {
+                    \Illuminate\Support\Facades\Log::warning('Dispatch SendReviewRequestEmail failed: ' . $e->getMessage());
+                }
             }
         }
 

@@ -4,6 +4,7 @@ export interface OrderItem {
     product_name?: string;
     price: number;
     quantity: number;
+    max_quantity?: number;
     notes?: string;
     status?: string;
     prepared_at?: string | null;

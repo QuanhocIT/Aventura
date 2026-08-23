@@ -244,11 +244,15 @@ class DeliveryDispatchService
                 $batch->update(['status' => 'in_progress']);
             }
 
-            broadcast(new DeliveryStatusUpdated($item->load('order.deliveryDetail'), $batch));
+            try {
+                broadcast(new DeliveryStatusUpdated($item->load('order.deliveryDetail'), $batch));
 
-            $trackedOrder = $item->order?->fresh();
-            if ($trackedOrder?->tracking_token) {
-                broadcast(new \App\Events\OrderStatusUpdated($trackedOrder));
+                $trackedOrder = $item->order?->fresh();
+                if ($trackedOrder?->tracking_token) {
+                    broadcast(new \App\Events\OrderStatusUpdated($trackedOrder));
+                }
+            } catch (\Throwable $e) {
+                \Illuminate\Support\Facades\Log::warning('Broadcast DeliveryStatusUpdated/OrderStatusUpdated failed: ' . $e->getMessage());
             }
 
             return $item->refresh();

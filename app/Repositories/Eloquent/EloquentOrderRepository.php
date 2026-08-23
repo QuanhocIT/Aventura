@@ -15,7 +15,7 @@ class EloquentOrderRepository implements OrderRepositoryInterface
     public function getOrdersQuery(int $restaurantId, array $filters): Builder
     {
         $query = Order::where('restaurant_id', $restaurantId)
-            ->with(['table.area', 'items.product', 'items.preparedBy:id,name', 'items.servedBy:id,name', 'deliveryDetail', 'branch:id,name'])
+            ->with(['table.area', 'items.product', 'items.preparedBy:id,name', 'items.servedBy:id,name', 'deliveryDetail', 'branch:id,name', 'refundedBy:id,name'])
             ->latest();
 
         if (! empty($filters['date'])) {
@@ -31,7 +31,9 @@ class EloquentOrderRepository implements OrderRepositoryInterface
         }
 
         if (! empty($filters['status']) && $filters['status'] !== 'all') {
-            if ($filters['status'] === 'waiting_preparing') {
+            if ($filters['status'] === 'refunded') {
+                $query->whereIn('payment_status', ['partial_refund', 'refunded']);
+            } elseif ($filters['status'] === 'waiting_preparing') {
                 // Món đã gửi xuống bếp nhưng chưa được bếp bấm "Bắt đầu chế biến".
                 $query->where('status', '!=', 'cancelled')
                     ->currentTableOrder()
@@ -113,15 +115,27 @@ class EloquentOrderRepository implements OrderRepositoryInterface
                 $date.' 23:59:59',
             ]);
 
+        $refundedQuery = Order::where('restaurant_id', $restaurantId)
+            ->whereBetween('refunded_at', [
+                $date.' 00:00:00',
+                $date.' 23:59:59',
+            ])
+            ->whereIn('payment_status', ['partial_refund', 'refunded']);
+
         $tenantContext = app(TenantContext::class);
         if ($tenantContext->isBranchScoped() || $tenantContext->isUnassigned()) {
             $tenantContext->applyBranchScope($baseQuery);
+            $tenantContext->applyBranchScope($refundedQuery);
         } elseif ($branchId) {
             $baseQuery->where('branch_id', $branchId);
+            $refundedQuery->where('branch_id', $branchId);
         }
 
         if ($kitchenOnly) {
             $baseQuery->whereHas('items', function ($q) {
+                $q->whereNotNull('served_at');
+            });
+            $refundedQuery->whereHas('items', function ($q) {
                 $q->whereNotNull('served_at');
             });
         }
@@ -161,6 +175,8 @@ class EloquentOrderRepository implements OrderRepositoryInterface
             'completed' => (int) $completedCount,
             'cancelled' => (int) $cancelledCount,
             'revenue' => (float) $revenue,
+            'refunded' => (int) $refundedQuery->count(),
+            'refunded_amount' => (float) $refundedQuery->sum('refund_amount'),
         ];
     }
 

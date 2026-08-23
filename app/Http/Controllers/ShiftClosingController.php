@@ -84,6 +84,11 @@ class ShiftClosingController extends Controller
     public function index(Request $request): Response
     {
         $user = $request->user();
+        abort_unless(
+            $user->hasAnyRole(['owner', 'manager', 'accountant', 'super_admin']) || $user->hasPermissionTo('manage_salary'),
+            403,
+            'Bạn không có quyền truy cập trang Chốt ca.'
+        );
 
         $restaurant = $user->restaurant;
         if (! $restaurant && ! $request->user()->hasRole('super_admin')) {
@@ -200,6 +205,8 @@ class ShiftClosingController extends Controller
             ->when($branchId, fn ($q) => $q->where(fn ($sq) => $sq->where('branch_id', $branchId)->orWhereNull('branch_id')))
             ->get(['id', 'name']);
 
+        $isManager = $user->hasAnyRole(['owner', 'manager', 'accountant', 'super_admin']) || $user->hasPermissionTo('manage_salary');
+
         return Inertia::render('shift-closings/Index', [
             'closings' => $closings->values(),
             'shifts' => $shifts,
@@ -209,6 +216,7 @@ class ShiftClosingController extends Controller
             'activeBranchId' => $branchId,
             'branchScope' => $this->tenantContext->scopeKey(),
             'canConfirm' => $user->hasAnyRole(['owner', 'manager']),
+            'isManager' => $isManager,
             // Cấu hình kiểm soát tiền mặt (Chủ chỉnh được).
             'isOwner' => $user->isOwner() || $user->isSuperAdmin(),
             'cashControl' => CashControlSettings::all($restaurantId, $branchId),

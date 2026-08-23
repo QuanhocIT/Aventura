@@ -94,6 +94,11 @@ class Order extends Model
         return $this->belongsTo(User::class, 'created_by');
     }
 
+    public function refundedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'refunded_by');
+    }
+
     public function items(): HasMany
     {
         return $this->hasMany(OrderItem::class);

@@ -130,9 +130,22 @@ export function useCashierTables(
             return;
         }
 
-        splitItems.value = activeTable.value.active_order.items
-            .filter((item) => item.status !== 'cancelled')
-            .map((i) => ({ ...i, quantity: 1 }));
+        const validItems = activeTable.value.active_order.items
+            .filter((item) => item.status !== 'cancelled');
+
+        const totalOriginalQty = validItems.reduce((sum, i) => sum + i.quantity, 0);
+
+        if (totalOriginalQty <= 1) {
+            toast('Đơn hàng chỉ có 1 món, không thể tách đơn. Đơn gốc phải còn lại tối thiểu 1 món.', 'error');
+
+            return;
+        }
+
+        splitItems.value = validItems.map((i) => ({
+            ...i,
+            max_quantity: i.quantity,
+            quantity: 0,
+        }));
         splitTableId.value = null;
         showSplitModal.value = true;
     };
@@ -239,7 +252,16 @@ export function useCashierTables(
         }
 
         const origOrder = activeTable.value.active_order;
-        const hasItems = splitItems.value.some((si) => si.quantity > 0);
+        const totalOriginalQty = splitItems.value.reduce(
+            (sum, si) => sum + (si.max_quantity ?? si.quantity),
+            0,
+        );
+        const totalSplitQty = splitItems.value.reduce(
+            (sum, si) => sum + si.quantity,
+            0,
+        );
+        const totalRemainingQty = totalOriginalQty - totalSplitQty;
+        const hasItems = totalSplitQty > 0 && totalRemainingQty >= 1;
 
         let splitSubtotal = 0;
         splitItems.value.forEach((si) => {
@@ -260,6 +282,9 @@ export function useCashierTables(
 
         return {
             hasItems,
+            totalOriginalQty,
+            totalSplitQty,
+            totalRemainingQty,
             origSubtotal,
             origDiscount,
             origTotal,
@@ -278,18 +303,34 @@ export function useCashierTables(
             return;
         }
 
+        const totalOriginalQty = splitItems.value.reduce(
+            (sum, si) => sum + (si.max_quantity ?? si.quantity),
+            0,
+        );
+        const totalSplitQty = splitItems.value.reduce(
+            (sum, si) => sum + si.quantity,
+            0,
+        );
+        const totalRemainingQty = totalOriginalQty - totalSplitQty;
+
+        if (totalSplitQty <= 0) {
+            toast('Vui lòng chọn ít nhất 1 món để tách!', 'error');
+
+            return;
+        }
+
+        if (totalRemainingQty < 1) {
+            toast('Không thể tách toàn bộ đơn — Đơn gốc phải còn lại tối thiểu 1 món!', 'error');
+
+            return;
+        }
+
         const itemsToSplit = splitItems.value
             .filter((si) => si.quantity > 0)
             .map((si) => ({
                 order_item_id: si.id,
                 quantity: si.quantity,
             }));
-
-        if (itemsToSplit.length === 0) {
-            toast('Vui lòng chọn ít nhất 1 món để tách!', 'error');
-
-            return;
-        }
 
         isSubmittingSplit.value = true;
 

@@ -31,6 +31,10 @@ type Handover = {
     id: number;
     handover_date: string | null;
     status: HandoverStatus;
+    from_user_id?: number;
+    to_user_id?: number | null;
+    can_manage?: boolean;
+    can_accept?: boolean;
     template_id?: number | null;
     from_user_name: string | null;
     to_user_name: string | null;
@@ -92,6 +96,8 @@ const props = defineProps<{
     colleagues: { id: number; name: string }[];
     activeBranchId: number | null;
     activeBranch?: { id: number; name: string } | null;
+    currentUserId?: number;
+    isManager?: boolean;
 }>();
 
 const currency = new Intl.NumberFormat('vi-VN');
@@ -154,7 +160,7 @@ const submitForm = useForm({
 });
 
 const draftHandover = computed(
-    () => props.handovers.data.find((h) => h.status === 'draft') ?? null,
+    () => props.handovers.data.find((h) => h.status === 'draft' && (h.can_manage ?? true)) ?? null,
 );
 
 function openSubmit(handover: Handover) {

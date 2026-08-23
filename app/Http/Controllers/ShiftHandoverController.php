@@ -54,6 +54,10 @@ class ShiftHandoverController extends Controller
                 'id' => $h->id,
                 'handover_date' => $h->handover_date?->format('d/m/Y'),
                 'status' => $h->status,
+                'from_user_id' => $h->from_user_id,
+                'to_user_id' => $h->to_user_id,
+                'can_manage' => (int) $h->from_user_id === (int) $user->id || $user->hasAnyRole(['owner', 'manager']),
+                'can_accept' => (int) $h->to_user_id === (int) $user->id && $h->status === ShiftHandover::STATUS_PENDING,
                 'from_user_name' => $h->fromUser?->name,
                 'to_user_name' => $h->toUser?->name,
                 'from_shift_name' => $h->fromShift?->name,
@@ -90,6 +94,8 @@ class ShiftHandoverController extends Controller
 
         return Inertia::render('shift-handovers/Index', [
             'handovers' => $handovers,
+            'currentUserId' => $user->id,
+            'isManager' => $user->hasAnyRole(['owner', 'manager']),
             'activeBranch' => $activeBranch ? [
                 'id' => $activeBranch->id,
                 'name' => $activeBranch->name,

@@ -78,6 +78,10 @@ type Order = {
     table_name: string | null;
     area_name: string | null;
     total_amount: number;
+    refund_amount?: number | null;
+    refund_reason?: string | null;
+    refunded_at?: string | null;
+    refunded_by_name?: string | null;
     items_count: number;
     items_prepared_count?: number;
     items_served_count?: number;
@@ -102,6 +106,8 @@ type Summary = {
     completed: number;
     cancelled: number;
     revenue: number;
+    refunded: number;
+    refunded_amount: number;
 };
 
 type CancelledQrOrder = Order & {
@@ -207,6 +213,7 @@ const statusFilters = [
     { key: 'preparing', label: 'Đang chế biến' },
     { key: 'ready', label: 'Chờ phục vụ' },
     { key: 'completed', label: 'Hoàn thành' },
+    { key: 'refunded', label: 'Hoàn tiền' },
     { key: 'cancelled', label: 'Đã hủy' },
 ] as const;
 
@@ -438,10 +445,18 @@ const isSubmittingRefund = ref(false);
 const openRefundModal = (o: Order) => {
     refundOrderTarget.value = o;
     refundType.value = 'full';
-    refundAmount.value = o.total_amount;
+    refundAmount.value = Math.max(0, o.total_amount - (o.refund_amount ?? 0));
     refundReason.value = '';
     showRefundModal.value = true;
 };
+
+const remainingRefundAmount = computed(() =>
+    Math.max(
+        0,
+        (refundOrderTarget.value?.total_amount ?? 0) -
+            (refundOrderTarget.value?.refund_amount ?? 0),
+    ),
+);
 
 const submitRefund = () => {
     if (!refundOrderTarget.value || !refundReason.value.trim() || isSubmittingRefund.value) {
@@ -538,6 +553,7 @@ const paymentConfig: Record<string, { label: string; color: string }> = {
     unpaid: { label: 'Chưa TT', color: 'text-rose-600' },
     partial: { label: 'TT 1 phần', color: 'text-amber-600' },
     paid: { label: 'Đã TT', color: 'text-emerald-600' },
+    partial_refund: { label: 'Hoàn một phần', color: 'text-amber-600' },
     refunded: { label: 'Hoàn tiền', color: 'text-slate-500' },
 };
 
@@ -966,7 +982,7 @@ onUnmounted(() => {
         </div>
 
         <!-- Summary KPIs -->
-        <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+        <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-8">
             <div
                 class="rounded-xl border border-border bg-card p-3 text-center"
             >
@@ -1010,6 +1026,17 @@ onUnmounted(() => {
                     {{ summary.cancelled }}
                 </p>
                 <p class="mt-0.5 text-xs text-rose-600/70">Đã hủy</p>
+            </div>
+            <div
+                class="rounded-xl border border-slate-200 bg-slate-50 p-3 text-center dark:border-slate-700 dark:bg-slate-900/60"
+            >
+                <p class="text-2xl font-bold text-slate-700 dark:text-slate-200">
+                    {{ summary.refunded }}
+                </p>
+                <p class="mt-0.5 text-xs text-slate-600/70 dark:text-slate-400">Đơn hoàn tiền</p>
+                <p class="mt-1 text-[10px] font-semibold text-slate-500 dark:text-slate-400">
+                    {{ formatCurrency(summary.refunded_amount) }}
+                </p>
             </div>
             <div
                 class="rounded-xl border border-emerald-300 bg-emerald-100 p-3 text-center dark:border-emerald-800 dark:bg-emerald-950/30"
@@ -1541,6 +1568,12 @@ onUnmounted(() => {
                                     "
                                 >
                                     {{ paymentConfig[o.payment_status]?.label }}
+                                </span>
+                                <span
+                                    v-if="(o.refund_amount ?? 0) > 0"
+                                    class="mt-0.5 block text-[10px] font-semibold text-slate-500 dark:text-slate-400"
+                                >
+                                    Đã hoàn {{ formatCurrency(o.refund_amount ?? 0) }}
                                 </span>
                             </div>
 
@@ -2450,9 +2483,9 @@ onUnmounted(() => {
                                 type="radio"
                                 v-model="refundType"
                                 value="full"
-                                @change="refundAmount = refundOrderTarget?.total_amount ?? 0"
+                                @change="refundAmount = remainingRefundAmount"
                             />
-                            <span>Hoàn toàn phần ({{ refundOrderTarget?.total_amount?.toLocaleString('vi-VN') }}đ)</span>
+                            <span>Hoàn toàn bộ phần còn lại ({{ remainingRefundAmount.toLocaleString('vi-VN') }}đ)</span>
                         </label>
                         <label class="flex cursor-pointer items-center gap-1.5">
                             <input type="radio" v-model="refundType" value="partial" />
@@ -2466,7 +2499,7 @@ onUnmounted(() => {
                     <input
                         type="number"
                         v-model.number="refundAmount"
-                        :max="refundOrderTarget?.total_amount"
+                        :max="remainingRefundAmount"
                         min="1000"
                         step="1000"
                         class="w-full rounded-xl border border-input bg-background p-2.5 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
@@ -2497,7 +2530,7 @@ onUnmounted(() => {
                 <Button
                     size="sm"
                     class="bg-rose-600 text-xs font-bold text-white hover:bg-rose-700"
-                    :disabled="isSubmittingRefund || refundReason.trim().length < 10"
+                    :disabled="isSubmittingRefund || refundReason.trim().length < 10 || refundAmount < 1000 || refundAmount > remainingRefundAmount"
                     @click="submitRefund"
                 >
                     <Loader2 v-if="isSubmittingRefund" class="mr-1 size-3.5 animate-spin" />
@@ -2669,6 +2702,45 @@ onUnmounted(() => {
                             "{{ selectedOrder.note }}"
                         </span>
                     </div>
+                </div>
+
+                <!-- Thông tin hoàn tiền -->
+                <div
+                    v-if="(selectedOrder.refund_amount ?? 0) > 0"
+                    class="space-y-2 rounded-xl border border-slate-300 bg-slate-50 p-4 text-xs dark:border-slate-700 dark:bg-slate-900/60"
+                >
+                    <div class="flex items-center justify-between">
+                        <h4 class="font-bold text-slate-700 dark:text-slate-200">
+                            Lịch sử hoàn tiền
+                        </h4>
+                        <span class="rounded-full bg-slate-200 px-2 py-0.5 text-[10px] font-bold text-slate-700 dark:bg-slate-800 dark:text-slate-300">
+                            {{ paymentConfig[selectedOrder.payment_status]?.label }}
+                        </span>
+                    </div>
+                    <div class="grid grid-cols-2 gap-2">
+                        <div>
+                            <span class="text-muted-foreground">Đã hoàn:</span>
+                            <strong class="ml-1 text-slate-700 dark:text-slate-200">
+                                {{ formatCurrency(selectedOrder.refund_amount ?? 0) }}
+                            </strong>
+                        </div>
+                        <div>
+                            <span class="text-muted-foreground">Người xử lý:</span>
+                            <strong class="ml-1 text-slate-700 dark:text-slate-200">
+                                {{ selectedOrder.refunded_by_name || '—' }}
+                            </strong>
+                        </div>
+                        <div>
+                            <span class="text-muted-foreground">Thời điểm:</span>
+                            <strong class="ml-1 text-slate-700 dark:text-slate-200">
+                                {{ selectedOrder.refunded_at || '—' }}
+                            </strong>
+                        </div>
+                    </div>
+                    <p v-if="selectedOrder.refund_reason" class="border-t border-slate-200 pt-2 text-slate-600 dark:border-slate-700 dark:text-slate-400">
+                        <span class="font-semibold">Lý do:</span>
+                        {{ selectedOrder.refund_reason }}
+                    </p>
                 </div>
 
                 <!-- Thông tin giao hàng (nếu channel === delivery) -->

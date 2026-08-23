@@ -18,6 +18,7 @@ use App\Services\OrderStatsCacheService;
 use App\Services\QuotaService;
 use App\Support\Tenant\TenantContext;
 use Carbon\Carbon;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
@@ -43,6 +44,32 @@ class DashboardController extends Controller
         }
 
         return $group ? Inertia::defer($callback, group: $group) : Inertia::defer($callback);
+    }
+
+    /**
+     * Return one low-stock row per ingredient for the active scope.
+     *
+     * Inventory is stored once per branch. A chain-wide dashboard must sum
+     * those rows before applying the threshold, otherwise the same ingredient
+     * can appear multiple times.
+     */
+    private function lowStockInventoryQuery(int $restaurantId, ?int $branchId): Builder
+    {
+        return Inventory::query()
+            ->join('ingredients', 'inventories.ingredient_id', '=', 'ingredients.id')
+            ->leftJoin('units', 'ingredients.unit_id', '=', 'units.id')
+            ->where('inventories.restaurant_id', $restaurantId)
+            ->when($branchId, fn ($q) => $q->where('inventories.branch_id', $branchId))
+            ->selectRaw('ingredients.id, ingredients.name as ingredient_name,
+                SUM(inventories.quantity_on_hand) as quantity_on_hand,
+                MAX(ingredients.min_stock_level) as min_stock_level,
+                MAX(ingredients.reorder_level) as reorder_level,
+                units.name as unit_name,
+                COUNT(DISTINCT inventories.branch_id) as branch_count,
+                MAX(inventories.updated_at) as updated_at')
+            ->groupBy('ingredients.id', 'ingredients.name', 'units.name')
+            ->havingRaw('SUM(inventories.quantity_on_hand) <= MAX(ingredients.min_stock_level)')
+            ->orderByRaw('SUM(inventories.quantity_on_hand) asc');
     }
 
     public function index(Request $request): mixed
@@ -393,14 +420,7 @@ class DashboardController extends Controller
 
                 $lowStocksForFeed = [];
                 if ($hasInventoryBasic) {
-                    $lowStocksForFeed = Inventory::query()
-                        ->join('ingredients', 'inventories.ingredient_id', '=', 'ingredients.id')
-                        ->leftJoin('units', 'ingredients.unit_id', '=', 'units.id')
-                        ->where('inventories.restaurant_id', $rid)
-                        ->when($branchId, fn ($q) => $q->where('inventories.branch_id', $branchId))
-                        ->whereRaw('inventories.quantity_on_hand <= ingredients.min_stock_level')
-                        ->select('ingredients.name as ingredient_name', 'inventories.quantity_on_hand',
-                            'ingredients.min_stock_level', 'units.name as unit_name', 'inventories.updated_at')
+                    $lowStocksForFeed = $this->lowStockInventoryQuery((int) $rid, $branchId)
                         ->take(4)->get();
                 }
 
@@ -463,16 +483,8 @@ class DashboardController extends Controller
                     ];
                 })->all(), 'quick_feed'),
 
-            'lowStockInventory' => $this->deferProp(fn () => $hasInventoryBasic ? Inventory::query()
-                ->join('ingredients', 'inventories.ingredient_id', '=', 'ingredients.id')
-                ->leftJoin('units', 'ingredients.unit_id', '=', 'units.id')
-                ->where('inventories.restaurant_id', $rid)
-                ->when($branchId, fn ($q) => $q->where('inventories.branch_id', $branchId))
-                ->whereRaw('inventories.quantity_on_hand <= ingredients.min_stock_level')
-                ->select('ingredients.id', 'ingredients.name as ingredient_name',
-                    'inventories.quantity_on_hand', 'ingredients.min_stock_level',
-                    'ingredients.reorder_level', 'units.name as unit_name')
-                ->orderBy('inventories.quantity_on_hand')->take(8)->get()
+            'lowStockInventory' => $this->deferProp(fn () => $hasInventoryBasic ? $this->lowStockInventoryQuery((int) $rid, $branchId)
+                ->take(8)->get()
                 ->map(fn ($item) => [
                     'id' => $item->id,
                     'ingredient_name' => $item->ingredient_name,

@@ -295,9 +295,14 @@ const paymentBlockMessage = computed(() => {
                     Tách đơn
                 </Button>
 
-                <!-- Nút Gọi thanh toán cho Nhân viên Order -->
+                <!-- Nút Gọi thanh toán cho Nhân viên Order (không hiển thị với Thu ngân) -->
                 <Button
-                    v-if="isNotified && activeTable?.active_order && activeTable?.active_order?.payment_status !== 'paid'"
+                    v-if="
+                        isNotified &&
+                        !canProcessPayments &&
+                        activeTable?.active_order &&
+                        activeTable?.active_order?.payment_status !== 'paid'
+                    "
                     variant="outline"
                     class="h-10 rounded-xl border-amber-500 bg-amber-500/10 text-xs font-bold text-amber-600 dark:text-amber-300 hover:bg-amber-500/20"
                     :disabled="Boolean(activeTable?.active_order?.is_payment_requested)"

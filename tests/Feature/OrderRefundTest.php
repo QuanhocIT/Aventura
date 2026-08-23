@@ -112,6 +112,34 @@ class OrderRefundTest extends TestCase
         $this->assertEquals(100000, (float) $order->refund_amount);
     }
 
+    public function test_orders_page_has_a_refund_filter_and_refund_details(): void
+    {
+        $order = $this->makePaidOrder();
+
+        $this->actingAs($this->owner)
+            ->post("/orders/{$order->id}/refund", [
+                'reason' => 'Khách yêu cầu hoàn tiền do món ăn không đúng yêu cầu',
+                'refund_amount' => 300000,
+                'refund_type' => 'full',
+            ])
+            ->assertRedirect();
+
+        $response = $this->actingAs($this->owner)->get(route('orders.index', [
+            'status' => 'refunded',
+            'date' => today()->toDateString(),
+        ]));
+
+        $response->assertOk();
+        $props = $response->original->getData()['page']['props'];
+        $orders = collect($props['orders']);
+
+        $this->assertSame(1, $props['summary']['refunded']);
+        $this->assertEquals(300000, (float) $props['summary']['refunded_amount']);
+        $this->assertSame($order->id, (int) $orders->first()['id']);
+        $this->assertEquals(300000, (float) $orders->first()['refund_amount']);
+        $this->assertSame($this->owner->name, $orders->first()['refunded_by_name']);
+    }
+
     public function test_cannot_refund_unpaid_order(): void
     {
         $order = Order::create([

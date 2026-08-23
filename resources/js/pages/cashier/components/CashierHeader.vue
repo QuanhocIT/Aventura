@@ -25,6 +25,14 @@ const restaurantName = computed(
     () => (page.props.auth?.user as any)?.restaurant?.name || 'Aventura POS',
 );
 
+const isManager = computed(() => {
+    const roles = (page.props.auth?.user as any)?.roles ?? [];
+
+    return roles.some((r: string) =>
+        ['owner', 'manager', 'accountant', 'super_admin'].includes(r),
+    );
+});
+
 const numberFormat = (val: number) =>
     new Intl.NumberFormat('vi-VN').format(val);
 </script>
@@ -83,8 +91,8 @@ const numberFormat = (val: number) =>
                         {{ shiftInfo.active_shift.shift_name }}
                     </span>
                 </span>
-                <span class="text-slate-300 dark:text-slate-700">|</span>
-                <span
+                <span v-if="isManager" class="text-slate-300 dark:text-slate-700">|</span>
+                <span v-if="isManager"
                     >Doanh thu ca này:
                     <span
                         class="font-black text-emerald-600 dark:text-emerald-400"
