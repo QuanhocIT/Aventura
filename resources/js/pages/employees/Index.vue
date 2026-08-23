@@ -135,6 +135,8 @@ const props = defineProps<{
     branchScope: string;
     isBranchManager: boolean;
     isWarehouseManager?: boolean;
+    isOwner?: boolean;
+    canConfigureShifts?: boolean;
     canManagePayrollBudget?: boolean;
     payrollBudget?: PayrollBudget | null;
     wageTiers?: Array<{
@@ -1082,6 +1084,14 @@ const deleteShift = (id: number) => {
 };
 
 const saveShiftsConfig = () => {
+    if (!props.isOwner && !props.canConfigureShifts) {
+        import('vue-sonner').then((m) =>
+            m.toast.error('Chỉ có chủ doanh nghiệp mới có quyền thiết lập ca làm việc.'),
+        );
+
+        return;
+    }
+
     router.post(
         '/employees/shifts/sync',
         { shifts: shiftsState.value },
@@ -2779,6 +2789,7 @@ const submitSwapReject = () => {
                             </Button>
 
                             <Button
+                                v-if="isOwner || canConfigureShifts"
                                 @click="showShiftConfigModal = true"
                                 :disabled="isAutoSchedule"
                                 variant="outline"

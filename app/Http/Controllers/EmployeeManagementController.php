@@ -408,6 +408,8 @@ class EmployeeManagementController extends Controller
             'branchScope' => $tenantContext->scope(),
             'isBranchManager' => $isBranchManager,
             'isWarehouseManager' => $isWarehouseManager,
+            'isOwner' => $user->isOwner() || $user->isSuperAdmin(),
+            'canConfigureShifts' => $user->isOwner() || $user->isSuperAdmin(),
             'canManagePayrollBudget' => $user->isOwner() || $user->isSuperAdmin(),
             'payrollBudget' => ($isBranchManager || $isWarehouseManager || ($user->isOwner() && $viewBranchId)) && $viewBranchId
                 ? app(\App\Services\PayrollBudgetService::class)->summary((int) $user->restaurant_id, (int) $viewBranchId)
@@ -1433,7 +1435,11 @@ class EmployeeManagementController extends Controller
     public function syncShifts(Request $request): RedirectResponse
     {
         $user = $request->user();
-        $this->authorizeEmployeeManagement($user);
+        if (! $user->isOwner() && ! $user->isSuperAdmin()) {
+            throw ValidationException::withMessages([
+                'shifts' => 'Chỉ có chủ doanh nghiệp mới có quyền thiết lập ca làm việc.',
+            ]);
+        }
         $tenantContext = app(TenantContext::class);
         $branchId = $tenantContext->activeBranchId();
         if ($branchId === null) {
