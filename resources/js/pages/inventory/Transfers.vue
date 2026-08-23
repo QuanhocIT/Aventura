@@ -495,7 +495,16 @@ const openReject = (transfer: Transfer) => {
     rejectForm.reset();
 };
 
+const openCreateRequest = () => {
+    requestForm.reset();
+    if (props.branches.length > 0 && !requestForm.to_branch_id) {
+        requestForm.to_branch_id = props.branches[0].id;
+    }
+    showRequest.value = true;
+};
+
 const closeModals = () => {
+    showRequest.value = false;
     routing.value = null;
     dispatching.value = null;
     receiving.value = null;
@@ -686,7 +695,7 @@ const formatDuration = (hours: number) => {
             </div>
             <Button
                 v-if="props.permissions.can_create"
-                @click="showRequest = !showRequest"
+                @click="openCreateRequest"
                 class="shrink-0 gap-1.5 rounded-xl border-0 bg-teal-500 font-bold text-white shadow-lg shadow-teal-950/30 hover:bg-teal-400"
             >
                 <Plus class="size-4" /> Tạo yêu cầu
@@ -1378,6 +1387,7 @@ const formatDuration = (hours: number) => {
     <Teleport to="body">
     <div
         v-if="
+            showRequest ||
             routing ||
             dispatching ||
             receiving ||
@@ -1393,7 +1403,54 @@ const formatDuration = (hours: number) => {
             class="max-h-[92vh] w-full overflow-y-auto rounded-3xl border border-border bg-background p-5 shadow-2xl sm:p-6"
             :class="detailTransfer ? 'max-w-2xl' : 'max-w-lg'"
         >
-            <template v-if="detailTransfer">
+            <template v-if="showRequest">
+                <div class="mb-5 flex items-start justify-between gap-3">
+                    <div>
+                        <p class="text-[10px] font-bold tracking-wider text-teal-400 uppercase">Khởi tạo điều chuyển</p>
+                        <h2 class="mt-1 text-xl font-black">Tạo yêu cầu điều chuyển</h2>
+                        <p class="mt-1 text-xs text-muted-foreground">Yêu cầu sẽ nằm ở trạng thái chờ định tuyến cho đến khi kho cấp được chọn.</p>
+                    </div>
+                    <Button variant="ghost" size="icon" @click="closeModals"><X class="size-4" /></Button>
+                </div>
+                <form @submit.prevent="submitRequest" class="space-y-4">
+                    <div class="flex flex-col gap-1.5">
+                        <Label>Chi nhánh cần hàng</Label>
+                        <select v-model="requestForm.to_branch_id" required class="h-10 rounded-md border border-input bg-background px-3 text-sm text-foreground">
+                            <option v-for="branch in props.branches" :key="branch.id" :value="branch.id">
+                                {{ branch.name }}
+                            </option>
+                        </select>
+                        <p v-if="requestForm.errors.to_branch_id" class="text-xs text-rose-500">{{ requestForm.errors.to_branch_id }}</p>
+                    </div>
+                    <div class="flex flex-col gap-1.5">
+                        <Label>Nguyên liệu</Label>
+                        <select v-model="requestForm.ingredient_id" required class="h-10 rounded-md border border-input bg-background px-3 text-sm text-foreground">
+                            <option value="" disabled>— Chọn nguyên liệu —</option>
+                            <option v-for="ingredient in availableIngredients" :key="ingredient.id" :value="ingredient.id">
+                                {{ ingredient.name }} ({{ ingredient.unit }})
+                            </option>
+                        </select>
+                        <p v-if="requestForm.errors.ingredient_id" class="text-xs text-rose-500">{{ requestForm.errors.ingredient_id }}</p>
+                    </div>
+                    <div class="flex flex-col gap-1.5">
+                        <Label>Số lượng cần</Label>
+                        <Input v-model="requestForm.quantity_requested" type="number" step="0.001" min="0.001" required />
+                        <p v-if="selectedIngredient" class="text-[11px] text-muted-foreground">Đơn vị: {{ selectedIngredient.unit }}</p>
+                        <p v-else class="text-[11px] text-muted-foreground">Chỉ hiển thị nguyên liệu dùng được tại chi nhánh nhận.</p>
+                        <p v-if="requestForm.errors.quantity_requested" class="text-xs text-rose-500">{{ requestForm.errors.quantity_requested }}</p>
+                    </div>
+                    <div class="flex flex-col gap-1.5">
+                        <Label>Lý do / nhu cầu vận hành</Label>
+                        <Input v-model="requestForm.reason" required placeholder="VD: Thiếu hàng phục vụ ca tối, mượn tạm..." />
+                        <p v-if="requestForm.errors.reason" class="text-xs text-rose-500">{{ requestForm.errors.reason }}</p>
+                    </div>
+                    <div class="flex justify-end gap-2 pt-2">
+                        <Button type="button" variant="outline" @click="closeModals">Hủy</Button>
+                        <Button type="submit" :disabled="requestForm.processing" class="border-0 bg-teal-500 font-bold text-white hover:bg-teal-400">Gửi yêu cầu</Button>
+                    </div>
+                </form>
+            </template>
+            <template v-else-if="detailTransfer">
                 <div class="mb-5 flex items-start justify-between gap-3">
                     <div>
                         <p class="text-[10px] font-bold tracking-wider text-teal-400 uppercase">Hồ sơ điều chuyển</p>
@@ -1658,30 +1715,65 @@ const formatDuration = (hours: number) => {
                     /></Button>
                 </div>
                 <form @submit.prevent="submitReceive" class="space-y-4">
-                    <div class="grid grid-cols-2 gap-3">
-                        <div class="flex flex-col gap-1.5">
-                            <Label>Mã giao nhận</Label
-                            ><Input
+                    <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                        <div class="flex flex-col gap-1.5 sm:col-span-2">
+                            <Label class="text-xs font-bold text-foreground">Mã giao nhận bàn giao <span class="text-rose-500">*</span></Label>
+                            <Input
                                 v-model="receiveForm.handover_code"
                                 class="font-mono tracking-[0.2em] uppercase"
                                 maxlength="6"
                                 required
-                                placeholder="ABC123"
+                                placeholder="Nhập mã 6 ký tự (VD: ABC123)"
                             />
                         </div>
+
+                        <div class="flex flex-col gap-1 sm:col-span-2 pt-1">
+                            <Label class="text-xs font-black uppercase tracking-wider text-emerald-400">Phân loại kiểm đếm thực nhận</Label>
+                            <p class="text-[11px] text-muted-foreground">Nhập số lượng thực tế đếm được theo từng tình trạng hàng (Số lượng đã xuất: {{ receiving.quantity_dispatched }} {{ receiving.unit }})</p>
+                        </div>
+
                         <div class="flex flex-col gap-1.5">
-                            <Label>Số lượng thực nhận</Label
-                            ><Input
+                            <Label class="text-xs font-bold text-emerald-400">✅ Đạt chất lượng ({{ receiving.unit }}) <span class="text-rose-500">*</span></Label>
+                            <Input
                                 v-model="receiveForm.quantity_received_good"
                                 type="number"
                                 step="0.001"
                                 min="0"
                                 :max="receiving.quantity_dispatched ?? 0"
                                 required
+                                placeholder="Nhập số lượng đạt"
                             />
-                            <Input v-model="receiveForm.quantity_received_damaged" type="number" step="0.001" min="0" :max="receiving.quantity_dispatched ?? 0" placeholder="Hỏng" />
-                            <Input v-model="receiveForm.quantity_received_expired" type="number" step="0.001" min="0" :max="receiving.quantity_dispatched ?? 0" placeholder="Hết hạn" />
-                            <span class="text-xs text-muted-foreground">Tổng: {{ Number(receiveForm.quantity_received_good || 0) + Number(receiveForm.quantity_received_damaged || 0) + Number(receiveForm.quantity_received_expired || 0) }} {{ receiving.unit }}</span>
+                        </div>
+
+                        <div class="flex flex-col gap-1.5">
+                            <Label class="text-xs font-bold text-amber-400">⚠️ Hàng hư hỏng / vỡ ({{ receiving.unit }})</Label>
+                            <Input
+                                v-model="receiveForm.quantity_received_damaged"
+                                type="number"
+                                step="0.001"
+                                min="0"
+                                :max="receiving.quantity_dispatched ?? 0"
+                                placeholder="0 (hoặc số hỏng)"
+                            />
+                        </div>
+
+                        <div class="flex flex-col gap-1.5 sm:col-span-2">
+                            <Label class="text-xs font-bold text-rose-400">❌ Hàng hết hạn / kém chất lượng ({{ receiving.unit }})</Label>
+                            <Input
+                                v-model="receiveForm.quantity_received_expired"
+                                type="number"
+                                step="0.001"
+                                min="0"
+                                :max="receiving.quantity_dispatched ?? 0"
+                                placeholder="0 (hoặc số hết hạn)"
+                            />
+                        </div>
+
+                        <div class="flex items-center justify-between rounded-xl border border-emerald-400/20 bg-emerald-950/20 p-2.5 sm:col-span-2">
+                            <span class="text-xs font-bold text-foreground">Tổng số lượng thực nhận:</span>
+                            <span class="font-mono text-sm font-black text-emerald-300">
+                                {{ Number(receiveForm.quantity_received_good || 0) + Number(receiveForm.quantity_received_damaged || 0) + Number(receiveForm.quantity_received_expired || 0) }} {{ receiving.unit }}
+                            </span>
                         </div>
                     </div>
                     <div class="flex flex-col gap-1.5">

@@ -354,7 +354,6 @@ class StockTransferRequestController extends Controller
                             'restaurant_id' => $lockedTransfer->restaurant_id,
                             'branch_id' => $lockedTransfer->from_branch_id,
                             'ingredient_id' => $lockedTransfer->ingredient_id,
-                            'batch_code' => $legacyCode,
                             'batch_number' => $legacyCode,
                             'quantity_remaining' => $qty,
                             'unit_cost' => $unitCost,
@@ -713,7 +712,13 @@ class StockTransferRequestController extends Controller
         $user = $request->user();
         $this->assertCanRoute($user);
         $this->assertTenantTransfer($user, $transfer);
-        $data = $request->validate(['discrepancy_resolution' => ['required', 'string', 'min:10', 'max:1000']]);
+        $data = $request->validate([
+            'discrepancy_resolution' => ['required', 'string', 'min:2', 'max:1000'],
+        ], [
+            'discrepancy_resolution.required' => 'Vui lòng nhập phương án / biên bản xử lý chênh lệch.',
+            'discrepancy_resolution.min' => 'Hướng xử lý phải có ít nhất 2 ký tự.',
+            'discrepancy_resolution.max' => 'Hướng xử lý không vượt quá 1000 ký tự.',
+        ]);
 
         try {
             $lockedTransfer = DB::transaction(function () use ($transfer, $user, $data): StockTransferRequest {

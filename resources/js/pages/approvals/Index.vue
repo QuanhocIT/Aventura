@@ -119,6 +119,26 @@ function timeAgo(dateStr: string): string {
     return 'Vừa xong';
 }
 
+function formatExactDateTime(dateStr: string | null | undefined): string {
+    if (!dateStr) {
+        return '';
+    }
+
+    const d = new Date(dateStr);
+
+    if (isNaN(d.getTime())) {
+        return dateStr;
+    }
+
+    const day = String(d.getDate()).padStart(2, '0');
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const year = d.getFullYear();
+    const hours = String(d.getHours()).padStart(2, '0');
+    const minutes = String(d.getMinutes()).padStart(2, '0');
+
+    return `${hours}:${minutes} ${day}/${month}/${year}`;
+}
+
 function pendingHours(dateStr: string): number {
     return (Date.now() - new Date(dateStr).getTime()) / 3_600_000;
 }
@@ -783,11 +803,15 @@ function submitReject() {
                                     </p>
                                     <!-- Mobile details -->
                                     <div
-                                        class="mt-1 flex items-center gap-2 text-[10px] font-medium text-slate-400 lg:hidden"
+                                        class="mt-1 flex flex-wrap items-center gap-1.5 text-[10px] font-medium text-slate-400 lg:hidden"
                                     >
                                         <span>{{
                                             approval.requester_name
                                         }}</span>
+                                        <span>·</span>
+                                        <span class="font-mono font-bold text-slate-700 dark:text-slate-300">
+                                            {{ formatExactDateTime(approval.created_at) }}
+                                        </span>
                                         <span>·</span>
                                         <span
                                             :class="
@@ -828,38 +852,43 @@ function submitReject() {
                             </div>
 
                             <!-- Desktop Col 3: SLA / Time -->
-                            <div class="hidden items-center gap-1.5 lg:flex">
-                                <component
-                                    v-if="
-                                        slaIcon(
-                                            approval.created_at,
-                                            approval.status,
-                                        )
-                                    "
-                                    :is="
-                                        slaIcon(
-                                            approval.created_at,
-                                            approval.status,
-                                        )!.icon
-                                    "
-                                    :class="
-                                        slaIcon(
-                                            approval.created_at,
-                                            approval.status,
-                                        )!.cls
-                                    "
-                                />
-                                <span
-                                    class="text-xs font-semibold"
-                                    :class="
-                                        slaClass(
-                                            approval.created_at,
-                                            approval.status,
-                                        )
-                                    "
-                                >
-                                    {{ timeAgo(approval.created_at) }}
+                            <div class="hidden flex-col justify-center lg:flex">
+                                <span class="font-mono text-xs font-bold text-slate-800 dark:text-slate-200">
+                                    {{ formatExactDateTime(approval.created_at) }}
                                 </span>
+                                <div class="mt-0.5 flex items-center gap-1">
+                                    <component
+                                        v-if="
+                                            slaIcon(
+                                                approval.created_at,
+                                                approval.status,
+                                            )
+                                        "
+                                        :is="
+                                            slaIcon(
+                                                approval.created_at,
+                                                approval.status,
+                                            )!.icon
+                                        "
+                                        :class="
+                                            slaIcon(
+                                                approval.created_at,
+                                                approval.status,
+                                            )!.cls
+                                        "
+                                    />
+                                    <span
+                                        class="text-[10px] font-semibold"
+                                        :class="
+                                            slaClass(
+                                                approval.created_at,
+                                                approval.status,
+                                            )
+                                        "
+                                    >
+                                        {{ timeAgo(approval.created_at) }}
+                                    </span>
+                                </div>
                             </div>
 
                             <!-- Desktop Col 4: Status -->
@@ -1000,7 +1029,13 @@ function submitReject() {
                                                     class="font-medium text-slate-500 dark:text-slate-400"
                                                     >{{ entry.label }}</span
                                                 >
+                                                <template v-if="entry.key === 'photo_url' || entry.key === 'invoice_file_url'">
+                                                    <a :href="String(entry.display)" target="_blank" class="inline-flex items-center gap-1 text-xs text-indigo-600 underline font-bold hover:text-indigo-800 dark:text-indigo-400">
+                                                        🖼️ Xem ảnh chứng từ / bằng chứng
+                                                    </a>
+                                                </template>
                                                 <span
+                                                    v-else
                                                     :class="[
                                                         'font-mono font-bold',
                                                         entry.highlight
