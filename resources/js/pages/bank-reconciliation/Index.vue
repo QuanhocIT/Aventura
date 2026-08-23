@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { Head, router } from '@inertiajs/vue3';
 import {
-    ArrowUpDown,
     Check,
     CheckCircle2,
     ChevronLeft,
@@ -9,14 +8,14 @@ import {
     Clock,
     CreditCard,
     Eye,
-    Filter,
     Landmark,
     RefreshCw,
+    RotateCcw,
     Search,
     TrendingUp,
     X,
 } from 'lucide-vue-next';
-import { computed, ref, watch } from 'vue';
+import { computed, ref } from 'vue';
 import FinancePageHeader from '@/components/finance/FinancePageHeader.vue';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -556,27 +555,28 @@ function executeBatchReconcile() {
                                     <Button
                                         v-if="!p.is_reconciled"
                                         size="xs"
-                                        class="bg-emerald-600 hover:bg-emerald-700 text-white gap-1 text-[11px]"
+                                        class="bg-emerald-600 hover:bg-emerald-500 active:scale-[0.98] text-white font-medium text-xs px-3 shadow-xs hover:shadow-emerald-500/20 transition-all duration-200 gap-1.5"
                                         @click="reconcileSingle(p)"
                                     >
-                                        <Check class="size-3" /> Xác nhận tiền về
+                                        <Check class="size-3.5 stroke-[2.5]" /> Xác nhận tiền về
                                     </Button>
                                     <Button
                                         v-else
                                         variant="ghost"
                                         size="xs"
-                                        class="text-muted-foreground hover:text-destructive text-[11px]"
+                                        class="text-amber-600 dark:text-amber-400 hover:bg-amber-500/10 hover:text-amber-700 dark:hover:text-amber-300 gap-1 text-xs"
                                         @click="unreconcileSingle(p)"
                                     >
-                                        Hủy đối soát
+                                        <RotateCcw class="size-3.5" /> Hủy đối soát
                                     </Button>
                                     <Button
                                         variant="outline"
                                         size="icon-xs"
                                         title="Xem chi tiết đơn hàng"
+                                        class="border-border/80 hover:bg-accent"
                                         @click="selectedPaymentForDetail = p"
                                     >
-                                        <Eye class="size-3.5" />
+                                        <Eye class="size-3.5 text-muted-foreground" />
                                     </Button>
                                 </div>
                             </td>

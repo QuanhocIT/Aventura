@@ -188,6 +188,29 @@
         overflow-x: clip;
         font-family: 'Times New Roman', Times, serif;
     }
+
+    /* Tàng hình thanh cuộn toàn hệ thống (Hide all scrollbars globally) */
+    html,
+    body,
+    *,
+    *::before,
+    *::after {
+        -ms-overflow-style: none; /* IE & Edge */
+        scrollbar-width: none; /* Firefox */
+    }
+
+    ::-webkit-scrollbar {
+        display: none !important;
+        width: 0 !important;
+        height: 0 !important;
+        background: transparent !important;
+    }
+
+    ::-webkit-scrollbar-thumb,
+    ::-webkit-scrollbar-track {
+        display: none !important;
+        background: transparent !important;
+    }
 }
 
 @layer utilities {
@@ -196,6 +219,25 @@
         --font-sans: 'Times New Roman', Times, serif;
         --font-serif: 'Times New Roman', Times, serif;
         --font-mono: 'Times New Roman', Times, serif;
+    }
+
+    /* Scrollbar Utility Classes */
+    .no-scrollbar,
+    .scrollbar-none,
+    .scrollbar-hidden,
+    .hide-scrollbar {
+        -ms-overflow-style: none !important;
+        scrollbar-width: none !important;
+    }
+
+    .no-scrollbar::-webkit-scrollbar,
+    .scrollbar-none::-webkit-scrollbar,
+    .scrollbar-hidden::-webkit-scrollbar,
+    .hide-scrollbar::-webkit-scrollbar {
+        display: none !important;
+        width: 0 !important;
+        height: 0 !important;
+        background: transparent !important;
     }
 }
 

@@ -1039,6 +1039,12 @@ const cashierNav = computed<NavItem[]>(() => {
         { title: 'Cổng nhân sự', href: '/employee-portal', icon: UserCheck },
         { title: 'Lịch sử đơn', href: '/orders', icon: ScrollText },
         {
+            title: 'Quản lý dòng tiền',
+            href: '/cash-flow',
+            icon: Wallet,
+            feature: 'inventory_basic',
+        },
+        {
             title: 'Doanh thu ca',
             href: '/shift-closings',
             icon: ClipboardCheck,

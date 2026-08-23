@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Head, router, useForm, usePage } from '@inertiajs/vue3';
+import { Head, Link, router, useForm, usePage } from '@inertiajs/vue3';
 import {
     AlertTriangle,
     ArrowDownCircle,
@@ -998,6 +998,17 @@ onUnmounted(() =>
                     <ShieldCheck class="size-4" />
                     Kiểm soát tiền mặt
                 </Button>
+
+                <!-- Mở két đầu ca button -->
+                <Link href="/cash-flow">
+                    <Button
+                        variant="outline"
+                        class="flex h-9 items-center gap-1.5 border-emerald-500/40 bg-emerald-500/10 text-xs font-semibold text-emerald-700 hover:bg-emerald-500/20 dark:text-emerald-400"
+                    >
+                        <Wallet class="size-4" />
+                        Mở két đầu ca
+                    </Button>
+                </Link>
 
                 <!-- Chốt ca mới button -->
                 <Button
