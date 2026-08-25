@@ -501,8 +501,8 @@ async function loadPreview(options: { keepCount?: boolean } = {}) {
         });
 
         if (!res.ok) {
-            const errData = await res.json().catch(() => null);
-            const serverMsg = errData?.message || (errData?.errors ? Object.values(errData.errors)[0]?.[0] : null);
+            const errData: any = await res.json().catch(() => null);
+            const serverMsg = errData?.message || (errData?.errors ? (Object.values(errData.errors) as any)[0]?.[0] : null);
             previewError.value = serverMsg || 'Không thể tải dữ liệu. Thử lại.';
 
             return;

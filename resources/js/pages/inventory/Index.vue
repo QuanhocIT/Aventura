@@ -397,7 +397,7 @@ const removePurchaseItemRow = (index: number) => {
 };
 
 const totalPurchaseReceiptCost = computed(() => {
-    return purchaseForm.items.reduce((sum, item) => {
+    return purchaseForm.items.reduce((sum: number, item: any) => {
         const qty = Number(item.quantity) || 0;
         const cost = Number(item.unit_cost) || 0;
 
@@ -499,6 +499,12 @@ const getCentralIngredient = (ingredientId: number) =>
 const addCentralIngredient = (
     ingredient: NonNullable<typeof props.centralIngredients>[number],
 ) => {
+    if (ingredient.stock <= 0) {
+        toast.warning(`${ingredient.name} hiện đã hết hàng tại Kho Tổng.`);
+
+        return;
+    }
+
     if (isCentralIngredientSelected(ingredient.id)) {
         return;
     }
@@ -2787,7 +2793,13 @@ const recallBatch = (batchId: number) => {
                                         ).slice(0, 6)"
                                         :key="suggestion.ingredient_id"
                                         type="button"
-                                        class="flex items-center justify-between gap-3 rounded-xl border border-border bg-background/60 p-3 text-left transition hover:border-violet-400 hover:bg-violet-500/10"
+                                        :disabled="(getCentralIngredient(suggestion.ingredient_id)?.stock ?? 0) <= 0"
+                                        :class="[
+                                            'flex items-center justify-between gap-3 rounded-xl border p-3 text-left transition',
+                                            (getCentralIngredient(suggestion.ingredient_id)?.stock ?? 0) <= 0
+                                                ? 'border-slate-200 bg-slate-100/60 opacity-50 grayscale cursor-not-allowed dark:border-slate-800 dark:bg-slate-900/30'
+                                                : 'border-border bg-background/60 hover:border-violet-400 hover:bg-violet-500/10'
+                                        ]"
                                         @click="
                                             addSuggestedIngredient(suggestion)
                                         "
@@ -2811,7 +2823,11 @@ const recallBatch = (batchId: number) => {
                                                 }}</span
                                             >
                                         </span>
+                                        <span v-if="(getCentralIngredient(suggestion.ingredient_id)?.stock ?? 0) <= 0" class="shrink-0 text-[10px] font-bold text-rose-500">
+                                            Hết
+                                        </span>
                                         <Plus
+                                            v-else
                                             class="size-4 shrink-0 text-violet-500"
                                         />
                                     </button>
@@ -2885,12 +2901,18 @@ const recallBatch = (batchId: number) => {
                                     <div
                                         v-for="ingredient in filteredCentralIngredients"
                                         :key="ingredient.id"
-                                        class="group relative rounded-2xl border border-border bg-background/40 p-3 text-left transition hover:border-emerald-500/50 hover:bg-emerald-500/5"
+                                        :class="[
+                                            'group relative rounded-2xl border p-3 text-left transition',
+                                            ingredient.stock <= 0
+                                                ? 'border-slate-200 bg-slate-100/60 opacity-50 grayscale dark:border-slate-800 dark:bg-slate-900/30'
+                                                : 'border-border bg-background/40 hover:border-emerald-500/50 hover:bg-emerald-500/5'
+                                        ]"
                                     >
                                         <button
                                             type="button"
                                             class="w-full text-left"
                                             :disabled="
+                                                ingredient.stock <= 0 ||
                                                 isCentralIngredientSelected(
                                                     ingredient.id,
                                                 )
@@ -2900,7 +2922,12 @@ const recallBatch = (batchId: number) => {
                                             "
                                         >
                                             <span
-                                                class="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-500/10 text-lg font-bold text-emerald-600"
+                                                :class="[
+                                                    'mb-3 flex h-10 w-10 items-center justify-center rounded-xl text-lg font-bold',
+                                                    ingredient.stock <= 0
+                                                        ? 'bg-slate-200 text-slate-500 dark:bg-slate-800 dark:text-slate-400'
+                                                        : 'bg-emerald-500/10 text-emerald-600'
+                                                ]"
                                                 >{{
                                                     ingredient.name
                                                         .charAt(0)
@@ -2924,16 +2951,32 @@ const recallBatch = (batchId: number) => {
                                                 }}</span
                                             >
                                             <span
-                                                class="mt-2 block text-xs font-semibold text-emerald-600 dark:text-emerald-400"
+                                                :class="[
+                                                    'mt-2 block text-xs font-semibold',
+                                                    ingredient.stock <= 0
+                                                        ? 'font-bold text-rose-600 dark:text-rose-400'
+                                                        : 'text-emerald-600 dark:text-emerald-400'
+                                                ]"
                                                 >Tồn Kho Tổng:
-                                                {{ ingredient.stock }}
                                                 {{
-                                                    ingredient.unit_symbol
+                                                    ingredient.stock <= 0
+                                                        ? '0 (Hết hàng)'
+                                                        : `${ingredient.stock} ${ingredient.unit_symbol}`
                                                 }}</span
                                             >
                                         </button>
                                         <Button
-                                            v-if="
+                                            v-if="ingredient.stock <= 0"
+                                            type="button"
+                                            size="sm"
+                                            variant="outline"
+                                            disabled
+                                            class="pointer-events-none absolute top-3 right-3 h-7 border-rose-200 bg-rose-50 px-2 text-[10px] font-bold text-rose-600 dark:border-rose-900/50 dark:bg-rose-950/40 dark:text-rose-400"
+                                        >
+                                            Hết
+                                        </Button>
+                                        <Button
+                                            v-else-if="
                                                 isCentralIngredientSelected(
                                                     ingredient.id,
                                                 )
@@ -2982,80 +3025,103 @@ const recallBatch = (batchId: number) => {
                                 sách giao hàng.
                             </div>
 
-                            <div v-else class="space-y-2">
-                                <div
-                                    v-for="line in centralRequestForm.items"
-                                    :key="line.ingredient_id"
-                                    class="rounded-xl border border-border bg-background/50 p-3"
-                                >
+                            <div v-else class="space-y-3">
+                                <div class="max-h-[360px] space-y-2 overflow-y-auto pr-1">
                                     <div
-                                        class="flex items-start justify-between gap-2"
+                                        v-for="line in centralRequestForm.items"
+                                        :key="line.ingredient_id"
+                                        class="rounded-xl border border-border bg-background/50 p-3"
                                     >
-                                        <div class="min-w-0">
-                                            <p
-                                                class="truncate text-xs font-bold text-foreground"
-                                            >
-                                                {{
-                                                    getCentralIngredient(
+                                        <div
+                                            class="flex items-start justify-between gap-2"
+                                        >
+                                            <div class="min-w-0">
+                                                <p
+                                                    class="truncate text-xs font-bold text-foreground"
+                                                >
+                                                    {{
+                                                        getCentralIngredient(
+                                                            line.ingredient_id,
+                                                        )?.name
+                                                    }}
+                                                </p>
+                                                <p
+                                                    class="mt-0.5 text-[10px] text-muted-foreground"
+                                                >
+                                                    Tồn Tổng:
+                                                    {{
+                                                        getCentralIngredient(
+                                                            line.ingredient_id,
+                                                        )?.stock
+                                                    }}
+                                                    {{
+                                                        getCentralIngredient(
+                                                            line.ingredient_id,
+                                                        )?.unit_symbol
+                                                    }}
+                                                </p>
+                                            </div>
+                                            <button
+                                                type="button"
+                                                class="rounded-md p-1 text-muted-foreground hover:bg-rose-500/10 hover:text-rose-500"
+                                                title="Bỏ nguyên liệu"
+                                                @click="
+                                                    removeCentralIngredient(
                                                         line.ingredient_id,
-                                                    )?.name
-                                                }}
-                                            </p>
-                                            <p
-                                                class="mt-0.5 text-[10px] text-muted-foreground"
+                                                    )
+                                                "
                                             >
-                                                Tồn Tổng:
-                                                {{
+                                                <Trash2 class="size-3.5" />
+                                            </button>
+                                        </div>
+                                        <div class="mt-2 flex items-center gap-2">
+                                            <Minus
+                                                class="size-3.5 text-muted-foreground"
+                                            />
+                                            <Input
+                                                v-model.number="line.quantity"
+                                                type="number"
+                                                min="0.001"
+                                                step="0.001"
+                                                :max="
                                                     getCentralIngredient(
                                                         line.ingredient_id,
                                                     )?.stock
-                                                }}
+                                                "
+                                                class="h-8 text-xs"
+                                            />
+                                            <span
+                                                class="shrink-0 text-[11px] text-muted-foreground"
+                                            >
                                                 {{
                                                     getCentralIngredient(
                                                         line.ingredient_id,
                                                     )?.unit_symbol
                                                 }}
-                                            </p>
+                                            </span>
                                         </div>
-                                        <button
-                                            type="button"
-                                            class="rounded-md p-1 text-muted-foreground hover:bg-rose-500/10 hover:text-rose-500"
-                                            title="Bỏ nguyên liệu"
-                                            @click="
-                                                removeCentralIngredient(
-                                                    line.ingredient_id,
-                                                )
-                                            "
-                                        >
-                                            <Trash2 class="size-3.5" />
-                                        </button>
                                     </div>
-                                    <div class="mt-2 flex items-center gap-2">
-                                        <Minus
-                                            class="size-3.5 text-muted-foreground"
-                                        />
-                                        <Input
-                                            v-model.number="line.quantity"
-                                            type="number"
-                                            min="0.001"
-                                            step="0.001"
-                                            :max="
-                                                getCentralIngredient(
-                                                    line.ingredient_id,
-                                                )?.stock
-                                            "
-                                            class="h-8 text-xs"
-                                        />
-                                        <span
-                                            class="shrink-0 text-[11px] text-muted-foreground"
-                                        >
-                                            {{
-                                                getCentralIngredient(
-                                                    line.ingredient_id,
-                                                )?.unit_symbol
-                                            }}
-                                        </span>
-                                    </div>
+                                </div>
+
+                                <div class="flex items-center justify-between gap-2 border-t border-border pt-4">
+                                    <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="sm"
+                                        class="text-xs text-muted-foreground hover:text-rose-500"
+                                        @click="clearCentralRequest"
+                                    >
+                                        Xóa tất cả
+                                    </Button>
+                                    <Button
+                                        type="button"
+                                        size="sm"
+                                        class="bg-indigo-600 text-xs font-bold text-white shadow-sm hover:bg-indigo-700"
+                                        @click="confirmCentralSelection"
+                                    >
+                                        <Send class="mr-1.5 size-3.5" />
+                                        Xác nhận gửi yêu cầu ({{ centralRequestForm.items.length }})
+                                    </Button>
                                 </div>
                             </div>
                         </CardContent>

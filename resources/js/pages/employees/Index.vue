@@ -234,7 +234,7 @@ const employeeForm = useForm({
 });
 
 const isWarehouseRole = (role: string) =>
-    role === 'warehouse_manager' || role === 'warehouse_staff';
+    role === 'warehouse_manager' || role === 'warehouse_staff' || role === 'logistics_driver' || role === 'assistant_warehouse_keeper';
 
 const isInspectorRole = (role: string) =>
     role === 'operations_inspector' || role === 'compliance_auditor';
@@ -488,6 +488,8 @@ const roleLabels: Record<string, string> = {
     staff: 'Nhân viên phục vụ',
     warehouse_manager: 'Trưởng Kho Tổng',
     warehouse_staff: 'Nhân viên Kho Tổng',
+    logistics_driver: 'Tài Xế Logistics',
+    assistant_warehouse_keeper: 'Thủ Kho Phụ',
     inventory_staff: 'Nhân viên Kho Chi Nhánh',
     operations_inspector: 'Giám sát / Thanh tra',
     compliance_auditor: 'Thanh tra độc lập',
@@ -504,13 +506,17 @@ const allRoleOptions: RoleOption[] = [
     { value: 'shipper', label: 'Nhân viên giao hàng (Shipper)' },
     { value: 'inventory_staff', label: 'Nhân viên Kho Chi Nhánh' },
     { value: 'warehouse_staff', label: 'Nhân viên Kho Tổng' },
+    { value: 'logistics_driver', label: 'Tài Xế Logistics' },
+    { value: 'assistant_warehouse_keeper', label: 'Thủ Kho Phụ' },
     { value: 'warehouse_manager', label: 'Trưởng Kho Tổng' },
     { value: 'operations_inspector', label: 'Giám sát viên Vận hành / Thanh tra' },
 ];
 
 const createRoleOptions = computed(() => {
     if (props.isWarehouseManager) {
-        return allRoleOptions.filter((option) => ['warehouse_staff', 'inventory_staff'].includes(option.value));
+        return allRoleOptions.filter((option) =>
+            ['warehouse_staff', 'logistics_driver', 'assistant_warehouse_keeper'].includes(option.value),
+        );
     }
 
     if (props.isBranchManager) {
@@ -564,6 +570,14 @@ watch(
 watch(
     () => employeeForm.role,
     (role) => {
+        if (role === 'warehouse_staff') {
+            employeeForm.job_title = 'Nhân viên Kho Tổng';
+        } else if (role === 'logistics_driver') {
+            employeeForm.job_title = 'Tài Xế Logistics';
+        } else if (role === 'assistant_warehouse_keeper') {
+            employeeForm.job_title = 'Thủ Kho Phụ';
+        }
+
         if (isWarehouseRole(role) && centralBranch.value) {
             employeeForm.branch_id = centralBranch.value.id;
         } else if (isInspectorRole(role)) {
@@ -1682,7 +1696,7 @@ const submitSwapReject = () => {
                                     v-if="props.isWarehouseManager"
                                     class="text-xs text-amber-600 dark:text-amber-400"
                                 >
-                                    Trưởng kho tổng có quyền tạo Nhân viên Kho & Kho Chi Nhánh (Tùy chỉnh chức danh như: Tài xế, Thủ kho phụ...).
+                                    Trưởng kho tổng có quyền tạo các nhân sự thuộc Đội ngũ Kho (Nhân viên Kho Tổng, Tài Xế Logistics, Thủ Kho Phụ).
                                 </p>
                                 <p
                                     v-else-if="props.isBranchManager"

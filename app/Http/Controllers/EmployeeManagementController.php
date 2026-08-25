@@ -123,7 +123,7 @@ class EmployeeManagementController extends Controller
                                     ->orWhere('users.branch_id', $payrollBranchId);
                             });
                     });
-            }))
+            })->whereHas('user.roles', fn ($rq) => $rq->whereIn('name', ['warehouse_staff', 'warehouse_manager', 'logistics_driver', 'assistant_warehouse_keeper'])))
             ->when($restaurant?->owner_user_id, fn ($q, $ownerUserId) => $q->where(function ($ownerQuery) use ($ownerUserId) {
                 $ownerQuery->whereNull('user_id')->orWhere('user_id', '!=', $ownerUserId);
             }))
@@ -493,7 +493,7 @@ class EmployeeManagementController extends Controller
             'compensation_type' => ['sometimes', 'string', 'in:fixed,hourly,shift'],
             'pay_rate' => ['nullable', 'numeric', 'min:0'],
             'base_salary' => ['required', 'numeric', 'min:0'],
-            'role' => ['required', 'string', 'in:cashier,kitchen,manager,waiter,shipper,inventory_staff,warehouse_staff,warehouse_manager,operations_inspector,compliance_auditor'],
+            'role' => ['required', 'string', 'in:cashier,kitchen,manager,waiter,shipper,inventory_staff,warehouse_staff,warehouse_manager,logistics_driver,assistant_warehouse_keeper,operations_inspector,compliance_auditor'],
             'job_title' => ['required', 'string', 'max:100'],
             // TRƯỚC ĐÂY KHÔNG CÓ — employees.branch_id/users.branch_id không
             // bao giờ được ghi, khiến việc gán nhân viên theo chi nhánh không
@@ -513,7 +513,7 @@ class EmployeeManagementController extends Controller
 
         $this->assertRoleAssignmentAllowed($user, $data['role']);
 
-        $isWarehouseRole = in_array($data['role'], ['warehouse_staff', 'warehouse_manager'], true);
+        $isWarehouseRole = in_array($data['role'], ['warehouse_staff', 'warehouse_manager', 'logistics_driver', 'assistant_warehouse_keeper'], true);
         $isInspectorRole = in_array($data['role'], ['operations_inspector', 'compliance_auditor'], true);
 
         if ($isInspectorRole) {
@@ -1268,7 +1268,7 @@ class EmployeeManagementController extends Controller
             'full_name' => ['sometimes', 'string', 'max:255'],
             'phone' => ['sometimes', 'nullable', 'string', 'max:20'],
             'job_title' => ['sometimes', 'string', 'max:100'],
-            'role' => ['sometimes', 'string', 'in:cashier,kitchen,manager,waiter,shipper,inventory_staff,warehouse_staff,warehouse_manager,operations_inspector,compliance_auditor'],
+            'role' => ['sometimes', 'string', 'in:cashier,kitchen,manager,waiter,shipper,inventory_staff,warehouse_staff,warehouse_manager,logistics_driver,assistant_warehouse_keeper,operations_inspector,compliance_auditor'],
             'compensation_type' => ['sometimes', 'string', 'in:fixed,hourly,shift'],
             'pay_rate' => ['sometimes', 'numeric', 'min:0'],
             'base_salary' => ['sometimes', 'numeric', 'min:0'],
@@ -1294,7 +1294,7 @@ class EmployeeManagementController extends Controller
         // Xác định branch_id mới TRƯỚC khi validate wage_tier (cần $newBranchId để check branch scope)
         $newBranchId = $oldBranchId;
         $targetRole = $data['role'] ?? $oldRole;
-        $isTargetWarehouseRole = in_array($targetRole, ['warehouse_staff', 'warehouse_manager'], true);
+        $isTargetWarehouseRole = in_array($targetRole, ['warehouse_staff', 'warehouse_manager', 'logistics_driver', 'assistant_warehouse_keeper'], true);
         $isTargetInspectorRole = in_array($targetRole, ['operations_inspector', 'compliance_auditor'], true);
 
         if ($isTargetInspectorRole) {
@@ -1609,9 +1609,10 @@ class EmployeeManagementController extends Controller
 
         if (! $isOwnerOrAdmin) {
             if ($user->hasRole('warehouse_manager')) {
-                if (! in_array($role, ['warehouse_staff', 'inventory_staff'], true) && $role !== $existingRole) {
+                $allowedWarehouseRoles = ['warehouse_staff', 'logistics_driver', 'assistant_warehouse_keeper'];
+                if (! in_array($role, $allowedWarehouseRoles, true) && $role !== $existingRole) {
                     throw ValidationException::withMessages([
-                        'role' => 'Tài khoản Trưởng kho tổng chỉ được phép tạo hoặc phân quyền nhân sự với vai trò Nhân viên Kho Tổng và Nhân viên Kho Chi Nhánh.',
+                        'role' => 'Tài khoản Trưởng kho tổng chỉ được phép tạo hoặc quản lý nhân sự thuộc Đội ngũ Kho (Nhân viên Kho Tổng, Tài Xế Logistics, Thủ Kho Phụ). Không được phép tạo tài khoản Quản lý hoặc nhân viên chi nhánh khác.',
                     ]);
                 }
             } elseif ($user->isBranchManager()) {

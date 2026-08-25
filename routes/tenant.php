@@ -44,6 +44,7 @@ use App\Http\Controllers\IngredientSpendController;
 use App\Http\Controllers\IntegrationSettingsController;
 use App\Http\Controllers\InternalTransferController;
 use App\Http\Controllers\InventoryCountController;
+use App\Http\Controllers\MaterialClosingController;
 use App\Http\Controllers\InventoryManagementController;
 use App\Http\Controllers\InventoryNegativeStockController;
 use App\Http\Controllers\KitchenController;
@@ -906,6 +907,11 @@ Route::middleware(['auth', 'verified', 'tenant.subscription', 'tenant.ratelimit'
     Route::post('api/warehouse-governance/disputes/{id}/respond', [WarehouseGovernanceController::class, 'respondDispute'])->middleware('role_or_permission:owner|super_admin|warehouse_manager|warehouse_staff|manager')->name('warehouse-governance.respond-dispute');
 
     // Kiểm kê tồn kho nâng cao (Periodic, Spot check, Blind count)
+    Route::get('inventory/central-warehouse/material-closing', [MaterialClosingController::class, 'page'])->middleware('role_or_permission:owner|super_admin|warehouse_manager|warehouse_staff|inventory.count|inventory.count.execute')->name('inventory.material-closing');
+    Route::post('api/inventory/central-warehouse/material-closing', [MaterialClosingController::class, 'store'])->middleware('role_or_permission:owner|super_admin|warehouse_manager|inventory.count|inventory.count.execute')->name('inventory.material-closing.store');
+    Route::post('api/inventory/central-warehouse/material-closing/{id}/assign', [MaterialClosingController::class, 'assign'])->middleware('role_or_permission:owner|super_admin|warehouse_manager|warehouse.manage')->name('inventory.material-closing.assign');
+    Route::post('api/inventory/central-warehouse/material-closing/{id}/counts', [MaterialClosingController::class, 'submitCounts'])->middleware('role_or_permission:owner|super_admin|warehouse_manager|warehouse_staff|inventory.count|inventory.count.execute')->name('inventory.material-closing.counts');
+
     Route::get('inventory/count-sessions', [InventoryCountController::class, 'page'])->middleware('role_or_permission:owner|super_admin|warehouse_manager|inventory.count|inventory.count.execute|inventory.adjust.approve')->name('inventory.count-sessions');
     Route::post('api/inventory/count-sessions', [InventoryCountController::class, 'store'])->middleware('role_or_permission:owner|super_admin|warehouse_manager|inventory.count|inventory.count.execute')->name('inventory.count-sessions.store');
     Route::post('api/inventory/count-sessions/{id}/counts', [InventoryCountController::class, 'submitCounts'])->middleware('role_or_permission:owner|super_admin|warehouse_manager|inventory.count|inventory.count.execute')->name('inventory.count-sessions.counts');

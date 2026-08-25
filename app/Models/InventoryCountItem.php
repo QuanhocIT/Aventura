@@ -16,6 +16,13 @@ class InventoryCountItem extends Model
     {
         return [
             'expected_quantity' => 'decimal:3',
+            'opening_quantity' => 'decimal:3',
+            'inbound_quantity' => 'decimal:3',
+            'outbound_quantity' => 'decimal:3',
+            'inbound_value' => 'decimal:2',
+            'outbound_value' => 'decimal:2',
+            'unit_cost' => 'decimal:2',
+            'expected_value' => 'decimal:2',
             'counted_quantity_1' => 'decimal:3',
             'counted_quantity_2' => 'decimal:3',
             'final_quantity' => 'decimal:3',

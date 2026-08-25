@@ -75,23 +75,24 @@ class CentralWarehouseSupplyChainService
                 ]);
             }
 
-            if ($options->isEmpty()) {
-                $items->push([
-                    'type' => 'no_supplier',
-                    'severity' => 'critical',
-                    'ingredient_id' => $ingredient->id,
-                    'ingredient_name' => $ingredient->name,
-                    'message' => "{$ingredient->name} chưa có nhà cung cấp hoạt động.",
-                ]);
-            } elseif (! $hasBackup && ($ingredient->batch_tracking_required || in_array($ingredient->storage_type, ['fresh', 'daily', 'short_shelf'], true))) {
-                $items->push([
-                    'type' => 'no_backup_supplier',
-                    'severity' => 'warning',
-                    'ingredient_id' => $ingredient->id,
-                    'ingredient_name' => $ingredient->name,
-                    'message' => "{$ingredient->name} chưa có nhà cung cấp dự phòng.",
-                ]);
-            }
+            // Tắt cảnh báo nhà cung cấp theo yêu cầu người dùng
+            // if ($options->isEmpty()) {
+            //     $items->push([
+            //         'type' => 'no_supplier',
+            //         'severity' => 'critical',
+            //         'ingredient_id' => $ingredient->id,
+            //         'ingredient_name' => $ingredient->name,
+            //         'message' => "{$ingredient->name} chưa có nhà cung cấp hoạt động.",
+            //     ]);
+            // } elseif (! $hasBackup && ($ingredient->batch_tracking_required || in_array($ingredient->storage_type, ['fresh', 'daily', 'short_shelf'], true))) {
+            //     $items->push([
+            //         'type' => 'no_backup_supplier',
+            //         'severity' => 'warning',
+            //         'ingredient_id' => $ingredient->id,
+            //         'ingredient_name' => $ingredient->name,
+            //         'message' => "{$ingredient->name} chưa có nhà cung cấp dự phòng.",
+            //     ]);
+            // }
         }
 
         $lateOrders = PurchaseOrder::where('restaurant_id', $restaurantId)

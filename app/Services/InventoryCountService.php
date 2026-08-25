@@ -16,6 +16,7 @@ class InventoryCountService
 {
     public function __construct(
         protected InventoryCountScopeService $countScope,
+        protected MaterialClosingService $materialClosing,
     ) {}
 
     /**
@@ -180,7 +181,7 @@ class InventoryCountService
                 } else {
                     $expected = (float) $item->expected_quantity;
                     $variance = (float) $finalQty - $expected;
-                    $unitCost = (float) ($item->ingredient->average_cost ?? 0);
+                    $unitCost = $this->unitCostForItem($session, $item);
                     $varValue = round($variance * $unitCost, 2);
                     $varPct = $expected > 0 ? round(($variance / $expected) * 100, 2) : ($variance != 0 ? 100 : 0);
 
@@ -203,6 +204,8 @@ class InventoryCountService
             $session->update([
                 'total_variance_value' => $totalVarianceVal,
             ]);
+
+            $this->materialClosing->refreshSummary($session);
 
             return $session->fresh(['items.ingredient.unit']);
         });
@@ -276,7 +279,7 @@ class InventoryCountService
 
             $expected = (float) $item->expected_quantity;
             $variance = $finalQuantity - $expected;
-            $unitCost = (float) ($item->ingredient?->average_cost ?? 0);
+            $unitCost = $this->unitCostForItem($lockedSession, $item);
             $varValue = round($variance * $unitCost, 2);
             $varPct = $expected > 0 ? round(($variance / $expected) * 100, 2) : ($variance != 0 ? 100 : 0);
 
@@ -294,6 +297,7 @@ class InventoryCountService
             $totalVarianceValue = (float) InventoryCountItem::where('count_session_id', $lockedSession->id)
                 ->sum(DB::raw('ABS(variance_value)'));
             $lockedSession->update(['total_variance_value' => round($totalVarianceValue, 2)]);
+            $this->materialClosing->refreshSummary($lockedSession);
 
             return $lockedSession->fresh(['items.ingredient.unit', 'countedBy', 'secondCountedBy']);
         });
@@ -513,7 +517,7 @@ class InventoryCountService
                     'type' => 'inventory_count',
                     'direction' => $direction,
                     'quantity' => $absQty,
-                    'unit_cost' => $item->ingredient->average_cost ?? 0,
+                    'unit_cost' => $this->unitCostForItem($session, $item),
                     'total_cost' => abs((float) $item->variance_value),
                     'source_type' => 'inventory_count',
                     'source_id' => $session->id,
@@ -536,6 +540,8 @@ class InventoryCountService
                 'completed_at' => now(),
             ]);
 
+            $this->materialClosing->refreshSummary($session);
+
             return $session->fresh(['items.ingredient.unit', 'approver']);
         });
     }
@@ -550,5 +556,14 @@ class InventoryCountService
                 ->exists()) {
             throw new InvalidArgumentException('Phiên kiểm kê không thuộc phạm vi tài khoản hoặc chi nhánh đã ngừng hoạt động.');
         }
+    }
+
+    private function unitCostForItem(InventoryCountSession $session, InventoryCountItem $item): float
+    {
+        if ($session->type === 'material_closing' && $item->unit_cost !== null) {
+            return (float) $item->unit_cost;
+        }
+
+        return (float) ($item->ingredient?->average_cost ?? 0);
     }
 }

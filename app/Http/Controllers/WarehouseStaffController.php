@@ -56,7 +56,7 @@ class WarehouseStaffController extends Controller
         $centralBranch = $this->warehouseService->getCentralWarehouse($restaurantId);
 
         // Task của tôi hôm nay + pending
-        $myTasks = WarehouseTaskAssignment::where('restaurant_id', $restaurantId)
+        $myTasksRaw = WarehouseTaskAssignment::where('restaurant_id', $restaurantId)
             ->myTasks($userId)
             ->when($centralBranch, fn ($query) => $query->where(function ($scope) use ($centralBranch) {
                 $scope->whereHas('supplyRequest', fn ($request) => $request->where('from_branch_id', $centralBranch->id))
@@ -65,21 +65,23 @@ class WarehouseStaffController extends Controller
                         $unlinked->whereNull('supply_request_id')->whereNull('receiving_voucher_id');
                     });
             }), fn ($query) => $query->whereRaw('1 = 0'))
-            ->with(['supplyRequest.toBranch', 'supplyRequest.items.ingredient.unit', 'supplyRequest.items.batch', 'receivingVoucher.items.batch', 'receivingVoucher.items.ingredient', 'receivingVoucher.items.location', 'assignee'])
+            ->with(['supplyRequest.toBranch', 'supplyRequest.items.ingredient.unit', 'supplyRequest.items.batch', 'receivingVoucher.items.batch', 'receivingVoucher.items.ingredient', 'receivingVoucher.items.location', 'assignee', 'countSession'])
             ->orderByRaw("CASE status WHEN 'in_progress' THEN 0 WHEN 'assigned' THEN 1 WHEN 'completed' THEN 2 ELSE 3 END")
             ->orderBy('due_at')
             ->limit(50)
             ->get();
 
         $taskSummary = [
-            'total' => $myTasks->count(),
-            'pending' => $myTasks->whereIn('status', ['assigned'])->count(),
-            'in_progress' => $myTasks->where('status', 'in_progress')->count(),
-            'completed_today' => $myTasks->where('status', 'completed')
+            'total' => $myTasksRaw->count(),
+            'pending' => $myTasksRaw->whereIn('status', ['assigned'])->count(),
+            'in_progress' => $myTasksRaw->where('status', 'in_progress')->count(),
+            'completed_today' => $myTasksRaw->where('status', 'completed')
                 ->filter(fn ($t) => $t->completed_at?->isToday())
                 ->count(),
-            'overdue' => $myTasks->filter(fn ($t) => $t->isOverdue())->count(),
+            'overdue' => $myTasksRaw->filter(fn ($t) => $t->isOverdue())->count(),
         ];
+
+        $myTasks = $myTasksRaw->map(fn ($t) => $this->formatTask($t))->values();
 
         // Phiếu nhận hàng gần đây do tôi thực hiện
         $myVouchers = WarehouseReceivingVoucher::where('restaurant_id', $restaurantId)
@@ -382,6 +384,10 @@ class WarehouseStaffController extends Controller
             'evidence.*' => 'file|mimes:jpg,jpeg,png,pdf,webp|max:10240',
             'evidence_types' => 'nullable|array',
             'evidence_types.*' => 'nullable|in:invoice,delivery_note,qc,receiving_photo,other',
+        ], [
+            'items.*.ingredient_id.required' => 'Vui lòng chọn nguyên liệu cho tất cả các mặt hàng.',
+            'items.*.ingredient_id.integer' => 'Mã nguyên liệu không hợp lệ.',
+            'items.*.ingredient_id.exists' => 'Nguyên liệu đã chọn không tồn tại trong hệ thống.',
         ]);
 
         $user = $request->user();
@@ -1896,7 +1902,8 @@ class WarehouseStaffController extends Controller
                 $centralBranchId,
                 fn ($query) => $query->where(fn ($scope) => $scope
                     ->whereNull('branch_id')
-                    ->orWhere('branch_id', $centralBranchId)),
+                    ->orWhere('branch_id', $centralBranchId)
+                    ->orWhereHas('inventories', fn ($inv) => $inv->where('branch_id', $centralBranchId))),
                 fn ($query) => $query->whereRaw('1 = 0'),
             );
     }
@@ -1958,6 +1965,13 @@ class WarehouseStaffController extends Controller
                     'batch_number' => $item->batch?->batch_number,
                     'location_code' => $item->location?->location_code ?? $item->location?->code,
                 ])->values()->all(),
+            ] : null,
+            'count_session' => $task->countSession ? [
+                'id' => $task->countSession->id,
+                'type' => $task->countSession->type,
+                'status' => $task->countSession->status,
+                'period_start' => $task->countSession->period_start?->toDateString(),
+                'period_end' => $task->countSession->period_end?->toDateString(),
             ] : null,
         ];
     }

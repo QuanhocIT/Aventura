@@ -59,13 +59,6 @@ type IngredientOption = {
     unit?: { symbol: string } | null;
 };
 
-type SupplierOption = {
-    id: number;
-    name: string;
-    code?: string | null;
-    phone?: string | null;
-};
-
 type PurchaseOrderItem = {
     ingredient_id: number;
     ingredient_name: string | null;
@@ -78,8 +71,6 @@ type PurchaseOrderItem = {
 type PurchaseOrderOption = {
     id: number;
     po_number: string;
-    supplier_id: number;
-    supplier_name: string | null;
     status: string;
     is_frozen: boolean;
     items: PurchaseOrderItem[];
@@ -142,7 +133,6 @@ type Voucher = {
     documents?: ReceivingDocument[];
     received_by?: { id?: number; name: string } | null;
     verified_by?: { id?: number; name: string } | null;
-    supplier?: SupplierOption | null;
     purchase_order?: { po_number: string; status: string } | null;
     items: VoucherItem[];
 };
@@ -174,7 +164,6 @@ const props = defineProps<{
     inventorySummary: Record<string, number>;
     warehouseLocations: Location[];
     ingredients: IngredientOption[];
-    suppliers: SupplierOption[];
     purchaseOrders: PurchaseOrderOption[];
     canManageWarehouse: boolean;
     canCreateReceiving: boolean;
@@ -205,7 +194,10 @@ const dispositionKind = ref<'return_supplier' | 'destroy'>('return_supplier');
 const dispositionReason = ref('');
 const dispositionEvidence = ref<File[]>([]);
 const isDisposing = ref(false);
-const showGrnForm = ref(false);
+const showGrnForm = ref(
+    typeof window !== 'undefined' &&
+        new URLSearchParams(window.location.search).get('create') === '1',
+);
 const isSubmittingGrn = ref(false);
 const grnErrors = ref<string[]>([]);
 const grnFiles = ref<File[]>([]);
@@ -227,7 +219,6 @@ const grnForm = ref({
     received_at: new Date(Date.now() - new Date().getTimezoneOffset() * 60000)
         .toISOString()
         .slice(0, 16),
-    supplier_id: null as number | null,
     purchase_order_id: null as number | null,
     notes: '',
     delivery_note_number: '',
@@ -360,7 +351,6 @@ const filteredVouchers = computed(() => {
                 ['confirmed', 'closed'].includes(voucher.status));
         const haystack = [
             voucher.voucher_code,
-            voucher.supplier?.name,
             voucher.purchase_order?.po_number,
             voucher.received_by?.name,
         ]
@@ -671,13 +661,11 @@ const onPurchaseOrderChange = () => {
     const order = selectedPurchaseOrder.value;
 
     if (!order) {
-        grnForm.value.supplier_id = null;
         grnForm.value.items = [emptyLine()];
 
         return;
     }
 
-    grnForm.value.supplier_id = order.supplier_id;
     grnForm.value.items = order.items
         .map((item) => ({
             ingredient_id: item.ingredient_id,
@@ -783,10 +771,6 @@ const submitGrn = async () => {
     isSubmittingGrn.value = true;
     const formData = new FormData();
     formData.append('received_at', grnForm.value.received_at);
-
-    if (grnForm.value.supplier_id) {
-        formData.append('supplier_id', String(grnForm.value.supplier_id));
-    }
 
     if (grnForm.value.purchase_order_id) {
         formData.append(
@@ -904,15 +888,11 @@ const submitGrn = async () => {
             formData,
             { headers: { 'Content-Type': 'multipart/form-data' } },
         );
-        const supplier = props.suppliers.find(
-            (item) => item.id === grnForm.value.supplier_id,
-        );
         const purchaseOrder = props.purchaseOrders.find(
             (item) => item.id === grnForm.value.purchase_order_id,
         );
         vouchers.value.unshift({
             ...data.voucher,
-            supplier,
             purchase_order: purchaseOrder,
         });
         summary.value.pending_review = (summary.value.pending_review ?? 0) + 1;
@@ -925,7 +905,6 @@ const submitGrn = async () => {
             )
                 .toISOString()
                 .slice(0, 16),
-            supplier_id: null,
             purchase_order_id: null,
             notes: '',
             delivery_note_number: '',
@@ -979,7 +958,7 @@ const documentTypeLabel = (type: string) =>
 </script>
 
 <template>
-    <Head title="Nhận hàng & GRN Kho Tổng" />
+    <Head title="Nhập nguyên liệu vào Kho Tổng" />
     <div class="mx-auto w-full max-w-[1500px] space-y-5 p-4 sm:p-6">
         <section
             class="rounded-3xl border border-orange-500/20 bg-gradient-to-br from-slate-950 via-orange-950/80 to-slate-900 p-6 text-white shadow-xl sm:p-8"
@@ -1017,7 +996,7 @@ const documentTypeLabel = (type: string) =>
                         v-if="canCreateReceiving"
                         class="gap-2 bg-orange-600 text-white hover:bg-orange-700"
                         @click="showGrnForm = true"
-                        ><Plus class="size-4" /> Tạo phiếu GRN</Button
+                        ><Plus class="size-4" /> Nhập nguyên liệu vào Kho Tổng</Button
                     ><Link href="/inventory/staff-portal"
                         ><Button
                             variant="outline"
@@ -1177,7 +1156,7 @@ const documentTypeLabel = (type: string) =>
                             /><Input
                                 v-model="search"
                                 class="h-9 pl-9 text-xs"
-                                placeholder="Tìm mã GRN, nhà cung cấp..."
+                                placeholder="Tìm mã GRN, đơn mua hoặc người nhận..."
                             />
                         </div>
                         <select
@@ -1201,7 +1180,6 @@ const documentTypeLabel = (type: string) =>
                             <tr>
                                 <th class="w-8 p-3"></th>
                                 <th class="p-3">Mã GRN / Đơn mua</th>
-                                <th class="p-3">Nhà cung cấp</th>
                                 <th class="p-3">Người nhận / Thời gian</th>
                                 <th class="p-3 text-right">Dòng hàng</th>
                                 <th class="p-3 text-right">Thực nhận</th>
@@ -1213,7 +1191,7 @@ const documentTypeLabel = (type: string) =>
                         <tbody class="divide-y divide-border">
                             <tr v-if="filteredVouchers.length === 0">
                                 <td
-                                    colspan="9"
+                                    colspan="8"
                                     class="p-12 text-center text-muted-foreground"
                                 >
                                     Không có phiếu phù hợp với bộ lọc hiện tại.
@@ -1249,22 +1227,6 @@ const documentTypeLabel = (type: string) =>
                                             {{
                                                 voucher.purchase_order.po_number
                                             }}
-                                        </p>
-                                    </td>
-                                    <td class="p-3">
-                                        <p
-                                            class="font-semibold text-foreground"
-                                        >
-                                            {{
-                                                voucher.supplier?.name ||
-                                                'Chưa gắn nhà cung cấp'
-                                            }}
-                                        </p>
-                                        <p
-                                            v-if="voucher.supplier?.code"
-                                            class="mt-1 text-[10px] text-muted-foreground"
-                                        >
-                                            {{ voucher.supplier.code }}
                                         </p>
                                     </td>
                                     <td class="p-3">
@@ -2189,7 +2151,7 @@ const documentTypeLabel = (type: string) =>
                     <p
                         class="text-[10px] font-bold tracking-wider text-orange-400 uppercase"
                     >
-                        Phiếu nhận hàng mới
+                        Phiếu nhập nguyên liệu mới
                     </p>
                     <h2 class="mt-1 text-2xl font-black">
                         Tạo GRN và ghi nhận hàng thực nhận
@@ -2204,32 +2166,13 @@ const documentTypeLabel = (type: string) =>
                 /></Button>
             </div>
             <form class="space-y-5" @submit.prevent="submitGrn">
-                <div class="grid gap-3 md:grid-cols-4">
+                <div class="grid gap-3 md:grid-cols-3">
                     <div class="flex flex-col gap-1.5">
                         <Label>Thời điểm nhận</Label
                         ><Input
                             v-model="grnForm.received_at"
                             type="datetime-local"
                         />
-                    </div>
-                    <div class="flex flex-col gap-1.5">
-                        <Label>Nhà cung cấp</Label
-                        ><select
-                            v-model="grnForm.supplier_id"
-                            class="h-10 rounded-md border border-input bg-background px-3 text-sm"
-                        >
-                            <option :value="null">Chọn nhà cung cấp</option>
-                            <option
-                                v-for="supplier in suppliers"
-                                :key="supplier.id"
-                                :value="supplier.id"
-                            >
-                                {{ supplier.name
-                                }}{{
-                                    supplier.code ? ` · ${supplier.code}` : ''
-                                }}
-                            </option>
-                        </select>
                     </div>
                     <div class="flex flex-col gap-1.5 md:col-span-2">
                         <Label>Đối chiếu đơn mua hàng (khuyến nghị)</Label
@@ -2244,9 +2187,7 @@ const documentTypeLabel = (type: string) =>
                                 :key="order.id"
                                 :value="order.id"
                             >
-                                {{ order.po_number }} ·
-                                {{ order.supplier_name || 'Chưa rõ NCC' }} ·
-                                {{ order.status }}
+                                {{ order.po_number }} · {{ order.status }}
                             </option>
                         </select>
                     </div>
@@ -2564,9 +2505,10 @@ const documentTypeLabel = (type: string) =>
                 <div
                     class="flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4"
                 >
-                    <p class="text-[11px] text-muted-foreground">
+                    <p class="max-w-xl text-[11px] text-muted-foreground">
                         Phiếu có chênh lệch sẽ ở trạng thái chờ xác minh, chưa
-                        cộng vào tồn kho.
+                        cộng vào tồn kho. Sau khi được xác minh, hệ thống sẽ tạo
+                        giao dịch nhập, lô hàng và cập nhật tồn Kho Tổng.
                     </p>
                     <div class="flex gap-2">
                         <Button
@@ -2582,7 +2524,7 @@ const documentTypeLabel = (type: string) =>
                             {{
                                 isSubmittingGrn
                                     ? 'Đang lưu...'
-                                    : 'Tạo phiếu GRN'
+                                    : 'Tạo phiếu nhập nguyên liệu'
                             }}</Button
                         >
                     </div>

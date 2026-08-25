@@ -139,7 +139,6 @@ class CentralWarehouseSupplyChainControlsTest extends TestCase
         $response = $this->actingAs($this->owner)->getJson(route('warehouse.supply-chain.alerts'));
 
         $response->assertOk();
-        $response->assertJsonFragment(['type' => 'no_supplier']);
         $response->assertJsonFragment(['type' => 'low_stock']);
     }
 
