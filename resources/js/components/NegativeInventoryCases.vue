@@ -162,12 +162,8 @@ async function verifyCase(item: NegativeCase): Promise<void> {
 
 <template>
     <Card
-        class="bg-amber-50/50 dark:bg-amber-950/20"
-        :class="
-            cases.length
-                ? 'border-amber-300 dark:border-amber-700'
-                : 'border-emerald-300 dark:border-emerald-700'
-        "
+        v-if="cases.length > 0"
+        class="border-amber-300 bg-amber-50/50 dark:border-amber-700 dark:bg-amber-950/20"
     >
         <CardHeader class="pb-3">
             <div class="flex flex-wrap items-center justify-between gap-2">

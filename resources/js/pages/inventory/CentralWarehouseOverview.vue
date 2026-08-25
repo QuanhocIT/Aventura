@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Head } from '@inertiajs/vue3';
+import { Head, Link } from '@inertiajs/vue3';
 import {
     AlertTriangle,
     ArrowRight,
@@ -8,6 +8,7 @@ import {
     Boxes,
     CalendarDays,
     CheckCircle2,
+    ClipboardCheck,
     Clock3,
     Gauge,
     Lightbulb,
@@ -256,10 +257,26 @@ const aiSignalClass = (severity: string) =>
                         Mọi chỉ số được tổng hợp từ dữ liệu vận hành thực tế.
                     </p>
                 </div>
-                <div class="shrink-0 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm backdrop-blur-sm">
-                    <p class="text-[10px] font-semibold uppercase tracking-[0.16em] text-indigo-200/70">Phạm vi dữ liệu</p>
-                    <p class="mt-1 font-semibold text-white">{{ centralBranch?.name || 'Kho Tổng' }}</p>
-                    <p class="mt-1 text-xs text-indigo-100/60">Cập nhật {{ formatDateTime(analytics.generated_at) }}</p>
+                <div class="flex shrink-0 flex-col items-stretch gap-3 sm:flex-row sm:items-end">
+                    <div class="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm backdrop-blur-sm">
+                        <p class="text-[10px] font-semibold uppercase tracking-[0.16em] text-indigo-200/70">Phạm vi dữ liệu</p>
+                        <p class="mt-1 font-semibold text-white">{{ centralBranch?.name || 'Kho Tổng' }}</p>
+                        <p class="mt-1 text-xs text-indigo-100/60">Cập nhật {{ formatDateTime(analytics.generated_at) }}</p>
+                    </div>
+                    <Link
+                        href="/inventory/central-warehouse/receiving?create=1"
+                        class="inline-flex items-center justify-center gap-2 rounded-xl bg-orange-500 px-4 py-3 text-sm font-bold text-white shadow-lg shadow-orange-950/30 transition hover:bg-orange-400"
+                    >
+                        <PackageCheck class="h-4 w-4" />
+                        Nhập nguyên liệu
+                    </Link>
+                    <Link
+                        href="/inventory/central-warehouse/material-closing"
+                        class="inline-flex items-center justify-center gap-2 rounded-xl border border-amber-300/30 bg-amber-400/10 px-4 py-3 text-sm font-bold text-amber-100 transition hover:bg-amber-400/20"
+                    >
+                        <ClipboardCheck class="h-4 w-4" />
+                        Chốt nguyên liệu
+                    </Link>
                 </div>
             </div>
         </section>
