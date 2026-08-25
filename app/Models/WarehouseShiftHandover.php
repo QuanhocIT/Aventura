@@ -23,6 +23,11 @@ class WarehouseShiftHandover extends Model
             'starting_stock_value' => 'decimal:2',
             'ending_stock_value' => 'decimal:2',
             'signed_at' => 'datetime',
+            'open_tasks_json' => 'array',
+            'handover_items_json' => 'array',
+            'incidents_json' => 'array',
+            'stock_snapshot_json' => 'array',
+            'is_system_locked' => 'boolean',
         ];
     }
 
