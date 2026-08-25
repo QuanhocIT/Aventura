@@ -50,9 +50,9 @@ class PreventSelfApproval
                 ? 'Bạn không thể duyệt đơn cấp phát do chính mình tạo. Yêu cầu phân tách người tạo – người duyệt.'
                 : null,
 
-            // Không được vừa duyệt đơn vừa soạn hàng
-            'dispatch' => $supplyRequest->approved_by === $userId
-                ? 'Người duyệt đơn không được phép tự soạn/xuất hàng. Yêu cầu phân tách người duyệt – người xuất kho.'
+            // Người tạo đơn cấp phát không được tự xuất kho
+            'dispatch' => $supplyRequest->created_by === $userId
+                ? 'Người tạo đơn cấp phát không được phép tự xuất kho. Yêu cầu Kho Tổng thực hiện xuất kho bàn giao.'
                 : null,
 
             // Trưởng kho duyệt xuất: không được trùng người soạn hàng
