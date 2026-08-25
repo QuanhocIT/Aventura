@@ -139,6 +139,20 @@ const taskResultNote = ref('');
 const taskFiles = ref<File[]>([]);
 const isProcessingTask = ref(false);
 
+// FEFO Picking Modal
+const showPickingModal = ref(false);
+const activePickingTask = ref<any>(null);
+const pickingFormItems = ref<Array<{
+    id: number;
+    ingredient_name: string;
+    approved_quantity: number;
+    actual_dispatched_quantity: number;
+    batch_id: number | null;
+    warehouse_location_id: number | null;
+    unit_symbol?: string;
+}>>([]);
+const isSubmittingPicking = ref(false);
+
 // ── Computed ──────────────────────────────────────────────────────────────────
 
 const tabs = computed(() => [
@@ -199,6 +213,38 @@ function taskTypeLabel(type: string): string {
     };
 
     return map[type] ?? type;
+}
+
+function formatBranchName(branch: any): string {
+    if (!branch) {
+        return '';
+    }
+
+    if (typeof branch === 'object') {
+        return branch.name || branch.code || '';
+    }
+
+    return String(branch);
+}
+
+function formatLocationName(loc: any): string {
+    if (!loc) {
+        return '';
+    }
+
+    const code = loc.location_code || loc.code || `Vị trí #${loc.id}`;
+    const zoneInfo = loc.zone ? `[${loc.zone}]` : '';
+    const details = [
+        loc.rack ? `Kệ ${loc.rack}` : '',
+        loc.shelf ? `Ngăn ${loc.shelf}` : '',
+        loc.bin ? `Hộp ${loc.bin}` : '',
+    ].filter(Boolean).join(' - ');
+
+    if (zoneInfo || details) {
+        return `${code} ${zoneInfo} ${details ? '(' + details + ')' : ''}`.trim();
+    }
+
+    return loc.name || code;
 }
 
 function statusBadgeClass(status: string) {
@@ -321,17 +367,19 @@ async function completeTask(taskId: number) {
 
 // GRN
 function addGrnItem() {
-    grnForm.value.items.push({
+    const newItem = {
         ingredient_id: null,
         ingredient_name: '',
-        expected_qty: 0,
-        actual_qty: 0,
+        expected_qty: 1,
+        actual_qty: 1,
         unit_cost: 0,
         lot_number: '',
         expiry_date: '',
         location_id: null,
         discrepancy_reason: '',
-    });
+    };
+
+    grnForm.value.items = [...grnForm.value.items, newItem];
 }
 
 function removeGrnItem(index: number) {
@@ -345,6 +393,13 @@ async function submitGrn() {
         return;
     }
 
+    const invalidIndex = grnForm.value.items.findIndex(item => !item.ingredient_id);
+    if (invalidIndex !== -1) {
+        toast.error(`Vui lòng chọn nguyên liệu cho mặt hàng #${invalidIndex + 1}.`);
+
+        return;
+    }
+
     isSubmittingGrn.value = true;
     const formData = new FormData();
     formData.append('received_at', grnForm.value.received_at);
@@ -352,8 +407,6 @@ async function submitGrn() {
         ? crypto.randomUUID()
         : `grn-${Date.now()}-${Math.random().toString(16).slice(2)}`;
     formData.append('idempotency_key', idempotencyKey);
-    if (grnForm.value.supplier_id) formData.append('supplier_id', String(grnForm.value.supplier_id));
-    if (grnForm.value.purchase_order_id) formData.append('purchase_order_id', String(grnForm.value.purchase_order_id));
     const grnMeta = {
         delivery_note_number: grnForm.value.delivery_note_number,
         invoice_number: grnForm.value.invoice_number,
@@ -403,10 +456,21 @@ async function submitGrn() {
             voucherList.value.unshift(data.voucher);
         }
         grnForm.value.items = [];
+        addGrnItem();
         grnFiles.value = [];
         activeTab.value = 'today';
     } catch (e: any) {
-        toast.error(e.response?.data?.message ?? 'Lỗi tạo phiếu nhận hàng.');
+        const errors = e.response?.data?.errors;
+        let errorMessage = e.response?.data?.message;
+
+        if (errors) {
+            const firstKey = Object.keys(errors)[0];
+            if (firstKey && errors[firstKey]?.[0]) {
+                errorMessage = errors[firstKey][0];
+            }
+        }
+
+        toast.error(errorMessage ?? 'Lỗi tạo phiếu nhận hàng.');
     } finally {
         isSubmittingGrn.value = false;
     }
@@ -547,31 +611,55 @@ async function confirmPutaway(task: any) {
     }
 }
 
-async function preparePickingTask(task: any) {
+function openPickingModal(task: any) {
     const items = task.supply_request?.items ?? [];
     if (!task.supply_request?.id || items.length === 0) {
         toast.error('Task soạn hàng chưa có dữ liệu đơn cấp phát.');
         return;
     }
-    const preparedItems = [];
-    for (const item of items) {
-        const actual = window.prompt(`SL soạn cho ${item.ingredient_name} (tối đa ${item.approved_quantity}):`, String(item.approved_quantity));
-        if (actual === null) return;
-        const batchId = window.prompt(`ID batch FEFO cho ${item.ingredient_name} (để trống để hệ thống tự chọn):`, item.batch_id ? String(item.batch_id) : '');
-        const locationId = window.prompt(`ID vị trí lấy hàng cho ${item.ingredient_name} (nếu có):`, item.warehouse_location_id ? String(item.warehouse_location_id) : '');
-        preparedItems.push({
-            id: item.id,
-            actual_dispatched_quantity: Number(actual),
-            batch_id: batchId ? Number(batchId) : null,
-            warehouse_location_id: locationId ? Number(locationId) : null,
-        });
+    activePickingTask.value = task;
+    pickingFormItems.value = items.map((item: any) => ({
+        id: item.id,
+        ingredient_name: item.ingredient_name || item.ingredient?.name || 'Nguyên liệu',
+        approved_quantity: item.approved_quantity ?? item.quantity ?? 1,
+        actual_dispatched_quantity: item.approved_quantity ?? item.quantity ?? 1,
+        batch_id: item.batch_id ?? null,
+        warehouse_location_id: item.warehouse_location_id ?? null,
+        unit_symbol: item.unit_symbol || item.ingredient?.unit?.symbol || 'đv',
+    }));
+    showPickingModal.value = true;
+}
+
+async function submitPickingModal() {
+    if (!activePickingTask.value?.supply_request?.id) return;
+
+    const invalidItem = pickingFormItems.value.find(item => item.actual_dispatched_quantity < 0);
+    if (invalidItem) {
+        toast.error(`Số lượng soạn cho ${invalidItem.ingredient_name} không hợp lệ.`);
+        return;
     }
+
+    isSubmittingPicking.value = true;
     try {
-        await axios.post(`/api/supply-requests/${task.supply_request.id}/prepare`, { items: preparedItems });
-        toast.success('Đã ghi nhận soạn hàng FEFO.');
+        const preparedItems = pickingFormItems.value.map(item => ({
+            id: item.id,
+            actual_dispatched_quantity: Number(item.actual_dispatched_quantity),
+            batch_id: item.batch_id ? Number(item.batch_id) : null,
+            warehouse_location_id: item.warehouse_location_id ? Number(item.warehouse_location_id) : null,
+        }));
+
+        await axios.post(`/api/supply-requests/${activePickingTask.value.supply_request.id}/prepare`, {
+            items: preparedItems,
+        });
+
+        toast.success('Đã ghi nhận hoàn tất soạn hàng FEFO thành công!');
+        showPickingModal.value = false;
+        activePickingTask.value = null;
         await refreshTasks(true);
     } catch (e: any) {
         toast.error(e.response?.data?.message ?? 'Không thể ghi nhận soạn hàng.');
+    } finally {
+        isSubmittingPicking.value = false;
     }
 }
 
@@ -593,7 +681,7 @@ async function dispatchHandoverTask(task: any) {
 
 function openTaskCompletion(task: any) {
     if (task.task_type === 'putaway') return confirmPutaway(task);
-    if (task.task_type === 'picking') return preparePickingTask(task);
+    if (task.task_type === 'picking') return openPickingModal(task);
     if (task.task_type === 'handover') return dispatchHandoverTask(task);
     if (task.task_type === 'packing') {
         const packingNote = window.prompt('Nhập số kiện/carton, seal và ghi chú đóng gói:');
@@ -693,6 +781,10 @@ function stopCameraScan() {
 }
 
 onMounted(() => {
+    if (grnForm.value.items.length === 0) {
+        addGrnItem();
+    }
+
     // Tự refresh task mỗi 5 phút
     refreshTimer = setInterval(() => refreshTasks(true), 5 * 60 * 1000);
 });
@@ -909,7 +1001,7 @@ onBeforeUnmount(() => {
                         <div v-if="task.supply_request" class="mt-3.5 flex items-center gap-1.5 text-xs font-semibold text-indigo-600 dark:text-indigo-400">
                             <span>{{ task.supply_request.request_code }}</span>
                             <ChevronRight class="size-3.5 text-slate-400" />
-                            <span>{{ task.supply_request.to_branch }}</span>
+                            <span>{{ formatBranchName(task.supply_request.to_branch) }}</span>
                         </div>
 
                         <p v-if="task.notes" class="mt-2 text-xs leading-relaxed text-slate-600 dark:text-slate-300">
@@ -977,7 +1069,7 @@ onBeforeUnmount(() => {
                             <CardTitle class="text-lg font-bold text-slate-900 dark:text-slate-100">Tạo Phiếu Nhận Hàng (GRN)</CardTitle>
                             <CardDescription class="text-xs text-slate-500">Ghi nhận số lượng thực nhận, kiểm tra sai lệch và cất vào vị trí kho</CardDescription>
                         </div>
-                        <Button size="sm" class="gap-1.5 bg-amber-600 text-xs font-semibold text-white hover:bg-amber-700" @click="addGrnItem">
+                        <Button type="button" size="sm" class="gap-1.5 bg-amber-600 text-xs font-semibold text-white hover:bg-amber-700" @click="addGrnItem">
                             <Plus class="size-3.5" /> Thêm nguyên liệu
                         </Button>
                     </div>
@@ -995,20 +1087,6 @@ onBeforeUnmount(() => {
                     </div>
 
                     <div class="grid grid-cols-1 gap-3 rounded-xl border border-indigo-100 bg-indigo-50/40 p-4 sm:grid-cols-2 lg:grid-cols-4 dark:border-indigo-900/50 dark:bg-indigo-950/20">
-                        <div class="flex flex-col gap-1">
-                            <Label class="text-[11px] font-semibold">Nhà cung cấp</Label>
-                            <select v-model="grnForm.supplier_id" class="h-9 rounded-md border bg-white px-2 text-xs dark:bg-slate-900">
-                                <option :value="null">-- Chọn nhà cung cấp --</option>
-                                <option v-for="supplier in suppliers" :key="supplier.id" :value="supplier.id">{{ supplier.name }}</option>
-                            </select>
-                        </div>
-                        <div class="flex flex-col gap-1">
-                            <Label class="text-[11px] font-semibold">Đơn mua hàng (PO)</Label>
-                            <select v-model="grnForm.purchase_order_id" class="h-9 rounded-md border bg-white px-2 text-xs dark:bg-slate-900">
-                                <option :value="null">-- Không gắn PO --</option>
-                                <option v-for="po in purchaseOrders" :key="po.id" :value="po.id">{{ po.po_number }} - {{ po.supplier?.name }}</option>
-                            </select>
-                        </div>
                         <Input v-model="grnForm.delivery_note_number" placeholder="Số phiếu giao hàng" class="h-9 text-xs" />
                         <Input v-model="grnForm.invoice_number" placeholder="Số hóa đơn" class="h-9 text-xs" />
                         <Input v-model="grnForm.vehicle_number" placeholder="Biển số xe" class="h-9 text-xs" />
@@ -1027,7 +1105,9 @@ onBeforeUnmount(() => {
                     <div v-if="grnForm.items.length === 0" class="flex flex-col items-center justify-center rounded-xl border border-dashed border-slate-200 p-8 text-center dark:border-slate-800">
                         <PackageOpen class="size-8 text-slate-400" />
                         <p class="mt-2 text-xs font-semibold text-slate-600 dark:text-slate-300">Chưa có nguyên liệu nào trong phiếu nhận</p>
-                        <p class="text-[11px] text-slate-400">Nhấn nút "+ Thêm nguyên liệu" ở góc trên để bắt đầu</p>
+                        <Button type="button" size="sm" class="mt-3 gap-1.5 bg-amber-600 text-xs font-semibold text-white hover:bg-amber-700" @click="addGrnItem">
+                            <Plus class="size-3.5" /> Thêm nguyên liệu ngay
+                        </Button>
                     </div>
 
                     <div v-else class="flex flex-col gap-3">
@@ -1086,7 +1166,7 @@ onBeforeUnmount(() => {
                                     <select v-model="item.location_id" class="h-9 rounded-md border border-slate-200 bg-white px-2.5 text-xs shadow-sm dark:border-slate-700 dark:bg-slate-900">
                                         <option :value="null">-- Chọn vị trí kho --</option>
                                         <option v-for="loc in locations" :key="loc.id" :value="loc.id">
-                                            {{ loc.code }} — {{ loc.name }}
+                                            {{ formatLocationName(loc) }}
                                         </option>
                                     </select>
                                 </div>
@@ -1216,7 +1296,7 @@ onBeforeUnmount(() => {
                             <Badge variant="outline" :class="statusBadgeClass(task.status)">{{ statusLabel(task.status) }}</Badge>
                         </div>
                         <div v-if="task.supply_request" class="mt-2 text-xs font-bold text-indigo-600 dark:text-indigo-400">
-                            {{ task.supply_request.request_code }} → {{ task.supply_request.to_branch }}
+                            {{ task.supply_request.request_code }} → {{ formatBranchName(task.supply_request.to_branch) }}
                         </div>
                         <p v-if="task.notes" class="mt-2 text-xs leading-relaxed text-slate-600 dark:text-slate-300">{{ task.notes }}</p>
                         <div class="mt-4 flex items-center justify-end gap-2 border-t border-slate-100 pt-3">
@@ -1281,12 +1361,21 @@ onBeforeUnmount(() => {
                             <Badge variant="outline" class="border-emerald-200 bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50">Kiểm kê</Badge>
                             <Badge variant="outline" :class="statusBadgeClass(task.status)">{{ statusLabel(task.status) }}</Badge>
                         </div>
+                        <div v-if="task.count_session" class="mt-2 rounded-lg border border-amber-200 bg-amber-50/60 p-2 text-xs text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-300">
+                            <div class="font-bold">Chốt nguyên liệu #{{ task.count_session.id }}</div>
+                            <div class="mt-0.5">{{ task.count_session.period_start }} → {{ task.count_session.period_end }}</div>
+                        </div>
                         <p v-if="task.notes" class="mt-3 text-xs leading-relaxed text-slate-600 dark:text-slate-300">{{ task.notes }}</p>
                         <div class="mt-4 flex items-center justify-end gap-2 border-t border-slate-100 pt-3">
                             <Button v-if="task.status === 'assigned'" size="sm" class="gap-1.5 bg-amber-600 text-xs font-semibold text-white" @click="startTask(task.id)">
                                 <ArrowRight class="size-3.5" /> Bắt đầu đếm
                             </Button>
-                            <Button v-if="task.status === 'in_progress'" size="sm" class="gap-1.5 bg-emerald-600 text-xs font-semibold text-white" @click="openTaskCompletion(task)">
+                            <Link v-if="task.count_session" :href="`/inventory/central-warehouse/material-closing?session=${task.count_session.id}`">
+                                <Button size="sm" class="gap-1.5 bg-indigo-600 text-xs font-semibold text-white hover:bg-indigo-500">
+                                    <ClipboardList class="size-3.5" /> Mở kỳ chốt
+                                </Button>
+                            </Link>
+                            <Button v-if="task.status === 'in_progress' && !task.count_session" size="sm" class="gap-1.5 bg-emerald-600 text-xs font-semibold text-white" @click="openTaskCompletion(task)">
                                 <CheckCircle class="size-3.5" /> Nộp kết quả
                             </Button>
                         </div>
@@ -1344,20 +1433,30 @@ onBeforeUnmount(() => {
                         </div>
                     </div>
 
-                    <div class="flex flex-col gap-1.5">
-                        <Label class="text-xs font-bold text-slate-700 dark:text-slate-300">Mô tả chi tiết sự cố *</Label>
-                        <div class="mb-2 grid grid-cols-1 gap-3 sm:grid-cols-2">
-                            <Input v-model.number="incidentForm.batch_id" type="number" placeholder="ID batch/lô hàng (nếu có)" class="h-9 text-xs" />
-                            <select v-model="incidentForm.location_id" class="h-9 rounded-md border bg-white px-2 text-xs dark:bg-slate-900">
-                                <option :value="null">-- Vị trí phát hiện (nếu có) --</option>
-                                <option v-for="loc in locations" :key="loc.id" :value="loc.id">{{ loc.code }} — {{ loc.name }}</option>
+                    <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                        <div class="flex flex-col gap-1.5">
+                            <Label class="text-xs font-bold text-slate-700 dark:text-slate-300">Mã Lô / Batch ID (nếu có)</Label>
+                            <Input v-model.number="incidentForm.batch_id" type="number" placeholder="Nhập ID batch/lô hàng..." class="h-9 text-xs" />
+                        </div>
+
+                        <div class="flex flex-col gap-1.5">
+                            <Label class="text-xs font-bold text-slate-700 dark:text-slate-300">Vị trí phát hiện (nếu có)</Label>
+                            <select v-model="incidentForm.location_id" class="h-9 rounded-md border border-slate-200 bg-white px-2.5 text-xs shadow-sm dark:border-slate-700 dark:bg-slate-900">
+                                <option :value="null">-- Chọn vị trí phát hiện --</option>
+                                <option v-for="loc in locations" :key="loc.id" :value="loc.id">
+                                    {{ formatLocationName(loc) }}
+                                </option>
                             </select>
                         </div>
+                    </div>
+
+                    <div class="flex flex-col gap-1.5">
+                        <Label class="text-xs font-bold text-slate-700 dark:text-slate-300">Mô tả chi tiết sự cố *</Label>
                         <textarea
                             v-model="incidentForm.description"
-                            rows="3"
+                            rows="4"
                             placeholder="Mô tả cụ thể vị trí kệ hàng, thời điểm phát hiện, nguyên nhân sơ bộ..."
-                            class="rounded-md border border-slate-200 bg-white p-3 text-xs shadow-sm dark:border-slate-700 dark:bg-slate-900"
+                            class="rounded-md border border-slate-200 bg-white p-3 text-xs shadow-sm focus:border-amber-500 focus:ring-1 focus:ring-amber-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
                         ></textarea>
                     </div>
 
@@ -1637,6 +1736,114 @@ onBeforeUnmount(() => {
                             <AlertCircle class="size-4 shrink-0" />
                             {{ scanResult.message || 'Mã không tồn tại trong hệ thống.' }}
                         </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        </Teleport>
+
+        <!-- ── Modal: Bảng Xác Nhận Soạn Hàng FEFO ── -->
+        <Teleport to="body">
+        <div v-if="showPickingModal && activePickingTask" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm" @click.self="showPickingModal = false">
+            <div class="flex max-h-[90vh] w-full max-w-3xl flex-col rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-slate-800 dark:bg-slate-900">
+                <!-- Modal Header -->
+                <div class="flex items-center justify-between border-b border-slate-100 p-5 dark:border-slate-800">
+                    <div class="flex items-center gap-3">
+                        <div class="flex size-10 items-center justify-center rounded-xl bg-amber-100 text-amber-600 dark:bg-amber-950 dark:text-amber-400">
+                            <ClipboardList class="size-5" />
+                        </div>
+                        <div>
+                            <h3 class="text-base font-bold text-slate-900 dark:text-slate-100">
+                                Bảng Xác Nhận Soạn Hàng FEFO
+                            </h3>
+                            <p class="text-xs text-slate-500">
+                                Đơn cấp phát: <span class="font-bold text-amber-600 dark:text-amber-400">{{ activePickingTask.supply_request?.request_code }}</span>
+                                → <span class="font-semibold text-slate-700 dark:text-slate-300">{{ formatBranchName(activePickingTask.supply_request?.to_branch) }}</span>
+                            </p>
+                        </div>
+                    </div>
+                    <button class="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800 dark:hover:text-slate-200" @click="showPickingModal = false">
+                        <X class="size-5" />
+                    </button>
+                </div>
+
+                <!-- Modal Body: Table of Items -->
+                <div class="flex-1 overflow-y-auto p-5">
+                    <div class="overflow-x-auto rounded-xl border border-slate-200 bg-slate-50/50 dark:border-slate-800 dark:bg-slate-950/40">
+                        <table class="w-full text-left text-xs">
+                            <thead class="border-b border-slate-200 bg-slate-100/70 font-semibold text-slate-700 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300">
+                                <tr>
+                                    <th class="p-3">#</th>
+                                    <th class="p-3">Nguyên liệu</th>
+                                    <th class="p-3 text-right">SL Duyệt</th>
+                                    <th class="p-3 text-right">SL Thực Soạn</th>
+                                    <th class="p-3">Vị Trí Lấy Hàng</th>
+                                    <th class="p-3">Mã Lô (Batch ID)</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-200 dark:divide-slate-800">
+                                <tr v-for="(item, idx) in pickingFormItems" :key="item.id" class="hover:bg-slate-100/50 dark:hover:bg-slate-800/30">
+                                    <td class="p-3 font-semibold text-slate-400">#{{ Number(idx) + 1 }}</td>
+                                    <td class="p-3">
+                                        <p class="font-bold text-slate-900 dark:text-slate-100">{{ item.ingredient_name }}</p>
+                                        <span class="text-[10px] text-slate-400">Đơn vị: {{ item.unit_symbol }}</span>
+                                    </td>
+                                    <td class="p-3 text-right font-mono font-bold text-slate-700 dark:text-slate-300">
+                                        {{ item.approved_quantity }} {{ item.unit_symbol }}
+                                    </td>
+                                    <td class="p-3 text-right">
+                                        <Input
+                                            type="number"
+                                            v-model.number="item.actual_dispatched_quantity"
+                                            min="0"
+                                            step="0.001"
+                                            class="h-8 w-24 text-right font-mono text-xs font-bold"
+                                            :class="{ 'border-rose-400 bg-rose-50 dark:bg-rose-950/30': item.actual_dispatched_quantity !== item.approved_quantity }"
+                                        />
+                                    </td>
+                                    <td class="p-3">
+                                        <select
+                                            v-model="item.warehouse_location_id"
+                                            class="h-8 w-full min-w-[160px] rounded-md border border-slate-200 bg-white px-2 text-xs shadow-sm dark:border-slate-700 dark:bg-slate-900"
+                                        >
+                                            <option :value="null">-- Tự động / Không chọn --</option>
+                                            <option v-for="loc in locations" :key="loc.id" :value="loc.id">
+                                                {{ formatLocationName(loc) }}
+                                            </option>
+                                        </select>
+                                    </td>
+                                    <td class="p-3">
+                                        <Input
+                                            type="number"
+                                            v-model.number="item.batch_id"
+                                            placeholder="Tự chọn lô FEFO"
+                                            class="h-8 w-28 font-mono text-xs"
+                                        />
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Modal Footer -->
+                <div class="flex items-center justify-between border-t border-slate-100 p-4 dark:border-slate-800">
+                    <p class="text-[11px] text-slate-500">
+                        Tổng cộng: <strong class="text-slate-800 dark:text-slate-200">{{ pickingFormItems.length }} mặt hàng</strong> trong danh sách
+                    </p>
+                    <div class="flex items-center gap-2">
+                        <Button variant="outline" size="sm" @click="showPickingModal = false">
+                            Hủy bỏ
+                        </Button>
+                        <Button
+                            size="sm"
+                            class="gap-1.5 bg-amber-600 font-semibold text-white hover:bg-amber-700 shadow-sm"
+                            :disabled="isSubmittingPicking"
+                            @click="submitPickingModal"
+                        >
+                            <CheckCircle class="size-4" />
+                            {{ isSubmittingPicking ? 'Đang lưu...' : 'Xác nhận hoàn tất soạn hàng' }}
+                        </Button>
                     </div>
                 </div>
             </div>

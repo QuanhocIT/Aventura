@@ -35,7 +35,8 @@ class SupplyRequestAnalyticsService
                 $centralBranchId,
                 fn ($query) => $query->where(fn ($scope) => $scope
                     ->whereNull('branch_id')
-                    ->orWhere('branch_id', $centralBranchId)),
+                    ->orWhere('branch_id', $centralBranchId)
+                    ->orWhereHas('inventories', fn ($inv) => $inv->where('branch_id', $centralBranchId))),
                 fn ($query) => $query->whereRaw('1 = 0'),
             );
     }
@@ -57,7 +58,7 @@ class SupplyRequestAnalyticsService
 
         $requests = SupplyRequest::where('restaurant_id', $restaurantId)
             ->when($centralBranch, fn ($query) => $query->where('from_branch_id', $centralBranch->id), fn ($query) => $query->whereRaw('1 = 0'))
-            ->with(['items.ingredient.unit', 'fromBranch', 'toBranch', 'creator', 'approver', 'dispatcher', 'receiver'])
+            ->with(['items.ingredient.unit', 'fromBranch', 'toBranch', 'creator', 'approver', 'dispatcher', 'receiver', 'warehouseTasks.assignee'])
             ->orderByDesc('id')
             ->get();
 

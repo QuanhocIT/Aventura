@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\DeliveryManifest;
+use App\Models\DeliveryManifestItem;
 use App\Models\Inventory;
 use App\Models\RestaurantBranch;
 use App\Models\SupplyRequest;
@@ -110,7 +112,6 @@ class SupplyRequestController extends Controller
             'inventorySummary' => $props['inventorySummary'],
             'warehouseLocations' => $props['warehouseLocations'],
             'ingredients' => $props['ingredients'],
-            'suppliers' => $props['warehouseSuppliers'],
             'purchaseOrders' => $props['warehousePurchaseOrders'],
             'canManageWarehouse' => $props['canManageWarehouse'],
             'canCreateReceiving' => $user->isOwner() || $user->isSuperAdmin() || $user->can('warehouse.receiving.create') || $user->can('warehouse.manage') || $user->hasAnyRole(['warehouse_manager', 'warehouse_staff']),
@@ -566,6 +567,9 @@ class SupplyRequestController extends Controller
         $this->assertWarehouseStaffCanOperate($request->user());
         $request->validate([
             'seal_code' => 'nullable|string|max:100',
+            'transporter_id' => 'nullable|integer',
+            'manifest_id' => 'nullable|integer',
+            'notes' => 'nullable|string|max:500',
         ]);
 
         $user = $request->user();
@@ -584,7 +588,37 @@ class SupplyRequestController extends Controller
         }
 
         try {
-            $updated = $this->warehouseService->dispatchSupplyRequest($supplyRequest, $user, $request->seal_code);
+            $dispatchedUser = $user;
+            if ($request->filled('transporter_id')) {
+                $transporter = User::where('restaurant_id', $user->restaurant_id)->find($request->transporter_id);
+                if ($transporter) {
+                    WarehouseTaskAssignment::updateOrCreate(
+                        [
+                            'restaurant_id' => $user->restaurant_id,
+                            'supply_request_id' => $supplyRequest->id,
+                            'task_type' => 'handover',
+                        ],
+                        [
+                            'assigned_to' => $transporter->id,
+                            'assigned_by' => $user->id,
+                            'status' => 'completed',
+                            'completed_at' => now(),
+                        ]
+                    );
+                }
+            }
+
+            if ($request->filled('manifest_id')) {
+                $manifest = DeliveryManifest::where('restaurant_id', $user->restaurant_id)->find($request->manifest_id);
+                if ($manifest) {
+                    DeliveryManifestItem::firstOrCreate([
+                        'delivery_manifest_id' => $manifest->id,
+                        'supply_request_id' => $supplyRequest->id,
+                    ]);
+                }
+            }
+
+            $updated = $this->warehouseService->dispatchSupplyRequest($supplyRequest, $dispatchedUser, $request->seal_code);
 
             WarehouseTaskAssignment::where('restaurant_id', $user->restaurant_id)
                 ->where('supply_request_id', $supplyRequest->id)
@@ -594,7 +628,7 @@ class SupplyRequestController extends Controller
 
             return response()->json([
                 'success' => true,
-                'message' => 'Đã xuất kho Tổng và tạo Phiếu giao hàng thành công.',
+                'message' => 'Đã xuất kho Tổng và bàn giao vận chuyển thành công.',
                 'data' => $updated,
             ]);
         } catch (\Throwable $e) {

@@ -366,6 +366,7 @@ class CentralWarehouseService
                     'restaurant_id' => $request->restaurant_id,
                     'branch_id' => $request->from_branch_id,
                     'ingredient_id' => $item->ingredient_id,
+                    'order_id' => null,
                     'supply_request_id' => $request->id,
                     'reservation_type' => 'supply_request',
                     'quantity' => $approvedQty,
@@ -445,8 +446,30 @@ class CentralWarehouseService
 
                     if ($fefoBatch) {
                         $batchId = $fefoBatch->id;
-                    } elseif ($requiresBatch) {
-                        throw new InvalidArgumentException("Nguyên liệu {$ingredient->name} bắt buộc truy xuất lô nhưng không có lô FEFO đủ tồn.");
+                    } else {
+                        $anyBatch = InventoryBatch::where('restaurant_id', $request->restaurant_id)
+                            ->where('branch_id', $request->from_branch_id)
+                            ->where('ingredient_id', $item->ingredient_id)
+                            ->where('status', 'active')
+                            ->where('quantity_remaining', '>', 0)
+                            ->orderByRaw('expiry_date IS NULL')
+                            ->orderBy('expiry_date')
+                            ->orderBy('id')
+                            ->first();
+
+                        if ($anyBatch) {
+                            $batchId = $anyBatch->id;
+                        } else {
+                            $hasOnHandStock = Inventory::where('restaurant_id', $request->restaurant_id)
+                                ->where('branch_id', $request->from_branch_id)
+                                ->where('ingredient_id', $item->ingredient_id)
+                                ->where('quantity_on_hand', '>', 0)
+                                ->exists();
+
+                            if (! $hasOnHandStock && $requiresBatch) {
+                                throw new InvalidArgumentException("Nguyên liệu {$ingredient->name} bắt buộc truy xuất lô nhưng không có lô FEFO đủ tồn.");
+                            }
+                        }
                     }
                 }
 
@@ -502,7 +525,7 @@ class CentralWarehouseService
             }
 
             $request->update([
-                'status' => SupplyRequest::STATUS_PREPARING,
+                'status' => SupplyRequest::STATUS_PREPARED,
                 'prepared_by' => $picker->id,
                 'prepared_at' => now(),
             ]);
@@ -528,7 +551,7 @@ class CentralWarehouseService
             throw new InvalidArgumentException('Đơn cấp phát không xuất phát từ Kho Tổng hiện tại.');
         }
 
-        if ($request->status !== SupplyRequest::STATUS_PREPARING) {
+        if (! in_array($request->status, [SupplyRequest::STATUS_PREPARING, SupplyRequest::STATUS_PREPARED], true)) {
             throw new InvalidArgumentException('Đơn hàng phải qua bước soạn hàng trước khi Trưởng kho duyệt xuất.');
         }
 
@@ -555,8 +578,7 @@ class CentralWarehouseService
         $this->assertSameRestaurant($request, $handoverPerson);
         $this->assertActorCan($handoverPerson, ['warehouse_staff', 'warehouse_manager'], ['warehouse.handover', 'warehouse.manage'], 'Bạn không có quyền bàn giao hàng Kho Tổng.');
         $this->assertCentralWarehouseActor($handoverPerson, (int) $request->restaurant_id);
-        $this->assertNotSelfApproval($request, $handoverPerson, 'approved_by', 'Người duyệt đơn không được tự xuất kho.');
-        $this->assertNotSelfApproval($request, $handoverPerson, 'dispatch_approved_by', 'Người duyệt xuất không được tự bàn giao hàng.');
+        $this->assertNotSelfApproval($request, $handoverPerson, 'created_by', 'Người tạo đơn không được tự xuất kho.');
 
         // KHÓA CỨNG: Bắt buộc phải qua bước Trưởng kho duyệt xuất (STATUS_DISPATCH_PENDING)
         if ($request->status !== SupplyRequest::STATUS_DISPATCH_PENDING) {
@@ -592,10 +614,46 @@ class CentralWarehouseService
 
                 $ingredient = Ingredient::where('restaurant_id', $request->restaurant_id)
                     ->findOrFail($item->ingredient_id);
-                $requiresBatch = (bool) $ingredient->batch_tracking_required
-                    || in_array($ingredient->storage_type, ['fresh', 'daily', 'short_shelf'], true);
+
+                if ($qtyToDeduct > 0 && ! $item->batch_id && $request->from_branch_id) {
+                    $autoBatch = InventoryBatch::where('restaurant_id', $request->restaurant_id)
+                        ->where('branch_id', $request->from_branch_id)
+                        ->where('ingredient_id', $item->ingredient_id)
+                        ->where('status', 'active')
+                        ->where('quantity_remaining', '>', 0)
+                        ->orderByRaw('expiry_date IS NULL')
+                        ->orderBy('expiry_date')
+                        ->orderBy('id')
+                        ->first();
+
+                    if ($autoBatch) {
+                        $item->batch_id = $autoBatch->id;
+                        $item->save();
+                    } else {
+                        $anyBatch = InventoryBatch::where('restaurant_id', $request->restaurant_id)
+                            ->where('branch_id', $request->from_branch_id)
+                            ->where('ingredient_id', $item->ingredient_id)
+                            ->orderByDesc('id')
+                            ->first();
+
+                        if ($anyBatch) {
+                            $item->batch_id = $anyBatch->id;
+                            $item->save();
+                        }
+                    }
+                }
+
+                $requiresBatch = (bool) $ingredient->batch_tracking_required;
                 if ($qtyToDeduct > 0 && $requiresBatch && ! $item->batch_id) {
-                    throw new InvalidArgumentException("NguyÃªn liá»‡u {$ingredient->name} báº¯t buá»™c cÃ³ lÃ´ khi xuáº¥t kho.");
+                    $hasStock = Inventory::where('restaurant_id', $request->restaurant_id)
+                        ->where('branch_id', $request->from_branch_id)
+                        ->where('ingredient_id', $item->ingredient_id)
+                        ->where('quantity_on_hand', '>', 0)
+                        ->exists();
+
+                    if (! $hasStock) {
+                        throw new InvalidArgumentException("Nguyên liệu {$ingredient->name} bắt buộc truy xuất lô nhưng Kho Tổng không đủ tồn.");
+                    }
                 }
 
                 if ($request->from_branch_id) {
@@ -640,7 +698,7 @@ class CentralWarehouseService
                             ->first();
 
                         if (! $batch) {
-                            throw new InvalidArgumentException('LÃ´ xuáº¥t kho khÃ´ng cÃ²n tá»“n táº¡i hoáº·c khÃ´ng thuá»™c Kho Tá»•ng.');
+                            throw new InvalidArgumentException('Lô xuất kho không còn tồn tại hoặc không thuộc Kho Tổng.');
                         }
                         if ($batch) {
                             $batchAfter = (float) $batch->quantity_remaining - $qtyToDeduct;
@@ -1056,7 +1114,8 @@ class CentralWarehouseService
         return Ingredient::where('restaurant_id', $restaurantId)
             ->where(fn ($query) => $query
                 ->whereNull('branch_id')
-                ->orWhere('branch_id', $centralBranchId));
+                ->orWhere('branch_id', $centralBranchId)
+                ->orWhereHas('inventories', fn ($inv) => $inv->where('branch_id', $centralBranchId)));
     }
 
     private function assertCentralIngredients(int $restaurantId, int $centralBranchId, iterable $ingredientIds): void

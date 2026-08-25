@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\SupplyRequest;
+use App\Models\InventoryCountSession;
 use App\Models\User;
 use App\Models\WarehouseTaskAssignment;
 use Illuminate\Validation\ValidationException;
@@ -62,6 +63,7 @@ class WarehouseTaskService
             ->with([
                 'assignee.employee',
                 'supplyRequest.toBranch',
+                'countSession.branch',
             ])
             ->orderByRaw("CASE status WHEN 'in_progress' THEN 0 WHEN 'assigned' THEN 1 WHEN 'completed' THEN 2 ELSE 3 END")
             ->orderByDesc('created_at')
@@ -69,6 +71,14 @@ class WarehouseTaskService
             ->map(fn (WarehouseTaskAssignment $task): array => [
                 'id' => $task->id,
                 'supply_request_id' => $task->supply_request_id,
+                'count_session_id' => $task->count_session_id,
+                'count_session' => $task->countSession ? [
+                    'id' => $task->countSession->id,
+                    'type' => $task->countSession->type,
+                    'status' => $task->countSession->status,
+                    'period_start' => $task->countSession->period_start?->toDateString(),
+                    'period_end' => $task->countSession->period_end?->toDateString(),
+                ] : null,
                 'request_code' => $task->supplyRequest?->request_code,
                 'request_status' => $task->supplyRequest?->status,
                 'branch_name' => $task->supplyRequest?->toBranch?->name,
@@ -131,14 +141,25 @@ class WarehouseTaskService
             ->firstOrFail();
 
         $allowedStatuses = $data['task_type'] === 'picking'
-            ? [SupplyRequest::STATUS_APPROVED, SupplyRequest::STATUS_PREPARING]
-            : [SupplyRequest::STATUS_DISPATCH_PENDING];
+            ? [SupplyRequest::STATUS_APPROVED, SupplyRequest::STATUS_PREPARING, SupplyRequest::STATUS_PREPARED]
+            : [SupplyRequest::STATUS_DISPATCH_PENDING, SupplyRequest::STATUS_PREPARED];
 
         if (! in_array($supplyRequest->status, $allowedStatuses, true)) {
             $msg = $data['task_type'] === 'picking'
-                ? 'Đơn phải ở trạng thái Đã duyệt hoặc Đang soạn mới có thể giao việc soạn hàng.'
+                ? 'Đơn phải ở trạng thái Đã duyệt, Đang soạn hoặc Đã soạn mới có thể giao việc soạn hàng.'
                 : 'Đơn phải được Trưởng kho duyệt xuất trước khi giao việc bàn giao.';
             throw ValidationException::withMessages(['task_type' => $msg]);
+        }
+
+        $existingTask = WarehouseTaskAssignment::where('restaurant_id', $user->restaurant_id)
+            ->where('supply_request_id', $supplyRequest->id)
+            ->where('task_type', $data['task_type'])
+            ->first();
+
+        if ($existingTask && (int) $existingTask->assigned_to === (int) $assignee->id) {
+            throw ValidationException::withMessages([
+                'assigned_to' => "Nhiệm vụ này hiện đã được giao cho {$assignee->name}. Vui lòng chọn nhân viên khác nếu muốn giao lại.",
+            ]);
         }
 
         return WarehouseTaskAssignment::updateOrCreate(
@@ -156,6 +177,55 @@ class WarehouseTaskService
                 'notes' => $data['notes'] ?? null,
             ]
         );
+    }
+
+    /**
+     * Creates the task that links a warehouse employee to a material-closing
+     * session. It deliberately has no supplier or supply-request relation.
+     */
+    public function assignCountingTask(
+        User $user,
+        InventoryCountSession $session,
+        User $assignee,
+        array $data = [],
+    ): WarehouseTaskAssignment {
+        $this->assertWarehouseManager($user);
+
+        if ((int) $session->restaurant_id !== (int) $user->restaurant_id || $session->type !== 'material_closing') {
+            throw ValidationException::withMessages(['task' => 'Kỳ chốt không thuộc Kho Tổng hoặc không phải kỳ chốt nguyên liệu.']);
+        }
+
+        $centralBranch = $this->warehouseService->getCentralWarehouse($user->restaurant_id);
+        abort_unless($centralBranch && (int) $session->branch_id === (int) $centralBranch->id, 422, 'Kỳ chốt không thuộc Kho Tổng đang hoạt động.');
+
+        $staff = User::where('restaurant_id', $user->restaurant_id)
+            ->where('status', 'active')
+            ->where('warehouse_staff_status', 'active')
+            ->whereKey($assignee->id)
+            ->whereHas('roles', fn ($query) => $query->where('name', 'warehouse_staff'))
+            ->where(function ($query) use ($centralBranch) {
+                $query->where('warehouse_branch_id', $centralBranch->id)
+                    ->orWhere('branch_id', $centralBranch->id);
+            })
+            ->firstOrFail();
+
+        return WarehouseTaskAssignment::updateOrCreate(
+            [
+                'restaurant_id' => $user->restaurant_id,
+                'count_session_id' => $session->id,
+                'task_type' => 'counting',
+            ],
+            [
+                'supply_request_id' => null,
+                'assigned_to' => $staff->id,
+                'assigned_by' => $user->id,
+                'status' => 'assigned',
+                'priority' => $data['priority'] ?? 'normal',
+                'due_at' => $data['due_at'] ?? null,
+                'notes' => $data['notes'] ?? 'Đối chiếu thực tế cho kỳ chốt nguyên liệu.',
+                'completed_at' => null,
+            ],
+        )->load(['assignee.employee', 'countSession.branch']);
     }
 
     /**

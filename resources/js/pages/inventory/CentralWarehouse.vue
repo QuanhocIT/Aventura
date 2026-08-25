@@ -582,6 +582,11 @@ const getStatusBadge = (status: string) => {
                 label: 'Đang soạn hàng',
                 color: 'border-indigo-300 bg-indigo-100 text-indigo-800 dark:border-indigo-900/50 dark:bg-indigo-950/30 dark:text-indigo-300',
             };
+        case 'prepared':
+            return {
+                label: 'Đã soạn hàng',
+                color: 'border-emerald-300 bg-emerald-100 text-emerald-800 dark:border-emerald-900/50 dark:bg-emerald-950/30 dark:text-emerald-300',
+            };
         case 'dispatch_pending_approval':
             return {
                 label: 'Chờ duyệt xuất',
@@ -662,14 +667,31 @@ const approveRequest = async () => {
     }
 };
 
-const dispatchRequest = async () => {
+const isDispatchModalOpen = ref(false);
+const dispatchForm = ref({
+    seal_code: '',
+    transporter_id: '' as string | number,
+    manifest_id: '' as string | number,
+    notes: '',
+});
+
+const openDispatchModal = (request: any) => {
+    selectedRequest.value = request;
+    const handoverTask = request?.warehouse_tasks?.find((t: any) => t.task_type === 'handover');
+
+    dispatchForm.value = {
+        seal_code: '',
+        transporter_id: handoverTask ? handoverTask.assigned_to : (props.warehouseStaff[0]?.id || ''),
+        manifest_id: '',
+        notes: '',
+    };
+    isDispatchModalOpen.value = true;
+};
+
+const submitDispatchModal = async () => {
     if (!selectedRequest.value) {
         return;
     }
-
-    const sealCode = prompt(
-        'Nhập Mã Niêm Phong (Seal Code) của kiện hàng (Nếu có):',
-    );
 
     isProcessing.value = true;
 
@@ -677,12 +699,16 @@ const dispatchRequest = async () => {
         const res = await axios.post(
             `/api/supply-requests/${selectedRequest.value.id}/dispatch`,
             {
-                seal_code: sealCode || null,
+                seal_code: dispatchForm.value.seal_code || null,
+                transporter_id: dispatchForm.value.transporter_id ? Number(dispatchForm.value.transporter_id) : null,
+                manifest_id: dispatchForm.value.manifest_id ? Number(dispatchForm.value.manifest_id) : null,
+                notes: dispatchForm.value.notes || null,
             },
         );
 
         if (res.data.success) {
-            toast.success('Đã xuất kho Tổng và chuyển hàng đến chi nhánh!');
+            toast.success(res.data.message || 'Đã xuất kho Tổng và bàn giao vận chuyển thành công!');
+            isDispatchModalOpen.value = false;
             isDetailModalOpen.value = false;
             router.reload();
         }
@@ -857,6 +883,36 @@ const taskPriorityLabel = (priority: string) => {
     }
 };
 
+const getAssignedStaffName = (request: any, taskType = 'picking') => {
+    if (!request?.warehouse_tasks || request.warehouse_tasks.length === 0) {
+        return null;
+    }
+
+    const task = request.warehouse_tasks.find((t: any) => t.task_type === taskType);
+
+    if (!task || !task.assignee) {
+        return null;
+    }
+
+    return task.assignee.name || task.assignee.employee?.full_name || null;
+};
+
+const isCurrentAssignee = (staffId: number) => {
+    if (!taskForm.value.supply_request_id) {
+        return false;
+    }
+
+    const req = props.supplyRequests.find((r) => r.id === Number(taskForm.value.supply_request_id));
+
+    if (!req || !req.warehouse_tasks) {
+        return false;
+    }
+
+    const task = req.warehouse_tasks.find((t: any) => t.task_type === taskForm.value.task_type);
+
+    return task ? Number(task.assigned_to) === Number(staffId) : false;
+};
+
 const openTaskModal = (request: any, taskType?: string) => {
     const defaultDue = request.requested_delivery_date
         ? new Date(request.requested_delivery_date).toISOString().slice(0, 16)
@@ -880,6 +936,14 @@ const openTaskModal = (request: any, taskType?: string) => {
 const submitTaskAssignment = async () => {
     if (!taskForm.value.supply_request_id || !taskForm.value.assigned_to) {
         toast.error('Vui lòng chọn đơn hàng và nhân viên nhận việc.');
+
+        return;
+    }
+
+    if (isCurrentAssignee(Number(taskForm.value.assigned_to))) {
+        const staffObj = props.warehouseStaff.find(s => s.id === Number(taskForm.value.assigned_to));
+        const name = staffObj?.name || 'nhân viên này';
+        toast.warning(`Nhiệm vụ này hiện đã được giao cho ${name}. Vui lòng chọn nhân viên khác nếu muốn giao lại.`);
 
         return;
     }
@@ -3523,21 +3587,25 @@ const submitRecall = async () => {
                                 canManageWarehouse &&
                                 warehouseStaff.length > 0 &&
                                 (selectedRequest.status === 'approved' ||
-                                    selectedRequest.status === 'preparing')
+                                    selectedRequest.status === 'preparing' ||
+                                    selectedRequest.status === 'prepared')
                             "
                             @click="openTaskModal(selectedRequest, 'picking')"
                             size="sm"
                             variant="outline"
-                            class="gap-1 text-xs text-indigo-300"
+                            class="gap-1 text-xs"
+                            :class="getAssignedStaffName(selectedRequest) ? 'border-emerald-500/50 bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/20 font-bold' : 'text-indigo-300'"
                         >
-                            <UserCheck class="h-4 w-4" /> Giao người soạn
+                            <UserCheck class="h-4 w-4" />
+                            {{ getAssignedStaffName(selectedRequest) ? `Đã giao: ${getAssignedStaffName(selectedRequest)}` : 'Giao người soạn' }}
                         </Button>
 
-                        <!-- Nút 1: Soạn hàng (cho đơn đã duyệt status == 'approved' hoặc 'preparing') -->
+                        <!-- Nút 1: Soạn hàng (cho đơn đã duyệt status == 'approved' hoặc 'preparing' hoặc 'prepared') -->
                         <Button
                             v-if="
                                 (selectedRequest.status === 'approved' ||
-                                    selectedRequest.status === 'preparing') &&
+                                    selectedRequest.status === 'preparing' ||
+                                    selectedRequest.status === 'prepared') &&
                                 (canDispatchRequests || canManageWarehouse)
                             "
                             @click="openPickingModal(selectedRequest)"
@@ -3547,10 +3615,11 @@ const submitRecall = async () => {
                             <Boxes class="h-4 w-4" /> Soạn Hàng (FEFO)
                         </Button>
 
-                        <!-- Nút 2: Trưởng kho duyệt xuất (khi status == 'preparing') -->
+                        <!-- Nút 2: Trưởng kho duyệt xuất (khi status == 'preparing' hoặc 'prepared') -->
                         <Button
                             v-if="
-                                selectedRequest.status === 'preparing' &&
+                                (selectedRequest.status === 'preparing' ||
+                                    selectedRequest.status === 'prepared') &&
                                 canApproveRequests
                             "
                             @click="approveDispatchManager"
@@ -3570,10 +3639,10 @@ const submitRecall = async () => {
                                     selectedRequest.status === 'approved') &&
                                 canDispatchRequests
                             "
-                            @click="dispatchRequest"
+                            @click="openDispatchModal(selectedRequest)"
                             size="sm"
                             :disabled="isProcessing"
-                            class="gap-1 bg-purple-600 text-xs text-white hover:bg-purple-700"
+                            class="gap-1 bg-purple-600 text-xs text-white hover:bg-purple-700 font-bold"
                         >
                             <Truck class="h-4 w-4" /> Xuất Kho Bàn Giao
                         </Button>
@@ -3582,20 +3651,116 @@ const submitRecall = async () => {
                             v-if="
                                 canManageWarehouse &&
                                 warehouseStaff.length > 0 &&
-                                selectedRequest.status ===
-                                    'dispatch_pending_approval'
+                                (selectedRequest.status ===
+                                    'dispatch_pending_approval' ||
+                                    selectedRequest.status === 'approved')
                             "
                             @click="openTaskModal(selectedRequest, 'handover')"
                             size="sm"
                             variant="outline"
-                            class="gap-1 text-xs text-indigo-300"
+                            class="gap-1 text-xs"
+                            :class="getAssignedStaffName(selectedRequest, 'handover') ? 'border-emerald-500/50 bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/20 font-bold' : 'text-indigo-300'"
                         >
-                            <UserCheck class="h-4 w-4" /> Giao người bàn giao
+                            <UserCheck class="h-4 w-4" />
+                            {{ getAssignedStaffName(selectedRequest, 'handover') ? `Đã giao: ${getAssignedStaffName(selectedRequest, 'handover')}` : 'Giao người bàn giao' }}
                         </Button>
                     </div>
                 </div>
             </div>
         </div>
+        </Teleport>
+
+        <!-- ── MODAL XÁC NHẬN XUẤT KHO BÀN GIAO ── -->
+        <Teleport to="body">
+            <div
+                v-if="isDispatchModalOpen && selectedRequest"
+                class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm"
+            >
+                <div
+                    class="flex max-h-[90vh] w-full max-w-lg flex-col overflow-hidden rounded-xl border border-purple-500/30 bg-card shadow-2xl"
+                >
+                    <div
+                        class="flex items-center justify-between border-b bg-purple-950/50 px-6 py-4"
+                    >
+                        <div class="flex items-center gap-2">
+                            <Truck class="h-5 w-5 text-purple-400" />
+                            <h3 class="text-base font-bold text-foreground">
+                                Bàn Giao Xuất Kho — {{ selectedRequest.request_code }}
+                            </h3>
+                        </div>
+                        <button
+                            @click="isDispatchModalOpen = false"
+                            class="text-muted-foreground hover:text-foreground"
+                        >
+                            <X class="h-5 w-5" />
+                        </button>
+                    </div>
+
+                    <div class="space-y-4 overflow-y-auto p-6 text-xs">
+                        <div class="rounded-lg border border-purple-500/30 bg-purple-500/10 p-3 text-purple-200">
+                            <div class="font-bold">Chi nhánh nhận: {{ selectedRequest.to_branch?.name || selectedRequest.toBranch?.name || 'Chi nhánh' }}</div>
+                            <div class="mt-1 text-[11px] text-muted-foreground">Tổng giá trị: {{ formatCurrency(selectedRequest.total_amount) }} · {{ selectedRequest.items?.length || 0 }} nguyên liệu</div>
+                        </div>
+
+                        <div>
+                            <label class="mb-1 block font-semibold text-muted-foreground">Chọn Chuyến Xe Logistics (nếu gom chuyến xe)</label>
+                            <select
+                                v-model="dispatchForm.manifest_id"
+                                class="w-full rounded-lg border border-input bg-background px-3 py-2 text-foreground"
+                            >
+                                <option value="">-- Tự vận chuyển lẻ / Chọn chuyến xe --</option>
+                                <option v-for="m in manifests" :key="m.id" :value="m.id">
+                                    {{ m.manifest_code }} — {{ m.route_name }} (Xe: {{ m.vehicle_number || 'Chưa gán' }})
+                                </option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <label class="mb-1 block font-semibold text-muted-foreground">Nhân viên bàn giao / Shipper / Tài xế *</label>
+                            <select
+                                v-model="dispatchForm.transporter_id"
+                                class="w-full rounded-lg border border-input bg-background px-3 py-2 text-foreground"
+                            >
+                                <option value="" disabled>-- Chọn nhân viên bàn giao --</option>
+                                <option v-for="staff in warehouseStaff" :key="staff.id" :value="staff.id">
+                                    {{ staff.name }} · {{ staff.job_title }} {{ isCurrentAssignee(staff.id) ? '(Đang phân công)' : '' }}
+                                </option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <label class="mb-1 block font-semibold text-muted-foreground">Mã Niêm Phong Kiện Hàng (Seal Code)</label>
+                            <Input
+                                v-model="dispatchForm.seal_code"
+                                placeholder="Ví dụ: SEAL-889922, Niêm chì #05..."
+                                class="h-9 text-xs"
+                            />
+                        </div>
+
+                        <div>
+                            <label class="mb-1 block font-semibold text-muted-foreground">Ghi chú vận chuyển & đóng gói</label>
+                            <textarea
+                                v-model="dispatchForm.notes"
+                                rows="2"
+                                placeholder="Ghi chú thêm về kiện hàng, phương tiện..."
+                                class="w-full rounded-lg border border-input bg-background p-2.5 text-xs text-foreground"
+                            ></textarea>
+                        </div>
+                    </div>
+
+                    <div class="flex items-center justify-end gap-3 border-t bg-muted/20 px-6 py-4">
+                        <Button @click="isDispatchModalOpen = false" variant="outline" size="sm">Hủy</Button>
+                        <Button
+                            @click="submitDispatchModal"
+                            :disabled="isProcessing"
+                            size="sm"
+                            class="bg-purple-600 font-bold text-white hover:bg-purple-700"
+                        >
+                            <Truck class="h-4 w-4 mr-1" /> Xác Nhận Xuất Kho Bàn Giao
+                        </Button>
+                    </div>
+                </div>
+            </div>
         </Teleport>
 
         <!-- Warehouse task assignment modal -->
@@ -3668,7 +3833,7 @@ const submitRecall = async () => {
                                     :key="staff.id"
                                     :value="staff.id"
                                 >
-                                    {{ staff.name }} · {{ staff.job_title }}
+                                    {{ staff.name }} · {{ staff.job_title }} {{ isCurrentAssignee(staff.id) ? '(Đang phân công)' : '' }}
                                 </option>
                             </select>
                         </div>

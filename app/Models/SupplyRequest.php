@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class SupplyRequest extends Model
 {
@@ -23,6 +24,8 @@ class SupplyRequest extends Model
     const STATUS_APPROVED = 'approved';
 
     const STATUS_PREPARING = 'preparing';
+
+    const STATUS_PREPARED = 'prepared';
 
     const STATUS_DISPATCH_PENDING = 'dispatch_pending_approval';
 
@@ -112,6 +115,11 @@ class SupplyRequest extends Model
         return $this->hasMany(WarehouseTaskAssignment::class, 'supply_request_id');
     }
 
+    public function pickingTask(): HasOne
+    {
+        return $this->hasOne(WarehouseTaskAssignment::class, 'supply_request_id')->where('task_type', 'picking');
+    }
+
     /**
      * Reservations (giữ chỗ tồn) liên kết với đơn này.
      */
@@ -155,7 +163,7 @@ class SupplyRequest extends Model
 
     public function canBeCancelled(): bool
     {
-        return in_array($this->status, [self::STATUS_PENDING, self::STATUS_APPROVED, self::STATUS_PREPARING]);
+        return in_array($this->status, [self::STATUS_PENDING, self::STATUS_APPROVED, self::STATUS_PREPARING, self::STATUS_PREPARED]);
     }
 
     public function isEditable(): bool
