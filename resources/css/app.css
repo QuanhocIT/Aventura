@@ -540,14 +540,14 @@
     animation-play-state: paused;
 }
 .marquee-mask {
-    mask-image: linear-gradient(
+    -webkit-mask-image: linear-gradient(
         to right,
         transparent,
         black 8%,
         black 92%,
         transparent
     );
-    -webkit-mask-image: linear-gradient(
+    mask-image: linear-gradient(
         to right,
         transparent,
         black 8%,
@@ -672,14 +672,14 @@ button:not(:disabled):active,
 /* ── Glassmorphism Utilities ── */
 @layer utilities {
     .glass {
-        backdrop-filter: blur(16px);
         -webkit-backdrop-filter: blur(16px);
+        backdrop-filter: blur(16px);
         background: rgba(255, 255, 255, 0.08);
         border: 1px solid rgba(255, 255, 255, 0.15);
     }
     .glass-card {
-        backdrop-filter: blur(12px);
         -webkit-backdrop-filter: blur(12px);
+        backdrop-filter: blur(12px);
     }
     .glow-primary {
         box-shadow: var(--glow-primary);
