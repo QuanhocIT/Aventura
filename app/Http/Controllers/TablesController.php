@@ -53,33 +53,44 @@ class TablesController extends Controller
                 ->orderBy('area_id')
                 ->orderBy('name')
                 ->get()
-                ->map(fn ($t) => [
-                    'id' => $t->id,
-                    'restaurant_id' => $t->restaurant_id,
-                    'branch_id' => $t->branch_id,
-                    'branch_name' => $t->branch?->name,
-                    'name' => $t->name,
-                    'capacity' => $t->capacity,
-                    'status' => $t->status,
-                    'x_pos' => (int) $t->x_pos,
-                    'y_pos' => (int) $t->y_pos,
-                    'area' => $t->area ? ['id' => $t->area->id, 'name' => $t->area->name] : null,
-                    'qr_code' => $t->qr_code,
-                    'qr_token' => $t->qr_token,
-                    'active_order' => $t->activeOrder ? [
-                        'id' => $t->activeOrder->id,
-                        'order_number' => $t->activeOrder->order_number,
-                        'waiter_name' => $t->activeOrder->creator?->name ?? 'Khách đặt (QR)',
-                        'total_amount' => (float) $t->activeOrder->total_amount,
-                        'elapsed_minutes' => $t->activeOrder->created_at ? now()->diffInMinutes($t->activeOrder->created_at) : 0,
-                        'pending_items' => $t->activeOrder->items->filter(fn ($item) => is_null($item->served_at) && $item->status !== 'cancelled')->map(fn ($item) => [
-                            'name' => $item->product?->name ?? 'Món ăn',
-                            'quantity' => (float) $item->quantity,
-                            'sent_at' => $item->sent_to_kitchen_at ? $item->sent_to_kitchen_at->diffForHumans() : null,
-                            'is_late' => $item->sent_to_kitchen_at ? now()->diffInMinutes($item->sent_to_kitchen_at) >= 15 : false,
-                        ])->values()->toArray(),
-                    ] : null,
-                ])->toArray();
+                ->map(function ($t) {
+                    $activeOrder = $t->activeOrder;
+                    $status = $activeOrder ? 'occupied' : $t->status;
+
+                    if ($activeOrder && $t->status !== 'occupied') {
+                        $t->update(['status' => 'occupied']);
+                    }
+
+                    return [
+                        'id' => $t->id,
+                        'restaurant_id' => $t->restaurant_id,
+                        'branch_id' => $t->branch_id,
+                        'branch_name' => $t->branch?->name,
+                        'name' => $t->name,
+                        'capacity' => $t->capacity,
+                        'status' => $status,
+                        'is_payment_requested' => (bool) ($t->is_payment_requested || ($activeOrder?->is_payment_requested ?? false)),
+                        'x_pos' => (int) $t->x_pos,
+                        'y_pos' => (int) $t->y_pos,
+                        'area' => $t->area ? ['id' => $t->area->id, 'name' => $t->area->name] : null,
+                        'qr_code' => $t->qr_code,
+                        'qr_token' => $t->qr_token,
+                        'active_order' => $activeOrder ? [
+                            'id' => $activeOrder->id,
+                            'order_number' => $activeOrder->order_number,
+                            'is_payment_requested' => (bool) $activeOrder->is_payment_requested,
+                            'waiter_name' => $activeOrder->creator?->name ?? 'Khách đặt (QR)',
+                            'total_amount' => (float) $activeOrder->total_amount,
+                            'elapsed_minutes' => $activeOrder->created_at ? now()->diffInMinutes($activeOrder->created_at) : 0,
+                            'pending_items' => $activeOrder->items->filter(fn ($item) => is_null($item->served_at) && $item->status !== 'cancelled')->map(fn ($item) => [
+                                'name' => $item->product?->name ?? 'Món ăn',
+                                'quantity' => (float) $item->quantity,
+                                'sent_at' => $item->sent_to_kitchen_at ? $item->sent_to_kitchen_at->diffForHumans() : null,
+                                'is_late' => $item->sent_to_kitchen_at ? now()->diffInMinutes($item->sent_to_kitchen_at) >= 15 : false,
+                            ])->values()->toArray(),
+                        ] : null,
+                    ];
+                })->toArray();
         });
 
         return Inertia::render('tables/Index', [
@@ -197,9 +208,19 @@ class TablesController extends Controller
         abort_if($table->restaurant_id !== $request->user()->restaurant_id, 403);
         abort_unless($request->user()->canAccessBranch((int) $table->branch_id), 403);
 
+        $hasActiveOrder = $table->status === 'occupied'
+            || $table->activeOrder()->exists()
+            || $table->orders()->whereNotIn('status', ['completed', 'cancelled'])->exists();
+
+        if ($hasActiveOrder) {
+            throw ValidationException::withMessages([
+                'table' => "Không thể xóa bàn {$table->name} vì bàn đang có khách hoặc đơn hàng chưa hoàn tất. Vui lòng thanh toán hoặc hủy đơn trước khi xóa bàn.",
+            ]);
+        }
+
         $table->delete();
 
-        return back()->with('success', 'Đã xóa bàn.');
+        return back()->with('success', 'Đã xóa bàn thành công.');
     }
 
     public function regenerateQr(Request $request, RestaurantTable $table): RedirectResponse

@@ -104,6 +104,18 @@ class TenantContext
     }
 
     /**
+     * Scope key used by persisted chain/branch rollups.
+     *
+     * The request/cache scope uses "all"; legacy revenue summary rows use
+     * "restaurant". Keep this conversion explicit so the two concepts cannot
+     * be accidentally queried as if they were the same key.
+     */
+    public static function summaryScopeKey(?int $branchId): string
+    {
+        return $branchId === null ? 'restaurant' : self::SCOPE_BRANCH.':'.$branchId;
+    }
+
+    /**
      * Apply the request's branch scope to a query. Owner requests in the
      * "all" scope intentionally remain tenant-wide; unassigned staff get no
      * rows even if a caller forgot to add a manual branch condition.

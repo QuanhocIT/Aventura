@@ -2,11 +2,14 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\HasBranch;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class GoalMilestone extends Model
 {
+    use HasBranch;
+
     protected $guarded = [];
 
     protected function casts(): array

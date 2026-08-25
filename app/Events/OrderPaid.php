@@ -3,8 +3,8 @@
 namespace App\Events;
 
 use App\Models\Order;
-use Illuminate\Broadcasting\Channel;
 use Illuminate\Broadcasting\InteractsWithSockets;
+use Illuminate\Broadcasting\PrivateChannel;
 use Illuminate\Contracts\Broadcasting\ShouldBroadcastNow;
 use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Queue\SerializesModels;
@@ -21,12 +21,7 @@ class OrderPaid implements ShouldBroadcastNow
 
     public function broadcastOn(): array
     {
-        $tableToken = $this->order->table?->qr_token ?? $this->tableId;
-
-        return [
-            new Channel("restaurant.{$this->restaurantId}"),
-            new Channel("table.{$tableToken}"),
-        ];
+        return [new PrivateChannel("restaurant.{$this->restaurantId}")];
     }
 
     public function broadcastAs(): string

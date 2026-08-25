@@ -6,23 +6,29 @@ use App\Models\Area;
 use App\Models\Employee;
 use App\Models\LeaveRequest;
 use App\Models\Order;
+use App\Models\OrderItem;
 use App\Models\Payment;
 use App\Models\Product;
 use App\Models\ProductCategory;
 use App\Models\RestaurantTable;
 use App\Models\ScheduleAssignment;
+use App\Models\TemporaryOrder;
+use App\Models\User;
 use App\Models\WorkShift;
+use App\Services\InventoryAvailabilityService;
 use App\Support\Tenant\TenantContext;
 use Carbon\Carbon;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Inertia\Inertia;
 use Inertia\Response;
 
 class CashierDashboardController extends Controller
 {
-    public function index(): Response
+    public function index(Request $request): Response
     {
-        $user = auth()->user();
+        /** @var User|null $user */
+        $user = $request->user();
         $restaurant = $user?->restaurant;
         $employee = $user?->employee;
         $tenantContext = app(TenantContext::class);
@@ -43,46 +49,120 @@ class CashierDashboardController extends Controller
             // Ensure default 20 tables exist (A1-A10, B1-B10) — chỉ chạy 1 lần
             $cacheKey = "restaurant_{$restaurant->id}_tables_initialized:branch:{$branchId}";
             if (! Cache::has($cacheKey)) {
-                $areaA = Area::firstOrCreate(
-                    ['restaurant_id' => $restaurant->id, 'branch_id' => $branchId, 'code' => 'SANH-A'],
-                    ['name' => 'Khu Vực Sảnh A', 'display_order' => 1, 'status' => 'active']
-                );
-                $areaB = Area::firstOrCreate(
-                    ['restaurant_id' => $restaurant->id, 'branch_id' => $branchId, 'code' => 'SANH-B'],
-                    ['name' => 'Khu Vực Sảnh B', 'display_order' => 2, 'status' => 'active']
-                );
-
-                $tableCount = RestaurantTable::where('restaurant_id', $restaurant->id)
-                    ->where('branch_id', $branchId)
-                    ->count();
-                if ($tableCount < 20) {
-                    for ($i = 1; $i <= 10; $i++) {
-                        RestaurantTable::firstOrCreate(
-                            ['restaurant_id' => $restaurant->id, 'branch_id' => $branchId, 'name' => "A{$i}"],
-                            ['area_id' => $areaA->id, 'capacity' => 4, 'status' => 'available', 'qr_code' => "QR-A{$i}-{$restaurant->id}"]
-                        );
-                        RestaurantTable::firstOrCreate(
-                            ['restaurant_id' => $restaurant->id, 'branch_id' => $branchId, 'name' => "B{$i}"],
-                            ['area_id' => $areaB->id, 'capacity' => 4, 'status' => 'available', 'qr_code' => "QR-B{$i}-{$restaurant->id}"]
-                        );
+                Cache::lock("{$cacheKey}:lock", 15)->get(function () use ($cacheKey, $restaurant, $branchId): void {
+                    if (Cache::has($cacheKey)) {
+                        return;
                     }
-                }
-                Cache::put($cacheKey, true, 86400); // 24 giờ
+
+                    // The unique index also covers soft-deleted rows. Include them
+                    // here so a previously removed default area is restored instead
+                    // of being inserted again and causing a duplicate-key error.
+                    $areaA = Area::withTrashed()->firstOrCreate(
+                        ['restaurant_id' => $restaurant->id, 'branch_id' => $branchId, 'code' => 'SANH-A'],
+                        ['name' => 'Khu Vực Sảnh A', 'display_order' => 1, 'status' => 'active']
+                    );
+                    if ($areaA->trashed()) {
+                        $areaA->restore();
+                    }
+
+                    $areaB = Area::withTrashed()->firstOrCreate(
+                        ['restaurant_id' => $restaurant->id, 'branch_id' => $branchId, 'code' => 'SANH-B'],
+                        ['name' => 'Khu Vực Sảnh B', 'display_order' => 2, 'status' => 'active']
+                    );
+                    if ($areaB->trashed()) {
+                        $areaB->restore();
+                    }
+
+                    $tableCount = RestaurantTable::where('restaurant_id', $restaurant->id)
+                        ->where('branch_id', $branchId)
+                        ->count();
+                    if ($tableCount < 20) {
+                        for ($i = 1; $i <= 10; $i++) {
+                            $tableA = RestaurantTable::withTrashed()->firstOrCreate(
+                                ['restaurant_id' => $restaurant->id, 'branch_id' => $branchId, 'name' => "A{$i}"],
+                                ['area_id' => $areaA->id, 'capacity' => 4, 'status' => 'available', 'qr_code' => "QR-A{$i}-{$restaurant->id}"]
+                            );
+                            if ($tableA->trashed()) {
+                                $tableA->restore();
+                            }
+
+                            $tableB = RestaurantTable::withTrashed()->firstOrCreate(
+                                ['restaurant_id' => $restaurant->id, 'branch_id' => $branchId, 'name' => "B{$i}"],
+                                ['area_id' => $areaB->id, 'capacity' => 4, 'status' => 'available', 'qr_code' => "QR-B{$i}-{$restaurant->id}"]
+                            );
+                            if ($tableB->trashed()) {
+                                $tableB->restore();
+                            }
+                        }
+                    }
+
+                    Cache::put($cacheKey, true, 86400); // 24 giờ
+                });
             }
 
-            // Query tables along with their active unpaid orders (eager load activeOrder relationship)
-            $tablesData = RestaurantTable::with(['area', 'activeOrder.items.product'])
+            // Query tables along with their active unpaid orders (load all active orders per table)
+            $tablesData = RestaurantTable::with(['area', 'orders' => function ($q) {
+                $q->activeForService()->with('items.product');
+            }])
                 ->where('restaurant_id', $restaurant->id)
                 ->where('branch_id', $branchId)
                 ->orderBy('name')
                 ->get()
                 ->map(function ($t) {
-                    $activeOrder = $t->activeOrder;
-
+                    $activeOrders = $t->orders;
                     $status = $t->status;
-                    if (! $activeOrder && $status === 'occupied') {
-                        $status = 'available';
-                        $t->update(['status' => 'available']);
+
+                    if ($activeOrders->isNotEmpty()) {
+                        $status = 'occupied';
+
+                        $primaryOrder = $activeOrders->sortByDesc('updated_at')->first();
+                        $totalSubtotal = (float) $activeOrders->sum('subtotal');
+                        $totalDiscount = (float) $activeOrders->sum('discount_amount');
+                        $totalAmount = (float) $activeOrders->sum('total_amount');
+
+                        $mergedItems = $activeOrders->flatMap(fn ($o) => $o->items)
+                            ->where('status', '!=', 'cancelled')
+                            ->values()
+                            ->map(fn ($item) => [
+                                'id' => $item->id,
+                                'product_id' => $item->product_id,
+                                'product_name' => $item->product?->name,
+                                'price' => (float) $item->unit_price,
+                                'quantity' => (float) $item->quantity,
+                                'notes' => $item->notes,
+                                'status' => $item->status,
+                                'prepared_at' => $item->prepared_at?->toIso8601String(),
+                                'served_at' => $item->served_at?->toIso8601String(),
+                            ])->all();
+
+                        $orderNumberStr = $activeOrders->count() > 1
+                            ? implode(', ', $activeOrders->pluck('order_number')->toArray())
+                            : $primaryOrder->order_number;
+
+                        $isPaymentRequested = (bool) ($t->is_payment_requested || $activeOrders->contains(fn ($o) => $o->is_payment_requested));
+
+                        $activeOrderData = [
+                            'id' => $primaryOrder->id,
+                            'order_ids' => $activeOrders->pluck('id')->toArray(),
+                            'order_number' => $orderNumberStr,
+                            'status' => $primaryOrder->status,
+                            'payment_status' => $primaryOrder->payment_status,
+                            'is_payment_requested' => $isPaymentRequested,
+                            'subtotal' => $totalSubtotal,
+                            'discount_amount' => $totalDiscount,
+                            'total_amount' => $totalAmount,
+                            'note' => $primaryOrder->note,
+                            'is_split' => (bool) $primaryOrder->is_split,
+                            'is_red_flagged' => (bool) $primaryOrder->is_red_flagged,
+                            'items' => $mergedItems,
+                        ];
+                    } else {
+                        if ($status === 'occupied') {
+                            $status = 'available';
+                            $t->update(['status' => 'available', 'is_payment_requested' => false]);
+                        }
+                        $activeOrderData = null;
+                        $isPaymentRequested = false;
                     }
 
                     return [
@@ -91,26 +171,8 @@ class CashierDashboardController extends Controller
                         'area' => $t->area?->name ?? 'Khu vực chung',
                         'capacity' => $t->capacity,
                         'status' => $status,
-                        'active_order' => $activeOrder ? [
-                            'id' => $activeOrder->id,
-                            'order_number' => $activeOrder->order_number,
-                            'status' => $activeOrder->status,
-                            'subtotal' => (float) $activeOrder->subtotal,
-                            'discount_amount' => (float) $activeOrder->discount_amount,
-                            'total_amount' => (float) $activeOrder->total_amount,
-                            'note' => $activeOrder->note,
-                            'is_split' => (bool) $activeOrder->is_split,
-                            'is_red_flagged' => (bool) $activeOrder->is_red_flagged,
-                            'items' => $activeOrder->items->map(fn ($item) => [
-                                'id' => $item->id,
-                                'product_id' => $item->product_id,
-                                'product_name' => $item->product?->name,
-                                'price' => (float) $item->unit_price,
-                                'quantity' => (float) $item->quantity,
-                                'notes' => $item->notes,
-                                'status' => $item->status,
-                            ]),
-                        ] : null,
+                        'is_payment_requested' => $isPaymentRequested,
+                        'active_order' => $activeOrderData,
                     ];
                 })->all();
 
@@ -121,17 +183,25 @@ class CashierDashboardController extends Controller
                 })
                 ->where('is_active', true)
                 ->where('is_available', true)
-                ->get()
-                ->map(fn ($p) => [
-                    'id' => $p->id,
-                    'name' => $p->name,
-                    'price' => (float) $p->price,
-                    'category_id' => $p->category_id,
-                    'paused_until' => $p->paused_until ? $p->paused_until->toIso8601String() : null,
-                    'out_of_stock_until' => $p->out_of_stock_until ? $p->out_of_stock_until->toIso8601String() : null,
-                    'is_paused' => $p->paused_until && $p->paused_until->isFuture(),
-                    'is_out_of_stock' => $p->out_of_stock_until && $p->out_of_stock_until->isFuture(),
-                ])->all();
+                ->sellableMenu()
+                ->with('recipes.ingredient.unit')
+                ->get();
+
+            $availabilityService = app(InventoryAvailabilityService::class);
+            $availability = $availabilityService->forProducts($products, $restaurant->id, (int) $branchId);
+
+            $products = $products->map(fn ($p) => [
+                'id' => $p->id,
+                'name' => $p->name,
+                'price' => (float) $p->price,
+                'category_id' => $p->category_id,
+                'available_portions' => $availability->get($p->id)['available_portions'] ?? null,
+                'paused_until' => $p->paused_until ? $p->paused_until->toIso8601String() : null,
+                'out_of_stock_until' => $p->out_of_stock_until ? $p->out_of_stock_until->toIso8601String() : null,
+                'is_paused' => $p->paused_until && $p->paused_until->isFuture(),
+                'is_out_of_stock' => ($availability->get($p->id)['is_sold_out'] ?? false)
+                    || ($p->out_of_stock_until && $p->out_of_stock_until->isFuture()),
+            ])->all();
 
             // Load active categories
             $categories = ProductCategory::where('restaurant_id', $restaurant->id)
@@ -150,10 +220,12 @@ class CashierDashboardController extends Controller
             $employee = $user->employee;
             if ($employee) {
                 $assignment = ScheduleAssignment::where('employee_id', $employee->id)
-                    ->where('status', 'checked_in')
                     ->where('scheduled_date', today())
+                    ->whereIn('status', ['checked_in', 'scheduled', 'completed'])
                     ->with('shift')
                     ->first();
+
+                $startTime = $assignment?->check_in_at ?? now()->startOfDay();
 
                 if ($assignment) {
                     $shiftInfo['active_shift'] = [
@@ -161,26 +233,24 @@ class CashierDashboardController extends Controller
                         'shift_name' => $assignment->shift?->name ?? 'Ca làm việc',
                         'check_in_at' => $assignment->check_in_at ? $assignment->check_in_at->format('H:i d/m/Y') : null,
                     ];
-
-                    $shiftInfo['shift_revenue'] = (float) Payment::where('processed_by', $user->id)
-                        ->where('branch_id', $branchId)
-                        ->where('status', 'paid')
-                        ->where('paid_at', '>=', $assignment->check_in_at)
-                        ->sum('amount');
-
-                    $shiftOrdersQuery = Order::where('restaurant_id', $restaurant->id)
-                        ->where('branch_id', $branchId)
-                        ->where('cashier_user_id', $user->id)
-                        ->where('status', 'completed')
-                        ->where('completed_at', '>=', $assignment->check_in_at);
-
-                    $shiftInfo['total_orders'] = $shiftOrdersQuery->count();
-                    $shiftInfo['channel_breakdown'] = (clone $shiftOrdersQuery)
-                        ->get(['channel', 'total_amount'])
-                        ->groupBy('channel')
-                        ->map(fn ($g) => ['count' => $g->count(), 'revenue' => (float) $g->sum('total_amount')])
-                        ->toArray();
                 }
+
+                $shiftInfo['shift_revenue'] = (float) Payment::where('processed_by', $user->id)
+                    ->where('status', 'paid')
+                    ->where('paid_at', '>=', $startTime)
+                    ->sum('amount');
+
+                $shiftOrdersQuery = Order::where('restaurant_id', $restaurant->id)
+                    ->where('cashier_user_id', $user->id)
+                    ->where('status', 'completed')
+                    ->where('completed_at', '>=', $startTime);
+
+                $shiftInfo['total_orders'] = $shiftOrdersQuery->count();
+                $shiftInfo['channel_breakdown'] = (clone $shiftOrdersQuery)
+                    ->get(['channel', 'total_amount'])
+                    ->groupBy('channel')
+                    ->map(fn ($g) => ['count' => $g->count(), 'revenue' => (float) $g->sum('total_amount')])
+                    ->toArray();
 
                 // Load weekly schedules
                 $startOfWeek = now()->startOfWeek(Carbon::MONDAY)->toDateString();
@@ -201,16 +271,47 @@ class CashierDashboardController extends Controller
                     ])->all();
             }
 
-            // Query pending QR orders
-            $qrOrders = Order::where('restaurant_id', $restaurant->id)
-                ->where('branch_id', $branchId)
+            // Query pending QR orders (includes customer temporary orders waiting for cashier confirmation)
+            $tempQrOrders = TemporaryOrder::where('restaurant_id', $restaurant->id)
+                ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
+                ->whereIn('status', ['waiting_verification', 'escalated'])
+                ->where('awaiting_customer_confirmation', false)
+                ->with(['table'])
+                ->latest()
+                ->get()
+                ->map(fn ($to) => [
+                    'id' => $to->id,
+                    'is_temporary' => true,
+                    'order_number' => 'QR-'.$to->id,
+                    'table' => $to->table ? ['id' => $to->table->id, 'name' => $to->table->name] : null,
+                    'table_name' => $to->table?->name ?? 'Bàn trống',
+                    'customer_name' => $to->customer_name,
+                    'customer_phone' => $to->customer_phone,
+                    'total_amount' => (float) $to->total_amount,
+                    'status' => $to->status,
+                    'created_at' => $to->created_at->format('H:i'),
+                    'created_date' => $to->created_at->format('d/m/Y'),
+                    'items' => collect($to->cart_data)->map(fn ($item) => [
+                        'product_id' => (int) ($item['product_id'] ?? ($item['product']['id'] ?? 0)),
+                        'product_name' => $item['name'] ?? ($item['product_name'] ?? ($item['product']['name'] ?? 'Món ăn')),
+                        'quantity' => (float) ($item['quantity'] ?? 1),
+                        'unit_price' => (float) ($item['unit_price'] ?? 0),
+                        'line_total' => (float) ($item['line_total'] ?? 0),
+                        'notes' => $item['notes'] ?? null,
+                    ])->all(),
+                ])->all();
+
+            $formalQrOrders = Order::where('restaurant_id', $restaurant->id)
+                ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
                 ->where('channel', 'qr')
                 ->where('status', 'pending')
                 ->with(['table', 'items.product'])
                 ->get()
                 ->map(fn ($o) => [
                     'id' => $o->id,
+                    'is_temporary' => false,
                     'order_number' => $o->order_number,
+                    'table' => $o->table ? ['id' => $o->table->id, 'name' => $o->table->name] : null,
                     'table_name' => $o->table?->name ?? 'Không xác định',
                     'total_amount' => (float) $o->total_amount,
                     'created_at' => $o->created_at->format('H:i'),
@@ -218,8 +319,10 @@ class CashierDashboardController extends Controller
                     'items' => $o->items->map(fn ($item) => [
                         'product_name' => $item->product?->name,
                         'quantity' => (float) $item->quantity,
-                    ]),
+                    ])->all(),
                 ])->all();
+
+            $qrOrders = array_merge($tempQrOrders, $formalQrOrders);
 
             // Delivery & takeaway orders (external/third-party channels)
             $externalOrders = Order::where('restaurant_id', $restaurant->id)
@@ -260,6 +363,32 @@ class CashierDashboardController extends Controller
                     'table_name' => $o->table?->name ?? 'Mang về',
                     'total_amount' => (float) $o->total_amount,
                     'completed_at' => $o->completed_at ? $o->completed_at->format('H:i d/m') : null,
+                ])->all();
+
+            // Load items prepared by kitchen awaiting serving
+            $kitchenReadyItems = OrderItem::where('restaurant_id', $restaurant->id)
+                ->whereNotNull('prepared_at')
+                ->whereNull('served_at')
+                ->where('status', '!=', 'cancelled')
+                ->whereHas('order', function ($q) use ($restaurant, $branchId) {
+                    $q->where('restaurant_id', $restaurant->id)
+                        ->when($branchId, fn ($b) => $b->where('branch_id', $branchId))
+                        // Payment can finish the order before the waiter
+                        // carries the dish to the table.
+                        ->where('status', '!=', 'cancelled');
+                })
+                ->with(['order.table', 'product', 'preparedBy'])
+                ->latest('prepared_at')
+                ->get()
+                ->map(fn ($item) => [
+                    'id' => $item->id,
+                    'product_name' => $item->product?->name ?? 'Món ăn',
+                    'quantity' => (float) $item->quantity,
+                    'notes' => $item->notes,
+                    'prepared_at' => $item->prepared_at ? $item->prepared_at->format('H:i') : null,
+                    'prepared_by_name' => $item->preparedBy?->name ?? 'Bếp',
+                    'table_name' => $item->order->table?->name ?? 'Mang về',
+                    'order_number' => $item->order?->order_number,
                 ])->all();
 
             // Active shifts list for registration
@@ -312,6 +441,7 @@ class CashierDashboardController extends Controller
             'shiftInfo' => $shiftInfo,
             'qrOrders' => $qrOrders,
             'externalOrders' => $externalOrders,
+            'kitchenReadyItems' => $kitchenReadyItems,
             'completedHistory' => $completedHistory,
             'weeklySchedules' => $weeklySchedules,
             'activeShifts' => $activeShifts,

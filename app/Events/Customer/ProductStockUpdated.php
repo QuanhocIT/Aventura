@@ -16,7 +16,7 @@ class ProductStockUpdated implements ShouldBroadcastNow
 
     public function broadcastOn(): array
     {
-        return [new Channel("restaurant.{$this->restaurantId}")];
+        return [new Channel("menu.{$this->restaurantId}")];
     }
 
     public function broadcastAs(): string

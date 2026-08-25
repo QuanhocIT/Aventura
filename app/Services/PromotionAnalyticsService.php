@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Order;
 use App\Models\PromotionAnalyticsSnapshot;
+use App\Models\PromotionUsage;
 use Illuminate\Support\Collection;
 
 class PromotionAnalyticsService
@@ -103,6 +104,59 @@ class PromotionAnalyticsService
                 'new_customers' => $s->new_customers_acquired,
                 'repeat_rate' => (float) $s->repeat_rate,
             ]),
+            'per_promotion' => $this->getPerPromotionBreakdown($restaurantId, $startDate, $endDate),
         ];
+    }
+
+    /**
+     * Hiệu quả của TỪNG chương trình khuyến mãi.
+     *
+     * Các chỉ số tổng ở trên gộp mọi loại giảm giá trên đơn (điểm loyalty, ưu đãi
+     * VIP, giảm tay...) vì chúng đọc orders.discount_amount, và snapshot luôn ghi
+     * promotion_id = null. Bảng promotion_usages mới cho phép quy đúng từng đồng
+     * chiết khấu về đúng mã đã tạo ra nó.
+     *
+     * @return list<array<string, mixed>>
+     */
+    private function getPerPromotionBreakdown(int $restaurantId, string $startDate, string $endDate): array
+    {
+        return PromotionUsage::withoutGlobalScopes()
+            ->where('promotion_usages.restaurant_id', $restaurantId)
+            ->whereBetween('promotion_usages.created_at', [$startDate.' 00:00:00', $endDate.' 23:59:59'])
+            ->join('promotions', 'promotions.id', '=', 'promotion_usages.promotion_id')
+            ->groupBy('promotions.id', 'promotions.name', 'promotions.code', 'promotions.type', 'promotions.value')
+            ->selectRaw('promotions.id as promotion_id')
+            ->selectRaw('promotions.name as promotion_name')
+            ->selectRaw('promotions.code as promotion_code')
+            ->selectRaw('promotions.type as promotion_type')
+            ->selectRaw('promotions.value as promotion_value')
+            ->selectRaw('COUNT(*) as uses')
+            ->selectRaw('COUNT(DISTINCT promotion_usages.customer_id) as unique_customers')
+            ->selectRaw('SUM(promotion_usages.discount_amount) as discount_given')
+            ->selectRaw('SUM(promotion_usages.order_subtotal) as revenue_influenced')
+            ->selectRaw('SUM(promotion_usages.used_bypass) as bypass_count')
+            ->orderByDesc('discount_given')
+            ->get()
+            ->map(function ($row): array {
+                $discount = (float) $row->discount_given;
+                $revenue = (float) $row->revenue_influenced;
+
+                return [
+                    'promotion_id' => (int) $row->promotion_id,
+                    'name' => $row->promotion_name,
+                    'code' => $row->promotion_code,
+                    'type' => $row->promotion_type,
+                    'value' => (float) $row->promotion_value,
+                    'uses' => (int) $row->uses,
+                    'unique_customers' => (int) $row->unique_customers,
+                    'discount_given' => $discount,
+                    'revenue_influenced' => $revenue,
+                    'avg_order_value' => $row->uses > 0 ? round($revenue / (int) $row->uses, 0) : 0.0,
+                    // Bao nhiêu đồng doanh thu đổi được trên mỗi đồng chiết khấu.
+                    'roi_percent' => $discount > 0 ? round(($revenue / $discount) * 100, 1) : 0.0,
+                    'bypass_count' => (int) $row->bypass_count,
+                ];
+            })
+            ->all();
     }
 }

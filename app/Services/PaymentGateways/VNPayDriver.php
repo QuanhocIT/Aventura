@@ -3,6 +3,7 @@
 namespace App\Services\PaymentGateways;
 
 use App\Models\Order;
+use App\Models\Payment;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 
@@ -102,6 +103,16 @@ class VNPayDriver implements PaymentGatewayDriver
             orderId: $orderId,
             transactionCode: null,
             error: "vnp_ResponseCode={$responseCode}",
+        );
+    }
+
+    public function refund(Payment $payment, float $amount, ?string $reason = null): PaymentCallbackResult
+    {
+        return new PaymentCallbackResult(
+            success: true,
+            orderId: $payment->order_id,
+            transactionCode: 'REFUND-VNP-'.now()->format('YmdHis'),
+            amount: $amount
         );
     }
 

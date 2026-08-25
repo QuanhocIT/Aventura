@@ -200,11 +200,11 @@ const activeColumns = computed(() =>
 </script>
 
 <template>
-    <Head title="Feedback & Đánh giá toàn hệ thống" />
+    <Head title="Phản hồi & Đánh giá toàn hệ thống" />
 
     <div class="flex flex-col gap-5 px-6 py-5">
         <PageHeader
-            title="Feedback & Đánh giá dịch vụ"
+            title="Phản hồi & Đánh giá dịch vụ"
             subtitle="Tổng hợp đánh giá trải nghiệm từ các Chủ doanh nghiệp, Người dùng gói cước và Thực khách."
             :icon="MessageSquare"
         >
@@ -265,7 +265,7 @@ const activeColumns = computed(() =>
                 :label="
                     currentTab === 'platform'
                         ? 'Đánh giá từ Doanh nghiệp'
-                        : 'Feedback thực khách'
+                        : 'Phản hồi thực khách'
                 "
                 :value="stats.total"
                 :icon="MessageSquare"

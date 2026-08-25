@@ -6,6 +6,7 @@ use App\Models\MenuPriceTest;
 use App\Models\Product;
 use App\Services\MenuInsightService;
 use App\Services\QuotaService;
+use App\Support\Tenant\TenantContext;
 use App\Support\TenantRule;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -19,6 +20,11 @@ class MenuEngineeringController extends Controller
 
     public function index(Request $request): Response
     {
+        abort_unless(
+            $request->user()->can('view_report') || $request->user()->can('manage_orders'),
+            403,
+        );
+
         $restaurant = $request->user()->restaurant;
         if (! $restaurant && ! $request->user()->hasRole('super_admin')) {
             abort(403, 'Không tìm thấy nhà hàng.');
@@ -34,10 +40,12 @@ class MenuEngineeringController extends Controller
         }
 
         $restaurantId = $request->user()->restaurant_id;
+        $tenantContext = app(TenantContext::class);
+        $branchId = $tenantContext->activeBranchId();
         $days = max(1, min(365, (int) ($request->days ?? 30)));
 
-        $scoring = $this->insights->getMenuScoring($restaurantId, $days);
-        $bcgData = $this->insights->getBcgData($restaurantId, $days);
+        $scoring = $this->insights->getMenuScoring($restaurantId, $days, $branchId);
+        $bcgData = $this->insights->getBcgData($restaurantId, $days, $branchId);
         $priceTests = MenuPriceTest::where('restaurant_id', $restaurantId)
             ->with('product:id,name,price')
             ->latest()
@@ -48,7 +56,17 @@ class MenuEngineeringController extends Controller
             'scoring' => $scoring,
             'bcgData' => $bcgData,
             'priceTests' => $priceTests,
+            'canManagePrices' => $request->user()->isOwner() || $request->user()->isSuperAdmin(),
             'days' => $days,
+            'branchContext' => [
+                'scope' => $tenantContext->scope(),
+                'active_branch_id' => $branchId,
+            ],
+            'branches' => $request->user()->canViewAllBranches()
+                ? $restaurant?->branches()->where('status', 'active')->get(['id', 'name']) ?? collect()
+                : ($branchId && $restaurant
+                    ? $restaurant->branches()->whereKey($branchId)->get(['id', 'name'])
+                    : collect()),
         ]);
     }
 
@@ -57,11 +75,43 @@ class MenuEngineeringController extends Controller
         $restaurantId = $request->user()->restaurant_id;
         $days = max(1, min(365, (int) ($request->days ?? 30)));
 
-        return response()->json($this->insights->getMenuScoring($restaurantId, $days));
+        return response()->json($this->insights->getMenuScoring(
+            $restaurantId,
+            $days,
+            app(TenantContext::class)->activeBranchId(),
+        ));
+    }
+
+    public function behaviorAnalytics(Request $request, TenantContext $tenantContext): JsonResponse
+    {
+        $user = $request->user();
+        abort_unless($user->canViewAnalytics(), 403);
+
+        $restaurant = $user->restaurant;
+        $restaurant?->loadMissing('plan');
+        if ($restaurant && ! app(QuotaService::class)->hasFeature($restaurant, 'advanced_analytics')) {
+            return response()->json([
+                'error' => 'Tính năng phân tích nâng cao yêu cầu gói Chuyên Nghiệp trở lên.',
+                'feature' => 'advanced_analytics',
+            ], 403);
+        }
+
+        $data = $request->validate([
+            'days' => ['nullable', 'integer', 'min:7', 'max:365'],
+        ]);
+        $days = (int) ($data['days'] ?? 30);
+
+        return response()->json($this->insights->getBehaviorAnalytics(
+            (int) $user->restaurant_id,
+            $days,
+            $tenantContext->activeBranchId(),
+        ));
     }
 
     public function updateDisplayOrder(Request $request): JsonResponse
     {
+        $this->authorizeMerchandising($request);
+
         $data = $request->validate([
             'items' => ['required', 'array'],
             'items.*.id' => ['required', 'integer', TenantRule::exists('products')],
@@ -79,6 +129,9 @@ class MenuEngineeringController extends Controller
 
     public function updateTimeSlot(Request $request, Product $product): RedirectResponse
     {
+        $this->authorizeMerchandising($request);
+        abort_if($product->restaurant_id !== $request->user()->restaurant_id, 403);
+
         $data = $request->validate([
             'time_slot' => ['nullable', 'string', 'in:morning,lunch,afternoon,dinner'],
             'season' => ['nullable', 'string', 'in:spring,summer,autumn,winter'],
@@ -91,6 +144,8 @@ class MenuEngineeringController extends Controller
 
     public function storePriceTest(Request $request): RedirectResponse
     {
+        $this->authorizePriceMutation($request);
+
         $data = $request->validate([
             'product_id' => ['required', TenantRule::exists('products')],
             'name' => ['required', 'string', 'max:100'],
@@ -129,6 +184,9 @@ class MenuEngineeringController extends Controller
 
     public function completePriceTest(Request $request, MenuPriceTest $test): RedirectResponse
     {
+        $this->authorizePriceMutation($request);
+        $this->authorizePriceTestTenant($request, $test);
+
         if ($test->status !== 'running') {
             return back()->with('error', 'Test này không đang chạy.');
         }
@@ -144,6 +202,9 @@ class MenuEngineeringController extends Controller
 
     public function cancelPriceTest(Request $request, MenuPriceTest $test): RedirectResponse
     {
+        $this->authorizePriceMutation($request);
+        $this->authorizePriceTestTenant($request, $test);
+
         if ($test->status !== 'running') {
             return back()->with('error', 'Test này không đang chạy.');
         }
@@ -152,5 +213,38 @@ class MenuEngineeringController extends Controller
         $test->product->update(['price' => $test->original_price]);
 
         return back()->with('success', 'Đã hủy test và khôi phục giá gốc.');
+    }
+
+    /**
+     * Sắp xếp thực đơn và đặt khung giờ hiển thị là nghiệp vụ trưng bày, không
+     * phải đổi giá — Quản lý làm được, còn thu ngân/bếp/kho thì không. Hai
+     * action này trước đây không có gate nào trong khi ba action giá ngay bên
+     * dưới đều gọi authorizePriceMutation().
+     */
+    private function authorizeMerchandising(Request $request): void
+    {
+        $user = $request->user();
+
+        abort_unless(
+            $user->isOwner() || $user->isSuperAdmin() || $user->can('manage_orders'),
+            403,
+            'Bạn không có quyền thay đổi cách trưng bày thực đơn.'
+        );
+    }
+
+    private function authorizePriceMutation(Request $request): void
+    {
+        abort_unless(
+            $request->user()->isOwner() || $request->user()->isSuperAdmin(),
+            403,
+            'Chỉ Chủ doanh nghiệp mới được thay đổi giá bán chính thức.'
+        );
+    }
+
+    private function authorizePriceTestTenant(Request $request, MenuPriceTest $test): void
+    {
+        abort_if((int) $test->restaurant_id !== (int) $request->user()->restaurant_id, 403);
+        $test->loadMissing('product');
+        abort_if(! $test->product || (int) $test->product->restaurant_id !== (int) $request->user()->restaurant_id, 403);
     }
 }

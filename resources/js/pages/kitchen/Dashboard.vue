@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import { Head, router, usePage } from '@inertiajs/vue3';
+import axios from 'axios';
 import {
     ChefHat,
     Clock,
-    User,
     Check,
+    Play,
     Bell,
     RefreshCw,
     Inbox,
@@ -16,6 +17,8 @@ import {
     Search,
     Volume2,
     VolumeX,
+    XCircle,
+    X,
 } from 'lucide-vue-next';
 import { computed, ref, onMounted, onUnmounted, watch } from 'vue';
 import { toast } from 'vue-sonner';
@@ -33,10 +36,12 @@ interface PendingItem {
     notes: string | null;
     sent_to_kitchen_at: string;
     sent_to_kitchen_at_raw: string;
+    started_preparing_at: string | null;
     creator_name: string;
     table_name: string;
     table_id: number | null;
     prep_minutes: number;
+    status: string;
 }
 
 interface CompletedItem {
@@ -55,15 +60,25 @@ interface Product {
     price: number;
     category_name: string;
     paused_until: string | null;
+    pause_reason?: string | null;
     out_of_stock_until: string | null;
     is_paused: boolean;
     is_out_of_stock: boolean;
+    branch_paused?: boolean;
+    reopen_requested?: boolean;
+}
+
+interface IngredientOption {
+    id: number;
+    name: string;
+    unit_symbol: string;
 }
 
 const props = defineProps<{
     pendingItems: PendingItem[];
     completedItems: CompletedItem[];
     products: Product[];
+    ingredients?: IngredientOption[];
     kitchenStats: {
         done_today: number;
         avg_prep_minutes: number | null;
@@ -77,11 +92,147 @@ const activeTab = ref<'orders' | 'menu'>('orders');
 // Search query for products
 const searchQuery = ref('');
 
+// Kitchen Waste Report state
+const showWasteModal = ref(false);
+const isSubmittingWaste = ref(false);
+const wasteForm = ref({
+    ingredient_id: '',
+    quantity: '',
+    waste_category: 'spoilage',
+    notes: '',
+});
+
+const submitKitchenWaste = () => {
+    if (!wasteForm.value.ingredient_id) {
+        toast.error('Vui lòng chọn nguyên liệu hỏng/thất thoát.');
+
+        return;
+    }
+
+    if (!wasteForm.value.quantity || Number(wasteForm.value.quantity) <= 0) {
+        toast.error('Vui lòng nhập số lượng thất thoát hợp lệ.');
+
+        return;
+    }
+
+    isSubmittingWaste.value = true;
+    router.post(
+        '/inventory/waste',
+        {
+            ingredient_id: wasteForm.value.ingredient_id,
+            quantity: wasteForm.value.quantity,
+            waste_category: wasteForm.value.waste_category,
+            notes: wasteForm.value.notes ? `[Báo cáo từ Bếp] ${wasteForm.value.notes}` : '[Báo cáo từ Bếp]',
+        },
+        {
+            onSuccess: () => {
+                toast.success('Đã gửi báo cáo cho Quản lý chi nhánh và Chủ quán! Sau khi được phê duyệt, hệ thống sẽ tự động trừ kho và tính chi phí.');
+                showWasteModal.value = false;
+                wasteForm.value = {
+                    ingredient_id: '',
+                    quantity: '',
+                    waste_category: 'spoilage',
+                    notes: '',
+                };
+            },
+            onError: (errors: Record<string, any>) => {
+                const msg = Object.values(errors)[0] || 'Lỗi khi gửi báo cáo nguyên liệu hỏng.';
+                toast.error(String(msg));
+            },
+            onFinish: () => {
+                isSubmittingWaste.value = false;
+            },
+        },
+    );
+};
+
+// Cancel Item Modal state & handlers
+const showCancelItemModal = ref(false);
+const selectedCancelItem = ref<PendingItem | null>(null);
+const cancelScope = ref<'single' | 'all_pending'>('single');
+const cancelQuantity = ref(1);
+const cancelReason = ref('Khách bận việc đột xuất');
+const isSubmittingCancel = ref(false);
+
+const openCancelModal = (item: PendingItem) => {
+    selectedCancelItem.value = item;
+    cancelScope.value = 'single';
+    cancelQuantity.value = 1;
+    cancelReason.value = 'Khách bận việc đột xuất';
+    showCancelItemModal.value = true;
+};
+
+const countPendingItemsForSelected = computed(() => {
+    if (!selectedCancelItem.value) {
+        return 0;
+    }
+
+    const name = selectedCancelItem.value.product_name;
+
+    return activePendingItems.value
+        .filter((i) => i.product_name === name)
+        .reduce((total, item) => total + Math.max(0, Math.floor(item.quantity)), 0);
+});
+
+const submitCancelItem = () => {
+    if (!selectedCancelItem.value) {
+        return;
+    }
+
+    if (
+        cancelScope.value === 'single' &&
+        (cancelQuantity.value < 1 ||
+            cancelQuantity.value > Math.floor(selectedCancelItem.value.quantity))
+    ) {
+        toast.error(
+            `Số phần hủy phải từ 1 đến ${Math.floor(selectedCancelItem.value.quantity)}.`,
+        );
+
+        return;
+    }
+
+    isSubmittingCancel.value = true;
+    router.post(
+        `/kitchen/items/${selectedCancelItem.value.id}/cancel`,
+        {
+            scope: cancelScope.value,
+            quantity:
+                cancelScope.value === 'single'
+                    ? cancelQuantity.value
+                    : undefined,
+            reason: cancelReason.value,
+        },
+        {
+            preserveScroll: true,
+            onSuccess: () => {
+                toast.success(
+                    'Đã hủy món và gửi thông báo tới Thu ngân, Order và Chủ cửa hàng!',
+                );
+                showCancelItemModal.value = false;
+                selectedCancelItem.value = null;
+                cancelReason.value = '';
+            },
+            onError: (errors: Record<string, any>) => {
+                const msg =
+                    Object.values(errors)[0] || 'Lỗi khi thực hiện hủy món.';
+                toast.error(String(msg));
+            },
+            onFinish: () => {
+                isSubmittingCancel.value = false;
+            },
+        },
+    );
+};
+
 // Product status actions
-const handlePauseProduct = (productId: number, minutes: number) => {
+const handlePauseProduct = (
+    productId: number,
+    minutes: number,
+    reason?: string,
+) => {
     router.post(
         `/kitchen/products/${productId}/pause`,
-        { minutes },
+        { minutes, reason: reason ?? null },
         {
             preserveScroll: true,
             preserveState: true,
@@ -111,6 +262,47 @@ const handleResumeProduct = (productId: number) => {
     );
 };
 
+// ── Tạm ngưng món theo RIÊNG chi nhánh + duyệt mở lại ──────────────────────────
+const isOwnerOrManager = computed(() => {
+    const roles = ((usePage().props.auth as any)?.user?.roles ?? []) as string[];
+
+    return roles.some((r) => ['owner', 'super_admin', 'manager'].includes(r));
+});
+
+// Tạm ngưng CHỈ ở chi nhánh hiện tại (kèm lý do bắt buộc).
+const pauseBranch = (product: Product, minutes?: number, reason?: string) => {
+    const finalReason =
+        reason ??
+        window.prompt(`Lý do tạm ngưng món "${product.name}" tại chi nhánh này:`, '') ??
+        '';
+    if (finalReason.trim().length < 3) {
+        toast.error('Cần nhập lý do tạm ngưng (tối thiểu 3 ký tự).');
+
+        return;
+    }
+    router.post(
+        `/kitchen/products/${product.id}/pause-branch`,
+        { reason: finalReason.trim(), minutes: minutes ?? null },
+        { preserveScroll: true, preserveState: true },
+    );
+};
+
+const requestReopen = (productId: number) => {
+    router.post(
+        `/kitchen/products/${productId}/request-reopen`,
+        {},
+        { preserveScroll: true, preserveState: true },
+    );
+};
+
+const approveReopen = (productId: number) => {
+    router.post(
+        `/kitchen/products/${productId}/approve-reopen`,
+        {},
+        { preserveScroll: true, preserveState: true },
+    );
+};
+
 const handlePauseCustom = (product: Product) => {
     const res = window.prompt(
         `Nhập số phút tạm dừng cho món "${product.name}":`,
@@ -129,7 +321,13 @@ const handlePauseCustom = (product: Product) => {
         return;
     }
 
-    handlePauseProduct(product.id, mins);
+    const reason =
+        window.prompt(
+            `Lý do tạm dừng món "${product.name}" (để trống nếu không có):`,
+            '',
+        ) ?? '';
+
+    handlePauseProduct(product.id, mins, reason.trim() || undefined);
 };
 
 const handleOutOfStockCustom = (product: Product) => {
@@ -193,7 +391,12 @@ const filteredGroupedProducts = computed(() => {
 });
 
 const optimisticPreparedItemIds = ref<number[]>([]);
-const optimisticServedItemIds = ref<number[]>([]);
+const optimisticStartedPreparingItemIds = ref<number[]>([]);
+
+const isItemStarted = (item: PendingItem): boolean =>
+    Boolean(item.started_preparing_at) ||
+    item.status === 'preparing' ||
+    optimisticStartedPreparingItemIds.value.includes(item.id);
 
 const activePendingItems = computed(() => {
     return props.pendingItems.filter(
@@ -201,11 +404,7 @@ const activePendingItems = computed(() => {
     );
 });
 
-const activeCompletedItems = computed(() => {
-    return props.completedItems.filter(
-        (item) => !optimisticServedItemIds.value.includes(item.id),
-    );
-});
+const activeCompletedItems = computed(() => props.completedItems);
 
 watch(
     () => props.pendingItems,
@@ -215,17 +414,12 @@ watch(
             optimisticPreparedItemIds.value.filter((id) =>
                 pendingIds.includes(id),
             );
-    },
-    { deep: true },
-);
+        optimisticStartedPreparingItemIds.value =
+            optimisticStartedPreparingItemIds.value.filter((id) => {
+                const item = newVal.find((pendingItem) => pendingItem.id === id);
 
-watch(
-    () => props.completedItems,
-    (newVal) => {
-        const completedIds = newVal.map((i) => i.id);
-        optimisticServedItemIds.value = optimisticServedItemIds.value.filter(
-            (id) => completedIds.includes(id),
-        );
+                return Boolean(item && !item.started_preparing_at);
+            });
     },
     { deep: true },
 );
@@ -364,6 +558,25 @@ let statusCheckInterval: ReturnType<typeof setInterval> | null = null;
 let pollingInterval: ReturnType<typeof setInterval> | null = null;
 
 const isMuted = ref(localStorage.getItem('kitchen_muted') === 'true');
+const callingWaiter = ref<Record<number, boolean>>({});
+
+async function triggerCallWaiter(item: any) {
+    if (!item?.order_id) {
+        toast.error('Món ăn không thuộc đơn hợp lệ.');
+        return;
+    }
+    callingWaiter.value[item.id] = true;
+    try {
+        await axios.post(`/orders/${item.order_id}/call-waiter`, {
+            item_name: item.product_name || item.name || '',
+        });
+        toast.success(`🛎️ Đã réo phục vụ ra lấy món "${item.product_name || item.name}" (Bàn ${item.table_name})!`);
+    } catch (e: any) {
+        toast.error(e.response?.data?.message || 'Không thể gửi tín hiệu gọi phục vụ.');
+    } finally {
+        callingWaiter.value[item.id] = false;
+    }
+}
 const toggleMute = () => {
     isMuted.value = !isMuted.value;
     localStorage.setItem('kitchen_muted', String(isMuted.value));
@@ -483,7 +696,38 @@ const tableUrgency = computed(() => {
     return result;
 });
 
-// Hoàn thành chế biến món ăn ở bếp
+const handleStartPreparing = (itemId: number) => {
+    if (
+        isUpdating.value[itemId] ||
+        optimisticStartedPreparingItemIds.value.includes(itemId)
+    ) {
+        return;
+    }
+
+    optimisticStartedPreparingItemIds.value.push(itemId);
+    isUpdating.value[itemId] = true;
+
+    router.post(
+        `/kitchen/items/${itemId}/start`,
+        {},
+        {
+            preserveScroll: true,
+            onFinish: () => {
+                isUpdating.value[itemId] = false;
+            },
+            onError: () => {
+                optimisticStartedPreparingItemIds.value =
+                    optimisticStartedPreparingItemIds.value.filter(
+                        (id) => id !== itemId,
+                    );
+                toast.error(
+                    'Có lỗi xảy ra, không thể đánh dấu bếp bắt đầu chế biến!',
+                );
+            },
+        },
+    );
+};
+
 const handlePrepare = (itemId: number) => {
     if (isUpdating.value[itemId]) {
         return;
@@ -554,8 +798,6 @@ const handleServe = (itemId: number) => {
         return;
     }
 
-    optimisticServedItemIds.value.push(itemId);
-
     isUpdating.value[itemId] = true;
     router.post(
         `/kitchen/items/${itemId}/serve`,
@@ -566,8 +808,6 @@ const handleServe = (itemId: number) => {
                 isUpdating.value[itemId] = false;
             },
             onError: () => {
-                optimisticServedItemIds.value =
-                    optimisticServedItemIds.value.filter((id) => id !== itemId);
                 toast.error('Có lỗi xảy ra, không thể hoàn thành phục vụ!');
             },
         },
@@ -688,6 +928,7 @@ onMounted(() => {
             }, delay - timeSinceLastReload);
         }
     };
+void throttledReload;
 
     const kitchenEventBatcher = createEventBatcher((events) => {
         console.log(
@@ -712,7 +953,7 @@ onMounted(() => {
     }, 300);
 
     if (Echo && restaurantId) {
-        Echo.channel(`kitchen.${restaurantId}`).listen(
+        Echo.private(`kitchen.${restaurantId}`).listen(
             '.kitchen.updated',
             (e: any) => {
                 kitchenEventBatcher.push(e);
@@ -720,7 +961,7 @@ onMounted(() => {
         );
 
         // Lắng nghe thay đổi kho/thực đơn để hot-reload
-        Echo.channel(`restaurant.${restaurantId}`).listen(
+        Echo.private(`restaurant.${restaurantId}`).listen(
             '.product.stock_updated',
             (e: any) => {
                 productEventBatcher.push(e);
@@ -867,6 +1108,14 @@ onUnmounted(() => {
             </div>
 
             <div class="flex items-center gap-3">
+                <Button
+                    @click="showWasteModal = true"
+                    class="h-10 gap-1.5 rounded-xl bg-rose-600 px-4 text-xs font-bold text-white shadow-sm hover:bg-rose-700 dark:bg-rose-700 dark:hover:bg-rose-800"
+                >
+                    <AlertTriangle class="size-4" />
+                    Báo Hỏng / Thất Thoát Nguyên Liệu
+                </Button>
+
                 <Button
                     variant="outline"
                     size="sm"
@@ -1124,7 +1373,8 @@ onUnmounted(() => {
                                 }"
                             >
                                 <div class="flex items-center justify-between">
-                                    <CardTitle
+                                    <div class="min-w-0">
+                                        <CardTitle
                                         class="flex items-center gap-2 text-sm font-extrabold text-slate-900 dark:text-white"
                                     >
                                         <span
@@ -1143,7 +1393,8 @@ onUnmounted(() => {
                                         >
                                         </span>
                                         Bàn: {{ tableName }}
-                                    </CardTitle>
+                                        </CardTitle>
+                                    </div>
 
                                     <div class="flex items-center gap-2">
                                         <!-- ETA Badge -->
@@ -1234,6 +1485,16 @@ onUnmounted(() => {
                                             >
                                                 {{ item.product_name }}
                                             </h3>
+                                            <Badge
+                                                class="rounded-full px-2 py-0.5 text-[9px] font-bold"
+                                                :class="
+                                                    item.status === 'preparing'
+                                                        ? 'bg-violet-100 text-violet-700 dark:bg-violet-950/40 dark:text-violet-300'
+                                                        : 'bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300'
+                                                "
+                                            >
+                                                {{ item.status === 'preparing' ? 'Đang chế biến' : 'Chờ chế biến' }}
+                                            </Badge>
                                         </div>
 
                                         <!-- Meta thông tin thêm qua KitchenTimer -->
@@ -1299,22 +1560,58 @@ onUnmounted(() => {
                                         </div>
                                     </div>
 
-                                    <!-- Nút hoàn thành chuẩn bị -->
-                                    <Button
-                                        class="h-10 w-10 shrink-0 rounded-xl text-white shadow-sm transition-all"
-                                        :class="
-                                            slaLevel(item) === 'late'
-                                                ? 'bg-red-600 hover:bg-red-700'
-                                                : slaLevel(item) === 'warn'
-                                                  ? 'bg-amber-500 hover:bg-amber-600'
-                                                  : 'bg-indigo-600 hover:bg-indigo-700'
-                                        "
-                                        :disabled="isUpdating[item.id]"
-                                        @click="handlePrepare(item.id)"
-                                        title="Hoàn thành món"
-                                    >
-                                        <Check class="size-5" />
-                                    </Button>
+                                    <!-- Nút thao tác món: Hủy món & Hoàn thành chuẩn bị -->
+                                    <div class="flex items-center gap-2 shrink-0">
+                                        <Button
+                                            type="button"
+                                            variant="outline"
+                                            class="h-10 w-10 shrink-0 rounded-xl border-rose-200 bg-rose-50 text-rose-600 hover:bg-rose-100 hover:text-rose-700 dark:border-rose-900/40 dark:bg-rose-950/30 dark:text-rose-400"
+                                            :disabled="isUpdating[item.id]"
+                                            @click="openCancelModal(item)"
+                                            title="Hủy món này"
+                                        >
+                                            <XCircle class="size-5" />
+                                        </Button>
+                                        <Button
+                                            type="button"
+                                            variant="outline"
+                                            class="h-10 w-10 shrink-0 rounded-xl transition-all"
+                                            :class="
+                                                isItemStarted(item)
+                                                    ? 'border-slate-200 bg-slate-100 text-slate-400 opacity-60 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-600'
+                                                    : 'border-cyan-200 bg-cyan-50 text-cyan-600 shadow-sm hover:bg-cyan-100 hover:text-cyan-700 dark:border-cyan-900/40 dark:bg-cyan-950/30 dark:text-cyan-400 dark:hover:bg-cyan-950/50'
+                                            "
+                                            :disabled="
+                                                isUpdating[item.id] ||
+                                                isItemStarted(item)
+                                            "
+                                            @click="
+                                                handleStartPreparing(item.id)
+                                            "
+                                            :title="
+                                                isItemStarted(item)
+                                                    ? 'Đã bắt đầu chế biến'
+                                                    : 'Bắt đầu chế biến'
+                                            "
+                                        >
+                                            <Play class="size-5" />
+                                        </Button>
+                                        <Button
+                                            class="h-10 w-10 shrink-0 rounded-xl text-white shadow-sm transition-all"
+                                            :class="
+                                                slaLevel(item) === 'late'
+                                                    ? 'bg-red-600 hover:bg-red-700'
+                                                    : slaLevel(item) === 'warn'
+                                                      ? 'bg-amber-500 hover:bg-amber-600'
+                                                      : 'bg-indigo-600 hover:bg-indigo-700'
+                                            "
+                                            :disabled="isUpdating[item.id]"
+                                            @click="handlePrepare(item.id)"
+                                            title="Đánh dấu đã chế biến"
+                                        >
+                                            <Check class="size-5" />
+                                        </Button>
+                                    </div>
                                 </div>
                             </CardContent>
                         </Card>
@@ -1404,7 +1701,7 @@ onUnmounted(() => {
                                     }"
                                 >
                                     <div class="min-w-0 flex-1">
-                                        <div class="flex items-center gap-2">
+                                        <div class="flex flex-col items-start gap-0.5">
                                             <span
                                                 class="text-xs font-extrabold text-indigo-600 dark:text-indigo-400"
                                             >
@@ -1480,22 +1777,58 @@ onUnmounted(() => {
                                         </div>
                                     </div>
 
-                                    <!-- Nút hoàn thành chuẩn bị -->
-                                    <Button
-                                        class="h-9 w-9 shrink-0 rounded-xl text-white shadow-sm transition-all"
-                                        :class="
-                                            slaLevel(item) === 'late'
-                                                ? 'bg-red-600 hover:bg-red-700'
-                                                : slaLevel(item) === 'warn'
-                                                  ? 'bg-amber-500 hover:bg-amber-600'
-                                                  : 'bg-indigo-600 hover:bg-indigo-700'
-                                        "
-                                        :disabled="isUpdating[item.id]"
-                                        @click="handlePrepare(item.id)"
-                                        title="Hoàn thành món này"
-                                    >
-                                        <Check class="size-4.5" />
-                                    </Button>
+                                    <!-- Nút thao tác món: Hủy món & Hoàn thành chuẩn bị -->
+                                    <div class="flex items-center gap-2 shrink-0">
+                                        <Button
+                                            type="button"
+                                            variant="outline"
+                                            class="h-9 w-9 shrink-0 rounded-xl border-rose-200 bg-rose-50 text-rose-600 hover:bg-rose-100 hover:text-rose-700 dark:border-rose-900/40 dark:bg-rose-950/30 dark:text-rose-400"
+                                            :disabled="isUpdating[item.id]"
+                                            @click="openCancelModal(item)"
+                                            title="Hủy món này"
+                                        >
+                                            <XCircle class="size-4.5" />
+                                        </Button>
+                                        <Button
+                                            type="button"
+                                            variant="outline"
+                                            class="h-9 w-9 shrink-0 rounded-xl transition-all"
+                                            :class="
+                                                isItemStarted(item)
+                                                    ? 'border-slate-200 bg-slate-100 text-slate-400 opacity-60 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-600'
+                                                    : 'border-cyan-200 bg-cyan-50 text-cyan-600 shadow-sm hover:bg-cyan-100 hover:text-cyan-700 dark:border-cyan-900/40 dark:bg-cyan-950/30 dark:text-cyan-400 dark:hover:bg-cyan-950/50'
+                                            "
+                                            :disabled="
+                                                isUpdating[item.id] ||
+                                                isItemStarted(item)
+                                            "
+                                            @click="
+                                                handleStartPreparing(item.id)
+                                            "
+                                            :title="
+                                                isItemStarted(item)
+                                                    ? 'Đã bắt đầu chế biến'
+                                                    : 'Bắt đầu chế biến'
+                                            "
+                                        >
+                                            <Play class="size-4.5" />
+                                        </Button>
+                                        <Button
+                                            class="h-9 w-9 shrink-0 rounded-xl text-white shadow-sm transition-all"
+                                            :class="
+                                                slaLevel(item) === 'late'
+                                                    ? 'bg-red-600 hover:bg-red-700'
+                                                    : slaLevel(item) === 'warn'
+                                                      ? 'bg-amber-500 hover:bg-amber-600'
+                                                      : 'bg-indigo-600 hover:bg-indigo-700'
+                                            "
+                                            :disabled="isUpdating[item.id]"
+                                            @click="handlePrepare(item.id)"
+                                            title="Hoàn thành món này"
+                                        >
+                                            <Check class="size-4.5" />
+                                        </Button>
+                                    </div>
                                 </div>
                             </CardContent>
                         </Card>
@@ -1564,9 +1897,9 @@ onUnmounted(() => {
                                 class="mt-2 flex items-center gap-3 text-[10px] font-bold text-muted-foreground"
                             >
                                 <span
-                                    class="flex items-center gap-0.5 rounded bg-indigo-50 px-1.5 py-0.5 text-indigo-600 dark:bg-indigo-950/30 dark:text-indigo-400"
+                                    class="flex flex-col items-start rounded bg-indigo-50 px-1.5 py-0.5 text-indigo-600 dark:bg-indigo-950/30 dark:text-indigo-400"
                                 >
-                                    Bàn: {{ item.table_name }}
+                                    <span>Bàn: {{ item.table_name }}</span>
                                 </span>
                                 <span>•</span>
                                 <span
@@ -1597,15 +1930,26 @@ onUnmounted(() => {
                             </div>
                         </div>
 
-                        <!-- Nút hoàn thành phục vụ -->
-                        <Button
-                            class="h-10 w-10 shrink-0 rounded-xl bg-emerald-500 text-white shadow-sm transition-all hover:bg-emerald-600"
-                            :disabled="isUpdating[item.id]"
-                            @click="handleServe(item.id)"
-                            title="Xác nhận phục vụ đã lấy đi"
-                        >
-                            <Check class="size-5" />
-                        </Button>
+                        <!-- Nút hoàn thành phục vụ & Réo phục vụ -->
+                        <div class="flex items-center gap-1.5 shrink-0">
+                            <Button
+                                class="h-10 px-2.5 rounded-xl bg-amber-500 text-white font-bold text-xs shadow-sm transition-all hover:bg-amber-600 flex items-center gap-1"
+                                :disabled="callingWaiter[item.id]"
+                                @click="triggerCallWaiter(item)"
+                                title="Bật âm báo réo phục vụ ra lấy món"
+                            >
+                                <Bell class="size-4" />
+                                <span>Réo phục vụ</span>
+                            </Button>
+                            <Button
+                                class="h-10 w-10 shrink-0 rounded-xl bg-emerald-500 text-white shadow-sm transition-all hover:bg-emerald-600"
+                                :disabled="isUpdating[item.id]"
+                                @click="handleServe(item.id)"
+                                title="Xác nhận phục vụ đã lấy đi"
+                            >
+                                <Check class="size-5" />
+                            </Button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -1738,8 +2082,9 @@ onUnmounted(() => {
                                         <div
                                             class="flex items-center justify-between text-[11px] font-bold text-slate-500"
                                         >
-                                            <span>Mở bán lại sau:</span>
+                                            <span>{{ p.branch_paused ? 'Tạm ngưng (chi nhánh này):' : 'Mở bán lại sau:' }}</span>
                                             <span
+                                                v-if="!p.branch_paused"
                                                 class="flex animate-pulse items-center gap-1 font-black text-indigo-600 dark:text-indigo-400"
                                             >
                                                 <Clock class="size-3" />
@@ -1751,7 +2096,39 @@ onUnmounted(() => {
                                                 }}
                                             </span>
                                         </div>
+                                        <p
+                                            v-if="p.branch_paused && p.pause_reason"
+                                            class="text-[10px] text-slate-400"
+                                        >{{ p.pause_reason }}</p>
+
+                                        <!-- Tạm ngưng riêng chi nhánh: mở lại phải DUYỆT -->
+                                        <template v-if="p.branch_paused">
+                                            <div
+                                                v-if="p.reopen_requested"
+                                                class="rounded-lg bg-amber-50 px-2 py-1 text-center text-[10px] font-bold text-amber-700 dark:bg-amber-950/30 dark:text-amber-300"
+                                            >⏳ Đã đề nghị mở lại — chờ Quản lý/Chủ duyệt</div>
+                                            <Button
+                                                v-if="isOwnerOrManager"
+                                                size="sm"
+                                                class="flex h-8 w-full items-center justify-center gap-1 rounded-lg bg-emerald-600 text-xs font-bold text-white hover:bg-emerald-700"
+                                                @click="approveReopen(p.id)"
+                                            >
+                                                <RotateCcw class="size-3" /> Duyệt mở lại
+                                            </Button>
+                                            <Button
+                                                v-else-if="!p.reopen_requested"
+                                                size="sm"
+                                                variant="outline"
+                                                class="flex h-8 w-full items-center justify-center gap-1 rounded-lg text-xs font-bold text-amber-600"
+                                                @click="requestReopen(p.id)"
+                                            >
+                                                Đề nghị mở lại
+                                            </Button>
+                                        </template>
+
+                                        <!-- Tạm dừng chung / hết món: mở lại ngay -->
                                         <Button
+                                            v-else
                                             size="sm"
                                             class="flex h-8 w-full items-center justify-center gap-1 rounded-lg bg-indigo-600 text-xs font-bold text-white hover:bg-indigo-700"
                                             @click="handleResumeProduct(p.id)"
@@ -1772,48 +2149,34 @@ onUnmounted(() => {
                                                     size="sm"
                                                     variant="outline"
                                                     class="h-7 rounded-md p-0 text-[10px] font-bold"
-                                                    @click="
-                                                        handlePauseProduct(
-                                                            p.id,
-                                                            15,
-                                                        )
-                                                    "
+                                                    @click="pauseBranch(p, 15)"
                                                     >15p</Button
                                                 >
                                                 <Button
                                                     size="sm"
                                                     variant="outline"
                                                     class="h-7 rounded-md p-0 text-[10px] font-bold"
-                                                    @click="
-                                                        handlePauseProduct(
-                                                            p.id,
-                                                            30,
-                                                        )
-                                                    "
+                                                    @click="pauseBranch(p, 30)"
                                                     >30p</Button
                                                 >
                                                 <Button
                                                     size="sm"
                                                     variant="outline"
                                                     class="h-7 rounded-md p-0 text-[10px] font-bold"
-                                                    @click="
-                                                        handlePauseProduct(
-                                                            p.id,
-                                                            60,
-                                                        )
-                                                    "
+                                                    @click="pauseBranch(p, 60)"
                                                     >1h</Button
                                                 >
                                                 <Button
                                                     size="sm"
                                                     variant="outline"
                                                     class="h-7 rounded-md bg-slate-100 p-0 text-[10px] font-black dark:bg-slate-800"
-                                                    @click="
-                                                        handlePauseCustom(p)
-                                                    "
+                                                    @click="pauseBranch(p)"
                                                     >...</Button
                                                 >
                                             </div>
+                                            <p class="text-[9px] text-slate-400">
+                                                Chỉ tạm ngưng ở chi nhánh này · cần lý do
+                                            </p>
                                         </div>
 
                                         <div class="flex flex-col gap-1">
@@ -1880,6 +2243,293 @@ onUnmounted(() => {
             </div>
         </div>
     </div>
+
+    <!-- ══ Modal: Báo Cáo Nguyên Liệu Hỏng (Bếp) ════════════════════════════════ -->
+    <Teleport to="body">
+        <Transition
+            enter-active-class="transition duration-150 ease-out"
+            enter-from-class="opacity-0"
+            enter-to-class="opacity-100"
+            leave-active-class="transition duration-100 ease-in"
+            leave-from-class="opacity-100"
+            leave-to-class="opacity-0"
+        >
+        
+        <div
+            v-if="showWasteModal"
+            class="fixed inset-0 z-50 overflow-y-auto bg-black/60 p-4 backdrop-blur-sm"
+            @click.self="showWasteModal = false"
+        >
+            <div class="flex min-h-full items-center justify-center">
+                <div class="w-full max-w-lg rounded-2xl border border-border bg-card p-6 shadow-2xl">
+                    <div class="flex items-center justify-between border-b border-border pb-4">
+                        <div class="flex items-center gap-2.5">
+                            <div class="flex size-10 items-center justify-center rounded-xl bg-rose-500/10 text-rose-500">
+                                <AlertTriangle class="size-5" />
+                            </div>
+                            <div>
+                                <h3 class="text-base font-bold text-foreground">Báo Cáo Nguyên Liệu Hỏng / Thất Thoát</h3>
+                                <p class="text-xs text-muted-foreground">Gửi Quản lý chi nhánh và Chủ quán phê duyệt để trừ kho và tính toán lãng phí</p>
+                            </div>
+                        </div>
+                        <button
+                            @click="showWasteModal = false"
+                            class="rounded-lg p-1 text-muted-foreground hover:bg-muted"
+                        >
+                            ✕
+                        </button>
+                    </div>
+
+                    <div class="mt-4 space-y-4">
+                        <div>
+                            <label class="block text-xs font-bold text-foreground mb-1.5">
+                                Nguyên liệu gặp sự cố <span class="text-rose-500">*</span>
+                            </label>
+                            <select
+                                v-model="wasteForm.ingredient_id"
+                                class="w-full h-10 rounded-xl border border-border bg-background px-3 text-xs font-medium text-foreground focus:ring-2 focus:ring-rose-500/20 focus:outline-none"
+                            >
+                                <option value="" disabled>-- Chọn nguyên liệu từ danh sách kho --</option>
+                                <option
+                                    v-for="ing in (ingredients || [])"
+                                    :key="ing.id"
+                                    :value="ing.id"
+                                >
+                                    {{ ing.name }} {{ ing.unit_symbol ? '(' + ing.unit_symbol + ')' : '' }}
+                                </option>
+                            </select>
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label class="block text-xs font-bold text-foreground mb-1.5">
+                                    Số lượng bị hỏng/thất thoát <span class="text-rose-500">*</span>
+                                </label>
+                                <input
+                                    type="number"
+                                    step="any"
+                                    min="0.001"
+                                    v-model="wasteForm.quantity"
+                                    placeholder="Ví dụ: 0.5"
+                                    class="w-full h-10 rounded-xl border border-border bg-background px-3 text-xs font-medium text-foreground focus:ring-2 focus:ring-rose-500/20 focus:outline-none"
+                                />
+                            </div>
+
+                            <div>
+                                <label class="block text-xs font-bold text-foreground mb-1.5">
+                                    Loại sự cố / Nguyên nhân
+                                </label>
+                                <select
+                                    v-model="wasteForm.waste_category"
+                                    class="w-full h-10 rounded-xl border border-border bg-background px-3 text-xs font-medium text-foreground focus:ring-2 focus:ring-rose-500/20 focus:outline-none"
+                                >
+                                    <option value="spoilage">🥬 Nguyên liệu hỏng / Ôi thiu</option>
+                                    <option value="cooking_loss">🍳 Hao hụt / Vỡ đổ chế biến</option>
+                                    <option value="expired">⏳ Hết hạn sử dụng</option>
+                                    <option value="damaged">📦 Hư hỏng / Dụng cụ vỡ</option>
+                                    <option value="other">❓ Khác</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-bold text-foreground mb-1.5">
+                                Mô tả sự cố chi tiết cho Quản lý và Chủ quán
+                            </label>
+                            <textarea
+                                v-model="wasteForm.notes"
+                                rows="3"
+                                placeholder="Ví dụ: Sơ chế thái thịt bị rơi xuống đất 500g, nguyên liệu hỏng không thể dùng..."
+                                class="w-full rounded-xl border border-border bg-background p-3 text-xs text-foreground focus:ring-2 focus:ring-rose-500/20 focus:outline-none"
+                            ></textarea>
+                        </div>
+                    </div>
+
+                    <div class="mt-6 flex items-center justify-end gap-2 border-t border-border pt-4">
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            class="h-9 rounded-xl text-xs font-bold"
+                            @click="showWasteModal = false"
+                        >
+                            Hủy bỏ
+                        </Button>
+                        <Button
+                            size="sm"
+                            class="h-9 rounded-xl bg-rose-600 font-bold text-white hover:bg-rose-700"
+                            :disabled="isSubmittingWaste"
+                            @click="submitKitchenWaste"
+                        >
+                            {{ isSubmittingWaste ? 'Đang gửi...' : 'Gửi Báo Cáo Cho Quản Lý & Chủ Quán' }}
+                        </Button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        </Transition>
+
+    <!-- ── MODAL HỦY MÓN BẾP CHÍNH GIỮA MÀN HÌNH ── -->
+        <Transition
+            enter-active-class="transition duration-200 ease-out"
+            enter-from-class="opacity-0 scale-95"
+            enter-to-class="opacity-100 scale-100"
+            leave-active-class="transition duration-150 ease-in"
+            leave-from-class="opacity-100 scale-100"
+            leave-to-class="opacity-0 scale-95"
+        >
+        
+        <div
+            v-if="showCancelItemModal && selectedCancelItem"
+            class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm"
+        >
+            <div
+                class="w-full max-w-lg overflow-hidden rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl dark:border-slate-800 dark:bg-slate-900"
+            >
+                <!-- Modal Header -->
+                <div class="flex items-start justify-between border-b border-slate-100 pb-4 dark:border-slate-800">
+                    <div class="flex items-center gap-3">
+                        <div class="flex h-11 w-11 items-center justify-center rounded-2xl bg-rose-100 text-rose-600 dark:bg-rose-950/40 dark:text-rose-400">
+                            <XCircle class="size-6" />
+                        </div>
+                        <div>
+                            <h3 class="text-base font-black text-slate-900 dark:text-white">
+                                Xác Nhận Hủy Món Chế Biến
+                            </h3>
+                            <p class="text-xs font-semibold text-rose-600 dark:text-rose-400 mt-0.5">
+                                {{ selectedCancelItem.product_name }} • Bàn: {{ selectedCancelItem.table_name }}
+                            </p>
+                        </div>
+                    </div>
+                    <button
+                        type="button"
+                        class="rounded-xl p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800"
+                        @click="showCancelItemModal = false"
+                    >
+                        <X class="size-5" />
+                    </button>
+                </div>
+
+                <!-- Modal Body -->
+                <div class="mt-4 space-y-4">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-2">
+                            Phạm vi hủy món:
+                        </label>
+                        <div class="space-y-2.5">
+                            <!-- Option 1: Single item -->
+                            <label
+                                class="flex items-start gap-3 rounded-2xl border p-3.5 cursor-pointer transition-all"
+                                :class="
+                                    cancelScope === 'single'
+                                        ? 'border-rose-500 bg-rose-50/50 ring-2 ring-rose-500/20 dark:border-rose-700 dark:bg-rose-950/20'
+                                        : 'border-slate-200 bg-slate-50/40 hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-800/20'
+                                "
+                            >
+                                <input
+                                    type="radio"
+                                    name="cancel_scope"
+                                    value="single"
+                                    v-model="cancelScope"
+                                    class="mt-1 size-4 accent-rose-600"
+                                />
+                                <div>
+                                    <p class="text-xs font-bold text-slate-900 dark:text-white">
+                                        Chỉ hủy món này ở Bàn {{ selectedCancelItem.table_name }}
+                                    </p>
+                                    <p class="text-[11px] text-muted-foreground mt-0.5">
+                                        Có {{ Math.floor(selectedCancelItem.quantity) }} phần "{{ selectedCancelItem.product_name }}" trong đơn hiện tại.
+                                    </p>
+                                    <div class="mt-3 flex items-center gap-3">
+                                        <label class="text-[11px] font-bold text-slate-600 dark:text-slate-300">
+                                            Số phần cần hủy
+                                        </label>
+                                        <input
+                                            v-model.number="cancelQuantity"
+                                            type="number"
+                                            min="1"
+                                            :max="Math.floor(selectedCancelItem.quantity)"
+                                            :disabled="cancelScope !== 'single'"
+                                            class="h-9 w-20 rounded-lg border border-rose-200 bg-white px-2 text-center text-sm font-black text-rose-600 outline-none focus:border-rose-500 focus:ring-2 focus:ring-rose-500/20 disabled:cursor-not-allowed disabled:opacity-50 dark:border-rose-900/50 dark:bg-slate-950"
+                                        />
+                                        <span class="text-[11px] text-muted-foreground">
+                                            Còn lại {{ Math.max(0, Math.floor(selectedCancelItem.quantity) - cancelQuantity) }} phần
+                                        </span>
+                                    </div>
+                                </div>
+                            </label>
+
+                            <!-- Option 2: All pending items -->
+                            <label
+                                class="flex items-start gap-3 rounded-2xl border p-3.5 cursor-pointer transition-all"
+                                :class="
+                                    cancelScope === 'all_pending'
+                                        ? 'border-rose-500 bg-rose-50/50 ring-2 ring-rose-500/20 dark:border-rose-700 dark:bg-rose-950/20'
+                                        : 'border-slate-200 bg-slate-50/40 hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-800/20'
+                                "
+                            >
+                                <input
+                                    type="radio"
+                                    name="cancel_scope"
+                                    value="all_pending"
+                                    v-model="cancelScope"
+                                    class="mt-1 size-4 accent-rose-600"
+                                />
+                                <div>
+                                    <p class="text-xs font-bold text-rose-600 dark:text-rose-400">
+                                        Hủy TOÀN BỘ món "{{ selectedCancelItem.product_name }}" ở tất cả đơn chờ
+                                    </p>
+                                    <p class="text-[11px] text-muted-foreground mt-0.5">
+                                        Hủy tất cả {{ countPendingItemsForSelected }} phần món này trên toàn bộ màn hình điều phối bếp.
+                                    </p>
+                                </div>
+                            </label>
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
+                            Lý do hủy món <span class="text-xs text-muted-foreground font-normal">(Ghi rõ để báo Thu ngân & Order)</span>:
+                        </label>
+                        <textarea
+                            v-model="cancelReason"
+                            rows="3"
+                            placeholder="Ví dụ: Hết nguyên liệu, món bị hỏng, bếp quá tải không kịp chế biến, khách báo đổi món..."
+                            class="w-full rounded-2xl border border-slate-200 bg-white p-3 text-xs text-slate-900 focus:border-rose-500 focus:ring-2 focus:ring-rose-500/20 focus:outline-none dark:border-slate-800 dark:bg-slate-950 dark:text-slate-100"
+                        ></textarea>
+                    </div>
+
+                    <div class="rounded-xl border border-amber-200 bg-amber-50/60 p-3 text-[11px] font-medium text-amber-800 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-300">
+                        🔔 <strong>Lưu ý:</strong> Khi bạn bấm xác nhận, hệ thống sẽ lập tức phát <strong>chuông báo động & thông báo khẩn cấp</strong> đến Thu ngân, Nhân viên Order và Chủ cửa hàng để báo khách đổi món.
+                    </div>
+                </div>
+
+                <!-- Modal Footer -->
+                <div class="mt-6 flex items-center justify-end gap-2 border-t border-slate-100 pt-4 dark:border-slate-800">
+                    <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        class="h-10 rounded-xl px-4 text-xs font-bold"
+                        @click="showCancelItemModal = false"
+                    >
+                        Trở lại / Hủy
+                    </Button>
+                    <Button
+                        type="button"
+                        size="sm"
+                        class="h-10 rounded-xl bg-rose-600 px-4 font-bold text-white shadow-sm hover:bg-rose-700 dark:bg-rose-700 dark:hover:bg-rose-800"
+                        :disabled="isSubmittingCancel || cancelReason.trim().length < 3"
+                        @click="submitCancelItem"
+                    >
+                        {{ isSubmittingCancel ? 'Đang xử lý...' : 'Xác Nhận Hủy Món' }}
+                    </Button>
+                </div>
+            </div>
+        </div>
+        
+        </Transition>
+    </Teleport>
 </template>
 
 <style scoped>

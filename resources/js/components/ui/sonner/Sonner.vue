@@ -10,7 +10,7 @@ const { appearance } = useAppearance();
     <SonnerPrimitive
         :theme="appearance"
         class="toaster group"
-        position="bottom-right"
+        position="top-center"
         :style="{
             '--normal-bg': 'var(--popover)',
             '--normal-text': 'var(--popover-foreground)',

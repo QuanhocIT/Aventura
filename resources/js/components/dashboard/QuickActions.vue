@@ -8,7 +8,6 @@ import {
     TrendingUp,
     Utensils,
     PlusCircle,
-    Receipt,
 } from 'lucide-vue-next';
 import { computed } from 'vue';
 

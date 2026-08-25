@@ -7,22 +7,27 @@ import {
     Brain,
     Building2,
     BadgeDollarSign,
+    CheckSquare,
     ClipboardCheck,
     Image,
     Newspaper,
     Users,
     FileSearch2,
+    Flame,
     Headset,
     UtensilsCrossed,
     Megaphone,
     ShoppingCart,
     Package,
+    PackageCheck,
+    Boxes,
+    Calculator,
+    Landmark,
     Receipt,
     BarChart3,
     Wallet,
     MessageSquare,
     BookOpen,
-    FolderGit2,
     Tag,
     Truck,
     Route,
@@ -31,6 +36,13 @@ import {
     ScrollText,
     ShieldCheck,
     ShieldAlert,
+    Siren,
+    RotateCcw,
+    ArrowLeftRight,
+    BookLock,
+    SlidersHorizontal,
+    Inbox,
+    Handshake,
     Gift,
     Activity,
     Settings,
@@ -54,6 +66,7 @@ import {
     SidebarMenu,
     SidebarMenuButton,
     SidebarMenuItem,
+    SidebarTrigger,
 } from '@/components/ui/sidebar';
 import { useFeatureGate } from '@/composables/useFeatureGate';
 import { dashboard } from '@/routes';
@@ -67,6 +80,9 @@ const page = usePage();
 const tenant = computed(() => page.props.tenant as any);
 const pendingApprovalCount = computed(
     () => (page.props.pendingApprovalCount as number) ?? 0,
+);
+const myOpenRequestCount = computed(
+    () => (page.props.myOpenRequestCount as number) ?? 0,
 );
 
 const isSubscriptionActive = computed(() => {
@@ -103,10 +119,22 @@ const isSuperAdmin = computed(() =>
 );
 const isOwner = computed(() => hasRole('owner'));
 const isManager = computed(() => hasRole('manager'));
-const isCashier = computed(() => hasRole('cashier', 'waiter'));
+const isCashier = computed(() => hasRole('cashier'));
+const isWaiter = computed(() => hasRole('waiter'));
 const isKitchen = computed(() => hasRole('kitchen'));
 const isInventory = computed(() => hasRole('inventory_staff'));
+const isOperationsInspector = computed(() =>
+    hasRole('operations_inspector', 'compliance_auditor'),
+);
+const isWarehouseManager = computed(() => hasRole('warehouse_manager'));
+const isWarehouseStaff = computed(() => hasRole('warehouse_staff'));
+const usesManagementSidebar = computed(
+    () => isOwner.value || isManager.value || isWarehouseManager.value,
+);
 const isSupplier = computed(() => hasRole('supplier'));
+const supplierPortalEnabled = computed(() =>
+    Boolean((page.props as any).supplier_portal_enabled),
+);
 const isShipper = computed(() => hasRole('shipper'));
 
 // Lấy danh sách permissions từ Inertia shared state
@@ -296,6 +324,12 @@ const superAdminNav = computed<NavItem[]>(() => {
             perm: 'superadmin.backup.manage',
         },
         {
+            title: 'Vòng đời dữ liệu & dung lượng',
+            href: '/super-admin/data-lifecycle',
+            icon: Database,
+            perm: 'superadmin.backup.manage',
+        },
+        {
             title: 'Dọn dẹp rác',
             href: '/super-admin/garbage-collector',
             icon: Trash2,
@@ -333,7 +367,14 @@ const superAdminNav = computed<NavItem[]>(() => {
 const ownerNav = computed<NavItem[]>(() => {
     const nav = [
         { title: 'Tổng quan', href: '/dashboard', icon: LayoutGrid },
+        {
+            title: 'Trung tâm điều hành chuỗi',
+            href: '/enterprise/command-center',
+            icon: Activity,
+            feature: 'advanced_analytics',
+        },
         { title: 'Quản lý đơn hàng', href: '/orders', icon: ShoppingCart },
+        { title: 'Đặt bàn', href: '/reservations', icon: CalendarDays },
         { title: 'Thực đơn & Món', href: '/products', icon: UtensilsCrossed },
         {
             title: 'Phân tích thực đơn',
@@ -342,9 +383,27 @@ const ownerNav = computed<NavItem[]>(() => {
             feature: 'advanced_analytics',
         },
         {
+            title: 'Món bán chạy',
+            href: '/best-sellers',
+            icon: Flame,
+            feature: 'advanced_analytics',
+        },
+        {
             title: 'Kho nguyên liệu',
             href: '/inventory',
             icon: Package,
+            feature: 'inventory_basic',
+        },
+        {
+            title: 'Xử lý âm nguyên liệu',
+            href: '/inventory/negative-stock',
+            icon: ShieldAlert,
+            feature: 'inventory_basic',
+        },
+        {
+            title: 'Điều chuyển kho',
+            href: '/inventory/transfers',
+            icon: ArrowLeftRight,
             feature: 'inventory_basic',
         },
         {
@@ -390,6 +449,114 @@ const ownerNav = computed<NavItem[]>(() => {
             icon: ClipboardCheck,
         },
         {
+            title: 'Phê duyệt',
+            href: '/approvals',
+            icon: ShieldCheck,
+            badge: pendingApprovalCount.value,
+        },
+        {
+            title: 'Quản lý đã duyệt gì',
+            href: '/approvals/ledger',
+            icon: BookLock,
+        },
+        {
+            title: 'Thẩm quyền phê duyệt',
+            href: '/approvals/policies',
+            icon: SlidersHorizontal,
+        },
+        {
+            title: 'Bộ Quy định & Tiêu chuẩn',
+            href: '/operations/company-policies',
+            icon: BookOpen,
+        },
+        {
+            title: 'Thanh tra & Biên bản Phạt',
+            href: '/operations/audit',
+            icon: ShieldAlert,
+        },
+        {
+            title: 'Tổng quan Kho Tổng',
+            href: '/inventory/central-warehouse',
+            icon: LayoutGrid,
+            feature: 'inventory_basic',
+        },
+        {
+            title: 'Xử lý âm nguyên liệu',
+            href: '/inventory/negative-stock',
+            icon: ShieldAlert,
+            feature: 'inventory_basic',
+        },
+        {
+            title: 'Trợ lý AI Kho Tổng',
+            href: '/inventory/central-warehouse/ai-advisor',
+            icon: Bot,
+            feature: 'inventory_basic',
+        },
+        {
+            title: 'Đơn cấp phát',
+            href: '/inventory/central-warehouse/requests',
+            icon: ClipboardCheck,
+            permission: 'supply_requests.view',
+            feature: 'inventory_basic',
+        },
+        {
+            title: 'Nhận hàng & GRN',
+            href: '/inventory/central-warehouse/receiving',
+            icon: PackageCheck,
+            permission: 'warehouse.receiving.verify',
+            feature: 'inventory_basic',
+        },
+        {
+            title: 'Bảng giá nguyên liệu',
+            href: '/inventory/central-warehouse/prices',
+            icon: BadgeDollarSign,
+            permission: 'warehouse.manage',
+            feature: 'inventory_basic',
+        },
+        {
+            title: 'Đội ngũ Kho Tổng',
+            href: '/warehouse/team',
+            icon: Users,
+            permission: 'warehouse.staff.view',
+            feature: 'inventory_basic',
+        },
+        {
+            title: 'Kiểm kê & Điều chỉnh',
+            href: '/inventory/count-sessions',
+            icon: ClipboardCheck,
+            feature: 'inventory_basic',
+        },
+        {
+            title: 'Central Kitchen Sơ chế',
+            href: '/inventory/central-kitchen',
+            icon: Boxes,
+            feature: 'inventory_basic',
+        },
+        {
+            title: 'Chuyến xe Logistics',
+            href: '/inventory/delivery-manifests',
+            icon: Route,
+            feature: 'inventory_basic',
+        },
+        {
+            title: 'Thu hồi Lô Khẩn cấp',
+            href: '/inventory/batch-recalls',
+            icon: Siren,
+            feature: 'inventory_basic',
+        },
+        {
+            title: 'Cách ly & Hoàn trả',
+            href: '/inventory/reverse-logistics',
+            icon: RotateCcw,
+            feature: 'inventory_basic',
+        },
+        {
+            title: 'Quản trị Siết chặt Kho',
+            href: '/inventory/warehouse-governance',
+            icon: ShieldAlert,
+            feature: 'inventory_basic',
+        },
+        {
             title: 'Nhà cung cấp',
             href: '/suppliers',
             icon: Truck,
@@ -433,10 +600,10 @@ const ownerNav = computed<NavItem[]>(() => {
             feature: 'hr_full',
         },
         {
-            title: 'Phê duyệt',
-            href: '/approvals',
-            icon: ShieldCheck,
-            badge: pendingApprovalCount.value,
+            title: 'Quỹ lương & Ngân sách',
+            href: '/payroll-budget',
+            icon: Wallet,
+            feature: 'hr_full',
         },
         { title: 'Khách hàng', href: '/customers', icon: Users },
         {
@@ -452,6 +619,18 @@ const ownerNav = computed<NavItem[]>(() => {
             feature: 'advanced_analytics',
         },
         {
+            title: 'Hiệu quả khuyến mãi',
+            href: '/promotions/analytics',
+            icon: Tag,
+            feature: 'advanced_analytics',
+        },
+        {
+            title: 'Trigger khuyến mãi',
+            href: '/promotions/triggers',
+            icon: Tag,
+            feature: 'advanced_analytics',
+        },
+        {
             title: 'Hóa đơn & Gói cước',
             href: '/billing/history',
             icon: Receipt,
@@ -460,6 +639,16 @@ const ownerNav = computed<NavItem[]>(() => {
             title: 'Cài đặt & Tích hợp',
             href: '/settings/integrations',
             icon: Settings,
+        },
+        {
+            title: 'Quản trị chi nhánh',
+            href: '/settings/branches',
+            icon: Building2,
+        },
+        {
+            title: 'Thông tin nhà hàng',
+            href: '/settings/restaurant',
+            icon: Building2,
         },
         {
             title: 'Giới thiệu & Hoa hồng',
@@ -493,6 +682,12 @@ const ownerNav = computed<NavItem[]>(() => {
             feature: 'inventory_basic',
         },
         {
+            title: 'Bàn giao ca',
+            href: '/shift-handovers',
+            icon: Handshake,
+            feature: 'inventory_basic',
+        },
+        {
             title: 'Quản lý dòng tiền',
             href: '/cash-flow',
             icon: Wallet,
@@ -511,6 +706,36 @@ const ownerNav = computed<NavItem[]>(() => {
             feature: 'inventory_basic',
         },
         {
+            title: 'Sổ tài chính',
+            href: '/finance',
+            icon: BookOpen,
+            permission: 'finance.view',
+        },
+        {
+            title: 'Giá trị nhập nguyên liệu',
+            href: '/finance/ingredient-spend',
+            icon: BadgeDollarSign,
+            permission: 'finance.view',
+        },
+        {
+            title: 'Ngân sách tài chính',
+            href: '/financial-budgets',
+            icon: Calculator,
+            permission: 'finance.manage',
+        },
+        {
+            title: 'Đối soát ngân hàng',
+            href: '/bank-reconciliation',
+            icon: Landmark,
+            permission: 'finance.manage',
+        },
+        {
+            title: 'Tài sản cố định',
+            href: '/fixed-assets',
+            icon: Boxes,
+            permission: 'finance.manage',
+        },
+        {
             title: 'Đánh giá & KPI',
             href: '/kpis',
             icon: BarChart3,
@@ -520,6 +745,7 @@ const ownerNav = computed<NavItem[]>(() => {
             title: 'Kiểm toán Gian lận',
             href: '/fraud',
             icon: ShieldAlert,
+            permission: 'view_fraud_detection',
             feature: 'fraud_detection',
         },
         {
@@ -529,6 +755,7 @@ const ownerNav = computed<NavItem[]>(() => {
             permission: 'view_violations',
             feature: 'fraud_detection',
         },
+        { title: 'Sự cố khẩn cấp', href: '/incidents', icon: Siren },
         { title: 'Sơ đồ bàn', href: '/tables', icon: Building2 },
         {
             title: 'Nhật ký hệ thống',
@@ -541,23 +768,108 @@ const ownerNav = computed<NavItem[]>(() => {
         { title: 'Liên hệ & Hỗ trợ', href: '/support', icon: Headset },
     ];
 
-    return nav.filter((item) => {
-        if (isManager.value) {
-            if (item.href === '/fraud' || item.href === '/audit-logs') {
+    const sectionByHref: Record<string, string> = {
+        '/dashboard': 'overview',
+        '/enterprise/command-center': 'overview',
+        '/bi-dashboard': 'overview',
+        '/geo-analytics': 'overview',
+        '/business-goals': 'overview',
+        '/reports': 'overview',
+        '/ai-advisor': 'overview',
+        '/orders': 'sales',
+        '/reservations': 'sales',
+        '/tables': 'sales',
+        '/delivery': 'sales',
+        '/online-store': 'sales',
+        '/products': 'menu',
+        '/menu-engineering': 'menu',
+        '/best-sellers': 'menu',
+        '/inventory': 'supply',
+        '/inventory/transfers': 'supply',
+        '/waste-management': 'supply',
+        '/inventory/central-warehouse': 'supply',
+        '/inventory/central-warehouse/ai-advisor': 'supply',
+        '/inventory/central-warehouse/stock': 'supply',
+        '/inventory/count-sessions': 'supply',
+        '/inventory/central-kitchen': 'supply',
+        '/inventory/delivery-manifests': 'supply',
+        '/inventory/batch-recalls': 'supply',
+        '/inventory/reverse-logistics': 'supply',
+        '/inventory/warehouse-governance': 'supply',
+        '/suppliers': 'supply',
+        '/rfps': 'supply',
+        '/shift-closings': 'finance',
+        '/cash-flow': 'finance',
+        '/expenses': 'finance',
+        '/debts': 'finance',
+        '/finance': 'finance',
+        '/finance/ingredient-spend': 'finance',
+        '/financial-budgets': 'finance',
+        '/bank-reconciliation': 'finance',
+        '/fixed-assets': 'finance',
+        '/billing/history': 'finance',
+        '/employees': 'people',
+        '/schedules': 'people',
+        '/salaries': 'people',
+        '/payroll-budget': 'people',
+        '/training': 'people',
+        '/kpis': 'people',
+        '/customers': 'customers',
+        '/loyalty': 'customers',
+        '/promotions': 'customers',
+        '/promotions/analytics': 'customers',
+        '/promotions/triggers': 'customers',
+        '/feedback': 'customers',
+        '/equipment': 'operations',
+        '/operations-checklist': 'operations',
+        '/operations/company-policies': 'operations',
+        '/shift-handovers': 'operations',
+        '/incidents': 'operations',
+        '/operation-policies': 'governance',
+        '/approvals': 'governance',
+        '/approvals/ledger': 'governance',
+        '/approvals/policies': 'governance',
+        '/operations/audit': 'governance',
+        '/fraud': 'governance',
+        '/violations': 'governance',
+        '/audit-logs': 'governance',
+        '/settings/branches': 'settings',
+        '/settings/restaurant': 'settings',
+        '/settings/integrations': 'settings',
+        '/settings/referrals': 'settings',
+        '/tin-tuc': 'settings',
+        '/support': 'settings',
+    };
+
+    return nav
+        .filter((item) => {
+            if (isManager.value) {
+                if (item.href === '/fraud' || item.href === '/audit-logs') {
+                    return false;
+                }
+            }
+
+            if (
+                (item.href === '/suppliers' || item.href === '/rfps') &&
+                !supplierPortalEnabled.value
+            ) {
                 return false;
             }
-        }
 
-        if (item.permission && !can(item.permission)) {
-            return false;
-        }
+            if (item.permission && !can(item.permission)) {
+                return false;
+            }
 
-        if (item.feature && !canFeature(item.feature as any)) {
-            return false;
-        }
+            if (item.feature && !canFeature(item.feature as any)) {
+                return false;
+            }
 
-        return true;
-    });
+            return true;
+        })
+        .map((item) => ({
+            ...item,
+            section: sectionByHref[String(item.href)],
+        }));
 });
 
 // ─── MANAGER MENU ─────────────────────────────────────────────────────────────
@@ -565,10 +877,23 @@ const managerNav = computed<NavItem[]>(() => {
     const nav = [
         { title: 'Tổng quan', href: '/dashboard', icon: LayoutGrid },
         { title: 'Đơn hàng hôm nay', href: '/orders', icon: ShoppingCart },
+        { title: 'Đặt bàn', href: '/reservations', icon: CalendarDays },
         {
             title: 'Kho nguyên liệu',
             href: '/inventory',
             icon: Package,
+            feature: 'inventory_basic',
+        },
+        {
+            title: 'Xử lý âm nguyên liệu',
+            href: '/inventory/negative-stock',
+            icon: ShieldAlert,
+            feature: 'inventory_basic',
+        },
+        {
+            title: 'Điều chuyển kho',
+            href: '/inventory/transfers',
+            icon: ArrowLeftRight,
             feature: 'inventory_basic',
         },
         {
@@ -622,6 +947,18 @@ const managerNav = computed<NavItem[]>(() => {
             feature: 'advanced_analytics',
         },
         {
+            title: 'Hiệu quả khuyến mãi',
+            href: '/promotions/analytics',
+            icon: Tag,
+            feature: 'advanced_analytics',
+        },
+        {
+            title: 'Trigger khuyến mãi',
+            href: '/promotions/triggers',
+            icon: Tag,
+            feature: 'advanced_analytics',
+        },
+        {
             title: 'Hóa đơn & Gói cước',
             href: '/billing/history',
             icon: Receipt,
@@ -645,6 +982,13 @@ const managerNav = computed<NavItem[]>(() => {
             feature: 'advanced_analytics',
         },
         {
+            title: 'Món bán chạy',
+            href: '/best-sellers',
+            icon: Flame,
+            permission: 'view_report',
+            feature: 'advanced_analytics',
+        },
+        {
             title: 'Trợ lý AI Chiến lược',
             href: '/ai-advisor',
             icon: Bot,
@@ -655,6 +999,12 @@ const managerNav = computed<NavItem[]>(() => {
             title: 'Chốt ca',
             href: '/shift-closings',
             icon: ClipboardCheck,
+            feature: 'inventory_basic',
+        },
+        {
+            title: 'Bàn giao ca',
+            href: '/shift-handovers',
+            icon: Handshake,
             feature: 'inventory_basic',
         },
         {
@@ -676,6 +1026,18 @@ const managerNav = computed<NavItem[]>(() => {
             feature: 'inventory_basic',
         },
         {
+            title: 'Sổ tài chính',
+            href: '/finance',
+            icon: BookOpen,
+            permission: 'finance.view',
+        },
+        {
+            title: 'Bàn giao tài sản',
+            href: '/fixed-assets',
+            icon: Boxes,
+            section: 'finance',
+        },
+        {
             title: 'Đánh giá & KPI',
             href: '/kpis',
             icon: BarChart3,
@@ -685,6 +1047,7 @@ const managerNav = computed<NavItem[]>(() => {
             title: 'Kiểm toán Gian lận',
             href: '/fraud',
             icon: ShieldAlert,
+            permission: 'view_fraud_detection',
             feature: 'fraud_detection',
         },
         {
@@ -693,6 +1056,19 @@ const managerNav = computed<NavItem[]>(() => {
             icon: FileSearch2,
             permission: 'view_violations',
             feature: 'fraud_detection',
+        },
+        { title: 'Sự cố khẩn cấp', href: '/incidents', icon: Siren },
+        {
+            title: 'Phê duyệt',
+            href: '/approvals',
+            icon: ShieldCheck,
+            badge: pendingApprovalCount.value,
+        },
+        {
+            title: 'Yêu cầu của tôi',
+            href: '/my-requests',
+            icon: Inbox,
+            badge: myOpenRequestCount.value,
         },
         { title: 'Tin tức', href: '/tin-tuc', icon: Newspaper },
         { title: 'Liên hệ & Hỗ trợ', href: '/support', icon: Headset },
@@ -715,17 +1091,18 @@ const managerNav = computed<NavItem[]>(() => {
 const cashierNav = computed<NavItem[]>(() => {
     const nav = [
         { title: 'Trang chủ', href: '/dashboard', icon: LayoutGrid },
+        { title: 'Cổng nhân sự', href: '/employee-portal', icon: UserCheck },
         { title: 'Lịch sử đơn', href: '/orders', icon: ScrollText },
         {
-            title: 'Doanh thu ca',
-            href: '/shift-closings',
-            icon: ClipboardCheck,
+            title: 'Két tiền ca',
+            href: '/cash-flow',
+            icon: Wallet,
             feature: 'inventory_basic',
         },
         {
-            title: 'Dòng tiền',
-            href: '/cash-flow',
-            icon: Wallet,
+            title: 'Bàn giao ca',
+            href: '/shift-handovers',
+            icon: Handshake,
             feature: 'inventory_basic',
         },
         {
@@ -735,6 +1112,45 @@ const cashierNav = computed<NavItem[]>(() => {
             feature: 'hr_timekeeping',
         },
         { title: 'Tố cáo ẩn danh', href: '/violations', icon: ShieldAlert },
+        { title: 'Sự cố khẩn cấp', href: '/incidents', icon: Siren },
+        {
+            title: 'Yêu cầu của tôi',
+            href: '/my-requests',
+            icon: Inbox,
+            badge: myOpenRequestCount.value,
+        },
+    ];
+
+    return nav.filter(
+        (item) => !item.feature || canFeature(item.feature as any),
+    );
+});
+
+// ─── WAITER (ORDER STAFF) MENU ────────────────────────────────────────────────
+const waiterNav = computed<NavItem[]>(() => {
+    const nav = [
+        { title: 'Trang chủ', href: '/dashboard', icon: LayoutGrid },
+        { title: 'Cổng nhân sự', href: '/employee-portal', icon: UserCheck },
+        {
+            title: 'Bàn giao ca',
+            href: '/shift-handovers',
+            icon: Handshake,
+            feature: 'inventory_basic',
+        },
+        {
+            title: 'Lịch làm việc',
+            href: '/schedules',
+            icon: CalendarDays,
+            feature: 'hr_timekeeping',
+        },
+        { title: 'Tố cáo ẩn danh', href: '/violations', icon: ShieldAlert },
+        { title: 'Sự cố khẩn cấp', href: '/incidents', icon: Siren },
+        {
+            title: 'Yêu cầu của tôi',
+            href: '/my-requests',
+            icon: Inbox,
+            badge: myOpenRequestCount.value,
+        },
     ];
 
     return nav.filter(
@@ -747,19 +1163,31 @@ const kitchenNav = computed<NavItem[]>(() => {
     const nav = [
         { title: 'Trang chủ', href: '/dashboard', icon: LayoutGrid },
         {
+            title: 'Quản lý món',
+            href: '/kitchen/menu-control',
+            icon: UtensilsCrossed,
+        },
+        {
             title: 'Lịch làm việc',
             href: '/schedules',
             icon: CalendarDays,
             feature: 'hr_timekeeping',
         },
         {
-            title: 'Doanh thu ca',
-            href: '/shift-closings',
-            icon: ClipboardCheck,
+            title: 'Bàn giao ca',
+            href: '/shift-handovers',
+            icon: Handshake,
             feature: 'inventory_basic',
         },
         { title: 'Lịch sử đơn', href: '/orders', icon: ScrollText },
         { title: 'Tố cáo ẩn danh', href: '/violations', icon: ShieldAlert },
+        { title: 'Sự cố khẩn cấp', href: '/incidents', icon: Siren },
+        {
+            title: 'Yêu cầu của tôi',
+            href: '/my-requests',
+            icon: Inbox,
+            badge: myOpenRequestCount.value,
+        },
     ];
 
     return nav.filter(
@@ -783,6 +1211,12 @@ const inventoryNav = computed<NavItem[]>(() => {
             feature: 'inventory_basic',
         },
         {
+            title: 'Xử lý âm nguyên liệu',
+            href: '/inventory/negative-stock',
+            icon: ShieldAlert,
+            feature: 'inventory_basic',
+        },
+        {
             title: 'Nhà cung cấp',
             href: '/suppliers',
             icon: Truck,
@@ -794,6 +1228,12 @@ const inventoryNav = computed<NavItem[]>(() => {
             icon: CalendarDays,
             feature: 'hr_timekeeping',
         },
+        {
+            title: 'Yêu cầu của tôi',
+            href: '/my-requests',
+            icon: Inbox,
+            badge: myOpenRequestCount.value,
+        },
     ];
 
     return nav.filter(
@@ -801,7 +1241,209 @@ const inventoryNav = computed<NavItem[]>(() => {
     );
 });
 
-// ─── SHIPPER MENU ────────────────────────────────────────────────────────────
+// ─── OPERATIONS INSPECTOR / COMPLIANCE MENU ──────────────────────────────────
+const operationsInspectorNav: NavItem[] = [
+    { title: 'Tổng quan thanh tra', href: '/dashboard', icon: LayoutGrid },
+    {
+        title: 'Thanh tra & Biên bản Phạt',
+        href: '/operations/audit',
+        icon: ShieldAlert,
+    },
+    {
+        title: 'Bộ Quy định & Tiêu chuẩn',
+        href: '/operations/company-policies',
+        icon: BookOpen,
+    },
+    {
+        title: 'Checklist vận hành',
+        href: '/operations-checklist',
+        icon: CheckSquare,
+    },
+    {
+        title: 'Kiểm tra tài sản',
+        href: '/fixed-assets',
+        icon: Boxes,
+        section: 'finance',
+    },
+    {
+        title: 'Bàn giao ca',
+        href: '/shift-handovers',
+        icon: ArrowLeftRight,
+    },
+    {
+        title: 'Sự cố vận hành',
+        href: '/incidents',
+        icon: Siren,
+    },
+    {
+        title: 'Vi phạm nội bộ',
+        href: '/violations',
+        icon: FileSearch2,
+    },
+    {
+        title: 'Nhật ký kiểm toán',
+        href: '/audit-logs',
+        icon: ScrollText,
+    },
+    { title: 'Liên hệ & Hỗ trợ', href: '/support', icon: Headset },
+];
+
+const warehouseManagerNav = computed<NavItem[]>(() => {
+    const nav = [
+        {
+            title: 'Tổng quan Kho Tổng',
+            href: '/inventory/central-warehouse',
+            icon: LayoutGrid,
+            feature: 'inventory_basic',
+        },
+        {
+            title: 'Xử lý âm nguyên liệu',
+            href: '/inventory/negative-stock',
+            icon: ShieldAlert,
+            feature: 'inventory_basic',
+        },
+        {
+            title: 'Trợ lý AI Kho Tổng',
+            href: '/inventory/central-warehouse/ai-advisor',
+            icon: Bot,
+            feature: 'inventory_basic',
+        },
+        {
+            title: 'Đơn cấp phát',
+            href: '/inventory/central-warehouse/requests',
+            icon: ClipboardCheck,
+            permission: 'supply_requests.view',
+            feature: 'inventory_basic',
+        },
+        {
+            title: 'Nhận hàng & GRN',
+            href: '/inventory/central-warehouse/receiving',
+            icon: PackageCheck,
+            permission: 'warehouse.receiving.verify',
+            feature: 'inventory_basic',
+        },
+        {
+            title: 'Bảng giá nguyên liệu',
+            href: '/inventory/central-warehouse/prices',
+            icon: BadgeDollarSign,
+            permission: 'warehouse.manage',
+            feature: 'inventory_basic',
+        },
+        {
+            title: 'Đội ngũ Kho Tổng',
+            href: '/warehouse/team',
+            icon: Users,
+            permission: 'warehouse.staff.view',
+            feature: 'inventory_basic',
+        },
+        {
+            title: 'Cổng nhân sự Kho',
+            href: '/inventory/staff-portal',
+            icon: CheckSquare,
+            feature: 'inventory_basic',
+        },
+        {
+            title: 'Nhân sự & Lịch biểu',
+            href: '/employees',
+            icon: UserCheck,
+            feature: 'hr_timekeeping',
+        },
+        {
+            title: 'Central Kitchen Sơ chế',
+            href: '/inventory/central-kitchen',
+            icon: Boxes,
+            feature: 'inventory_basic',
+        },
+        {
+            title: 'Chuyến xe Logistics',
+            href: '/inventory/delivery-manifests',
+            icon: Route,
+            feature: 'inventory_basic',
+        },
+        {
+            title: 'Thu hồi Lô Khẩn cấp',
+            href: '/inventory/batch-recalls',
+            icon: Siren,
+            feature: 'inventory_basic',
+        },
+        {
+            title: 'Cách ly & Hoàn trả',
+            href: '/inventory/reverse-logistics',
+            icon: RotateCcw,
+            feature: 'inventory_basic',
+        },
+        {
+            title: 'Quản trị Siết chặt Kho',
+            href: '/inventory/warehouse-governance',
+            icon: ShieldAlert,
+            feature: 'inventory_basic',
+        },
+        {
+            title: 'Tồn kho Kho Tổng',
+            href: '/inventory/central-warehouse/stock',
+            icon: Package,
+            feature: 'inventory_basic',
+        },
+        {
+            title: 'Kiểm kê & Điều chỉnh',
+            href: '/inventory/count-sessions',
+            icon: ClipboardCheck,
+            feature: 'inventory_basic',
+        },
+        {
+            title: 'Điều chuyển Nội bộ',
+            href: '/inventory/transfers',
+            icon: ArrowLeftRight,
+            feature: 'inventory_basic',
+        },
+        { title: 'Liên hệ & Hỗ trợ', href: '/support', icon: Headset },
+    ];
+
+    return nav.filter(
+        (item) => !item.feature || canFeature(item.feature as any),
+    );
+});
+
+const warehouseStaffNav = computed<NavItem[]>(() => {
+    const nav = [
+        {
+            title: 'Cổng tác vụ của tôi',
+            href: '/inventory/staff-portal',
+            icon: CheckSquare,
+            feature: 'inventory_basic',
+        },
+        {
+            title: 'Điều phối Kho Tổng',
+            href: '/inventory/central-warehouse',
+            icon: Truck,
+            feature: 'inventory_basic',
+        },
+        {
+            title: 'Central Kitchen Sơ chế',
+            href: '/inventory/central-kitchen',
+            icon: Boxes,
+            feature: 'inventory_basic',
+        },
+        {
+            title: 'Chuyến xe Logistics',
+            href: '/inventory/delivery-manifests',
+            icon: Route,
+            feature: 'inventory_basic',
+        },
+        {
+            title: 'Tồn kho Kho Tổng',
+            href: '/inventory/central-warehouse/stock',
+            icon: Package,
+            feature: 'inventory_basic',
+        },
+        { title: 'Liên hệ & Hỗ trợ', href: '/support', icon: Headset },
+    ];
+
+    return nav.filter(
+        (item) => !item.feature || canFeature(item.feature as any),
+    );
+});
+
 const shipperNav: NavItem[] = [
     { title: 'Giao hàng của tôi', href: '/delivery/shipper', icon: Route },
     { title: 'Lịch làm việc', href: '/schedules', icon: CalendarDays },
@@ -824,8 +1466,14 @@ const mainNavItems = computed<NavItem[]>(() => {
 
     if (isSuperAdmin.value) {
         items = superAdminNav.value;
-    } else if (isSupplier.value) {
+    } else if (isSupplier.value && supplierPortalEnabled.value) {
         items = supplierNav;
+    } else if (isOperationsInspector.value) {
+        items = operationsInspectorNav;
+    } else if (isWarehouseManager.value) {
+        items = [...warehouseManagerNav.value];
+    } else if (isWarehouseStaff.value) {
+        items = [...warehouseStaffNav.value];
     } else if (isShipper.value) {
         items = shipperNav;
     } else if (!isSubscriptionActive.value) {
@@ -836,14 +1484,31 @@ const mainNavItems = computed<NavItem[]>(() => {
         items = [...managerNav.value];
     } else if (isCashier.value) {
         items = [...cashierNav.value];
+    } else if (isWaiter.value) {
+        items = [...waiterNav.value];
     } else if (isKitchen.value) {
         items = [...kitchenNav.value];
     } else if (isInventory.value) {
         items = [...inventoryNav.value];
     }
 
+    // Hide supplier-facing and supplier-entry navigation while the external
+    // portal is disabled. Internal supplier routes remain available for
+    // controlled/direct operational use.
+    if (!supplierPortalEnabled.value) {
+        items = items.filter(
+            (item) => item.href !== '/suppliers' && item.href !== '/rfps',
+        );
+    }
+
     const showPortalLink =
-        !isSuperAdmin.value && !isSupplier.value && !isOwner.value;
+        !isSuperAdmin.value &&
+        !isSupplier.value &&
+        !isOwner.value &&
+        !isOperationsInspector.value &&
+        !isWarehouseManager.value &&
+        !isCashier.value &&
+        !isWaiter.value;
 
     if (showPortalLink && items.length > 0) {
         if (
@@ -876,36 +1541,41 @@ const mainNavItems = computed<NavItem[]>(() => {
     return items;
 });
 
-const footerNavItems: NavItem[] = [
-    {
-        title: 'Kho mã nguồn',
-        href: 'https://github.com/laravel/vue-starter-kit',
-        icon: FolderGit2,
-    },
-    {
-        title: 'Tài liệu',
-        href: 'https://laravel.com/docs/starter-kits#vue',
-        icon: BookOpen,
-    },
-];
+const footerNavItems: NavItem[] = [];
 </script>
 
 <template>
     <Sidebar collapsible="icon" variant="inset">
-        <SidebarHeader>
-            <SidebarMenu>
+        <SidebarHeader class="border-b border-sidebar-border/60 p-3">
+            <SidebarMenu class="gap-0">
                 <SidebarMenuItem>
-                    <SidebarMenuButton size="lg" as-child>
-                        <Link :href="dashboard()">
-                            <AppLogo />
-                        </Link>
-                    </SidebarMenuButton>
+                    <div class="flex items-center gap-2">
+                        <SidebarMenuButton
+                            size="lg"
+                            as-child
+                            class="min-w-0 flex-1 rounded-xl px-2 hover:bg-sidebar-accent/50"
+                        >
+                            <Link :href="dashboard()">
+                                <AppLogo />
+                            </Link>
+                        </SidebarMenuButton>
+                        <SidebarTrigger
+                            class="shrink-0 rounded-lg text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground"
+                        />
+                    </div>
                 </SidebarMenuItem>
             </SidebarMenu>
         </SidebarHeader>
 
-        <SidebarContent>
-            <NavMain v-if="mainNavItems.length" :items="mainNavItems" />
+        <SidebarContent class="gap-0">
+            <NavMain
+                v-if="mainNavItems.length"
+                :items="mainNavItems"
+                :collapsible-groups="usesManagementSidebar"
+                :enable-search="usesManagementSidebar"
+                :disable-grouping="isCashier || isWaiter || isKitchen"
+                :hide-group-label="isCashier || isWaiter || isKitchen"
+            />
             <div v-else class="px-4 py-6 text-xs text-muted-foreground">
                 Không có menu khả dụng cho tài khoản này.
             </div>
@@ -915,7 +1585,7 @@ const footerNavItems: NavItem[] = [
         </SidebarContent>
 
         <SidebarFooter>
-            <NavFooter :items="footerNavItems" />
+            <NavFooter v-if="footerNavItems.length" :items="footerNavItems" />
             <NavUser />
         </SidebarFooter>
     </Sidebar>

@@ -6,22 +6,17 @@ import {
     UserCheck,
     MessageSquare,
     Settings,
-    ChevronRight,
     RefreshCw,
-    CheckCircle2,
     Calendar,
     Users,
     AlertCircle,
     Star,
     Plus,
     X,
-    TrendingUp,
-    TrendingDown,
     DollarSign,
-    Lock,
     ChefHat,
 } from 'lucide-vue-next';
-import { ref, computed } from 'vue';
+import { ref } from 'vue';
 import { toast } from 'vue-sonner';
 import { Button } from '@/components/ui/button';
 import {
@@ -34,6 +29,9 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { confirmDialog } from '@/composables/useConfirm';
+import { index, recalculate, finalize } from '@/routes/kpis';
+import { update as updateMetric } from '@/routes/kpis/metrics';
+import { store as storeReview } from '@/routes/kpis/reviews';
 import AppLayout from '@/layouts/AppLayout.vue';
 
 defineOptions({ layout: AppLayout });
@@ -128,7 +126,7 @@ const activeTab = ref<'leaderboard' | 'performance' | 'reviews' | 'settings'>(
 const selectedPeriod = ref(props.period);
 
 const changePeriod = () => {
-    router.visit(route('kpis.index'), {
+    router.visit(index.url(), {
         data: { period: selectedPeriod.value },
         preserveState: true,
         preserveScroll: true,
@@ -140,7 +138,7 @@ const isRecalculating = ref(false);
 const triggerRecalculate = () => {
     isRecalculating.value = true;
     router.post(
-        route('kpis.recalculate'),
+        recalculate.url(),
         { period: selectedPeriod.value },
         {
             onSuccess: () => {
@@ -173,7 +171,7 @@ const finalizeKpi = async (kpiId: number) => {
 
     isFinalizing.value = kpiId;
     router.post(
-        route('kpis.finalize', kpiId),
+        finalize.url(kpiId),
         {},
         {
             onSuccess: () => {
@@ -210,7 +208,7 @@ const reviewForm = useForm({
 });
 
 const submitReview = () => {
-    reviewForm.post(route('kpis.reviews.store'), {
+    reviewForm.post(storeReview.url(), {
         onSuccess: () => {
             toast.success('Đã gửi phiếu đánh giá 360° thành công!');
             isReviewModalOpen.value = false;
@@ -244,7 +242,7 @@ const updateConfig = () => {
         return;
     }
 
-    configForm.post(route('kpis.metrics.update', activeConfigEdit.value.id), {
+    configForm.post(updateMetric.url(activeConfigEdit.value.id), {
         onSuccess: () => {
             toast.success('Đã cập nhật cấu hình chỉ tiêu KPI thành công!');
             activeConfigEdit.value = null;
@@ -1147,6 +1145,7 @@ const getRoleText = (role: string | null) => {
         </div>
 
         <!-- MODAL: KPI Details (Slide-over / Pop-up) -->
+        <Teleport to="body">
         <div
             v-if="activeEmployeeKpi"
             class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs"
@@ -1330,8 +1329,10 @@ const getRoleText = (role: string | null) => {
                 </CardContent>
             </Card>
         </div>
+        </Teleport>
 
         <!-- MODAL: Edit Metric Config Setup -->
+        
         <div
             v-if="activeConfigEdit"
             class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs"
@@ -1452,8 +1453,10 @@ const getRoleText = (role: string | null) => {
                 </form>
             </Card>
         </div>
+        
 
         <!-- MODAL: Submit 360-Degree Review Form -->
+        <Teleport to="body">
         <div
             v-if="isReviewModalOpen"
             class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs"
@@ -1698,6 +1701,7 @@ const getRoleText = (role: string | null) => {
                 </form>
             </Card>
         </div>
+        </Teleport>
     </div>
 </template>
 

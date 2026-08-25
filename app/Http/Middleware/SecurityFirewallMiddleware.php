@@ -20,6 +20,7 @@ class SecurityFirewallMiddleware
         'up',
         'api/health',
         'webhooks/payments',
+        'webhooks/sepay/bank',
         'api/webhooks/payments/*',
         'api/webhooks/delivery/*',
         'api/pos/*',
@@ -61,11 +62,18 @@ class SecurityFirewallMiddleware
         $maxAttempts = (int) (SystemSetting::get('rate_limit_global_max') ?? config('firewall.rate_limit.global.max_attempts', 60));
         $decaySeconds = (int) (SystemSetting::get('rate_limit_global_decay') ?? config('firewall.rate_limit.global.decay_seconds', 60));
 
-        // Route-specific Rate Limits overrides: Chặn spam login & brute force (tối đa 5 lần thử trong 15 phút)
+        // Route-specific rate limits: keep sensitive auth endpoints protected,
+        // while allowing normal login retries without replacing the page with
+        // a raw 429 response.
         $rateLimitKeyPrefix = 'rate_limit';
-        $isAuthRoute = ($request->is('login') || $request->is('register') || $request->is('forgot-password') || $request->is('reset-password') || $request->is('two-factor-challenge') || $request->is('lock-screen') || $request->is('api/v1/auth/*')) && $request->isMethod('POST');
+        $isLoginRoute = $request->is('login') && $request->isMethod('POST');
+        $isAuthRoute = ($request->is('register') || $request->is('forgot-password') || $request->is('reset-password') || $request->is('two-factor-challenge') || $request->is('lock-screen') || $request->is('api/v1/auth/*')) && $request->isMethod('POST');
 
-        if ($isAuthRoute) {
+        if ($isLoginRoute) {
+            $maxAttempts = (int) config('firewall.rate_limit.auth.max_attempts', 20);
+            $decaySeconds = (int) config('firewall.rate_limit.auth.decay_seconds', 900);
+            $rateLimitKeyPrefix = 'rate_limit:auth:login';
+        } elseif ($isAuthRoute) {
             $maxAttempts = 5;
             $decaySeconds = 900; // 15 phút
             $rateLimitKeyPrefix = 'rate_limit:auth:'.str_replace('/', '_', $request->path());
@@ -87,6 +95,20 @@ class SecurityFirewallMiddleware
         if (RateLimiter::tooManyAttempts($key, $maxAttempts)) {
             $retryAfter = RateLimiter::availableIn($key);
             $message = 'Vượt quá giới hạn request. Vui lòng thử lại sau.';
+
+            if (
+                $request->header('X-Inertia')
+                || ($isLoginRoute && ! $request->expectsJson())
+            ) {
+                return redirect()->back(303)
+                    ->withErrors(['email' => $message])
+                    ->with('rate_limit_retry_after', $retryAfter)
+                    ->withHeaders([
+                        'X-RateLimit-Limit' => $maxAttempts,
+                        'X-RateLimit-Remaining' => 0,
+                        'Retry-After' => $retryAfter,
+                    ]);
+            }
 
             if ($request->expectsJson() || $request->is('api/*')) {
                 return response()->json([

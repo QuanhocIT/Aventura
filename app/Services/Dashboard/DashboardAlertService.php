@@ -10,6 +10,7 @@ use App\Models\ScheduleAssignment;
 use App\Services\ForecastService;
 use App\Services\OrderStatsCacheService;
 use App\Services\QuotaService;
+use App\Support\Tenant\TenantContext;
 
 /**
  * Chuyển nguyên logic từ app/Http/Controllers/DashboardController.php (helper
@@ -52,7 +53,7 @@ class DashboardAlertService
         $todaySummary = RestaurantRevenueSummary::where('restaurant_id', $rid)
             ->where('summary_date', today())
             ->where('summary_type', 'daily')
-            ->when($branchId, fn ($q) => $q->where('branch_id', $branchId), fn ($q) => $q->whereNull('branch_id'))
+            ->where('scope_key', TenantContext::summaryScopeKey($branchId))
             ->first();
         $revenueToday = (float) ($todaySummary?->net_revenue ?? 0);
 

@@ -9,6 +9,7 @@ import {
     UserPlus,
 } from 'lucide-vue-next';
 import { ref } from 'vue';
+import BackButton from '@/components/BackButton.vue';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -31,6 +32,20 @@ const props = defineProps<{
             uses: number;
             new_customers: number;
             repeat_rate: number;
+        }>;
+        per_promotion: Array<{
+            promotion_id: number;
+            name: string;
+            code: string | null;
+            type: 'percent' | 'fixed_amount';
+            value: number;
+            uses: number;
+            unique_customers: number;
+            discount_given: number;
+            revenue_influenced: number;
+            avg_order_value: number;
+            roi_percent: number;
+            bypass_count: number;
         }>;
     };
     filters: { start_date: string; end_date: string };
@@ -61,14 +76,17 @@ const maxRevenue = Math.max(
     <Head title="Phân tích Khuyến mãi" />
 
     <div class="flex flex-col gap-5 px-6 py-5">
-        <div class="flex items-center justify-between">
-            <div>
-                <h1 class="text-2xl font-bold tracking-tight">
-                    Phân tích Hiệu quả Khuyến mãi
-                </h1>
-                <p class="text-sm text-muted-foreground">
-                    ROI, redemption rate, chi phí vs doanh thu.
-                </p>
+        <div class="flex items-center justify-between gap-4">
+            <div class="flex items-center gap-3">
+                <BackButton fallback-href="/promotions" label="Khuyến mãi" />
+                <div>
+                    <h1 class="text-2xl font-bold tracking-tight">
+                        Phân tích Hiệu quả Khuyến mãi
+                    </h1>
+                    <p class="text-sm text-muted-foreground">
+                        ROI, redemption rate, chi phí vs doanh thu.
+                    </p>
+                </div>
             </div>
             <div class="flex items-center gap-2">
                 <Input v-model="startDate" type="date" class="w-[150px]" />
@@ -239,6 +257,125 @@ const maxRevenue = Math.max(
                     class="py-10 text-center text-sm text-muted-foreground"
                 >
                     Chưa có dữ liệu trong khoảng thời gian này.
+                </p>
+                <p
+                    class="mt-4 border-t pt-3 text-[10px] leading-relaxed text-muted-foreground"
+                >
+                    Các số liệu tổng phía trên tính trên
+                    <strong>mọi khoản giảm giá</strong> của đơn hàng — bao gồm
+                    cả điểm tích lũy, ưu đãi hạng VIP và giảm giá thủ công. Bảng
+                    bên dưới mới quy đúng từng đồng chiết khấu về đúng mã
+                    voucher đã tạo ra nó.
+                </p>
+            </CardContent>
+        </Card>
+
+        <!-- Hiệu quả từng chương trình: chỉ có được sau khi hệ thống lưu vết
+             mỗi lượt áp mã vào bảng promotion_usages. Trước đây snapshot luôn
+             ghi promotion_id = null nên không thể tách theo từng mã. -->
+        <Card>
+            <CardHeader class="pb-3">
+                <CardTitle class="text-sm"
+                    >Hiệu quả theo từng chương trình</CardTitle
+                >
+            </CardHeader>
+            <CardContent class="p-0">
+                <div
+                    v-if="metrics.per_promotion.length"
+                    class="overflow-x-auto"
+                >
+                    <table class="w-full border-collapse text-left text-xs">
+                        <thead>
+                            <tr
+                                class="border-b bg-muted/40 text-[10px] font-bold tracking-wider text-muted-foreground uppercase"
+                            >
+                                <th class="p-3">Chương trình</th>
+                                <th class="p-3">Mã</th>
+                                <th class="p-3 text-right">Lượt dùng</th>
+                                <th class="p-3 text-right">Khách riêng biệt</th>
+                                <th class="p-3 text-right">
+                                    Chi phí chiết khấu
+                                </th>
+                                <th class="p-3 text-right">
+                                    Doanh thu tác động
+                                </th>
+                                <th class="p-3 text-right">Giá trị đơn TB</th>
+                                <th class="p-3 text-right">ROI</th>
+                                <th class="p-3 text-right">Vượt quyền</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y">
+                            <tr
+                                v-for="row in metrics.per_promotion"
+                                :key="row.promotion_id"
+                                class="transition-colors hover:bg-muted/20"
+                            >
+                                <td class="p-3 font-bold">{{ row.name }}</td>
+                                <td class="p-3">
+                                    <span
+                                        v-if="row.code"
+                                        class="rounded border border-indigo-100 bg-indigo-50 px-2 py-0.5 font-mono font-bold text-indigo-600 dark:border-indigo-900/40 dark:bg-indigo-950/40 dark:text-indigo-400"
+                                        >{{ row.code }}</span
+                                    >
+                                    <span v-else class="text-muted-foreground"
+                                        >—</span
+                                    >
+                                </td>
+                                <td
+                                    class="p-3 text-right font-mono font-bold tabular-nums"
+                                >
+                                    {{ row.uses }}
+                                </td>
+                                <td
+                                    class="p-3 text-right font-mono text-muted-foreground tabular-nums"
+                                >
+                                    {{ row.unique_customers }}
+                                </td>
+                                <td
+                                    class="p-3 text-right font-mono text-rose-600 tabular-nums"
+                                >
+                                    -{{ formatVND(row.discount_given) }}₫
+                                </td>
+                                <td
+                                    class="p-3 text-right font-mono text-emerald-600 tabular-nums"
+                                >
+                                    {{ formatVND(row.revenue_influenced) }}₫
+                                </td>
+                                <td
+                                    class="p-3 text-right font-mono text-muted-foreground tabular-nums"
+                                >
+                                    {{ formatVND(row.avg_order_value) }}₫
+                                </td>
+                                <td
+                                    class="p-3 text-right font-mono font-bold tabular-nums"
+                                    :class="
+                                        row.roi_percent >= 100
+                                            ? 'text-emerald-600'
+                                            : 'text-amber-600'
+                                    "
+                                >
+                                    {{ row.roi_percent }}%
+                                </td>
+                                <td class="p-3 text-right">
+                                    <span
+                                        v-if="row.bypass_count > 0"
+                                        class="rounded bg-rose-100 px-1.5 py-0.5 font-mono text-[10px] font-black text-rose-700 dark:bg-rose-950/40 dark:text-rose-400"
+                                        title="Số lượt phải dùng mã phê duyệt của quản lý để vượt cảnh báo gian lận"
+                                        >{{ row.bypass_count }}</span
+                                    >
+                                    <span v-else class="text-muted-foreground"
+                                        >—</span
+                                    >
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <p
+                    v-else
+                    class="py-10 text-center text-sm text-muted-foreground"
+                >
+                    Chưa ghi nhận lượt áp mã nào trong khoảng thời gian này.
                 </p>
             </CardContent>
         </Card>

@@ -26,11 +26,11 @@ echo "→ [3/5] Chạy migration..."
 docker compose exec -T app php artisan migrate --force
 
 echo "→ [4/5] Seed dữ liệu hệ thống tối thiểu + tối ưu cache..."
-docker compose exec -T app php artisan db:seed --class=ProductionSeeder --force || true
+docker compose exec -T app php artisan db:seed --class=ProductionSeeder --force
 docker compose exec -T app php artisan optimize
 
 echo "→ [5/5] Kiểm tra sẵn sàng production..."
-docker compose exec -T app php artisan launch:check || true
+docker compose exec -T app php artisan launch:check
 
 echo ""
 echo "✅ Deploy xong. Kiểm tra sức khỏe: curl -f https://<domain>/api/health"

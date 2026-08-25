@@ -1,11 +1,14 @@
 <script setup lang="ts">
 import { Link, usePage } from '@inertiajs/vue3';
-import { AlertTriangle, Bell, Star } from 'lucide-vue-next';
+import { AlertTriangle, BookOpen, Star } from 'lucide-vue-next';
 import { computed, ref } from 'vue';
 import AppearanceToggleInline from '@/components/AppearanceToggleInline.vue';
+import BackButton from '@/components/BackButton.vue';
 import BranchContextSelector from '@/components/BranchContextSelector.vue';
 import Breadcrumbs from '@/components/Breadcrumbs.vue';
+import NotificationCenter from '@/components/NotificationCenter.vue';
 import PlatformFeedbackModal from '@/components/PlatformFeedbackModal.vue';
+import PolicyViewerModal from '@/components/PolicyViewerModal.vue';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {
     DropdownMenu,
@@ -29,8 +32,6 @@ withDefaults(
 
 const page = usePage();
 const user = computed(() => (page.props.auth?.user as User | null) ?? null);
-const flash = computed(() => (page.props as any).flash ?? {});
-const hasFlash = computed(() => !!(flash.value.success || flash.value.error));
 
 const navItems = [
     { label: 'Dashboard', href: '/dashboard' },
@@ -60,22 +61,44 @@ const isSuperAdmin = computed(() =>
         ].includes(role),
     ),
 );
+void isSuperAdmin.value;
+const isOwner = computed(() => roles.value.includes('owner'));
+const isEmployee = computed(() =>
+    roles.value.some((role) =>
+        [
+            'cashier',
+            'waiter',
+            'kitchen',
+            'inventory_staff',
+            'warehouse_staff',
+            'shipper',
+        ].includes(role),
+    ),
+);
 const { isAllBranches } = useBranchContext();
 
 const showFeedbackModal = ref(false);
+const showPolicyModal = ref(false);
 </script>
 
 <template>
     <header
-        class="flex h-16 shrink-0 items-center justify-between border-b border-sidebar-border/70 px-6 transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-12 md:px-4"
+        class="sticky top-0 z-40 flex h-16 shrink-0 items-center justify-between border-b border-sidebar-border/70 bg-background/95 px-6 shadow-sm backdrop-blur transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-12 supports-[backdrop-filter]:bg-background/80 md:px-4"
     >
         <div class="flex items-center gap-2">
             <SidebarTrigger class="-ml-1" />
+            <BackButton
+                variant="ghost"
+                size="sm"
+                :show-label="false"
+                class="h-8 w-8 p-0 text-muted-foreground hover:text-foreground"
+                label="Quay lại trang trước"
+            />
             <template v-if="breadcrumbs && breadcrumbs.length > 0">
                 <Breadcrumbs :breadcrumbs="breadcrumbs" />
             </template>
             <nav
-                v-else-if="user && !isSuperAdminRoute"
+                v-else-if="user && !isSuperAdminRoute && !isEmployee"
                 class="hidden items-center gap-0.5 md:flex"
             >
                 <Link
@@ -95,14 +118,27 @@ const showFeedbackModal = ref(false);
         </div>
 
         <div class="flex items-center gap-4">
+            <!-- Nút Tra cứu nhanh Quy Định & Tiêu Chuẩn dành cho nhân viên (Ẩn ở tài khoản Chủ doanh nghiệp) -->
+            <button
+                v-if="user && !isOwner"
+                @click="showPolicyModal = true"
+                class="flex cursor-pointer items-center gap-1.5 rounded-xl border border-indigo-500/30 bg-indigo-500/10 px-2.5 py-1.5 text-xs font-bold text-indigo-700 shadow-2xs transition-all hover:scale-[1.02] hover:bg-indigo-500/20 dark:text-indigo-300"
+                title="Tra cứu Bộ Quy Định & Tiêu Chuẩn Vận Hành Nhà Hàng"
+            >
+                <BookOpen
+                    class="size-3.5 text-indigo-600 dark:text-indigo-400"
+                />
+                <span class="hidden sm:inline">📜 Quy Định & Tiêu Chuẩn</span>
+            </button>
+
             <!-- The only global branch selector. Non-owners see a read-only context. -->
-            <BranchContextSelector class="mr-2" />
+            <BranchContextSelector v-if="!isEmployee" class="mr-2" />
 
             <AppearanceToggleInline />
 
             <!-- SaaS Service Feedback button (Dành riêng cho Chủ doanh nghiệp / Tenant users) -->
             <button
-                v-if="user && !isSuperAdmin"
+                v-if="user && isOwner"
                 @click="showFeedbackModal = true"
                 class="flex cursor-pointer items-center gap-1.5 rounded-xl border border-amber-500/30 bg-amber-500/10 px-2.5 py-1.5 text-xs font-bold text-amber-600 shadow-2xs transition-all hover:scale-[1.02] hover:bg-amber-500/20 dark:text-amber-400"
                 title="Gửi đánh giá gói dịch vụ & hệ thống Aventura"
@@ -111,18 +147,8 @@ const showFeedbackModal = ref(false);
                 <span class="hidden sm:inline">Đánh giá dịch vụ</span>
             </button>
 
-            <!-- Flash notification indicator -->
-            <button
-                v-if="user"
-                class="relative cursor-pointer rounded-md p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                aria-label="Thông báo"
-            >
-                <Bell class="size-4" />
-                <span
-                    v-if="hasFlash"
-                    class="absolute top-1.5 right-1.5 h-1.5 w-1.5 rounded-full bg-rose-500"
-                />
-            </button>
+            <!-- Notification Center -->
+            <NotificationCenter v-if="user" />
 
             <DropdownMenu v-if="user">
                 <DropdownMenuTrigger as-child>
@@ -153,17 +179,21 @@ const showFeedbackModal = ref(false);
 
     <div
         v-if="isAllBranches"
-        class="mx-4 mt-2 flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5 text-xs font-medium text-amber-800 md:mx-6 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-200"
+        class="mx-4 mt-2 flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm leading-5 font-medium text-amber-800 md:mx-6 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-200"
         role="status"
     >
         <AlertTriangle
-            class="size-4 shrink-0 text-amber-600 dark:text-amber-400"
+            class="mt-0.5 size-4 shrink-0 text-amber-600 dark:text-amber-400"
         />
-        <span>
-            Bạn đang xem dữ liệu <strong>Toàn chuỗi</strong>. Các số liệu đang
-            được tổng hợp từ các chi nhánh.
+        <span class="min-w-0 flex-1">
+            <span class="font-semibold">Bạn đang xem dữ liệu:</span>
+            <strong class="ml-1">Toàn chuỗi.</strong>
+            <span class="ml-1 font-normal"
+                >Các số liệu đang được tổng hợp từ các chi nhánh.</span
+            >
         </span>
     </div>
 
-    <PlatformFeedbackModal v-model:open="showFeedbackModal" />
+    <PlatformFeedbackModal v-if="isOwner" v-model:open="showFeedbackModal" />
+    <PolicyViewerModal v-model:is-open="showPolicyModal" />
 </template>

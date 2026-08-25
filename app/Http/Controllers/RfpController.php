@@ -7,8 +7,9 @@ use App\Models\Ingredient;
 use App\Models\PurchaseOrder;
 use App\Models\RequestForProposal;
 use App\Models\RfpBid;
-use App\Models\RfpItem;
 use App\Models\Supplier;
+use App\Models\User;
+use App\Notifications\SupplierRfpDecisionNotification;
 use App\Services\QuotaService;
 use App\Support\Tenant\TenantContext;
 use Carbon\Carbon;
@@ -16,6 +17,8 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -299,6 +302,25 @@ class RfpController extends Controller
             return back()->withErrors(['error' => $e->getMessage()]);
         }
 
+        $bid->refresh();
+        User::where('restaurant_id', $rfp->restaurant_id)
+            ->where('supplier_id', $bid->supplier_id)
+            ->where('status', 'active')
+            ->get()
+            ->each(fn (User $supplierUser) => $supplierUser->notify(new SupplierRfpDecisionNotification($rfp, $bid, $bid->status === 'accepted')));
+
+        RfpBid::where('rfp_id', $rfp->id)
+            ->where('status', 'rejected')
+            ->where('supplier_id', '!=', $bid->supplier_id)
+            ->get()
+            ->each(function (RfpBid $rejectedBid) use ($rfp, $bid): void {
+                User::where('restaurant_id', $rfp->restaurant_id)
+                    ->where('supplier_id', $rejectedBid->supplier_id)
+                    ->where('status', 'active')
+                    ->get()
+                    ->each(fn (User $supplierUser) => $supplierUser->notify(new SupplierRfpDecisionNotification($rfp, $bid, false)));
+            });
+
         return back()->with('success', 'Đã chấp nhận hồ sơ thầu thắng cuộc. Đơn hàng PO đã được tạo và tự động gửi tới nhà cung cấp.');
     }
 
@@ -337,13 +359,19 @@ class RfpController extends Controller
     {
         $user = $request->user();
         abort_unless($user->hasRole('supplier') && $user->supplier_id, 403);
+        $supplier = Supplier::whereKey($user->supplier_id)->firstOrFail();
+        abort_unless((int) $rfp->restaurant_id === (int) $supplier->restaurant_id, 403);
         abort_unless($rfp->status === 'open' && Carbon::now()->lt($rfp->due_date), 400);
 
         $request->validate([
             'proposed_delivery_date' => ['required', 'date', 'after:now'],
             'notes' => ['nullable', 'string', 'max:500'],
             'items' => ['required', 'array'],
-            'items.*.rfp_item_id' => ['required', 'exists:rfp_items,id'],
+            'items.*.rfp_item_id' => [
+                'required',
+                Rule::exists('rfp_items', 'id')
+                    ->where(fn ($query) => $query->where('rfp_id', $rfp->id)),
+            ],
             'items.*.proposed_price' => ['required', 'numeric', 'min:0'],
         ]);
 
@@ -355,7 +383,12 @@ class RfpController extends Controller
             $itemsData = [];
 
             foreach ($request->input('items') as $item) {
-                $rfpItem = RfpItem::findOrFail($item['rfp_item_id']);
+                // Scope the lookup to the current RFP as a second defense in
+                // depth. A valid item ID from another RFP must never be
+                // attached to this bid.
+                $rfpItem = $rfp->items()
+                    ->whereKey($item['rfp_item_id'])
+                    ->firstOrFail();
                 $price = (float) $item['proposed_price'];
                 $cost = $rfpItem->quantity_required * $price;
                 $totalAmount += $cost;
@@ -391,8 +424,16 @@ class RfpController extends Controller
     {
         $branchId = $this->tenantContext->activeBranchId()
             ?? ($request->user()->isOwner() ? $request->user()->assignedBranchId() : null);
-        abort_if($branchId === null, 422, 'Hãy chọn chi nhánh hiện tại trước khi tạo yêu cầu nhập hàng.');
-        abort_unless($request->user()->canAccessBranch($branchId), 403);
+        if ($branchId === null) {
+            throw ValidationException::withMessages([
+                'branch_id' => 'Hãy chọn chi nhánh hiện tại trước khi tạo yêu cầu nhập hàng.',
+            ]);
+        }
+        if (! $request->user()->canAccessBranch($branchId)) {
+            throw ValidationException::withMessages([
+                'branch_id' => 'Bạn không có quyền truy cập chi nhánh này.',
+            ]);
+        }
 
         return $branchId;
     }

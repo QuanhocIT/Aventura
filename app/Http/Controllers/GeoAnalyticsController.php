@@ -20,6 +20,8 @@ class GeoAnalyticsController extends Controller
 
     public function index(Request $request): Response
     {
+        abort_unless($request->user()->canViewAnalytics(), 403, 'Bạn không có quyền xem dữ liệu phân tích địa lý.');
+
         $restaurant = $request->user()->restaurant;
         if (! $restaurant && ! $request->user()->hasRole('super_admin')) {
             abort(403, 'Không tìm thấy nhà hàng.');
@@ -73,6 +75,8 @@ class GeoAnalyticsController extends Controller
 
     public function apiHeatmap(Request $request): JsonResponse
     {
+        abort_unless($request->user()->canViewAnalytics(), 403, 'Bạn không có quyền xem dữ liệu phân tích địa lý.');
+
         $days = max(1, min(365, (int) ($request->days ?? 30)));
 
         return response()->json($this->geo->getOrderHeatmap($request->user()->restaurant_id, $days));

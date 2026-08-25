@@ -72,6 +72,7 @@ onMounted(() => {
     </div>
 
     <!-- Notifications Drawer Overlay -->
+    <Teleport to="body">
     <div
         v-if="showNotificationDrawer"
         class="fixed inset-0 z-50 flex justify-end bg-black/40 backdrop-blur-xs print:hidden"
@@ -133,4 +134,5 @@ onMounted(() => {
             </div>
         </div>
     </div>
+    </Teleport>
 </template>

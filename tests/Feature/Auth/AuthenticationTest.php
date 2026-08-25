@@ -34,6 +34,29 @@ class AuthenticationTest extends TestCase
         $response->assertRedirect(route('dashboard', absolute: false));
     }
 
+    public function test_supplier_accounts_cannot_authenticate_when_supplier_portal_is_disabled(): void
+    {
+        // Phải tắt tường minh: nếu để test đọc theo .env của máy đang chạy thì
+        // nó xanh hay đỏ tuỳ máy, chứ không phản ánh hành vi của cổng chặn.
+        config(['portal.supplier_portal_enabled' => false]);
+
+        Role::firstOrCreate(['name' => 'supplier', 'guard_name' => 'web']);
+
+        $supplier = User::factory()->create([
+            'status' => 'active',
+            'email_verified_at' => now(),
+        ]);
+        $supplier->assignRole('supplier');
+
+        $response = $this->post(route('login.store'), [
+            'email' => $supplier->email,
+            'password' => 'password',
+        ]);
+
+        $this->assertGuest();
+        $response->assertSessionHasErrors('email');
+    }
+
     public function test_users_with_two_factor_enabled_are_redirected_to_two_factor_challenge()
     {
         $this->skipUnlessFortifyHas(Features::twoFactorAuthentication());
@@ -87,7 +110,7 @@ class AuthenticationTest extends TestCase
     {
         $user = User::factory()->create();
 
-        RateLimiter::increment(md5('login'.implode('|', [$user->email, '127.0.0.1'])), amount: 5);
+        RateLimiter::increment(md5('login'.implode('|', [$user->email, '127.0.0.1'])), amount: 20);
 
         $response = $this->post(route('login.store'), [
             'email' => $user->email,

@@ -35,7 +35,9 @@ class ProductFactory extends Factory
             'is_active' => true,
             'is_available' => true,
             'is_featured' => fake()->boolean(),
-            'track_inventory' => fake()->boolean(),
+            // Factory products are packaged/untracked by default. Tests that
+            // exercise ingredient consumption opt into tracked inventory.
+            'track_inventory' => false,
         ];
     }
 }

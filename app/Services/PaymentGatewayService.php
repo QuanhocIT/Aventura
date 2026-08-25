@@ -33,17 +33,7 @@ class PaymentGatewayService
 
     public function getAvailableGateways(?int $restaurantId = null): array
     {
-        $configured = [];
-
-        foreach ($this->drivers as $key => $driverClass) {
-            $driver = app($driverClass);
-            if ($driver->isConfigured()) {
-                $configured[] = [
-                    'key' => $key,
-                    'name' => $driver->getDisplayName(),
-                ];
-            }
-        }
+        $configured = $this->getConfiguredGateways();
 
         if ($restaurantId) {
             $config = OnlineStoreConfig::withoutGlobalScopes()
@@ -54,6 +44,23 @@ class PaymentGatewayService
                 $accepted = $config->accepted_payments;
                 $configured = array_filter($configured, fn ($g) => in_array($g['key'], $accepted));
                 $configured = array_values($configured);
+            }
+        }
+
+        return $configured;
+    }
+
+    public function getConfiguredGateways(): array
+    {
+        $configured = [];
+
+        foreach ($this->drivers as $key => $driverClass) {
+            $driver = app($driverClass);
+            if ($driver->isConfigured()) {
+                $configured[] = [
+                    'key' => $key,
+                    'name' => $driver->getDisplayName(),
+                ];
             }
         }
 

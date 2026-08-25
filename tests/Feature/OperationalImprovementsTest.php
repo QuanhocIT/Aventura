@@ -20,8 +20,11 @@ use App\Models\Supplier;
 use App\Models\Unit;
 use App\Models\User;
 use App\Models\WorkShift;
+use App\Repositories\OrderRepositoryInterface;
 use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
@@ -93,7 +96,9 @@ class OperationalImprovementsTest extends TestCase
      */
     public function test_inventory_reconcile_updates_quantities_and_creates_transaction()
     {
-        $this->actingAs($this->owner);
+        // Cân bằng tồn kho bị cấm ở phạm vi "Toàn chuỗi" — phải chọn đúng một
+        // chi nhánh trước, giống thao tác thật trên giao diện.
+        $this->actingAs($this->owner)->withSession(['active_branch_id' => $this->branch->id]);
 
         // Giả sử đếm thực tế là 950g (hụt 50g)
         $response = $this->post(route('inventory.reconcile'), [
@@ -210,9 +215,9 @@ class OperationalImprovementsTest extends TestCase
     }
 
     /**
-     * Test 3: Bypass luật nghỉ 11h
+     * Test 3: Xếp ca không bắt buộc đủ 11 giờ nghỉ
      */
-    public function test_schedule_rest_rule_requires_bypass_when_violated()
+    public function test_schedule_allows_assignment_without_rest_bypass()
     {
         $this->actingAs($this->owner);
 
@@ -264,27 +269,15 @@ class OperationalImprovementsTest extends TestCase
             'status' => 'scheduled',
         ]);
 
-        // Cố gắng gán ca sáng cho ngày hôm nay (Wednesday - 2026-06-10)
+        // Gán ca sáng cho ngày hôm nay dù thời gian nghỉ chỉ còn 1 giờ.
         $response = $this->post(route('employees.schedules.store'), [
             'day' => 'Wednesday',
             'employee_name' => $employee->full_name,
             'shift_name' => $shiftMorning->name,
         ]);
 
-        // Phải báo lỗi vi phạm luật 11h
-        $response->assertSessionHasErrors(['shift_name']);
-
-        // Thử lại với mã bypass đúng MANAGER123 và lý do
-        $responseWithBypass = $this->post(route('employees.schedules.store'), [
-            'day' => 'Wednesday',
-            'employee_name' => $employee->full_name,
-            'shift_name' => $shiftMorning->name,
-            'bypass_code' => 'MANAGER123',
-            'bypass_reason' => 'Thiếu nhân viên ca sáng đột xuất',
-        ]);
-
-        $responseWithBypass->assertRedirect();
-        $responseWithBypass->assertSessionHasNoErrors();
+        $response->assertRedirect();
+        $response->assertSessionHasNoErrors();
 
         // Đã phân ca thành công
         $assignment = ScheduleAssignment::where('employee_id', $employee->id)
@@ -293,11 +286,9 @@ class OperationalImprovementsTest extends TestCase
         $this->assertNotNull($assignment);
         $this->assertEquals('2026-06-10', Carbon::parse($assignment->scheduled_date)->toDateString());
 
-        // Đã ghi nhận log bypass
-        $this->assertTrue(AuditLog::where('restaurant_id', $this->restaurant->id)
+        $this->assertFalse(AuditLog::where('restaurant_id', $this->restaurant->id)
             ->where('action', 'schedule_rest_rule_bypass')
-            ->exists()
-        );
+            ->exists());
     }
 
     /**
@@ -495,6 +486,100 @@ class OperationalImprovementsTest extends TestCase
         );
     }
 
+    public function test_paid_order_still_occupies_table_until_all_items_are_served(): void
+    {
+        $this->actingAs($this->owner);
+        $this->post(route('branch.switch'), ['branch_id' => $this->branch->id])->assertRedirect();
+
+        $table = RestaurantTable::factory()->create([
+            'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
+            'status' => 'available', // mô phỏng dữ liệu cũ bị trả bàn sớm sau thanh toán
+        ]);
+        $product = Product::factory()->create([
+            'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
+            'price' => 50000,
+            'is_active' => true,
+            'is_available' => true,
+        ]);
+
+        $order = Order::factory()->create([
+            'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
+            'table_id' => $table->id,
+            'status' => 'completed',
+            'payment_status' => 'paid',
+            'completed_at' => now(),
+        ]);
+        OrderItem::create([
+            'restaurant_id' => $this->restaurant->id,
+            'order_id' => $order->id,
+            'product_id' => $product->id,
+            'quantity' => 1,
+            'unit_price' => 50000,
+            'line_total' => 50000,
+            'status' => 'pending',
+        ]);
+
+        $response = $this->post(route('orders.store'), [
+            'channel' => 'dine_in',
+            'table_id' => $table->id,
+            'items' => [['product_id' => $product->id, 'quantity' => 1]],
+            'guests_count' => 1,
+        ]);
+
+        $response->assertRedirect();
+        $response->assertSessionHasErrors('items');
+        $this->assertSame(1, Order::where('table_id', $table->id)->count());
+    }
+
+    public function test_preparing_queue_hides_a_duplicate_table_order(): void
+    {
+        $oldOrder = Order::factory()->create([
+            'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
+            'table_id' => ($table = RestaurantTable::factory()->create([
+                'restaurant_id' => $this->restaurant->id,
+                'branch_id' => $this->branch->id,
+            ]))->id,
+            'status' => 'completed',
+            'payment_status' => 'paid',
+            'completed_at' => now(),
+        ]);
+        $newOrder = Order::factory()->create([
+            'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
+            'table_id' => $table->id,
+            'status' => 'pending',
+            'payment_status' => 'unpaid',
+        ]);
+        $product = Product::factory()->create(['restaurant_id' => $this->restaurant->id]);
+
+        foreach ([$oldOrder, $newOrder] as $order) {
+            OrderItem::create([
+                'restaurant_id' => $this->restaurant->id,
+                'order_id' => $order->id,
+                'product_id' => $product->id,
+                'quantity' => 1,
+                'unit_price' => 50000,
+                'line_total' => 50000,
+                'status' => 'pending',
+            ]);
+        }
+
+        $orders = app(OrderRepositoryInterface::class)
+            ->getOrdersQuery($this->restaurant->id, [
+                'status' => 'waiting_preparing',
+                'date' => today()->toDateString(),
+                'branch_id' => $this->branch->id,
+            ])->get();
+
+        $this->assertTrue($orders->contains('id', $oldOrder->id));
+        $this->assertFalse($orders->contains('id', $newOrder->id));
+        $this->assertSame($oldOrder->id, $table->fresh()->activeOrder()->value('id'));
+    }
+
     /**
      * Test 6: Trùng lắp client_item_id không tạo OrderItem trùng
      */
@@ -551,9 +636,13 @@ class OperationalImprovementsTest extends TestCase
     }
 
     /**
-     * Test 7: Đối soát PO lệch giá nhưng vẫn tự động cộng kho thực tế
+     * Test 7: Đối soát PO lệch giá/lệch lượng thì đóng băng và KHÔNG cộng kho.
+     *
+     * Đây là chốt chặn [SECURITY P0] trong SupplierController::verifyOrder:
+     * hàng giao lệch không được ghi tăng tồn kho cho tới khi Chủ giải quyết
+     * đóng băng, tránh việc lệch số lượng biến thành tồn kho ảo.
      */
-    public function test_verify_order_adds_to_inventory_despite_discrepancy()
+    public function test_verify_order_freezes_and_does_not_add_inventory_on_discrepancy()
     {
         $this->actingAs($this->owner);
 
@@ -576,7 +665,9 @@ class OperationalImprovementsTest extends TestCase
             'total_cost' => 2000,
         ]);
 
-        // Giả lập giao hàng lệch giá (Listed 20, Invoice 25) -> Sẽ bị frozen
+        // Giả lập giao hàng lệch giá (Listed 20, Invoice 25) -> Sẽ bị frozen.
+        // Có chênh lệch nên BẮT BUỘC ảnh bằng chứng + lý do chênh lệch.
+        Storage::fake('public');
         $response = $this->post(route('suppliers.orders.verify', $po->id), [
             'items' => [
                 [
@@ -586,16 +677,22 @@ class OperationalImprovementsTest extends TestCase
                 ],
             ],
             'rating' => 5,
+            'invoice_file' => UploadedFile::fake()->image('invoice.jpg'),
+            'mismatch_reason' => 'Giao thiếu 10 và giá cao hơn báo giá',
         ]);
 
         $po->refresh();
         $this->assertEquals('frozen', $po->status); // Bị frozen
 
-        // Nhưng kho phải được cộng đúng số thực tế nhận (1000g cũ + 90g nhận = 1090g)
+        $this->assertTrue((bool) $po->is_frozen);
+        $this->assertTrue((bool) $po->is_discrepant);
+
+        // Tồn kho phải giữ nguyên 1000g: 90g nhận thực tế chỉ được ghi nhận
+        // sau khi Chủ xử lý xong đóng băng, không cộng tự động ở bước này.
         $inventory = Inventory::where('restaurant_id', $this->restaurant->id)
             ->where('ingredient_id', $this->ingredient->id)
             ->first();
-        $this->assertEquals(1090.0, $inventory->quantity_on_hand);
+        $this->assertEquals(1000.0, $inventory->quantity_on_hand);
     }
 
     /**

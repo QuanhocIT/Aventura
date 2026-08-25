@@ -10,6 +10,7 @@ use App\Http\Middleware\CompressResponse;
 use App\Http\Middleware\EnforceImpersonateReadOnly;
 use App\Http\Middleware\EnsureBranchContext;
 use App\Http\Middleware\EnsureSecuritySessionFresh;
+use App\Http\Middleware\EnsureSupplierPortalEnabled;
 use App\Http\Middleware\EnsureSuperAdminAccess;
 use App\Http\Middleware\HandleAppearance;
 use App\Http\Middleware\HandleInertiaRequests;
@@ -62,6 +63,7 @@ return Application::configure(basePath: dirname(__DIR__))
 
         $middleware->validateCsrfTokens(except: [
             'webhooks/payments',
+            'webhooks/sepay/bank',
             'api/webhooks/payments/vietqr',
             'api/webhooks/payments/vnpay',
             'api/webhooks/payments/momo',
@@ -89,6 +91,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'tenant.ratelimit' => TenantRateLimit::class,
             'tenant.branch' => EnsureBranchContext::class,
             'tenant.quota' => TenantQuotaMiddleware::class,
+            'supplier.portal' => EnsureSupplierPortalEnabled::class,
             'auth.apikey' => AuthenticateApiKey::class,
             'role' => RoleMiddleware::class,
             'role_or_permission' => RoleOrPermissionMiddleware::class,

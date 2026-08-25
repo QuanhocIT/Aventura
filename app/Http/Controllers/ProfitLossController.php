@@ -15,6 +15,7 @@ class ProfitLossController extends Controller
         $restaurantId = $request->user()->restaurant_id;
 
         abort_unless($restaurantId, 403, 'Không tìm thấy nhà hàng.');
+        abort_unless($request->user()->canViewFinance(), 403, 'Bạn không có quyền xem báo cáo Lãi/Lỗ.');
 
         $data = $request->validate([
             'year' => ['nullable', 'integer', 'min:2020', 'max:2100'],

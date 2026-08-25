@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { usePage } from '@inertiajs/vue3';
+import { router, usePage } from '@inertiajs/vue3';
+import axios from 'axios';
 import {
     Bell,
     X,
@@ -27,6 +28,7 @@ type NotifType =
 
 interface Notification {
     id: number;
+    serverId?: string;
     type: NotifType;
     title: string;
     message: string;
@@ -45,6 +47,7 @@ let nextId = 0;
 
 const unread = computed(() => items.value.filter((n) => !n.read).length);
 const hasUnread = computed(() => unread.value > 0);
+let notificationPollTimer: ReturnType<typeof setInterval> | null = null;
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Helpers
@@ -95,11 +98,52 @@ function markRead(id: number) {
 
     if (notif) {
         notif.read = true;
+
+        if (notif.serverId) {
+            void axios.post(`/notifications/${notif.serverId}/read`).catch(() => undefined);
+        }
     }
 }
 
+function openNotification(id: number) {
+    const notif = items.value.find((n) => n.id === id);
+    markRead(id);
+
+    if (
+        notif?.href &&
+        notif.href !== '/notifications' &&
+        notif.href !== '#' &&
+        notif.href !== ''
+    ) {
+        isOpen.value = false;
+        router.visit(notif.href);
+    }
+}
+
+function handleBellClick() {
+    const auditIssue = items.value.find(
+        (notification) =>
+            !notification.read && notification.href === '/audit-logs',
+    );
+
+    if (auditIssue) {
+        openNotification(auditIssue.id);
+
+        return;
+    }
+
+    isOpen.value = !isOpen.value;
+}
+
 function markAllRead() {
+    const serverIds = items.value
+        .filter((notification) => notification.serverId && !notification.read)
+        .map((notification) => notification.serverId as string);
+
     items.value.forEach((n) => (n.read = true));
+    serverIds.forEach((serverId) => {
+        void axios.post(`/notifications/${serverId}/read`).catch(() => undefined);
+    });
 }
 
 function removeNotif(id: number) {
@@ -107,7 +151,84 @@ function removeNotif(id: number) {
 }
 
 function clearAll() {
+    markAllRead();
     items.value = [];
+}
+
+async function loadDatabaseNotifications() {
+    if (document.hidden) {
+        return;
+    }
+
+    try {
+        const response = await axios.get('/notifications');
+        const notifications = response.data?.notifications ?? [];
+
+        notifications.reverse().forEach((notification: any) => {
+            if (items.value.some((item) => item.serverId === String(notification.id))) {
+                return;
+            }
+
+            let notifType: NotifType = 'info';
+
+            if (
+                notification.type === 'inventory_product_sold_out' ||
+                notification.type === 'kitchen_menu_unavailable'
+            ) {
+                notifType = 'stock';
+            } else if (notification.type === 'order') {
+                notifType = 'order';
+            } else if (
+                notification.action === 'warning' ||
+                notification.type === 'warning'
+            ) {
+                notifType = 'warning';
+            } else if (
+                notification.action === 'error' ||
+                notification.type === 'error'
+            ) {
+                notifType = 'error';
+            } else if (
+                notification.action === 'success' ||
+                notification.type === 'success'
+            ) {
+                notifType = 'success';
+            }
+
+            let defaultTitle = 'Thông báo hệ thống';
+
+            if (notification.type === 'shift_swap') {
+                defaultTitle = 'Đổi ca trực';
+            } else if (notification.type === 'schedule') {
+                defaultTitle = 'Lịch làm việc';
+            } else if (notification.type === 'inventory_product_sold_out') {
+                defaultTitle = 'Món đã hết';
+            } else if (notification.type === 'kitchen_menu_unavailable') {
+                defaultTitle = 'Nguyên liệu tạm hết';
+            }
+
+            addNotification(
+                notifType,
+                notification.title || defaultTitle,
+                notification.message || '',
+                notification.url && notification.url !== '/notifications'
+                    ? notification.url
+                    : undefined,
+            );
+            const created = items.value[0];
+
+            if (created) {
+                created.serverId = String(notification.id);
+                created.read = Boolean(notification.read_at);
+
+                if (notification.created_at) {
+                    created.time = notification.created_at;
+                }
+            }
+        });
+    } catch {
+        // Tránh log lỗi console liên tục khi mất mạng
+    }
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
@@ -115,9 +236,26 @@ function clearAll() {
 // ──────────────────────────────────────────────────────────────────────────────
 import { watch } from 'vue';
 
+let lastNotifFlashMsg = '';
+
 watch(
     () => (page.props as any).flash,
     (flash) => {
+        const currentMsg =
+            flash?.success || flash?.error || flash?.info || flash?.warning || '';
+
+        if (!currentMsg) {
+            lastNotifFlashMsg = '';
+
+            return;
+        }
+
+        if (currentMsg === lastNotifFlashMsg) {
+            return;
+        }
+
+        lastNotifFlashMsg = currentMsg;
+
         if (flash?.success) {
             addNotification('success', 'Thành công', flash.success);
         }
@@ -150,8 +288,13 @@ function onClickOutside(e: MouseEvent) {
 
 onMounted(() => {
     document.addEventListener('mousedown', onClickOutside);
+    void loadDatabaseNotifications();
+    notificationPollTimer = setInterval(() => {
+        void loadDatabaseNotifications();
+    }, 30000);
 
-    if (items.value.length === 0) {
+    // Chỉ hiển thị thông báo thật từ server, không tạo dữ liệu mẫu.
+    if (false && items.value.length === 0) {
         addNotification(
             'stock',
             'Cảnh báo Tồn kho',
@@ -172,7 +315,13 @@ onMounted(() => {
         );
     }
 });
-onUnmounted(() => document.removeEventListener('mousedown', onClickOutside));
+onUnmounted(() => {
+    document.removeEventListener('mousedown', onClickOutside);
+
+    if (notificationPollTimer) {
+        clearInterval(notificationPollTimer);
+    }
+});
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Icon mapping
@@ -209,7 +358,7 @@ defineExpose({ addNotification });
             class="relative rounded-md p-2 transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
             :class="isOpen ? 'bg-muted' : ''"
             aria-label="Thông báo"
-            @click="isOpen = !isOpen"
+            @click="handleBellClick"
         >
             <Bell class="size-4 text-muted-foreground" />
 
@@ -306,7 +455,7 @@ defineExpose({ addNotification });
                                 :key="notif.id"
                                 class="group relative flex cursor-pointer items-start gap-3 border-b border-border/50 px-4 py-3 transition-colors last:border-0 hover:bg-muted/50"
                                 :class="notif.read ? 'opacity-70' : ''"
-                                @click="markRead(notif.id)"
+                                @click="openNotification(notif.id)"
                             >
                                 <!-- Icon -->
                                 <div

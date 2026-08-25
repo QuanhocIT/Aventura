@@ -17,13 +17,6 @@ import {
     X,
 } from 'lucide-vue-next';
 import { computed, ref, watch } from 'vue';
-import {
-    PageHeader,
-    DataTable,
-    StatusBadge,
-    EmptyState,
-} from '@/components/super-admin';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -357,7 +350,7 @@ const hasActiveFilters = computed(
 </script>
 
 <template>
-    <Head title="Chatbot Knowledge Base" />
+    <Head title="Cơ sở tri thức Chatbot" />
 
     <div class="flex flex-col gap-5 px-6 py-5">
         <!-- Header -->
@@ -372,7 +365,7 @@ const hasActiveFilters = computed(
                     <h1
                         class="text-base font-black tracking-wide text-slate-800 dark:text-slate-100"
                     >
-                        Chatbot Knowledge Base
+                        Cơ sở tri thức Chatbot
                     </h1>
                     <p class="text-xs font-semibold text-muted-foreground">
                         Quản lý cơ sở tri thức cho AI chatbot
@@ -387,7 +380,7 @@ const hasActiveFilters = computed(
                         class="h-9 cursor-pointer rounded-xl border-border text-xs font-bold hover:bg-muted"
                     >
                         <FlaskConical class="mr-1.5 size-3.5" />
-                        Diagnostics
+                        Chẩn đoán
                     </Button>
                 </Link>
                 <Button
@@ -397,7 +390,7 @@ const hasActiveFilters = computed(
                     class="h-9 cursor-pointer rounded-xl border-border text-xs font-bold hover:bg-muted"
                 >
                     <RefreshCcw class="mr-1.5 size-3.5" />
-                    Reload Cache
+                    Tải lại bộ nhớ đệm
                 </Button>
                 <Button
                     size="sm"
@@ -405,7 +398,7 @@ const hasActiveFilters = computed(
                     class="h-9 cursor-pointer rounded-xl bg-gradient-to-r from-orange-500 to-amber-500 text-xs font-bold text-white shadow-xs transition-colors hover:from-orange-600 hover:to-amber-600"
                 >
                     <Plus class="mr-1.5 size-4" />
-                    Thêm Q&A
+                    Thêm câu hỏi & trả lời
                 </Button>
             </div>
         </div>
@@ -420,7 +413,7 @@ const hasActiveFilters = computed(
                     <p
                         class="text-[9px] font-black tracking-wider text-muted-foreground uppercase"
                     >
-                        Tổng Q&A
+                        Tổng câu hỏi & trả lời
                     </p>
                     <h3
                         class="mt-1 font-mono text-2xl font-black tracking-tight text-slate-700 dark:text-slate-200"
@@ -935,7 +928,7 @@ const hasActiveFilters = computed(
                             </h4>
                             <span
                                 class="rounded bg-orange-500/10 p-1 text-[10px] font-bold text-orange-500"
-                                >Tỷ lệ Q&A</span
+                                >Tỷ lệ câu hỏi & trả lời</span
                             >
                         </div>
                         <div class="space-y-3.5">
@@ -1002,7 +995,7 @@ const hasActiveFilters = computed(
                             <h4
                                 class="text-xs font-black tracking-wider text-muted-foreground uppercase"
                             >
-                                Đo lường & AI Advisor
+                                Đo lường & Trợ lý AI
                             </h4>
                             <span
                                 class="animate-pulse rounded-full border px-2 py-0.5 text-[9px] font-black uppercase"
@@ -1051,7 +1044,7 @@ const hasActiveFilters = computed(
                             >
                                 <span
                                     class="block text-[9px] font-bold tracking-wider text-muted-foreground uppercase"
-                                    >Độ tắt (Inactive)</span
+                                    >Đang tắt</span
                                 >
                                 <span
                                     class="mt-1 block font-mono text-xs font-black text-slate-800 dark:text-slate-200"
@@ -1138,15 +1131,16 @@ const hasActiveFilters = computed(
                                     <p
                                         class="text-xs font-bold text-slate-800 dark:text-slate-200"
                                     >
-                                        Bổ sung Q&A hệ thống
+                                        Bổ sung câu hỏi & trả lời hệ thống
                                     </p>
                                     <p
                                         class="mt-0.5 text-[10px] leading-normal text-muted-foreground"
                                     >
                                         Số lượng câu hỏi tri thức chatbot còn
-                                        khiêm tốn ({{ stats.total }} Q&As). Hãy
-                                        thêm câu hỏi thuộc nhóm hỗ trợ, kỹ thuật
-                                        hoặc đăng ký để giảm tải ticket.
+                                        khiêm tốn ({{ stats.total }} câu hỏi &
+                                        trả lời). Hãy thêm câu hỏi thuộc nhóm hỗ
+                                        trợ, kỹ thuật hoặc đăng ký để giảm tải
+                                        ticket.
                                     </p>
                                 </div>
                             </div>
@@ -1172,8 +1166,7 @@ const hasActiveFilters = computed(
                                     >
                                         Hệ thống tri thức hoạt động ổn định với
                                         tỷ lệ hữu ích cao. Tiếp tục theo dõi để
-                                        cập nhật thêm các từ khóa (Keywords) mới
-                                        phát sinh.
+                                        cập nhật thêm các từ khóa mới phát sinh.
                                     </p>
                                 </div>
                             </div>
@@ -1193,6 +1186,7 @@ const hasActiveFilters = computed(
         leave-from-class="opacity-100"
         leave-to-class="opacity-0"
     >
+        <Teleport to="body">
         <div
             v-if="showDialog"
             class="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-900/60 p-4 pt-10 backdrop-blur-xs"
@@ -1209,7 +1203,7 @@ const hasActiveFilters = computed(
                         >
                             {{
                                 editingItem
-                                    ? 'Chỉnh sửa Q&A'
+                                    ? 'Chỉnh sửa câu hỏi & trả lời'
                                     : 'Thêm câu hỏi mới'
                             }}
                         </h2>
@@ -1454,5 +1448,6 @@ const hasActiveFilters = computed(
                 </form>
             </div>
         </div>
+        </Teleport>
     </Transition>
 </template>

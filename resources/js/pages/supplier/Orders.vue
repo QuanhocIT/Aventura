@@ -1,10 +1,6 @@
 <script setup lang="ts">
 import { Head, router, useForm, usePage } from '@inertiajs/vue3';
 import {
-    Clock,
-    Truck,
-    CheckCircle,
-    AlertTriangle,
     X,
     Eye,
     Upload,
@@ -12,6 +8,8 @@ import {
 } from 'lucide-vue-next';
 import { computed, onMounted, onUnmounted, ref } from 'vue';
 import { toast } from 'vue-sonner';
+import BackButton from '@/components/BackButton.vue';
+import { updateStatus } from '@/routes/supplier/orders';
 
 const props = defineProps<{
     orders: any[];
@@ -23,7 +21,7 @@ const supplierId = computed(() => (page.props.auth?.user as any)?.supplier_id);
 // Realtime Echo Listener
 onMounted(() => {
     if (window.Echo && supplierId.value) {
-        window.Echo.channel(`supplier.${supplierId.value}`).listen(
+        window.Echo.private(`supplier.${supplierId.value}`).listen(
             '.purchase-order.placed',
             (e: any) => {
                 toast.success(`Đơn đặt hàng PO mới về: ${e.po_number}!`, {
@@ -86,7 +84,7 @@ const submitWorkflow = () => {
     }
 
     router.post(
-        route('supplier.orders.update-status', selectedOrder.value.id),
+        updateStatus.url(selectedOrder.value.id),
         formData as any,
         {
             onSuccess: () => {
@@ -145,13 +143,13 @@ const printOrderSlip = () => {
                 <h2>PHIẾU BÀN GIAO & ĐÓNG GÓI VẬT TƯ</h2>
                 <p>Số đơn hàng: <strong>${selectedOrder.value.po_number}</strong></p>
             </div>
-            
+
             <div class="details">
                 <p><strong>Ngày đặt hàng:</strong> ${selectedOrder.value.created_at}</p>
                 <p><strong>Trạng thái vận đơn:</strong> ${selectedOrder.value.status.toUpperCase()}</p>
                 <p><strong>Trạng thái thanh toán:</strong> ${selectedOrder.value.payment_status.toUpperCase()}</p>
             </div>
-            
+
             <table>
                 <thead>
                     <tr>
@@ -165,14 +163,14 @@ const printOrderSlip = () => {
                     ${itemsHtml}
                 </tbody>
             </table>
-            
+
             <h3 style="text-align: right; margin-top: 20px;">Tổng tiền thanh toán: ${selectedOrder.value.total_amount.toLocaleString('vi-VN')}đ</h3>
-            
+
             <div class="signature-section">
                 <div class="signature-box">Nhân viên kho giao hàng<br><small>(Ký và ghi rõ họ tên)</small></div>
                 <div class="signature-box">Thủ kho tiếp nhận<br><small>(Ký và ghi rõ họ tên)</small></div>
             </div>
-            
+
             <div class="footer">
                 <p>Cổng chuỗi cung ứng tự động Aventura SaaS — Giải pháp quản trị nhà hàng chuyên sâu</p>
             </div>
@@ -189,6 +187,7 @@ const printOrderSlip = () => {
     <div class="mx-auto max-w-7xl space-y-6 px-6 py-8 text-slate-100">
         <!-- Header -->
         <div class="border-b border-slate-800 pb-6">
+            <BackButton fallback-href="/supplier/dashboard" label="Trang chủ" class="mb-3" />
             <h1
                 class="bg-gradient-to-r from-emerald-400 to-teal-300 bg-clip-text text-3xl font-extrabold tracking-tight text-transparent"
             >
@@ -367,6 +366,7 @@ const printOrderSlip = () => {
         </div>
 
         <!-- Detail Modal -->
+        <Teleport to="body">
         <div
             v-if="showDetailModal"
             class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
@@ -493,8 +493,10 @@ const printOrderSlip = () => {
                 </div>
             </div>
         </div>
+        </Teleport>
 
         <!-- Workflow Update Modal -->
+        <Teleport to="body">
         <div
             v-if="showWorkflowModal"
             class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
@@ -596,5 +598,6 @@ const printOrderSlip = () => {
                 </form>
             </div>
         </div>
+        </Teleport>
     </div>
 </template>

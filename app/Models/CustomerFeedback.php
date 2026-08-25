@@ -7,6 +7,7 @@ use App\Services\SentimentAnalysisService;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Str;
 
 class CustomerFeedback extends Model
 {
@@ -27,6 +28,12 @@ class CustomerFeedback extends Model
 
     protected static function booted(): void
     {
+        static::creating(function (self $feedback): void {
+            if (blank($feedback->feedback_token)) {
+                $feedback->feedback_token = Str::random(64);
+            }
+        });
+
         static::saving(function (self $feedback) {
             if (! $feedback->isDirty('content') && $feedback->exists) {
                 return;
@@ -41,6 +48,11 @@ class CustomerFeedback extends Model
     public function order(): BelongsTo
     {
         return $this->belongsTo(Order::class, 'order_id');
+    }
+
+    public function restaurant(): BelongsTo
+    {
+        return $this->belongsTo(Restaurant::class, 'restaurant_id');
     }
 
     public function customer(): BelongsTo

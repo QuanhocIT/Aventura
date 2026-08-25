@@ -217,6 +217,10 @@ class UpgradeProposalsValidationTest extends TestCase
      */
     public function test_feature_gate_page_redirection_for_restricted_features(): void
     {
+        // Cổng Nhà cung cấp mặc định TẮT; route /rfps nằm sau middleware
+        // EnsureSupplierPortalEnabled nên phải bật tường minh, không dựa vào .env máy chạy.
+        config(['portal.supplier_portal_enabled' => true]);
+
         // 1. Kitchen Display (requires basicPlan)
         $response = $this->actingAs($this->owner)->get('/kitchen');
         $response->assertOk();

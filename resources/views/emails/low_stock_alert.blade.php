@@ -1,4 +1,4 @@
-<div style='font-family:sans-serif;max-width:600px;margin:auto;padding:32px;background:#fff;border-radius:12px;border:2px solid #fca5a5'>
+<div style="font-family:'Times New Roman',Times,serif;max-width:600px;margin:auto;padding:32px;background:#fff;border-radius:12px;border:2px solid #fca5a5">
     <h2 style='color:#dc2626'>🚨 Cảnh báo tồn kho thấp</h2>
     <p>Nhà hàng <strong>{{ $restaurant_name ?? 'Nhà hàng' }}</strong> có <strong>{{ count($items ?? []) }} nguyên liệu</strong> cần đặt hàng gấp:</p>
     <table style='width:100%;border-collapse:collapse;margin:16px 0'>

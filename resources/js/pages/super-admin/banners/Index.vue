@@ -13,7 +13,7 @@ import {
     Upload,
 } from 'lucide-vue-next';
 import { ref, computed } from 'vue';
-import { PageHeader, StatusBadge, EmptyState } from '@/components/super-admin';
+import { PageHeader } from '@/components/super-admin';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -48,13 +48,13 @@ const activeSlot = ref<'hero' | 'promo'>('hero');
 const slots = [
     {
         key: 'hero',
-        label: 'Hero Banner',
+        label: 'Biểu ngữ chính',
         hint: '1920 × 600px',
         color: 'from-violet-500 to-indigo-600',
     },
     {
         key: 'promo',
-        label: 'Promo Banner',
+        label: 'Biểu ngữ khuyến mãi',
         hint: '1200 × 300px',
         color: 'from-amber-500 to-orange-600',
     },
@@ -137,7 +137,7 @@ async function deleteBanner(banner: Banner) {
     if (
         !(await confirmDialog({
             title: 'Xác nhận thao tác',
-            description: `Xóa banner "${banner.title || 'này'}"?`,
+            description: `Xóa biểu ngữ "${banner.title || 'này'}"?`,
         }))
     ) {
         return;
@@ -269,14 +269,14 @@ const currentSlotMeta = computed(
 </script>
 
 <template>
-    <Head title="Quản lý Banner" />
+    <Head title="Quản lý biểu ngữ" />
 
     <div class="flex flex-col gap-5 px-6 py-5">
         <div class="space-y-6">
             <!-- Header -->
             <PageHeader
-                title="Quản lý Banner & Slideshow"
-                subtitle="Upload ảnh để thay đổi giao diện trang khách hàng mà không cần đụng code."
+                title="Quản lý biểu ngữ & trình chiếu"
+                subtitle="Tải ảnh lên để thay đổi giao diện trang khách hàng mà không cần chỉnh mã nguồn."
                 :icon="ImageIcon"
             />
 
@@ -455,8 +455,8 @@ const currentSlotMeta = computed(
                             <Upload class="mr-2 h-4 w-4" />
                             {{
                                 form.processing
-                                    ? 'Đang upload...'
-                                    : 'Thêm banner'
+                                    ? 'Đang tải lên...'
+                                    : 'Thêm biểu ngữ'
                             }}
                         </Button>
                     </CardContent>
@@ -466,7 +466,7 @@ const currentSlotMeta = computed(
                 <Card class="border-border bg-card shadow-xs">
                     <CardHeader>
                         <CardTitle class="text-base text-foreground">
-                            Banner hiện tại
+                            Biểu ngữ hiện tại
                             <Badge
                                 class="ml-2 bg-muted-foreground/15 font-bold text-muted-foreground"
                                 >{{ filteredBanners.length }}</Badge
@@ -479,7 +479,7 @@ const currentSlotMeta = computed(
                             class="flex flex-col items-center justify-center py-12 text-muted-foreground/60"
                         >
                             <ImageIcon class="mb-2 h-10 w-10" />
-                            <p class="text-sm">Chưa có banner nào</p>
+                            <p class="text-sm">Chưa có biểu ngữ nào</p>
                         </div>
 
                         <div v-else class="space-y-3">
@@ -564,7 +564,7 @@ const currentSlotMeta = computed(
                                     <!-- Edit -->
                                     <button
                                         @click="openEdit(banner)"
-                                        title="Sửa banner"
+                                        title="Sửa biểu ngữ"
                                         class="cursor-pointer rounded-lg p-1.5 text-muted-foreground transition hover:bg-muted hover:text-foreground"
                                     >
                                         <Pencil class="h-4 w-4" />
@@ -574,8 +574,8 @@ const currentSlotMeta = computed(
                                         @click="toggleActive(banner)"
                                         :title="
                                             banner.is_active
-                                                ? 'Ẩn banner'
-                                                : 'Hiển thị banner'
+                                                ? 'Ẩn biểu ngữ'
+                                                : 'Hiển thị biểu ngữ'
                                         "
                                         class="cursor-pointer rounded-lg p-1.5 transition"
                                         :class="
@@ -593,7 +593,7 @@ const currentSlotMeta = computed(
                                     <!-- Delete -->
                                     <button
                                         @click="deleteBanner(banner)"
-                                        title="Xóa banner"
+                                        title="Xóa biểu ngữ"
                                         class="cursor-pointer rounded-lg p-1.5 text-rose-500 transition hover:bg-rose-50 dark:hover:bg-rose-950/20"
                                     >
                                         <Trash2 class="h-4 w-4" />
@@ -610,15 +610,15 @@ const currentSlotMeta = computed(
                 class="rounded-2xl border border-border bg-card p-4 text-xs text-muted-foreground"
             >
                 <span class="font-bold text-foreground">Lưu ý:</span>
-                Banner sẽ hiển thị ngay trên trang
+                Biểu ngữ sẽ hiển thị ngay trên trang
                 <a
                     href="/"
                     target="_blank"
                     class="text-indigo-650 font-semibold hover:underline dark:text-indigo-400"
                     >trang chủ</a
                 >
-                sau khi upload. Nếu có nhiều banner cùng slot, sẽ tự động chạy
-                slideshow (đổi ảnh mỗi 4 giây).
+                sau khi tải lên. Nếu có nhiều biểu ngữ cùng vị trí, sẽ tự động
+                chạy slideshow (đổi ảnh mỗi 4 giây).
             </div>
         </div>
     </div>
@@ -636,7 +636,7 @@ const currentSlotMeta = computed(
             class="rounded-3xl border border-border bg-card text-foreground sm:max-w-md"
         >
             <DialogHeader>
-                <DialogTitle class="text-foreground">Sửa Banner</DialogTitle>
+                <DialogTitle class="text-foreground">Sửa biểu ngữ</DialogTitle>
             </DialogHeader>
 
             <div class="space-y-4 py-2">

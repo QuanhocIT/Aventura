@@ -13,7 +13,6 @@ import {
     CreditCard,
     Ban,
     TrendingUp,
-    AlertTriangle,
     Activity,
     Sparkles,
     ThumbsUp,
@@ -27,10 +26,7 @@ import {
     Phone,
     MapPin,
     Hash,
-    Tag,
-    X,
     Check,
-    Globe,
 } from 'lucide-vue-next';
 import { ref, watch, computed } from 'vue';
 import { toast } from 'vue-sonner';
@@ -232,6 +228,7 @@ function quotaPercent(used: number, limit: number | null) {
 
     return Math.round((used / limit) * 100);
 }
+void quotaPercent;
 
 function getChurnRisk(restaurantId: number) {
     return props.aiInsights?.churn_risks?.find(
@@ -624,7 +621,7 @@ function submitStatus() {
                         >
                             <span
                                 class="text-[10px] font-bold text-muted-foreground uppercase"
-                                >Trial đang chạy</span
+                                >Đang dùng thử</span
                             >
                             <span
                                 class="mt-1 text-lg font-black text-foreground tabular-nums"
@@ -1171,7 +1168,7 @@ function submitStatus() {
                         <div class="col-span-2 grid gap-1.5">
                             <Label
                                 class="flex items-center gap-1 text-xs font-bold tracking-wider text-muted-foreground uppercase"
-                                >Email nhà hàng</Label
+                                >Thư điện tử nhà hàng</Label
                             >
                             <div class="relative flex items-center">
                                 <div

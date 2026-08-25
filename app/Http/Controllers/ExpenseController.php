@@ -2,22 +2,32 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\BranchExpenseBudget;
 use App\Models\ExpenseCategory;
 use App\Models\OperatingExpense;
 use App\Models\RecurringExpense;
+use App\Services\CashPostingService;
+use App\Services\ExpenseBudgetService;
+use App\Services\FinancialPostingService;
 use App\Services\ProfitLossService;
 use App\Services\QuotaService;
 use App\Support\Tenant\TenantContext;
 use App\Support\TenantRule;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 
 class ExpenseController extends Controller
 {
-    public function __construct(private TenantContext $tenantContext) {}
+    public function __construct(
+        private TenantContext $tenantContext,
+        private CashPostingService $cashPostingService,
+        private FinancialPostingService $financialPostingService,
+    ) {}
 
     /**
      * Display a listing of the resources.
@@ -83,9 +93,11 @@ class ExpenseController extends Controller
 
         // Total sum
         $totalThisMonth = (float) OperatingExpense::whereBetween('expense_date', [$thisMonthStart, $thisMonthEnd])
+            ->whereIn('status', ['approved', 'paid'])
             ->when($branchId !== null, fn ($query) => $query->where('branch_id', $branchId))
             ->sum('amount');
         $totalLastMonth = (float) OperatingExpense::whereBetween('expense_date', [$lastMonthStart, $lastMonthEnd])
+            ->whereIn('status', ['approved', 'paid'])
             ->when($branchId !== null, fn ($query) => $query->where('branch_id', $branchId))
             ->sum('amount');
 
@@ -99,6 +111,7 @@ class ExpenseController extends Controller
 
         // Recurring share ratio
         $recurringTotalThisMonth = (float) OperatingExpense::whereBetween('expense_date', [$thisMonthStart, $thisMonthEnd])
+            ->whereIn('status', ['approved', 'paid'])
             ->whereNotNull('recurring_expense_id')
             ->when($branchId !== null, fn ($query) => $query->where('branch_id', $branchId))
             ->sum('amount');
@@ -111,6 +124,7 @@ class ExpenseController extends Controller
             $mStart = $monthDate->copy()->startOfMonth()->toDateString();
             $mEnd = $monthDate->copy()->endOfMonth()->toDateString();
             $mAmount = (float) OperatingExpense::whereBetween('expense_date', [$mStart, $mEnd])
+                ->whereIn('status', ['approved', 'paid'])
                 ->when($branchId !== null, fn ($query) => $query->where('branch_id', $branchId))
                 ->sum('amount');
             $sixMonthsMom[] = [
@@ -122,6 +136,7 @@ class ExpenseController extends Controller
 
         // Category breakdown this month
         $rawBreakdown = OperatingExpense::whereBetween('expense_date', [$thisMonthStart, $thisMonthEnd])
+            ->whereIn('status', ['approved', 'paid'])
             ->when($branchId !== null, fn ($query) => $query->where('branch_id', $branchId))
             ->select('category_id', DB::raw('SUM(amount) as total_amount'))
             ->groupBy('category_id')
@@ -153,6 +168,40 @@ class ExpenseController extends Controller
             'category_breakdown' => $categoryBreakdown,
         ];
 
+        // ── Hạn mức chi tiêu chi nhánh ───────────────────────────────────────────
+        $budgetService = app(ExpenseBudgetService::class);
+        $budgetMonth = Carbon::create((int) $year, (int) $month, 1);
+        $isOwner = $user->hasRole('owner') || $user->isSuperAdmin();
+
+        $expenseBudget = null;
+        if ($branchId) {
+            $b = $budgetService->budgetFor($restaurantId, $branchId, $budgetMonth);
+            $expenseBudget = [
+                'has_budget' => (bool) $b,
+                'budget_amount' => $b ? (float) $b->budget_amount : null,
+                'require_receipt' => $b ? (bool) $b->require_receipt : false,
+                'committed' => $budgetService->committedThisMonth($restaurantId, $branchId, $budgetMonth),
+                'remaining' => $budgetService->remaining($restaurantId, $branchId, $budgetMonth),
+                'month' => $budgetMonth->format('m/Y'),
+            ];
+        }
+
+        // Chủ: danh sách hạn mức mọi chi nhánh trong tháng để quản lý.
+        $branchBudgets = [];
+        if ($isOwner && $restaurant) {
+            foreach ($restaurant->branches()->get(['id', 'name']) as $br) {
+                $b = $budgetService->budgetFor($restaurantId, $br->id, $budgetMonth);
+                $branchBudgets[] = [
+                    'branch_id' => $br->id,
+                    'branch_name' => $br->name,
+                    'budget_amount' => $b ? (float) $b->budget_amount : null,
+                    'require_receipt' => $b ? (bool) $b->require_receipt : true,
+                    'committed' => $budgetService->committedThisMonth($restaurantId, $br->id, $budgetMonth),
+                    'remaining' => $budgetService->remaining($restaurantId, $br->id, $budgetMonth),
+                ];
+            }
+        }
+
         return Inertia::render('expenses/Index', [
             'expenses' => $expenses,
             'recurringExpenses' => $recurringExpenses,
@@ -171,7 +220,48 @@ class ExpenseController extends Controller
                 'scope' => $this->tenantContext->scope(),
                 'active_branch_id' => $branchId,
             ],
+            'expenseBudget' => $expenseBudget,
+            'branchBudgets' => $branchBudgets,
+            'canManageBudget' => $isOwner,
+            'canManageExpenses' => $isOwner,
+            'canSubmitExpenses' => $isOwner || ($user->hasRole('manager') && (bool) ($expenseBudget['has_budget'] ?? false)),
+            'canApproveExpenses' => $isOwner,
         ]);
+    }
+
+    /**
+     * Chủ đặt/cập nhật hạn mức chi tiêu tháng cho một chi nhánh.
+     */
+    public function storeBranchBudget(Request $request)
+    {
+        $user = $request->user();
+        abort_unless($user->hasRole('owner') || $user->isSuperAdmin(), 403, 'Chỉ Chủ được đặt hạn mức chi tiêu.');
+
+        $data = $request->validate([
+            'branch_id' => ['required', TenantRule::exists('restaurant_branches')],
+            'budget_amount' => ['required', 'numeric', 'min:0'],
+            'require_receipt' => ['sometimes', 'boolean'],
+            'effective_month' => ['nullable', 'date'],
+            'notes' => ['nullable', 'string', 'max:255'],
+        ]);
+
+        $month = Carbon::parse($data['effective_month'] ?? now())->startOfMonth();
+
+        BranchExpenseBudget::updateOrCreate(
+            [
+                'restaurant_id' => $user->restaurant_id,
+                'branch_id' => $data['branch_id'],
+                'effective_month' => $month->toDateString(),
+            ],
+            [
+                'budget_amount' => $data['budget_amount'],
+                'require_receipt' => (bool) ($data['require_receipt'] ?? true),
+                'notes' => $data['notes'] ?? null,
+                'created_by' => $user->id,
+            ]
+        );
+
+        return back()->with('success', 'Đã lưu hạn mức chi tiêu chi nhánh tháng '.$month->format('m/Y').'.');
     }
 
     /**
@@ -179,7 +269,7 @@ class ExpenseController extends Controller
      */
     public function store(Request $request)
     {
-        abort_unless($request->user()->hasAnyRole(['owner', 'manager']), 403);
+        $this->authorizeExpenseMutation($request, true);
 
         $data = $request->validate([
             'category_id' => ['nullable', TenantRule::exists('expense_categories')],
@@ -188,6 +278,33 @@ class ExpenseController extends Controller
             'description' => ['nullable', 'string', 'max:1000'],
             'invoice' => ['nullable', 'file', 'mimes:jpeg,png,jpg,pdf', 'max:5120'], // Max 5MB
         ]);
+
+        $user = $request->user();
+        $restaurantId = $user->restaurant_id;
+        $branchId = $this->tenantContext->activeBranchId();
+        $isOwner = $user->hasRole('owner') || $user->isSuperAdmin();
+
+        // ── Hạn mức chi tiêu chi nhánh (do Chủ đặt) ──────────────────────────────
+        // Quản lý: (1) BẮT BUỘC hoá đơn nếu hạn mức yêu cầu; (2) không được vượt hạn mức.
+        // Chủ: được phép vượt (tự chịu trách nhiệm) nhưng vẫn hiển thị cảnh báo ở UI.
+        $budgetService = app(ExpenseBudgetService::class);
+        $month = Carbon::parse($data['expense_date']);
+        $budget = $budgetService->budgetFor($restaurantId, $branchId, $month);
+
+        if (! $isOwner && $budget) {
+            if ($budget->require_receipt && ! $request->hasFile('invoice')) {
+                throw ValidationException::withMessages([
+                    'invoice' => 'Chi nhánh này yêu cầu ĐÍNH KÈM HOÁ ĐƠN cho mọi khoản chi.',
+                ]);
+            }
+            if (! $budgetService->canFit($restaurantId, $branchId, (float) $data['amount'], $month)) {
+                $remaining = max(0.0, (float) $budgetService->remaining($restaurantId, $branchId, $month));
+                throw ValidationException::withMessages([
+                    'amount' => 'Vượt hạn mức chi tiêu chi nhánh tháng '.$month->format('m/Y').'. Còn lại '
+                        .number_format($remaining).'đ, khoản này '.number_format((float) $data['amount']).'đ. Đề nghị Chủ tăng hạn mức.',
+                ]);
+            }
+        }
 
         $invoicePath = null;
         if ($request->hasFile('invoice')) {
@@ -198,11 +315,12 @@ class ExpenseController extends Controller
         OperatingExpense::create([
             'restaurant_id' => $request->user()->restaurant_id,
             'branch_id' => $this->tenantContext->activeBranchId(),
-            'category_id' => $data['category_id'],
+            'category_id' => $data['category_id'] ?? null,
             'amount' => $data['amount'],
             'expense_date' => $data['expense_date'],
             'description' => $data['description'] ?? null,
             'invoice_path' => $invoicePath,
+            'status' => 'draft',
             'created_by' => $request->user()->id,
         ]);
 
@@ -214,9 +332,13 @@ class ExpenseController extends Controller
      */
     public function update(Request $request, OperatingExpense $expense)
     {
-        abort_unless($request->user()->hasAnyRole(['owner', 'manager']), 403);
+        $this->authorizeExpenseMutation($request);
         abort_if($expense->restaurant_id !== $request->user()->restaurant_id, 403);
         abort_unless($request->user()->canAccessBranch($expense->branch_id), 403);
+
+        if (in_array($expense->status, ['approved', 'paid'])) {
+            abort(403, 'Chi phí đã được phê duyệt hoặc thanh toán không thể sửa trực tiếp. Hãy tạo chứng từ đảo hoặc điều chỉnh.');
+        }
 
         $data = $request->validate([
             'category_id' => ['nullable', TenantRule::exists('expense_categories')],
@@ -227,28 +349,30 @@ class ExpenseController extends Controller
         ]);
 
         if ($request->hasFile('invoice')) {
-            // Delete old invoice file if exists
             if ($expense->invoice_path && str_starts_with($expense->invoice_path, '/storage/')) {
                 $oldPath = str_replace('/storage/', '', $expense->invoice_path);
                 Storage::disk('public')->delete($oldPath);
             }
-            $path = $request->file('invoice')->store('invoices', 'public');
-            $data['invoice_path'] = '/storage/'.$path;
+            $path = $request->file('invoice')->store('invoices', 'local');
+            $data['invoice_path'] = $path;
         }
+
+        unset($data['invoice']);
 
         $expense->update($data);
 
         return back()->with('success', 'Đã cập nhật thông tin chi phí.');
     }
 
-    /**
-     * Delete an operating expense.
-     */
     public function destroy(Request $request, OperatingExpense $expense)
     {
-        abort_unless($request->user()->hasAnyRole(['owner', 'manager']), 403);
+        $this->authorizeExpenseMutation($request);
         abort_if($expense->restaurant_id !== $request->user()->restaurant_id, 403);
         abort_unless($request->user()->canAccessBranch($expense->branch_id), 403);
+
+        if (in_array($expense->status, ['approved', 'paid'])) {
+            abort(403, 'Chi phí đã được phê duyệt hoặc thanh toán không thể xóa trực tiếp. Hãy tạo chứng từ đảo hoặc điều chỉnh.');
+        }
 
         if ($expense->invoice_path && str_starts_with($expense->invoice_path, '/storage/')) {
             $oldPath = str_replace('/storage/', '', $expense->invoice_path);
@@ -260,12 +384,126 @@ class ExpenseController extends Controller
         return back()->with('success', 'Đã xóa khoản chi phí thành công.');
     }
 
+    public function approveExpense(Request $request, OperatingExpense $expense)
+    {
+        $this->authorizeExpenseApproval($request);
+        abort_if($expense->restaurant_id !== $request->user()->restaurant_id, 403);
+        abort_unless($request->user()->canAccessBranch($expense->branch_id), 403);
+        abort_unless(in_array($expense->status, ['draft', 'rejected'], true), 422, 'Chỉ chi phí nháp hoặc bị từ chối mới được duyệt.');
+
+        $expense->update([
+            'status' => 'approved',
+            'approved_by' => $request->user()->id,
+            'approved_at' => now(),
+            'rejected_by' => null,
+            'rejected_at' => null,
+            'rejection_reason' => null,
+        ]);
+
+        return back()->with('success', 'Đã phê duyệt chứng từ chi phí thành công.');
+    }
+
     /**
      * Create a recurring expense configuration.
      */
+    public function rejectExpense(Request $request, OperatingExpense $expense)
+    {
+        $this->authorizeExpenseApproval($request);
+        abort_if($expense->restaurant_id !== $request->user()->restaurant_id, 403);
+        abort_unless($request->user()->canAccessBranch($expense->branch_id), 403);
+        abort_unless(in_array($expense->status, ['draft', 'approved'], true), 422, 'Chi phí đã thanh toán không thể từ chối.');
+
+        $data = $request->validate(['reason' => ['required', 'string', 'max:1000']]);
+        $expense->update([
+            'status' => 'rejected',
+            'rejected_by' => $request->user()->id,
+            'rejected_at' => now(),
+            'rejection_reason' => $data['reason'],
+            'approved_by' => null,
+            'approved_at' => null,
+        ]);
+
+        return back()->with('success', 'Đã từ chối chứng từ chi phí.');
+    }
+
+    public function payExpense(Request $request, OperatingExpense $expense)
+    {
+        $this->authorizeExpenseApproval($request);
+        abort_if($expense->restaurant_id !== $request->user()->restaurant_id, 403);
+        abort_unless($request->user()->canAccessBranch($expense->branch_id), 403);
+        abort_unless($expense->status === 'approved', 422, 'Chỉ chi phí đã duyệt mới được thanh toán.');
+
+        $data = $request->validate([
+            'payment_method' => ['required', 'in:cash,bank_transfer'],
+            'payment_reference' => ['nullable', 'string', 'max:150'],
+        ]);
+
+        DB::transaction(function () use ($expense, $data, $request): void {
+            $lockedExpense = OperatingExpense::withoutGlobalScopes()->lockForUpdate()->findOrFail($expense->id);
+            abort_unless($lockedExpense->status === 'approved', 422, 'Chi phí đã được xử lý.');
+            $amount = (float) $lockedExpense->amount;
+            $idempotencyKey = 'expense-payment:'.$lockedExpense->id;
+
+            $taxAmount = (float) ($lockedExpense->tax_amount ?? 0);
+            $netAmount = max(0.0, $amount - $taxAmount);
+
+            $postingLines = $taxAmount > 0 && $netAmount > 0 ? [
+                ['account' => '6271', 'debit' => $netAmount, 'credit' => 0],
+                ['account' => '3331', 'debit' => $taxAmount, 'credit' => 0],
+                ['account' => $data['payment_method'] === 'cash' ? '1111' : '1121', 'debit' => 0, 'credit' => $amount],
+            ] : [
+                ['account' => '6271', 'debit' => $amount, 'credit' => 0],
+                ['account' => $data['payment_method'] === 'cash' ? '1111' : '1121', 'debit' => 0, 'credit' => $amount],
+            ];
+
+            if ($data['payment_method'] === 'cash') {
+                $this->cashPostingService->record([
+                    'restaurant_id' => $lockedExpense->restaurant_id,
+                    'branch_id' => $lockedExpense->branch_id,
+                    'type' => 'out',
+                    'amount' => $amount,
+                    'source' => 'expense',
+                    'reference_id' => $lockedExpense->id,
+                    'reference_type' => OperatingExpense::class,
+                    'idempotency_key' => $idempotencyKey,
+                    'lines' => $postingLines,
+                    'journal_source_type' => OperatingExpense::class,
+                    'journal_source_id' => $lockedExpense->id,
+                    'notes' => 'Thanh toán chi phí #'.$lockedExpense->id,
+                    'created_by' => $request->user()->id,
+                    'occurred_at' => now(),
+                ]);
+            } else {
+                $this->financialPostingService->post([
+                    'restaurant_id' => $lockedExpense->restaurant_id,
+                    'branch_id' => $lockedExpense->branch_id,
+                    'entry_date' => today(),
+                    'source_type' => OperatingExpense::class,
+                    'source_id' => $lockedExpense->id,
+                    'idempotency_key' => $idempotencyKey,
+                    'description' => 'Thanh toán chi phí #'.$lockedExpense->id,
+                    'created_by' => $request->user()->id,
+                    'posted_by' => $request->user()->id,
+                    'metadata' => ['payment_method' => 'bank_transfer', 'payment_reference' => $data['payment_reference'] ?? null],
+                    'lines' => $postingLines,
+                ]);
+            }
+
+            $lockedExpense->update([
+                'status' => 'paid',
+                'paid_by' => $request->user()->id,
+                'paid_at' => now(),
+                'payment_method' => $data['payment_method'],
+                'payment_reference' => $data['payment_reference'] ?? null,
+            ]);
+        });
+
+        return back()->with('success', 'Đã ghi nhận thanh toán chi phí.');
+    }
+
     public function storeRecurring(Request $request)
     {
-        abort_unless($request->user()->hasAnyRole(['owner', 'manager']), 403);
+        $this->authorizeExpenseMutation($request);
 
         $data = $request->validate([
             'category_id' => ['required', TenantRule::exists('expense_categories')],
@@ -298,7 +536,7 @@ class ExpenseController extends Controller
      */
     public function updateRecurring(Request $request, RecurringExpense $recurring)
     {
-        abort_unless($request->user()->hasAnyRole(['owner', 'manager']), 403);
+        $this->authorizeExpenseMutation($request);
         abort_if($recurring->restaurant_id !== $request->user()->restaurant_id, 403);
         abort_unless($request->user()->canAccessBranch($recurring->branch_id), 403);
 
@@ -323,7 +561,7 @@ class ExpenseController extends Controller
      */
     public function destroyRecurring(Request $request, RecurringExpense $recurring)
     {
-        abort_unless($request->user()->hasAnyRole(['owner', 'manager']), 403);
+        $this->authorizeExpenseMutation($request);
         abort_if($recurring->restaurant_id !== $request->user()->restaurant_id, 403);
         abort_unless($request->user()->canAccessBranch($recurring->branch_id), 403);
 
@@ -365,5 +603,52 @@ class ExpenseController extends Controller
         $category->delete();
 
         return back()->with('success', 'Đã xóa danh mục chi phí tùy chỉnh.');
+    }
+
+    /**
+     * Chi phí vận hành là sổ tài chính, không phải dữ liệu vận hành của
+     * Quản lý chi nhánh. Nhân viên chỉ được xem và báo cáo; Chủ doanh nghiệp
+     * là người duy nhất ghi/sửa/xóa số tiền hoặc lịch chi phí.
+     */
+    private function authorizeExpenseApproval(Request $request): void
+    {
+        abort_unless(
+            $request->user()->isOwner() || $request->user()->isSuperAdmin(),
+            403,
+            'Chỉ Chủ doanh nghiệp mới được duyệt hoặc thanh toán chi phí.'
+        );
+    }
+
+    private function authorizeExpenseMutation(Request $request, bool $allowBudgetedManager = false): void
+    {
+        $user = $request->user();
+        if ($user->isOwner() || $user->isSuperAdmin()) {
+            return;
+        }
+
+        if ($allowBudgetedManager && $user->hasRole('manager')) {
+            $branchId = $this->tenantContext->activeBranchId();
+            $month = now();
+            if ($request->filled('expense_date')) {
+                try {
+                    $month = Carbon::parse($request->input('expense_date'));
+                } catch (\Throwable) {
+                    // Let the request validator return the correct date error.
+                }
+            }
+
+            $hasBudget = $branchId !== null
+                && app(ExpenseBudgetService::class)->budgetFor(
+                    (int) $user->restaurant_id,
+                    (int) $branchId,
+                    $month,
+                ) !== null;
+
+            abort_unless($hasBudget, 403, 'Quản lý chỉ được lập đề nghị chi trong chi nhánh đã có hạn mức ngân sách.');
+
+            return;
+        }
+
+        abort(403, 'Chỉ Chủ doanh nghiệp mới được ghi nhận hoặc thay đổi chi phí vận hành.');
     }
 }

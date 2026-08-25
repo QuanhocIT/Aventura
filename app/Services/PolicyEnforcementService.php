@@ -37,7 +37,7 @@ class PolicyEnforcementService
         $isManager = $user->hasAnyRole(['owner', 'manager']);
 
         if ($isOwner) {
-            return ['allowed' => true];
+            return ['allowed' => true, 'max_allowed' => null];
         }
 
         $maxPercent = $isManager
@@ -53,7 +53,7 @@ class PolicyEnforcementService
             ];
         }
 
-        return ['allowed' => true];
+        return ['allowed' => true, 'max_allowed' => $maxPercent];
     }
 
     public function canCancelOrder(User $user, float $orderAmount): array
@@ -63,7 +63,7 @@ class PolicyEnforcementService
         $isManager = $user->hasAnyRole(['owner', 'manager']);
 
         if ($isOwner) {
-            return ['allowed' => true];
+            return ['allowed' => true, 'max_allowed' => null];
         }
 
         $maxAmount = $isManager
@@ -74,6 +74,7 @@ class PolicyEnforcementService
             return [
                 'allowed' => false,
                 'requires_approval' => true,
+                'max_allowed' => $maxAmount,
                 'message' => 'Đơn hàng '.number_format($orderAmount).'đ vượt giới hạn hủy '.number_format($maxAmount).'đ. Chỉ Manager+ mới được hủy.',
             ];
         }
@@ -81,11 +82,13 @@ class PolicyEnforcementService
         if ($maxAmount === 0.0 && ! $isManager) {
             return [
                 'allowed' => false,
-                'message' => 'Nhân viên không có quyền hủy đơn hàng.',
+                'requires_approval' => true,
+                'max_allowed' => $maxAmount,
+                'message' => 'Nhân viên không được tự hủy đơn hàng. Cần mã phê duyệt của Quản lý/Chủ nhà hàng.',
             ];
         }
 
-        return ['allowed' => true];
+        return ['allowed' => true, 'max_allowed' => $maxAmount];
     }
 
     public function canViewData(User $user, string $dataType): bool

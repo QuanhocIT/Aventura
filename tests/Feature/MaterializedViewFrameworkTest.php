@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Jobs\RefreshMaterializedViewJob;
 use App\Models\Order;
 use App\Models\Restaurant;
+use App\Models\RestaurantBranch;
 use App\Models\RestaurantRevenueSummary;
 use App\Services\DailyReportService;
 use App\Services\MaterializedViewRefresher;
@@ -81,9 +82,52 @@ class MaterializedViewFrameworkTest extends TestCase
         $this->assertEquals(100000, (float) $data['net_revenue']);
     }
 
+    public function test_revenue_daily_refresh_creates_consolidated_and_branch_rows(): void
+    {
+        $branch1 = RestaurantBranch::factory()->create([
+            'restaurant_id' => $this->restaurant->id,
+            'name' => 'Chi nhánh 1',
+        ]);
+        $branch2 = RestaurantBranch::factory()->create([
+            'restaurant_id' => $this->restaurant->id,
+            'name' => 'Chi nhánh 2',
+        ]);
+
+        Order::factory()->create([
+            'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $branch1->id,
+            'status' => 'completed',
+            'completed_at' => now(),
+            'total_amount' => 100000,
+            'discount_amount' => 0,
+        ]);
+        Order::factory()->create([
+            'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $branch2->id,
+            'status' => 'completed',
+            'completed_at' => now(),
+            'total_amount' => 200000,
+            'discount_amount' => 0,
+        ]);
+
+        app(MaterializedViewRefresher::class)->refresh('revenue_daily', $this->restaurant->id);
+
+        $rows = RestaurantRevenueSummary::withoutGlobalScopes()
+            ->where('restaurant_id', $this->restaurant->id)
+            ->get()
+            ->keyBy('scope_key');
+
+        $this->assertCount(3, $rows);
+        $this->assertEquals(400000, (float) $rows['restaurant']->net_revenue);
+        $this->assertEquals(100000, (float) $rows["branch:{$branch1->id}"]->net_revenue);
+        $this->assertEquals(200000, (float) $rows["branch:{$branch2->id}"]->net_revenue);
+    }
+
     public function test_reader_falls_back_to_live_query_and_self_heals_when_row_missing(): void
     {
         Queue::fake();
+
+        RestaurantRevenueSummary::truncate();
 
         // Chưa từng refresh — không có dòng tổng hợp nào.
         $this->assertDatabaseCount('restaurant_revenue_summaries', 0);

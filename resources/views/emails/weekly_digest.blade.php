@@ -1,4 +1,4 @@
-<div style='font-family:sans-serif;max-width:600px;margin:auto;padding:0'>
+<div style="font-family:'Times New Roman',Times,serif;max-width:600px;margin:auto;padding:0">
     <div style='background:linear-gradient(135deg,#4f46e5,#7c3aed);padding:32px;border-radius:12px 12px 0 0;text-align:center'>
         <div style='font-size:40px'>📊</div>
         <h1 style='color:#fff;margin:8px 0;font-size:22px'>Báo cáo tuần</h1>

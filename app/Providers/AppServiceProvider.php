@@ -8,6 +8,7 @@ use App\Models\LoginEvent;
 use App\Models\MediaAsset;
 use App\Models\Order;
 use App\Models\Payment;
+use App\Models\Restaurant;
 use App\Models\ShiftClosing;
 use App\Models\SystemSetting;
 use App\Models\ViolationReport;
@@ -15,6 +16,7 @@ use App\Observers\AuditLogObserver;
 use App\Observers\MediaAssetObserver;
 use App\Observers\OrderObserver;
 use App\Observers\PaymentObserver;
+use App\Observers\RestaurantObserver;
 use App\Observers\SalaryRecalculationObserver;
 use App\Repositories\Eloquent\EloquentOrderRepository;
 use App\Repositories\OrderRepositoryInterface;
@@ -94,6 +96,7 @@ class AppServiceProvider extends ServiceProvider
         InventoryTransaction::observe(SalaryRecalculationObserver::class);
         MediaAsset::observe(MediaAssetObserver::class);
         Payment::observe(PaymentObserver::class);
+        Restaurant::observe(RestaurantObserver::class);
 
         // Tự gửi email xác thực ngay sau khi đăng ký (Laravel không tự đăng ký
         // listener này khi project không có EventServiceProvider riêng).
@@ -120,7 +123,7 @@ class AppServiceProvider extends ServiceProvider
             }
 
             $employee = $user->employee;
-            if ($employee) {
+            if ($employee && ! $user->isExemptFromShiftLock()) {
                 session([
                     'employee_id' => $employee->id,
                     'shift_allowed_until' => $employee->getShiftAllowedUntil(),

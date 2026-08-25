@@ -211,6 +211,10 @@ class AdvancedOperationsTest extends TestCase
      */
     public function test_auto_rfp_creation_and_ai_scoring(): void
     {
+        // Cổng Nhà cung cấp mặc định TẮT; route /rfps nằm sau middleware
+        // EnsureSupplierPortalEnabled nên phải bật tường minh, không dựa vào .env máy chạy.
+        config(['portal.supplier_portal_enabled' => true]);
+
         // Create an inventory record
         $inventory = Inventory::create([
             'restaurant_id' => $this->restaurant->id,

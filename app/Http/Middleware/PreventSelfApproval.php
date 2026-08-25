@@ -73,7 +73,7 @@ class PreventSelfApproval
                 return response()->json([
                     'success' => false,
                     'message' => $violation,
-                    'error'   => 'self_approval_prevented',
+                    'error' => 'self_approval_prevented',
                 ], Response::HTTP_FORBIDDEN);
             }
 

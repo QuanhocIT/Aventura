@@ -15,6 +15,13 @@ class Unit extends Model
 
     protected $guarded = [];
 
+    protected function casts(): array
+    {
+        return [
+            'conversion_factor_to_base' => 'float',
+        ];
+    }
+
     protected static function newFactory(): Factory
     {
         return UnitFactory::new();

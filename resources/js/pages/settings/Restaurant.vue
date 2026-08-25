@@ -2,6 +2,8 @@
 import { Form, Head } from '@inertiajs/vue3';
 import { Building2, ImagePlus, X } from 'lucide-vue-next';
 import { onMounted, ref } from 'vue';
+import { toast } from 'vue-sonner';
+import BackButton from '@/components/BackButton.vue';
 import InputError from '@/components/InputError.vue';
 import { Button } from '@/components/ui/button';
 import {
@@ -180,6 +182,9 @@ onMounted(async () => {
         });
     } catch (err) {
         console.error('Lỗi khởi tạo bản đồ Leaflet:', err);
+        toast.error(
+            'Không hiển thị được bản đồ chọn vị trí. Bạn vẫn có thể nhập toạ độ bằng tay.',
+        );
     }
 });
 
@@ -226,8 +231,9 @@ defineOptions({
             class="w-full overflow-hidden rounded-2xl border border-neutral-200/60 bg-white/70 shadow-xs backdrop-blur-md dark:border-neutral-800/60 dark:bg-neutral-900/40"
         >
             <CardHeader
-                class="flex flex-row items-center gap-4 border-b border-neutral-100 px-6 pt-6 pb-5 dark:border-neutral-800"
+                class="flex flex-row items-center gap-3 border-b border-neutral-100 px-6 pt-6 pb-5 dark:border-neutral-800"
             >
+                <BackButton fallback-href="/settings/profile" label="Cài đặt" />
                 <div
                     class="shrink-0 rounded-xl bg-neutral-100 p-2.5 text-neutral-800 dark:bg-neutral-800 dark:text-neutral-200"
                 >
@@ -245,7 +251,7 @@ defineOptions({
                     >
                 </div>
             </CardHeader>
-            <CardContent class="p-6">
+            <CardContent class="p-6 lg:p-8">
                 <div
                     v-if="status"
                     class="mb-5 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-xs font-semibold text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-400"

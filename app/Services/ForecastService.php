@@ -19,20 +19,25 @@ class ForecastService
 
     private function getAiRevenueForecast(int $restaurantId, ?int $branchId = null): array
     {
-        $key = $branchId ?? 'all';
+        $summaryScopeKey = TenantContext::summaryScopeKey($branchId);
+        $latestSummaryAt = RestaurantRevenueSummary::withoutGlobalScopes()
+            ->where('restaurant_id', $restaurantId)
+            ->where('summary_type', 'daily')
+            ->where('scope_key', $summaryScopeKey)
+            ->max('calculated_at') ?? 'none';
+        $key = ($branchId ?? 'all').':'.$latestSummaryAt;
         if (isset($this->cachedForecasts[$key])) {
             return $this->cachedForecasts[$key];
         }
 
         $scopeKey = TenantContext::branchScopeKey($branchId);
-        $cacheKey = "restaurant_{$restaurantId}_revenue_forecast_data:{$scopeKey}";
+        $cacheKey = "restaurant_{$restaurantId}_revenue_forecast_data:v2:{$scopeKey}:{$latestSummaryAt}";
         $this->cachedForecasts[$key] = Cache::remember($cacheKey, 7200, function () use ($restaurantId, $branchId) {
             $historicals = RestaurantRevenueSummary::withoutGlobalScopes()
                 ->where('restaurant_id', $restaurantId)
                 ->where('summary_type', 'daily')
+                ->where('scope_key', TenantContext::summaryScopeKey($branchId))
                 ->where('summary_date', '<', today())
-                ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
-                ->when(! $branchId, fn ($q) => $q->whereNull('branch_id'))
                 ->orderBy('summary_date')
                 ->take(30)
                 ->get();
@@ -82,9 +87,8 @@ class ForecastService
             $weeklyHist = RestaurantRevenueSummary::withoutGlobalScopes()
                 ->where('restaurant_id', $restaurantId)
                 ->where('summary_type', 'daily')
+                ->where('scope_key', TenantContext::summaryScopeKey($branchId))
                 ->where('summary_date', '<', today())
-                ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
-                ->when(! $branchId, fn ($q) => $q->whereNull('branch_id'))
                 ->whereRaw("{$dayOfWeekField} = ?", [$dayOfWeek + 1])
                 ->orderByDesc('summary_date')
                 ->take(8)
@@ -126,9 +130,8 @@ class ForecastService
                 $dayHist = RestaurantRevenueSummary::withoutGlobalScopes()
                     ->where('restaurant_id', $restaurantId)
                     ->where('summary_type', 'daily')
+                    ->where('scope_key', TenantContext::summaryScopeKey($branchId))
                     ->where('summary_date', '<', today())
-                    ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
-                    ->when(! $branchId, fn ($q) => $q->whereNull('branch_id'))
                     ->whereRaw("{$dayOfWeekField} = ?", [$targetDayOfWeek + 1])
                     ->orderByDesc('summary_date')
                     ->take(4)
@@ -187,16 +190,14 @@ class ForecastService
         $thisWeek = RestaurantRevenueSummary::withoutGlobalScopes()
             ->where('restaurant_id', $restaurantId)
             ->where('summary_type', 'daily')
-            ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
-            ->when(! $branchId, fn ($q) => $q->whereNull('branch_id'))
+            ->where('scope_key', TenantContext::summaryScopeKey($branchId))
             ->whereBetween('summary_date', [today()->startOfWeek(), today()])
             ->sum('net_revenue');
 
         $lastWeek = RestaurantRevenueSummary::withoutGlobalScopes()
             ->where('restaurant_id', $restaurantId)
             ->where('summary_type', 'daily')
-            ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
-            ->when(! $branchId, fn ($q) => $q->whereNull('branch_id'))
+            ->where('scope_key', TenantContext::summaryScopeKey($branchId))
             ->whereBetween('summary_date', [today()->subWeek()->startOfWeek(), today()->subWeek()->endOfWeek()])
             ->sum('net_revenue');
 

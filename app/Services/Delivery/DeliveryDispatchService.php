@@ -5,6 +5,7 @@ namespace App\Services\Delivery;
 use App\Events\Delivery\BatchDispatched;
 use App\Events\Delivery\DeliveryEtaUpdated;
 use App\Events\Delivery\DeliveryStatusUpdated;
+use App\Events\OrderStatusUpdated;
 use App\Models\Delivery\DeliveryBatch;
 use App\Models\Delivery\DeliveryBatchItem;
 use App\Models\Delivery\DeliveryDetail;
@@ -12,6 +13,8 @@ use App\Models\Delivery\Shipper;
 use App\Models\Order;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Validation\ValidationException;
 
 class DeliveryDispatchService
 {
@@ -26,11 +29,69 @@ class DeliveryDispatchService
     public function createBatch(int $shipperId, array $orderIds, User $createdBy): DeliveryBatch
     {
         return DB::transaction(function () use ($shipperId, $orderIds, $createdBy) {
-            $shipper = Shipper::with('employee')->findOrFail($shipperId);
+            $orderIds = array_values(array_unique(array_map('intval', $orderIds)));
+
+            $shipper = Shipper::with('employee')
+                ->where('restaurant_id', $createdBy->restaurant_id)
+                ->lockForUpdate()
+                ->findOrFail($shipperId);
+
+            if (! $shipper->is_active) {
+                throw ValidationException::withMessages([
+                    'shipper_id' => 'Shipper đang bị tạm ngưng.',
+                ]);
+            }
+
+            $hasOpenBatch = DeliveryBatch::query()
+                ->where('restaurant_id', $createdBy->restaurant_id)
+                ->where('shipper_id', $shipper->id)
+                ->whereIn('status', ['pending', 'dispatched', 'in_progress'])
+                ->exists();
+
+            if ($hasOpenBatch) {
+                throw ValidationException::withMessages([
+                    'shipper_id' => 'Shipper đang có một chuyến chưa hoàn tất.',
+                ]);
+            }
+
+            if (count($orderIds) > (int) $shipper->max_orders_per_batch) {
+                throw ValidationException::withMessages([
+                    'order_ids' => "Chuyến này vượt giới hạn {$shipper->max_orders_per_batch} đơn của shipper.",
+                ]);
+            }
 
             $orders = Order::with('deliveryDetail')
+                ->where('restaurant_id', $createdBy->restaurant_id)
                 ->whereIn('id', $orderIds)
                 ->get();
+
+            if ($orders->count() !== count($orderIds)) {
+                throw ValidationException::withMessages([
+                    'order_ids' => 'Có đơn hàng không thuộc nhà hàng hiện tại.',
+                ]);
+            }
+
+            $eligibleOrders = $orders->filter(function (Order $order): bool {
+                return $order->status === 'confirmed'
+                    && $order->deliveryDetail?->delivery_status === 'pending';
+            });
+
+            if ($eligibleOrders->count() !== count($orderIds)) {
+                throw ValidationException::withMessages([
+                    'order_ids' => 'Chỉ có thể phân công đơn đã xác nhận và đang chờ giao.',
+                ]);
+            }
+
+            $alreadyAssigned = DeliveryBatchItem::query()
+                ->whereIn('order_id', $orderIds)
+                ->whereHas('batch', fn ($query) => $query->whereIn('status', ['pending', 'dispatched', 'in_progress']))
+                ->exists();
+
+            if ($alreadyAssigned) {
+                throw ValidationException::withMessages([
+                    'order_ids' => 'Có đơn đã nằm trong một chuyến giao khác.',
+                ]);
+            }
 
             // Build geo points for route optimization
             $points = $orders
@@ -107,8 +168,9 @@ class DeliveryDispatchService
                 'dispatched_at' => now(),
             ]);
 
-            Order::whereHas('batchItems', fn ($q) => $q->where('batch_id', $batch->id))
-                ->update(['status' => 'confirmed']);
+            // Do not rewrite the order status here. The order has already been
+            // validated as confirmed before assignment; changing it during
+            // dispatch could interfere with the kitchen workflow.
         });
 
         broadcast(new BatchDispatched($batch->load(['shipper.employee', 'items.order.deliveryDetail'])));
@@ -122,6 +184,38 @@ class DeliveryDispatchService
     public function updateItemStatus(DeliveryBatchItem $item, string $status, ?string $notes = null): DeliveryBatchItem
     {
         return DB::transaction(function () use ($item, $status, $notes) {
+            $item->loadMissing('batch');
+
+            if ($item->isCompleted()) {
+                throw ValidationException::withMessages([
+                    'status' => 'Điểm giao này đã ở trạng thái kết thúc.',
+                ]);
+            }
+
+            if (! $item->batch->accepted_at) {
+                throw ValidationException::withMessages([
+                    'batch' => 'Shipper chưa nhận chuyến giao hàng.',
+                ]);
+            }
+
+            if ($status === 'picked_up' && ! in_array($item->status, ['pending', 'in_transit'])) {
+                throw ValidationException::withMessages([
+                    'status' => 'Đơn chỉ có thể chuyển sang đã lấy hàng từ trạng thái chờ hoặc đang vận chuyển.',
+                ]);
+            }
+
+            if ($status === 'delivered' && ! in_array($item->status, ['picked_up', 'in_transit'])) {
+                throw ValidationException::withMessages([
+                    'status' => 'Cần xác nhận đã lấy hàng trước khi xác nhận đã giao.',
+                ]);
+            }
+
+            if ($status === 'failed' && blank($notes)) {
+                throw ValidationException::withMessages([
+                    'notes' => 'Vui lòng nhập lý do giao thất bại.',
+                ]);
+            }
+
             $now = now();
             $update = ['status' => $status, 'notes' => $notes];
 
@@ -152,7 +246,16 @@ class DeliveryDispatchService
                 $batch->update(['status' => 'in_progress']);
             }
 
-            broadcast(new DeliveryStatusUpdated($item->load('order.deliveryDetail'), $batch));
+            try {
+                broadcast(new DeliveryStatusUpdated($item->load('order.deliveryDetail'), $batch));
+
+                $trackedOrder = $item->order?->fresh();
+                if ($trackedOrder?->tracking_token) {
+                    broadcast(new OrderStatusUpdated($trackedOrder));
+                }
+            } catch (\Throwable $e) {
+                Log::warning('Broadcast DeliveryStatusUpdated/OrderStatusUpdated failed: '.$e->getMessage());
+            }
 
             return $item->refresh();
         });
@@ -203,9 +306,21 @@ class DeliveryDispatchService
     public function cancelBatch(DeliveryBatch $batch): void
     {
         DB::transaction(function () use ($batch) {
+            if (in_array($batch->status, ['completed', 'cancelled'], true)) {
+                throw ValidationException::withMessages([
+                    'batch' => 'Không thể hủy chuyến đã kết thúc.',
+                ]);
+            }
+
             $orderIds = $batch->items()->pluck('order_id');
 
-            $batch->items()->update(['status' => 'failed']);
+            // Cancellation is not a delivery failure. Return each item to a
+            // neutral state so it can be assigned to another shipper.
+            $batch->items()->update([
+                'status' => 'pending',
+                'picked_up_at' => null,
+                'delivered_at' => null,
+            ]);
             $batch->update(['status' => 'cancelled']);
 
             DeliveryDetail::whereIn('order_id', $orderIds)->update(['delivery_status' => 'pending']);

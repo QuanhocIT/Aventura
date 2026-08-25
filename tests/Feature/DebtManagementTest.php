@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Mail\DebtReminderMail;
 use App\Models\AccountPayable;
 use App\Models\AccountReceivable;
+use App\Models\CashRegister;
 use App\Models\Customer;
 use App\Models\Ingredient;
 use App\Models\Order;
@@ -196,7 +197,9 @@ class DebtManagementTest extends TestCase
             'quantity' => 2,
             'unit_price' => 20000,
             'line_total' => 40000,
-            'status' => 'pending',
+            'status' => 'served',
+            'prepared_at' => now(),
+            'served_at' => now(),
         ]);
 
         // 1. Pay with debt fails without customer
@@ -296,6 +299,18 @@ class DebtManagementTest extends TestCase
             'received_amount' => 0,
             'due_date' => now()->addDays(10)->toDateString(),
             'status' => 'unpaid',
+        ]);
+
+        // Thu nợ bằng tiền mặt yêu cầu chi nhánh đã mở két — đây là chốt kiểm
+        // soát nội bộ ở DebtController, không phải chi tiết cài đặt.
+        CashRegister::create([
+            'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
+            'closing_date' => today(),
+            'opened_by' => $this->owner->id,
+            'opening_balance' => 0,
+            'status' => 'open',
+            'opened_at' => now(),
         ]);
 
         $response = $this->actingAs($this->owner)->post(route('debts.receivables.collect', $receivable->id), [

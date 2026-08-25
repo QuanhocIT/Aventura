@@ -4,7 +4,6 @@ import {
     Award,
     Gift,
     Settings,
-    TrendingUp,
     Users,
     ArrowUpRight,
     ArrowDownRight,

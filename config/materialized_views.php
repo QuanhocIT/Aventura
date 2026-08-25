@@ -2,6 +2,7 @@
 
 use App\Support\MaterializedViews\Builders\CashFlowChartBuilder;
 use App\Support\MaterializedViews\Builders\CdpRfmBuilder;
+use App\Support\MaterializedViews\Builders\EmployeePortalBuilder;
 use App\Support\MaterializedViews\Builders\GeoAnalyticsBuilder;
 use App\Support\MaterializedViews\Builders\RevenueDailyBuilder;
 use App\Support\MaterializedViews\Stores\JsonRollupStore;
@@ -40,7 +41,7 @@ return [
             'cron' => env('MV_REVENUE_DAILY_CRON', '*/15 * * * *'),
             'between' => ['06:00', '23:59'],
             'stale_after' => 900,
-            'branch_scoped' => false, // xem ghi chú trong RevenueDailyBuilder — DailyReportService hiện chưa hỗ trợ lọc theo branch
+            'branch_scoped' => true,
             'enabled' => (bool) env('MV_REVENUE_DAILY_ENABLED', true),
         ],
 
@@ -79,6 +80,16 @@ return [
             'stale_after' => 129600,
             'branch_scoped' => false,
             'enabled' => (bool) env('MV_GEO_ANALYTICS_ENABLED', true),
+        ],
+
+        'employee_portal' => [
+            'builder' => EmployeePortalBuilder::class,
+            'store' => JsonRollupStore::class,
+            // Lịch, KPI và lương cơ bản thay đổi ít; thông báo vẫn được đọc live.
+            'cron' => env('MV_EMPLOYEE_PORTAL_CRON', '*/15 * * * *'),
+            'stale_after' => 1800,
+            'branch_scoped' => true,
+            'enabled' => (bool) env('MV_EMPLOYEE_PORTAL_ENABLED', true),
         ],
     ],
 ];

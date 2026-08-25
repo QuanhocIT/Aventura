@@ -48,11 +48,13 @@ class CreateNewUser implements CreatesNewUsers
         Validator::make($input, [
             ...$this->profileRules(),
             'restaurant_name' => ['nullable', 'string', 'max:255'],
-            'phone' => ['nullable', 'string', 'max:20'],
+            'phone' => ['nullable', 'string', 'regex:/^[0-9]{9,15}$/'],
             'plan_code' => ['nullable', 'string', 'max:50'],
             'password' => $this->passwordRules(),
             'referral_code' => ['nullable', 'string', 'exists:users,referral_code'],
         ], [
+            'name.regex' => 'Họ và tên chỉ được nhập chữ cái và khoảng trắng.',
+            'phone.regex' => 'Số điện thoại chỉ được chứa các chữ số (từ 9 đến 15 số).',
             'referral_code.exists' => 'Mã giới thiệu không tồn tại trong hệ thống.',
         ])->validate();
 

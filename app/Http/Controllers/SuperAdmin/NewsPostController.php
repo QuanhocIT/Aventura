@@ -71,6 +71,7 @@ class NewsPostController extends Controller
         $path = $request->hasFile('image')
             ? $request->file('image')->store('news', 'public')
             : null;
+        unset($data['image']);
 
         $post = NewsPost::create([
             ...$data,
@@ -95,6 +96,7 @@ class NewsPostController extends Controller
             }
             $data['featured_image'] = $request->file('image')->store('news', 'public');
         }
+        unset($data['image']);
 
         if ($data['is_published'] && ! $post->published_at) {
             $data['published_at'] = $data['published_at'] ?? now();

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Order;
+use App\Models\Payment;
 use App\Models\Restaurant;
 use App\Models\User;
 use App\Services\OrderService;
@@ -69,6 +70,38 @@ class OnlinePaymentWebhookController extends Controller
                 $order = Order::find($result->orderId);
 
                 if ($order && $order->payment_status !== 'paid') {
+                    // Check idempotency by transaction_code if provided
+                    if (! empty($result->transactionCode)) {
+                        $existingPayment = Payment::where('order_id', $order->id)
+                            ->where(function ($q) use ($result) {
+                                $q->where('transaction_code', $result->transactionCode)
+                                    ->orWhere('meta->transaction_code', $result->transactionCode);
+                            })
+                            ->exists();
+
+                        if ($existingPayment) {
+                            Log::info("OnlinePaymentWebhook: {$gateway} transaction {$result->transactionCode} already processed.");
+
+                            return $result;
+                        }
+                    }
+
+                    $paidAmount = $result->amount ?? (float) $order->total_amount;
+
+                    if ($paidAmount < (float) $order->total_amount) {
+                        Log::warning("OnlinePaymentWebhook: {$gateway} callback amount ({$paidAmount}) less than order total ({$order->total_amount})", [
+                            'order_id' => $order->id,
+                        ]);
+
+                        return new PaymentCallbackResult(
+                            success: false,
+                            orderId: $result->orderId,
+                            transactionCode: $result->transactionCode,
+                            error: 'insufficient_amount',
+                            amount: $paidAmount
+                        );
+                    }
+
                     $systemUser = $order->cashier
                         ?? Restaurant::find($order->restaurant_id)?->owner
                         ?? User::where('restaurant_id', $order->restaurant_id)->first();
@@ -81,7 +114,12 @@ class OnlinePaymentWebhookController extends Controller
 
                     app(OrderService::class)->payOrder(
                         $order,
-                        ['payment_method' => $gateway, 'cash_received' => $order->total_amount, 'change_amount' => 0],
+                        [
+                            'payment_method' => $gateway,
+                            'transaction_code' => $result->transactionCode,
+                            'cash_received' => $paidAmount,
+                            'change_amount' => max(0, $paidAmount - (float) $order->total_amount),
+                        ],
                         $systemUser,
                         true
                     );

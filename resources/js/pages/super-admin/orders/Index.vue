@@ -264,7 +264,7 @@ const channelSlices = computed(() => {
             dashArray: `${onlinePct} ${100 - onlinePct}`,
             dashOffset: 100 - currentOffset,
             color: 'stroke-emerald-500',
-            label: 'Online',
+            label: 'Trực tuyến',
             value: props.stats.online_today,
         });
         currentOffset += onlinePct;
@@ -991,7 +991,7 @@ const chartAreaPath = computed(() => {
                             <div class="col-span-2">
                                 <span
                                     class="block text-[10px] font-bold tracking-wider text-slate-400 uppercase"
-                                    >Email liên hệ / Hóa đơn</span
+                                    >Thư điện tử liên hệ / Hóa đơn</span
                                 >
                                 <span
                                     class="block truncate font-mono text-xs font-bold text-slate-800 dark:text-slate-200"
@@ -1116,7 +1116,7 @@ const chartAreaPath = computed(() => {
                         </div>
                         <div class="col-span-2">
                             <span class="block font-bold text-slate-400"
-                                >Email nhận hóa đơn</span
+                                >Thư điện tử nhận hóa đơn</span
                             >
                             <span
                                 class="mt-0.5 block truncate font-mono font-medium text-slate-700 dark:text-slate-300"

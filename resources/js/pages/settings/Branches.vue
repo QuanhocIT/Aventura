@@ -2,6 +2,7 @@
 import { Form, Head, router } from '@inertiajs/vue3';
 import { Building2, Pencil, Plus, Trash2, Users } from 'lucide-vue-next';
 import { ref } from 'vue';
+import BackButton from '@/components/BackButton.vue';
 import InputError from '@/components/InputError.vue';
 import { Button } from '@/components/ui/button';
 import {
@@ -103,7 +104,8 @@ defineOptions({
             <CardHeader
                 class="flex flex-row items-center justify-between gap-4 border-b border-neutral-100 px-6 pt-6 pb-5 dark:border-neutral-800"
             >
-                <div class="flex items-center gap-4">
+                <div class="flex items-center gap-3">
+                    <BackButton fallback-href="/settings/profile" label="Cài đặt" />
                     <div
                         class="shrink-0 rounded-xl bg-neutral-100 p-2.5 text-neutral-800 dark:bg-neutral-800 dark:text-neutral-200"
                     >
@@ -133,7 +135,7 @@ defineOptions({
                     <Plus class="size-4" /> Thêm chi nhánh
                 </Button>
             </CardHeader>
-            <CardContent class="p-6">
+            <CardContent class="p-6 lg:p-8">
                 <p
                     v-if="!canAddMore"
                     class="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5 text-xs font-semibold text-amber-700 dark:border-amber-800 dark:bg-amber-950/20 dark:text-amber-400"

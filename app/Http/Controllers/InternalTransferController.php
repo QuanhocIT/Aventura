@@ -24,9 +24,8 @@ class InternalTransferController extends Controller
      */
     public function transferRecommendations(Request $request): JsonResponse
     {
-        abort_unless($request->user()->isOwner(), 403);
-
         $user = $request->user();
+        abort_unless($user->isOwner() || $user->isSuperAdmin() || $user->hasRole('warehouse_manager') || $user->can('warehouse.manage'), 403);
 
         // 1. Fetch branches
         $branches = RestaurantBranch::where('restaurant_id', $user->restaurant_id)->get();
@@ -51,13 +50,16 @@ class InternalTransferController extends Controller
             ->join('orders', 'order_items.order_id', '=', 'orders.id')
             ->join('products', 'order_items.product_id', '=', 'products.id')
             ->join('product_recipes', 'products.id', '=', 'product_recipes.product_id')
+            ->join('ingredients', 'ingredients.id', '=', 'product_recipes.ingredient_id')
+            ->join('units as recipe_units', 'recipe_units.id', '=', 'product_recipes.unit_id')
+            ->join('units as ingredient_units', 'ingredient_units.id', '=', 'ingredients.unit_id')
             ->where('orders.restaurant_id', $user->restaurant_id)
             ->where('orders.status', 'completed')
             ->whereBetween('orders.completed_at', [$startDate, $endDate])
             ->select(
                 'orders.branch_id',
                 'product_recipes.ingredient_id',
-                DB::raw('SUM(order_items.quantity * product_recipes.quantity * (1 + (product_recipes.waste_rate / 100))) as total_used')
+                DB::raw('SUM(order_items.quantity * product_recipes.quantity * (COALESCE(recipe_units.conversion_factor_to_base, 1) / COALESCE(ingredient_units.conversion_factor_to_base, 1)) * (1 + (product_recipes.waste_rate / 100))) as total_used')
             )
             ->groupBy('orders.branch_id', 'product_recipes.ingredient_id')
             ->get();
@@ -191,9 +193,8 @@ class InternalTransferController extends Controller
      */
     public function storeInternalTransfer(Request $request): RedirectResponse
     {
-        abort_unless($request->user()->isOwner(), 403);
-
         $user = $request->user();
+        abort_unless($user->isOwner() || $user->isSuperAdmin() || $user->hasRole('warehouse_manager') || $user->can('warehouse.manage'), 403);
 
         $request->validate([
             'from_branch_id' => ['required', TenantRule::exists('restaurant_branches')],
@@ -246,6 +247,23 @@ class InternalTransferController extends Controller
                 $invTo->increment('quantity_on_hand', $quantity);
                 $invTo->increment('theoretical_quantity', $quantity);
 
+                // Create the transfer document first so both ledger entries
+                // can point to an immutable business source. This prevents
+                // finance reports from mistaking an internal move for a
+                // branch purchase.
+                $internalTransfer = InternalTransfer::create([
+                    'restaurant_id' => $user->restaurant_id,
+                    'from_branch_id' => $fromBranchId,
+                    'to_branch_id' => $toBranchId,
+                    'ingredient_id' => $ingId,
+                    'quantity' => $quantity,
+                    'status' => 'completed',
+                    'created_by' => $user->id,
+                    'completed_by' => $user->id,
+                    'completed_at' => now(),
+                    'notes' => $request->input('notes') ?? 'Đề xuất luân chuyển kho nội bộ từ AI.',
+                ]);
+
                 // 4. Create out transaction for from_branch
                 InventoryTransaction::create([
                     'restaurant_id' => $user->restaurant_id,
@@ -258,6 +276,8 @@ class InternalTransferController extends Controller
                     'quantity' => $quantity,
                     'unit_cost' => $invFrom->last_cost,
                     'total_cost' => $quantity * $invFrom->last_cost,
+                    'source_type' => 'internal_transfer',
+                    'source_id' => $internalTransfer->id,
                     'notes' => 'Điều phối kho nội bộ: Xuất chuyển sang chi nhánh #'.$toBranchId,
                     'occurred_at' => now(),
                 ]);
@@ -274,22 +294,10 @@ class InternalTransferController extends Controller
                     'quantity' => $quantity,
                     'unit_cost' => $invFrom->last_cost,
                     'total_cost' => $quantity * $invFrom->last_cost,
+                    'source_type' => 'internal_transfer',
+                    'source_id' => $internalTransfer->id,
                     'notes' => 'Điều phối kho nội bộ: Nhận hàng luân chuyển từ chi nhánh #'.$fromBranchId,
                     'occurred_at' => now(),
-                ]);
-
-                // 6. Create internal transfer log
-                InternalTransfer::create([
-                    'restaurant_id' => $user->restaurant_id,
-                    'from_branch_id' => $fromBranchId,
-                    'to_branch_id' => $toBranchId,
-                    'ingredient_id' => $ingId,
-                    'quantity' => $quantity,
-                    'status' => 'completed',
-                    'created_by' => $user->id,
-                    'completed_by' => $user->id,
-                    'completed_at' => now(),
-                    'notes' => $request->input('notes') ?? 'Đề xuất luân chuyển kho nội bộ từ AI.',
                 ]);
             });
         } catch (\Throwable $e) {
@@ -304,7 +312,8 @@ class InternalTransferController extends Controller
      */
     public function listInternalTransfers(Request $request): JsonResponse
     {
-        abort_unless($request->user()->isOwner(), 403);
+        $user = $request->user();
+        abort_unless($user->isOwner() || $user->isSuperAdmin() || $user->hasRole('warehouse_manager') || $user->can('warehouse.manage'), 403);
 
         $transfers = InternalTransfer::where('restaurant_id', $request->user()->restaurant_id)
             ->with(['fromBranch', 'toBranch', 'ingredient.unit', 'creator'])

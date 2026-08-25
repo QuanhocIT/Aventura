@@ -61,7 +61,6 @@ jobs:
   mysql-drift:
     name: Schema-drift guard (MySQL 8)
     runs-on: ubuntu-latest
-    continue-on-error: true
     services:
       mysql:
         image: mysql:8.0

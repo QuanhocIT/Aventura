@@ -246,6 +246,7 @@ onUnmounted(() => {
 
 <template>
     <!-- Modal Backdrop -->
+    <Teleport to="body">
     <div
         v-if="isOpen"
         class="fixed inset-0 z-50 flex items-start justify-center bg-black/60 pt-[15vh] backdrop-blur-sm"
@@ -294,7 +295,7 @@ onUnmounted(() => {
                         Lệnh nhanh SuperAdmin
                     </p>
                     <div
-                        v-for="(act, idx) in quickActions"
+                        v-for="act in quickActions"
                         :key="act.cmd"
                         @click="query = act.cmd + ' '"
                         class="flex cursor-pointer items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-foreground transition-all hover:bg-muted"
@@ -383,6 +384,7 @@ onUnmounted(() => {
             </div>
         </div>
     </div>
+    </Teleport>
 </template>
 
 <script lang="ts">

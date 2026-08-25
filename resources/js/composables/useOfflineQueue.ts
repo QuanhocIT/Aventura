@@ -28,6 +28,12 @@ export type ConflictResponse = {
     conflicts: StockConflict[];
 };
 
+export type QueueRejection = {
+    item: QueuedRequest;
+    status?: number;
+    message?: string;
+};
+
 const pendingCount = ref(0);
 const isOnline = ref(
     typeof navigator !== 'undefined' ? navigator.onLine : true,
@@ -35,9 +41,19 @@ const isOnline = ref(
 const activeConflicts = ref<ConflictResponse[]>([]);
 let initialized = false;
 
+const QUEUE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours TTL
+
 function readQueue(): QueuedRequest[] {
     try {
-        return JSON.parse(localStorage.getItem(STORAGE_KEY) ?? '[]');
+        const raw = localStorage.getItem(STORAGE_KEY) ?? '[]';
+        const parsed: QueuedRequest[] = JSON.parse(raw);
+        const now = Date.now();
+
+        // Lọc bỏ các request offline đã quá 24h (TTL Expiry)
+        return parsed.filter(item => {
+            const queuedTime = new Date(item.queuedAt).getTime();
+            return !isNaN(queuedTime) && (now - queuedTime) < QUEUE_TTL_MS;
+        });
     } catch {
         return [];
     }
@@ -52,6 +68,7 @@ function writeQueue(queue: QueuedRequest[]): void {
 async function flushQueue(
     onFlushed?: (item: QueuedRequest, response: unknown) => void,
     onConflict?: (conflict: ConflictResponse) => void,
+    onRejected?: (rejection: QueueRejection) => void,
 ): Promise<void> {
     const queue = readQueue();
 
@@ -61,7 +78,7 @@ async function flushQueue(
 
     const remaining: QueuedRequest[] = [];
 
-    for (const item of queue) {
+    for (const [index, item] of queue.entries()) {
         try {
             const { data } = await axios.post(item.url, {
                 ...item.payload,
@@ -71,7 +88,7 @@ async function flushQueue(
         } catch (error: any) {
             if (!error.response) {
                 // Vẫn mất mạng — giữ lại, dừng flush
-                remaining.push(item, ...queue.slice(queue.indexOf(item) + 1));
+                remaining.push(item, ...queue.slice(index + 1));
                 break;
             }
 
@@ -89,6 +106,17 @@ async function flushQueue(
             }
 
             // Server từ chối khác (4xx/5xx) — bỏ khỏi hàng đợi, không retry vô hạn
+            const status = error.response.status as number;
+            onRejected?.({
+                item,
+                status,
+                message: error.response.data?.message,
+            });
+
+            if (status >= 500) {
+                remaining.push(item, ...queue.slice(index + 1));
+                break;
+            }
         }
     }
 
@@ -98,6 +126,7 @@ async function flushQueue(
 export function useOfflineQueue(
     onFlushed?: (item: QueuedRequest, response: unknown) => void,
     onConflict?: (conflict: ConflictResponse) => void,
+    onRejected?: (rejection: QueueRejection) => void,
 ) {
     if (!initialized && typeof window !== 'undefined') {
         initialized = true;
@@ -105,7 +134,7 @@ export function useOfflineQueue(
 
         window.addEventListener('online', () => {
             isOnline.value = true;
-            flushQueue(onFlushed, onConflict);
+            flushQueue(onFlushed, onConflict, onRejected);
         });
 
         window.addEventListener('offline', () => {
@@ -114,7 +143,7 @@ export function useOfflineQueue(
 
         // Gửi nốt hàng đợi còn sót từ phiên trước
         if (navigator.onLine) {
-            flushQueue(onFlushed, onConflict);
+            flushQueue(onFlushed, onConflict, onRejected);
         }
     }
 
@@ -123,8 +152,17 @@ export function useOfflineQueue(
         url: string,
         payload: Record<string, unknown>,
     ): Promise<{ queued: boolean; data?: any }> {
+        const requestPayload = {
+            ...payload,
+            client_request_id:
+                typeof payload.client_request_id === 'string' &&
+                payload.client_request_id.length > 0
+                    ? payload.client_request_id
+                    : `web_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`,
+        };
+
         try {
-            const { data } = await axios.post(url, payload);
+            const { data } = await axios.post(url, requestPayload);
 
             return { queued: false, data };
         } catch (error: any) {
@@ -136,7 +174,7 @@ export function useOfflineQueue(
             queue.push({
                 id: `q_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
                 url,
-                payload,
+                payload: requestPayload,
                 queuedAt: new Date().toISOString(),
             });
             writeQueue(queue);

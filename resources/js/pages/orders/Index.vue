@@ -5,7 +5,6 @@ import {
     ShoppingCart,
     CheckCircle2,
     Clock,
-    XCircle,
     ChefHat,
     CalendarDays,
     RefreshCw,
@@ -17,8 +16,9 @@ import {
     X,
     Utensils,
     Loader2,
+    RotateCcw,
 } from 'lucide-vue-next';
-import { computed, ref, onMounted, watch } from 'vue';
+import { computed, ref, onMounted, onUnmounted, watch } from 'vue';
 import { toast } from 'vue-sonner';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -31,6 +31,8 @@ import {
     DialogHeader,
     DialogTitle,
 } from '@/components/ui/dialog';
+import { apiErrorMessage } from '@/composables/useApiCall';
+import { confirmDialog } from '@/composables/useConfirm';
 import AppLayout from '@/layouts/AppLayout.vue';
 
 defineOptions({ layout: AppLayout });
@@ -43,6 +45,17 @@ type OrderItemDetail = {
     line_total: number;
     notes: string | null;
     status: string | null;
+    sent_to_kitchen_at?: string | null;
+    started_preparing_at?: string | null;
+    prepared_at?: string | null;
+    prepared_at_formatted?: string | null;
+    prepared_by_name?: string | null;
+    served_at?: string | null;
+    served_at_formatted?: string | null;
+    served_by_name?: string | null;
+    cancelled_at?: string | null;
+    cancelled_by_name?: string | null;
+    cancellation_reason?: string | null;
 };
 
 type DeliveryInfo = {
@@ -58,16 +71,30 @@ type DeliveryInfo = {
 type Order = {
     id: number;
     order_number: string;
+    branch_id: number | null;
+    branch_name: string;
     status: string;
     payment_status: string;
+    fulfillment_status: 'pending' | 'preparing' | 'ready' | 'served';
     channel: string;
     table_name: string | null;
     area_name: string | null;
     total_amount: number;
+    refund_amount?: number | null;
+    refund_reason?: string | null;
+    refunded_at?: string | null;
+    refunded_by_name?: string | null;
     items_count: number;
+    items_prepared_count?: number;
+    items_served_count?: number;
+    items_in_progress_count?: number;
+    items_ready_count?: number;
     created_at: string;
     created_at_full?: string;
+    created_at_formatted?: string;
     completed_at: string | null;
+    completed_at_full?: string | null;
+    completed_at_formatted?: string | null;
     note?: string | null;
     items?: OrderItemDetail[];
     delivery?: DeliveryInfo | null;
@@ -77,17 +104,38 @@ type Summary = {
     total: number;
     pending: number;
     preparing: number;
+    ready?: number;
     completed: number;
     cancelled: number;
     revenue: number;
+    refunded: number;
+    refunded_amount: number;
+};
+
+type CancelledQrOrder = Order & {
+    cancelled_at: string;
+    cancelled_by_name: string;
+    cancellation_reason: string | null;
 };
 
 const props = defineProps<{
     orders: Order[];
+    cancelledQrOrders: CancelledQrOrder[];
     summary: Summary;
     filters: { status: string; date: string };
     autoPayEnabled: boolean;
 }>();
+
+const officialView = ref<'orders' | 'ready'>('orders');
+const isOfficialReady = computed(() => officialView.value === 'ready');
+
+// Khi mở tab "Chờ phục vụ", backend trả đúng tập đơn ready. Không lọc lại
+// từ danh sách "Đang chế biến" vì hai trạng thái đã được tách ở server.
+const readyOrders = computed(() => (isOfficialReady.value ? props.orders : []));
+
+const officialOrders = computed(() =>
+    isOfficialReady.value ? readyOrders.value : props.orders,
+);
 
 const page = usePage();
 const roles = computed(() => {
@@ -108,6 +156,13 @@ const dateInput = ref(props.filters.date);
 const activeStatus = ref(props.filters.status);
 const datePickerRef = ref<HTMLInputElement | null>(null);
 
+const showCancelledQrOrders = computed(
+    () =>
+        !isOfficialReady.value &&
+        ['all', 'cancelled'].includes(activeStatus.value) &&
+        props.cancelledQrOrders.length > 0,
+);
+
 const openDatePicker = () => {
     if (datePickerRef.value) {
         if (typeof datePickerRef.value.showPicker === 'function') {
@@ -120,6 +175,7 @@ const openDatePicker = () => {
 };
 
 const applyFilters = () => {
+    officialView.value = 'orders';
     router.get(
         '/orders',
         { status: activeStatus.value, date: dateInput.value },
@@ -128,6 +184,7 @@ const applyFilters = () => {
 };
 
 const setStatus = (s: string) => {
+    officialView.value = 'orders';
     activeStatus.value = s;
     router.get(
         '/orders',
@@ -136,20 +193,70 @@ const setStatus = (s: string) => {
     );
 };
 
+const selectOfficialView = (view: 'orders' | 'ready') => {
+    officialView.value = view;
+
+    if (view === 'ready' && activeStatus.value !== 'ready') {
+        activeStatus.value = 'ready';
+        router.get(
+            '/orders',
+            { status: 'ready', date: dateInput.value },
+            { preserveScroll: true, preserveState: true },
+        );
+    }
+};
+
+const statusFilters = [
+    { key: 'all', label: 'Tất cả' },
+    { key: 'confirmed', label: 'Đã xác nhận' },
+    { key: 'waiting_preparing', label: 'Chờ chế biến' },
+    { key: 'preparing', label: 'Đang chế biến' },
+    { key: 'ready', label: 'Chờ phục vụ' },
+    { key: 'completed', label: 'Hoàn thành' },
+    { key: 'refunded', label: 'Hoàn tiền' },
+    { key: 'cancelled', label: 'Đã hủy' },
+] as const;
+
 const statusUpdating = ref<Record<number, boolean>>({});
+
+const fulfillmentConfig: Record<
+    Order['fulfillment_status'],
+    { label: string; class: string; icon: any }
+> = {
+    pending: {
+        label: 'Chờ chế biến',
+        class: 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900/40 dark:bg-amber-950/40 dark:text-amber-300',
+        icon: Clock,
+    },
+    preparing: {
+        label: 'Đang chế biến',
+        class: 'border-violet-200 bg-violet-50 text-violet-700 dark:border-violet-900/40 dark:bg-violet-950/40 dark:text-violet-300',
+        icon: ChefHat,
+    },
+    ready: {
+        label: 'Chờ phục vụ',
+        class: 'border-sky-200 bg-sky-50 text-sky-700 dark:border-sky-900/40 dark:bg-sky-950/40 dark:text-sky-300',
+        icon: CheckCircle2,
+    },
+    served: {
+        label: 'Đã phục vụ',
+        class: 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900/40 dark:bg-emerald-950/40 dark:text-emerald-300',
+        icon: CheckCircle2,
+    },
+};
 
 // ─── Phân trang đơn hàng (10 đơn / trang) ───
 const currentPage = ref(1);
 const itemsPerPage = 10;
 
 const totalPages = computed(() =>
-    Math.ceil(props.orders.length / itemsPerPage),
+    Math.ceil(officialOrders.value.length / itemsPerPage),
 );
 
 const paginatedOrders = computed(() => {
     const start = (currentPage.value - 1) * itemsPerPage;
 
-    return props.orders.slice(start, start + itemsPerPage);
+    return officialOrders.value.slice(start, start + itemsPerPage);
 });
 
 const visiblePages = computed(() => {
@@ -169,7 +276,7 @@ const visiblePages = computed(() => {
     return pages;
 });
 
-watch([activeStatus, dateInput, () => props.orders], () => {
+watch([activeStatus, dateInput, () => props.orders, officialView], () => {
     currentPage.value = 1;
 });
 
@@ -256,6 +363,29 @@ async function openMove(o: Order) {
     }
 }
 
+function convertToTakeaway(o: Order) {
+    if (actionLoading.value) {
+        return;
+    }
+
+    actionLoading.value = true;
+    router.post(
+        `/orders/${o.id}/convert-to-takeaway`,
+        {},
+        {
+            preserveScroll: true,
+            onSuccess: () => toast.success('Đã chuyển đơn sang mang về.'),
+            onError: (errs: any) =>
+                toast.error(
+                    String(Object.values(errs)[0] ?? 'Không thể chuyển đơn.'),
+                ),
+            onFinish: () => {
+                actionLoading.value = false;
+            },
+        },
+    );
+}
+
 // Các đơn khác có thể nhận gộp (chưa thanh toán, đang hoạt động, khác đơn nguồn).
 const mergeCandidates = computed(() =>
     props.orders.filter((o) => canModify(o) && o.id !== actionOrder.value?.id),
@@ -311,52 +441,139 @@ function submitAction() {
     });
 }
 
+// ─── Xử lý Hoàn tiền (Refund) ───
+const showRefundModal = ref(false);
+const refundOrderTarget = ref<Order | null>(null);
+const refundType = ref<'full' | 'partial'>('full');
+const refundAmount = ref<number>(0);
+const refundReason = ref<string>('');
+const isSubmittingRefund = ref(false);
+
+const openRefundModal = (o: Order) => {
+    refundOrderTarget.value = o;
+    refundType.value = 'full';
+    refundAmount.value = Math.max(0, o.total_amount - (o.refund_amount ?? 0));
+    refundReason.value = '';
+    showRefundModal.value = true;
+};
+
+const remainingRefundAmount = computed(() =>
+    Math.max(
+        0,
+        (refundOrderTarget.value?.total_amount ?? 0) -
+            (refundOrderTarget.value?.refund_amount ?? 0),
+    ),
+);
+
+const submitRefund = () => {
+    if (
+        !refundOrderTarget.value ||
+        !refundReason.value.trim() ||
+        isSubmittingRefund.value
+    ) {
+        return;
+    }
+
+    isSubmittingRefund.value = true;
+    router.post(
+        `/orders/${refundOrderTarget.value.id}/refund`,
+        {
+            refund_type: refundType.value,
+            refund_amount: refundAmount.value,
+            reason: refundReason.value,
+        },
+        {
+            preserveScroll: true,
+            onSuccess: () => {
+                showRefundModal.value = false;
+                toast.success(
+                    isOwner.value
+                        ? 'Đã xử lý hoàn tiền thành công!'
+                        : 'Đã gửi yêu cầu hoàn tiền đến chủ doanh nghiệp.',
+                );
+            },
+            onError: (errs: any) => {
+                toast.error(
+                    String(Object.values(errs)[0] ?? 'Có lỗi khi hoàn tiền.'),
+                );
+            },
+            onFinish: () => {
+                isSubmittingRefund.value = false;
+            },
+        },
+    );
+};
+
+// ── Hủy món / báo bếp ─────────────────────────────────────────────────────
+const showCancelItemModal = ref(false);
+const cancelItemTarget = ref<OrderItemDetail | null>(null);
+const cancelItemReason = ref('Khách bận việc đột xuất');
+const cancelItemCustomReason = ref('');
+const isSubmittingItemCancel = ref(false);
+const cancellationReasonOptions = [
+    'Khách bận việc đột xuất',
+    'Khách đổi món',
+    'Khách không muốn nhận món',
+    'Món hết nguyên liệu / không thể phục vụ',
+];
+
+const openCancelItemModal = (item: OrderItemDetail) => {
+    cancelItemTarget.value = item;
+    cancelItemReason.value = 'Khách bận việc đột xuất';
+    cancelItemCustomReason.value = '';
+    showCancelItemModal.value = true;
+};
+
+const effectiveCancelItemReason = computed(() =>
+    cancelItemReason.value === '__custom__'
+        ? cancelItemCustomReason.value
+        : cancelItemReason.value,
+);
+
+const submitCancelItem = () => {
+    if (
+        !selectedOrder.value ||
+        !cancelItemTarget.value ||
+        effectiveCancelItemReason.value.trim().length < 3 ||
+        isSubmittingItemCancel.value
+    ) {
+        return;
+    }
+
+    isSubmittingItemCancel.value = true;
+    router.post(
+        `/orders/${selectedOrder.value.id}/items/${cancelItemTarget.value.id}/cancel`,
+        { reason: effectiveCancelItemReason.value.trim() },
+        {
+            preserveScroll: true,
+            onSuccess: () => {
+                showCancelItemModal.value = false;
+                cancelItemTarget.value = null;
+                toast.success('Đã gửi yêu cầu hủy món và báo xuống bếp.');
+            },
+            onError: (errs: any) => {
+                toast.error(
+                    String(Object.values(errs)[0] ?? 'Không thể hủy món.'),
+                );
+            },
+            onFinish: () => {
+                isSubmittingItemCancel.value = false;
+            },
+        },
+    );
+};
+
 const splitTotal = computed(() =>
     billItems.value
         .filter((i) => selectedItemIds.value.includes(i.id))
         .reduce((sum, i) => sum + i.line_total, 0),
 );
 
-const statusConfig: Record<
-    string,
-    { label: string; color: string; bg: string; icon: any }
-> = {
-    pending: {
-        label: 'Chờ xác nhận',
-        color: 'text-amber-700',
-        bg: 'bg-amber-100 dark:bg-amber-950/40 dark:text-amber-400',
-        icon: Clock,
-    },
-    confirmed: {
-        label: 'Đã xác nhận',
-        color: 'text-sky-700',
-        bg: 'bg-sky-100 dark:bg-sky-950/40 dark:text-sky-400',
-        icon: CheckCircle2,
-    },
-    preparing: {
-        label: 'Đang chế biến',
-        color: 'text-violet-700',
-        bg: 'bg-violet-100 dark:bg-violet-950/40 dark:text-violet-400',
-        icon: ChefHat,
-    },
-    completed: {
-        label: 'Hoàn thành',
-        color: 'text-emerald-700',
-        bg: 'bg-emerald-100 dark:bg-emerald-950/40 dark:text-emerald-400',
-        icon: CheckCircle2,
-    },
-    cancelled: {
-        label: 'Đã hủy',
-        color: 'text-rose-700',
-        bg: 'bg-rose-100 dark:bg-rose-950/40 dark:text-rose-400',
-        icon: XCircle,
-    },
-};
-
 const paymentConfig: Record<string, { label: string; color: string }> = {
     unpaid: { label: 'Chưa TT', color: 'text-rose-600' },
     partial: { label: 'TT 1 phần', color: 'text-amber-600' },
     paid: { label: 'Đã TT', color: 'text-emerald-600' },
+    partial_refund: { label: 'Hoàn một phần', color: 'text-amber-600' },
     refunded: { label: 'Hoàn tiền', color: 'text-slate-500' },
 };
 
@@ -436,12 +653,42 @@ const fetchPendingQr = async () => {
     try {
         const res = await axios.get('/api/temporary-orders');
         pendingQrOrders.value = res.data.temporary_orders;
-    } catch (e) {
-        console.error(e);
+    } catch (e: unknown) {
+        toast.error(
+            apiErrorMessage(e, 'Không tải được danh sách đơn gọi món qua QR.'),
+        );
     } finally {
         isLoadingQr.value = false;
     }
 };
+
+const isBatchApprovingQr = ref(false);
+
+async function batchApproveQr() {
+    if (
+        !(await confirmDialog({
+            title: 'Duyệt toàn bộ yêu cầu QR',
+            description: `Duyệt ${pendingQrOrders.value.length} yêu cầu đặt món QR đang chờ? Các đơn sẽ được đẩy xuống bếp ngay.`,
+        }))
+    ) {
+        return;
+    }
+
+    isBatchApprovingQr.value = true;
+
+    try {
+        const res = await axios.post('/orders/batch-approve-qr', {
+            temporary_order_ids: pendingQrOrders.value.map((o) => o.id),
+        });
+        toast.success(res.data?.message ?? 'Đã duyệt các yêu cầu QR.');
+        await fetchPendingQr();
+        router.reload({ only: ['orders'] });
+    } catch (e) {
+        toast.error(apiErrorMessage(e, 'Không duyệt được các yêu cầu QR.'));
+    } finally {
+        isBatchApprovingQr.value = false;
+    }
+}
 
 const fetchRejectedQr = async () => {
     isLoadingQr.value = true;
@@ -449,8 +696,10 @@ const fetchRejectedQr = async () => {
     try {
         const res = await axios.get('/api/temporary-orders/rejected-logs');
         rejectedQrLogs.value = res.data.rejected_logs;
-    } catch (e) {
-        console.error(e);
+    } catch (e: unknown) {
+        toast.error(
+            apiErrorMessage(e, 'Không tải được nhật ký đơn QR bị từ chối.'),
+        );
     } finally {
         isLoadingQr.value = false;
     }
@@ -458,6 +707,10 @@ const fetchRejectedQr = async () => {
 
 const selectTab = (tab: string) => {
     activeTab.value = tab;
+
+    if (tab === 'official') {
+        officialView.value = 'orders';
+    }
 
     if (tab === 'pending_qr') {
         fetchPendingQr();
@@ -578,6 +831,13 @@ const channelStats = computed(() => {
         }
     });
 
+    // Cancelled QR requests are temporary orders, so they are not included
+    // in props.orders. Count them in the QR channel analytics as well.
+    props.cancelledQrOrders.forEach((o) => {
+        stats.qr++;
+        amounts.qr += o.total_amount;
+    });
+
     return { stats, amounts };
 });
 
@@ -599,6 +859,7 @@ const aiEvaluation = computed(() => {
         props.summary.total > 0
             ? (props.summary.completed / props.summary.total) * 100
             : 0;
+    void completionRate;
     const cancelRate =
         props.summary.total > 0
             ? (props.summary.cancelled / props.summary.total) * 100
@@ -647,13 +908,35 @@ const aiEvaluation = computed(() => {
     return { status, title, text, tips };
 });
 
+let orderRefreshInterval: ReturnType<typeof setInterval> | null = null;
+
 onMounted(() => {
     // Check if there is an active tab parameter in the URL
     const urlParams = new URLSearchParams(window.location.search);
     const tabParam = urlParams.get('tab');
 
-    if (tabParam && ['pending_qr', 'rejected_qr'].includes(tabParam)) {
+    if (tabParam === 'ready') {
+        activeTab.value = 'official';
+        selectOfficialView('ready');
+    } else if (tabParam && ['pending_qr', 'rejected_qr'].includes(tabParam)) {
         selectTab(tabParam);
+    }
+
+    // Kitchen and service actions happen on another device. Refresh the
+    // owner view periodically so the progress badges do not require F5.
+    orderRefreshInterval = setInterval(() => {
+        router.reload({
+            only: ['orders', 'summary'],
+            preserveState: true,
+            preserveScroll: true,
+        });
+    }, 8000);
+});
+
+onUnmounted(() => {
+    if (orderRefreshInterval) {
+        clearInterval(orderRefreshInterval);
+        orderRefreshInterval = null;
     }
 });
 </script>
@@ -751,7 +1034,9 @@ onMounted(() => {
         </div>
 
         <!-- Summary KPIs -->
-        <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+        <div
+            class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-8"
+        >
             <div
                 class="rounded-xl border border-border bg-card p-3 text-center"
             >
@@ -766,7 +1051,7 @@ onMounted(() => {
                 >
                     {{ summary.pending }}
                 </p>
-                <p class="mt-0.5 text-xs text-amber-600/70">Chờ xác nhận</p>
+                <p class="mt-0.5 text-xs text-amber-600/70">Chờ chế biến</p>
             </div>
             <div
                 class="rounded-xl border border-violet-200 bg-violet-50 p-3 text-center dark:border-violet-900/40 dark:bg-violet-950/20"
@@ -795,6 +1080,23 @@ onMounted(() => {
                     {{ summary.cancelled }}
                 </p>
                 <p class="mt-0.5 text-xs text-rose-600/70">Đã hủy</p>
+            </div>
+            <div
+                class="rounded-xl border border-slate-200 bg-slate-50 p-3 text-center dark:border-slate-700 dark:bg-slate-900/60"
+            >
+                <p
+                    class="text-2xl font-bold text-slate-700 dark:text-slate-200"
+                >
+                    {{ summary.refunded }}
+                </p>
+                <p class="mt-0.5 text-xs text-slate-600/70 dark:text-slate-400">
+                    Đơn hoàn tiền
+                </p>
+                <p
+                    class="mt-1 text-[10px] font-semibold text-slate-500 dark:text-slate-400"
+                >
+                    {{ formatCurrency(summary.refunded_amount) }}
+                </p>
             </div>
             <div
                 class="rounded-xl border border-emerald-300 bg-emerald-100 p-3 text-center dark:border-emerald-800 dark:bg-emerald-950/30"
@@ -1160,7 +1462,6 @@ onMounted(() => {
                 </span>
             </button>
             <button
-                v-if="isOwner || roles.includes('manager')"
                 @click="selectTab('rejected_qr')"
                 :class="[
                     'cursor-pointer border-b-2 pb-3 text-sm font-semibold transition-all',
@@ -1181,41 +1482,73 @@ onMounted(() => {
             <!-- Status filter chips -->
             <div class="flex flex-wrap gap-2">
                 <button
-                    v-for="(label, key) in {
-                        all: 'Tất cả',
-                        pending: 'Chờ xác nhận',
-                        confirmed: 'Đã xác nhận',
-                        preparing: 'Đang chế biến',
-                        completed: 'Hoàn thành',
-                        cancelled: 'Đã hủy',
-                    } as Record<string, string>"
-                    :key="key"
-                    @click="setStatus(key)"
+                    v-for="filter in statusFilters"
+                    :key="filter.key"
+                    @click="
+                        filter.key === 'ready'
+                            ? selectOfficialView('ready')
+                            : setStatus(filter.key)
+                    "
                     class="rounded-full border px-3 py-1.5 text-xs font-semibold transition-all"
                     :class="
-                        activeStatus === key
-                            ? 'border-violet-500 bg-violet-50 text-violet-700 dark:border-violet-700 dark:bg-violet-950/40 dark:text-violet-400'
-                            : 'border-slate-200 bg-white text-slate-500 hover:border-slate-300 dark:border-slate-800 dark:bg-slate-950'
+                        filter.key === 'ready'
+                            ? isOfficialReady
+                                ? 'border-emerald-500 bg-emerald-50 text-emerald-700 dark:border-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300'
+                                : 'border-slate-200 bg-white text-slate-500 hover:border-emerald-300 dark:border-slate-800 dark:bg-slate-950'
+                            : activeStatus === filter.key && !isOfficialReady
+                              ? 'border-violet-500 bg-violet-50 text-violet-700 dark:border-violet-700 dark:bg-violet-950/40 dark:text-violet-400'
+                              : 'border-slate-200 bg-white text-slate-500 hover:border-slate-300 dark:border-slate-800 dark:bg-slate-950'
                     "
                 >
-                    {{ label }}
+                    {{ filter.label }}
+                    <span
+                        v-if="
+                            filter.key === 'waiting_preparing' &&
+                            summary.pending > 0
+                        "
+                        class="rounded-full bg-amber-500 px-1.5 py-0.5 text-[10px] font-bold text-white"
+                    >
+                        {{ summary.pending }}
+                    </span>
+                    <span
+                        v-if="
+                            filter.key === 'ready' &&
+                            (isOfficialReady
+                                ? readyOrders.length
+                                : (summary.ready ?? 0)) > 0
+                        "
+                        class="rounded-full bg-emerald-500 px-1.5 py-0.5 text-[10px] font-bold text-white"
+                    >
+                        {{
+                            isOfficialReady
+                                ? readyOrders.length
+                                : (summary.ready ?? 0)
+                        }}
+                    </span>
                 </button>
             </div>
 
             <!-- Orders table -->
-            <Card class="shadow-sm">
+            <Card
+                v-if="officialOrders.length || !showCancelledQrOrders"
+                class="shadow-sm"
+            >
                 <CardHeader class="border-b pb-3">
                     <CardTitle class="text-base">
-                        Danh sách đơn hàng
+                        {{
+                            isOfficialReady
+                                ? 'Đơn chờ phục vụ'
+                                : 'Danh sách đơn hàng'
+                        }}
                         <span
                             class="ml-1 text-sm font-normal text-muted-foreground"
-                            >({{ orders.length }} đơn)</span
+                            >({{ officialOrders.length }} đơn)</span
                         >
                     </CardTitle>
                 </CardHeader>
                 <CardContent class="p-0">
                     <div
-                        v-if="orders.length"
+                        v-if="officialOrders.length"
                         class="divide-y divide-slate-100 dark:divide-slate-800"
                     >
                         <div
@@ -1231,6 +1564,11 @@ onMounted(() => {
                                         class="font-mono text-sm font-bold text-slate-800 transition-colors group-hover:text-violet-600 dark:text-slate-200 dark:group-hover:text-violet-400"
                                         >{{ o.order_number }}</span
                                     >
+                                    <span
+                                        class="text-[10px] font-medium text-muted-foreground"
+                                    >
+                                        {{ o.branch_name }}
+                                    </span>
                                     <span
                                         class="rounded-md border bg-slate-50 px-1.5 py-0.5 text-[9px] font-semibold text-slate-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-400"
                                     >
@@ -1251,13 +1589,71 @@ onMounted(() => {
                                     </span>
                                 </div>
                                 <div
-                                    class="mt-1 flex items-center gap-3 text-xs text-muted-foreground"
+                                    class="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground"
                                 >
-                                    <span>{{ o.created_at }}</span>
-                                    <span>{{ o.items_count }} món</span>
-                                    <span v-if="o.completed_at"
-                                        >Xong: {{ o.completed_at }}</span
+                                    <span
+                                        class="inline-flex items-center gap-1"
                                     >
+                                        <Clock class="size-3 text-slate-400" />
+                                        Tạo đơn:
+                                        <strong
+                                            class="font-mono text-slate-700 dark:text-slate-300"
+                                            >{{
+                                                o.created_at_formatted ||
+                                                o.created_at_full ||
+                                                o.created_at
+                                            }}</strong
+                                        >
+                                    </span>
+                                    <span
+                                        class="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold text-slate-600 dark:bg-slate-800 dark:text-slate-400"
+                                    >
+                                        {{ o.items_count }} món
+                                    </span>
+                                    <!-- Tiến độ Bếp & Phục vụ -->
+                                    <span
+                                        v-if="
+                                            o.items_prepared_count &&
+                                            o.items_prepared_count > 0
+                                        "
+                                        class="inline-flex items-center gap-1 rounded-md border border-sky-200 bg-sky-50 px-1.5 py-0.5 text-[10px] font-bold text-sky-700 dark:border-sky-900/40 dark:bg-sky-950/40 dark:text-sky-300"
+                                    >
+                                        <ChefHat class="size-3 text-sky-500" />
+                                        Bếp xong {{ o.items_prepared_count }}/{{
+                                            o.items_count
+                                        }}
+                                    </span>
+                                    <span
+                                        v-if="
+                                            o.items_served_count &&
+                                            o.items_served_count > 0
+                                        "
+                                        class="inline-flex items-center gap-1 rounded-md border border-emerald-200 bg-emerald-50 px-1.5 py-0.5 text-[10px] font-bold text-emerald-700 dark:border-emerald-900/40 dark:bg-emerald-950/40 dark:text-emerald-300"
+                                    >
+                                        <Utensils
+                                            class="size-3 text-emerald-500"
+                                        />
+                                        Đã phục vụ {{ o.items_served_count }}/{{
+                                            o.items_count
+                                        }}
+                                    </span>
+                                    <span
+                                        v-if="o.completed_at"
+                                        class="inline-flex items-center gap-1"
+                                    >
+                                        <CheckCircle2
+                                            class="size-3 text-emerald-500"
+                                        />
+                                        Thanh toán:
+                                        <strong
+                                            class="font-mono text-emerald-600 dark:text-emerald-400"
+                                            >{{
+                                                o.completed_at_formatted ||
+                                                o.completed_at_full ||
+                                                o.completed_at
+                                            }}</strong
+                                        >
+                                    </span>
                                 </div>
                             </div>
 
@@ -1276,6 +1672,13 @@ onMounted(() => {
                                 >
                                     {{ paymentConfig[o.payment_status]?.label }}
                                 </span>
+                                <span
+                                    v-if="(o.refund_amount ?? 0) > 0"
+                                    class="mt-0.5 block text-[10px] font-semibold text-slate-500 dark:text-slate-400"
+                                >
+                                    Đã hoàn
+                                    {{ formatCurrency(o.refund_amount ?? 0) }}
+                                </span>
                             </div>
 
                             <!-- Status + next action -->
@@ -1284,10 +1687,30 @@ onMounted(() => {
                                 @click.stop
                             >
                                 <span
-                                    class="rounded-full px-2 py-1 text-[10px] font-semibold"
-                                    :class="statusConfig[o.status]?.bg"
+                                    class="inline-flex items-center gap-1 rounded-full border px-2 py-1 text-[10px] font-bold"
+                                    :class="
+                                        fulfillmentConfig[o.fulfillment_status]
+                                            .class
+                                    "
+                                    :title="`Bếp ${o.items_prepared_count ?? 0}/${o.items_count} · Phục vụ ${o.items_served_count ?? 0}/${o.items_count}`"
                                 >
-                                    {{ statusConfig[o.status]?.label }}
+                                    <component
+                                        :is="
+                                            fulfillmentConfig[
+                                                o.fulfillment_status
+                                            ].icon
+                                        "
+                                        class="size-3"
+                                    />
+                                    {{
+                                        fulfillmentConfig[o.fulfillment_status]
+                                            .label
+                                    }}
+                                    <span class="font-mono opacity-80">
+                                        {{ o.items_served_count ?? 0 }}/{{
+                                            o.items_count
+                                        }}
+                                    </span>
                                 </span>
                                 <button
                                     v-if="
@@ -1340,6 +1763,17 @@ onMounted(() => {
                                         Chuyển bàn
                                     </button>
                                     <button
+                                        v-if="
+                                            o.table_name &&
+                                            o.channel === 'dine_in'
+                                        "
+                                        @click.stop="convertToTakeaway(o)"
+                                        class="h-7 cursor-pointer rounded-lg border border-amber-200 bg-amber-50 px-2 text-[10px] font-semibold text-amber-700 transition-colors hover:bg-amber-100 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-400"
+                                        title="Chuyển nhanh đơn tại bàn sang mang về"
+                                    >
+                                        Mang về
+                                    </button>
+                                    <button
                                         @click.stop="openMerge(o)"
                                         class="h-7 cursor-pointer rounded-lg border border-border px-2 text-[10px] font-semibold transition-colors hover:bg-accent"
                                         title="Gộp bill này vào một đơn khác"
@@ -1362,6 +1796,21 @@ onMounted(() => {
                                         >nháp</span
                                     >
                                 </a>
+
+                                <!-- Hoàn tiền (đơn đã thanh toán) -->
+                                <button
+                                    v-if="
+                                        ['paid', 'partial_refund'].includes(
+                                            o.payment_status,
+                                        )
+                                    "
+                                    @click.stop="openRefundModal(o)"
+                                    class="inline-flex h-7 cursor-pointer items-center gap-1 rounded-lg border border-rose-200 bg-rose-50 px-2 text-[10px] font-semibold text-rose-700 transition-colors hover:bg-rose-100 dark:border-rose-900/50 dark:bg-rose-950/30 dark:text-rose-400 dark:hover:bg-rose-950/60"
+                                    title="Xử lý hoàn tiền cho đơn hàng"
+                                >
+                                    <RotateCcw class="size-3" />
+                                    Hoàn tiền
+                                </button>
                             </div>
                         </div>
                     </div>
@@ -1399,10 +1848,10 @@ onMounted(() => {
                             {{
                                 Math.min(
                                     currentPage * itemsPerPage,
-                                    orders.length,
+                                    officialOrders.length,
                                 )
                             }}
-                            trong tổng số {{ orders.length }} đơn hàng
+                            trong tổng số {{ officialOrders.length }} đơn hàng
                         </div>
                         <div class="flex items-center gap-1.5">
                             <Button
@@ -1442,9 +1891,114 @@ onMounted(() => {
                     </div>
                 </CardContent>
             </Card>
+
+            <!-- Cancelled QR requests are temporary orders until confirmed. -->
+            <Card v-if="showCancelledQrOrders" class="shadow-sm">
+                <CardHeader class="border-b pb-3">
+                    <CardTitle class="text-base">
+                        Đơn QR bị hủy
+                        <span
+                            class="ml-1 text-sm font-normal text-muted-foreground"
+                        >
+                            ({{ cancelledQrOrders.length }} đơn)
+                        </span>
+                    </CardTitle>
+                </CardHeader>
+                <CardContent class="p-0">
+                    <div
+                        class="divide-y divide-slate-100 dark:divide-slate-800"
+                    >
+                        <div
+                            v-for="o in cancelledQrOrders"
+                            :key="`cancelled-qr-${o.id}`"
+                            class="flex flex-col gap-3 px-5 py-4 md:flex-row md:items-center md:justify-between"
+                        >
+                            <div class="min-w-0 flex-1">
+                                <div class="flex flex-wrap items-center gap-2">
+                                    <span
+                                        class="font-mono text-sm font-bold text-slate-800 dark:text-slate-200"
+                                    >
+                                        {{ o.order_number }}
+                                    </span>
+                                    <span
+                                        class="rounded-md border border-indigo-200 bg-indigo-50 px-1.5 py-0.5 text-[9px] font-semibold text-indigo-700 dark:border-indigo-900/40 dark:bg-indigo-950/40 dark:text-indigo-300"
+                                    >
+                                        QR Scan
+                                    </span>
+                                    <span
+                                        class="rounded-full border border-rose-200 bg-rose-50 px-2 py-1 text-[10px] font-bold text-rose-700 dark:border-rose-900/40 dark:bg-rose-950/40 dark:text-rose-300"
+                                    >
+                                        Đã hủy
+                                    </span>
+                                    <span
+                                        v-if="o.table_name"
+                                        class="text-[10px] text-slate-400"
+                                    >
+                                        {{ o.table_name
+                                        }}{{
+                                            o.area_name
+                                                ? ` · ${o.area_name}`
+                                                : ''
+                                        }}
+                                    </span>
+                                </div>
+                                <div
+                                    class="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground"
+                                >
+                                    <span
+                                        >Tạo đơn:
+                                        <strong class="font-mono">{{
+                                            o.created_at_formatted
+                                        }}</strong></span
+                                    >
+                                    <span
+                                        >Hủy lúc:
+                                        <strong class="font-mono">{{
+                                            o.cancelled_at
+                                        }}</strong></span
+                                    >
+                                    <span>{{ o.items_count }} món</span>
+                                </div>
+                                <p class="mt-2 text-xs text-slate-500">
+                                    {{
+                                        o.items
+                                            ?.map(
+                                                (item) =>
+                                                    `${item.quantity}x ${item.name}`,
+                                            )
+                                            .join(', ')
+                                    }}
+                                </p>
+                                <p
+                                    class="mt-1 text-xs text-rose-600 dark:text-rose-400"
+                                >
+                                    Lý do:
+                                    {{
+                                        o.cancellation_reason ||
+                                        'Không ghi lý do'
+                                    }}
+                                    · Người hủy: {{ o.cancelled_by_name }}
+                                </p>
+                            </div>
+                            <div class="shrink-0 text-right">
+                                <p
+                                    class="font-mono text-sm font-bold text-slate-800 dark:text-slate-200"
+                                >
+                                    {{ formatCurrency(o.total_amount) }}
+                                </p>
+                                <p
+                                    class="text-[10px] font-semibold text-slate-500"
+                                >
+                                    Không tính doanh thu
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </CardContent>
+            </Card>
         </div>
 
-        <!-- TAB 2: Pending QR Orders -->
+        <!-- TAB 2: Pending QR orders -->
         <div v-else-if="activeTab === 'pending_qr'" class="space-y-4">
             <Card class="shadow-sm">
                 <CardHeader
@@ -1457,19 +2011,37 @@ onMounted(() => {
                             >({{ pendingQrOrders.length }} yêu cầu)</span
                         >
                     </CardTitle>
-                    <Button
-                        variant="outline"
-                        size="sm"
-                        @click="fetchPendingQr"
-                        class="h-8"
-                    >
-                        <RefreshCw
-                            :class="[
-                                'size-3.5',
-                                isLoadingQr ? 'animate-spin' : '',
-                            ]"
-                        />
-                    </Button>
+                    <div class="flex items-center gap-2">
+                        <!-- Route orders.batch-approve-qr đã có sẵn nhưng chưa
+                             từng có nút gọi: quán đông phải bấm duyệt từng đơn. -->
+                        <Button
+                            v-if="pendingQrOrders.length > 1"
+                            size="sm"
+                            class="h-8 bg-violet-600 text-white hover:bg-violet-700"
+                            :disabled="isBatchApprovingQr"
+                            @click="batchApproveQr"
+                        >
+                            <Check class="mr-1 size-3.5" />
+                            {{
+                                isBatchApprovingQr
+                                    ? 'Đang duyệt...'
+                                    : `Duyệt tất cả (${pendingQrOrders.length})`
+                            }}
+                        </Button>
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            @click="fetchPendingQr"
+                            class="h-8"
+                        >
+                            <RefreshCw
+                                :class="[
+                                    'size-3.5',
+                                    isLoadingQr ? 'animate-spin' : '',
+                                ]"
+                            />
+                        </Button>
+                    </div>
                 </CardHeader>
                 <CardContent class="p-0">
                     <div
@@ -1715,147 +2287,151 @@ onMounted(() => {
         </div>
 
         <!-- ── AI Upsell proposal modal ────────────────────────────────────── -->
-        <div
-            v-if="showUpsellModal && upsellData"
-            class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-sm"
-        >
+        <Teleport to="body">
             <div
-                class="relative w-full max-w-sm overflow-hidden rounded-3xl border border-slate-800 bg-gradient-to-br from-slate-900 to-slate-950 text-slate-200 shadow-2xl"
+                v-if="showUpsellModal && upsellData"
+                class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-sm"
             >
-                <header
-                    class="flex items-center justify-between border-b border-amber-500/10 bg-amber-500/10 p-4"
+                <div
+                    class="relative w-full max-w-sm overflow-hidden rounded-3xl border border-slate-800 bg-gradient-to-br from-slate-900 to-slate-950 text-slate-200 shadow-2xl"
                 >
-                    <div class="flex items-center gap-2">
-                        <Bot class="size-5 animate-pulse text-amber-400" />
-                        <h3
-                            class="flex items-center gap-1 text-xs font-bold tracking-wider text-amber-400 uppercase"
-                        >
-                            Smart Upselling Engine
-                            <Sparkles class="size-3.5 text-amber-400" />
-                        </h3>
-                    </div>
-                    <button
-                        @click="showUpsellModal = false"
-                        class="bg-slate-855 cursor-pointer rounded-lg p-1 text-slate-400 hover:bg-slate-800"
+                    <header
+                        class="flex items-center justify-between border-b border-amber-500/10 bg-amber-500/10 p-4"
                     >
-                        <X class="size-4" />
-                    </button>
-                </header>
-
-                <div class="space-y-4 p-5">
-                    <div
-                        class="space-y-2 rounded-2xl border border-slate-800 bg-slate-950 p-4"
-                    >
-                        <p
-                            class="text-slate-350 text-xs leading-relaxed font-medium"
-                        >
-                            {{ upsellData.suggestion }}
-                        </p>
-                        <div
-                            class="flex items-center justify-between border-t border-slate-900 pt-2 text-[10px] text-slate-500"
-                        >
-                            <span
-                                >Độ tin cậy:
-                                {{
-                                    Math.round(upsellData.confidence * 100)
-                                }}%</span
+                        <div class="flex items-center gap-2">
+                            <Bot class="size-5 animate-pulse text-amber-400" />
+                            <h3
+                                class="flex items-center gap-1 text-xs font-bold tracking-wider text-amber-400 uppercase"
                             >
-                            <span>Chỉ số Lift: {{ upsellData.lift }}x</span>
+                                Smart Upselling Engine
+                                <Sparkles class="size-3.5 text-amber-400" />
+                            </h3>
+                        </div>
+                        <button
+                            @click="showUpsellModal = false"
+                            class="bg-slate-855 cursor-pointer rounded-lg p-1 text-slate-400 hover:bg-slate-800"
+                        >
+                            <X class="size-4" />
+                        </button>
+                    </header>
+
+                    <div class="space-y-4 p-5">
+                        <div
+                            class="space-y-2 rounded-2xl border border-slate-800 bg-slate-950 p-4"
+                        >
+                            <p
+                                class="text-slate-350 text-xs leading-relaxed font-medium"
+                            >
+                                {{ upsellData.suggestion }}
+                            </p>
+                            <div
+                                class="flex items-center justify-between border-t border-slate-900 pt-2 text-[10px] text-slate-500"
+                            >
+                                <span
+                                    >Độ tin cậy:
+                                    {{
+                                        Math.round(upsellData.confidence * 100)
+                                    }}%</span
+                                >
+                                <span>Chỉ số Lift: {{ upsellData.lift }}x</span>
+                            </div>
+                        </div>
+
+                        <div
+                            v-if="upsellData.recommended_item"
+                            class="flex items-center justify-between rounded-xl border border-amber-500/10 bg-amber-500/5 p-3 text-xs"
+                        >
+                            <span class="font-bold text-slate-200"
+                                >Gợi ý: Mời dùng
+                                {{ upsellData.recommended_item }}</span
+                            >
+                            <span
+                                class="text-xxs rounded bg-amber-500/10 px-1.5 py-0.5 font-bold text-amber-400"
+                                >-10% combo</span
+                            >
                         </div>
                     </div>
 
-                    <div
-                        v-if="upsellData.recommended_item"
-                        class="flex items-center justify-between rounded-xl border border-amber-500/10 bg-amber-500/5 p-3 text-xs"
+                    <footer
+                        class="flex gap-2 border-t border-slate-800 bg-slate-950/20 p-4"
                     >
-                        <span class="font-bold text-slate-200"
-                            >Gợi ý: Mời dùng
-                            {{ upsellData.recommended_item }}</span
+                        <button
+                            @click="showUpsellModal = false"
+                            class="text-slate-450 hover:bg-slate-850 h-10 flex-1 cursor-pointer rounded-xl border border-slate-800 text-xs font-bold"
                         >
-                        <span
-                            class="text-xxs rounded bg-amber-500/10 px-1.5 py-0.5 font-bold text-amber-400"
-                            >-10% combo</span
+                            Bỏ qua
+                        </button>
+                        <button
+                            @click="addUpsellItem"
+                            class="flex h-10 flex-1 cursor-pointer items-center justify-center gap-1 rounded-xl bg-amber-500 text-xs font-extrabold text-slate-950 shadow-lg shadow-amber-500/10 hover:bg-amber-400"
                         >
-                    </div>
+                            <Check class="size-4" /> Thêm vào đơn
+                        </button>
+                    </footer>
                 </div>
-
-                <footer
-                    class="flex gap-2 border-t border-slate-800 bg-slate-950/20 p-4"
-                >
-                    <button
-                        @click="showUpsellModal = false"
-                        class="text-slate-450 hover:bg-slate-850 h-10 flex-1 cursor-pointer rounded-xl border border-slate-800 text-xs font-bold"
-                    >
-                        Bỏ qua
-                    </button>
-                    <button
-                        @click="addUpsellItem"
-                        class="flex h-10 flex-1 cursor-pointer items-center justify-center gap-1 rounded-xl bg-amber-500 text-xs font-extrabold text-slate-950 shadow-lg shadow-amber-500/10 hover:bg-amber-400"
-                    >
-                        <Check class="size-4" /> Thêm vào đơn
-                    </button>
-                </footer>
             </div>
-        </div>
+        </Teleport>
 
         <!-- ── Cancellation Reason Modal ────────────────────────────────────── -->
-        <div
-            v-if="showCancelModal"
-            class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-sm"
-        >
+        <Teleport to="body">
             <div
-                class="relative w-full max-w-xs overflow-hidden rounded-3xl border border-slate-800 bg-slate-900 text-slate-200 shadow-2xl"
+                v-if="showCancelModal"
+                class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-sm"
             >
-                <header
-                    class="flex items-center justify-between border-b border-slate-800 p-4"
+                <div
+                    class="relative w-full max-w-xs overflow-hidden rounded-3xl border border-slate-800 bg-slate-900 text-slate-200 shadow-2xl"
                 >
-                    <h3 class="text-xs font-bold text-slate-200">
-                        Lý do từ chối yêu cầu QR
-                    </h3>
-                    <button
-                        @click="showCancelModal = false"
-                        class="bg-slate-850 hover:bg-slate-850 cursor-pointer rounded-lg p-1 text-slate-400"
+                    <header
+                        class="flex items-center justify-between border-b border-slate-800 p-4"
                     >
-                        <X class="size-4" />
-                    </button>
-                </header>
+                        <h3 class="text-xs font-bold text-slate-200">
+                            Lý do từ chối yêu cầu QR
+                        </h3>
+                        <button
+                            @click="showCancelModal = false"
+                            class="bg-slate-850 hover:bg-slate-850 cursor-pointer rounded-lg p-1 text-slate-400"
+                        >
+                            <X class="size-4" />
+                        </button>
+                    </header>
 
-                <div class="space-y-3 p-4">
-                    <textarea
-                        v-model="cancelReason"
-                        rows="3"
-                        placeholder="Nhập lý do từ chối..."
-                        class="w-full resize-none rounded-xl border border-slate-800 bg-slate-950 p-2.5 text-xs text-slate-300 focus:border-red-500 focus:outline-none"
-                    ></textarea>
+                    <div class="space-y-3 p-4">
+                        <textarea
+                            v-model="cancelReason"
+                            rows="3"
+                            placeholder="Nhập lý do từ chối..."
+                            class="w-full resize-none rounded-xl border border-slate-800 bg-slate-950 p-2.5 text-xs text-slate-300 focus:border-red-500 focus:outline-none"
+                        ></textarea>
+                    </div>
+
+                    <footer
+                        class="flex gap-2 border-t border-slate-800 bg-slate-950/20 p-4"
+                    >
+                        <button
+                            @click="showCancelModal = false"
+                            class="border-slate-850 hover:bg-slate-850 h-9 flex-1 cursor-pointer rounded-lg border text-xs font-bold text-slate-400"
+                        >
+                            Quay lại
+                        </button>
+                        <button
+                            @click="submitCancel"
+                            :disabled="!cancelReason.trim() || isCancellingQr"
+                            class="flex h-9 flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-lg bg-red-500 text-xs font-bold text-slate-950 hover:bg-red-400 disabled:bg-slate-800 disabled:text-slate-600"
+                        >
+                            <Loader2
+                                v-if="isCancellingQr"
+                                class="size-3.5 animate-spin"
+                            />
+                            {{
+                                isCancellingQr
+                                    ? 'Đang từ chối...'
+                                    : 'Từ chối đặt món'
+                            }}
+                        </button>
+                    </footer>
                 </div>
-
-                <footer
-                    class="flex gap-2 border-t border-slate-800 bg-slate-950/20 p-4"
-                >
-                    <button
-                        @click="showCancelModal = false"
-                        class="border-slate-850 hover:bg-slate-850 h-9 flex-1 cursor-pointer rounded-lg border text-xs font-bold text-slate-400"
-                    >
-                        Quay lại
-                    </button>
-                    <button
-                        @click="submitCancel"
-                        :disabled="!cancelReason.trim() || isCancellingQr"
-                        class="flex h-9 flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-lg bg-red-500 text-xs font-bold text-slate-950 hover:bg-red-400 disabled:bg-slate-800 disabled:text-slate-600"
-                    >
-                        <Loader2
-                            v-if="isCancellingQr"
-                            class="size-3.5 animate-spin"
-                        />
-                        {{
-                            isCancellingQr
-                                ? 'Đang từ chối...'
-                                : 'Từ chối đặt món'
-                        }}
-                    </button>
-                </footer>
             </div>
-        </div>
+        </Teleport>
     </div>
 
     <!-- ─── Dialog Tách bill ─── -->
@@ -2076,6 +2652,192 @@ onMounted(() => {
         </DialogContent>
     </Dialog>
 
+    <!-- ─── Dialog Hoàn tiền ─── -->
+    <Dialog :open="showRefundModal" @update:open="showRefundModal = $event">
+        <DialogContent class="sm:max-w-md">
+            <DialogHeader>
+                <DialogTitle class="flex items-center gap-2 text-base">
+                    <RotateCcw class="size-4 text-rose-600" />
+                    Hoàn tiền đơn hàng — {{ refundOrderTarget?.order_number }}
+                </DialogTitle>
+                <DialogDescription class="text-xs">
+                    Nhập thông tin để gửi chủ doanh nghiệp phê duyệt. Chưa có
+                    thao tác hoàn tiền nào được thực hiện.
+                </DialogDescription>
+            </DialogHeader>
+
+            <div class="space-y-4 py-2 text-xs">
+                <div>
+                    <label class="mb-1 block font-semibold"
+                        >Hình thức hoàn tiền:</label
+                    >
+                    <div class="flex gap-4">
+                        <label class="flex cursor-pointer items-center gap-1.5">
+                            <input
+                                type="radio"
+                                v-model="refundType"
+                                value="full"
+                                @change="refundAmount = remainingRefundAmount"
+                            />
+                            <span
+                                >Hoàn toàn bộ phần còn lại ({{
+                                    remainingRefundAmount.toLocaleString(
+                                        'vi-VN',
+                                    )
+                                }}đ)</span
+                            >
+                        </label>
+                        <label class="flex cursor-pointer items-center gap-1.5">
+                            <input
+                                type="radio"
+                                v-model="refundType"
+                                value="partial"
+                            />
+                            <span>Hoàn một phần</span>
+                        </label>
+                    </div>
+                </div>
+
+                <div v-if="refundType === 'partial'">
+                    <label class="mb-1 block font-semibold"
+                        >Số tiền hoàn (VND):</label
+                    >
+                    <input
+                        type="number"
+                        v-model.number="refundAmount"
+                        :max="remainingRefundAmount"
+                        min="1000"
+                        step="1000"
+                        class="w-full rounded-xl border border-input bg-background p-2.5 text-xs focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                    />
+                </div>
+
+                <div>
+                    <label class="mb-1 block font-semibold"
+                        >Lý do hoàn tiền (<span class="text-rose-500"
+                            >* tối thiểu 10 ký tự</span
+                        >):</label
+                    >
+                    <textarea
+                        v-model="refundReason"
+                        rows="3"
+                        placeholder="Nhập chi tiết lý do hoàn tiền..."
+                        class="w-full rounded-xl border border-input bg-background p-2.5 text-xs focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                    ></textarea>
+                </div>
+
+                <p
+                    class="rounded-lg border border-amber-200 bg-amber-50 p-2.5 text-[11px] text-amber-800 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-300"
+                >
+                    Yêu cầu sẽ được gửi đến chủ doanh nghiệp. Chỉ khi được
+                    duyệt, tiền mới được hoàn và hệ thống mới ghi nhận giao
+                    dịch.
+                </p>
+            </div>
+
+            <DialogFooter class="flex justify-end gap-2">
+                <Button
+                    variant="outline"
+                    size="sm"
+                    class="text-xs"
+                    @click="showRefundModal = false"
+                >
+                    Hủy bỏ
+                </Button>
+                <Button
+                    size="sm"
+                    class="bg-rose-600 text-xs font-bold text-white hover:bg-rose-700"
+                    :disabled="
+                        isSubmittingRefund ||
+                        refundReason.trim().length < 10 ||
+                        refundAmount < 1000 ||
+                        refundAmount > remainingRefundAmount
+                    "
+                    @click="submitRefund"
+                >
+                    <Loader2
+                        v-if="isSubmittingRefund"
+                        class="mr-1 size-3.5 animate-spin"
+                    />
+                    {{
+                        isOwner ? 'Xác nhận hoàn tiền' : 'Gửi yêu cầu phê duyệt'
+                    }}
+                </Button>
+            </DialogFooter>
+        </DialogContent>
+    </Dialog>
+
+    <!-- Modal Hủy món -->
+    <Dialog
+        :open="showCancelItemModal"
+        @update:open="showCancelItemModal = $event"
+    >
+        <DialogContent class="max-w-md rounded-2xl">
+            <DialogHeader>
+                <DialogTitle>Hủy món và báo xuống bếp</DialogTitle>
+                <DialogDescription>
+                    {{ cancelItemTarget?.name }} ·
+                    {{ selectedOrder?.order_number }}
+                </DialogDescription>
+            </DialogHeader>
+            <div class="space-y-3 py-2">
+                <label class="text-xs font-bold text-foreground"
+                    >Lý do hủy món <span class="text-rose-500">*</span></label
+                >
+                <select
+                    v-model="cancelItemReason"
+                    class="w-full rounded-xl border border-input bg-background p-2.5 text-xs focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                >
+                    <option
+                        v-for="reason in cancellationReasonOptions"
+                        :key="reason"
+                        :value="reason"
+                    >
+                        {{ reason }}
+                    </option>
+                    <option value="__custom__">Lý do khác...</option>
+                </select>
+                <textarea
+                    v-if="cancelItemReason === '__custom__'"
+                    v-model="cancelItemCustomReason"
+                    placeholder="Nhập lý do hủy..."
+                    rows="3"
+                    class="w-full rounded-xl border border-input bg-background p-2.5 text-xs focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                />
+                <p
+                    class="rounded-lg border border-amber-200 bg-amber-50 p-2.5 text-[11px] text-amber-800 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-300"
+                >
+                    Nếu bếp đã bắt đầu làm, hệ thống sẽ yêu cầu quản lý duyệt và
+                    ghi nhận món vào Hủy/Tổn thất.
+                </p>
+            </div>
+            <DialogFooter class="gap-2">
+                <Button
+                    variant="outline"
+                    size="sm"
+                    class="text-xs"
+                    @click="showCancelItemModal = false"
+                    >Đóng</Button
+                >
+                <Button
+                    size="sm"
+                    class="bg-rose-600 text-xs font-bold text-white hover:bg-rose-700"
+                    :disabled="
+                        isSubmittingItemCancel ||
+                        effectiveCancelItemReason.trim().length < 3
+                    "
+                    @click="submitCancelItem"
+                >
+                    <Loader2
+                        v-if="isSubmittingItemCancel"
+                        class="mr-1 size-3.5 animate-spin"
+                    />
+                    Xác nhận hủy món
+                </Button>
+            </DialogFooter>
+        </DialogContent>
+    </Dialog>
+
     <!-- Modal Chi Tiết Đơn Hàng -->
     <Dialog :open="showDetailModal" @update:open="showDetailModal = $event">
         <DialogContent
@@ -2104,10 +2866,26 @@ onMounted(() => {
                         </span>
                         <span
                             v-if="selectedOrder"
-                            class="rounded-full px-2.5 py-0.5 text-xs font-semibold"
-                            :class="statusConfig[selectedOrder.status]?.bg"
+                            class="inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-bold"
+                            :class="
+                                fulfillmentConfig[
+                                    selectedOrder.fulfillment_status
+                                ].class
+                            "
                         >
-                            {{ statusConfig[selectedOrder.status]?.label }}
+                            <component
+                                :is="
+                                    fulfillmentConfig[
+                                        selectedOrder.fulfillment_status
+                                    ].icon
+                                "
+                                class="size-3"
+                            />
+                            {{
+                                fulfillmentConfig[
+                                    selectedOrder.fulfillment_status
+                                ].label
+                            }}
                         </span>
                     </div>
                 </div>
@@ -2166,10 +2944,17 @@ onMounted(() => {
                     </div>
                     <div>
                         <span class="block text-[11px] text-muted-foreground"
-                            >Thời gian hoàn thành:</span
+                            >Thời gian thanh toán:</span
                         >
-                        <span class="font-semibold text-foreground">
-                            {{ selectedOrder.completed_at || '—' }}
+                        <span
+                            class="font-semibold text-emerald-600 dark:text-emerald-400"
+                        >
+                            {{
+                                selectedOrder.completed_at_full ||
+                                selectedOrder.completed_at_formatted ||
+                                selectedOrder.completed_at ||
+                                '—'
+                            }}
                         </span>
                     </div>
                     <div
@@ -2185,6 +2970,69 @@ onMounted(() => {
                             "{{ selectedOrder.note }}"
                         </span>
                     </div>
+                </div>
+
+                <!-- Thông tin hoàn tiền -->
+                <div
+                    v-if="(selectedOrder.refund_amount ?? 0) > 0"
+                    class="space-y-2 rounded-xl border border-slate-300 bg-slate-50 p-4 text-xs dark:border-slate-700 dark:bg-slate-900/60"
+                >
+                    <div class="flex items-center justify-between">
+                        <h4
+                            class="font-bold text-slate-700 dark:text-slate-200"
+                        >
+                            Lịch sử hoàn tiền
+                        </h4>
+                        <span
+                            class="rounded-full bg-slate-200 px-2 py-0.5 text-[10px] font-bold text-slate-700 dark:bg-slate-800 dark:text-slate-300"
+                        >
+                            {{
+                                paymentConfig[selectedOrder.payment_status]
+                                    ?.label
+                            }}
+                        </span>
+                    </div>
+                    <div class="grid grid-cols-2 gap-2">
+                        <div>
+                            <span class="text-muted-foreground">Đã hoàn:</span>
+                            <strong
+                                class="ml-1 text-slate-700 dark:text-slate-200"
+                            >
+                                {{
+                                    formatCurrency(
+                                        selectedOrder.refund_amount ?? 0,
+                                    )
+                                }}
+                            </strong>
+                        </div>
+                        <div>
+                            <span class="text-muted-foreground"
+                                >Người xử lý:</span
+                            >
+                            <strong
+                                class="ml-1 text-slate-700 dark:text-slate-200"
+                            >
+                                {{ selectedOrder.refunded_by_name || '—' }}
+                            </strong>
+                        </div>
+                        <div>
+                            <span class="text-muted-foreground"
+                                >Thời điểm:</span
+                            >
+                            <strong
+                                class="ml-1 text-slate-700 dark:text-slate-200"
+                            >
+                                {{ selectedOrder.refunded_at || '—' }}
+                            </strong>
+                        </div>
+                    </div>
+                    <p
+                        v-if="selectedOrder.refund_reason"
+                        class="border-t border-slate-200 pt-2 text-slate-600 dark:border-slate-700 dark:text-slate-400"
+                    >
+                        <span class="font-semibold">Lý do:</span>
+                        {{ selectedOrder.refund_reason }}
+                    </p>
                 </div>
 
                 <!-- Thông tin giao hàng (nếu channel === delivery) -->
@@ -2253,12 +3101,65 @@ onMounted(() => {
                             class="flex items-center justify-between p-3 text-xs transition-colors hover:bg-muted/30"
                         >
                             <div class="min-w-0 flex-1 pr-3">
-                                <div class="font-bold text-foreground">
-                                    {{ item.name }}
+                                <div
+                                    class="flex flex-wrap items-center gap-2 font-bold text-foreground"
+                                >
+                                    <span>{{ item.name }}</span>
+                                    <!-- Status badge cho từng món -->
+                                    <span
+                                        v-if="item.status === 'cancelled'"
+                                        class="rounded bg-rose-100 px-2 py-0.5 text-[10px] font-bold text-rose-700 dark:bg-rose-950/60 dark:text-rose-400"
+                                    >
+                                        Đã hủy
+                                    </span>
+                                    <span
+                                        v-else-if="item.served_at"
+                                        class="inline-flex items-center gap-1 rounded bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300"
+                                    >
+                                        <CheckCircle2
+                                            class="size-3 text-emerald-600 dark:text-emerald-400"
+                                        />
+                                        Đã phục vụ {{ item.served_at }}
+                                        <span
+                                            v-if="item.served_by_name"
+                                            class="font-normal text-emerald-700/80 dark:text-emerald-400/80"
+                                            >· {{ item.served_by_name }}</span
+                                        >
+                                    </span>
+                                    <span
+                                        v-else-if="item.prepared_at"
+                                        class="inline-flex items-center gap-1 rounded bg-sky-100 px-2 py-0.5 text-[10px] font-bold text-sky-800 dark:bg-sky-950/60 dark:text-sky-300"
+                                    >
+                                        <ChefHat
+                                            class="size-3 text-sky-600 dark:text-sky-400"
+                                        />
+                                        Bếp làm xong {{ item.prepared_at }} (Chờ
+                                        phục vụ)
+                                        <span
+                                            v-if="item.prepared_by_name"
+                                            class="font-normal text-sky-700/80 dark:text-sky-400/80"
+                                            >· Bếp:
+                                            {{ item.prepared_by_name }}</span
+                                        >
+                                    </span>
+                                    <span
+                                        v-else
+                                        class="inline-flex items-center gap-1 rounded bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-800 dark:bg-amber-950/60 dark:text-amber-300"
+                                    >
+                                        <Clock
+                                            class="size-3 text-amber-600 dark:text-amber-400"
+                                        />
+                                        {{
+                                            item.started_preparing_at ||
+                                            item.status === 'preparing'
+                                                ? 'Bếp đang làm'
+                                                : 'Chờ bếp làm'
+                                        }}
+                                    </span>
                                 </div>
                                 <div
                                     v-if="item.notes"
-                                    class="text-[11px] text-amber-600 italic dark:text-amber-400"
+                                    class="mt-0.5 text-[11px] text-amber-600 italic dark:text-amber-400"
                                 >
                                     Ghi chú: {{ item.notes }}
                                 </div>
@@ -2275,6 +3176,18 @@ onMounted(() => {
                                 >
                                     {{ formatCurrency(item.line_total) }}
                                 </div>
+                                <button
+                                    v-if="
+                                        item.status !== 'cancelled' &&
+                                        !item.served_at
+                                    "
+                                    type="button"
+                                    class="mt-1 inline-flex cursor-pointer items-center gap-1 rounded-lg border border-rose-200 bg-rose-50 px-2 py-1 text-[10px] font-bold text-rose-700 transition-colors hover:bg-rose-100 dark:border-rose-900/50 dark:bg-rose-950/30 dark:text-rose-400"
+                                    @click="openCancelItemModal(item)"
+                                >
+                                    <Trash2 class="size-3" />
+                                    Hủy món
+                                </button>
                             </div>
                         </div>
                         <div

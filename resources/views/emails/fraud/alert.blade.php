@@ -5,7 +5,7 @@
     <title>Cảnh Báo Gian Lận</title>
     <style>
         body {
-            font-family: Arial, sans-serif;
+            font-family: 'Times New Roman', Times, serif;
             background-color: #f4f6f8;
             margin: 0;
             padding: 20px;

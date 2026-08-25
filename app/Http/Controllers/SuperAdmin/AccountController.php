@@ -187,6 +187,7 @@ class AccountController extends Controller
 
         $tempPassword = Str::random(10).rand(10, 99).'!';
         $user->forceFill(['password' => bcrypt($tempPassword)])->save();
+        $user->increment('security_session_version');
 
         $this->writeAuditLog('reset_password', $user);
 

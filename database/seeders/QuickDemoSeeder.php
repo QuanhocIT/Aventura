@@ -50,6 +50,10 @@ class QuickDemoSeeder extends Seeder
     private function seedForRestaurant(Restaurant $restaurant): void
     {
         $rid = $restaurant->id;
+        $branchId = $restaurant->branches()
+            ->where('status', 'active')
+            ->orderBy('id')
+            ->value('id');
 
         $unitG = Unit::firstOrCreate(
             ['restaurant_id' => $rid, 'symbol' => 'g'],
@@ -62,13 +66,13 @@ class QuickDemoSeeder extends Seeder
 
         $area = Area::firstOrCreate(
             ['restaurant_id' => $rid, 'code' => 'MAIN'],
-            ['name' => 'Khu chính', 'display_order' => 1, 'status' => 'active']
+            ['branch_id' => $branchId, 'name' => 'Khu chính', 'display_order' => 1, 'status' => 'active']
         );
 
         for ($i = 1; $i <= 8; $i++) {
             RestaurantTable::firstOrCreate(
                 ['restaurant_id' => $rid, 'name' => "B{$i}"],
-                ['area_id' => $area->id, 'capacity' => rand(2, 6), 'status' => 'available', 'qr_token' => Str::random(20)]
+                ['area_id' => $area->id, 'branch_id' => $branchId, 'capacity' => rand(2, 6), 'status' => 'available', 'qr_token' => Str::random(20)]
             );
         }
 
@@ -99,7 +103,7 @@ class QuickDemoSeeder extends Seeder
         foreach ($menuItems as [$name, $sku, $price, $cost, $cat]) {
             $products[] = Product::firstOrCreate(
                 ['restaurant_id' => $rid, 'code' => $sku],
-                ['name' => $name, 'slug' => Str::slug($name), 'price' => $price, 'cost_price' => $cost, 'category_id' => $cats[$cat]->id, 'is_active' => true, 'is_available' => true]
+                ['branch_id' => $branchId, 'name' => $name, 'slug' => Str::slug($name), 'price' => $price, 'cost_price' => $cost, 'category_id' => $cats[$cat]->id, 'is_active' => true, 'is_available' => true]
             );
         }
 
@@ -107,12 +111,12 @@ class QuickDemoSeeder extends Seeder
         foreach (['Thịt bò' => 320, 'Thịt heo' => 180, 'Gạo' => 35, 'Rau sống' => 25, 'Bún' => 30] as $ingName => $cost) {
             $ing = Ingredient::firstOrCreate(
                 ['restaurant_id' => $rid, 'sku' => 'ING-'.Str::upper(Str::slug($ingName))],
-                ['name' => $ingName, 'unit_id' => $unitG->id, 'category_name' => 'Nguyên liệu', 'min_stock_level' => 500, 'reorder_level' => 1000, 'average_cost' => $cost, 'status' => 'active']
+                ['branch_id' => $branchId, 'name' => $ingName, 'unit_id' => $unitG->id, 'category_name' => 'Nguyên liệu', 'min_stock_level' => 500, 'reorder_level' => 1000, 'average_cost' => $cost, 'status' => 'active']
             );
             $ingredients[] = $ing;
 
             Inventory::firstOrCreate(
-                ['restaurant_id' => $rid, 'ingredient_id' => $ing->id],
+                ['restaurant_id' => $rid, 'branch_id' => $branchId, 'ingredient_id' => $ing->id],
                 ['quantity_on_hand' => rand(500, 5000), 'last_cost' => $cost]
             );
         }

@@ -5,7 +5,6 @@ import {
     Lock,
     Unlock,
     CheckCircle2,
-    AlertTriangle,
     Globe,
     Send,
     Settings,
@@ -15,7 +14,7 @@ import {
     Plus,
     Loader2,
 } from 'lucide-vue-next';
-import { ref, watch, computed } from 'vue';
+import { ref, watch } from 'vue';
 import { toast } from 'vue-sonner';
 import { PageHeader } from '@/components/super-admin';
 import { Button } from '@/components/ui/button';
@@ -167,13 +166,13 @@ const formatRemainingTime = (seconds: number) => {
 </script>
 
 <template>
-    <Head title="Quản trị Tường lửa (WAF) & Rate Limiting" />
+    <Head title="Quản trị tường lửa (WAF) & giới hạn tần suất" />
 
     <div class="flex flex-col gap-5 px-6 py-5">
         <!-- Header -->
         <PageHeader
-            title="Quản trị Tường lửa (WAF) & Rate Limiting"
-            subtitle="Giám sát lưu lượng truy cập mạng, các IP bị chặn do brute-force và cấu hình tường lửa ứng dụng."
+            title="Quản trị tường lửa (WAF) & giới hạn tần suất"
+            subtitle="Giám sát lưu lượng truy cập mạng, các IP bị chặn do thử mật khẩu liên tục và cấu hình tường lửa ứng dụng."
             :icon="Shield"
         />
 
@@ -501,7 +500,7 @@ const formatRemainingTime = (seconds: number) => {
                                     class="flex items-center gap-1.5 border-b border-border/30 pb-2 text-xs font-black tracking-wider text-slate-800 uppercase dark:text-slate-200"
                                 >
                                     <Lock class="size-4 text-primary" /> Tường
-                                    lửa đăng nhập (WAF Brute-Force)
+                                    lửa đăng nhập (WAF chống thử mật khẩu)
                                 </h3>
                                 <div
                                     class="grid grid-cols-1 gap-5 md:grid-cols-3"
@@ -578,7 +577,7 @@ const formatRemainingTime = (seconds: number) => {
                                     class="flex items-center gap-1.5 border-b border-border/30 pb-2 text-xs font-black tracking-wider text-slate-800 uppercase dark:text-slate-200"
                                 >
                                     <Activity class="size-4 text-primary" />
-                                    Giới hạn tần suất chung (Rate Limiting)
+                                    Giới hạn tần suất chung
                                 </h3>
                                 <div
                                     class="grid grid-cols-1 gap-5 md:grid-cols-2"

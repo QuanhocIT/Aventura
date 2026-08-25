@@ -218,6 +218,7 @@ class WasteAnalyticsService
             'expired' => 'Hết hạn sử dụng',
             'damaged' => 'Hư hại/Đổ vỡ',
             'cooking_loss' => 'Hao hụt chế biến',
+            'order_cancellation' => 'Hủy món sau khi chế biến',
             'theft' => 'Thất thoát/Mất cắp',
             default => 'Khác',
         };

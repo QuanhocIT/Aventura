@@ -54,7 +54,7 @@ function toggleFaq(i: number) {
                 <div class="max-w-xl">
                     <Badge
                         variant="outline"
-                        class="mb-3 border-primary/30 bg-primary/5 text-primary"
+                        class="mb-3 border-amber-400/35 bg-amber-400/5 text-amber-300"
                         >FAQ</Badge
                     >
                     <h2
@@ -72,7 +72,7 @@ function toggleFaq(i: number) {
                     as-child
                     variant="outline"
                     size="sm"
-                    class="shrink-0"
+                    class="shrink-0 border-amber-400/35 bg-amber-400/5 text-amber-200 hover:bg-amber-400/10 hover:text-amber-100"
                 >
                     <Link :href="register()">Bắt đầu miễn phí →</Link>
                 </Button>
@@ -83,15 +83,18 @@ function toggleFaq(i: number) {
                 <div v-for="(item, i) in faq" :key="item.q">
                     <button
                         @click="toggleFaq(i)"
-                        class="flex w-full items-center justify-between gap-4 px-5 py-4 text-left transition-colors hover:bg-primary/5"
+                        class="group flex w-full items-center justify-between gap-4 px-5 py-4 text-left transition-colors hover:bg-amber-400/5"
                     >
-                        <span class="text-sm font-medium">{{ item.q }}</span>
+                        <span
+                            class="text-sm font-medium text-amber-100/90 transition-colors group-hover:text-amber-300"
+                            >{{ item.q }}</span
+                        >
                         <ChevronRight
                             class="size-4 flex-shrink-0 transition-transform duration-200"
                             :class="
                                 openFaqIndex === i
-                                    ? 'rotate-90 text-primary'
-                                    : 'text-muted-foreground'
+                                    ? 'rotate-90 text-amber-300'
+                                    : 'text-amber-400/70'
                             "
                         />
                     </button>

@@ -10,12 +10,7 @@ import {
 } from 'lucide-vue-next';
 import { ref } from 'vue';
 import { toast } from 'vue-sonner';
-import {
-    PageHeader,
-    StatusBadge,
-    AlertBanner,
-    SectionCard,
-} from '@/components/super-admin';
+import { PageHeader } from '@/components/super-admin';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -90,7 +85,7 @@ const stageCols = [
     },
 ];
 
-// Send dunning email
+// Gửi thư điện tử nhắc nợ
 const sendingId = ref<number | null>(null);
 
 function sendEmail(subId: number, stage: string) {
@@ -100,8 +95,8 @@ function sendEmail(subId: number, stage: string) {
         { stage },
         {
             preserveScroll: true,
-            onSuccess: () => toast.success('Đã gửi email nhắc gia hạn!'),
-            onError: () => toast.error('Gửi email thất bại!'),
+            onSuccess: () => toast.success('Đã gửi thư điện tử nhắc gia hạn!'),
+            onError: () => toast.error('Gửi thư điện tử thất bại!'),
             onFinish: () => {
                 sendingId.value = null;
             },
@@ -109,7 +104,7 @@ function sendEmail(subId: number, stage: string) {
     );
 }
 
-// Pause dunning dialog
+// Hộp thoại tạm dừng nhắc nợ
 const pauseSubId = ref<number | null>(null);
 const pauseSubName = ref('');
 const pauseDays = ref(7);
@@ -136,7 +131,7 @@ function submitPause() {
         {
             preserveScroll: true,
             onSuccess: () => {
-                toast.success(`Đã tạm dừng dunning ${pauseDays.value} ngày.`);
+                toast.success(`Đã tạm dừng nhắc nợ ${pauseDays.value} ngày.`);
                 closePause();
             },
             onError: () => toast.error('Tạm dừng thất bại!'),
@@ -160,18 +155,19 @@ const colHeaderClass: Record<string, string> = {
 </script>
 
 <template>
-    <Head title="Dunning Dashboard" />
+    <Head title="Bảng điều khiển nhắc nợ" />
 
     <div class="flex flex-col gap-5 px-6 py-5">
         <PageHeader
-            title="Dunning Dashboard"
+            title="Bảng điều khiển nhắc nợ"
             subtitle="Giám sát và điều phối chiến dịch nhắc gia hạn."
             :icon="Bell"
         >
             <template #actions>
                 <Link href="/super-admin/billing">
                     <Button variant="outline" size="sm"
-                        ><ArrowLeft class="mr-1.5 size-4" /> Billing</Button
+                        ><ArrowLeft class="mr-1.5 size-4" /> Trung tâm thanh
+                        toán</Button
                     >
                 </Link>
             </template>
@@ -373,7 +369,7 @@ const colHeaderClass: Record<string, string> = {
                                     {{
                                         sendingId === entry.id
                                             ? '...'
-                                            : 'Gửi Email'
+                                            : 'Gửi thư điện tử'
                                     }}
                                 </Button>
                                 <Button
@@ -428,6 +424,7 @@ const colHeaderClass: Record<string, string> = {
         </Card>
 
         <!-- Pause Dialog -->
+        <Teleport to="body">
         <div
             v-if="pauseSubId !== null"
             class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
@@ -436,7 +433,7 @@ const colHeaderClass: Record<string, string> = {
             <div
                 class="w-full max-w-sm rounded-2xl bg-background p-6 shadow-2xl"
             >
-                <h2 class="mb-1 text-lg font-bold">⏸ Tạm dừng Dunning</h2>
+                <h2 class="mb-1 text-lg font-bold">⏸ Tạm dừng nhắc nợ</h2>
                 <p class="mb-4 text-sm text-muted-foreground">
                     Tạm dừng nhắc nhở cho <strong>{{ pauseSubName }}</strong
                     >.
@@ -457,5 +454,6 @@ const colHeaderClass: Record<string, string> = {
                 </div>
             </div>
         </div>
+        </Teleport>
     </div>
 </template>

@@ -1,26 +1,17 @@
 <script setup lang="ts">
-import { Head, router, useForm } from '@inertiajs/vue3';
+import { Head, router } from '@inertiajs/vue3';
 import axios from 'axios';
 import {
     Sparkles,
-    ArrowUpDown,
-    ChevronDown,
     Clock,
     Search,
-    Mail,
-    Phone,
-    Plus,
     Users,
     Trash2,
-    Pencil,
-    Calendar,
-    AlertCircle,
     RefreshCw,
     TrendingUp,
     Award,
     Zap,
     HelpCircle,
-    Gift,
     Send,
     Play,
     CheckCircle2,
@@ -1413,96 +1404,98 @@ const triggerAutoVoucherCode = () => {
         </div>
 
         <!-- ── MODAL: SUCCESSFUL CAMPAIGN LAUNCH (MOCK) ── -->
-        <div
-            v-if="showCampaignSuccessModal && showCampaignSuccessDetails"
-            class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
-        >
-            <Card
-                class="w-full max-w-md animate-in shadow-2xl duration-150 zoom-in-95 fade-in"
+        <Teleport to="body">
+            <div
+                v-if="showCampaignSuccessModal && showCampaignSuccessDetails"
+                class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
             >
-                <CardHeader class="border-b pb-3 text-center">
-                    <div
-                        class="mx-auto mb-2 flex size-12 items-center justify-center rounded-full bg-emerald-100 text-xl font-bold text-emerald-600 dark:bg-emerald-950/30 dark:text-emerald-400"
-                    >
-                        ✓
-                    </div>
-                    <CardTitle class="text-base text-emerald-600"
-                        >Chiến dịch Tiếp thị đã Khởi chạy thành công!</CardTitle
-                    >
-                    <CardDescription
-                        >Hệ thống CDP & SMS Gateway đã tiếp nhận kịch bản gửi
-                        hàng loạt.</CardDescription
-                    >
-                </CardHeader>
-                <CardContent class="space-y-4 pt-4 text-left text-xs">
-                    <div
-                        class="space-y-2.5 rounded-2xl border border-slate-100 bg-slate-50 p-4 dark:bg-slate-950"
-                    >
-                        <div class="flex justify-between">
-                            <span class="text-slate-500">Đối tượng nhận:</span>
-                            <span
-                                class="font-bold text-slate-800 dark:text-slate-200"
-                                >{{
-                                    showCampaignSuccessDetails.segmentLabel
-                                }}</span
-                            >
-                        </div>
-                        <div class="flex justify-between">
-                            <span class="text-slate-500"
-                                >Tổng số khách hàng gửi:</span
-                            >
-                            <span class="font-bold text-indigo-600"
-                                >{{
-                                    showCampaignSuccessDetails.targetCount
-                                }}
-                                KH</span
-                            >
-                        </div>
-                        <div class="flex justify-between">
-                            <span class="text-slate-500"
-                                >Kênh truyền thông:</span
-                            >
-                            <span
-                                class="text-slate-850 font-bold dark:text-slate-200"
-                                >{{ showCampaignSuccessDetails.type }}</span
-                            >
-                        </div>
-                        <div class="flex justify-between">
-                            <span class="text-slate-500"
-                                >Mã voucher phát hành:</span
-                            >
-                            <span
-                                class="font-mono font-bold text-emerald-600"
-                                >{{
-                                    showCampaignSuccessDetails.voucherCode
-                                }}</span
-                            >
-                        </div>
-                    </div>
-
-                    <div class="space-y-1">
-                        <span
-                            class="dark:text-slate-350 font-bold text-slate-700"
-                            >Nội dung tin nhắn mẫu gửi đi:</span
-                        >
+                <Card
+                    class="w-full max-w-md animate-in shadow-2xl duration-150 zoom-in-95 fade-in"
+                >
+                    <CardHeader class="border-b pb-3 text-center">
                         <div
-                            class="rounded-xl bg-slate-100 p-3 leading-relaxed font-medium italic dark:bg-slate-800"
+                            class="mx-auto mb-2 flex size-12 items-center justify-center rounded-full bg-emerald-100 text-xl font-bold text-emerald-600 dark:bg-emerald-950/30 dark:text-emerald-400"
                         >
-                            "{{ showCampaignSuccessDetails.message }}"
+                            ✓
                         </div>
-                    </div>
-
-                    <div class="flex justify-end gap-2 border-t pt-2">
-                        <Button
-                            type="button"
-                            class="bg-indigo-600 font-bold text-white hover:bg-indigo-700"
-                            @click="showCampaignSuccessModal = false"
+                        <CardTitle class="text-base text-emerald-600"
+                            >Chiến dịch Tiếp thị đã Khởi chạy thành công!</CardTitle
                         >
-                            Tôi hiểu rồi (Hoàn tất)
-                        </Button>
-                    </div>
-                </CardContent>
-            </Card>
-        </div>
+                        <CardDescription
+                            >Hệ thống CDP & SMS Gateway đã tiếp nhận kịch bản gửi
+                            hàng loạt.</CardDescription
+                        >
+                    </CardHeader>
+                    <CardContent class="space-y-4 pt-4 text-left text-xs">
+                        <div
+                            class="space-y-2.5 rounded-2xl border border-slate-100 bg-slate-50 p-4 dark:bg-slate-950"
+                        >
+                            <div class="flex justify-between">
+                                <span class="text-slate-500">Đối tượng nhận:</span>
+                                <span
+                                    class="font-bold text-slate-800 dark:text-slate-200"
+                                    >{{
+                                        showCampaignSuccessDetails.segmentLabel
+                                    }}</span
+                                >
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-slate-500"
+                                    >Tổng số khách hàng gửi:</span
+                                >
+                                <span class="font-bold text-indigo-600"
+                                    >{{
+                                        showCampaignSuccessDetails.targetCount
+                                    }}
+                                    KH</span
+                                >
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-slate-500"
+                                    >Kênh truyền thông:</span
+                                >
+                                <span
+                                    class="text-slate-850 font-bold dark:text-slate-200"
+                                    >{{ showCampaignSuccessDetails.type }}</span
+                                >
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-slate-500"
+                                    >Mã voucher phát hành:</span
+                                >
+                                <span
+                                    class="font-mono font-bold text-emerald-600"
+                                    >{{
+                                        showCampaignSuccessDetails.voucherCode
+                                    }}</span
+                                >
+                            </div>
+                        </div>
+
+                        <div class="space-y-1">
+                            <span
+                                class="dark:text-slate-350 font-bold text-slate-700"
+                                >Nội dung tin nhắn mẫu gửi đi:</span
+                            >
+                            <div
+                                class="rounded-xl bg-slate-100 p-3 leading-relaxed font-medium italic dark:bg-slate-800"
+                            >
+                                "{{ showCampaignSuccessDetails.message }}"
+                            </div>
+                        </div>
+
+                        <div class="flex justify-end gap-2 border-t pt-2">
+                            <Button
+                                type="button"
+                                class="bg-indigo-600 font-bold text-white hover:bg-indigo-700"
+                                @click="showCampaignSuccessModal = false"
+                            >
+                                Tôi hiểu rồi (Hoàn tất)
+                            </Button>
+                        </div>
+                    </CardContent>
+                </Card>
+            </div>
+        </Teleport>
     </div>
 </template>

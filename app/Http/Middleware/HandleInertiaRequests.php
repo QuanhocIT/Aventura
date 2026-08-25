@@ -5,10 +5,12 @@ namespace App\Http\Middleware;
 use App\Models\ApprovalRequest;
 use App\Models\SubscriptionPlan;
 use App\Models\SystemMaintenanceSchedule;
+use App\Services\ApprovalAuthorityService;
 use App\Services\QuotaService;
 use App\Support\Tenant\TenantContext;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
+use Inertia\Inertia;
 use Inertia\Middleware;
 
 class HandleInertiaRequests extends Middleware
@@ -57,9 +59,12 @@ class HandleInertiaRequests extends Middleware
                 // Cache branches per restaurant (5 phút) — không query DB mỗi request
                 $branches = $user->canViewAllBranches()
                     ? Cache::remember(
-                        "tenant_branches:v2:{$restaurant->id}:all",
+                        "tenant_branches:v3:{$restaurant->id}:all",
                         300,
-                        fn () => $restaurant->branches()->select('id', 'name')->get()->toArray()
+                        fn () => $restaurant->branches()
+                            ->select('id', 'name')
+                            ->get()
+                            ->toArray()
                     )
                     : ($tenantContext->isBranchScoped()
                         ? $restaurant->branches()
@@ -99,8 +104,10 @@ class HandleInertiaRequests extends Middleware
 
         // Super Admin không hiển thị subscription widget nên không cần đọc và
         // serialize toàn bộ danh sách plan vào mọi response Inertia.
-        $availablePlans = $isSuperAdmin ? [] : Cache::remember('subscription_plans_active', 3600, function () {
-            return SubscriptionPlan::where('status', 'active')
+        // Subscription plans chỉ cần thiết ở các trang thanh toán/nâng cấp/chọn nhà hàng
+        $needsPlans = $request->is('billing*') || $request->is('choose-restaurant*');
+        $availablePlans = ($isSuperAdmin || ! $needsPlans) ? [] : Cache::remember('subscription_plans_active', 3600, function () {
+            $plans = SubscriptionPlan::where('status', 'active')
                 ->orderBy('price')
                 ->get()
                 ->map(fn (SubscriptionPlan $p) => [
@@ -113,9 +120,9 @@ class HandleInertiaRequests extends Middleware
                     'max_tables' => $p->max_tables,
                     'max_users' => $p->max_users,
                     'features' => $p->features ?? [],
-                ])
-                ->values()
-                ->all();
+                ]);
+
+            return array_values(collect($plans)->toArray());
         });
 
         // Chỉ expose các trường an toàn cần thiết — không dùng toArray() rãi rác
@@ -136,11 +143,7 @@ class HandleInertiaRequests extends Middleware
             'referral_code' => $user->referral_code,
             'has_pin' => ! empty($user->pin_code), // chỉ gửi boolean, không gửi hash
             'two_factor_enabled' => ! empty($user->two_factor_confirmed_at),
-            'permissions' => Cache::remember(
-                "user_permissions:{$user->id}",
-                300,
-                fn () => $user->getAllPermissions()->pluck('name')->toArray()
-            ),
+            'permissions' => $user->getAllPermissions()->pluck('name')->toArray(),
             'roles' => $roles->toArray(),
         ] : null;
 
@@ -149,18 +152,17 @@ class HandleInertiaRequests extends Middleware
             'name' => config('app.name'),
             'auth' => [
                 'user' => $safeUser,
-                'shift_allowed_until' => session('shift_allowed_until'),
+                'shift_allowed_until' => $user && ! $user->isExemptFromShiftLock()
+                    ? session('shift_allowed_until')
+                    : null,
+                'shift_lock_exempt' => $user?->isExemptFromShiftLock() ?? false,
             ],
             'roles' => $roles,
+            'supplier_portal_enabled' => (bool) config('portal.supplier_portal_enabled', false),
             'tenant' => $tenant,
             'available_plans' => $availablePlans,
-            'pendingApprovalCount' => $user?->hasRole('owner') && $user->restaurant_id
-                ? Cache::remember(
-                    "pending_approvals:{$user->restaurant_id}",
-                    60, // 1 phút
-                    fn () => ApprovalRequest::where('restaurant_id', $user->restaurant_id)->where('status', 'pending')->count()
-                )
-                : 0,
+            'pendingApprovalCount' => Inertia::defer(fn () => $this->pendingApprovalCount($user)),
+            'myOpenRequestCount' => Inertia::defer(fn () => $this->myOpenRequestCount($user)),
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
             'is_impersonating' => $request->session()->has('impersonate_original_user_id'),
             'impersonate_read_only' => $request->session()->has('impersonate_original_user_id') && (! $request->session()->get('impersonate_write_until') || now()->timestamp >= $request->session()->get('impersonate_write_until')),
@@ -179,5 +181,60 @@ class HandleInertiaRequests extends Middleware
                 ->first()?->only(['title', 'downtime_start', 'downtime_end', 'banner_message', 'status', 'services'])
             ),
         ];
+    }
+
+    /**
+     * Số yêu cầu đang chờ người này xử lý.
+     *
+     * Trước đây chỉ đếm cho Chủ, nên Quản lý chi nhánh không hề thấy badge dù
+     * đã có quyền duyệt. Quản lý chỉ đếm phần thuộc chi nhánh mình.
+     */
+    private function pendingApprovalCount(?object $user): int
+    {
+        if (! $user || ! $user->restaurant_id) {
+            return 0;
+        }
+
+        $isOwner = $user->isOwner() || $user->isSuperAdmin();
+
+        if (! $isOwner && ! $user->isBranchManager()) {
+            return 0;
+        }
+
+        $cacheKey = $isOwner
+            ? "pending_approvals:{$user->restaurant_id}"
+            : "pending_approvals:{$user->restaurant_id}:u{$user->id}";
+
+        return Cache::remember($cacheKey, 60, function () use ($user, $isOwner): int {
+            $query = ApprovalRequest::where('restaurant_id', $user->restaurant_id)
+                ->whereIn('status', [ApprovalRequest::STATUS_PENDING, ApprovalRequest::STATUS_ESCALATED]);
+
+            if (! $isOwner) {
+                // Yêu cầu đã đẩy lên Chủ thì không còn nằm trong việc của Quản lý.
+                $query->where('status', ApprovalRequest::STATUS_PENDING)
+                    ->whereIn('branch_id', app(ApprovalAuthorityService::class)->managedBranchIds($user));
+            }
+
+            return $query->count();
+        });
+    }
+
+    /**
+     * Số yêu cầu của chính người này còn đang chờ kết quả — áp dụng cho mọi vai trò.
+     */
+    private function myOpenRequestCount(?object $user): int
+    {
+        if (! $user || ! $user->restaurant_id) {
+            return 0;
+        }
+
+        return Cache::remember(
+            "my_open_requests:{$user->id}",
+            60,
+            fn () => ApprovalRequest::where('restaurant_id', $user->restaurant_id)
+                ->where('requester_id', $user->id)
+                ->whereIn('status', [ApprovalRequest::STATUS_PENDING, ApprovalRequest::STATUS_ESCALATED])
+                ->count()
+        );
     }
 }

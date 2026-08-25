@@ -1,4 +1,4 @@
-<div style='font-family:sans-serif;max-width:480px;margin:auto;padding:32px;line-height:1.6;color:#333'>
+<div style="font-family:'Times New Roman',Times,serif;max-width:480px;margin:auto;padding:32px;line-height:1.6;color:#333">
     <h2 style='color:#4f46e5'>👋 Chào mừng đến với Aventura!</h2>
     <p>Xin chào <strong>{{ $recipient_name ?? $name ?? 'Bạn' }}</strong>,</p>
     <p>Cảm ơn bạn đã đăng ký tài khoản Aventura cho nhà hàng/cửa hàng <strong>{{ $restaurant_name }}</strong>.</p>

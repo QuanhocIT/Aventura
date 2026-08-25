@@ -28,6 +28,7 @@ interface BatchItem {
     sequence_order: number;
     status: string;
     eta: string | null;
+    accepted_at?: string | null;
     address: string | null;
     customer_name: string | null;
     phone: string | null;
@@ -39,6 +40,7 @@ interface BatchItem {
 interface ActiveBatch {
     id: number;
     status: string;
+    accepted_at: string | null;
     items: BatchItem[];
 }
 
@@ -61,6 +63,7 @@ const gpsError = ref<string | null>(null);
 const trail = ref<Array<{ lat: number; lng: number }>>([]);
 const expandedId = ref<number | null>(null);
 const updatingId = ref<number | null>(null);
+let refreshTimer: number | null = null;
 
 // Offline GPS queue stored in localStorage
 const QUEUE_KEY = `gps_queue_${props.shipper?.id}`;
@@ -226,6 +229,14 @@ async function updateStatus(
         return;
     }
 
+    if (status === 'failed') {
+        const reason = window.prompt('Lý do giao thất bại?', notes ?? '');
+        if (!reason?.trim()) {
+            return;
+        }
+        notes = reason.trim();
+    }
+
     updatingId.value = item.id;
 
     try {
@@ -272,6 +283,64 @@ async function updateStatus(
         toast.error('Lỗi kết nối. Vui lòng thử lại.');
     } finally {
         updatingId.value = null;
+    }
+}
+
+const batchAccepted = computed(
+    () => !!batch.value && !!batch.value.accepted_at,
+);
+
+async function acceptBatch() {
+    if (!props.shipper || !batch.value || batch.value.status !== 'dispatched') {
+        return;
+    }
+
+    try {
+        const res = await fetch(
+            `/delivery/api/shipper/batches/${batch.value.id}/accept`,
+            {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': getCsrf(),
+                },
+            },
+        );
+
+        if (!res.ok) {
+            const data = await res.json().catch(() => ({}));
+            toast.error(data.message || 'Không thể nhận chuyến giao hàng');
+
+            return;
+        }
+
+        const data = await res.json();
+        batch.value = {
+            ...batch.value,
+            accepted_at: data.batch?.accepted_at ?? new Date().toISOString(),
+        };
+        toast.success('Đã nhận chuyến giao hàng');
+    } catch {
+        toast.error('Lỗi kết nối. Vui lòng thử lại.');
+    }
+}
+
+async function refreshCurrentBatch() {
+    if (!props.shipper) {
+        return;
+    }
+
+    try {
+        const res = await fetch('/delivery/api/shipper/current');
+
+        if (!res.ok) {
+            return;
+        }
+
+        const data = await res.json();
+        batch.value = data.shipper?.active_batch ?? null;
+    } catch {
+        // GPS and the offline queue remain usable when polling is unavailable.
     }
 }
 
@@ -354,6 +423,7 @@ onMounted(() => {
     startGps();
     // Flush offline queue every 25 seconds
     flushTimer = setInterval(flushQueue, 25_000) as unknown as number;
+    refreshTimer = setInterval(refreshCurrentBatch, 15_000) as unknown as number;
     // Flush any pending pings from previous session
     flushQueue();
 });
@@ -365,6 +435,10 @@ onUnmounted(() => {
 
     if (flushTimer !== null) {
         clearInterval(flushTimer);
+    }
+
+    if (refreshTimer !== null) {
+        clearInterval(refreshTimer);
     }
 
     if (sendTimer !== null) {
@@ -426,6 +500,25 @@ onUnmounted(() => {
                             :next-stop="nextStopForMap"
                             :trail="trail"
                         />
+                    </CardContent>
+                </Card>
+
+                <!-- Dispatch acceptance -->
+                <Card
+                    v-if="batch.status === 'dispatched' && !batch.accepted_at"
+                    class="border-amber-300 bg-amber-50 dark:bg-amber-950/20"
+                >
+                    <CardContent class="space-y-3 p-4">
+                        <div>
+                            <p class="font-semibold">Bạn có chuyến giao mới</p>
+                            <p class="text-sm text-muted-foreground">
+                                Kiểm tra hàng và nhận chuyến trước khi bắt đầu giao.
+                            </p>
+                        </div>
+                        <Button class="w-full" @click="acceptBatch">
+                            <CheckCircle2 class="mr-2 h-4 w-4" />
+                            Nhận chuyến
+                        </Button>
                     </CardContent>
                 </Card>
 
@@ -499,7 +592,7 @@ onUnmounted(() => {
                                 Chỉ đường
                             </Button>
                             <Button
-                                v-if="nextStop.status === 'pending'"
+                                v-if="batchAccepted && nextStop.status === 'pending'"
                                 size="sm"
                                 class="flex-1"
                                 :disabled="updatingId === nextStop.id"
@@ -509,7 +602,7 @@ onUnmounted(() => {
                                 Đã lấy hàng
                             </Button>
                             <Button
-                                v-if="nextStop.status === 'picked_up'"
+                                v-if="batchAccepted && nextStop.status === 'picked_up'"
                                 size="sm"
                                 variant="default"
                                 class="flex-1 bg-green-600 hover:bg-green-700"
@@ -522,6 +615,7 @@ onUnmounted(() => {
                         </div>
                         <Button
                             v-if="
+                                batchAccepted &&
                                 ['pending', 'picked_up'].includes(
                                     nextStop.status,
                                 )
@@ -642,6 +736,7 @@ onUnmounted(() => {
                                 </p>
                                 <div
                                     v-if="
+                                        batchAccepted &&
                                         ['pending', 'picked_up'].includes(
                                             item.status,
                                         )

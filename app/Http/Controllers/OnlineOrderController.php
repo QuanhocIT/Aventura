@@ -14,6 +14,7 @@ use App\Services\OnlineOrderService;
 use App\Services\PaymentGatewayService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
@@ -35,7 +36,7 @@ class OnlineOrderController extends Controller
         abort_unless($config->is_active, 404);
 
         $restaurant = Restaurant::find($config->restaurant_id);
-        $menu = $this->orderService->getPublicMenu($restaurant);
+        $menu = $this->orderService->getPublicMenu($restaurant, $config->branch_id);
         $gateways = $this->paymentService->getAvailableGateways($config->restaurant_id);
 
         $turnstileSiteKey = env('TURNSTILE_SITE_KEY') ?: SystemSetting::get('turnstile_site_key');
@@ -77,6 +78,8 @@ class OnlineOrderController extends Controller
                 'enable_preorder' => $config->enable_preorder,
                 'is_open' => $config->isOpen(),
                 'operating_hours' => $config->operating_hours,
+                'branch_id' => $config->branch_id,
+                'accepted_payments' => $config->accepted_payments,
             ],
             'categories' => $menu['categories'],
             'products' => $menu['products'],
@@ -92,7 +95,7 @@ class OnlineOrderController extends Controller
     {
         $config = OnlineStoreConfig::withoutGlobalScopes()->where('slug', $slug)->where('is_active', true)->firstOrFail();
         $restaurant = Restaurant::find($config->restaurant_id);
-        $menu = $this->orderService->getPublicMenu($restaurant);
+        $menu = $this->orderService->getPublicMenu($restaurant, $config->branch_id);
 
         return response()->json($menu);
     }
@@ -142,8 +145,16 @@ class OnlineOrderController extends Controller
 
         $config = OnlineStoreConfig::withoutGlobalScopes()->where('slug', $slug)->where('is_active', true)->firstOrFail();
 
+        $availablePaymentMethods = collect($this->paymentService->getAvailableGateways($config->restaurant_id))
+            ->pluck('key');
+        if (empty($config->accepted_payments) || in_array('cod', $config->accepted_payments, true)) {
+            $availablePaymentMethods->push('cod');
+        }
+        $availablePaymentMethods = $availablePaymentMethods->unique()->values()->all();
+
         $data = $request->validate([
             'customer_name' => ['required', 'string', 'max:255'],
+            'customer_email' => ['nullable', 'email', 'max:255'],
             'phone' => ['required', 'string', 'max:20'],
             'channel' => ['required', 'in:takeaway,delivery'],
             'address' => ['nullable', 'required_if:channel,delivery', 'string', 'max:500'],
@@ -156,14 +167,46 @@ class OnlineOrderController extends Controller
             'payment_method' => ['required', 'string', 'in:bank_transfer,vnpay,momo,zalopay,cod'],
             'note' => ['nullable', 'string', 'max:1000'],
             'scheduled_at' => ['nullable', 'date', 'after:now'],
+            'client_request_id' => ['nullable', 'string', 'max:100'],
         ]);
 
         try {
+            if (! in_array($data['payment_method'], $availablePaymentMethods, true)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Phương thức thanh toán này hiện chưa được nhà hàng chấp nhận.',
+                ], 422);
+            }
+
+            if ($data['channel'] === 'takeaway' && ! $config->enable_takeaway) {
+                return response()->json(['success' => false, 'message' => 'Nhà hàng hiện không nhận đơn mang về.'], 422);
+            }
+
+            if ($data['channel'] === 'delivery' && ! $config->enable_delivery) {
+                return response()->json(['success' => false, 'message' => 'Nhà hàng hiện không nhận đơn giao hàng.'], 422);
+            }
+
+            if (! empty($data['scheduled_at']) && ! $config->enable_preorder) {
+                return response()->json(['success' => false, 'message' => 'Nhà hàng hiện không bật đặt trước.'], 422);
+            }
+
+            if (! $config->isOpen() && (empty($data['scheduled_at']) || ! $config->enable_preorder)) {
+                return response()->json(['success' => false, 'message' => 'Cửa hàng đang ngoài giờ hoạt động. Vui lòng chọn thời gian đặt trước.'], 422);
+            }
+
             if ($request->boolean('conflict_check')) {
                 $conflicts = [];
                 foreach ($data['items'] as $item) {
-                    $product = Product::find($item['product_id']);
-                    if ($product && ($product->is_out_of_stock || ($product->out_of_stock_until && $product->out_of_stock_until->isFuture()))) {
+                    $product = Product::withoutGlobalScopes()
+                        ->where('restaurant_id', $config->restaurant_id)
+                        ->where(function ($q) use ($config): void {
+                            if ($config->branch_id !== null) {
+                                $q->whereNull('branch_id')->orWhere('branch_id', $config->branch_id);
+                            }
+                        })
+                        ->whereKey($item['product_id'])
+                        ->first();
+                    if ($product && $product->out_of_stock_until?->isFuture()) {
                         $conflicts[] = [
                             'product_name' => $product->name,
                             'requested' => $item['quantity'],
@@ -183,11 +226,26 @@ class OnlineOrderController extends Controller
 
             $paymentUrl = null;
             if ($data['payment_method'] !== 'cod') {
-                $returnUrl = url('/order/payment/return');
-                $paymentUrl = $this->paymentService->createPayment($order, $data['payment_method'], $returnUrl);
+                try {
+                    $returnUrl = url('/order/payment/return').'?token='.urlencode((string) $order->tracking_token);
+                    $paymentUrl = $this->paymentService->createPayment($order, $data['payment_method'], $returnUrl);
+                } catch (\Throwable $e) {
+                    Log::error('online checkout: payment URL creation failed', [
+                        'order_id' => $order->id,
+                        'payment_method' => $data['payment_method'],
+                        'error' => $e->getMessage(),
+                    ]);
+
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Không thể khởi tạo thanh toán lúc này. Đơn đã được giữ lại, vui lòng thử lại.',
+                        'order_number' => $order->order_number,
+                        'track_url' => $this->trackingUrl($order),
+                    ], 503);
+                }
             }
 
-            $trackUrl = url("/order/track/{$order->order_number}");
+            $trackUrl = $this->trackingUrl($order);
 
             if ($order->customer_email) {
                 try {
@@ -195,7 +253,11 @@ class OnlineOrderController extends Controller
                         "Đơn hàng #{$order->order_number} đã được tạo.\n\nTheo dõi đơn hàng: {$trackUrl}\n\nCảm ơn bạn đã đặt hàng!",
                         fn ($msg) => $msg->to($order->customer_email)->subject("Đơn hàng #{$order->order_number} — Theo dõi đơn hàng")
                     );
-                } catch (\Throwable) {
+                } catch (\Throwable $e) {
+                    Log::warning('online checkout: confirmation email failed', [
+                        'order_id' => $order->id,
+                        'error' => $e->getMessage(),
+                    ]);
                 }
             }
 
@@ -211,38 +273,73 @@ class OnlineOrderController extends Controller
                 'success' => false,
                 'message' => collect($e->errors())->flatten()->first(),
             ], 422);
+        } catch (\RuntimeException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage(),
+            ], 422);
+        } catch (\Throwable $e) {
+            Log::error('online checkout: unexpected failure', [
+                'slug' => $slug,
+                'error' => $e->getMessage(),
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Không thể tạo đơn lúc này. Vui lòng thử lại sau.',
+            ], 500);
         }
     }
 
     public function paymentReturn(Request $request): Response
     {
+        $trackingToken = trim((string) $request->query('token'));
+        $order = Order::withoutGlobalScopes()
+            ->where('tracking_token', $trackingToken)
+            ->firstOrFail();
+
         return Inertia::render('online-order/OrderTracking', [
-            'orderNumber' => $request->query('order_number', ''),
+            'orderNumber' => $order->order_number,
+            'trackingToken' => $trackingToken,
+            'tracking' => $this->orderService->getOrderTracking($order),
         ]);
     }
 
     public function trackOrder(string $orderNumber): Response
     {
-        $order = Order::withoutGlobalScopes()
-            ->where('order_number', $orderNumber)
-            ->with('items.product')
-            ->firstOrFail();
+        $request = request();
+        $order = $this->findTrackableOrder($request, $orderNumber);
 
         $tracking = $this->orderService->getOrderTracking($order);
 
         return Inertia::render('online-order/OrderTracking', [
             'orderNumber' => $orderNumber,
+            'trackingToken' => (string) $request->query('token'),
             'tracking' => $tracking,
         ]);
     }
 
     public function orderStatus(string $orderNumber): JsonResponse
     {
-        $order = Order::withoutGlobalScopes()
-            ->where('order_number', $orderNumber)
-            ->with('items.product')
-            ->firstOrFail();
+        $order = $this->findTrackableOrder(request(), $orderNumber);
 
         return response()->json($this->orderService->getOrderTracking($order));
+    }
+
+    private function findTrackableOrder(Request $request, string $orderNumber): Order
+    {
+        $token = trim((string) $request->query('token'));
+        abort_unless($token !== '', 403, 'Thiếu mã theo dõi đơn hàng.');
+
+        return Order::withoutGlobalScopes()
+            ->where('order_number', $orderNumber)
+            ->where('tracking_token', $token)
+            ->with('items.product')
+            ->firstOrFail();
+    }
+
+    private function trackingUrl(Order $order): string
+    {
+        return url("/order/track/{$order->order_number}").'?token='.urlencode((string) $order->tracking_token);
     }
 }

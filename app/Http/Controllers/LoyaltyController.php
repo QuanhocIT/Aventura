@@ -26,7 +26,7 @@ class LoyaltyController extends Controller implements HasMiddleware
     {
         return [
             new Middleware(function ($request, $next) {
-                abort_unless($request->user()->hasAnyRole(['owner', 'manager']), 403);
+                abort_unless($request->user()->isOwner() || $request->user()->isSuperAdmin(), 403);
 
                 return $next($request);
             }, only: ['updateSettings', 'storeTier', 'updateTier', 'destroyTier', 'storeReward', 'updateReward', 'destroyReward', 'toggleReward', 'adjustPoints']),
@@ -63,6 +63,7 @@ class LoyaltyController extends Controller implements HasMiddleware
             'tiers' => $tiers,
             'rewards' => $rewards,
             'metrics' => $metrics,
+            'canManageFinancials' => $request->user()->isOwner() || $request->user()->isSuperAdmin(),
         ]);
     }
 
@@ -85,6 +86,7 @@ class LoyaltyController extends Controller implements HasMiddleware
         return Inertia::render('loyalty/Settings', [
             'program' => $program,
             'tiers' => $tiers,
+            'canManageFinancials' => $request->user()->isOwner() || $request->user()->isSuperAdmin(),
         ]);
     }
 
@@ -133,6 +135,8 @@ class LoyaltyController extends Controller implements HasMiddleware
 
     public function updateTier(Request $request, LoyaltyTier $tier): RedirectResponse
     {
+        abort_if($tier->restaurant_id !== $request->user()->restaurant_id, 403);
+
         $data = $request->validate([
             'name' => ['required', 'string', 'max:50'],
             'min_spent' => ['required', 'numeric', 'min:0'],
@@ -149,8 +153,10 @@ class LoyaltyController extends Controller implements HasMiddleware
         return back()->with('success', "Đã cập nhật hạng {$tier->name}.");
     }
 
-    public function destroyTier(LoyaltyTier $tier): RedirectResponse
+    public function destroyTier(Request $request, LoyaltyTier $tier): RedirectResponse
     {
+        abort_if($tier->restaurant_id !== $request->user()->restaurant_id, 403);
+
         $tier->delete();
 
         return back()->with('success', 'Đã xóa hạng thành viên.');
@@ -180,6 +186,8 @@ class LoyaltyController extends Controller implements HasMiddleware
 
     public function updateReward(Request $request, LoyaltyReward $reward): RedirectResponse
     {
+        abort_if($reward->restaurant_id !== $request->user()->restaurant_id, 403);
+
         $data = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'description' => ['nullable', 'string'],
@@ -197,15 +205,19 @@ class LoyaltyController extends Controller implements HasMiddleware
         return back()->with('success', "Đã cập nhật phần thưởng {$reward->name}.");
     }
 
-    public function destroyReward(LoyaltyReward $reward): RedirectResponse
+    public function destroyReward(Request $request, LoyaltyReward $reward): RedirectResponse
     {
+        abort_if($reward->restaurant_id !== $request->user()->restaurant_id, 403);
+
         $reward->delete();
 
         return back()->with('success', 'Đã xóa phần thưởng.');
     }
 
-    public function toggleReward(LoyaltyReward $reward): RedirectResponse
+    public function toggleReward(Request $request, LoyaltyReward $reward): RedirectResponse
     {
+        abort_if($reward->restaurant_id !== $request->user()->restaurant_id, 403);
+
         $reward->update(['is_active' => ! $reward->is_active]);
 
         $label = $reward->is_active ? 'kích hoạt' : 'tạm ngừng';

@@ -3,8 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Jobs\CalculateEmployeeKpiJob;
+use App\Models\CustomerFeedback;
 use App\Models\Employee;
-use App\Models\EmployeeKpi;
 use App\Models\LeaveRequest;
 use App\Models\Salary;
 use App\Models\ScheduleAssignment;
@@ -12,13 +12,11 @@ use App\Models\ShiftSwap;
 use App\Models\User;
 use App\Notifications\LeaveRequestNotification;
 use App\Notifications\ShiftSwapNotification;
-use App\Services\KpiService;
-use App\Services\SalaryService;
+use App\Support\MaterializedViews\MaterializedViewReader;
 use App\Support\TenantRule;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Cache;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -45,6 +43,101 @@ class EmployeePortalController extends Controller
     }
 
     /**
+     * Render the private employee profile and customer feedback page.
+     */
+    public function profile(Request $request): Response
+    {
+        $user = $request->user();
+        $employee = $user->employee()->with(['branch', 'role'])->first();
+
+        if (! $employee) {
+            abort(403, 'Bạn không phải là nhân viên hợp lệ.');
+        }
+
+        $reviews = collect();
+        $feedbacks = CustomerFeedback::query()
+            ->where('restaurant_id', $employee->restaurant_id)
+            ->whereNotNull('staff_rating')
+            ->latest('id')
+            ->take(200)
+            ->get([
+                'id',
+                'staff_rating',
+                'rating',
+                'content',
+                'submitted_by_name',
+                'is_anonymous',
+                'created_at',
+            ]);
+
+        foreach ($feedbacks as $feedback) {
+            $staffRatings = is_array($feedback->staff_rating)
+                ? $feedback->staff_rating
+                : [];
+
+            foreach ($staffRatings as $key => $staffRating) {
+                $employeeId = is_array($staffRating)
+                    ? ($staffRating['employee_id'] ?? null)
+                    : $key;
+
+                if ((string) $employeeId !== (string) $employee->id) {
+                    continue;
+                }
+
+                $reviews->push([
+                    'id' => $feedback->id.'-'.$key,
+                    'rating' => (int) (is_array($staffRating)
+                        ? ($staffRating['rating'] ?? $feedback->rating)
+                        : $staffRating),
+                    'comment' => is_array($staffRating)
+                        ? ($staffRating['comment'] ?? $feedback->content)
+                        : $feedback->content,
+                    'overall_rating' => (int) $feedback->rating,
+                    'reviewer_name' => $feedback->is_anonymous
+                        ? 'Khách ẩn danh'
+                        : ($feedback->submitted_by_name ?: 'Khách hàng'),
+                    'created_at' => $feedback->created_at?->format('d/m/Y H:i'),
+                ]);
+            }
+
+            if ($reviews->count() >= 20) {
+                break;
+            }
+        }
+
+        return Inertia::render('employee-portal/Profile', [
+            'employee' => [
+                'id' => $employee->id,
+                'full_name' => $employee->full_name,
+                'employee_code' => $employee->employee_code,
+                'email' => $employee->email ?: $user->email,
+                'phone' => $employee->phone,
+                'date_of_birth' => $employee->date_of_birth?->format('d/m/Y'),
+                'gender' => $employee->gender,
+                'address' => $employee->address,
+                'job_title' => $employee->job_title,
+                'employment_type' => $employee->employment_type,
+                'hire_date' => $employee->hire_date?->format('d/m/Y'),
+                'status' => $employee->status,
+                'branch_name' => $employee->branch?->name,
+                'role_name' => $employee->role?->name,
+                'rating_star' => (float) ($employee->rating_star ?? 0),
+                'rating_count' => (int) ($employee->rating_count ?? 0),
+            ],
+            'account' => [
+                'name' => $user->name,
+                'email' => $user->email,
+                'phone' => $user->phone,
+                'status' => $user->status,
+                'email_verified' => $user->email_verified_at !== null,
+                'last_login_at' => $user->last_login_at?->format('d/m/Y H:i'),
+                'roles' => $user->getRoleNames()->values()->all(),
+            ],
+            'reviews' => $reviews->values(),
+        ]);
+    }
+
+    /**
      * Get dashboard summary data.
      */
     public function getDashboardData(Request $request): JsonResponse
@@ -54,119 +147,60 @@ class EmployeePortalController extends Controller
             return response()->json(['success' => false, 'error' => 'Bạn không phải là nhân viên hợp lệ.'], 403);
         }
 
-        $cacheKey = "employee_dashboard:{$employee->id}:".now()->format('Y-m');
+        $reader = app(MaterializedViewReader::class);
+        $snapshot = $reader->read(
+            'employee_portal',
+            (int) $employee->restaurant_id,
+            $employee->branch_id,
+            today(),
+            allowStale: true,
+        );
 
-        $payload = Cache::remember($cacheKey, now()->addMinutes(10), function () use ($employee, $request) {
-            $period = now()->format('Y-m');
-            $startOfMonth = now()->startOfMonth();
-            $endOfMonth = now()->endOfMonth();
+        $dashboard = $snapshot['employees'][(string) $employee->id] ?? null;
 
-            // 1. Calculate shifts & hours worked this month
-            $completedAssignments = ScheduleAssignment::where('employee_id', $employee->id)
-                ->whereBetween('scheduled_date', [$startOfMonth->toDateString(), $endOfMonth->toDateString()])
-                ->where('status', 'completed')
-                ->with('shift')
-                ->get();
+        // Tình huống an toàn khi nhân viên vừa đổi chi nhánh hoặc snapshot chưa
+        // được tạo: đọc payload cấp nhà hàng một lần, vẫn không lộ dữ liệu tenant khác.
+        if (! $dashboard) {
+            $restaurantSnapshot = $reader->read(
+                'employee_portal',
+                (int) $employee->restaurant_id,
+                null,
+                today(),
+                allowStale: true,
+            );
+            $dashboard = $restaurantSnapshot['employees'][(string) $employee->id] ?? null;
+        }
 
-            $completedShiftsCount = $completedAssignments->count();
-            $hoursWorked = 0.0;
-            foreach ($completedAssignments as $a) {
-                if ($a->check_in_at && $a->check_out_at) {
-                    $in = Carbon::parse($a->check_in_at);
-                    $out = Carbon::parse($a->check_out_at);
-                    $hoursWorked += $in->diffInSeconds($out) / 3600.0;
-                }
-            }
-            $hoursWorked = round($hoursWorked, 1);
+        if (! $dashboard) {
+            return response()->json(['success' => false, 'error' => 'Chưa có dữ liệu nhân sự. Vui lòng thử lại sau ít phút.'], 503);
+        }
 
-            // 2. Load KPI metrics for the current month
-            $kpiService = app(KpiService::class);
-            $kpi = EmployeeKpi::withoutGlobalScopes()
-                ->where('employee_id', $employee->id)
-                ->where('period', $period)
-                ->with('metrics')
-                ->first();
+        $period = now()->format('Y-m');
+        if (! $dashboard['kpis']) {
+            CalculateEmployeeKpiJob::dispatchAfterResponse($employee, $period);
+        }
 
-            if (! $kpi) {
-                CalculateEmployeeKpiJob::dispatch($employee, $period);
-            }
+        // Notifications cần gần thời gian thực nên không lưu vào materialized view.
+        $notifications = $request->user()->notifications()
+            ->latest()
+            ->take(15)
+            ->get()
+            ->map(fn ($notification) => [
+                'id' => $notification->id,
+                'type' => $notification->data['type'] ?? 'info',
+                'message' => $notification->data['message'] ?? '',
+                'read_at' => $notification->read_at,
+                'created_at' => $notification->created_at->diffForHumans(),
+            ])
+            ->values();
 
-            $kpiData = null;
-            if ($kpi) {
-                $kpiData = [
-                    'total_score' => (float) $kpi->total_score,
-                    'total_bonus' => (float) $kpi->total_bonus,
-                    'total_commission' => (float) $kpi->total_commission,
-                    'status' => $kpi->status,
-                    'metrics' => $kpi->metrics->map(fn ($m) => [
-                        'metric_name' => $m->metric_name,
-                        'actual_value' => (float) $m->actual_value,
-                        'target_value' => (float) $m->target_value,
-                        'score' => (float) $m->score,
-                        'is_achieved' => (bool) $m->is_achieved,
-                        'bonus_earned' => (float) $m->bonus_earned,
-                        'commission_earned' => (float) $m->commission_earned,
-                    ]),
-                ];
-            }
-
-            // 3. Estimate monthly earnings
-            $baseSalary = $kpiService->getKpiRole($employee) !== null
-                ? app(SalaryService::class)->calculateDynamicBaseSalary($employee, $startOfMonth->toDateString(), $endOfMonth->toDateString())
-                : (float) ($employee->base_salary ?? 0);
-
-            $kpiBonus = $kpi ? (float) $kpi->total_bonus : 0.0;
-            $kpiCommission = $kpi ? (float) $kpi->total_commission : 0.0;
-            $estimatedEarnings = $baseSalary + $kpiBonus + $kpiCommission;
-
-            // 4. Retrieve schedules: last week, this week, and next week
-            $startRange = now()->subWeek()->startOfWeek(Carbon::MONDAY)->toDateString();
-            $endRange = now()->addWeeks(2)->endOfWeek(Carbon::SUNDAY)->toDateString();
-
-            $schedules = ScheduleAssignment::where('employee_id', $employee->id)
-                ->whereBetween('scheduled_date', [$startRange, $endRange])
-                ->with('shift')
-                ->get()
-                ->map(fn ($a) => [
-                    'id' => $a->id,
-                    'date' => $a->scheduled_date instanceof Carbon ? $a->scheduled_date->toDateString() : Carbon::parse($a->scheduled_date)->toDateString(),
-                    'formatted_date' => Carbon::parse($a->scheduled_date)->format('d/m/Y'),
-                    'day_name' => $this->getDayVn(Carbon::parse($a->scheduled_date)->format('l')),
-                    'shift_name' => $a->shift?->name ?? 'Ca Trực',
-                    'start_time' => $a->shift?->start_time ? substr($a->shift->start_time, 0, 5) : '',
-                    'end_time' => $a->shift?->end_time ? substr($a->shift->end_time, 0, 5) : '',
-                    'status' => $a->status,
-                    'check_in_at' => $a->check_in_at ? Carbon::parse($a->check_in_at)->format('H:i') : null,
-                    'check_out_at' => $a->check_out_at ? Carbon::parse($a->check_out_at)->format('H:i') : null,
-                ]);
-
-            // 5. Database Notifications
-            $notifications = $request->user()->notifications()
-                ->take(15)
-                ->get()
-                ->map(fn ($n) => [
-                    'id' => $n->id,
-                    'type' => $n->data['type'] ?? 'info',
-                    'message' => $n->data['message'] ?? '',
-                    'read_at' => $n->read_at,
-                    'created_at' => $n->created_at->diffForHumans(),
-                ]);
-
-            return [
-                'success' => true,
-                'summary' => [
-                    'shifts_completed' => $completedShiftsCount,
-                    'hours_worked' => $hoursWorked,
-                    'estimated_earnings' => $estimatedEarnings,
-                    'base_salary' => $baseSalary,
-                    'kpi_bonus' => $kpiBonus,
-                    'kpi_commission' => $kpiCommission,
-                ],
-                'kpis' => $kpiData,
-                'schedules' => $schedules,
-                'notifications' => $notifications,
-            ];
-        });
+        $payload = [
+            'success' => true,
+            'summary' => $dashboard['summary'],
+            'kpis' => $dashboard['kpis'],
+            'schedules' => $dashboard['schedules'],
+            'notifications' => $notifications,
+        ];
 
         return response()->json($payload);
     }

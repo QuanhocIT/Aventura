@@ -102,10 +102,45 @@ class TenantHealthTest extends TestCase
             ->component('super-admin/tenant-health/Index')
             ->where('summary.tenants', 2)
             ->where('summary.issues', 6)
-            ->has('issues', 6)
+            ->where('issues.current_page', 1)
+            ->where('issues.total', 6)
+            ->has('issues.data', 6)
         );
 
         $this->assertTrue($activeBranch->refresh()->manager_user_id === null);
+    }
+
+    public function test_health_issues_are_paginated_by_ten(): void
+    {
+        Restaurant::factory()->count(11)->create(['owner_user_id' => null]);
+
+        $this->actingAs($this->systemAdmin)
+            ->get('/super-admin/tenant-health')
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('summary.issues', 11)
+                ->where('issues.current_page', 1)
+                ->where('issues.last_page', 2)
+                ->where('issues.per_page', 10)
+                ->has('issues.data', 10)
+                ->where('tenants.current_page', 1)
+                ->where('tenants.last_page', 2)
+                ->where('tenants.per_page', 10)
+                ->has('tenants.data', 10)
+            );
+
+        $this->actingAs($this->systemAdmin)
+            ->get('/super-admin/tenant-health?issues_page=2')
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('issues.current_page', 2)
+                ->has('issues.data', 1)
+            );
+
+        $this->actingAs($this->systemAdmin)
+            ->get('/super-admin/tenant-health?tenants_page=2')
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('tenants.current_page', 2)
+                ->has('tenants.data', 1)
+            );
     }
 
     public function test_health_repairs_are_authorized_and_audited(): void

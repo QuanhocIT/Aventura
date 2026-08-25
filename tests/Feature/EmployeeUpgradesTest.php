@@ -152,16 +152,20 @@ class EmployeeUpgradesTest extends TestCase
 
         $service = new SalaryService;
 
-        // SCENARIO 1: No approved overtime request.
-        // Scheduled: 4h. OT: 4h (unapproved, paid at 1.0x).
-        // Total expected wage: (4 + 4) * 10,000 = 80,000
-        $wages1 = $service->calculateDynamicBaseSalary($employee, '2026-06-01', '2026-07-01');
-        $this->assertEquals(80000.0, $wages1);
+        // Chính sách: giờ làm ngoài ca mà KHÔNG có đơn OT được duyệt thì không
+        // được tính lương — phiếu lương in rõ "chưa được duyệt OT (không tính
+        // lương)" và số giờ đó vẫn hiện ở cột riêng để quản lý duyệt bù sau.
+        // Xem SalaryService::hourlyCalculation và buildBreakdown.
 
-        // SCENARIO 2: Approved OT request for 2 hours.
-        // Scheduled: 4h. Approved OT: 2h (paid at 1.5x = 3h regular). Unapproved OT: 2h (paid at 1.0x = 2h regular).
-        // Total expected hours equivalent: 4 + 3 + 2 = 9 hours.
-        // Total expected wage: 9 * 10,000 = 90,000
+        // SCENARIO 1: Chưa có đơn OT nào được duyệt.
+        // Trong ca: 4h. Ngoài ca: 4h nhưng chưa duyệt → không tính lương.
+        // Tổng: 4 * 10.000 = 40.000
+        $wages1 = $service->calculateDynamicBaseSalary($employee, '2026-06-01', '2026-07-01');
+        $this->assertEquals(40000.0, $wages1);
+
+        // SCENARIO 2: Đơn OT được duyệt 2 giờ.
+        // Trong ca: 4h. OT được duyệt: 2h × 1.5. Còn 2h ngoài ca vẫn chưa duyệt.
+        // Tổng: (4 * 10.000) + (2 * 10.000 * 1.5) = 70.000
         OvertimeRequest::create([
             'restaurant_id' => $this->restaurant->id,
             'employee_id' => $employee->id,
@@ -173,7 +177,7 @@ class EmployeeUpgradesTest extends TestCase
         ]);
 
         $wages2 = $service->calculateDynamicBaseSalary($employee, '2026-06-01', '2026-07-01');
-        $this->assertEquals(90000.0, $wages2);
+        $this->assertEquals(70000.0, $wages2);
     }
 
     /**
@@ -402,6 +406,15 @@ class EmployeeUpgradesTest extends TestCase
         $responseJson->assertStatus(403);
         $responseJson->assertJsonFragment(['error' => 'SHIFT_EXPIRED']);
 
+        // Khi phát hiện hết ca, middleware đăng xuất và huỷ luôn session, nên
+        // dấu hiệu "hết ca" không còn sau request trên. Phải dựng lại trạng thái
+        // đó — kèm employee_id, nếu không middleware sẽ tự nạp lại cả hai khoá
+        // từ lịch làm việc và coi như ca vẫn hợp lệ.
+        session([
+            'employee_id' => $employee->id,
+            'shift_allowed_until' => now()->subMinutes(1)->timestamp,
+        ]);
+
         // Expecting a redirect to login for page requests
         $responsePage = $this->actingAs($cashierUser)->get('/dashboard');
         $responsePage->assertRedirect('/login');
@@ -457,7 +470,13 @@ class EmployeeUpgradesTest extends TestCase
         ]);
 
         config()->set('billing.webhook_secret', 'test-webhook-secret');
-        $webhookPayload = ['description' => "AVTORD{$order->id} chuyen khoan"];
+        // Webhook thật luôn kèm số tiền thực nhận; controller từ chối callback
+        // không có amount để không đánh dấu đã thanh toán khi chưa biết nhận
+        // được bao nhiêu tiền.
+        $webhookPayload = [
+            'description' => "AVTORD{$order->id} chuyen khoan",
+            'transferAmount' => 150000,
+        ];
         $signature = hash_hmac('sha256', json_encode($webhookPayload), 'test-webhook-secret');
 
         $response = $this->postJson(route('api.webhooks.payments.vietqr'), $webhookPayload, [

@@ -30,6 +30,10 @@
         <env name="DB_DATABASE" value=":memory:"/>
         <env name="DB_URL" value=""/>
         <env name="SCOUT_DRIVER" value="null"/>
+        <!-- Cổng Nhà cung cấp mặc định TẮT (xem config/portal.php và .env.example).
+             Không ghim ở đây thì test đọc theo .env của từng máy: máy bật cổng sẽ
+             thấy AuthenticationTest đỏ, máy tắt thì xanh — cùng một mã nguồn. -->
+        <env name="SUPPLIER_PORTAL_ENABLED" value="false"/>
         <env name="MAIL_MAILER" value="array"/>
         <env name="QUEUE_CONNECTION" value="sync"/>
         <env name="SESSION_DRIVER" value="array"/>

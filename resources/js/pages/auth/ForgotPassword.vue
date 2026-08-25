@@ -1,11 +1,9 @@
 <script setup lang="ts">
 import { Form, Head } from '@inertiajs/vue3';
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment
-// @ts-ignore Vue SFC module declaration is provided by the project shim.
+
 import { ref, onMounted } from 'vue';
 import InputError from '@/components/InputError.vue';
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment
-// @ts-ignore Vue SFC module declaration is provided by the project shim.
+
 import TextLink from '@/components/TextLink.vue';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -32,7 +30,6 @@ const turnstileToken = ref('');
 
 onMounted(() => {
     if (props.turnstileSiteKey) {
-        // @ts-ignore
         if (!window.turnstile) {
             const script = document.createElement('script');
             script.src =
@@ -40,10 +37,7 @@ onMounted(() => {
             script.async = true;
             script.defer = true;
             document.head.appendChild(script);
-
-            // @ts-ignore
             window.onloadTurnstileCallbackForgotPassword = () => {
-                // @ts-ignore
                 window.turnstile.render(
                     '#turnstile-container-forgot-password',
                     {
@@ -56,7 +50,6 @@ onMounted(() => {
             };
         } else {
             setTimeout(() => {
-                // @ts-ignore
                 window.turnstile.render(
                     '#turnstile-container-forgot-password',
                     {

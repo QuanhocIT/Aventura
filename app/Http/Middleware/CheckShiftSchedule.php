@@ -27,9 +27,6 @@ class CheckShiftSchedule
     /** Số phút grace period sau khi ca kết thúc */
     private const GRACE_MINUTES = 15;
 
-    /** Các role được miễn trừ kiểm tra ca */
-    private const EXEMPT_ROLES = ['owner', 'manager', 'super_admin'];
-
     public function handle(Request $request, Closure $next): Response
     {
         $user = $request->user();
@@ -39,8 +36,8 @@ class CheckShiftSchedule
             return $next($request);
         }
 
-        // Super admin, owner, manager → miễn trừ hoàn toàn
-        if ($user->hasAnyRole(self::EXEMPT_ROLES)) {
+        // Shift-independent roles (including Trưởng kho Tổng) are always allowed.
+        if ($user->isExemptFromShiftLock()) {
             return $next($request);
         }
 

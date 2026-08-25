@@ -5,6 +5,7 @@ namespace App\Http\Middleware;
 use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Inertia\Inertia;
 use Symfony\Component\HttpFoundation\Response;
 
 class EnsureSecuritySessionFresh
@@ -31,7 +32,11 @@ class EnsureSecuritySessionFresh
             $request->session()->invalidate();
             $request->session()->regenerateToken();
 
-            if ($request->expectsJson() || $request->header('X-Inertia')) {
+            if ($request->header('X-Inertia')) {
+                return Inertia::location('/login');
+            }
+
+            if ($request->expectsJson()) {
                 return response()->json([
                     'message' => 'Phiên đăng nhập đã bị thu hồi. Vui lòng đăng nhập lại.',
                     'security_session_revoked' => true,

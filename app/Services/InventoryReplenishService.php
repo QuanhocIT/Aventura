@@ -57,7 +57,9 @@ class InventoryReplenishService
                 $recipes = $product->recipes;
                 foreach ($recipes as $recipe) {
                     $ingId = $recipe->ingredient_id;
-                    $qtyUsed = $item->quantity * $recipe->quantity * (1 + ($recipe->waste_rate ?? 0) / 100);
+                    $qtyUsed = app(UnitConversionService::class)->recipeQuantityInIngredientUnit($recipe)
+                        * $item->quantity
+                        * (1 + ($recipe->waste_rate ?? 0) / 100);
 
                     if (! isset($dailyUsage[$ingId])) {
                         $dailyUsage[$ingId] = [];
@@ -73,6 +75,8 @@ class InventoryReplenishService
         // 3. Prepare payload
         $inventories = Inventory::where('restaurant_id', $restaurantId)
             ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
+            ->select('ingredient_id', DB::raw('SUM(quantity_on_hand) as quantity_on_hand'))
+            ->groupBy('ingredient_id')
             ->get()
             ->keyBy('ingredient_id');
 

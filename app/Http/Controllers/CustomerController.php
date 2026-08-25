@@ -179,6 +179,11 @@ class CustomerController extends Controller
      */
     public function store(Request $request): RedirectResponse
     {
+        // index() đã yêu cầu manage_customers từ đầu; store()/update() thì
+        // không — nghĩa là không xem được danh sách nhưng vẫn ghi được dữ liệu
+        // cá nhân của khách.
+        abort_unless($request->user()->can('manage_customers'), 403, 'Bạn không có quyền thêm khách hàng.');
+
         $data = $request->validate([
             'full_name' => ['required', 'string', 'max:255'],
             'phone' => ['required', 'string', 'max:20'],
@@ -198,6 +203,9 @@ class CustomerController extends Controller
      */
     public function update(Request $request, Customer $customer): RedirectResponse
     {
+        abort_unless($request->user()->can('manage_customers'), 403, 'Bạn không có quyền sửa thông tin khách hàng.');
+        abort_if($customer->restaurant_id !== $request->user()->restaurant_id, 403);
+
         $data = $request->validate([
             'full_name' => ['required', 'string', 'max:255'],
             'phone' => ['required', 'string', 'max:20'],

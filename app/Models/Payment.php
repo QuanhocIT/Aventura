@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Models\Concerns\BelongsToRestaurant;
+use App\Support\Tenant\TenantContext;
 use Database\Factories\Restaurant\PaymentFactory;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -16,12 +17,32 @@ class Payment extends Model
     use HasFactory;
     use SoftDeletes;
 
-    protected $guarded = [];
+    protected $guarded = ['id'];
+
+    protected static function booted(): void
+    {
+        static::creating(function (self $payment): void {
+            if ($payment->branch_id !== null || ! $payment->order_id) {
+                return;
+            }
+
+            $orderQuery = Order::withoutGlobalScopes()
+                ->whereKey($payment->order_id);
+
+            if ($payment->restaurant_id !== null) {
+                $orderQuery->where('restaurant_id', $payment->restaurant_id);
+            }
+
+            $payment->branch_id = $orderQuery->value('branch_id')
+                ?? app(TenantContext::class)->activeBranchId();
+        });
+    }
 
     protected function casts(): array
     {
         return [
             'paid_at' => 'datetime',
+            'reconciled_at' => 'datetime',
             'meta' => 'array',
         ];
     }
@@ -29,6 +50,21 @@ class Payment extends Model
     public function order(): BelongsTo
     {
         return $this->belongsTo(Order::class);
+    }
+
+    public function branch(): BelongsTo
+    {
+        return $this->belongsTo(RestaurantBranch::class, 'branch_id');
+    }
+
+    public function processedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'processed_by');
+    }
+
+    public function reconciledBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'reconciled_by');
     }
 
     protected static function newFactory(): Factory

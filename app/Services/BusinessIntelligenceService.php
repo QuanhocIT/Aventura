@@ -93,19 +93,22 @@ class BusinessIntelligenceService
                 ->when($branchId !== null, fn ($query) => $query->where('branch_id', $branchId))
                 ->count();
 
-            $totalCost = (float) DB::table('inventory_transactions')
-                ->where('restaurant_id', $restaurantId)
-                ->where('type', 'purchase')
-                ->where('occurred_at', '>=', now()->subDays($days))
-                ->when($branchId !== null, fn ($query) => $query->where('branch_id', $branchId))
-                ->sum('total_cost');
+            $marketingCost = (float) DB::table('operating_expenses as oe')
+                ->join('expense_categories as ec', 'ec.id', '=', 'oe.category_id')
+                ->where('oe.restaurant_id', $restaurantId)
+                ->where('ec.name', 'like', '%Marketing%')
+                ->where('oe.expense_date', '>=', now()->subDays($days)->toDateString())
+                ->where('oe.status', '!=', 'rejected')
+                ->when($branchId !== null, fn ($query) => $query->where('oe.branch_id', $branchId))
+                ->sum('oe.amount');
 
-            $wasteCost = (float) DB::table('inventory_transactions')
-                ->where('restaurant_id', $restaurantId)
-                ->where('type', 'waste')
-                ->where('occurred_at', '>=', now()->subDays($days))
-                ->when($branchId !== null, fn ($query) => $query->where('branch_id', $branchId))
-                ->sum('total_cost');
+            // Giá vốn BI phải phản ánh nguyên vật liệu đã tiêu hao, không phải
+            // giá trị nhập kho trong kỳ (nhập hàng thường theo lô và làm méo biên).
+            // Với dữ liệu cũ chưa có giao dịch usage, dùng purchase làm fallback
+            // và trả cờ để UI minh bạch với người dùng.
+            $inventoryCosts = $this->getInventoryCosts($restaurantId, $days, $branchId);
+            $totalCost = $inventoryCosts['cogs'];
+            $wasteCost = $inventoryCosts['waste_cost'];
 
             $totalCustomers = (int) DB::table('customers')
                 ->where('restaurant_id', $restaurantId)
@@ -156,7 +159,11 @@ class BusinessIntelligenceService
             $avgOrderValue = ($count1 + $count2) > 0 ? ($sum1 + $sum2) / ($count1 + $count2) : 0;
 
             $ltv = round($avgOrderValue * $avgOrdersPerCustomer);
-            $cac = $newCustomers > 0 ? round($totalCost / $newCustomers) : 0;
+            // CAC chỉ dùng chi phí Marketing đã ghi nhận; không dùng giá vốn
+            // làm proxy vì sẽ khiến quyết định phân bổ ngân sách bị sai lệch.
+            $cac = $marketingCost > 0 && $newCustomers > 0
+                ? round($marketingCost / $newCustomers)
+                : 0;
             $ltvCacRatio = $cac > 0 ? round($ltv / $cac, 2) : 0;
 
             $grossMargin = $totalRevenue > 0 ? round((($totalRevenue - $totalCost) / $totalRevenue) * 100, 1) : 0;
@@ -173,6 +180,10 @@ class BusinessIntelligenceService
                 'cac' => $cac,
                 'ltv_cac_ratio' => $ltvCacRatio,
                 'avg_orders_per_customer' => round($avgOrdersPerCustomer, 1),
+                'order_count' => $count1 + $count2,
+                'cost_basis' => $inventoryCosts['cost_basis'],
+                'marketing_cost' => $marketingCost,
+                'cac_basis' => $marketingCost > 0 ? 'marketing_expense' : 'not_recorded',
             ];
         });
     }
@@ -290,17 +301,15 @@ class BusinessIntelligenceService
                     ->when($branchId !== null, fn ($query) => $query->where('branch_id', $branchId))
                     ->sum('total_amount');
 
-            $variableCost = (float) DB::table('inventory_transactions')
-                ->where('restaurant_id', $restaurantId)
-                ->whereIn('type', ['purchase', 'usage'])
-                ->where('occurred_at', '>=', now()->subDays($days))
-                ->when($branchId !== null, fn ($query) => $query->where('branch_id', $branchId))
-                ->sum('total_cost');
+            $inventoryCosts = $this->getInventoryCosts($restaurantId, $days, $branchId);
+            // Điểm hòa vốn cần tính toàn bộ chi phí biến đổi: giá vốn tiêu hao
+            // và phần hao hụt phát sinh trong cùng kỳ.
+            $variableCost = $inventoryCosts['cogs'] + $inventoryCosts['waste_cost'];
 
             $fixedCost = (float) DB::table('operating_expenses')
                 ->where('restaurant_id', $restaurantId)
-                ->whereNotNull('recurring_expense_id')
                 ->where('expense_date', '>=', now()->subDays($days))
+                ->where('status', '!=', 'rejected')
                 ->when($branchId !== null, fn ($query) => $query->where('branch_id', $branchId))
                 ->sum('amount');
 
@@ -338,7 +347,12 @@ class BusinessIntelligenceService
                 'break_even_orders' => $breakEvenOrders,
                 'break_even_revenue' => round($breakEvenRevenue),
                 'break_even_days' => $breakEvenDays,
-                'is_profitable' => $ordersCount >= $breakEvenOrders,
+                // break_even_orders = 0 có thể là không có dữ liệu hoặc lãi góp
+                // không dương; cả hai trường hợp đều không được hiển thị là "có lãi".
+                'is_profitable' => $ordersCount > 0
+                    && $contributionMargin > 0
+                    && ($revenue - $variableCost - $fixedCost) > 0,
+                'cost_basis' => $inventoryCosts['cost_basis'],
             ];
         });
     }
@@ -366,6 +380,34 @@ class BusinessIntelligenceService
         }
 
         return $benchmarks;
+    }
+
+    /**
+     * Lấy giá vốn theo nguyên tắc tiêu hao thực tế.
+     *
+     * purchase là dòng nhập kho, usage là dòng xuất kho theo BOM khi đơn hàng
+     * hoàn tất. Không cộng cả hai vì sẽ double-count giá vốn. Dữ liệu lịch sử
+     * chưa có usage được fallback về purchase để dashboard vẫn có số liệu,
+     * đồng thời gắn cost_basis để hiển thị cảnh báo chất lượng dữ liệu.
+     */
+    private function getInventoryCosts(int $restaurantId, int $days, ?int $branchId = null): array
+    {
+        $baseQuery = DB::table('inventory_transactions')
+            ->where('restaurant_id', $restaurantId)
+            ->where('occurred_at', '>=', now()->subDays($days))
+            ->when($branchId !== null, fn ($query) => $query->where('branch_id', $branchId));
+
+        $usageQuery = (clone $baseQuery)->where('type', 'usage');
+        $usageCost = (float) (clone $usageQuery)->sum('total_cost');
+        $hasUsage = (clone $usageQuery)->exists();
+        $purchaseCost = (float) (clone $baseQuery)->where('type', 'purchase')->sum('total_cost');
+        $wasteCost = (float) (clone $baseQuery)->where('type', 'waste')->sum('total_cost');
+
+        return [
+            'cogs' => $hasUsage ? $usageCost : $purchaseCost,
+            'waste_cost' => $wasteCost,
+            'cost_basis' => $hasUsage ? 'actual_consumption' : 'purchases_fallback',
+        ];
     }
 
     private function cacheKey(string $prefix, int $restaurantId, mixed ...$parts): string

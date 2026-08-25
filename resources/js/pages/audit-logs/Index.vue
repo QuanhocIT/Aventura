@@ -16,9 +16,8 @@ import {
     AlertTriangle,
     ArrowRight,
     Activity,
-    Inbox,
 } from 'lucide-vue-next';
-import { ref, watch } from 'vue';
+import { ref } from 'vue';
 import { Pagination } from '@/components/super-admin';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -206,6 +205,7 @@ function actionLabel(action: string): string {
         violation_resolved: 'Xử lý vi phạm',
         test_data_seeded: 'Seed dữ liệu test',
         seed_demo_order: 'Seed đơn demo',
+        kitchen_menu_unavailable: 'Tạm ngưng món bếp',
     };
 
     return map[action] ?? action;
@@ -220,6 +220,9 @@ const fieldLabels: Record<string, string> = {
     quantity: 'Số lượng',
     notes: 'Ghi chú',
     split_from_order_id: 'Tách từ đơn hàng #',
+    out_of_stock_until: 'Hết phục vụ đến',
+    out_of_stock_reason: 'Lý do tạm ngưng',
+    branch_id: 'Chi nhánh',
 };
 
 function getDiff(

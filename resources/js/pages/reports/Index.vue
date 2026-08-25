@@ -7,11 +7,10 @@ import {
     Banknote,
     BarChart3,
     CheckCircle2,
-    ChevronDown,
-    ChevronUp,
     Clock,
     CreditCard,
     Download,
+    FileText,
     Flame,
     Package,
     Percent,
@@ -24,7 +23,7 @@ import {
 } from 'lucide-vue-next';
 import { computed, ref, watch } from 'vue';
 import { toast } from 'vue-sonner';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import AppLayout from '@/layouts/AppLayout.vue';
 
 defineOptions({ layout: AppLayout });
@@ -261,6 +260,7 @@ const profitMargin = computed(() =>
           ).toFixed(1)
         : '0',
 );
+void profitMargin.value;
 
 const hasData = computed(() => props.summaries.length > 0);
 
@@ -458,6 +458,13 @@ const topPeakHours = computed(() => {
 
 // ── Export CSV ────────────────────────────────────────────────────────────────
 
+/** Ngày dạng dd/mm để đặt lên nhãn nút, không phải để gửi lên server. */
+function formatShortDate(iso: string): string {
+    const [y, m, d] = (iso ?? '').split('-');
+
+    return y && m && d ? `${d}/${m}` : '';
+}
+
 function exportCSV() {
     const headers = [
         'Ngày',
@@ -567,6 +574,7 @@ function deltaBadge(pct: number | null) {
 
     return { positive: pct >= 0, text: (pct >= 0 ? '+' : '') + pct + '%' };
 }
+void deltaBadge;
 </script>
 
 <template>
@@ -622,6 +630,17 @@ function deltaBadge(pct: number | null) {
                     <Download class="size-3.5" />
                     Xuất CSV
                 </button>
+
+                <!-- Xuất PDF: route /reports/export-pdf đã có sẵn từ đầu (kèm
+                     bản in reports.daily-pdf) nhưng chưa có nút nào gọi tới. -->
+                <a
+                    v-if="hasData"
+                    :href="`/reports/export-pdf?date=${dateRange.end}`"
+                    class="inline-flex cursor-pointer items-center gap-1.5 rounded-xl border border-border bg-background px-3.5 py-2 text-xs font-semibold transition hover:bg-muted active:scale-95"
+                >
+                    <FileText class="size-3.5" />
+                    Xuất PDF ngày {{ formatShortDate(dateRange.end) }}
+                </a>
             </div>
         </div>
 

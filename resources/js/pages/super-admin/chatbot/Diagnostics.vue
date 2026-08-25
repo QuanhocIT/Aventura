@@ -3,7 +3,6 @@ import { Head, router } from '@inertiajs/vue3';
 import {
     Activity,
     AlertTriangle,
-    Bot,
     Brain,
     CheckCircle2,
     ChevronRight,
@@ -24,12 +23,7 @@ import {
     Zap,
 } from 'lucide-vue-next';
 import { computed, ref } from 'vue';
-import {
-    PageHeader,
-    TerminalCard,
-    LedIndicator,
-    StatusBadge,
-} from '@/components/super-admin';
+import { PageHeader } from '@/components/super-admin';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -253,7 +247,7 @@ async function runTestQuery() {
             body: JSON.stringify({ query: playgroundQuery.value.trim() }),
         });
         playgroundResult.value = await res.json();
-    } catch (e: any) {
+    } catch {
         playgroundResult.value = {
             error: 'Không thể kết nối server.',
             found: false,
@@ -320,14 +314,15 @@ const cacheAge = computed(() => {
 </script>
 
 <template>
-    <Head title="Chatbot Diagnostics" />
+    <Head title="Chẩn đoán Chatbot" />
 
     <div class="flex flex-col gap-5 px-6 py-5">
         <!-- Header -->
         <PageHeader
-            title="Chatbot Diagnostics & Retraining"
+            title="Chẩn đoán & tái huấn luyện Chatbot"
             subtitle="Giám sát hiệu năng · Tái huấn luyện · Kiểm thử câu hỏi"
             :icon="Brain"
+            back-href="/super-admin/dashboard"
         />
 
         <!-- ── Service Health Strip ───────────────────────────────────────── -->
@@ -351,10 +346,10 @@ const cacheAge = computed(() => {
                     ></span>
                 </div>
                 <span class="text-sm font-semibold">
-                    Python Service (port 8002):
+                    Dịch vụ Python (cổng 8002):
                     {{
                         health.status === 'ok'
-                            ? 'Online'
+                            ? 'Trực tuyến'
                             : health.status === 'error'
                               ? 'Lỗi kết nối'
                               : 'Không khả dụng'
@@ -366,11 +361,12 @@ const cacheAge = computed(() => {
             >
                 <span class="flex items-center gap-1">
                     <ClipboardList class="size-3.5" />
-                    {{ health.knowledge_count }} Q&A trong cache
+                    {{ health.knowledge_count }} câu hỏi & trả lời trong bộ nhớ
+                    đệm
                 </span>
                 <span class="flex items-center gap-1">
                     <Clock class="size-3.5" />
-                    Cache age: {{ cacheAge }}
+                    Tuổi bộ nhớ đệm: {{ cacheAge }}
                 </span>
             </div>
         </div>
@@ -423,13 +419,13 @@ const cacheAge = computed(() => {
                         <TrendingUp class="mt-0.5 size-4 text-violet-500" />
                         <div>
                             <p class="text-xs text-muted-foreground">
-                                Knowledge Base
+                                Cơ sở tri thức
                             </p>
                             <p class="text-2xl font-bold text-violet-600">
                                 {{ health.knowledge_count }}
                             </p>
                             <p class="text-xs text-muted-foreground">
-                                Q&A đang active
+                                Hỏi & đáp đang hoạt động
                             </p>
                         </div>
                     </div>
@@ -449,7 +445,7 @@ const cacheAge = computed(() => {
                 ]"
             >
                 <AlertTriangle class="size-4" />
-                Unanswered Log
+                Nhật ký chưa trả lời
                 <span
                     v-if="stats.total_unanswered > 0"
                     class="ml-1 flex size-5 items-center justify-center rounded-full bg-orange-500 text-[10px] font-bold text-white"
@@ -471,7 +467,7 @@ const cacheAge = computed(() => {
                 ]"
             >
                 <Sparkles class="size-4" />
-                Retrain Model
+                Tái huấn luyện mô hình
             </button>
             <button
                 @click="activeTab = 'playground'"
@@ -483,7 +479,7 @@ const cacheAge = computed(() => {
                 ]"
             >
                 <FlaskConical class="size-4" />
-                Prompt Playground
+                Khu vực thử nghiệm câu lệnh
             </button>
         </div>
 
@@ -568,7 +564,7 @@ const cacheAge = computed(() => {
                                     <th
                                         class="w-28 px-4 py-2.5 text-center font-medium text-muted-foreground"
                                     >
-                                        Best Score
+                                        Điểm cao nhất
                                     </th>
                                     <th
                                         class="w-24 px-4 py-2.5 text-center font-medium text-muted-foreground"
@@ -743,8 +739,9 @@ const cacheAge = computed(() => {
                 </CardHeader>
                 <CardContent class="flex flex-col gap-5">
                     <p class="text-sm leading-relaxed text-muted-foreground">
-                        Sau khi cập nhật Knowledge Base (thêm/sửa Q&A), nhấn nút
-                        bên dưới để gửi lệnh đến Python service tại
+                        Sau khi cập nhật cơ sở tri thức (thêm/sửa câu hỏi & trả
+                        lời), nhấn nút bên dưới để gửi lệnh đến dịch vụ Python
+                        tại
                         <code class="rounded bg-muted px-1 py-0.5 text-xs"
                             >:8002</code
                         >, xóa cache cũ và rebuild toàn bộ mô hình TF-IDF + BM25
@@ -762,7 +759,7 @@ const cacheAge = computed(() => {
                         <div class="grid grid-cols-2 gap-3 text-sm">
                             <div>
                                 <p class="text-xs text-muted-foreground">
-                                    Service
+                                    Dịch vụ
                                 </p>
                                 <p
                                     class="font-semibold"
@@ -774,28 +771,28 @@ const cacheAge = computed(() => {
                                 >
                                     {{
                                         health.status === 'ok'
-                                            ? '✅ Online'
-                                            : '❌ Offline'
+                                            ? '✅ Trực tuyến'
+                                            : '❌ Ngoại tuyến'
                                     }}
                                 </p>
                             </div>
                             <div>
                                 <p class="text-xs text-muted-foreground">
-                                    Q&A trong cache
+                                    Câu hỏi & trả lời trong bộ nhớ đệm
                                 </p>
                                 <p class="font-semibold">
-                                    {{ health.knowledge_count }} entries
+                                    {{ health.knowledge_count }} mục
                                 </p>
                             </div>
                             <div>
                                 <p class="text-xs text-muted-foreground">
-                                    Cache age
+                                    Tuổi bộ nhớ đệm
                                 </p>
                                 <p class="font-semibold">{{ cacheAge }}</p>
                             </div>
                             <div>
                                 <p class="text-xs text-muted-foreground">
-                                    Endpoint
+                                    Đường dẫn API
                                 </p>
                                 <p
                                     class="font-mono text-xs text-muted-foreground"
@@ -819,7 +816,7 @@ const cacheAge = computed(() => {
                         {{
                             retraining
                                 ? 'Đang tải lại mô hình...'
-                                : 'Retrain ngay bây giờ'
+                                : 'Tái huấn luyện ngay'
                         }}
                     </Button>
 
@@ -827,7 +824,8 @@ const cacheAge = computed(() => {
                         v-if="health.status !== 'ok'"
                         class="text-center text-xs text-red-500"
                     >
-                        Python service đang offline. Kiểm tra Service Monitor.
+                        Dịch vụ Python đang ngoại tuyến. Kiểm tra trình giám sát
+                        dịch vụ.
                     </p>
                 </CardContent>
             </Card>
@@ -846,23 +844,23 @@ const cacheAge = computed(() => {
                             v-for="(step, i) in [
                                 {
                                     icon: ClipboardList,
-                                    title: 'Cập nhật Knowledge Base',
-                                    desc: 'Vào trang Chatbot Knowledge Base, thêm/sửa/xóa Q&A, từ khoá, câu hỏi tương đương.',
+                                    title: 'Cập nhật cơ sở tri thức',
+                                    desc: 'Vào trang Cơ sở tri thức Chatbot, thêm/sửa/xóa câu hỏi & trả lời, từ khóa và câu hỏi tương đương.',
                                 },
                                 {
                                     icon: Zap,
-                                    title: 'Nhấn Retrain',
-                                    desc: 'Lệnh POST /reload-cache được gửi đến Python microservice. Mô hình xóa cache cũ và bắt đầu rebuild.',
+                                    title: 'Nhấn Tái huấn luyện',
+                                    desc: 'Lệnh POST /reload-cache được gửi đến dịch vụ Python. Mô hình xóa bộ nhớ đệm cũ và bắt đầu xây dựng lại.',
                                 },
                                 {
                                     icon: Brain,
-                                    title: 'Rebuild TF-IDF + BM25',
+                                    title: 'Xây dựng lại TF-IDF + BM25',
                                     desc: 'Scikit-learn đọc lại toàn bộ dữ liệu từ DB, huấn luyện lại vectorizer Char n-gram (1-3), Word n-gram (1-2) và BM25Okapi.',
                                 },
                                 {
                                     icon: Shield,
-                                    title: 'Kiểm tra với Playground',
-                                    desc: 'Dùng tab Prompt Playground để kiểm tra điểm similarity của các câu hỏi thực tế trước khi đưa vào sản xuất.',
+                                    title: 'Kiểm tra với khu vực thử nghiệm',
+                                    desc: 'Dùng tab khu vực thử nghiệm câu lệnh để kiểm tra độ tương đồng của các câu hỏi thực tế trước khi đưa vào sản xuất.',
                                 },
                             ]"
                             :key="i"
@@ -903,8 +901,8 @@ const cacheAge = computed(() => {
                     </CardHeader>
                     <CardContent class="flex flex-col gap-4">
                         <p class="text-sm text-muted-foreground">
-                            Nhập câu hỏi bất kỳ để xem điểm similarity từng tín
-                            hiệu (Char TF-IDF, Word TF-IDF, BM25, Keyword) mà mô
+                            Nhập câu hỏi bất kỳ để xem điểm tương đồng từng tín
+                            hiệu (Char TF-IDF, Word TF-IDF, BM25, từ khóa) mà mô
                             hình trả về.
                         </p>
                         <textarea
@@ -941,7 +939,7 @@ const cacheAge = computed(() => {
                             <p
                                 class="text-xs font-medium text-muted-foreground"
                             >
-                                Thử nhanh từ Unanswered Log:
+                                Thử nhanh từ nhật ký chưa trả lời:
                             </p>
                             <div class="flex flex-wrap gap-2">
                                 <button
@@ -1049,11 +1047,11 @@ const cacheAge = computed(() => {
                                         {{
                                             playgroundResult.found
                                                 ? '✅ Câu hỏi được nhận diện'
-                                                : '❌ Dưới ngưỡng SIMILARITY_THRESHOLD'
+                                                : '❌ Dưới ngưỡng tương đồng'
                                         }}
                                     </p>
                                     <p class="text-xs text-muted-foreground">
-                                        Confidence:
+                                        Độ tin cậy:
                                         <span class="font-mono font-bold"
                                             >{{
                                                 (
@@ -1062,7 +1060,7 @@ const cacheAge = computed(() => {
                                                 ).toFixed(2)
                                             }}%</span
                                         >
-                                        &nbsp;·&nbsp; Threshold:
+                                        &nbsp;·&nbsp; Ngưỡng:
                                         <span class="font-mono"
                                             >{{
                                                 (
@@ -1102,7 +1100,7 @@ const cacheAge = computed(() => {
                     <Card>
                         <CardHeader class="pb-2">
                             <CardTitle class="text-sm text-muted-foreground"
-                                >Điểm số chi tiết (Ensemble Signals)</CardTitle
+                                >Điểm số chi tiết (tín hiệu tổng hợp)</CardTitle
                             >
                         </CardHeader>
                         <CardContent class="flex flex-col gap-3">
@@ -1124,10 +1122,10 @@ const cacheAge = computed(() => {
                                         label: 'BM25 Okapi',
                                         key: 'bm25_score',
                                         weight: '25%',
-                                        desc: 'Keyword relevance + typo nhẹ',
+                                        desc: 'Mức liên quan từ khóa + lỗi gõ nhẹ',
                                     },
                                     {
-                                        label: 'Keyword Overlap',
+                                        label: 'Độ trùng lặp từ khóa',
                                         key: 'keyword_score',
                                         weight: '15%',
                                         desc: 'Từ khoá admin đặt thủ công',
@@ -1192,7 +1190,7 @@ const cacheAge = computed(() => {
                                     class="flex items-center justify-between text-sm"
                                 >
                                     <span class="font-semibold"
-                                        >Điểm tổng hợp (Ensemble)</span
+                                        >Điểm tổng hợp</span
                                     >
                                     <span class="font-mono text-base font-bold"
                                         >{{
@@ -1226,7 +1224,7 @@ const cacheAge = computed(() => {
                                 >
                                     <span>0%</span>
                                     <span class="text-amber-500"
-                                        >Threshold:
+                                        >Ngưỡng:
                                         {{
                                             (
                                                 playgroundResult.threshold_used *

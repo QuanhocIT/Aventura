@@ -7,6 +7,7 @@ import AppLayout from '@/layouts/AppLayout.vue';
 // Existing Shared Modals & Navigation Drawers
 import AdminAttendanceAnalytics from './components/AdminAttendanceAnalytics.vue';
 import AdminAttendanceLogs from './components/AdminAttendanceLogs.vue';
+import AdminMonthlyShiftsHistory from './components/AdminMonthlyShiftsHistory.vue';
 import AdminOverrideModal from './components/AdminOverrideModal.vue';
 
 // Admin Components
@@ -14,7 +15,6 @@ import AdminShiftRegistrations from './components/AdminShiftRegistrations.vue';
 import AdminShiftSwapApprovals from './components/AdminShiftSwapApprovals.vue';
 import AdminTimekeepingSettings from './components/AdminTimekeepingSettings.vue';
 import AdminWeeklyRoster from './components/AdminWeeklyRoster.vue';
-import NotificationDrawer from './components/NotificationDrawer.vue';
 import ShiftSwapProposalModal from './components/ShiftSwapProposalModal.vue';
 
 // Staff Components
@@ -52,6 +52,9 @@ type Assignment = {
 
 type StaffingTip = {
     shift: string;
+    branch_name?: string;
+    day_of_week?: string;
+    date?: string;
     pct: number;
     message: string;
     level: 'warning' | 'info';
@@ -108,6 +111,7 @@ type PropType = {
     allPendingSwaps?: any[];
     pendingSwapRequests?: any[];
     monthlyAssignments?: any[];
+    monthlyShiftClosings?: any[];
     // Staff specific props
     myWeeklySchedules?: any[];
     myRegistrations?: Array<{ shift_id: number; date: string }>;
@@ -129,6 +133,7 @@ const props = defineProps<PropType>();
 const currentTime = ref('');
 const currentDate = ref('');
 let clockInterval: any = null;
+let attendanceRefreshInterval: any = null;
 
 const updateClock = () => {
     const now = new Date();
@@ -148,17 +153,32 @@ const updateClock = () => {
 onMounted(() => {
     updateClock();
     clockInterval = setInterval(updateClock, 1000);
+
+    // Đồng bộ trạng thái để ca mới tự hiện nút check-in khi trang vẫn đang mở.
+    if (!props.isAdmin) {
+        attendanceRefreshInterval = setInterval(() => {
+            router.reload({
+                only: ['todayActiveAssignment'],
+                preserveScroll: true,
+                preserveState: true,
+            });
+        }, 30000);
+    }
 });
 
 onUnmounted(() => {
     if (clockInterval) {
         clearInterval(clockInterval);
     }
+
+    if (attendanceRefreshInterval) {
+        clearInterval(attendanceRefreshInterval);
+    }
 });
 
 const activeStaffTab = ref<'roster' | 'register'>('roster');
 const activeAdminTab = ref<
-    'attendance' | 'roster' | 'register' | 'settings' | 'swaps' | 'analytics'
+    'attendance' | 'roster' | 'register' | 'settings' | 'swaps' | 'analytics' | 'monthly_shifts'
 >('attendance');
 
 // --- OVERRIDE MODAL CONTROL ---
@@ -287,11 +307,8 @@ const refreshAdminData = () => {
                 </div>
             </div>
 
-            <!-- TIME CLOCK DIGITAL DISPLAY & NOTIFICATION BELL -->
+            <!-- TIME CLOCK DIGITAL DISPLAY -->
             <div class="flex items-center gap-4">
-                <!-- Notifications Bell & Drawer -->
-                <NotificationDrawer />
-
                 <div
                     class="flex flex-col justify-center rounded-2xl border bg-slate-50 px-5 py-3 text-right shadow-xs dark:bg-slate-900/50"
                 >
@@ -541,6 +558,18 @@ const refreshAdminData = () => {
                 </button>
                 <button
                     type="button"
+                    @click="activeAdminTab = 'monthly_shifts'"
+                    :class="[
+                        'flex cursor-pointer items-center gap-1.5 rounded-lg px-4 py-1.5 text-xs font-bold transition-all duration-150',
+                        activeAdminTab === 'monthly_shifts'
+                            ? 'text-indigo-650 bg-white shadow-sm dark:bg-slate-800 dark:text-indigo-400'
+                            : 'dark:hover:text-slate-350 text-slate-500 hover:text-slate-700',
+                    ]"
+                >
+                    Ca đã diễn ra trong tháng
+                </button>
+                <button
+                    type="button"
                     @click="activeAdminTab = 'analytics'"
                     :class="[
                         'flex cursor-pointer items-center gap-1.5 rounded-lg px-4 py-1.5 text-xs font-bold transition-all duration-150',
@@ -597,6 +626,15 @@ const refreshAdminData = () => {
             <div v-else-if="activeAdminTab === 'analytics'">
                 <AdminAttendanceAnalytics
                     :monthly-assignments="monthlyAssignments"
+                    :shifts="shifts"
+                />
+            </div>
+
+            <!-- Tab 7: Executed Monthly Shifts History Audit -->
+            <div v-else-if="activeAdminTab === 'monthly_shifts'">
+                <AdminMonthlyShiftsHistory
+                    :monthly-assignments="monthlyAssignments || []"
+                    :monthly-shift-closings="monthlyShiftClosings || []"
                     :shifts="shifts"
                 />
             </div>

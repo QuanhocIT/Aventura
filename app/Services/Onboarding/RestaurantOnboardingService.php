@@ -107,7 +107,10 @@ class RestaurantOnboardingService
 
     public function seedDefaults(Restaurant $restaurant, User $owner): void
     {
-        $branchId = null;
+        $branchId = $restaurant->branches()
+            ->where('status', 'active')
+            ->orderBy('id')
+            ->value('id');
 
         $massGram = Unit::updateOrCreate(['restaurant_id' => $restaurant->id, 'symbol' => 'g'], ['name' => 'Gram', 'type' => 'mass']);
         $massKg = Unit::updateOrCreate(['restaurant_id' => $restaurant->id, 'symbol' => 'kg'], ['name' => 'Kilogram', 'type' => 'mass']);

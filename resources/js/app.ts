@@ -6,26 +6,16 @@ import { resolvePageComponent } from 'laravel-vite-plugin/inertia-helpers';
 import { createPinia } from 'pinia';
 import { createApp, h } from 'vue';
 import type { DefineComponent } from 'vue';
-import { toast } from 'vue-sonner';
+
 import { initializeTheme } from '@/composables/useAppearance';
 import AppLayout from '@/layouts/AppLayout.vue';
 import AuthLayout from '@/layouts/AuthLayout.vue';
 import BareLayout from '@/layouts/BareLayout.vue';
 import GuestLayout from '@/layouts/GuestLayout.vue';
 import SettingsLayout from '@/layouts/settings/Layout.vue';
+import { initializeAutoTablePagination } from '@/lib/autoTablePagination';
 import { initializeFlashToast } from '@/lib/flashToast';
 
-router.on(
-    'success',
-    (event: { detail: { page: { props: Record<string, any> } } }) => {
-        const announcement = (event.detail.page.props as Record<string, any>)
-            ?.flash?.success;
-
-        if (announcement) {
-            toast.success(String(announcement));
-        }
-    },
-);
 
 const appName = import.meta.env.VITE_APP_NAME || 'Laravel';
 
@@ -74,6 +64,7 @@ createInertiaApp({
                         case name === 'auth/ChooseRestaurant':
                         case name === 'auth/TwoFactorChallenge':
                         case name === 'auth/ConfirmPassword':
+                        case name === 'super-admin/security/ConfirmTwoFactor':
                             page.layout = BareLayout;
                             break;
                         case name.startsWith('auth/'):
@@ -106,6 +97,7 @@ createInertiaApp({
 
 initializeTheme();
 initializeFlashToast();
+initializeAutoTablePagination();
 
 // PWA: cache asset tĩnh qua Service Worker (offline-first cho JS/CSS build)
 if ('serviceWorker' in navigator && import.meta.env.PROD) {

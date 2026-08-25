@@ -22,9 +22,6 @@ import {
     Clock,
     User,
     Copy,
-    Check,
-    ExternalLink,
-    ArrowRight,
     ShieldAlert,
     Sparkles,
     CheckCircle2,
@@ -38,7 +35,6 @@ import {
     FilterBar,
     StatusBadge,
     Pagination,
-    GradientDivider,
     EmptyState,
     LedIndicator,
 } from '@/components/super-admin';
@@ -136,6 +132,62 @@ const status = ref(props.filters.status ?? 'all');
 const type = ref(props.filters.type ?? 'all');
 const search = ref(props.filters.search ?? '');
 
+const statusLabels: Record<string, string> = {
+    pending: 'Đang chờ xử lý',
+    generated: 'Đã tạo',
+    sent: 'Đã gửi',
+    processed: 'Đã xử lý',
+    expired: 'Đã hết hạn',
+    suspended: 'Đã tạm ngưng',
+    orphaned: 'Không khớp giao dịch',
+    received: 'Đã tiếp nhận',
+    failed: 'Thất bại',
+    error: 'Lỗi',
+    warning: 'Cảnh báo',
+    success: 'Thành công',
+    resolved: 'Đã giải quyết',
+    paid: 'Đã thanh toán',
+    written_off: 'Đã ghi nhận nợ xấu',
+};
+
+const invoiceTypeLabels: Record<string, string> = {
+    payment_success: 'Thanh toán thành công',
+    upcoming_renewal: 'Sắp đến hạn gia hạn',
+    extend: 'Gia hạn chu kỳ',
+    discount: 'Giảm giá',
+    trial: 'Dùng thử miễn phí',
+};
+
+const webhookEventLabels: Record<string, string> = {
+    'payment.success': 'Thanh toán thành công',
+    'payment.received': 'Đã tiếp nhận thanh toán',
+    'payment.failed': 'Thanh toán thất bại',
+    'subscription.renewed': 'Gia hạn gói thành công',
+    'subscription.renewal': 'Gia hạn gói',
+};
+
+const adjustmentTypeLabels: Record<string, string> = {
+    trial: 'Gia hạn dùng thử',
+    extend: 'Gia hạn gói cước',
+    discount: 'Giảm giá thủ công',
+};
+
+function statusLabel(value?: string | null): string {
+    return statusLabels[value ?? ''] ?? 'Không xác định';
+}
+
+function invoiceTypeLabel(value?: string | null): string {
+    return invoiceTypeLabels[value ?? ''] ?? 'Không xác định';
+}
+
+function webhookEventLabel(value?: string | null): string {
+    return webhookEventLabels[value ?? ''] ?? 'Không xác định';
+}
+
+function adjustmentTypeLabel(value?: string | null): string {
+    return adjustmentTypeLabels[value ?? ''] ?? 'Không xác định';
+}
+
 // UI active tab
 const activeTab = ref('invoices'); // 'invoices' | 'adjustments'
 
@@ -171,8 +223,8 @@ function resendInvoice(id: number) {
         {},
         {
             preserveScroll: true,
-            onSuccess: () => toast.success('Đã gửi lại email!'),
-            onError: () => toast.error('Gửi lại email thất bại!'),
+            onSuccess: () => toast.success('Đã gửi lại thư điện tử!'),
+            onError: () => toast.error('Gửi lại thư điện tử thất bại!'),
         },
     );
 }
@@ -195,8 +247,8 @@ function retryWebhook(id: number) {
         {},
         {
             preserveScroll: true,
-            onSuccess: () => toast.success('Đã retry webhook!'),
-            onError: () => toast.error('Retry webhook thất bại!'),
+            onSuccess: () => toast.success('Đã kích hoạt lại tích hợp!'),
+            onError: () => toast.error('Kích hoạt lại tích hợp thất bại!'),
         },
     );
 }
@@ -264,7 +316,7 @@ function copyToClipboard(text: string) {
         .writeText(text)
         .then(() => {
             isCopied.value = true;
-            toast.success('Đã sao chép dữ liệu webhook payload!');
+            toast.success('Đã sao chép dữ liệu tích hợp!');
             setTimeout(() => {
                 isCopied.value = false;
             }, 2000);
@@ -290,7 +342,7 @@ const webhookPayloadPreview = computed(() => {
         processed_at: selectedWebhook.value.processed_at || 'Không lưu trữ',
         transaction_code:
             selectedWebhook.value.transaction_code || 'Không lưu trữ',
-        _note: 'Hệ thống hiện chưa lưu trữ chi tiết raw payload gốc (IP, chữ ký, phí giao dịch) từ cổng thanh toán — chỉ các trường trên được ghi nhận.',
+        _note: 'Hệ thống hiện chưa lưu trữ chi tiết dữ liệu thô gốc (IP, chữ ký, phí giao dịch) từ cổng thanh toán — chỉ các trường trên được ghi nhận.',
     };
 });
 
@@ -437,18 +489,18 @@ const aiInsights = computed(() => {
     list.push({
         type: 'success',
         title: 'Giám sát Dòng tiền & Doanh thu',
-        description: `Tổng tiền hóa đơn đã thanh toán đạt ${formatMoney(data.totalPaidAmount)}. Vẫn còn ${formatMoney(data.totalPendingAmount)} chờ thu hồi (${data.pendingCount} hóa đơn pending).`,
+        description: `Tổng tiền hóa đơn đã thanh toán đạt ${formatMoney(data.totalPaidAmount)}. Vẫn còn ${formatMoney(data.totalPendingAmount)} chờ thu hồi (${data.pendingCount} hóa đơn đang chờ xử lý).`,
         action: 'Xem hóa đơn',
         tab: 'invoices',
     });
 
-    // Lời khuyên 2: Đánh giá nợ & Dunning
+    // Lời khuyên 2: Đánh giá nợ & nhắc nợ
     if (data.paymentSuccessRate < 85) {
         list.push({
             type: 'warning',
             title: 'Thu hồi công nợ đang dưới mức tối ưu',
-            description: `Tỉ lệ hóa đơn hoàn thành chỉ đạt ${data.paymentSuccessRate}%. Hãy kích hoạt hệ thống nhắc nợ tự động Dunning hoặc liên hệ đối tác để kiểm tra.`,
-            action: 'Mở Dunning',
+            description: `Tỉ lệ hóa đơn hoàn thành chỉ đạt ${data.paymentSuccessRate}%. Hãy kích hoạt hệ thống nhắc nợ tự động hoặc liên hệ đối tác để kiểm tra.`,
+            action: 'Mở nhắc nợ',
             link: '/super-admin/billing/dunning',
         });
     } else {
@@ -461,21 +513,21 @@ const aiInsights = computed(() => {
         });
     }
 
-    // Lời khuyên 3: Sức khỏe Webhook kết nối
+    // Lời khuyên 3: Sức khỏe kết nối tích hợp
     if (data.webhookSuccessRate < 95 || data.failedWebhookCount > 0) {
         list.push({
             type: 'danger',
-            title: 'Phát hiện lỗi Webhook đồng bộ cổng',
-            description: `Hệ thống ghi nhận có ${data.failedWebhookCount} webhook thất bại. Hãy kiểm tra 'Webhook Stream' bên phải để kích hoạt lại sự kiện đồng bộ gói thuê bao.`,
-            action: 'Đến Webhook Stream',
+            title: 'Phát hiện lỗi đồng bộ cổng',
+            description: `Hệ thống ghi nhận có ${data.failedWebhookCount} sự kiện tích hợp thất bại. Hãy kiểm tra 'Luồng tích hợp' bên phải để kích hoạt lại sự kiện đồng bộ gói thuê bao.`,
+            action: 'Đến luồng tích hợp',
             focusRight: true,
         });
     } else {
         list.push({
             type: 'success',
             title: 'Hạ tầng kết nối thanh toán khỏe mạnh',
-            description: `Đồng bộ webhook từ PayOS/Stripe đạt ${data.webhookSuccessRate}% thành công. Mọi thay đổi gói dịch vụ của đối tác đều đang khớp 100%.`,
-            action: 'Làm mới stream',
+            description: `Đồng bộ thanh toán từ PayOS/Stripe đạt ${data.webhookSuccessRate}% thành công. Mọi thay đổi gói dịch vụ của đối tác đều đang khớp 100%.`,
+            action: 'Làm mới luồng',
             refresh: true,
         });
     }
@@ -505,13 +557,13 @@ const aiInsights = computed(() => {
 </script>
 
 <template>
-    <Head title="Billing Center" />
+    <Head title="Trung tâm thanh toán" />
 
     <div class="flex flex-col gap-5 px-6 py-5">
         <!-- Header -->
         <PageHeader
-            title="Billing Center"
-            subtitle="Theo dõi hóa đơn, webhook và điều chỉnh billing toàn hệ thống."
+            title="Trung tâm thanh toán"
+            subtitle="Theo dõi hóa đơn, sự kiện tích hợp và điều chỉnh thanh toán toàn hệ thống."
             :icon="ReceiptText"
         >
             <template #actions>
@@ -521,8 +573,8 @@ const aiInsights = computed(() => {
                             variant="outline"
                             size="sm"
                             class="transition-all hover:bg-sky-500/[0.05] hover:text-sky-500"
-                            ><BarChart2 class="mr-1.5 size-4" />
-                            Analytics</Button
+                            ><BarChart2 class="mr-1.5 size-4" /> Phân
+                            tích</Button
                         >
                     </Link>
                     <Link href="/super-admin/billing/ledger">
@@ -546,8 +598,8 @@ const aiInsights = computed(() => {
                             variant="outline"
                             size="sm"
                             class="transition-all hover:bg-amber-500/[0.05] hover:text-amber-500"
-                            ><RefreshCcw class="mr-1.5 size-4" />
-                            Dunning</Button
+                            ><RefreshCcw class="mr-1.5 size-4" /> Nhắc
+                            nợ</Button
                         >
                     </Link>
                     <Link href="/super-admin/billing/lifecycle">
@@ -555,8 +607,8 @@ const aiInsights = computed(() => {
                             variant="outline"
                             size="sm"
                             class="transition-all hover:bg-violet-500/[0.05] hover:text-violet-500"
-                            ><LayoutGrid class="mr-1.5 size-4" />
-                            Lifecycle</Button
+                            ><LayoutGrid class="mr-1.5 size-4" /> Vòng
+                            đời</Button
                         >
                     </Link>
                     <Button
@@ -573,7 +625,7 @@ const aiInsights = computed(() => {
                         @click="exportCsv"
                         class="transition-all hover:border-sky-500/20 hover:bg-sky-500/10 hover:text-sky-500"
                     >
-                        <Download class="mr-1.5 size-4" /> Export CSV
+                        <Download class="mr-1.5 size-4" /> Xuất CSV
                     </Button>
                 </div>
             </template>
@@ -601,7 +653,7 @@ const aiInsights = computed(() => {
                 class="group cursor-default transition-all duration-300 hover:scale-[1.02] hover:shadow-lg hover:shadow-sky-500/10"
             />
             <StatCard
-                label="Webhook"
+                label="Tích hợp"
                 :value="webhooks.total"
                 :icon="RefreshCcw"
                 color="violet"
@@ -682,13 +734,15 @@ const aiInsights = computed(() => {
                     </SelectTrigger>
                     <SelectContent>
                         <SelectItem value="all">Tất cả</SelectItem>
-                        <SelectItem value="pending">Pending</SelectItem>
-                        <SelectItem value="generated">Generated</SelectItem>
-                        <SelectItem value="sent">Sent</SelectItem>
-                        <SelectItem value="processed">Processed</SelectItem>
-                        <SelectItem value="expired">Expired</SelectItem>
-                        <SelectItem value="suspended">Suspended</SelectItem>
-                        <SelectItem value="orphaned">Orphaned</SelectItem>
+                        <SelectItem value="pending">Đang chờ xử lý</SelectItem>
+                        <SelectItem value="generated">Đã tạo</SelectItem>
+                        <SelectItem value="sent">Đã gửi</SelectItem>
+                        <SelectItem value="processed">Đã xử lý</SelectItem>
+                        <SelectItem value="expired">Đã hết hạn</SelectItem>
+                        <SelectItem value="suspended">Đã tạm ngưng</SelectItem>
+                        <SelectItem value="orphaned"
+                            >Không khớp giao dịch</SelectItem
+                        >
                     </SelectContent>
                 </Select>
             </div>
@@ -707,14 +761,14 @@ const aiInsights = computed(() => {
                     <SelectContent>
                         <SelectItem value="all">Tất cả</SelectItem>
                         <SelectItem value="payment_success"
-                            >Payment success</SelectItem
+                            >Thanh toán thành công</SelectItem
                         >
                         <SelectItem value="upcoming_renewal"
-                            >Upcoming renewal</SelectItem
+                            >Sắp đến hạn gia hạn</SelectItem
                         >
-                        <SelectItem value="extend">Extend</SelectItem>
-                        <SelectItem value="discount">Discount</SelectItem>
-                        <SelectItem value="trial">Trial</SelectItem>
+                        <SelectItem value="extend">Gia hạn chu kỳ</SelectItem>
+                        <SelectItem value="discount">Giảm giá</SelectItem>
+                        <SelectItem value="trial">Dùng thử miễn phí</SelectItem>
                     </SelectContent>
                 </Select>
             </div>
@@ -730,7 +784,7 @@ const aiInsights = computed(() => {
                     />
                     <Input
                         v-model="search"
-                        placeholder="Mã hóa đơn, transaction..."
+                        placeholder="Mã hóa đơn, mã giao dịch..."
                         class="border-border/60 bg-background/50 pl-9 backdrop-blur-sm transition-all hover:border-border focus-visible:ring-primary/20"
                     />
                 </div>
@@ -766,7 +820,7 @@ const aiInsights = computed(() => {
                                     <h3
                                         class="text-sm font-bold tracking-tight text-foreground"
                                     >
-                                        Trung tâm Phân tích & AI Advisor
+                                        Trung tâm Phân tích & Trợ lý AI
                                     </h3>
                                 </div>
                                 <span
@@ -890,7 +944,7 @@ const aiInsights = computed(() => {
                                         <p
                                             class="text-[9px] font-bold tracking-wider text-muted-foreground uppercase"
                                         >
-                                            Webhook
+                                            Đồng bộ tích hợp
                                         </p>
                                         <p
                                             class="mt-0.5 text-xs font-black text-foreground"
@@ -1115,7 +1169,7 @@ const aiInsights = computed(() => {
                                                 size="sm"
                                                 @click="
                                                     toast.info(
-                                                        'Hãy theo dõi luồng sự kiện Webhook Stream ở cột bên phải màn hình!',
+                                                        'Hãy theo dõi luồng sự kiện tích hợp ở cột bên phải màn hình!',
                                                     )
                                                 "
                                                 class="h-6 rounded-md px-2 text-[10px] font-semibold text-primary hover:bg-primary/10"
@@ -1170,7 +1224,7 @@ const aiInsights = computed(() => {
                             ]"
                         >
                             <WalletCards class="size-4" />
-                            <span>Điều chỉnh Billing</span>
+                            <span>Điều chỉnh thanh toán</span>
                             <span
                                 class="rounded-md bg-muted px-1.5 py-0.5 font-mono text-[10px] font-medium text-muted-foreground"
                                 >{{ adjustments.total }}</span
@@ -1249,7 +1303,9 @@ const aiInsights = computed(() => {
                                         </p>
                                         <span
                                             class="rounded bg-sky-500/10 px-2 py-0.5 text-[9px] font-semibold tracking-wider text-sky-600 uppercase dark:text-sky-400"
-                                            >{{ invoice.type }}</span
+                                            >{{
+                                                invoiceTypeLabel(invoice.type)
+                                            }}</span
                                         >
                                     </div>
                                     <div
@@ -1269,7 +1325,9 @@ const aiInsights = computed(() => {
                                     class="flex items-center gap-2"
                                     @click.stop
                                 >
-                                    <StatusBadge :status="invoice.status" />
+                                    <StatusBadge :status="invoice.status">
+                                        {{ statusLabel(invoice.status) }}
+                                    </StatusBadge>
                                     <DropdownMenu>
                                         <DropdownMenuTrigger as-child>
                                             <Button
@@ -1295,7 +1353,7 @@ const aiInsights = computed(() => {
                                                 <Mail
                                                     class="mr-2 size-4 text-sky-500"
                                                 />
-                                                Gửi lại email
+                                                Gửi lại thư điện tử
                                             </DropdownMenuItem>
                                             <DropdownMenuItem
                                                 @click="
@@ -1422,7 +1480,7 @@ const aiInsights = computed(() => {
                         >
                             <div class="flex items-center gap-2">
                                 <WalletCards class="size-4 text-emerald-500" />
-                                <span>Lịch sử Điều chỉnh Billing</span>
+                                <span>Lịch sử điều chỉnh thanh toán</span>
                             </div>
                             <span
                                 class="rounded-md bg-muted/60 px-2 py-0.5 font-mono text-xs font-normal text-muted-foreground"
@@ -1469,9 +1527,9 @@ const aiInsights = computed(() => {
                                         </p>
                                     </div>
                                 </div>
-                                <StatusBadge :status="adjustment.type">{{
-                                    adjustment.type
-                                }}</StatusBadge>
+                                <StatusBadge :status="adjustment.type">
+                                    {{ adjustmentTypeLabel(adjustment.type) }}
+                                </StatusBadge>
                             </div>
 
                             <div
@@ -1543,7 +1601,7 @@ const aiInsights = computed(() => {
                                 <RefreshCcw
                                     class="animate-spin-slow size-4 text-violet-500"
                                 />
-                                <span>Webhook Stream</span>
+                                <span>Luồng tích hợp</span>
                             </div>
                             <span
                                 class="rounded-md bg-muted/60 px-2 py-0.5 font-mono text-xs font-normal text-muted-foreground"
@@ -1579,14 +1637,20 @@ const aiInsights = computed(() => {
                                     />
                                     <span
                                         class="font-mono font-bold text-foreground uppercase transition-colors group-hover/webhook:text-violet-500"
-                                        >{{ webhook.provider }}</span
+                                        >{{
+                                            webhook.provider === 'sepay'
+                                                ? 'Cổng SePay'
+                                                : webhook.provider
+                                        }}</span
                                     >
                                 </div>
                                 <div
                                     class="flex items-center gap-2"
                                     @click.stop
                                 >
-                                    <StatusBadge :status="webhook.status" />
+                                    <StatusBadge :status="webhook.status">
+                                        {{ statusLabel(webhook.status) }}
+                                    </StatusBadge>
                                     <DropdownMenu>
                                         <DropdownMenuTrigger as-child>
                                             <Button
@@ -1609,7 +1673,7 @@ const aiInsights = computed(() => {
                                                 <Send
                                                     class="mr-2 size-4 text-violet-500"
                                                 />
-                                                Retry webhook
+                                                Kích hoạt lại tích hợp
                                             </DropdownMenuItem>
                                         </DropdownMenuContent>
                                     </DropdownMenu>
@@ -1631,7 +1695,7 @@ const aiInsights = computed(() => {
                                 <span
                                     class="max-w-[130px] truncate rounded border border-violet-500/10 bg-violet-500/10 px-1.5 py-0.5 font-mono text-[10px] font-medium text-violet-600"
                                     >{{
-                                        webhook.event_type || 'Không rõ loại'
+                                        webhookEventLabel(webhook.event_type)
                                     }}</span
                                 >
                                 <span
@@ -1648,7 +1712,7 @@ const aiInsights = computed(() => {
                         <EmptyState
                             v-if="!webhooks.data.length"
                             :icon="RefreshCcw"
-                            title="Không có webhook phù hợp"
+                            title="Không có dữ liệu tích hợp phù hợp"
                         />
 
                         <Pagination
@@ -1730,13 +1794,15 @@ const aiInsights = computed(() => {
                     <div class="flex items-center justify-between">
                         <SheetTitle class="flex items-center gap-2 text-lg">
                             <ReceiptText class="size-5 text-sky-500" />
-                            <span>Chi tiết Hóa đơn</span>
+                            <span>Chi tiết hóa đơn</span>
                         </SheetTitle>
                         <StatusBadge
                             v-if="selectedInvoice"
                             :status="selectedInvoice.status"
                             class="mr-6"
-                        />
+                        >
+                            {{ statusLabel(selectedInvoice.status) }}
+                        </StatusBadge>
                     </div>
                     <SheetDescription class="mt-1 font-mono text-xs">
                         ID: {{ selectedInvoice?.invoice_number }}
@@ -1824,7 +1890,8 @@ const aiInsights = computed(() => {
                                     Gói Dịch vụ & Phí Tài khoản
                                 </p>
                                 <p class="text-[10px] text-muted-foreground">
-                                    Loại giao dịch: {{ selectedInvoice.type }}
+                                    Loại giao dịch:
+                                    {{ invoiceTypeLabel(selectedInvoice.type) }}
                                 </p>
                             </div>
                             <span class="font-mono font-bold text-foreground"
@@ -1839,7 +1906,7 @@ const aiInsights = computed(() => {
                         <div
                             class="flex justify-between text-xs text-muted-foreground"
                         >
-                            <span>Tạm tính (Subtotal)</span>
+                            <span>Tạm tính</span>
                             <span class="font-mono"
                                 >{{ selectedInvoice.total }}
                                 {{ selectedInvoice.currency }}</span
@@ -1919,7 +1986,7 @@ const aiInsights = computed(() => {
                         <p>
                             Trạng thái hóa đơn:
                             <span class="font-bold text-foreground">{{
-                                selectedInvoice.status
+                                statusLabel(selectedInvoice.status)
                             }}</span>
                         </p>
                     </div>
@@ -1940,7 +2007,7 @@ const aiInsights = computed(() => {
                             class="flex items-center justify-center gap-1.5 rounded-xl border-border/60 py-4 transition-all hover:bg-sky-500/10 hover:text-sky-600"
                         >
                             <Mail class="size-4" />
-                            <span>Gửi lại Email</span>
+                            <span>Gửi lại thư điện tử</span>
                         </Button>
                         <Button
                             variant="outline"
@@ -1978,7 +2045,7 @@ const aiInsights = computed(() => {
                                 class="col-span-2 flex items-center justify-center gap-1.5 rounded-xl border-rose-500/20 py-4 text-rose-600 transition-all hover:bg-rose-500/10 hover:text-rose-700"
                             >
                                 <XCircle class="size-4" />
-                                <span>Đánh dấu Nợ Xấu (Write-off)</span>
+                                <span>Đánh dấu nợ xấu</span>
                             </Button>
                         </template>
                     </div>
@@ -2007,16 +2074,23 @@ const aiInsights = computed(() => {
                             <RefreshCcw
                                 class="animate-spin-slow size-5 text-violet-500"
                             />
-                            <span>Chi tiết Webhook Event</span>
+                            <span>Chi tiết sự kiện tích hợp</span>
                         </SheetTitle>
                         <StatusBadge
                             v-if="selectedWebhook"
                             :status="selectedWebhook.status"
                             class="mr-6"
-                        />
+                        >
+                            {{ statusLabel(selectedWebhook.status) }}
+                        </StatusBadge>
                     </div>
                     <SheetDescription class="mt-1 font-mono text-xs uppercase">
-                        Provider: {{ selectedWebhook?.provider }}
+                        Nhà cung cấp:
+                        {{
+                            selectedWebhook?.provider === 'sepay'
+                                ? 'Cổng SePay'
+                                : selectedWebhook?.provider
+                        }}
                     </SheetDescription>
                 </SheetHeader>
             </div>
@@ -2032,7 +2106,10 @@ const aiInsights = computed(() => {
                             <p
                                 class="mt-0.5 font-mono font-bold text-foreground select-all"
                             >
-                                {{ selectedWebhook.transaction_code || 'N/A' }}
+                                {{
+                                    selectedWebhook.transaction_code ||
+                                    'Không có dữ liệu'
+                                }}
                             </p>
                         </div>
                         <div>
@@ -2040,7 +2117,11 @@ const aiInsights = computed(() => {
                             <p
                                 class="mt-0.5 inline-block rounded-md border border-violet-500/10 bg-violet-500/10 px-1.5 py-0.5 font-mono text-[10px] font-semibold text-foreground text-violet-600"
                             >
-                                {{ selectedWebhook.event_type || 'N/A' }}
+                                {{
+                                    webhookEventLabel(
+                                        selectedWebhook.event_type,
+                                    )
+                                }}
                             </p>
                         </div>
                         <div>
@@ -2050,7 +2131,8 @@ const aiInsights = computed(() => {
                             >
                                 <Clock class="size-3 text-muted-foreground" />
                                 <span>{{
-                                    selectedWebhook.processed_at || 'N/A'
+                                    selectedWebhook.processed_at ||
+                                    'Không có dữ liệu'
                                 }}</span>
                             </p>
                         </div>
@@ -2071,7 +2153,7 @@ const aiInsights = computed(() => {
                                               ? 'offline'
                                               : 'warning'
                                     "
-                                    :label="selectedWebhook.status"
+                                    :label="statusLabel(selectedWebhook.status)"
                                 />
                             </p>
                         </div>
@@ -2131,7 +2213,7 @@ const aiInsights = computed(() => {
                         class="flex w-full items-center justify-center gap-1.5 rounded-xl border-border/60 py-4 font-semibold transition-all hover:bg-violet-500/10 hover:text-violet-600"
                     >
                         <Send class="size-4" />
-                        <span>Kích hoạt lại Webhook (Retry Webhook)</span>
+                        <span>Kích hoạt lại tích hợp</span>
                     </Button>
                 </div>
             </div>
@@ -2156,13 +2238,15 @@ const aiInsights = computed(() => {
                     <div class="flex items-center justify-between">
                         <SheetTitle class="flex items-center gap-2 text-lg">
                             <WalletCards class="size-5 text-emerald-500" />
-                            <span>Chi tiết Điều chỉnh Billing</span>
+                            <span>Chi tiết điều chỉnh thanh toán</span>
                         </SheetTitle>
                         <StatusBadge
                             v-if="selectedAdjustment"
                             :status="selectedAdjustment.type"
                             class="mr-6"
-                        />
+                        >
+                            {{ adjustmentTypeLabel(selectedAdjustment.type) }}
+                        </StatusBadge>
                     </div>
                     <SheetDescription
                         class="mt-1 text-xs font-bold text-foreground"
@@ -2183,7 +2267,9 @@ const aiInsights = computed(() => {
                         <span class="text-xs text-muted-foreground"
                             >Loại điều chỉnh</span
                         >
-                        <StatusBadge :status="selectedAdjustment.type" />
+                        <StatusBadge :status="selectedAdjustment.type">
+                            {{ adjustmentTypeLabel(selectedAdjustment.type) }}
+                        </StatusBadge>
                     </div>
 
                     <div class="grid grid-cols-2 gap-4 pt-1 text-xs">
@@ -2252,7 +2338,7 @@ const aiInsights = computed(() => {
                     </p>
                     <p>
                         Mọi điều chỉnh thời hạn hoặc giảm giá gói dịch vụ đều
-                        được lưu log tự động trong Audit Logs của hệ thống và
+                        được lưu tự động trong nhật ký kiểm toán của hệ thống và
                         ảnh hưởng ngay tới chu kỳ thanh toán tiếp theo của nhà
                         hàng.
                     </p>

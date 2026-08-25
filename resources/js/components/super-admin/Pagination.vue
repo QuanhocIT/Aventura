@@ -47,6 +47,7 @@ const showSummary = () =>
 <template>
     <div
         v-if="links.length > 3"
+        data-pagination-controls="server"
         :class="
             cn(
                 'flex flex-wrap items-center gap-2 border-t border-border/60 px-4 py-3',

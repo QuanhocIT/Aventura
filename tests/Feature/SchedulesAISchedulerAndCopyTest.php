@@ -7,6 +7,7 @@ use App\Models\EmployeeTrustScore;
 use App\Models\LeaveRequest;
 use App\Models\Restaurant;
 use App\Models\RestaurantBranch;
+use App\Models\Salary;
 use App\Models\ScheduleAssignment;
 use App\Models\ScheduleRegistration;
 use App\Models\User;
@@ -236,5 +237,180 @@ class SchedulesAISchedulerAndCopyTest extends TestCase
                 ->whereDate('scheduled_date', $monday->toDateString())
                 ->exists()
         );
+    }
+
+    public function test_ai_scheduler_preserves_completed_and_payroll_locked_assignments(): void
+    {
+        $employeeUser = User::factory()->create([
+            'restaurant_id' => $this->restaurant->id,
+            'status' => 'active',
+        ]);
+        $employee = Employee::factory()->create([
+            'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
+            'user_id' => $employeeUser->id,
+            'status' => 'active',
+        ]);
+
+        $shift = WorkShift::create([
+            'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
+            'name' => 'Protected shift',
+            'code' => 'PROTECTED_SHIFT',
+            'start_time' => '08:00:00',
+            'end_time' => '16:00:00',
+            'status' => 'active',
+        ]);
+
+        $completedDate = Carbon::today()->isMonday()
+            ? Carbon::today()->addDay()->toDateString()
+            : Carbon::today()->startOfWeek(Carbon::MONDAY)->toDateString();
+
+        $completedAssignment = ScheduleAssignment::create([
+            'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
+            'employee_id' => $employee->id,
+            'shift_id' => $shift->id,
+            'scheduled_date' => $completedDate,
+            'status' => 'completed',
+        ]);
+
+        $lockedDate = Carbon::today()->toDateString();
+        $lockedAssignment = ScheduleAssignment::create([
+            'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
+            'employee_id' => $employee->id,
+            'shift_id' => $shift->id,
+            'scheduled_date' => $lockedDate,
+            'status' => 'scheduled',
+        ]);
+
+        Salary::create([
+            'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
+            'employee_id' => $employee->id,
+            'pay_period_start' => Carbon::today()->startOfMonth()->toDateString(),
+            'pay_period_end' => Carbon::today()->endOfMonth()->toDateString(),
+            'status' => 'approved',
+        ]);
+
+        $this->actingAs($this->owner);
+        $response = $this->post(route('employees.schedules.toggle-auto'), [
+            'enabled' => true,
+        ]);
+
+        $response->assertSessionHasNoErrors();
+
+        $this->assertDatabaseHas('schedule_assignments', [
+            'id' => $completedAssignment->id,
+            'status' => 'completed',
+        ]);
+        $this->assertDatabaseHas('schedule_assignments', [
+            'id' => $lockedAssignment->id,
+            'status' => 'scheduled',
+        ]);
+    }
+
+    public function test_quick_scheduler_uses_click_date_time_and_prioritizes_registration(): void
+    {
+        $thursdayAtFive = Carbon::now()
+            ->startOfWeek(Carbon::MONDAY)
+            ->addDays(3)
+            ->setTime(17, 0);
+        Carbon::setTestNow($thursdayAtFive);
+
+        $registeredUser = User::factory()->create([
+            'restaurant_id' => $this->restaurant->id,
+            'status' => 'active',
+        ]);
+        $registeredEmployee = Employee::factory()->create([
+            'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
+            'user_id' => $registeredUser->id,
+            'rating_star' => 4.0,
+            'status' => 'active',
+        ]);
+
+        $otherUser = User::factory()->create([
+            'restaurant_id' => $this->restaurant->id,
+            'status' => 'active',
+        ]);
+        $otherEmployee = Employee::factory()->create([
+            'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
+            'user_id' => $otherUser->id,
+            'rating_star' => 5.0,
+            'status' => 'active',
+        ]);
+
+        $earlyShift = WorkShift::create([
+            'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
+            'name' => 'Early quick shift',
+            'code' => 'EARLY_QUICK_SHIFT',
+            'start_time' => '16:00:00',
+            'end_time' => '22:00:00',
+            'status' => 'active',
+        ]);
+
+        $lateShift = WorkShift::create([
+            'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
+            'name' => 'Late quick shift',
+            'code' => 'LATE_QUICK_SHIFT',
+            'start_time' => '18:00:00',
+            'end_time' => '23:00:00',
+            'status' => 'active',
+        ]);
+
+        $monday = Carbon::now()->startOfWeek(Carbon::MONDAY);
+        $wednesday = $monday->copy()->addDays(2);
+        $thursday = Carbon::today();
+
+        $existingAssignment = ScheduleAssignment::create([
+            'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
+            'employee_id' => $otherEmployee->id,
+            'shift_id' => $earlyShift->id,
+            'scheduled_date' => $monday->toDateString(),
+            'status' => 'scheduled',
+        ]);
+
+        ScheduleRegistration::create([
+            'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
+            'employee_id' => $registeredEmployee->id,
+            'shift_id' => $lateShift->id,
+            'scheduled_date' => $thursday->toDateString(),
+        ]);
+
+        $this->actingAs($this->owner);
+        $response = $this->post(route('employees.schedules.quick-auto'));
+
+        $response->assertSessionHasNoErrors();
+
+        $this->assertDatabaseHas('schedule_assignments', [
+            'id' => $existingAssignment->id,
+            'employee_id' => $otherEmployee->id,
+        ]);
+        $this->assertTrue(
+            ScheduleAssignment::where('employee_id', $registeredEmployee->id)
+                ->where('shift_id', $lateShift->id)
+                ->whereDate('scheduled_date', $thursday->toDateString())
+                ->where('status', 'scheduled')
+                ->exists()
+        );
+        $this->assertFalse(
+            ScheduleAssignment::where('shift_id', $earlyShift->id)
+                ->whereDate('scheduled_date', $thursday->toDateString())
+                ->exists()
+        );
+        $this->assertFalse(
+            ScheduleAssignment::whereIn('shift_id', [$earlyShift->id, $lateShift->id])
+                ->whereDate('scheduled_date', $wednesday->toDateString())
+                ->exists()
+        );
+
+        Carbon::setTestNow();
     }
 }

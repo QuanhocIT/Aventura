@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { Head, Link } from '@inertiajs/vue3';
 import { ArrowLeft, Calendar, Eye, Tag } from 'lucide-vue-next';
-import { ref, onMounted, onUnmounted } from 'vue';
+import { computed, ref, onMounted, onUnmounted } from 'vue';
 import NewsCard from '@/components/NewsCard.vue';
 import AppLayout from '@/layouts/AppLayout.vue';
 
@@ -22,7 +22,7 @@ interface NewsPost {
     author_name: string;
 }
 
-const props = defineProps<{
+const { post, relatedPosts } = defineProps<{
     post: NewsPost;
     relatedPosts: NewsPost[];
 }>();
@@ -43,6 +43,19 @@ const categoryColors: Record<string, string> = {
 };
 
 const readingProgress = ref(0);
+
+const structuredData = computed(() =>
+    JSON.stringify({
+        '@context': 'https://schema.org',
+        '@type': 'Article',
+        headline: post.title,
+        description: post.excerpt,
+        image: post.featured_image_url,
+        author: { '@type': 'Person', name: post.author_name },
+        datePublished: post.published_at,
+        publisher: { '@type': 'Organization', name: 'Aventura' },
+    }).replace(/</g, '\\u003c'),
+);
 
 function onScroll() {
     const el = document.documentElement;
@@ -101,22 +114,9 @@ function renderMarkdown(text: string): string {
             :content="post.excerpt ?? post.title"
         />
         <meta name="description" :content="post.excerpt ?? post.title" />
-        <component
-            :is="'script'"
-            type="application/ld+json"
-            v-html="
-                JSON.stringify({
-                    '@context': 'https://schema.org',
-                    '@type': 'Article',
-                    headline: post.title,
-                    description: post.excerpt,
-                    image: post.featured_image_url,
-                    author: { '@type': 'Person', name: post.author_name },
-                    datePublished: post.published_at,
-                    publisher: { '@type': 'Organization', name: 'Aventura' },
-                })
-            "
-        />
+        <script type="application/ld+json">
+            {{ structuredData }}
+        </script>
     </Head>
 
     <!-- Reading progress bar -->

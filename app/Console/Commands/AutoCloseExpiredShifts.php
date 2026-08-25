@@ -10,6 +10,7 @@ use App\Models\Restaurant;
 use App\Models\ScheduleAssignment;
 use App\Models\ShiftClosing;
 use App\Models\WorkShift;
+use App\Services\AttendanceCancellationService;
 use Carbon\Carbon;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Log;
@@ -120,11 +121,22 @@ class AutoCloseExpiredShifts extends Command
                     'branch_id' => $shift->branch_id,
                     'shift_id' => $shift->id,
                     'closing_date' => $todayStr,
+                    'period_start_at' => $startDt,
                     'cashier_user_id' => $cashierUserId,
+                    'area_name' => 'Toàn bộ khu vực',
+                    'total_order_count' => $orderIds->count(),
+                    'order_count' => $orderIds->count(),
+                    'cash_sales_amount' => $expectedCash,
                     'expected_cash' => $expectedCash,
                     'actual_cash' => $expectedCash, // Prevents cash shortage adjustment
                     'cash_difference' => 0.0,
                     'transfer_amount' => $transferAmount,
+                    'actual_transfer_amount' => $transferAmount,
+                    'transfer_difference' => 0.0,
+                    'gross_revenue_amount' => (float) $payments->sum('amount'),
+                    'net_revenue_amount' => (float) $payments->sum('amount'),
+                    'total_difference' => 0.0,
+                    'responsibility_amount' => 0.0,
                     'other_expense_amount' => 0.0,
                     'notes' => 'Hệ thống tự động chốt ca cuối ngày.',
                     'status' => 'confirmed',
@@ -149,6 +161,12 @@ class AutoCloseExpiredShifts extends Command
                 Log::error("Error auto-closing shift ID {$shift->id}: ".$e->getMessage());
                 $this->error("Error auto-closing shift ID {$shift->id}: ".$e->getMessage());
             }
+        }
+
+        // Trigger 24h attendance cancellation service for unapproved checkin/checkout requests
+        $cancelledCount = app(AttendanceCancellationService::class)->cancelExpiredAttendanceRequests();
+        if ($cancelledCount > 0) {
+            $this->info("Đã tự động hủy {$cancelledCount} yêu cầu chấm công quá 24h không duyệt.");
         }
 
         $this->info("Completed auto-closing {$closedCount} shifts.");

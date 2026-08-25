@@ -6,7 +6,7 @@
     <style>
         * { box-sizing: border-box; }
         body {
-            font-family: 'Segoe UI', Tahoma, Arial, sans-serif;
+            font-family: 'Times New Roman', Times, serif;
             color: #1f2933;
             margin: 0;
             padding: 32px;

@@ -1,33 +1,6 @@
 <script setup lang="ts">
 import { Head, router, useForm, usePage } from '@inertiajs/vue3';
-import {
-    Wallet,
-    Users,
-    TrendingDown,
-    TrendingUp,
-    Check,
-    ChevronDown,
-    ChevronUp,
-    Plus,
-    BadgeDollarSign,
-    AlertCircle,
-    Clock,
-    X,
-    Sparkles,
-    Search,
-    Download,
-    Building2,
-    UserCog,
-    ShieldAlert,
-    AlertTriangle,
-    ChevronLeft,
-    ChevronRight,
-    Calculator,
-    Printer,
-    Layers,
-    CalendarCheck,
-    Clock3,
-} from 'lucide-vue-next';
+import { Wallet, Users, TrendingDown, TrendingUp, Check, ChevronDown, ChevronUp, Plus, BadgeDollarSign, AlertCircle, Clock, X, Sparkles, Search, Download, Building2, UserCog, AlertTriangle, ChevronLeft, ChevronRight, Calculator, Printer, Calendar } from 'lucide-vue-next';
 import { ref, computed, watch } from 'vue';
 import { toast } from 'vue-sonner';
 import TrustScoreBadge from '@/components/employees/TrustScoreBadge.vue';
@@ -52,7 +25,8 @@ type AdjType =
     | 'penalty'
     | 'cash_shortage'
     | 'inventory_loss'
-    | 'violation';
+    | 'violation'
+    | 'advance';
 
 type Adjustment = {
     id: number;
@@ -78,7 +52,12 @@ type SalaryBreakdown = {
     regular_hours: number;
     ot_hours: number;
     ot_multiplier: number;
+    unapproved_ot_hours?: number;
+    unpaid_leave_days?: number;
+    regular_amount?: number;
+    overtime_amount?: number;
     formula_text: string;
+    policy_note?: string;
 };
 
 type SalaryRow = {
@@ -101,6 +80,8 @@ type SalaryRow = {
     paid_at: string | null;
     breakdown: SalaryBreakdown;
     adjustments: Adjustment[];
+    approved_by_name?: string | null;
+    created_at?: string | null;
 };
 
 type Totals = {
@@ -111,6 +92,13 @@ type Totals = {
 };
 
 type Branch = { id: number; name: string };
+type GenerationMeta = {
+    eligible_employees: number;
+    salary_rows: number;
+    status_counts: { draft: number; approved: number; paid: number };
+    period_start: string;
+    period_end: string;
+};
 
 const props = defineProps<{
     salaries: SalaryRow[];
@@ -118,6 +106,7 @@ const props = defineProps<{
     period: string;
     branches: Branch[];
     canApprove: boolean;
+    generation: GenerationMeta;
 }>();
 
 // ── Status config ─────────────────────────────────────────────────────────────
@@ -143,6 +132,7 @@ const adjTypeLabel: Record<AdjType, string> = {
     cash_shortage: 'Thiếu quỹ',
     inventory_loss: 'Mất hàng',
     violation: 'Vi phạm',
+    advance: 'Tạm ứng',
 };
 
 const adjTypeColor: Record<AdjType, string> = {
@@ -155,6 +145,8 @@ const adjTypeColor: Record<AdjType, string> = {
         'text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/20 border border-amber-100',
     violation:
         'text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/20 border border-rose-100',
+    advance:
+        'text-orange-600 dark:text-orange-400 bg-orange-50 dark:bg-orange-950/20 border border-orange-100',
 };
 
 const adjStatusConfig = {
@@ -171,10 +163,61 @@ const adjStatusConfig = {
         cls: 'text-emerald-600 bg-emerald-50 border border-emerald-200',
     },
 };
-
 // ── Search, Advanced Filters & Pagination ────────────────────────────────────
 
 const activePeriod = ref(props.period);
+const showMonthPicker = ref(false);
+const pickerYear = ref<number>(
+    parseInt((props.period || '').split('-')[0], 10) || new Date().getFullYear(),
+);
+
+function formatPeriodVietnamese(periodStr: string): string {
+    if (!periodStr) {
+        return '';
+    }
+    const parts = periodStr.split('-');
+
+    if (parts.length !== 2) {
+        return periodStr;
+    }
+    const year = parts[0];
+    const month = parseInt(parts[1], 10);
+
+    return `Tháng ${month < 10 ? '0' + month : month}/${year}`;
+}
+
+function toggleMonthPicker() {
+    if (!showMonthPicker.value && activePeriod.value) {
+        const parts = activePeriod.value.split('-');
+
+        if (parts[0]) {
+            pickerYear.value = parseInt(parts[0], 10) || new Date().getFullYear();
+        }
+    }
+    showMonthPicker.value = !showMonthPicker.value;
+}
+
+function isCurrentSelected(m: number): boolean {
+    const formattedMonth = m < 10 ? `0${m}` : `${m}`;
+
+    return activePeriod.value === `${pickerYear.value}-${formattedMonth}`;
+}
+
+function selectMonth(m: number) {
+    const formattedMonth = m < 10 ? `0${m}` : `${m}`;
+
+    activePeriod.value = `${pickerYear.value}-${formattedMonth}`;
+    showMonthPicker.value = false;
+    applyPeriod();
+}
+
+function selectCurrentMonth() {
+    const d = new Date();
+
+    pickerYear.value = d.getFullYear();
+    selectMonth(d.getMonth() + 1);
+}
+
 const searchQuery = ref('');
 const statusFilter = ref<'all' | 'draft' | 'approved' | 'paid'>('all');
 const branchFilter = ref<string>('all');
@@ -360,7 +403,7 @@ const selectedIds = ref<number[]>([]);
 
 const isAllSelected = computed(() => {
     const pageIds = paginatedSalaries.value
-        .filter((s) => s.status !== 'paid')
+        .filter((s) => s.status === 'draft')
         .map((s) => s.id);
 
     if (pageIds.length === 0) {
@@ -372,7 +415,7 @@ const isAllSelected = computed(() => {
 
 function toggleSelectAll() {
     const pageIds = paginatedSalaries.value
-        .filter((s) => s.status !== 'paid')
+        .filter((s) => s.status === 'draft')
         .map((s) => s.id);
 
     if (isAllSelected.value) {
@@ -567,19 +610,98 @@ const compact = (v: number) =>
 
             <div class="flex flex-wrap items-center gap-3">
                 <!-- Month picker -->
-                <div class="flex items-center gap-1.5">
+                <div class="relative flex items-center gap-2">
                     <Label
                         for="sal-period"
-                        class="shrink-0 text-xs font-semibold text-slate-600"
-                        >Chọn tháng:</Label
+                        class="shrink-0 text-xs font-semibold text-slate-600 dark:text-slate-300"
                     >
-                    <Input
-                        id="sal-period"
-                        v-model="activePeriod"
-                        type="month"
-                        @change="applyPeriod"
-                        class="h-9 w-36 bg-white py-1 text-xs font-semibold"
-                    />
+                        Chọn tháng:
+                    </Label>
+
+                    <div class="relative">
+                        <button
+                            type="button"
+                            id="sal-period"
+                            @click="toggleMonthPicker"
+                            class="flex h-9 min-w-[150px] items-center justify-between gap-2 rounded-lg border border-slate-300 bg-white px-3 text-xs font-bold text-slate-800 shadow-xs transition hover:bg-slate-50 focus:border-indigo-500 focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+                        >
+                            <span class="flex items-center gap-1.5">
+                                <Calendar class="size-3.5 text-indigo-600 dark:text-indigo-400" />
+                                {{ formatPeriodVietnamese(activePeriod) }}
+                            </span>
+                            <ChevronDown class="size-3.5 text-slate-400" />
+                        </button>
+
+                        <!-- Overlay backdrop -->
+                        <Teleport to="body">
+                        <div
+                            v-if="showMonthPicker"
+                            class="fixed inset-0 z-40"
+                            @click="showMonthPicker = false"
+                        />
+
+                        <!-- Popover Month Picker Panel -->
+                        <div
+                            v-if="showMonthPicker"
+                            class="absolute right-0 top-full z-50 mt-1.5 w-64 rounded-xl border border-slate-200 bg-white p-3 shadow-xl backdrop-blur-md dark:border-slate-800 dark:bg-slate-900 animate-in fade-in zoom-in-95"
+                        >
+                            <!-- Year Header -->
+                            <div class="mb-2 flex items-center justify-between border-b border-slate-100 pb-2 dark:border-slate-800">
+                                <button
+                                    type="button"
+                                    @click.stop="pickerYear--"
+                                    class="rounded-md p-1 text-slate-500 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white cursor-pointer"
+                                >
+                                    <ChevronLeft class="size-4" />
+                                </button>
+                                <span class="text-sm font-bold text-slate-800 dark:text-slate-100">Năm {{ pickerYear }}</span>
+                                <button
+                                    type="button"
+                                    @click.stop="pickerYear++"
+                                    class="rounded-md p-1 text-slate-500 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white cursor-pointer"
+                                >
+                                    <ChevronRight class="size-4" />
+                                </button>
+                            </div>
+
+                            <!-- Months Grid -->
+                            <div class="grid grid-cols-3 gap-1.5">
+                                <button
+                                    v-for="m in 12"
+                                    :key="m"
+                                    type="button"
+                                    @click.stop="selectMonth(m)"
+                                    class="rounded-lg py-2 text-xs font-semibold transition cursor-pointer"
+                                    :class="[
+                                        isCurrentSelected(m)
+                                            ? 'bg-indigo-600 font-bold text-white shadow-xs'
+                                            : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white'
+                                    ]"
+                                >
+                                    Tháng {{ m < 10 ? '0' + m : m }}
+                                </button>
+                            </div>
+
+                            <!-- Bottom Fast Action -->
+                            <div class="mt-2.5 flex items-center justify-between border-t border-slate-100 pt-2 text-[11px] dark:border-slate-800">
+                                <button
+                                    type="button"
+                                    @click.stop="selectCurrentMonth"
+                                    class="font-semibold text-indigo-600 hover:underline dark:text-indigo-400 cursor-pointer"
+                                >
+                                    Tháng này
+                                </button>
+                                <button
+                                    type="button"
+                                    @click.stop="showMonthPicker = false"
+                                    class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
+                                >
+                                    Đóng
+                                </button>
+                            </div>
+                        </div>
+                        </Teleport>
+                    </div>
                 </div>
 
                 <!-- Generate drafts -->
@@ -593,7 +715,7 @@ const compact = (v: number) =>
                         class="size-4"
                         :class="generating ? 'animate-spin' : ''"
                     />
-                    {{ generating ? 'Đang tạo...' : 'Tạo bảng lương' }}
+                    {{ generating ? 'Đang tính...' : 'Tạo / tính lại bảng lương' }}
                 </Button>
 
                 <!-- Bulk Adjustment button -->
@@ -637,7 +759,7 @@ const compact = (v: number) =>
                     <p
                         class="text-2xl font-black text-slate-800 dark:text-slate-100"
                     >
-                        {{ totals.headcount }}
+                        {{ totals.headcount }} / {{ generation.eligible_employees }}
                     </p>
                     <p class="mt-0.5 text-xs text-muted-foreground">
                         có bảng lương tháng này
@@ -723,6 +845,47 @@ const compact = (v: number) =>
                     <p class="mt-0.5 text-xs text-muted-foreground">
                         tiền thưởng tháng này
                     </p>
+                </CardContent>
+            </Card>
+        </div>
+
+        <!-- Payroll status & calculation sources -->
+        <div class="grid gap-4 lg:grid-cols-[1.1fr_1fr]">
+            <Card class="border-indigo-100 bg-indigo-50/40 shadow-xs dark:border-indigo-950/30 dark:bg-indigo-950/10">
+                <CardContent class="p-4">
+                    <div class="flex items-start gap-3">
+                        <Calculator class="mt-0.5 size-5 shrink-0 text-indigo-600 dark:text-indigo-400" />
+                        <div class="min-w-0">
+                            <p class="text-sm font-bold text-indigo-950 dark:text-indigo-100">Cách hệ thống tính kỳ {{ formatPeriodVietnamese(period) }}</p>
+                            <p class="mt-1 text-xs leading-5 text-indigo-900/70 dark:text-indigo-200/70">
+                                Lương gốc lấy từ hợp đồng, chấm công ca hoàn thành, OT đã duyệt và loại trả công của từng nhân viên.
+                                Thưởng/khấu trừ chỉ được tính khi khoản điều chỉnh ở trạng thái đã áp dụng.
+                            </p>
+                            <div class="mt-3 flex flex-wrap gap-2 text-[10px] font-semibold text-indigo-900/80 dark:text-indigo-100/80">
+                                <span class="rounded-full bg-white/70 px-2 py-1 dark:bg-indigo-950/40">Chấm công</span>
+                                <span class="rounded-full bg-white/70 px-2 py-1 dark:bg-indigo-950/40">Nghỉ phép</span>
+                                <span class="rounded-full bg-white/70 px-2 py-1 dark:bg-indigo-950/40">OT đã duyệt</span>
+                                <span class="rounded-full bg-white/70 px-2 py-1 dark:bg-indigo-950/40">KPI & điều chỉnh</span>
+                            </div>
+                        </div>
+                    </div>
+                </CardContent>
+            </Card>
+
+            <Card class="shadow-xs">
+                <CardContent class="p-4">
+                    <div class="flex items-center justify-between gap-3">
+                        <div>
+                            <p class="text-sm font-bold">Trạng thái kỳ lương</p>
+                            <p class="mt-1 text-xs text-muted-foreground">{{ generation.salary_rows }} / {{ generation.eligible_employees }} nhân viên đã có bảng lương</p>
+                        </div>
+                        <Clock class="size-5 text-muted-foreground" />
+                    </div>
+                    <div class="mt-4 grid grid-cols-3 gap-2 text-center text-xs">
+                        <div class="rounded-lg bg-slate-100 p-2 dark:bg-slate-800"><p class="font-bold text-slate-700 dark:text-slate-200">{{ generation.status_counts.draft }}</p><p class="mt-0.5 text-muted-foreground">Nháp</p></div>
+                        <div class="rounded-lg bg-indigo-50 p-2 dark:bg-indigo-950/30"><p class="font-bold text-indigo-700 dark:text-indigo-300">{{ generation.status_counts.approved }}</p><p class="mt-0.5 text-muted-foreground">Đã duyệt</p></div>
+                        <div class="rounded-lg bg-emerald-50 p-2 dark:bg-emerald-950/30"><p class="font-bold text-emerald-700 dark:text-emerald-300">{{ generation.status_counts.paid }}</p><p class="mt-0.5 text-muted-foreground">Đã trả</p></div>
+                    </div>
                 </CardContent>
             </Card>
         </div>
@@ -830,11 +993,12 @@ const compact = (v: number) =>
                         <Wallet class="size-7" />
                     </div>
                     <p class="font-bold text-slate-800 dark:text-slate-200">
-                        Chưa có dữ liệu bảng lương tháng này
+                        {{ generation.eligible_employees > 0 ? 'Chưa tạo bảng lương cho kỳ này' : 'Chưa có nhân viên đủ điều kiện tính lương' }}
                     </p>
                     <p class="mx-auto max-w-sm text-xs text-slate-500">
-                        Vui lòng nhấn nút "Tạo bảng lương" ở trên để hệ thống tự
-                        động sinh dữ liệu nháp dựa trên công ca thực tế.
+                        {{ generation.eligible_employees > 0
+                            ? `Có ${generation.eligible_employees} nhân viên đang hoạt động. Nhấn “Tạo / tính lại bảng lương” để sinh bản nháp từ dữ liệu chấm công, OT và điều chỉnh đã duyệt.`
+                            : 'Hãy kiểm tra trạng thái nhân viên, chi nhánh đang chọn và kỳ lương trước khi tạo bảng.' }}
                     </p>
                 </div>
 
@@ -881,7 +1045,7 @@ const compact = (v: number) =>
                                 @click.stop
                             >
                                 <input
-                                    v-if="canApprove && s.status !== 'paid'"
+                                    v-if="canApprove && s.status === 'draft'"
                                     type="checkbox"
                                     :checked="selectedIds.includes(s.id)"
                                     @change="toggleSelect(s.id)"
@@ -1086,6 +1250,10 @@ const compact = (v: number) =>
                                                 </p>
                                             </div>
 
+                                            <p v-if="s.breakdown?.policy_note" class="mt-2 text-[10px] leading-4 text-muted-foreground">
+                                                {{ s.breakdown.policy_note }}
+                                            </p>
+
                                             <!-- Mini indicators -->
                                             <div
                                                 class="mt-3 grid grid-cols-2 gap-2 text-xs"
@@ -1148,11 +1316,17 @@ const compact = (v: number) =>
                                                             }}
                                                             làm +
                                                             {{
-                                                                s.breakdown
+                                                            s.breakdown
                                                                     ?.paid_leave_days
                                                             }}
                                                             phép)</span
                                                         >
+                                                        <span
+                                                            v-if="s.breakdown?.unpaid_leave_days"
+                                                            class="mt-1 block text-[9px] font-normal text-rose-500"
+                                                        >
+                                                            {{ s.breakdown.unpaid_leave_days }} ngày nghỉ không lương
+                                                        </span>
                                                     </p>
                                                 </div>
                                                 <div
@@ -1179,8 +1353,14 @@ const compact = (v: number) =>
                                                             >(+{{
                                                                 s.breakdown
                                                                     ?.ot_hours
-                                                            }}h OT)</span
+                                                            }}h OT duyệt<span v-if="s.breakdown?.unapproved_ot_hours">, {{ s.breakdown.unapproved_ot_hours }}h ngoài ca chưa duyệt</span>)</span
                                                         >
+                                                    </p>
+                                                    <p
+                                                        v-if="s.breakdown?.unpaid_leave_days"
+                                                        class="mt-1 text-[9px] font-normal text-rose-500"
+                                                    >
+                                                        {{ s.breakdown.unpaid_leave_days }} ngày nghỉ không lương
                                                     </p>
                                                 </div>
                                                 <div
@@ -1295,6 +1475,7 @@ const compact = (v: number) =>
                                                     }})
                                                 </p>
                                                 <button
+                                                    v-if="s.status === 'draft'"
                                                     @click="openAdjDialog(s)"
                                                     class="inline-flex items-center gap-1 text-[10px] font-bold text-indigo-600 hover:underline"
                                                 >
@@ -1342,6 +1523,13 @@ const compact = (v: number) =>
                                                         >
                                                             {{ a.reason }}
                                                         </p>
+                                                        <span
+                                                            v-if="a.status !== 'applied'"
+                                                            class="mt-1 inline-flex rounded px-1.5 py-0.5 text-[9px] font-semibold"
+                                                            :class="adjStatusConfig[a.status].cls"
+                                                        >
+                                                            {{ adjStatusConfig[a.status].label }}
+                                                        </span>
                                                     </div>
                                                     <span
                                                         class="shrink-0 font-mono text-xs font-bold"
@@ -1468,6 +1656,7 @@ const compact = (v: number) =>
         leave-from-class="opacity-100"
         leave-to-class="opacity-0"
     >
+        
         <div
             v-if="adjTarget"
             class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs"
@@ -1516,6 +1705,9 @@ const compact = (v: number) =>
                         >
                             <option value="bonus">
                                 Thưởng chuyên cần / Phụ cấp
+                            </option>
+                            <option value="advance">
+                                Tạm ứng lương (tối đa 50% lương tích lũy)
                             </option>
                             <option value="penalty">
                                 Phạt hành chính / Kỷ luật
@@ -1622,6 +1814,7 @@ const compact = (v: number) =>
                 </CardContent>
             </Card>
         </div>
+        
     </Transition>
 
     <!-- ══ Bulk Adjustment Dialog ═════════════════════════════════════════════ -->
@@ -1633,6 +1826,7 @@ const compact = (v: number) =>
         leave-from-class="opacity-100"
         leave-to-class="opacity-0"
     >
+        
         <div
             v-if="showBulkDialog"
             class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs"
@@ -1680,6 +1874,9 @@ const compact = (v: number) =>
                         >
                             <option value="bonus">
                                 Thưởng chuyên cần / Thưởng nóng đồng loạt
+                            </option>
+                            <option value="advance">
+                                Tạm ứng lương đồng loạt (tối đa 50% lương tích lũy)
                             </option>
                             <option value="penalty">
                                 Phạt lỗi tập thể / Kỷ luật
@@ -1771,6 +1968,7 @@ const compact = (v: number) =>
                 </CardContent>
             </Card>
         </div>
+        
     </Transition>
 
     <!-- ══ Floating Bulk Action Bar ════════════════════════════════════════════ -->
@@ -1826,6 +2024,7 @@ const compact = (v: number) =>
         leave-from-class="opacity-100"
         leave-to-class="opacity-0"
     >
+        
         <div
             v-if="showBulkApproveModal"
             class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs"
@@ -1881,6 +2080,7 @@ const compact = (v: number) =>
                 </div>
             </Card>
         </div>
+        
     </Transition>
 
     <!-- ══ Pay Stub Preview Modal ═══════════════════════════════════════════════ -->
@@ -1892,6 +2092,7 @@ const compact = (v: number) =>
         leave-from-class="opacity-100"
         leave-to-class="opacity-0"
     >
+        <Teleport to="body">
         <div
             v-if="payStubTarget"
             class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs print:bg-white print:p-0"
@@ -1997,6 +2198,13 @@ const compact = (v: number) =>
                         </p>
                     </div>
 
+                    <div class="grid grid-cols-2 gap-2 rounded-2xl border bg-card p-4 text-[11px] sm:grid-cols-4">
+                        <div><p class="text-muted-foreground">Ngày làm</p><p class="mt-1 font-bold">{{ payStubTarget.breakdown?.actual_work_days }}</p></div>
+                        <div><p class="text-muted-foreground">Nghỉ hưởng lương</p><p class="mt-1 font-bold">{{ payStubTarget.breakdown?.paid_leave_days }} ngày</p></div>
+                        <div><p class="text-muted-foreground">Nghỉ không lương</p><p class="mt-1 font-bold">{{ payStubTarget.breakdown?.unpaid_leave_days ?? 0 }} ngày</p></div>
+                        <div><p class="text-muted-foreground">OT được duyệt</p><p class="mt-1 font-bold">{{ payStubTarget.breakdown?.ot_hours ?? 0 }} giờ</p></div>
+                    </div>
+
                     <!-- Earnings & Deductions Table -->
                     <div class="space-y-2 rounded-2xl border bg-card p-4">
                         <p
@@ -2064,5 +2272,6 @@ const compact = (v: number) =>
                 </div>
             </div>
         </div>
+        </Teleport>
     </Transition>
 </template>

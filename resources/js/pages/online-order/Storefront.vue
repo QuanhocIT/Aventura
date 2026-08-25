@@ -53,6 +53,7 @@ const props = defineProps<{
         enable_preorder: boolean;
         is_open: boolean;
         operating_hours: any;
+        accepted_payments: string[] | null;
     };
     categories: { id: number; name: string; slug: string }[];
     products: Record<
@@ -84,7 +85,6 @@ onMounted(() => {
     analytics.init();
 
     if (props.turnstileSiteKey) {
-        // @ts-expect-error Cloudflare Turnstile not in window type definitions
         if (!window.turnstile) {
             const script = document.createElement('script');
             script.src =
@@ -92,10 +92,7 @@ onMounted(() => {
             script.async = true;
             script.defer = true;
             document.head.appendChild(script);
-
-            // @ts-expect-error Cloudflare Turnstile callback not in window type definitions
             window.onloadTurnstileCallbackStorefront = () => {
-                // @ts-expect-error Cloudflare Turnstile render not in window type definitions
                 window.turnstile.render('#turnstile-container-storefront', {
                     sitekey: props.turnstileSiteKey,
                     callback: (token: string) => {
@@ -105,7 +102,6 @@ onMounted(() => {
             };
         } else {
             setTimeout(() => {
-                // @ts-expect-error Cloudflare Turnstile render not in window type definitions
                 window.turnstile.render('#turnstile-container-storefront', {
                     sitekey: props.turnstileSiteKey,
                     callback: (token: string) => {
@@ -119,6 +115,12 @@ onMounted(() => {
 
 const allCategories = computed(() => {
     return [{ id: 0, name: 'Tất cả', slug: 'all' }, ...props.categories];
+});
+
+const codEnabled = computed(() => {
+    const accepted = props.config.accepted_payments;
+
+    return !accepted || accepted.length === 0 || accepted.includes('cod');
 });
 
 const allProducts = computed(() => {
@@ -157,12 +159,13 @@ const showCheckout = ref(false);
 const channel = ref<'takeaway' | 'delivery'>('takeaway');
 const customerName = ref('');
 const phone = ref('');
+const customerEmail = ref('');
 const address = ref('');
 const latitude = ref<number | null>(null);
 const longitude = ref<number | null>(null);
 const deliveryFee = ref(0);
 const deliveryError = ref('');
-const paymentMethod = ref(props.gateways[0]?.key ?? 'bank_transfer');
+const paymentMethod = ref(props.gateways[0]?.key ?? 'cod');
 const note = ref('');
 const scheduledAt = ref('');
 const submitting = ref(false);
@@ -369,6 +372,13 @@ const { postWithQueue, pendingCount, isOnline } = useOfflineQueue(
             );
         }
     },
+    undefined,
+    (rejection) => {
+        toast.error(
+            rejection.message ??
+                'Đơn offline không thể đồng bộ và đã được đưa ra khỏi hàng đợi.',
+        );
+    },
 );
 
 async function submitOrder() {
@@ -379,6 +389,7 @@ async function submitOrder() {
             `/api/online/${props.config.slug}/checkout`,
             {
                 customer_name: customerName.value,
+                customer_email: customerEmail.value || null,
                 phone: phone.value,
                 channel: channel.value,
                 address: address.value,
@@ -1138,6 +1149,7 @@ async function submitOrder() {
                 leave-from-class="opacity-100"
                 leave-to-class="opacity-0"
             >
+                <Teleport to="body">
                 <div
                     v-if="showCart"
                     class="fixed inset-0 z-50 flex items-end justify-center"
@@ -1293,6 +1305,7 @@ async function submitOrder() {
                         </div>
                     </div>
                 </div>
+                </Teleport>
             </Transition>
 
             <!-- CHECKOUT BOTTOM SHEET -->
@@ -1304,6 +1317,7 @@ async function submitOrder() {
                 leave-from-class="opacity-100"
                 leave-to-class="opacity-0"
             >
+                <Teleport to="body">
                 <div
                     v-if="showCheckout"
                     class="fixed inset-0 z-50 flex items-end justify-center"
@@ -1439,6 +1453,23 @@ async function submitOrder() {
                                                         ? 'background:#f8f9fa;box-shadow:0 0 0 2px #6366f1;'
                                                         : 'background:#f8f9fa;box-shadow:0 0 0 1px #e5e7eb;'
                                                 "
+                                                />
+                                        </div>
+                                        <div>
+                                            <label
+                                                class="mb-1 block text-xs font-semibold text-slate-600"
+                                                >Email nhận thông báo (tuỳ chọn)</label
+                                            >
+                                            <input
+                                                v-model="customerEmail"
+                                                type="email"
+                                                placeholder="ban@example.com"
+                                                class="w-full rounded-xl px-4 py-3 text-sm font-medium text-slate-800 transition-all outline-none"
+                                                :style="
+                                                    customerEmail
+                                                        ? 'background:#f8f9fa;box-shadow:0 0 0 2px #6366f1;'
+                                                        : 'background:#f8f9fa;box-shadow:0 0 0 1px #e5e7eb;'
+                                                "
                                             />
                                         </div>
                                     </div>
@@ -1568,7 +1599,7 @@ async function submitOrder() {
                                             >
                                         </label>
                                         <label
-                                            v-if="channel === 'delivery'"
+                                            v-if="codEnabled"
                                             class="flex cursor-pointer items-center gap-3 rounded-2xl border-2 p-3.5 transition-all"
                                             :style="
                                                 paymentMethod === 'cod'
@@ -1781,6 +1812,7 @@ async function submitOrder() {
                         </div>
                     </div>
                 </div>
+                </Teleport>
             </Transition>
         </div>
 

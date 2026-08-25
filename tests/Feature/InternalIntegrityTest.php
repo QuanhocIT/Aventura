@@ -140,9 +140,15 @@ class InternalIntegrityTest extends TestCase
      */
     public function test_staff_can_submit_anonymous_whistleblowing(): void
     {
+        // Tố cáo phải nhắm vào NGƯỜI KHÁC: ViolationReportController chặn tự lập
+        // biên bản cho chính mình để không ai thao túng được lương của bản thân.
+        $targetEmp = Employee::where('restaurant_id', $this->restaurant->id)
+            ->where('employee_code', 'EMP-MNGR')
+            ->firstOrFail();
+
         $response = $this->actingAs($this->cashier)
             ->post('/violations', [
-                'employee_id' => $this->cashierEmp->id, // tự tố cáo làm mẫu test
+                'employee_id' => $targetEmp->id,
                 'violation_type' => 'Bớt xén nguyên vật liệu kho',
                 'description' => 'Đã phát hiện nhân viên bòn rút 2kg thịt bò mang về nhà.',
                 'is_anonymous' => true,
@@ -154,7 +160,7 @@ class InternalIntegrityTest extends TestCase
         // Kiểm tra database lưu đúng cờ ẩn danh
         $this->assertDatabaseHas('violation_reports', [
             'restaurant_id' => $this->restaurant->id,
-            'employee_id' => $this->cashierEmp->id,
+            'employee_id' => $targetEmp->id,
             'reported_by' => $this->cashier->id,
             'is_anonymous' => true,
             'violation_type' => 'Bớt xén nguyên vật liệu kho',

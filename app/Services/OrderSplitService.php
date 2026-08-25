@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\AuditLog;
+use App\Models\InventoryReservation;
 use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\RestaurantTable;
@@ -58,9 +59,31 @@ class OrderSplitService
                 'note' => "Tách từ bill {$order->order_number}",
             ]);
 
+            // Fix #4: Load product recipes để xác định ingredient_ids cần di chuyển reservation
+            $movedIngredientIds = [];
+            $items->load('product.recipes');
+
             OrderItem::withoutGlobalScopes()
                 ->whereIn('id', $items->pluck('id'))
                 ->update(['order_id' => $newOrder->id]);
+
+            // Thu thập ingredient_ids của các items đã tách
+            foreach ($items as $item) {
+                if ($item->product?->track_inventory) {
+                    foreach ($item->product->recipes as $recipe) {
+                        $movedIngredientIds[] = $recipe->ingredient_id;
+                    }
+                }
+            }
+
+            // Di chuyển inventory reservations tương ứng sang đơn mới
+            if (! empty($movedIngredientIds)) {
+                InventoryReservation::where('order_id', $order->id)
+                    ->where('branch_id', $order->branch_id)
+                    ->where('status', 'holding')
+                    ->whereIn('ingredient_id', array_unique($movedIngredientIds))
+                    ->update(['order_id' => $newOrder->id]);
+            }
 
             $this->recalcTotals($order);
             $this->recalcTotals($newOrder);
@@ -89,8 +112,33 @@ class OrderSplitService
         }
 
         return DB::transaction(function () use ($source, $target) {
+            // Lock both orders before moving items so simultaneous cashier
+            // actions cannot merge the same bill twice.
+            $source = Order::withoutGlobalScopes()
+                ->whereKey($source->id)
+                ->lockForUpdate()
+                ->firstOrFail();
+            $target = Order::withoutGlobalScopes()
+                ->whereKey($target->id)
+                ->lockForUpdate()
+                ->firstOrFail();
+
+            if ($source->restaurant_id !== $target->restaurant_id
+                || $source->branch_id !== $target->branch_id) {
+                throw ValidationException::withMessages(['order' => 'Hai don khong thuoc cung chi nhanh.']);
+            }
+
+            $this->assertEditable($source);
+            $this->assertEditable($target);
+
             OrderItem::withoutGlobalScopes()
                 ->where('order_id', $source->id)
+                ->update(['order_id' => $target->id]);
+
+            // Fix #4: Di chuyển inventory reservations từ source sang target
+            InventoryReservation::where('order_id', $source->id)
+                ->where('branch_id', $source->branch_id)
+                ->where('status', 'holding')
                 ->update(['order_id' => $target->id]);
 
             $this->recalcTotals($target);
@@ -124,8 +172,15 @@ class OrderSplitService
         $this->assertEditable($order);
 
         DB::transaction(function () use ($order, $tableId) {
+            $order = Order::withoutGlobalScopes()
+                ->whereKey($order->id)
+                ->lockForUpdate()
+                ->firstOrFail();
+            $this->assertEditable($order);
+
             $newTable = RestaurantTable::withoutGlobalScopes()
                 ->where('restaurant_id', $order->restaurant_id)
+                ->where('branch_id', $order->branch_id)
                 ->where('id', $tableId)
                 ->lockForUpdate()
                 ->first();

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { router } from '@inertiajs/vue3';
-import { ShieldCheck, X, AlertCircle } from 'lucide-vue-next';
-import { ref } from 'vue';
+import { ShieldCheck, X, AlertCircle, CheckCircle2, XCircle } from 'lucide-vue-next';
+import { ref, watch } from 'vue';
 import { Button } from '@/components/ui/button';
 import {
     Card,
@@ -24,17 +24,34 @@ const emit = defineEmits<{
     (e: 'success'): void;
 }>();
 
-const overrideNotes = ref(
-    props.action === 'check_in'
-        ? 'Check-in hộ do nhân viên quên'
-        : props.action === 'check_out'
-          ? 'Check-out hộ do nhân viên quên'
-          : 'Vắng mặt không lý do',
-);
+const isOnTime = ref(true);
+const actualCheckInTime = ref('');
+const overrideNotes = ref('');
 const applyViolation = ref(false);
 const penaltyAmount = ref(0);
 const violationNotes = ref('');
 const processingOverride = ref(false);
+
+watch(
+    () => [props.isOpen, props.action],
+    ([newOpen, newAction]) => {
+        if (newOpen) {
+            isOnTime.value = true;
+            actualCheckInTime.value = '';
+            overrideNotes.value =
+                newAction === 'check_in'
+                    ? 'Xác nhận check-in vào ca bởi Quản lý'
+                    : newAction === 'check_out'
+                      ? 'Check-out hộ do nhân viên quên'
+                      : 'Vắng mặt ca trực';
+            applyViolation.value = false;
+            penaltyAmount.value = 0;
+            violationNotes.value =
+                newAction === 'absent' ? 'Vắng mặt ca trực không lý do' : '';
+        }
+    },
+    { immediate: true },
+);
 
 const submitAdminOverride = () => {
     if (!props.assignment) {
@@ -57,6 +74,8 @@ const submitAdminOverride = () => {
         url,
         {
             assignment_id: props.assignment.id,
+            is_on_time: isOnTime.value,
+            actual_check_in_time: actualCheckInTime.value,
             notes: overrideNotes.value,
             apply_violation: applyViolation.value,
             penalty_amount: penaltyAmount.value,
@@ -85,6 +104,7 @@ const submitAdminOverride = () => {
 </script>
 
 <template>
+    <Teleport to="body">
     <div
         v-if="isOpen"
         class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs"
@@ -165,11 +185,68 @@ const submitAdminOverride = () => {
 
                         {{
                             action === 'check_in'
-                                ? 'Check-in hộ (Báo vào ca)'
+                                ? 'Xác nhận check-in (Báo vào ca)'
                                 : action === 'check_out'
                                   ? 'Check-out hộ (Báo ra ca)'
                                   : 'Báo Vắng (Không phép/Có phép)'
                         }}
+                    </div>
+                </div>
+
+                <!-- Check-in Question & Choices -->
+                <div
+                    v-if="action === 'check_in'"
+                    class="space-y-3 rounded-xl border border-indigo-200 bg-indigo-50/50 p-3.5 dark:border-indigo-900/40 dark:bg-indigo-950/20"
+                >
+                    <Label class="text-xs font-bold text-slate-800 dark:text-slate-200">
+                        Nhân viên vào ca đúng giờ so với thời gian gửi yêu cầu xin xác nhận check-in không?
+                    </Label>
+
+                    <div class="grid grid-cols-2 gap-2 pt-1">
+                        <button
+                            type="button"
+                            @click="isOnTime = true"
+                            :class="[
+                                'flex cursor-pointer items-center justify-center gap-1.5 rounded-lg border p-2.5 text-xs font-bold transition',
+                                isOnTime
+                                    ? 'border-emerald-500 bg-emerald-50 text-emerald-700 ring-2 ring-emerald-500/20 dark:bg-emerald-950/40 dark:text-emerald-300'
+                                    : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400'
+                            ]"
+                        >
+                            <CheckCircle2 class="size-4 text-emerald-600 dark:text-emerald-400" />
+                            🟢 CÓ (Đúng giờ)
+                        </button>
+
+                        <button
+                            type="button"
+                            @click="isOnTime = false"
+                            :class="[
+                                'flex cursor-pointer items-center justify-center gap-1.5 rounded-lg border p-2.5 text-xs font-bold transition',
+                                !isOnTime
+                                    ? 'border-rose-500 bg-rose-50 text-rose-700 ring-2 ring-rose-500/20 dark:bg-rose-950/40 dark:text-rose-300'
+                                    : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400'
+                            ]"
+                        >
+                            <XCircle class="size-4 text-rose-600 dark:text-rose-400" />
+                            🔴 KHÔNG (Đi trễ)
+                        </button>
+                    </div>
+
+                    <div v-if="!isOnTime" class="space-y-1.5 pt-2 animate-in fade-in duration-150">
+                        <Label for="actual-time-input" class="text-xs font-bold text-slate-700 dark:text-slate-300">
+                            Thời gian vào ca thực tế
+                        </Label>
+                        <Input
+                            id="actual-time-input"
+                            type="time"
+                            v-model="actualCheckInTime"
+                            class="h-9 font-mono text-xs font-bold"
+                            placeholder="HH:mm"
+                            required
+                        />
+                        <p class="text-[10px] text-muted-foreground">
+                            Nhập giờ nhân viên có mặt làm việc thực tế (Ví dụ: 06:15).
+                        </p>
                     </div>
                 </div>
 
@@ -282,4 +359,5 @@ const submitAdminOverride = () => {
             </CardContent>
         </Card>
     </div>
+    </Teleport>
 </template>

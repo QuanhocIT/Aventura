@@ -6,6 +6,7 @@ use App\Models\Concerns\BelongsToRestaurant;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Str;
 
 class TableReservation extends Model
 {
@@ -13,6 +14,15 @@ class TableReservation extends Model
     use SoftDeletes;
 
     protected $guarded = [];
+
+    protected static function booted(): void
+    {
+        static::creating(function (self $reservation): void {
+            if (blank($reservation->reservation_token)) {
+                $reservation->reservation_token = Str::random(64);
+            }
+        });
+    }
 
     protected function casts(): array
     {
@@ -29,6 +39,11 @@ class TableReservation extends Model
     public function restaurant(): BelongsTo
     {
         return $this->belongsTo(Restaurant::class);
+    }
+
+    public function branch(): BelongsTo
+    {
+        return $this->belongsTo(RestaurantBranch::class);
     }
 
     public function table(): BelongsTo

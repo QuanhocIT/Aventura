@@ -43,6 +43,7 @@ defineOptions({ layout: AppLayout });
 const props = defineProps<{
     program: any;
     tiers: any[];
+    canManageFinancials: boolean;
 }>();
 
 const page = usePage();
@@ -191,6 +192,7 @@ async function deleteTier(tier: any) {
 
             <div class="flex items-center gap-3">
                 <Button
+                    v-if="canManageFinancials"
                     type="button"
                     @click="saveProgram"
                     :disabled="programForm.processing"
@@ -442,6 +444,7 @@ async function deleteTier(tier: any) {
                                 </CardDescription>
                             </div>
                             <Button
+                                v-if="canManageFinancials"
                                 @click="openCreateTier"
                                 class="gap-1.5 rounded-xl"
                                 size="sm"
@@ -532,6 +535,7 @@ async function deleteTier(tier: any) {
                                                 class="flex items-center justify-end gap-1"
                                             >
                                                 <Button
+                                                    v-if="canManageFinancials"
                                                     variant="ghost"
                                                     size="icon"
                                                     class="h-8 w-8 rounded-lg text-slate-500 hover:text-slate-900 dark:hover:text-slate-100"
@@ -540,6 +544,7 @@ async function deleteTier(tier: any) {
                                                     <Pencil class="size-3.5" />
                                                 </Button>
                                                 <Button
+                                                    v-if="canManageFinancials"
                                                     variant="ghost"
                                                     size="icon"
                                                     class="h-8 w-8 rounded-lg text-rose-500 hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-950/40"

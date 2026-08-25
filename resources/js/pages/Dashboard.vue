@@ -3,7 +3,6 @@ import { Head, Link, usePage, Deferred } from '@inertiajs/vue3';
 import {
     Building2,
     ArrowRight,
-    Activity,
     TrendingUp,
     ShieldAlert,
     Zap,
@@ -14,7 +13,6 @@ import {
     PlusCircle,
     Layers,
     CheckCircle2,
-    XCircle,
     Package,
     ChevronRight,
     ShoppingCart,
@@ -113,6 +111,8 @@ interface OwnerSummary {
 interface RecentOrder {
     id: number;
     order_number: string;
+    branch_id: number | null;
+    branch_name: string;
     table_name: string | null;
     total_amount: number;
     status: string;
@@ -313,24 +313,26 @@ function getTableStatusInfo(status: string) {
                 props.branchComparisons &&
                 props.branchComparisons.length > 0
             "
-            class="animate-enter stagger-2 overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-md backdrop-blur-md dark:border-slate-800/80 dark:bg-slate-900/40"
+            class="animate-enter stagger-2 overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-lg shadow-slate-950/5 backdrop-blur-md dark:border-slate-800/80 dark:bg-slate-950/40 dark:shadow-black/20"
         >
             <CardHeader
-                class="dark:border-slate-850 border-b border-slate-100 bg-slate-50/30 pb-4 dark:bg-slate-900/10"
+                class="border-b border-slate-200/80 bg-slate-50/60 py-5 dark:border-slate-800/80 dark:bg-slate-900/30"
             >
                 <div class="flex items-center gap-2.5">
                     <div
-                        class="rounded-xl bg-teal-500/10 p-2 text-teal-600 dark:text-teal-400"
+                        class="rounded-xl bg-teal-500/10 p-2.5 text-teal-600 ring-1 ring-teal-500/10 dark:text-teal-400"
                     >
-                        <Building2 class="size-4.5" />
+                        <Building2 class="size-5" />
                     </div>
                     <div>
                         <CardTitle
-                            class="text-slate-850 text-sm font-bold dark:text-slate-100"
+                            class="text-base font-bold text-slate-900 dark:text-slate-100"
                         >
                             Hiệu suất chi tiết từng chi nhánh
                         </CardTitle>
-                        <CardDescription class="mt-0.5 text-xs">
+                        <CardDescription
+                            class="mt-1 text-xs leading-relaxed text-slate-500 dark:text-slate-400"
+                        >
                             So sánh doanh thu hôm nay, biên lợi nhuận, sức khỏe
                             vận hành và tổng lỗi sai phạm trong 30 ngày qua.
                         </CardDescription>
@@ -339,54 +341,68 @@ function getTableStatusInfo(status: string) {
             </CardHeader>
 
             <CardContent class="overflow-x-auto p-0">
-                <table class="w-full border-collapse text-left text-xs">
+                <table
+                    class="w-full min-w-[920px] border-collapse text-left text-xs"
+                >
                     <thead>
                         <tr
-                            class="dark:border-slate-850 border-b border-slate-100 bg-slate-50/50 text-[10px] font-extrabold tracking-wider text-slate-500 uppercase dark:bg-slate-900/20 dark:text-slate-400"
+                            class="border-b border-slate-200/80 bg-slate-50/70 text-[11px] font-bold tracking-wide text-slate-500 dark:border-slate-800/80 dark:bg-slate-900/50 dark:text-slate-400"
                         >
-                            <th class="p-4 pl-6">Chi nhánh</th>
-                            <th class="p-4 text-right">Doanh thu hôm nay</th>
-                            <th class="p-4 text-right">Biên lợi nhuận</th>
-                            <th class="p-4 text-center">Sức khỏe vận hành</th>
-                            <th class="p-4 text-center">Sai phạm (30 ngày)</th>
-                            <th class="p-4 pr-6 text-center">Hành động</th>
+                            <th class="px-6 py-3.5">Chi nhánh</th>
+                            <th class="px-5 py-3.5 text-right">
+                                Doanh thu hôm nay
+                            </th>
+                            <th class="px-5 py-3.5 text-right">
+                                Biên lợi nhuận
+                            </th>
+                            <th class="px-5 py-3.5 text-center">
+                                Sức khỏe vận hành
+                            </th>
+                            <th class="px-5 py-3.5 text-center">
+                                Sai phạm (30 ngày)
+                            </th>
+                            <th class="px-6 py-3.5 text-center">Hành động</th>
                         </tr>
                     </thead>
                     <tbody
-                        class="dark:divide-slate-850 divide-y divide-slate-100"
+                        class="divide-y divide-slate-200/80 dark:divide-slate-800/80"
                     >
                         <tr
                             v-for="b in props.branchComparisons"
                             :key="b.id"
-                            class="hover:bg-slate-55/40 text-slate-700 transition duration-150 dark:text-slate-300 dark:hover:bg-slate-900/40"
+                            class="text-slate-700 transition-colors duration-150 hover:bg-slate-50/70 dark:text-slate-300 dark:hover:bg-white/[0.03]"
                         >
                             <td
-                                class="flex items-center gap-2 p-4 pl-6 font-bold"
+                                class="px-6 py-4 font-semibold text-slate-800 dark:text-slate-200"
                             >
-                                <span
-                                    class="size-2 shrink-0 rounded-full bg-teal-500 shadow-sm"
-                                />
-                                {{ b.name }}
+                                <div class="flex items-center gap-3">
+                                    <span
+                                        class="size-2 shrink-0 rounded-full bg-teal-400 shadow-[0_0_0_3px_rgba(45,212,191,0.12)]"
+                                    />
+                                    <span class="truncate">{{ b.name }}</span>
+                                </div>
                             </td>
                             <td
-                                class="p-4 text-right font-mono font-black text-teal-600 dark:text-teal-400"
+                                class="px-5 py-4 text-right font-mono font-bold text-teal-600 tabular-nums dark:text-teal-400"
                             >
                                 {{ formatVND(b.revenue) }}
                             </td>
-                            <td class="p-4 text-right font-bold">
+                            <td class="px-5 py-4 text-right font-semibold">
                                 <div
-                                    class="inline-flex items-center gap-1 rounded-md bg-emerald-500/10 px-2 py-0.5 text-[11px] text-emerald-600 dark:text-emerald-400"
+                                    class="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/15 bg-emerald-500/10 px-2.5 py-1 text-[11px] text-emerald-600 dark:text-emerald-400"
                                 >
                                     <TrendingUp class="size-3" />
-                                    <span>{{ b.profit_margin }}%</span>
+                                    <span class="tabular-nums"
+                                        >{{ b.profit_margin }}%</span
+                                    >
                                 </div>
                             </td>
-                            <td class="p-4 text-center">
+                            <td class="px-5 py-4 text-center">
                                 <div
-                                    class="flex items-center justify-center gap-2.5"
+                                    class="mx-auto flex max-w-[180px] items-center justify-center gap-3"
                                 >
                                     <div
-                                        class="h-1.5 w-16 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800"
+                                        class="h-2 min-w-20 flex-1 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-800"
                                     >
                                         <div
                                             class="h-full rounded-full transition-all"
@@ -402,44 +418,45 @@ function getTableStatusInfo(status: string) {
                                     </div>
                                     <span
                                         :class="[
-                                            'scale-95 rounded-md border px-2 py-0.5 text-[10px] font-bold',
+                                            'min-w-9 rounded-md border px-2 py-1 text-center text-[11px] font-bold tabular-nums',
                                             b.health_score >= 80
                                                 ? 'border-emerald-100 bg-emerald-50 text-emerald-700 dark:border-emerald-900/20 dark:bg-emerald-950/30 dark:text-emerald-400'
                                                 : b.health_score >= 50
                                                   ? 'border-amber-100 bg-amber-50 text-amber-700 dark:border-amber-900/20 dark:bg-amber-950/30 dark:text-amber-400'
-                                                  : 'dark:text-rose-455 border-rose-100 bg-rose-50 text-rose-700 dark:border-rose-900/20 dark:bg-rose-950/30',
+                                                  : 'border-rose-100 bg-rose-50 text-rose-700 dark:border-rose-900/20 dark:bg-rose-950/30 dark:text-rose-400',
                                         ]"
                                     >
                                         {{ b.health_score }}
                                     </span>
                                 </div>
                             </td>
-                            <td class="p-4 text-center">
+                            <td class="px-5 py-4 text-center">
                                 <div class="flex justify-center">
                                     <span
                                         v-if="b.violations_count > 0"
-                                        class="text-rose-750 inline-flex animate-pulse items-center gap-1 rounded-full border border-rose-100 bg-rose-50 px-2.5 py-0.5 font-bold dark:border-rose-900/30 dark:bg-rose-950/40 dark:text-rose-400"
+                                        class="inline-flex items-center gap-1.5 rounded-full border border-rose-500/20 bg-rose-500/10 px-2.5 py-1 font-bold text-rose-600 dark:border-rose-900/30 dark:bg-rose-950/40 dark:text-rose-400"
                                     >
-                                        <ShieldAlert class="size-3" />
+                                        <ShieldAlert class="size-3.5" />
                                         {{ b.violations_count }} lỗi
                                     </span>
                                     <span
                                         v-else
-                                        class="inline-flex items-center gap-1 rounded-full border border-emerald-100 bg-emerald-50 px-2.5 py-0.5 font-bold text-emerald-700 dark:border-emerald-900/30 dark:bg-emerald-950/40 dark:text-emerald-400"
+                                        class="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2.5 py-1 font-bold text-emerald-600 dark:border-emerald-900/30 dark:bg-emerald-950/40 dark:text-emerald-400"
                                     >
-                                        ✅ 0 lỗi
+                                        <CheckCircle2 class="size-3.5" />
+                                        0 lỗi
                                     </span>
                                 </div>
                             </td>
-                            <td class="p-4 pr-6 text-center">
+                            <td class="px-6 py-4 text-center">
                                 <Button
                                     size="sm"
                                     variant="outline"
-                                    class="text-teal-650 h-7 cursor-pointer rounded-lg border-teal-200 text-[10px] font-bold hover:bg-teal-50 dark:border-teal-900/50 dark:text-teal-400 dark:hover:bg-teal-950/30"
+                                    class="h-8 cursor-pointer rounded-lg border-teal-500/25 px-3 text-[11px] font-bold text-teal-600 hover:bg-teal-500/10 dark:border-teal-900/50 dark:text-teal-400 dark:hover:bg-teal-950/30"
                                     @click="selectBranchDirectly(b.id)"
                                 >
-                                    Xem chi tiết
-                                    <ArrowRight class="ml-1 size-3" />
+                                    <span>Xem chi tiết</span>
+                                    <ArrowRight class="ml-1 size-3.5" />
                                 </Button>
                             </td>
                         </tr>
@@ -941,7 +958,12 @@ function getTableStatusInfo(status: string) {
                                     class="text-slate-700 transition duration-150 hover:bg-slate-50/40 dark:text-slate-300 dark:hover:bg-slate-900/20"
                                 >
                                     <td class="p-3.5 pl-6 font-mono font-bold">
-                                        #{{ order.order_number }}
+                                        <div>#{{ order.order_number }}</div>
+                                        <div
+                                            class="font-sans text-[11px] font-medium text-muted-foreground"
+                                        >
+                                            {{ order.branch_name }}
+                                        </div>
                                     </td>
                                     <td class="p-3.5">
                                         {{ order.table_name ?? 'Mang về' }}
@@ -1388,7 +1410,12 @@ function getTableStatusInfo(status: string) {
                                 class="text-slate-700 hover:bg-slate-50/40 dark:text-slate-300 dark:hover:bg-slate-900/20"
                             >
                                 <td class="p-3 pl-5 font-mono font-bold">
-                                    #{{ order.order_number }}
+                                    <div>#{{ order.order_number }}</div>
+                                    <div
+                                        class="font-sans text-[11px] font-medium text-muted-foreground"
+                                    >
+                                        {{ order.branch_name }}
+                                    </div>
                                 </td>
                                 <td class="p-3">
                                     {{ order.table_name ?? 'Mang về' }}
@@ -1763,7 +1790,12 @@ function getTableStatusInfo(status: string) {
                                         <td
                                             class="p-3 pl-5 font-mono font-bold"
                                         >
-                                            #{{ order.order_number }}
+                                            <div>#{{ order.order_number }}</div>
+                                            <div
+                                                class="font-sans text-[11px] font-medium text-muted-foreground"
+                                            >
+                                                {{ order.branch_name }}
+                                            </div>
                                         </td>
                                         <td class="p-3">
                                             {{ order.table_name ?? 'Mang về' }}
@@ -2204,7 +2236,12 @@ function getTableStatusInfo(status: string) {
                                         <td
                                             class="p-3 pl-5 font-mono font-bold"
                                         >
-                                            #{{ order.order_number }}
+                                            <div>#{{ order.order_number }}</div>
+                                            <div
+                                                class="font-sans text-[11px] font-medium text-muted-foreground"
+                                            >
+                                                {{ order.branch_name }}
+                                            </div>
                                         </td>
                                         <td class="p-3">
                                             {{ order.table_name ?? 'Mang về' }}

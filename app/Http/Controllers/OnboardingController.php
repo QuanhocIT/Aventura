@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Concerns\AuthorizesRestaurantSettings;
 use App\Services\Onboarding\DemoDataSeederService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -11,6 +12,8 @@ use Inertia\Response;
 
 class OnboardingController extends Controller
 {
+    use AuthorizesRestaurantSettings;
+
     /**
      * Cập nhật tiến trình Guided Tours.
      */
@@ -109,6 +112,7 @@ class OnboardingController extends Controller
      */
     public function sandboxPage(Request $request): Response
     {
+        $this->authorizeRestaurantSettings($request);
         $restaurant = $request->user()?->restaurant;
 
         return Inertia::render('settings/Sandbox', [
@@ -127,6 +131,7 @@ class OnboardingController extends Controller
      */
     public function toggleSandbox(Request $request): RedirectResponse
     {
+        $this->authorizeRestaurantSettings($request);
         $restaurant = $request->user()?->restaurant;
         if (! $restaurant) {
             return back()->with('error', 'Không tìm thấy thông tin nhà hàng.');
@@ -146,6 +151,7 @@ class OnboardingController extends Controller
      */
     public function seedDemo(Request $request, DemoDataSeederService $seeder): RedirectResponse
     {
+        $this->authorizeRestaurantSettings($request);
         $data = $request->validate([
             'template' => ['required', 'string', 'in:bbq,cafe,bubble_tea'],
         ]);
@@ -184,6 +190,7 @@ class OnboardingController extends Controller
      */
     public function resetDemo(Request $request, DemoDataSeederService $seeder): RedirectResponse
     {
+        $this->authorizeRestaurantSettings($request);
         $restaurant = $request->user()?->restaurant;
         if (! $restaurant) {
             return back()->with('error', 'Không tìm thấy thông tin nhà hàng.');

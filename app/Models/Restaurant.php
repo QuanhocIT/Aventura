@@ -50,6 +50,13 @@ class Restaurant extends Model
             'subscription_ends_at' => 'datetime',
             'trial_ends_at' => 'datetime',
             'grace_period_minutes' => 'integer',
+            'max_late_checkin_minutes' => 'integer',
+            'late_penalty_type' => 'string',
+            'late_penalty_amount' => 'float',
+            'early_checkout_grace_minutes' => 'integer',
+            'max_early_checkout_minutes' => 'integer',
+            'early_checkout_penalty_type' => 'string',
+            'early_checkout_penalty_amount' => 'float',
             'ot_multiplier' => 'float',
             'latitude' => 'float',
             'longitude' => 'float',
@@ -59,6 +66,9 @@ class Restaurant extends Model
             'inactive_flagged_at' => 'datetime',
             'is_inactive_flagged' => 'boolean',
             'storage_warning_sent_at' => 'datetime',
+            'data_legal_hold' => 'boolean',
+            'data_legal_hold_at' => 'datetime',
+            'data_retention_override' => 'array',
             'sandbox_mode' => 'boolean',
             'sandbox_seeded_at' => 'datetime',
             'health_score' => 'integer',
@@ -173,6 +183,11 @@ class Restaurant extends Model
     public function media(): MorphMany
     {
         return $this->morphMany(MediaAsset::class, 'attachable');
+    }
+
+    public function storageSnapshots(): HasMany
+    {
+        return $this->hasMany(TenantStorageSnapshot::class);
     }
 
     public function isActive(): bool

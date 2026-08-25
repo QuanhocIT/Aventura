@@ -7,11 +7,18 @@ use App\Models\AuditLog;
 use App\Models\Employee;
 use App\Models\ScheduleAssignment;
 use Carbon\Carbon;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 
 class FraudDetectionService
 {
+    /** Ngưỡng % giảm giá trên một hóa đơn bị coi là bất thường. */
+    public const DISCOUNT_RATIO_THRESHOLD = 20;
+
+    /** Số lần áp mã liên tiếp trong 15 phút bị coi là bất thường. */
+    public const DISCOUNT_BURST_COUNT = 3;
+
     // ── Summary (fast COUNT queries for KPI cards) ────────────────────────────
 
     public function getSummary(int $restaurantId, string $periodStart, string $periodEnd): array
@@ -136,6 +143,10 @@ class FraudDetectionService
         // Bắt đầu với mảng trống — không inject hardcoded fake alerts
         $alerts = [];
 
+        // Cache đếm theo user để không bắn N+1 query.
+        $burstCountsByUser = [];
+        $cancelCountsByUser = [];
+
         $userIds = $logs->pluck('user_id')->filter()->unique();
         $employeesByUserId = Employee::withoutGlobalScopes()
             ->whereIn('user_id', $userIds)
@@ -149,30 +160,53 @@ class FraudDetectionService
             $empName = $log->user?->name ?? 'Nhân viên';
 
             if ($log->action === 'price_modified') {
+                // Điểm rủi ro cũ là hằng số 92.5 cho MỌI lần sửa giá — sửa 1.000đ
+                // và sửa 1.000.000đ đều hiện như nhau. Giờ tính theo biên độ thật.
+                // OrderService::log('price_modified') ghi cặp unit_price; các nguồn
+                // khác dùng price/total_amount — đọc lần lượt cả ba.
+                $before = (float) ($log->old_values['unit_price'] ?? $log->old_values['price'] ?? $log->old_values['total_amount'] ?? 0);
+                $after = (float) ($log->new_values['unit_price'] ?? $log->new_values['price'] ?? $log->new_values['total_amount'] ?? 0);
+                $delta = abs($before - $after);
+                $deltaRatio = $before > 0 ? ($delta / $before) * 100 : 0.0;
+
                 $alerts[] = [
                     'id' => 'ai-log-'.$log->id,
                     'employee_id' => $empId,
                     'employee_name' => $empName,
                     'violation_type' => 'AI: Sửa đổi giá món nhạy cảm',
-                    'severity' => 'medium',
-                    'description' => "Phát hiện thay đổi giá sản phẩm trên đơn hàng #{$log->subject_id} bởi nhân viên {$empName}. [Nguồn: Laravel Fallback]",
-                    'penalty_amount' => 0,
-                    'occurred_at' => $log->created_at->toDateString(),
-                    'risk_score' => 92.5,
-                    'reason' => 'Thao tác sửa giá món được lưu vết tĩnh trong audit_logs. Chỉ số rủi ro: 92.5%.',
+                    'category' => 'price',
+                    'domain' => 'promotion',
+                    'severity' => $deltaRatio >= 30 ? 'high' : 'medium',
+                    'description' => "Thay đổi giá trên đơn hàng #{$log->subject_id} bởi {$empName}: "
+                        .number_format($before).'đ → '.number_format($after).'đ. [Nguồn: Laravel Fallback]',
+                    'penalty_amount' => $delta,
+                    'occurred_at' => $log->created_at->format('H:i d/m/Y'),
+                    'risk_score' => min(99.0, round(40 + $deltaRatio, 1)),
+                    'reason' => 'Biên độ thay đổi '.round($deltaRatio, 1).'% so với giá trị gốc của đơn.',
                 ];
             } elseif ($log->action === 'order_cancelled') {
+                $cancelValue = (float) ($log->old_values['total_amount'] ?? $log->new_values['total_amount'] ?? 0);
+                $cancelCount = $cancelCountsByUser[$log->user_id] ??= AuditLog::where('restaurant_id', $restaurantId)
+                    ->where('user_id', $log->user_id)
+                    ->where('action', 'order_cancelled')
+                    ->where('created_at', '>=', $log->created_at->copy()->subHours(2))
+                    ->where('created_at', '<=', $log->created_at)
+                    ->count();
+
                 $alerts[] = [
                     'id' => 'ai-log-'.$log->id,
                     'employee_id' => $empId,
                     'employee_name' => $empName,
                     'violation_type' => 'AI: Hủy đơn nhạy cảm',
-                    'severity' => 'high',
-                    'description' => "Phát hiện hủy đơn hàng #{$log->subject_id} sau khi đã chốt phục vụ bởi nhân viên {$empName}. [Nguồn: Laravel Fallback]",
-                    'penalty_amount' => 0,
-                    'occurred_at' => $log->created_at->toDateString(),
-                    'risk_score' => 95.8,
-                    'reason' => 'Thao tác hủy hóa đơn đã phục vụ được lưu vết tĩnh trong audit_logs. Chỉ số rủi ro: 95.8%.',
+                    'category' => 'order_cancel',
+                    'domain' => 'promotion',
+                    'severity' => $cancelCount >= 3 ? 'critical' : 'high',
+                    'description' => "Hủy đơn hàng #{$log->subject_id} sau khi đã chốt phục vụ bởi {$empName}"
+                        .($cancelValue > 0 ? ' (giá trị '.number_format($cancelValue).'đ)' : '').'. [Nguồn: Laravel Fallback]',
+                    'penalty_amount' => $cancelValue,
+                    'occurred_at' => $log->created_at->format('H:i d/m/Y'),
+                    'risk_score' => min(99.0, round(60 + ($cancelCount * 10), 1)),
+                    'reason' => "Tài khoản này đã hủy {$cancelCount} đơn trong vòng 2 giờ quanh thời điểm ghi nhận.",
                 ];
             } elseif ($log->action === 'order_split') {
                 $alerts[] = [
@@ -180,26 +214,57 @@ class FraudDetectionService
                     'employee_id' => $empId,
                     'employee_name' => $empName,
                     'violation_type' => 'AI: Tách bàn đáng ngờ',
+                    'category' => 'order_split',
+                    'domain' => 'promotion',
                     'severity' => 'high',
-                    'description' => "Phát hiện tách hóa đơn #{$log->subject_id} ra bàn trống bởi nhân viên {$empName}. [Nguồn: Laravel Fallback]",
+                    'description' => "Tách hóa đơn #{$log->subject_id} ra bàn trống bởi {$empName}. [Nguồn: Laravel Fallback]",
                     'penalty_amount' => (float) ($log->new_values['total_amount'] ?? 0),
-                    'occurred_at' => $log->created_at->toDateString(),
+                    'occurred_at' => $log->created_at->format('H:i d/m/Y'),
                     'risk_score' => 96.5,
-                    'reason' => 'Thao tác tách đơn ra bàn trống lập tức được hệ thống đánh dấu đỏ. Chỉ số rủi ro: 96.5%.',
+                    'reason' => 'Tách đơn ra bàn trống là hành vi luôn bị đánh dấu đỏ theo chính sách vận hành.',
                 ];
             } elseif ($log->action === 'discount_applied') {
-                $alerts[] = [
-                    'id' => 'ai-log-'.$log->id,
-                    'employee_id' => $empId,
-                    'employee_name' => $empName,
-                    'violation_type' => 'AI: Áp mã giảm giá',
-                    'severity' => 'medium',
-                    'description' => 'Ghi nhận thao tác áp mã giảm giá trị giá '.number_format($log->new_values['discount_amount'] ?? 0)."đ cho đơn #{$log->subject_id} bởi {$empName}. [Nguồn: Laravel Fallback]",
-                    'penalty_amount' => 0,
-                    'occurred_at' => $log->created_at->toDateString(),
-                    'risk_score' => 45.2,
-                    'reason' => 'Hoạt động áp voucher thông thường được lưu vết kiểm toán.',
-                ];
+                // Chỉ gắn cờ khi THỰC SỰ bất thường. Trước đây mọi lần áp mã hợp lệ
+                // đều bị đẩy vào danh sách "vi phạm nhạy cảm" → báo động giả 100%,
+                // khiến Owner mất niềm tin vào toàn bộ tab kiểm toán.
+                $discount = (float) ($log->new_values['discount_amount'] ?? 0);
+                $beforeTotal = (float) ($log->old_values['total_amount'] ?? 0);
+                $ratio = $beforeTotal > 0 ? ($discount / $beforeTotal) * 100 : 0.0;
+
+                $burstCount = $burstCountsByUser[$log->user_id] ??= AuditLog::where('restaurant_id', $restaurantId)
+                    ->where('user_id', $log->user_id)
+                    ->where('action', 'discount_applied')
+                    ->where('created_at', '>=', $log->created_at->copy()->subMinutes(15))
+                    ->where('created_at', '<=', $log->created_at)
+                    ->count();
+
+                $overThreshold = $ratio > self::DISCOUNT_RATIO_THRESHOLD;
+                $isBurst = $burstCount >= self::DISCOUNT_BURST_COUNT;
+
+                if ($overThreshold || $isBurst) {
+                    $reasons = [];
+                    if ($overThreshold) {
+                        $reasons[] = 'mức giảm '.round($ratio, 1).'% vượt ngưỡng '.self::DISCOUNT_RATIO_THRESHOLD.'%';
+                    }
+                    if ($isBurst) {
+                        $reasons[] = "áp mã {$burstCount} lần trong 15 phút (ngưỡng ".self::DISCOUNT_BURST_COUNT.' lần)';
+                    }
+
+                    $alerts[] = [
+                        'id' => 'ai-log-'.$log->id,
+                        'employee_id' => $empId,
+                        'employee_name' => $empName,
+                        'violation_type' => 'AI: Áp mã giảm giá bất thường',
+                        'category' => 'voucher',
+                        'domain' => 'promotion',
+                        'severity' => ($overThreshold && $isBurst) ? 'critical' : 'high',
+                        'description' => 'Áp mã giảm giá '.number_format($discount)."đ cho đơn #{$log->subject_id} bởi {$empName}. [Nguồn: Laravel Fallback]",
+                        'penalty_amount' => $discount,
+                        'occurred_at' => $log->created_at->format('H:i d/m/Y'),
+                        'risk_score' => min(99.0, round(50 + $ratio + ($burstCount * 5), 1)),
+                        'reason' => 'Gắn cờ do '.implode(' và ', $reasons).'.',
+                    ];
+                }
             }
         }
 
@@ -241,10 +306,14 @@ class FraudDetectionService
                 'employee_id' => null,
                 'employee_name' => $log->user?->name ?? 'Nhân viên kho',
                 'violation_type' => 'AI: Đối soát mua hàng thất bại',
+                'category' => 'purchasing',
+                // Cảnh báo này thuộc module Kho & Mua hàng; trang Khuyến mãi
+                // dùng cờ này để tách khỏi danh sách vi phạm bán hàng.
+                'domain' => 'purchasing',
                 'severity' => 'critical',
                 'description' => $desc.' [Nguồn: Laravel Fallback]',
                 'penalty_amount' => abs((float) ($new['total_cost'] ?? 0) - (float) ($old['total_cost'] ?? 0)),
-                'occurred_at' => $log->created_at->toDateString(),
+                'occurred_at' => $log->created_at->format('H:i d/m/Y'),
                 'risk_score' => 99.5,
                 'reason' => 'Thuật toán đối chiếu chéo 3 bên phát hiện sai lệch dòng tiền/số lượng giữa niêm yết hệ thống, hóa đơn số và kiểm đếm kho thực tế.',
             ];
@@ -264,6 +333,36 @@ class FraudDetectionService
             ->take(100)
             ->get();
 
+        return $this->buildAuditLogPayload($restaurantId, $logs);
+    }
+
+    /**
+     * Nhật ký áp mã giảm giá.
+     *
+     * Trước đây trang Khuyến mãi lấy 100 log gần nhất của MỌI action rồi mới lọc
+     * discount_applied ở PHP — nhà hàng đông khách thì 100 log đó không còn dòng
+     * voucher nào, bảng hiện "không có giao dịch" dù thực tế có hàng chục. Ở đây
+     * lọc ngay trong SQL.
+     *
+     * @param  list<string>  $actions
+     */
+    public function getVoucherAuditLogs(int $restaurantId, int $limit = 100, array $actions = ['discount_applied', 'discount_applied_bypass']): array
+    {
+        $logs = AuditLog::where('restaurant_id', $restaurantId)
+            ->whereIn('action', $actions)
+            ->with(['user'])
+            ->latest('created_at')
+            ->take($limit)
+            ->get();
+
+        return $this->buildAuditLogPayload($restaurantId, $logs);
+    }
+
+    /**
+     * @param  Collection<int, AuditLog>  $logs
+     */
+    private function buildAuditLogPayload(int $restaurantId, $logs): array
+    {
         $assignments = collect();
         if ($logs->isNotEmpty()) {
             $timestamps = $logs->pluck('created_at');
@@ -308,6 +407,8 @@ class FraudDetectionService
             'order_split_override' => 'Chủ quán duyệt đơn tách',
             'price_modified' => 'Sửa giá món',
             'discount_applied' => 'Áp mã giảm giá',
+            'discount_applied_bypass' => 'Áp mã giảm giá (vượt quyền)',
+            'discount_stacked_high' => 'Cộng dồn giảm giá vượt ngưỡng',
             'order_updated' => 'Sửa đổi đơn hàng',
             'toggle_account_status' => 'Khóa/Mở tài khoản',
             'reset_password' => 'Reset mật khẩu',

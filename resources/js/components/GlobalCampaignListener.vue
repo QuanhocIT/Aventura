@@ -137,7 +137,7 @@ function closeNotification() {
 
 onMounted(() => {
     if (window.Echo) {
-        window.Echo.channel('global.campaigns').listen(
+        window.Echo.private('global.campaigns').listen(
             '.campaign.broadcasted',
             (e: CampaignBroadcastData) => {
                 handleBroadcast(e);

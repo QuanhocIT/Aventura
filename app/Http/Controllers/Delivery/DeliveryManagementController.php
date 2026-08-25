@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Delivery;
 
 use App\Http\Controllers\Controller;
+use App\Models\AuditLog;
 use App\Models\Delivery\DeliveryBatch;
 use App\Models\Delivery\DeliveryDetail;
 use App\Models\Delivery\Shipper;
@@ -14,6 +15,7 @@ use App\Services\Delivery\RouteOptimizationService;
 use App\Services\QuotaService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -28,6 +30,8 @@ class DeliveryManagementController extends Controller
 
     public function index(Request $request): Response
     {
+        $this->authorizeManager($request);
+
         $restaurant = $request->user()->restaurant;
         if (! $restaurant && ! $request->user()->hasRole('super_admin')) {
             abort(403, 'Không tìm thấy nhà hàng.');
@@ -54,6 +58,8 @@ class DeliveryManagementController extends Controller
     /** GET /delivery/api/unassigned-orders */
     public function unassignedOrders(Request $request): JsonResponse
     {
+        $this->authorizeManager($request);
+
         $restaurantId = $request->user()->restaurant_id;
 
         $orders = Order::with('deliveryDetail', 'items')
@@ -88,6 +94,8 @@ class DeliveryManagementController extends Controller
     /** GET /delivery/api/active-shippers */
     public function activeShippers(Request $request): JsonResponse
     {
+        $this->authorizeManager($request);
+
         $restaurantId = $request->user()->restaurant_id;
 
         $shippers = Shipper::with([
@@ -121,6 +129,7 @@ class DeliveryManagementController extends Controller
                     'total_orders' => $s->activeBatch->total_orders,
                     'estimated_duration_minutes' => $s->activeBatch->estimated_duration_minutes,
                     'dispatched_at' => $s->activeBatch->dispatched_at?->toISOString(),
+                    'accepted_at' => $s->activeBatch->accepted_at?->toISOString(),
                     'optimized_route' => $s->activeBatch->optimized_route,
                     'items' => $s->activeBatch->items->map(fn ($item) => [
                         'id' => $item->id,
@@ -150,6 +159,8 @@ class DeliveryManagementController extends Controller
     /** POST /delivery/api/optimize-route */
     public function optimizeRoute(Request $request): JsonResponse
     {
+        $this->authorizeManager($request);
+
         $restaurantId = $request->user()->restaurant_id;
 
         $validated = $request->validate([
@@ -202,6 +213,8 @@ class DeliveryManagementController extends Controller
     /** POST /delivery/api/suggest-shippers */
     public function suggestShippers(Request $request): JsonResponse
     {
+        $this->authorizeManager($request);
+
         $restaurantId = $request->user()->restaurant_id;
 
         $validated = $request->validate([
@@ -231,6 +244,8 @@ class DeliveryManagementController extends Controller
     /** POST /delivery/api/suggest-batches */
     public function suggestBatches(Request $request): JsonResponse
     {
+        $this->authorizeManager($request);
+
         $restaurantId = $request->user()->restaurant_id;
 
         $validated = $request->validate([
@@ -261,6 +276,8 @@ class DeliveryManagementController extends Controller
     /** POST /delivery/api/batches */
     public function createBatch(Request $request): JsonResponse
     {
+        $this->authorizeManager($request);
+
         $restaurantId = $request->user()->restaurant_id;
 
         $validated = $request->validate([
@@ -281,8 +298,11 @@ class DeliveryManagementController extends Controller
     /** POST /delivery/api/batches/{batch}/dispatch */
     public function dispatchBatch(Request $request, DeliveryBatch $batch): JsonResponse
     {
+        $this->authorizeManager($request);
+
         abort_if($batch->restaurant_id !== $request->user()->restaurant_id, 403);
         abort_if($batch->status !== 'pending', 422, 'Batch không ở trạng thái pending');
+        abort_if($batch->items()->doesntExist(), 422, 'Không thể dispatch chuyến không có đơn.');
 
         $batch = $this->dispatcher->dispatchBatch($batch);
 
@@ -292,7 +312,17 @@ class DeliveryManagementController extends Controller
     /** POST /delivery/api/batches/{batch}/complete */
     public function completeBatch(Request $request, DeliveryBatch $batch): JsonResponse
     {
+        $this->authorizeManager($request);
+
         abort_if($batch->restaurant_id !== $request->user()->restaurant_id, 403);
+        abort_if(in_array($batch->status, ['completed', 'cancelled'], true), 422, 'Chuyến đã ở trạng thái kết thúc.');
+
+        $batch->loadMissing('items');
+        if ($batch->items->isEmpty() || $batch->items->contains(fn ($item) => ! $item->isCompleted())) {
+            throw ValidationException::withMessages([
+                'batch' => 'Chỉ có thể hoàn tất chuyến khi mọi điểm giao đã thành công hoặc thất bại.',
+            ]);
+        }
 
         $batch->update(['status' => 'completed', 'completed_at' => now()]);
 
@@ -302,6 +332,8 @@ class DeliveryManagementController extends Controller
     /** POST /delivery/api/batches/{batch}/cancel */
     public function cancelBatch(Request $request, DeliveryBatch $batch): JsonResponse
     {
+        $this->authorizeManager($request);
+
         abort_if($batch->restaurant_id !== $request->user()->restaurant_id, 403);
         abort_if($batch->status === 'completed', 422, 'Không thể hủy batch đã hoàn thành');
 
@@ -313,7 +345,22 @@ class DeliveryManagementController extends Controller
     /** GET /delivery/api/stats */
     public function stats(Request $request): JsonResponse
     {
+        $this->authorizeManager($request);
+
         return response()->json($this->buildStats($request->user()->restaurant_id));
+    }
+
+    private function authorizeManager(Request $request): void
+    {
+        $user = $request->user();
+
+        abort_unless(
+            $user->isSuperAdmin()
+                || $user->hasAnyRole(['owner', 'manager'])
+                || $user->can('manage_orders'),
+            403,
+            'Bạn không có quyền điều phối giao hàng.'
+        );
     }
 
     private function buildStats(int $restaurantId): array
@@ -326,9 +373,10 @@ class DeliveryManagementController extends Controller
             ->whereHas('deliveryDetail', fn ($q) => $q->where('delivery_status', 'pending'))
             ->count();
 
-        $activeShippers = Shipper::where('restaurant_id', $restaurantId)
+        $registeredShippers = Shipper::where('restaurant_id', $restaurantId)
             ->active()
-            ->count();
+            ->get(['last_seen_at']);
+        $onlineShippers = $registeredShippers->filter(fn (Shipper $shipper) => $shipper->hasGps())->count();
 
         $activeBatches = DeliveryBatch::where('restaurant_id', $restaurantId)
             ->active()
@@ -362,12 +410,80 @@ class DeliveryManagementController extends Controller
 
         return [
             'pending_orders' => $pendingOrders,
-            'active_shippers' => $activeShippers,
+            // The dashboard card is labelled "online", so only a recent GPS
+            // heartbeat counts as online. Keep the registered count available
+            // for admin reporting without changing the manager UI contract.
+            'active_shippers' => $onlineShippers,
+            'registered_shippers' => $registeredShippers->count(),
             'active_batches' => $activeBatches,
             'delivered_today' => $deliveredToday,
             'failed_today' => $failedToday,
             'delivered_yesterday' => $deliveredYesterday,
             'failed_yesterday' => $failedYesterday,
         ];
+    }
+
+    /**
+     * Cập nhật trạng thái "Đã lấy tất cả" cho toàn bộ điểm trong một batch giao hàng.
+     */
+    public function markAllPickedUp(Request $request, DeliveryBatch $batch): JsonResponse
+    {
+        $user = $request->user();
+        $canManage = $user->isSuperAdmin()
+            || $user->hasAnyRole(['owner', 'manager'])
+            || $user->can('manage_orders');
+
+        if ((int) $batch->restaurant_id !== (int) $user->restaurant_id && ! $user->isSuperAdmin()) {
+            abort(403, 'Đợt giao hàng không thuộc nhà hàng của bạn.');
+        }
+
+        if (! $canManage) {
+            $isAssignedShipper = $batch->shipper()
+                ->whereHas('employee', fn ($query) => $query->where('user_id', $user->id))
+                ->exists();
+            abort_unless($isAssignedShipper, 403, 'Bạn không được phép cập nhật chuyến giao này.');
+        }
+
+        abort_if(in_array($batch->status, ['completed', 'cancelled'], true), 422, 'Chuyến đã ở trạng thái kết thúc.');
+
+        $batch->loadMissing('items');
+
+        $updatedCount = 0;
+        foreach ($batch->items as $item) {
+            if ($item->status === 'pending') {
+                $item->update([
+                    'status' => 'in_transit',
+                    'picked_up_at' => now(),
+                ]);
+                $updatedCount++;
+            }
+        }
+
+        $batch->items()
+            ->whereIn('status', ['picked_up', 'in_transit'])
+            ->with('order')
+            ->get()
+            ->each(fn ($item) => DeliveryDetail::where('order_id', $item->order_id)->update([
+                'delivery_status' => 'in_transit',
+            ]));
+
+        $batch->update([
+            'status' => 'in_transit',
+            'dispatched_at' => $batch->dispatched_at ?? now(),
+        ]);
+
+        AuditLog::log(
+            'delivery_batch_all_picked_up',
+            'updated',
+            $batch,
+            null,
+            ['picked_up_count' => $updatedCount]
+        );
+
+        return response()->json([
+            'success' => true,
+            'message' => "Đã xác nhận lấy hàng thành công cho toàn bộ {$updatedCount} điểm giao trong chuyến.",
+            'picked_up_count' => $updatedCount,
+        ]);
     }
 }

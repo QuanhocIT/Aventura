@@ -46,8 +46,14 @@ use Spatie\Permission\Traits\HasRoles;
     'bank_account_number',
     'bank_account_name',
     'pin_code',
+    'must_change_password',
+    'activation_token',
+    'activation_expires_at',
+    'supervisor_user_id',
+    'warehouse_branch_id',
+    'warehouse_staff_status',
 ])]
-#[Hidden(['password', 'two_factor_secret', 'two_factor_recovery_codes', 'remember_token'])]
+#[Hidden(['password', 'two_factor_secret', 'two_factor_recovery_codes', 'remember_token', 'activation_token'])]
 class User extends Authenticatable implements MustVerifyEmail
 {
     /** @use HasFactory<UserFactory> */
@@ -61,6 +67,8 @@ class User extends Authenticatable implements MustVerifyEmail
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
             'pin_code' => 'hashed',
+            'must_change_password' => 'boolean',
+            'activation_expires_at' => 'datetime',
             'two_factor_confirmed_at' => 'datetime',
             'last_login_at' => 'datetime',
             'force_logout_at' => 'datetime',
@@ -174,9 +182,103 @@ class User extends Authenticatable implements MustVerifyEmail
             && $this->hasAnyRole(['manager', 'quản lý', 'quan_ly', 'quanly']);
     }
 
+    /**
+     * Được đọc dữ liệu vượt ra ngoài một chi nhánh.
+     *
+     * Trưởng kho Tổng nằm trong nhóm này vì các workspace Kho Tổng phải đối
+     * chiếu tồn kho, cấp phát và nhập hàng của mọi chi nhánh. Việc này KHÔNG
+     * cho phép họ đổi chi nhánh đang làm việc — BranchSwitchController chặn
+     * riêng — và cũng không mở Trung tâm điều hành chuỗi, xem
+     * canViewChainCommandCenter().
+     */
     public function canViewAllBranches(): bool
     {
-        return $this->isSuperAdmin() || $this->isOwner();
+        return $this->isSuperAdmin()
+            || $this->isOwner()
+            || $this->hasAnyRole(['operations_inspector', 'compliance_auditor', 'accountant', 'warehouse_manager']);
+    }
+
+    /**
+     * Được vào Trung tâm điều hành chuỗi — phạm vi điều hành cấp doanh nghiệp,
+     * hẹp hơn quyền đọc liên chi nhánh ở trên.
+     */
+    public function canViewChainCommandCenter(): bool
+    {
+        return $this->isSuperAdmin()
+            || $this->isOwner()
+            || $this->hasAnyRole(['operations_inspector', 'compliance_auditor', 'accountant']);
+    }
+
+    public function canManageFinance(): bool
+    {
+        return $this->isSuperAdmin()
+            || $this->isOwner()
+            || $this->hasPermissionTo('finance.manage')
+            || $this->hasRole('accountant');
+    }
+
+    public function canViewFinance(): bool
+    {
+        return $this->canManageFinance()
+            || $this->hasPermissionTo('finance.view')
+            || $this->hasRole('manager');
+    }
+
+    public function canViewAnalytics(): bool
+    {
+        return $this->isSuperAdmin()
+            || $this->isOwner()
+            || $this->hasPermissionTo('analytics.view')
+            || $this->hasAnyRole(['manager', 'operations_inspector', 'compliance_auditor']);
+    }
+
+    public function canManageGoals(): bool
+    {
+        return $this->isSuperAdmin()
+            || $this->isOwner()
+            || $this->hasPermissionTo('goals.manage')
+            || $this->hasRole('manager');
+    }
+
+    public function canCloseInspection(): bool
+    {
+        return $this->isSuperAdmin()
+            || $this->isOwner()
+            || $this->hasPermissionTo('inspection.close')
+            || $this->hasAnyRole(['operations_inspector', 'compliance_auditor']);
+    }
+
+    public function isWarehouseManager(): bool
+    {
+        return $this->isSuperAdmin() || $this->isOwner() || $this->hasRole('warehouse_manager');
+    }
+
+    public function isWarehouseStaff(): bool
+    {
+        return $this->hasRole('warehouse_staff');
+    }
+
+    public function canManageWarehouseStaff(): bool
+    {
+        return $this->isSuperAdmin()
+            || $this->isOwner()
+            || $this->hasPermissionTo('warehouse.staff.view')
+            || $this->hasRole('warehouse_manager');
+    }
+
+    public function supervisor(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'supervisor_user_id');
+    }
+
+    public function subordinates(): HasMany
+    {
+        return $this->hasMany(User::class, 'supervisor_user_id');
+    }
+
+    public function warehouseBranch(): BelongsTo
+    {
+        return $this->belongsTo(RestaurantBranch::class, 'warehouse_branch_id');
     }
 
     public function canAccessBranch(?int $branchId): bool
@@ -210,6 +312,10 @@ class User extends Authenticatable implements MustVerifyEmail
             return true;
         }
 
+        if ($this->hasAnyRole(['operations_inspector', 'warehouse_manager', 'warehouse_staff'])) {
+            return true;
+        }
+
         if ($this->hasAnyRole(['owner', 'manager', 'supplier', 'quản lý', 'quan_ly', 'quanly'])) {
             return true;
         }
@@ -217,7 +323,7 @@ class User extends Authenticatable implements MustVerifyEmail
         $employee = $this->employee;
         if ($employee) {
             $jobTitle = mb_strtolower($employee->job_title);
-            if (str_contains($jobTitle, 'manager') || str_contains($jobTitle, 'quản lý')) {
+            if (str_contains($jobTitle, 'manager') || str_contains($jobTitle, 'quản lý') || str_contains($jobTitle, 'trưởng kho') || str_contains($jobTitle, 'thanh tra') || str_contains($jobTitle, 'giám sát')) {
                 return true;
             }
         }

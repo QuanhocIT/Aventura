@@ -6,6 +6,7 @@ use App\Models\Concerns\BelongsToRestaurant;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class AccountPayable extends Model
 {
@@ -17,8 +18,8 @@ class AccountPayable extends Model
     protected function casts(): array
     {
         return [
-            'amount' => 'encrypted',
-            'paid_amount' => 'encrypted',
+            'amount' => 'decimal:2',
+            'paid_amount' => 'decimal:2',
             'due_date' => 'date',
         ];
     }
@@ -36,5 +37,10 @@ class AccountPayable extends Model
     public function restaurant(): BelongsTo
     {
         return $this->belongsTo(Restaurant::class);
+    }
+
+    public function payments(): HasMany
+    {
+        return $this->hasMany(AccountPayablePayment::class, 'account_payable_id');
     }
 }

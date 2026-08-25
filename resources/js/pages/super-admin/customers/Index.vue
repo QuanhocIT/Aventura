@@ -3,7 +3,6 @@ import { Head, router } from '@inertiajs/vue3';
 import {
     Users,
     UserCheck,
-    Star,
     ShoppingCart,
     Search,
     Crown,
@@ -11,15 +10,12 @@ import {
     Sparkles,
     AlertTriangle,
     TrendingUp,
-    Calendar,
 } from 'lucide-vue-next';
 import { ref, watch, computed } from 'vue';
 import {
     PageHeader,
-    StatCard,
     FilterBar,
     DataTable,
-    StatusBadge,
     Pagination,
 } from '@/components/super-admin';
 import type { Column } from '@/components/super-admin';
@@ -178,7 +174,7 @@ const columns: Column[] = [
     <div class="flex flex-col gap-5 px-6 py-5">
         <PageHeader
             title="Khách hàng toàn hệ thống"
-            subtitle="Tổng quan khách hàng cross-restaurant, phân tích VIP và loyalty."
+            subtitle="Tổng quan khách hàng toàn hệ thống, phân tích khách hàng VIP và mức độ trung thành."
             :icon="Users"
         />
 
@@ -424,8 +420,8 @@ const columns: Column[] = [
                             <span v-else>
                                 Tỷ lệ khách hàng VIP hiện đạt {{ vipRatio }}%.
                                 Hoạt động giữ chân đang phát huy hiệu quả. Gợi
-                                ý: Gửi tặng các mã coupon giảm giá 10% đặc quyền
-                                vào ngày sinh nhật để tối ưu hóa sự gắn kết.
+                                ý: Gửi tặng các mã giảm giá 10% đặc quyền vào
+                                ngày sinh nhật để tối ưu hóa sự gắn kết.
                             </span>
                         </p>
                     </div>
@@ -454,7 +450,7 @@ const columns: Column[] = [
                 />
                 <Input
                     v-model="search"
-                    placeholder="Tìm kiếm tên, số điện thoại, email..."
+                    placeholder="Tìm kiếm tên, số điện thoại, thư điện tử..."
                     class="h-9 rounded-xl border-border pl-9 text-xs focus-visible:border-orange-500 focus-visible:ring-orange-500/20"
                 />
             </div>

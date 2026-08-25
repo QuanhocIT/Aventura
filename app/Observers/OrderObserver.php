@@ -2,18 +2,35 @@
 
 namespace App\Observers;
 
+use App\Events\OrderStatusUpdated;
 use App\Jobs\LogDiscountAppliedJob;
 use App\Jobs\SendReviewRequestEmail;
 use App\Models\Order;
+use Illuminate\Support\Facades\Log;
 
 class OrderObserver
 {
     public function updated(Order $order): void
     {
+        if (
+            $order->tracking_token
+            && ($order->isDirty('status') || $order->isDirty('payment_status'))
+        ) {
+            try {
+                event(new OrderStatusUpdated($order));
+            } catch (\Throwable $e) {
+                Log::warning('Broadcast OrderStatusUpdated failed: '.$e->getMessage());
+            }
+        }
+
         if ($order->isDirty('status') && $order->status === 'completed') {
             $order->loadMissing('customer');
             if ($order->customer && ! empty($order->customer->email)) {
-                SendReviewRequestEmail::dispatch($order->id)->delay(now()->addHours(2));
+                try {
+                    SendReviewRequestEmail::dispatch($order->id)->delay(now()->addHours(2));
+                } catch (\Throwable $e) {
+                    Log::warning('Dispatch SendReviewRequestEmail failed: '.$e->getMessage());
+                }
             }
         }
 

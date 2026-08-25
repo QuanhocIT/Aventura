@@ -5,18 +5,14 @@ import {
     Brain,
     Building2,
     CheckCircle2,
-    Clock,
     Crown,
     FileText,
     Gauge,
     Heart,
     ShieldCheck,
     Siren,
-    SlidersHorizontal,
     TrendingUp,
-    TrendingDown,
     Users,
-    XCircle,
     Activity,
     Server,
     Terminal,
@@ -280,7 +276,7 @@ function scheduleRealtimeRefresh() {
 
 onMounted(() => {
     if (Echo) {
-        Echo.channel('superadmin.dashboard').listen(
+        Echo.private('superadmin.dashboard').listen(
             '.superadmin.dashboard.updated',
             () => {
                 scheduleRealtimeRefresh();
@@ -322,7 +318,7 @@ const DASHBOARD_SECTIONS: Array<{ key: string; label: string }> = [
     { key: 'kpi_console', label: 'KPI Console & Chỉ số chi tiết' },
     {
         key: 'ai_insights',
-        label: 'AI Insights (Churn risk, Health score, Dự báo)',
+        label: 'Phân tích AI (nguy cơ rời bỏ, điểm sức khỏe, dự báo)',
     },
     { key: 'resource_usage', label: 'Top tài nguyên (đơn hàng & lưu trữ)' },
     {
@@ -495,7 +491,7 @@ const aiNotes = computed(() => {
     // 2. System Operation
     if (monitoring.failed_jobs > 0 || monitoring.api_error_rate > 5) {
         notes.push(
-            `⚠️ Phát hiện ${monitoring.failed_jobs} job lỗi và tỉ lệ lỗi API ${monitoring.api_error_rate}%. Nên vào "DevOps & Support" kiểm tra ngay để tránh ảnh hưởng tới trải nghiệm của ${props.stats.active} nhà hàng đang hoạt động.`,
+            `⚠️ Phát hiện ${monitoring.failed_jobs} tác vụ lỗi và tỉ lệ lỗi API ${monitoring.api_error_rate}%. Nên vào "DevOps & Hỗ trợ" kiểm tra ngay để tránh ảnh hưởng tới trải nghiệm của ${props.stats.active} nhà hàng đang hoạt động.`,
         );
     } else if (monitoring.slow_queries > 0) {
         notes.push(
@@ -503,7 +499,7 @@ const aiNotes = computed(() => {
         );
     } else {
         notes.push(
-            `💡 Hệ thống đang vận hành ổn định: không có job lỗi, tỉ lệ lỗi API ${monitoring.api_error_rate}%. Đã ghi nhận ${props.resourceInsights.totals.orders_last_30_days} đơn hàng trong 30 ngày qua — tiếp tục theo dõi định kỳ tại DevOps & Support.`,
+            `💡 Hệ thống đang vận hành ổn định: không có tác vụ lỗi, tỉ lệ lỗi API ${monitoring.api_error_rate}%. Đã ghi nhận ${props.resourceInsights.totals.orders_last_30_days} đơn hàng trong 30 ngày qua — tiếp tục theo dõi định kỳ tại DevOps & Hỗ trợ.`,
         );
     }
 
@@ -514,7 +510,7 @@ const aiNotes = computed(() => {
         );
     } else if ((segments?.trial_active ?? 0) > 0) {
         notes.push(
-            `💡 Đang có ${segments?.trial_active} nhà hàng trong giai đoạn dùng thử (Trial). Nên chủ động liên hệ chăm sóc để tăng tỉ lệ chuyển đổi sang gói trả phí trước khi hết hạn.`,
+            `💡 Đang có ${segments?.trial_active} nhà hàng trong giai đoạn dùng thử. Nên chủ động liên hệ chăm sóc để tăng tỉ lệ chuyển đổi sang gói trả phí trước khi hết hạn.`,
         );
     } else {
         notes.push(
@@ -562,7 +558,7 @@ const aiNotes = computed(() => {
 
 const kpiDetails = computed(() => [
     {
-        step: 'Phân tích Dữ liệu Nhà hàng (Tenant Analytics)',
+        step: 'Phân tích dữ liệu nhà hàng',
         desc: 'Tổng quan tình hình phân bổ và tốc độ phát triển số lượng nhà hàng đối tác trên hệ thống.',
         metric1_label: 'Tổng số lượng nhà hàng',
         metric1_value: props.stats.total_restaurants + ' đối tác',
@@ -601,8 +597,8 @@ const kpiDetails = computed(() => [
             props.resourceInsights.totals.orders_last_30_days +
             ' đơn hàng / 30 ngày',
         tables: [
-            'Job lỗi: ' + props.supportOverview.monitoring.failed_jobs,
-            'Job đang chờ: ' + props.supportOverview.monitoring.pending_jobs,
+            'Tác vụ lỗi: ' + props.supportOverview.monitoring.failed_jobs,
+            'Tác vụ đang chờ: ' + props.supportOverview.monitoring.pending_jobs,
             'Tỉ lệ lỗi API: ' +
                 props.supportOverview.monitoring.api_error_rate +
                 '%',
@@ -611,7 +607,7 @@ const kpiDetails = computed(() => [
         color: 'text-emerald-400 border-emerald-500/30 shadow-emerald-500/10',
     },
     {
-        step: 'Chuyển đổi Gói Dịch Vụ (Pro Plan Subscriptions)',
+        step: 'Chuyển đổi gói dịch vụ Pro',
         desc: 'Phân tích tỷ lệ khách hàng trả phí nâng cao và đánh giá hiệu quả chuyển đổi gói cước.',
         metric1_label: 'Tổng số lượng gói Pro',
         metric1_value: props.stats.pro_plan + ' nhà hàng',
@@ -627,8 +623,7 @@ const kpiDetails = computed(() => [
             props.saasMetrics.paid_tenants + ' tài khoản trả phí thực tế',
         tables: [
             'Gói Pro: ' + props.stats.pro_plan,
-            'Dùng thử (Trial): ' +
-                (props.aiInsights?.segments?.trial_active ?? 0),
+            'Dùng thử: ' + (props.aiInsights?.segments?.trial_active ?? 0),
             ...(props.planPerformance[0]
                 ? [
                       `Hiệu suất gói ${props.planPerformance[0].plan_name}: ${props.planPerformance[0].avg_orders_per_tenant_per_day} đơn/ngày/tenant · ${props.planPerformance[0].active_tenant_ratio}% đang hoạt động`,
@@ -665,8 +660,8 @@ const kpiDetails = computed(() => [
         desc: 'Đo lường sức khỏe dòng tiền định kỳ hàng tháng và tỷ lệ khách hàng rời bỏ dịch vụ.',
         metric1_label: 'Doanh thu MRR hiện tại',
         metric1_value: formatCurrency(props.saasMetrics.mrr),
-        metric2_label: 'Tỷ lệ rời bỏ (Churn Rate)',
-        metric2_value: props.saasMetrics.churn_rate + '% Churn Rate',
+        metric2_label: 'Tỷ lệ rời bỏ',
+        metric2_value: props.saasMetrics.churn_rate + '%',
         metric3_label: 'Mức chi tiêu bình quân (ARPU)',
         metric3_value:
             formatCurrency(
@@ -710,7 +705,7 @@ const kpiDetails = computed(() => [
         color: 'text-indigo-400 border-indigo-500/30 shadow-indigo-500/10',
     },
     {
-        step: 'Trình Kiểm định & Hậu mãi (Retention & Flagged Validator)',
+        step: 'Trình kiểm định & chăm sóc sau bán hàng',
         desc: 'Kiểm soát các cửa hàng không hoạt động trong thời gian dài mặc dù gói dịch vụ vẫn còn hiệu lực để xử lý hậu mãi.',
         metric1_label: 'Số cửa hàng bị gắn cờ',
         metric1_value: (props.stats.flagged_inactive ?? 0) + ' cửa hàng',
@@ -869,7 +864,7 @@ const segmentCards = computed(() => {
         },
         {
             key: 'trial_active',
-            label: 'Đang dùng thử (Trial)',
+            label: 'Đang dùng thử',
             value: s.trial_active ?? 0,
             color: 'text-sky-400',
             gradient: 'from-sky-600/20 to-sky-900/30',
@@ -1160,7 +1155,7 @@ function cohortCellStyle(value: number | null): string {
 </script>
 
 <template>
-    <Head title="Super Admin Analytics" />
+    <Head title="Phân tích quản trị hệ thống" />
 
     <div
         :class="[
@@ -1261,7 +1256,7 @@ function cohortCellStyle(value: number | null): string {
                         class="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[11px] font-bold transition-all hover:bg-background/80"
                     >
                         <Siren class="size-3.5 text-muted-foreground" />
-                        <span>Support</span>
+                        <span>Hỗ trợ</span>
                     </Link>
                     <Link
                         href="/super-admin/accounts"
@@ -1304,7 +1299,7 @@ function cohortCellStyle(value: number | null): string {
                         class="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3.5 py-1.5 text-[11px] font-bold text-primary-foreground shadow-md transition-all hover:bg-primary/95"
                     >
                         <FileText class="size-3.5 text-white" />
-                        <span>Audit Log</span>
+                        <span>Nhật ký kiểm toán</span>
                     </Link>
                 </div>
             </div>
@@ -1428,11 +1423,11 @@ function cohortCellStyle(value: number | null): string {
                     <p
                         class="text-xs font-bold text-slate-800 dark:text-slate-100"
                     >
-                        Báo cáo định kỳ qua email
+                        Báo cáo định kỳ qua thư điện tử
                     </p>
                     <p class="text-[11px] font-medium text-muted-foreground">
-                        Nhận tóm tắt KPI &amp; cảnh báo tự động vào email của
-                        bạn
+                        Nhận tóm tắt KPI &amp; cảnh báo tự động vào thư điện tử
+                        của bạn
                         <span
                             v-if="reportSubscription.last_sent_at"
                             class="text-primary"
@@ -1762,7 +1757,7 @@ function cohortCellStyle(value: number | null): string {
                             class="flex items-center justify-between border-b border-border/20 pb-2"
                         >
                             <span class="text-muted-foreground"
-                                >Active Subscription</span
+                                >Gói dịch vụ đang hoạt động</span
                             >
                             <span
                                 class="rounded border border-border/40 bg-muted px-2 py-0.5 font-mono font-bold text-slate-800 shadow-sm dark:text-slate-200"
@@ -1784,7 +1779,7 @@ function cohortCellStyle(value: number | null): string {
                             class="flex items-center justify-between border-b border-border/20 pb-2"
                         >
                             <span class="text-muted-foreground"
-                                >Churn Rate</span
+                                >Tỷ lệ rời bỏ</span
                             >
                             <span
                                 :class="[
@@ -1916,7 +1911,7 @@ function cohortCellStyle(value: number | null): string {
                                 class="flex items-center justify-between border-b border-border/20 pb-2"
                             >
                                 <span class="text-muted-foreground"
-                                    >Co lại (Contraction)</span
+                                    >Thu hẹp doanh thu</span
                                 >
                                 <span
                                     class="rounded bg-amber-500/10 px-2 py-0.5 font-mono font-bold text-amber-500"
@@ -1929,7 +1924,7 @@ function cohortCellStyle(value: number | null): string {
                             </div>
                             <div class="flex items-center justify-between pb-0">
                                 <span class="text-muted-foreground"
-                                    >Mất đi (Churned)</span
+                                    >Đã rời bỏ</span
                                 >
                                 <span
                                     class="rounded bg-rose-500/10 px-2 py-0.5 font-mono font-bold text-rose-500"
@@ -1951,14 +1946,14 @@ function cohortCellStyle(value: number | null): string {
                             class="flex items-center gap-2 text-xs font-black tracking-widest text-foreground uppercase"
                         >
                             <Server class="size-4 text-sky-500" />
-                            <span>Sử dụng tài nguyên (Resources)</span>
+                            <span>Sử dụng tài nguyên</span>
                         </CardTitle>
                     </CardHeader>
                     <CardContent class="space-y-4 pt-4 text-xs font-semibold">
                         <div class="space-y-1.5">
                             <div class="flex items-center justify-between">
                                 <span class="text-muted-foreground"
-                                    >Orders (30 ngày qua)</span
+                                    >Đơn hàng (30 ngày qua)</span
                                 >
                                 <span
                                     class="rounded border border-border/40 bg-muted px-2 py-0.5 font-mono font-bold text-slate-800 shadow-sm dark:text-slate-200"
@@ -2067,7 +2062,7 @@ function cohortCellStyle(value: number | null): string {
                     ></span>
                     <span
                         class="ml-2 font-mono text-[9px] font-extrabold tracking-widest text-slate-500 uppercase"
-                        >Business Insights Console v1.3.0</span
+                        >Bảng điều khiển phân tích kinh doanh v1.3.0</span
                     >
                 </div>
                 <!-- Status tag -->
@@ -2264,7 +2259,7 @@ function cohortCellStyle(value: number | null): string {
                         <h2
                             class="flex items-center gap-1.5 text-lg font-black tracking-tight text-slate-900 dark:text-slate-100"
                         >
-                            AI Co-Pilot Analytics
+                            Phân tích trợ lý AI
                         </h2>
                         <p class="text-xs font-semibold text-muted-foreground">
                             Công cụ trí tuệ dự báo hành vi, sức khoẻ tenant và
@@ -2379,7 +2374,7 @@ function cohortCellStyle(value: number | null): string {
                             </div>
                             <div>
                                 <CardTitle class="text-sm font-black"
-                                    >Nguy cơ rời bỏ (Churn Risks)</CardTitle
+                                    >Nguy cơ rời bỏ</CardTitle
                                 >
                                 <p class="text-[10px] text-muted-foreground">
                                     Cảnh báo rủi ro tự động dựa trên tần suất
@@ -3117,7 +3112,7 @@ function cohortCellStyle(value: number | null): string {
                                     <p
                                         class="truncate text-[10px] font-black text-slate-800 dark:text-slate-200"
                                     >
-                                        Reverb Online
+                                        Reverb trực tuyến
                                     </p>
                                 </div>
                             </div>
@@ -3142,7 +3137,7 @@ function cohortCellStyle(value: number | null): string {
                                     <p
                                         class="truncate text-[10px] font-black text-slate-800 dark:text-slate-200"
                                     >
-                                        Horizon Active
+                                        Phạm vi hoạt động
                                     </p>
                                 </div>
                             </div>
@@ -3167,7 +3162,7 @@ function cohortCellStyle(value: number | null): string {
                                     <p
                                         class="truncate text-[10px] font-black text-slate-800 dark:text-slate-200"
                                     >
-                                        Pulse Online
+                                        Pulse trực tuyến
                                     </p>
                                 </div>
                             </div>
@@ -3212,7 +3207,7 @@ function cohortCellStyle(value: number | null): string {
                                 </span>
                             </div>
                             <div class="flex items-center justify-between">
-                                <span>Failed Jobs / Pending Jobs:</span>
+                                <span>Công việc lỗi / đang chờ:</span>
                                 <span
                                     :class="[
                                         'font-mono font-bold',
@@ -3230,7 +3225,7 @@ function cohortCellStyle(value: number | null): string {
                                 </span>
                             </div>
                             <div class="flex items-center justify-between">
-                                <span>API Error Rate / Slow Queries:</span>
+                                <span>Tỷ lệ lỗi API / truy vấn chậm:</span>
                                 <span
                                     :class="[
                                         'font-mono font-bold',
@@ -3250,7 +3245,7 @@ function cohortCellStyle(value: number | null): string {
                                 </span>
                             </div>
                             <div class="flex items-center justify-between">
-                                <span>Support Tickets / Alerts Open:</span>
+                                <span>Yêu cầu hỗ trợ / cảnh báo đang mở:</span>
                                 <span
                                     :class="[
                                         'font-mono font-bold',

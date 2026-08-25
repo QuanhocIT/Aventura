@@ -4,10 +4,12 @@ namespace Database\Seeders\Restaurant;
 
 use App\Models\Area;
 use App\Models\AuditLog;
+use App\Models\CompanyPolicy;
 use App\Models\Customer;
 use App\Models\Employee;
 use App\Models\Ingredient;
 use App\Models\Inventory;
+use App\Models\OperationalInfringementReport;
 use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\Payment;
@@ -19,6 +21,8 @@ use App\Models\RestaurantBranch;
 use App\Models\RestaurantTable;
 use App\Models\ScheduleAssignment;
 use App\Models\Supplier;
+use App\Models\SupplyRequest;
+use App\Models\SupplyRequestItem;
 use App\Models\Unit;
 use App\Models\User;
 use App\Models\WorkShift;
@@ -38,6 +42,9 @@ class RestaurantDemoSeeder extends Seeder
         $cashier = $this->upsertStaffUser('cashier@bepso.test', 'Cashier Demo', '0900000003', 'cashier', $restaurant);
         $kitchen = $this->upsertStaffUser('kitchen@bepso.test', 'Kitchen Demo', '0900000004', 'kitchen', $restaurant);
         $inventoryStaff = $this->upsertStaffUser('inventory@bepso.test', 'Inventory Demo', '0900000005', 'inventory_staff', $restaurant);
+        $operationsInspector = $this->upsertStaffUser('inspector@bepso.test', 'Operations Inspector Demo', '0900000006', 'operations_inspector', $restaurant);
+        $warehouseManager = $this->upsertStaffUser('warehouse.manager@bepso.test', 'Warehouse Manager Demo', '0900000007', 'warehouse_manager', $restaurant);
+        $warehouseStaff = $this->upsertStaffUser('warehouse.staff@bepso.test', 'Warehouse Staff Demo', '0900000008', 'warehouse_staff', $restaurant);
 
         $branch = RestaurantBranch::updateOrCreate(
             ['restaurant_id' => $restaurant->id, 'code' => 'Q1'],
@@ -48,12 +55,30 @@ class RestaurantDemoSeeder extends Seeder
                 'address' => '1 Nguyen Hue, Quan 1, TP.HCM',
                 'manager_user_id' => $manager->id,
                 'status' => 'active',
+                'is_central_warehouse' => false,
+            ],
+        );
+
+        $centralBranch = RestaurantBranch::updateOrCreate(
+            ['restaurant_id' => $restaurant->id, 'code' => 'KHO-TONG'],
+            [
+                'name' => 'Kho Tong Trung Tam',
+                'phone' => '02873000009',
+                'email' => 'warehouse@bepso.test',
+                'address' => '99 Nguyen Van Linh, Quan 7, TP.HCM',
+                'manager_user_id' => $warehouseManager->id,
+                'status' => 'active',
+                'is_central_warehouse' => true,
             ],
         );
 
         foreach ([$owner, $manager, $cashier, $kitchen, $inventoryStaff] as $user) {
             $user->forceFill(['branch_id' => $branch->id])->save();
         }
+        foreach ([$warehouseManager, $warehouseStaff] as $user) {
+            $user->forceFill(['branch_id' => $centralBranch->id])->save();
+        }
+        $operationsInspector->forceFill(['branch_id' => null])->save();
 
         $employees = [
             'owner' => $this->upsertEmployee($restaurant, $branch, $owner, 'EMP-001', 'Owner'),
@@ -61,6 +86,8 @@ class RestaurantDemoSeeder extends Seeder
             'cashier' => $this->upsertEmployee($restaurant, $branch, $cashier, 'EMP-003', 'Cashier'),
             'kitchen' => $this->upsertEmployee($restaurant, $branch, $kitchen, 'EMP-004', 'Kitchen'),
             'inventory' => $this->upsertEmployee($restaurant, $branch, $inventoryStaff, 'EMP-005', 'Inventory Staff'),
+            'warehouse_manager' => $this->upsertEmployee($restaurant, $centralBranch, $warehouseManager, 'EMP-006', 'Warehouse Manager'),
+            'warehouse_staff' => $this->upsertEmployee($restaurant, $centralBranch, $warehouseStaff, 'EMP-007', 'Warehouse Staff'),
         ];
 
         $area = Area::updateOrCreate(
@@ -118,12 +145,27 @@ class RestaurantDemoSeeder extends Seeder
         $supplier = Supplier::updateOrCreate(
             ['restaurant_id' => $restaurant->id, 'name' => 'Nha cung cap Demo'],
             [
-                'branch_id' => $branch->id,
+                'branch_id' => null,
                 'contact_name' => 'Tran Demo',
                 'phone' => '0911111111',
                 'status' => 'active',
             ],
         );
+
+        $supplierUser = User::updateOrCreate(
+            ['email' => 'supplier@bepso.test'],
+            [
+                'name' => 'Supplier Portal Demo',
+                'password' => Hash::make('password'),
+                'phone' => '0900000009',
+                'restaurant_id' => $restaurant->id,
+                'branch_id' => null,
+                'supplier_id' => $supplier->id,
+                'status' => 'active',
+                'email_verified_at' => now(),
+            ],
+        );
+        $supplierUser->syncRoles(['supplier']);
 
         $beef = Ingredient::updateOrCreate(
             ['restaurant_id' => $restaurant->id, 'sku' => 'BEEF-001'],
@@ -176,6 +218,107 @@ class RestaurantDemoSeeder extends Seeder
                 'last_counted_at' => now(),
                 'last_cost' => 40,
                 'updated_by' => $inventoryStaff->id,
+            ],
+        );
+
+        Inventory::updateOrCreate(
+            ['branch_id' => $centralBranch->id, 'ingredient_id' => $beef->id],
+            [
+                'restaurant_id' => $restaurant->id,
+                'quantity_on_hand' => 50000,
+                'theoretical_quantity' => 50000,
+                'last_counted_at' => now(),
+                'last_cost' => 280,
+                'updated_by' => $warehouseStaff->id,
+            ],
+        );
+
+        Inventory::updateOrCreate(
+            ['branch_id' => $centralBranch->id, 'ingredient_id' => $noodle->id],
+            [
+                'restaurant_id' => $restaurant->id,
+                'quantity_on_hand' => 120000,
+                'theoretical_quantity' => 120000,
+                'last_counted_at' => now(),
+                'last_cost' => 40,
+                'updated_by' => $warehouseStaff->id,
+            ],
+        );
+
+        $foodSafetyPolicy = CompanyPolicy::updateOrCreate(
+            ['restaurant_id' => $restaurant->id, 'policy_code' => 'POL-DEMO-001'],
+            [
+                'title' => 'Quy dinh ve sinh khu vuc bep va dong goi',
+                'category' => 'food_safety',
+                'content' => "Nhan vien bep phai deo gang tay, khau trang va mu trum toc khi so che.\nKhu vuc che bien phai duoc ve sinh truoc va sau moi ca lam.",
+                'suggested_fine_amount' => 500000,
+                'applies_to_all_branches' => true,
+                'applicable_branch_ids' => null,
+                'status' => 'published',
+                'created_by' => $owner->id,
+            ],
+        );
+
+        OperationalInfringementReport::updateOrCreate(
+            ['restaurant_id' => $restaurant->id, 'report_code' => 'INF-20260809-0001'],
+            [
+                'branch_id' => $branch->id,
+                'inspector_id' => $operationsInspector->id,
+                'policy_id' => $foodSafetyPolicy->id,
+                'offender_user_id' => $kitchen->id,
+                'infringement_date' => now()->toDateString(),
+                'description' => 'Phat hien khu vuc bep chua luu anh checklist ve sinh cuoi ca va nhan vien chua deo day du bao ho.',
+                'proof_photo_url' => null,
+                'penalty_amount' => 500000,
+                'status' => 'pending_owner_approval',
+                'owner_notes' => null,
+                'approved_by' => null,
+                'approved_at' => null,
+            ],
+        );
+
+        $supplyRequest = SupplyRequest::updateOrCreate(
+            ['restaurant_id' => $restaurant->id, 'request_code' => 'SR-DEMO-001'],
+            [
+                'from_branch_id' => $centralBranch->id,
+                'to_branch_id' => $branch->id,
+                'created_by' => $inventoryStaff->id,
+                'approved_by' => null,
+                'dispatched_by' => null,
+                'received_by' => null,
+                'status' => 'pending',
+                'requested_delivery_date' => now()->addDay(),
+                'dispatched_at' => null,
+                'received_at' => null,
+                'total_amount' => (10 * 280) + (5000 * 40),
+                'notes' => 'Don demo: Chi nhanh Q1 xin cap phat nguyen lieu cho ca sang.',
+                'rejection_reason' => null,
+            ],
+        );
+
+        SupplyRequestItem::updateOrCreate(
+            ['supply_request_id' => $supplyRequest->id, 'ingredient_id' => $beef->id],
+            [
+                'requested_quantity' => 10,
+                'approved_quantity' => 10,
+                'received_quantity' => null,
+                'unit_cost' => 280,
+                'total_cost' => 10 * 280,
+                'unit_symbol' => $beef->unit?->symbol ?? 'g',
+                'notes' => null,
+            ],
+        );
+
+        SupplyRequestItem::updateOrCreate(
+            ['supply_request_id' => $supplyRequest->id, 'ingredient_id' => $noodle->id],
+            [
+                'requested_quantity' => 5000,
+                'approved_quantity' => 5000,
+                'received_quantity' => null,
+                'unit_cost' => 40,
+                'total_cost' => 5000 * 40,
+                'unit_symbol' => $noodle->unit?->symbol ?? 'g',
+                'notes' => null,
             ],
         );
 

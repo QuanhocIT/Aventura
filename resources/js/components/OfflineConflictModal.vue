@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { AlertTriangle, CheckCircle, Trash2, X } from 'lucide-vue-next';
+import { AlertTriangle, Trash2, X } from 'lucide-vue-next';
 import { toast } from 'vue-sonner';
 import { useOfflineQueue } from '@/composables/useOfflineQueue';
 import type { ConflictResponse } from '@/composables/useOfflineQueue';
@@ -25,6 +25,7 @@ const handleDiscard = () => {
 </script>
 
 <template>
+    <Teleport to="body">
     <div
         v-if="open && conflict"
         class="animate-fade-in fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
@@ -93,4 +94,5 @@ const handleDiscard = () => {
             </div>
         </div>
     </div>
+    </Teleport>
 </template>

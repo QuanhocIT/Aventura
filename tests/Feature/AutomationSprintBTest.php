@@ -10,6 +10,7 @@ use App\Models\Employee;
 use App\Models\Order;
 use App\Models\Payment;
 use App\Models\Restaurant;
+use App\Models\RestaurantBranch;
 use App\Models\ScheduleAssignment;
 use App\Models\ShiftClosing;
 use App\Models\User;
@@ -55,15 +56,23 @@ class AutomationSprintBTest extends TestCase
             'status' => 'active',
         ]);
 
+        // Thanh toán tiền mặt phải gắn chi nhánh thì CashPostingService mới mở
+        // được két để lưu vết dòng tiền — đơn không chi nhánh sẽ bị từ chối.
+        $branch = RestaurantBranch::factory()->create([
+            'restaurant_id' => $restaurant->id,
+        ]);
+
         // Create completed order and cash payment within shift hours
         $order = Order::factory()->create([
             'restaurant_id' => $restaurant->id,
+            'branch_id' => $branch->id,
             'status' => 'completed',
             'completed_at' => Carbon::today()->setTime(10, 0, 0),
         ]);
 
         Payment::create([
             'restaurant_id' => $restaurant->id,
+            'branch_id' => $branch->id,
             'order_id' => $order->id,
             'payment_method' => 'cash',
             'status' => 'paid',

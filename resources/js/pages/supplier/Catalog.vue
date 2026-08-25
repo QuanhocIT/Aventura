@@ -6,12 +6,12 @@ import {
     Edit2,
     Package,
     Tag,
-    ShieldCheck,
     X,
     Clock,
-    Loader2,
 } from 'lucide-vue-next';
-import { ref, computed } from 'vue';
+import { ref } from 'vue';
+import BackButton from '@/components/BackButton.vue';
+import { store } from '@/routes/supplier/catalog';
 
 const props = defineProps<{
     supplier: any;
@@ -54,7 +54,7 @@ const openEditModal = (item: any) => {
 };
 
 const saveItem = () => {
-    form.post(route('supplier.catalog.store'), {
+    form.post(store.url(), {
         onSuccess: () => {
             showModal.value = false;
             form.reset();
@@ -95,6 +95,7 @@ const openAnalyticsModal = async (item: any) => {
             class="flex flex-col gap-4 border-b border-slate-800 pb-6 sm:flex-row sm:items-center sm:justify-between"
         >
             <div>
+                <BackButton fallback-href="/supplier/dashboard" label="Trang chủ" class="mb-3" />
                 <h1
                     class="bg-gradient-to-r from-emerald-400 to-teal-300 bg-clip-text text-3xl font-extrabold tracking-tight text-transparent"
                 >
@@ -214,6 +215,7 @@ const openAnalyticsModal = async (item: any) => {
         </div>
 
         <!-- Add/Edit Modal -->
+        <Teleport to="body">
         <div
             v-if="showModal"
             class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
@@ -366,8 +368,10 @@ const openAnalyticsModal = async (item: any) => {
                 </form>
             </div>
         </div>
+        </Teleport>
 
         <!-- Price History & AI Analytics Modal -->
+        <Teleport to="body">
         <div
             v-if="showAnalyticsModal && selectedIngredient"
             class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
@@ -574,5 +578,6 @@ const openAnalyticsModal = async (item: any) => {
                 </div>
             </div>
         </div>
+        </Teleport>
     </div>
 </template>

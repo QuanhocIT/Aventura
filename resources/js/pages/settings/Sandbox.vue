@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Head, router, usePage } from '@inertiajs/vue3';
+import { Head, router } from '@inertiajs/vue3';
 import {
     AlertTriangle,
     CheckCircle2,
@@ -15,7 +15,6 @@ import {
     Zap,
 } from 'lucide-vue-next';
 import { computed, ref } from 'vue';
-import Heading from '@/components/Heading.vue';
 import { Button } from '@/components/ui/button';
 
 // ─── Props ──────────────────────────────────────────────────────────────────
@@ -191,16 +190,16 @@ function resetDemo() {
 <template>
     <Head title="Sandbox & Demo Data · Aventura" />
 
-    <div class="max-w-4xl space-y-8">
+    <div class="w-full space-y-8">
         <!-- Header -->
-        <div class="flex items-start gap-4">
+        <div class="settings-page-intro flex items-start gap-4">
             <div
                 class="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-violet-500 to-indigo-600 shadow-lg shadow-violet-200 dark:shadow-violet-900/30"
             >
                 <FlaskConical class="size-6 text-white" />
             </div>
             <div>
-                <h1 class="text-xl font-bold text-foreground">
+                <h1 class="text-2xl font-bold text-foreground">
                     Sandbox & Demo Data
                 </h1>
                 <p class="mt-0.5 text-sm text-muted-foreground">
@@ -227,7 +226,7 @@ function resetDemo() {
         </div>
 
         <!-- Sandbox Mode Toggle -->
-        <div class="rounded-2xl border border-border bg-card p-6 shadow-sm">
+        <div class="settings-surface p-6 lg:p-8">
             <div class="flex items-center justify-between gap-6">
                 <div class="space-y-1">
                     <div class="flex items-center gap-2">

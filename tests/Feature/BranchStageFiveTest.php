@@ -108,6 +108,9 @@ class BranchStageFiveTest extends TestCase
             'name' => 'Nguyên liệu A',
             'unit_id' => $this->unit->id,
             'category' => 'Stage 5',
+            'storage_type' => 'fresh',
+            'default_shelf_life_days' => 3,
+            'storage_location' => 'Tủ mát Bếp 1',
         ])->assertRedirect();
 
         $this->assertDatabaseHas('ingredients', [
@@ -127,6 +130,29 @@ class BranchStageFiveTest extends TestCase
             'restaurant_id' => $this->restaurant->id,
             'branch_id' => $this->branchA->id,
             'name' => 'Bàn A1',
+        ]);
+    }
+
+    public function test_ingredient_cannot_be_created_without_storage_location_and_shelf_life(): void
+    {
+        $this->actingAs($this->owner);
+        $this->switchToBranch($this->branchA);
+
+        $response = $this->from('/inventory')
+            ->post(route('inventory.ingredients.store'), [
+                'name' => 'Nguyên liệu thiếu thông tin bảo quản',
+                'unit_id' => $this->unit->id,
+                'storage_type' => 'fresh',
+            ]);
+
+        $response->assertRedirect('/inventory');
+        $response->assertSessionHasErrors([
+            'default_shelf_life_days',
+            'storage_location',
+        ]);
+        $this->assertDatabaseMissing('ingredients', [
+            'restaurant_id' => $this->restaurant->id,
+            'name' => 'Nguyên liệu thiếu thông tin bảo quản',
         ]);
     }
 

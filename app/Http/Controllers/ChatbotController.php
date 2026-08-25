@@ -76,15 +76,23 @@ class ChatbotController extends Controller
         Request $request,
     ): void {
         try {
-            $session = ChatbotSession::firstOrCreate(
-                ['session_id' => $sessionId],
-                [
-                    'user_id' => auth()->id(),
-                    'restaurant_id' => auth()->user()?->restaurant_id,
-                    'source' => $source,
-                    'messages' => [],
-                ],
-            );
+            $session = ChatbotSession::query()
+                ->where('session_id', $sessionId)
+                ->first();
+
+            // Không cho phép một session id bị đoán dùng để ghi nối vào
+            // lịch sử hội thoại của tài khoản khác.
+            if ($session && (int) $session->user_id !== (int) auth()->id()) {
+                return;
+            }
+
+            $session ??= ChatbotSession::create([
+                'session_id' => $sessionId,
+                'user_id' => auth()->id(),
+                'restaurant_id' => auth()->user()?->restaurant_id,
+                'source' => $source,
+                'messages' => [],
+            ]);
 
             $messages = $session->messages ?? [];
             $messages[] = ['role' => 'user', 'content' => $userMessage, 'timestamp' => now()->toISOString()];
@@ -114,20 +122,37 @@ class ChatbotController extends Controller
             ]);
         }
 
-        return Inertia::render('ai-advisor/Index');
+        return Inertia::render('ai-advisor/Index', [
+            'advisorMode' => 'strategic',
+        ]);
+    }
+
+    /**
+     * Trợ lý AI với hồ sơ nghiệp vụ riêng cho Trưởng kho Tổng.
+     */
+    public function centralWarehouseAdvisorIndex(Request $request): Response
+    {
+        abort_unless($this->canAccessAdvisorMode($request, 'central_warehouse'), 403);
+
+        return Inertia::render('ai-advisor/Index', [
+            'advisorMode' => 'central_warehouse',
+        ]);
     }
 
     public function advisorHistory(Request $request): JsonResponse
     {
-        abort_unless($request->user()->hasAnyRole(['owner', 'manager']), 403);
-
         $request->validate([
             'session_id' => ['required', 'string', 'max:64'],
+            'mode' => ['nullable', 'string', 'in:strategic,central_warehouse'],
         ]);
+
+        $mode = $request->input('mode', 'strategic');
+        abort_unless($this->canAccessAdvisorMode($request, $mode), 403);
 
         $session = ChatbotSession::query()
             ->where('session_id', $request->string('session_id'))
-            ->where('source', 'advisor')
+            ->where('source', $this->advisorSource($mode))
+            ->where('user_id', $request->user()->id)
             ->first();
 
         return response()->json([
@@ -137,26 +162,54 @@ class ChatbotController extends Controller
 
     public function advisorMessage(Request $request): JsonResponse
     {
-        abort_unless($request->user()->hasAnyRole(['owner', 'manager']), 403);
-
         $request->validate([
             'message' => ['required', 'string', 'max:500'],
             'session_id' => ['nullable', 'string', 'max:64'],
+            'mode' => ['nullable', 'string', 'in:strategic,central_warehouse'],
         ]);
+
+        $mode = $request->input('mode', 'strategic');
+        abort_unless($this->canAccessAdvisorMode($request, $mode), 403);
 
         $sessionId = $request->input('session_id') ?: Str::uuid()->toString();
         $message = trim($request->input('message'));
         $restaurantId = $request->user()->restaurant_id;
+        abort_unless($restaurantId, 403, 'Tài khoản chưa được gắn với nhà hàng.');
 
-        $result = $this->chatbot->sendAdvisorMessage($sessionId, $message, $restaurantId);
+        $result = $this->chatbot->sendAdvisorMessage($sessionId, $message, $restaurantId, $mode);
 
-        $this->persistSession($sessionId, 'advisor', $message, $result, $request);
+        $this->persistSession($sessionId, $this->advisorSource($mode), $message, $result, $request);
 
         return response()->json([
             'session_id' => $sessionId,
             'found' => $result['found'] ?? false,
             'answer' => $result['answer'] ?? '',
             'suggestions' => $result['suggestions'] ?? [],
+            'category' => $result['category'] ?? null,
+            'service_available' => $result['service_available'] ?? true,
+            'error_code' => $result['error_code'] ?? null,
         ]);
+    }
+
+    private function canAccessAdvisorMode(Request $request, string $mode): bool
+    {
+        $user = $request->user();
+
+        if (! $user) {
+            return false;
+        }
+
+        if ($mode === 'central_warehouse') {
+            return $user->isWarehouseManager();
+        }
+
+        return $user->hasAnyRole(['owner', 'manager']);
+    }
+
+    private function advisorSource(string $mode): string
+    {
+        return $mode === 'central_warehouse'
+            ? 'advisor_central_warehouse'
+            : 'advisor';
     }
 }

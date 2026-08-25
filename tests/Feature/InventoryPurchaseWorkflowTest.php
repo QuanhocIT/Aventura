@@ -331,17 +331,22 @@ class InventoryPurchaseWorkflowTest extends TestCase
         $this->assertEquals('Thịt Bò Mỹ', $item['ingredient_name']);
         $this->assertEquals('kg', $item['unit_symbol']);
         $this->assertEquals(10.0, (float) $item['current_stock']);
-        // 45kg used in 30 days -> 1.5kg daily usage
-        $this->assertEquals(1.5, (float) $item['avg_daily_usage']);
-        // predicted 7 days = 1.5 * 7 * 1.1 = 11.55
-        $this->assertEquals(11.55, (float) $item['predicted_usage_next_7_days']);
-        // suggested = 11.55 - 10.0 = 1.55
-        $this->assertEquals(1.55, (float) $item['suggested_purchase']);
-        $this->assertGreaterThanOrEqual(92.0, (float) $item['confidence_score']);
-        $this->assertLessThanOrEqual(99.0, (float) $item['confidence_score']);
 
-        // Assert that mock reason contains 'Phở bò' (hardcoded name in the controller) and '10 kg' (current stock + unit)
-        $this->assertStringContainsString('Phở bò', $item['reason']);
-        $this->assertStringContainsString('10 kg', $item['reason']);
+        // Fallback tính trung bình trên SỐ NGÀY CÓ PHÁT SINH xuất kho, không
+        // chia đều cho 30 ngày: 45kg / 2 ngày = 22.5kg/ngày. Dữ liệu thưa được
+        // phản ánh qua confidence_score thấp chứ không làm phẳng mức trung bình.
+        $this->assertEquals(22.5, (float) $item['avg_daily_usage']);
+        // predicted 7 ngày = 22.5 * 7 * 1.1 = 173.25
+        $this->assertEquals(173.25, (float) $item['predicted_usage_next_7_days']);
+        // suggested = 173.25 + tồn tối thiểu (0) - tồn hiện tại (10) = 163.25
+        $this->assertEquals(163.25, (float) $item['suggested_purchase']);
+        // confidence = 50 + (2 ngày / 30 * 45) = 53 -> chỉ 2 ngày dữ liệu nên thấp
+        $this->assertEquals(53.0, (float) $item['confidence_score']);
+        $this->assertSame('normal', $item['data_status']);
+
+        // Lý do phải nêu rõ mức trung bình và số ngày có dữ liệu, kèm nguồn tính.
+        $this->assertStringContainsString('22.5 kg/ngày', $item['reason']);
+        $this->assertStringContainsString('2 ngày có phát sinh', $item['reason']);
+        $this->assertStringContainsString('Laravel Fallback', $item['reason']);
     }
 }

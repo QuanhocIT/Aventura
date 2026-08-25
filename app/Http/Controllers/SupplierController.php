@@ -15,10 +15,12 @@ use App\Models\Supplier;
 use App\Models\SupplierPriceHistory;
 use App\Models\SystemSetting;
 use App\Models\Unit;
+use App\Models\User;
+use App\Notifications\PurchaseDiscrepancyNotification;
 use App\Services\AnalyticsServiceClient;
+use App\Services\FinancialPostingService;
 use App\Services\InventoryReplenishService;
 use App\Services\PriceAnalyticsService;
-use App\Services\QuotaService;
 use App\Services\SupplierSlaService;
 use App\Support\Tenant\TenantContext;
 use App\Support\TenantRule;
@@ -29,6 +31,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -57,16 +60,6 @@ class SupplierController extends Controller
         if (! $restaurant && ! $request->user()->hasRole('super_admin')) {
             abort(403, 'Không tìm thấy nhà hàng.');
         }
-        $restaurant?->loadMissing('plan');
-        if ($restaurant && ! app(QuotaService::class)->hasFeature($restaurant, 'supplier_portal')) {
-            return Inertia::render('FeatureGate', [
-                'feature' => 'supplier_portal',
-                'feature_label' => 'Cổng Nhà Cung Cấp',
-                'plan_name' => $restaurant->plan?->name ?? 'Miễn Phí',
-                'required_plan' => 'Doanh Nghiệp',
-            ]);
-        }
-
         $suppliers = Supplier::where('restaurant_id', $user->restaurant_id)
             ->when($this->tenantContext->isBranchScoped(), fn ($q) => $q->where(fn ($scope) => $scope
                 ->whereNull('branch_id')->orWhere('branch_id', $this->tenantContext->activeBranchId())))
@@ -191,9 +184,16 @@ class SupplierController extends Controller
             'category' => ['nullable', 'string', 'max:100'],
         ]);
 
+        // [SECURITY P1] Chỉ Chủ nhà hàng được sửa tài khoản ngân hàng nhà cung cấp.
+        // Manager chỉ được cập nhật thông tin liên hệ và vận hành.
+        if (! $request->user()->isOwner() && ! $request->user()->isSuperAdmin()) {
+            unset($data['bank_name'], $data['bank_account_number'], $data['bank_account_holder']);
+        }
+
         $supplier->update($data);
 
         return back()->with('success', 'Đã cập nhật thông tin nhà cung cấp.');
+
     }
 
     /**
@@ -339,8 +339,31 @@ class SupplierController extends Controller
      */
     public function verifyOrder(Request $request, PurchaseOrder $purchaseOrder): RedirectResponse
     {
-        abort_unless($request->user()->hasAnyRole(['owner', 'manager', 'inventory_staff']), 403);
+        abort_unless(
+            $request->user()->hasAnyRole(['owner', 'manager', 'inventory_staff', 'warehouse_manager', 'warehouse_staff'])
+            || $request->user()->can('warehouse.receive.submit')
+            || $request->user()->can('warehouse.receive'),
+            403
+        );
         $this->authorizePurchaseOrderBranch($request->user(), $purchaseOrder);
+
+        // ── [SECURITY P0] Chống xử lý lặp — chỉ cho nhận hàng PO đang ở trạng thái phù hợp ────
+        $allowedStatuses = ['approved', 'shipping'];
+        if (! in_array($purchaseOrder->status, $allowedStatuses, true)) {
+            $statusLabel = match ($purchaseOrder->status) {
+                'delivered' => 'đã giao hàng',
+                'frozen' => 'đang bị đóng băng (chờ chủ xử lý)',
+                'cancelled' => 'đã hủy',
+                'pending_approval' => 'chưa được duyệt',
+                default => $purchaseOrder->status,
+            };
+
+            return back()->withErrors([
+                'items' => "Đơn hàng PO #{$purchaseOrder->po_number} đang ở trạng thái \"{$statusLabel}\", không thể xác nhận nhận hàng. Chỉ đơn đã được duyệt (approved/shipping) mới có thể tiến hành.",
+            ]);
+        }
+
+        $user = $request->user();
 
         $maxSize = SystemSetting::get('upload_invoice_image_max', 4096);
         $request->validate([
@@ -355,7 +378,33 @@ class SupplierController extends Controller
             'resolution_action' => ['nullable', 'string', 'max:255'],
         ]);
 
-        $user = $request->user();
+        // 0. Nếu SẼ có chênh lệch (SL/giá lệch so với đơn đặt) thì BẮT BUỘC ảnh bằng
+        // chứng + lý do chênh lệch trước khi cho ghi nhận (chống gian lận nhận hàng).
+        $preInput = collect($request->input('items'))->keyBy('ingredient_id');
+        $willBeDiscrepant = false;
+        foreach ($purchaseOrder->items as $poItem) {
+            $inp = $preInput->get($poItem->ingredient_id);
+            if (! $inp) {
+                continue;
+            }
+            if (abs((float) $poItem->quantity_ordered - (float) $inp['quantity_received']) > 0.001
+                || abs((float) $poItem->price_per_unit - (float) $inp['invoice_price']) > 0.01) {
+                $willBeDiscrepant = true;
+                break;
+            }
+        }
+        if ($willBeDiscrepant) {
+            $errors = [];
+            if (! $request->hasFile('invoice_file') && ! $purchaseOrder->invoice_file_url) {
+                $errors['invoice_file'] = 'Có chênh lệch so với đơn đặt — bắt buộc đính kèm ảnh/hoá đơn làm bằng chứng.';
+            }
+            if (blank($request->input('mismatch_reason'))) {
+                $errors['mismatch_reason'] = 'Có chênh lệch so với đơn đặt — bắt buộc ghi lý do chênh lệch.';
+            }
+            if ($errors) {
+                throw ValidationException::withMessages($errors);
+            }
+        }
 
         // 1. Upload invoice
         $invoiceUrl = $purchaseOrder->invoice_file_url;
@@ -468,6 +517,13 @@ class SupplierController extends Controller
                 ];
                 event(new FraudAlertTriggered($purchaseOrder->restaurant_id, $alertData));
 
+                // Biên bản: báo Chủ + Trưởng kho (thông báo lưu lại, không chỉ realtime).
+                User::where('restaurant_id', $purchaseOrder->restaurant_id)
+                    ->where('id', '!=', $user->id)
+                    ->role(['owner', 'warehouse_manager'])
+                    ->get()
+                    ->each(fn ($r) => $r->notify(new PurchaseDiscrepancyNotification($purchaseOrder, $discrepancies)));
+
             } else {
                 // Success: update status and add to inventory
                 $isCod = $purchaseOrder->payment_terms === 'COD' || empty($purchaseOrder->payment_terms);
@@ -480,9 +536,25 @@ class SupplierController extends Controller
                     'payment_status' => $paymentStatus,
                 ]);
 
+                $creditAccount = $isCod ? '1121' : '3311';
+                app(FinancialPostingService::class)->post([
+                    'restaurant_id' => $purchaseOrder->restaurant_id,
+                    'branch_id' => $purchaseOrder->branch_id,
+                    'entry_date' => now()->toDateString(),
+                    'source_type' => 'purchase_order',
+                    'source_id' => $purchaseOrder->id,
+                    'idempotency_key' => "po_delivered_{$purchaseOrder->id}",
+                    'description' => "Nhập kho mua hàng PO #{$purchaseOrder->po_number}",
+                    'lines' => [
+                        ['account' => '1521', 'debit' => $invoiceTotalAmount, 'credit' => 0],
+                        ['account' => $creditAccount, 'debit' => 0, 'credit' => $invoiceTotalAmount],
+                    ],
+                ]);
+
                 if (! $isCod) {
                     AccountPayable::create([
                         'restaurant_id' => $purchaseOrder->restaurant_id,
+                        'branch_id' => $purchaseOrder->branch_id,
                         'purchase_order_id' => $purchaseOrder->id,
                         'supplier_id' => $purchaseOrder->supplier_id,
                         'amount' => $invoiceTotalAmount,
@@ -493,48 +565,53 @@ class SupplierController extends Controller
                 }
             }
 
-            // Always update physical inventory and log transactions for what was received
-            foreach ($purchaseOrder->items as $item) {
-                $inventory = Inventory::firstOrCreate(
-                    [
+            // ── [SECURITY P0] Chỉ cộng tồn kho khi PO KHÔNG có chênh lệch (delivered) ────────
+            // Nếu PO bị đóng băng (frozen) do chênh lệch, KHÔNG được cộng tồn kho —
+            // sẽ chứng từ được xử lý thủ công sau khi Chủ giải quyết đóng băng.
+            if (! $hasDiscrepancy) {
+                foreach ($purchaseOrder->items as $item) {
+                    $inventory = Inventory::firstOrCreate(
+                        [
+                            'restaurant_id' => $purchaseOrder->restaurant_id,
+                            'branch_id' => $purchaseOrder->branch_id,
+                            'ingredient_id' => $item->ingredient_id,
+                        ],
+                        [
+                            'quantity_on_hand' => 0,
+                            'theoretical_quantity' => 0,
+                            'last_cost' => 0,
+                        ]
+                    );
+
+                    $oldQty = (float) $inventory->quantity_on_hand;
+                    $addedQty = (float) $item->quantity_received;
+
+                    $inventory->update([
+                        'quantity_on_hand' => $oldQty + $addedQty,
+                        'theoretical_quantity' => $inventory->theoretical_quantity + $addedQty,
+                        'last_cost' => $item->invoice_price_per_unit,
+                    ]);
+
+                    // Create purchase transaction
+                    InventoryTransaction::create([
                         'restaurant_id' => $purchaseOrder->restaurant_id,
                         'branch_id' => $purchaseOrder->branch_id,
                         'ingredient_id' => $item->ingredient_id,
-                    ],
-                    [
-                        'quantity_on_hand' => 0,
-                        'theoretical_quantity' => 0,
-                        'last_cost' => 0,
-                    ]
-                );
-
-                $oldQty = (float) $inventory->quantity_on_hand;
-                $addedQty = (float) $item->quantity_received;
-
-                $inventory->update([
-                    'quantity_on_hand' => $oldQty + $addedQty,
-                    'theoretical_quantity' => $inventory->theoretical_quantity + $addedQty,
-                    'last_cost' => $item->invoice_price_per_unit,
-                ]);
-
-                // Create purchase transaction
-                InventoryTransaction::create([
-                    'restaurant_id' => $purchaseOrder->restaurant_id,
-                    'branch_id' => $purchaseOrder->branch_id,
-                    'ingredient_id' => $item->ingredient_id,
-                    'inventory_id' => $inventory->id,
-                    'performed_by' => $user->id,
-                    'supplier_id' => $purchaseOrder->supplier_id,
-                    'type' => 'purchase',
-                    'direction' => 'in',
-                    'quantity' => $addedQty,
-                    'unit_cost' => $item->invoice_price_per_unit,
-                    'total_cost' => $addedQty * $item->invoice_price_per_unit,
-                    'invoice_file_url' => $invoiceUrl,
-                    'notes' => "Nhập kho tự động hoàn tất từ PO #{$purchaseOrder->po_number}".($hasDiscrepancy ? ' (Đóng băng tài chính do chênh lệch)' : ''),
-                    'occurred_at' => now(),
-                ]);
+                        'inventory_id' => $inventory->id,
+                        'performed_by' => $user->id,
+                        'supplier_id' => $purchaseOrder->supplier_id,
+                        'type' => 'purchase',
+                        'direction' => 'in',
+                        'quantity' => $addedQty,
+                        'unit_cost' => $item->invoice_price_per_unit,
+                        'total_cost' => $addedQty * $item->invoice_price_per_unit,
+                        'invoice_file_url' => $invoiceUrl,
+                        'notes' => "Nhập kho tự động hoàn tất từ PO #{$purchaseOrder->po_number}",
+                        'occurred_at' => now(),
+                    ]);
+                }
             }
+            // Frozen PO: không cộng tồn kho, chứng từ được ghi tại phần xử lý frozen ở trên.
 
             // Broadcast update
             event(new PurchaseOrderUpdated($purchaseOrder));
@@ -815,6 +892,23 @@ class SupplierController extends Controller
             'payment_status' => 'escrow_locked',
             'escrow_transaction_id' => 'ESC-'.now()->format('Ymd').'-'.Str::upper(Str::random(8)),
         ]);
+
+        $amount = (float) ($po->total_amount ?? 0);
+        if ($amount > 0) {
+            app(FinancialPostingService::class)->post([
+                'restaurant_id' => $po->restaurant_id,
+                'branch_id' => $po->branch_id,
+                'entry_date' => now()->toDateString(),
+                'source_type' => 'purchase_order_escrow',
+                'source_id' => $po->id,
+                'idempotency_key' => "po_escrow_lock_{$po->id}",
+                'description' => "Khóa tiền ký quỹ Escrow đơn mua hàng #{$po->po_number}",
+                'lines' => [
+                    ['account' => '1122', 'debit' => $amount, 'credit' => 0],
+                    ['account' => '1121', 'debit' => 0, 'credit' => $amount],
+                ],
+            ]);
+        }
     }
 
     /**
@@ -822,7 +916,7 @@ class SupplierController extends Controller
      */
     public function releaseEscrow(Request $request, PurchaseOrder $purchaseOrder): RedirectResponse
     {
-        abort_unless($request->user()->hasAnyRole(['owner', 'manager']) && $purchaseOrder->restaurant_id === $request->user()->restaurant_id, 403);
+        abort_unless(($request->user()->isOwner() || $request->user()->isSuperAdmin()) && $purchaseOrder->restaurant_id === $request->user()->restaurant_id, 403);
         $this->authorizePurchaseOrderBranch($request->user(), $purchaseOrder);
         abort_unless($purchaseOrder->payment_status === 'escrow_locked', 400);
 
@@ -841,6 +935,23 @@ class SupplierController extends Controller
             'is_frozen' => false,
         ]);
 
+        $amount = (float) ($purchaseOrder->total_amount ?? 0);
+        if ($amount > 0) {
+            app(FinancialPostingService::class)->post([
+                'restaurant_id' => $purchaseOrder->restaurant_id,
+                'branch_id' => $purchaseOrder->branch_id,
+                'entry_date' => now()->toDateString(),
+                'source_type' => 'purchase_order_escrow',
+                'source_id' => $purchaseOrder->id,
+                'idempotency_key' => "po_escrow_release_{$purchaseOrder->id}",
+                'description' => "Giải ngân tiền ký quỹ Escrow cho đơn mua hàng #{$purchaseOrder->po_number}",
+                'lines' => [
+                    ['account' => '3311', 'debit' => $amount, 'credit' => 0],
+                    ['account' => '1122', 'debit' => 0, 'credit' => $amount],
+                ],
+            ]);
+        }
+
         return back()->with('success', 'Đã thủ công giải ngân tiền ký quỹ (Escrow Released) cho nhà cung cấp thành công.');
     }
 
@@ -849,7 +960,7 @@ class SupplierController extends Controller
      */
     public function refundEscrow(Request $request, PurchaseOrder $purchaseOrder): RedirectResponse
     {
-        abort_unless($request->user()->hasAnyRole(['owner', 'manager']) && $purchaseOrder->restaurant_id === $request->user()->restaurant_id, 403);
+        abort_unless(($request->user()->isOwner() || $request->user()->isSuperAdmin()) && $purchaseOrder->restaurant_id === $request->user()->restaurant_id, 403);
         $this->authorizePurchaseOrderBranch($request->user(), $purchaseOrder);
         abort_unless($purchaseOrder->payment_status === 'escrow_locked', 400);
 
@@ -859,6 +970,23 @@ class SupplierController extends Controller
             'is_frozen' => false,
         ]);
 
+        $amount = (float) ($purchaseOrder->total_amount ?? 0);
+        if ($amount > 0) {
+            app(FinancialPostingService::class)->post([
+                'restaurant_id' => $purchaseOrder->restaurant_id,
+                'branch_id' => $purchaseOrder->branch_id,
+                'entry_date' => now()->toDateString(),
+                'source_type' => 'purchase_order_escrow',
+                'source_id' => $purchaseOrder->id,
+                'idempotency_key' => "po_escrow_refund_{$purchaseOrder->id}",
+                'description' => "Hoàn trả tiền ký quỹ Escrow về tài khoản cho đơn mua hàng #{$purchaseOrder->po_number}",
+                'lines' => [
+                    ['account' => '1121', 'debit' => $amount, 'credit' => 0],
+                    ['account' => '1122', 'debit' => 0, 'credit' => $amount],
+                ],
+            ]);
+        }
+
         return back()->with('success', 'Đã hoàn trả tiền ký quỹ (Escrow Refunded) về tài khoản nhà hàng thành công.');
     }
 
@@ -866,8 +994,16 @@ class SupplierController extends Controller
     {
         $branchId = $this->tenantContext->activeBranchId()
             ?? ($user->isOwner() ? ($user->assignedBranchId() ?? $user->getRawOriginal('branch_id')) : null);
-        abort_if($branchId === null, 422, 'Hãy chọn chi nhánh hiện tại trước khi ghi nhận nghiệp vụ kho.');
-        abort_unless($user->canAccessBranch($branchId), 403);
+        if ($branchId === null) {
+            throw ValidationException::withMessages([
+                'branch_id' => 'Hãy chọn chi nhánh hiện tại trước khi ghi nhận nghiệp vụ kho.',
+            ]);
+        }
+        if (! $user->canAccessBranch($branchId)) {
+            throw ValidationException::withMessages([
+                'branch_id' => 'Bạn không có quyền truy cập chi nhánh này.',
+            ]);
+        }
 
         return $branchId;
     }

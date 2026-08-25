@@ -3,8 +3,16 @@
 namespace App\Http\Controllers\Settings;
 
 use App\Http\Controllers\Controller;
+use App\Models\Inventory;
+use App\Models\InventoryBatch;
+use App\Models\InventoryCountSession;
+use App\Models\InventoryDiscrepancyDispute;
 use App\Models\RestaurantBranch;
+use App\Models\StockTransferRequest;
+use App\Models\SupplyRequest;
 use App\Models\User;
+use App\Services\BranchDataAssignmentService;
+use App\Services\CentralWarehouseService;
 use App\Services\QuotaService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -68,7 +76,7 @@ class BranchController extends Controller
         ]);
     }
 
-    public function store(Request $request): RedirectResponse
+    public function store(Request $request, BranchDataAssignmentService $branchDataAssignment): RedirectResponse
     {
         $restaurant = $request->user()->restaurant;
         abort_unless($restaurant, 403, 'Không tìm thấy nhà hàng.');
@@ -96,9 +104,10 @@ class BranchController extends Controller
         $manager = $this->resolveManager($restaurant->id, $data['manager_user_id'] ?? null);
         unset($data['manager_user_id']);
 
-        DB::transaction(function () use ($restaurant, $data, $manager): void {
+        DB::transaction(function () use ($restaurant, $data, $manager, $branchDataAssignment): void {
             $branch = $restaurant->branches()->create($data + ['status' => 'active']);
             $this->syncManagerAssignment($branch, $manager, null);
+            $branchDataAssignment->assignLegacyRowsToSoleBranch($branch);
         });
 
         return back()->with('success', "Đã tạo chi nhánh \"{$data['name']}\" thành công.");
@@ -130,6 +139,14 @@ class BranchController extends Controller
             ],
         ]);
 
+        if (($data['status'] ?? null) === 'inactive') {
+            try {
+                app(CentralWarehouseService::class)->assertBranchCanBeDeactivated($branch);
+            } catch (\InvalidArgumentException $e) {
+                throw ValidationException::withMessages(['status' => $e->getMessage()]);
+            }
+        }
+
         $managerAssignmentChanged = array_key_exists('manager_user_id', $data);
         $manager = $managerAssignmentChanged
             ? $this->resolveManager($restaurant->id, $data['manager_user_id'], $branch->id)
@@ -158,8 +175,51 @@ class BranchController extends Controller
             return back()->withErrors(['branch' => 'Không thể xoá chi nhánh cuối cùng — nhà hàng phải có ít nhất 1 chi nhánh.']);
         }
 
+        // Chặn xóa nếu là Kho Tổng active
+        if ($branch->is_central_warehouse || $branch->warehouse_type === 'central') {
+            return back()->withErrors(['branch' => 'Không thể xoá Kho Tổng đang kích hoạt. Vui lòng thiết lập Kho Tổng sang chi nhánh khác trước khi xoá.']);
+        }
+
         if ($branch->employees()->exists()) {
             return back()->withErrors(['branch' => 'Chi nhánh vẫn còn nhân viên đang được gán — vui lòng chuyển nhân viên sang chi nhánh khác trước khi xoá.']);
+        }
+
+        // Chặn xóa nếu còn tồn kho nguyên liệu > 0
+        if (Inventory::where('branch_id', $branch->id)->where('quantity_on_hand', '>', 0)->exists()) {
+            return back()->withErrors(['branch' => 'Chi nhánh vẫn còn tồn kho nguyên vật liệu (> 0). Vui lòng luân chuyển hoặc xuất huỷ tồn kho trước khi xoá.']);
+        }
+
+        // Chặn xóa nếu còn lô hàng chưa xuất hết
+        if (InventoryBatch::where('branch_id', $branch->id)->where('quantity_remaining', '>', 0)->exists()) {
+            return back()->withErrors(['branch' => 'Chi nhánh vẫn còn các lô hàng chưa xuất hết. Vui lòng xử lý lô hàng trước khi xoá.']);
+        }
+
+        // Chặn xóa nếu có đơn cấp phát kho tổng chưa hoàn tất
+        if (SupplyRequest::where(fn ($q) => $q->where('from_branch_id', $branch->id)->orWhere('to_branch_id', $branch->id))
+            ->whereNotIn('status', [SupplyRequest::STATUS_COMPLETED, SupplyRequest::STATUS_REJECTED, SupplyRequest::STATUS_CANCELLED])
+            ->exists()) {
+            return back()->withErrors(['branch' => 'Chi nhánh đang có đơn yêu cầu cấp phát chưa hoàn tất hoặc đang xử lý.']);
+        }
+
+        // Chặn xóa nếu có đơn luân chuyển kho chưa đóng
+        if (StockTransferRequest::where(fn ($q) => $q->where('from_branch_id', $branch->id)->orWhere('to_branch_id', $branch->id))
+            ->whereNotIn('status', ['completed', 'cancelled', 'rejected'])
+            ->exists()) {
+            return back()->withErrors(['branch' => 'Chi nhánh đang có đơn luân chuyển kho chưa hoàn tất.']);
+        }
+
+        // Chặn xóa nếu có phiên kiểm kê chưa duyệt / chưa hủy
+        if (InventoryCountSession::where('branch_id', $branch->id)
+            ->whereNotIn('status', ['approved', 'cancelled', 'rejected'])
+            ->exists()) {
+            return back()->withErrors(['branch' => 'Chi nhánh đang có phiên kiểm kê kho chưa kết thúc.']);
+        }
+
+        // Chặn xóa nếu có tranh chấp kho đang mở
+        if (InventoryDiscrepancyDispute::whereHas('supplyRequest', fn ($q) => $q->where('from_branch_id', $branch->id)->orWhere('to_branch_id', $branch->id))
+            ->where('status', 'open')
+            ->exists()) {
+            return back()->withErrors(['branch' => 'Chi nhánh đang có hồ sơ tranh chấp khiếu nại kho chưa giải quyết.']);
         }
 
         $previousManagerId = $branch->getRawOriginal('manager_user_id');

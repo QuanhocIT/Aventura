@@ -73,34 +73,40 @@ onUnmounted(() => {
     >
         <div class="mx-auto max-w-7xl">
             <!-- Số liệu — animated count-up -->
-            <div class="grid grid-cols-3 gap-6 text-center">
+            <div class="grid grid-cols-3 gap-2 text-center sm:gap-6">
                 <div>
                     <p
-                        class="text-gradient-brand text-4xl font-extrabold tracking-tight tabular-nums"
+                        class="text-gradient-brand text-2xl font-extrabold tracking-tight tabular-nums sm:text-4xl"
                     >
                         {{ countRestaurants }}+
                     </p>
-                    <p class="mt-1.5 text-sm text-muted-foreground">
+                    <p
+                        class="mt-1.5 text-[10px] leading-tight text-amber-200/70 sm:text-sm"
+                    >
                         Nhà hàng đang vận hành
                     </p>
                 </div>
                 <div>
                     <p
-                        class="text-gradient-brand text-4xl font-extrabold tracking-tight tabular-nums"
+                        class="text-gradient-brand text-2xl font-extrabold tracking-tight tabular-nums sm:text-4xl"
                     >
                         {{ (countOrders / 1000).toFixed(1) }}K+
                     </p>
-                    <p class="mt-1.5 text-sm text-muted-foreground">
+                    <p
+                        class="mt-1.5 text-[10px] leading-tight text-amber-200/70 sm:text-sm"
+                    >
                         Đơn hàng đã xử lý
                     </p>
                 </div>
                 <div>
                     <p
-                        class="text-gradient-brand text-4xl font-extrabold tracking-tight tabular-nums"
+                        class="text-gradient-brand text-2xl font-extrabold tracking-tight tabular-nums sm:text-4xl"
                     >
                         {{ (countUptime / 10).toFixed(1) }}%
                     </p>
-                    <p class="mt-1.5 text-sm text-muted-foreground">
+                    <p
+                        class="mt-1.5 text-[10px] leading-tight text-amber-200/70 sm:text-sm"
+                    >
                         Uptime cam kết SLA
                     </p>
                 </div>
@@ -118,7 +124,7 @@ onUnmounted(() => {
                         >
                             <Building2 class="size-5" />
                         </div>
-                        <CardTitle class="mt-3 text-base"
+                        <CardTitle class="mt-3 text-base text-amber-100/90"
                             >Quản lý chuỗi quy mô lớn</CardTitle
                         >
                         <CardDescription>
@@ -138,7 +144,7 @@ onUnmounted(() => {
                         >
                             <LineChart class="size-5" />
                         </div>
-                        <CardTitle class="mt-3 text-base"
+                        <CardTitle class="mt-3 text-base text-amber-100/90"
                             >Minh bạch từng thao tác</CardTitle
                         >
                         <CardDescription>
@@ -158,7 +164,7 @@ onUnmounted(() => {
                         >
                             <Rocket class="size-5" />
                         </div>
-                        <CardTitle class="mt-3 text-base"
+                        <CardTitle class="mt-3 text-base text-amber-100/90"
                             >Onboarding không cần giải thích</CardTitle
                         >
                         <CardDescription>

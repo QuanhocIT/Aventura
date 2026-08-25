@@ -1,22 +1,18 @@
 <script setup lang="ts">
-import { Head, router } from '@inertiajs/vue3';
+import { Head } from '@inertiajs/vue3';
 import axios from 'axios';
 import {
     ArrowLeft,
     Award,
-    CheckCircle,
-    Clock,
     Gift,
     Calendar,
-    Users,
     ChevronDown,
     ChevronUp,
     Utensils,
     ShoppingBag,
-    TrendingUp,
     Loader2,
 } from 'lucide-vue-next';
-import { ref, computed } from 'vue';
+import { ref } from 'vue';
 import { toast } from 'vue-sonner';
 
 interface Reward {

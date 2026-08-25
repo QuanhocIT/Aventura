@@ -12,23 +12,22 @@ import {
     Award,
     Building2,
     Clock,
-    ShieldAlert,
     AlertCircle,
-    ShoppingCart,
     Sparkles,
 } from 'lucide-vue-next';
 import { computed, ref, watch } from 'vue';
+import BackButton from '@/components/BackButton.vue';
 import { Button } from '@/components/ui/button';
 import {
     Card,
-    CardContent,
-    CardDescription,
     CardHeader,
     CardTitle,
 } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { confirmDialog } from '@/composables/useConfirm';
+import { store, close } from '@/routes/rfps';
+import { accept } from '@/routes/rfps/bids';
 
 const props = defineProps<{
     rfps: any[];
@@ -109,7 +108,7 @@ const removeRfpItem = (index: number | string) => {
 };
 
 const submitRfp = () => {
-    rfpForm.post(route('rfps.store'), {
+    rfpForm.post(store.url(), {
         onSuccess: () => {
             showCreateModal.value = false;
             rfpForm.reset();
@@ -126,7 +125,7 @@ const closeRfp = async (rfpId: number) => {
             variant: 'default',
         })
     ) {
-        router.post(route('rfps.close', rfpId));
+        router.post(close.url(rfpId));
     }
 };
 
@@ -139,7 +138,7 @@ const acceptBid = async (bidId: number) => {
             variant: 'default',
         })
     ) {
-        router.post(route('rfps.bids.accept', bidId));
+        router.post(accept.url(bidId));
     }
 };
 
@@ -187,6 +186,7 @@ const getStatusLabel = (status: string) => {
             class="flex flex-col gap-4 border-b pb-5 sm:flex-row sm:items-center sm:justify-between"
         >
             <div class="flex items-center gap-3">
+                <BackButton fallback-href="/suppliers" label="Nhà cung cấp" />
                 <div
                     class="flex h-11 w-11 items-center justify-center rounded-2xl bg-emerald-500/10 text-emerald-500"
                 >
@@ -721,6 +721,7 @@ const getStatusLabel = (status: string) => {
         </div>
 
         <!-- Create RFP Modal -->
+        <Teleport to="body">
         <div
             v-if="showCreateModal"
             class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-xs"
@@ -906,5 +907,6 @@ const getStatusLabel = (status: string) => {
                 </form>
             </Card>
         </div>
+        </Teleport>
     </div>
 </template>

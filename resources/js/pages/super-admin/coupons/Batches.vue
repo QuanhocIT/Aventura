@@ -88,6 +88,7 @@ function goToPage(url: string | null) {
 
     router.get(url, {}, { preserveState: true, preserveScroll: true });
 }
+void goToPage;
 
 const showForm = ref(false);
 
@@ -131,7 +132,7 @@ function submitForm() {
         preserveScroll: true,
         onSuccess: () => {
             toast.success(
-                'Đã bắt đầu tạo lô coupon, hệ thống sẽ xử lý ngầm...',
+                'Đã bắt đầu tạo lô mã giảm giá, hệ thống sẽ xử lý ngầm...',
             );
             closeForm();
         },
@@ -142,11 +143,11 @@ function submitForm() {
 </script>
 
 <template>
-    <Head title="Coupon hàng loạt" />
+    <Head title="Mã giảm giá hàng loạt" />
 
     <div class="flex flex-col gap-5 px-6 py-5">
         <PageHeader
-            title="Coupon hàng loạt"
+            title="Mã giảm giá hàng loạt"
             subtitle="Tạo và theo dõi các lô mã giảm giá được sinh tự động hàng loạt."
             :icon="Layers"
         >
@@ -156,7 +157,7 @@ function submitForm() {
                     class="cursor-pointer rounded-xl text-xs font-bold"
                     @click="router.get('/super-admin/coupons')"
                 >
-                    <ArrowLeft class="mr-2 size-4" /> Về danh sách coupon
+                    <ArrowLeft class="mr-2 size-4" /> Về danh sách mã giảm giá
                 </Button>
                 <Button
                     class="cursor-pointer rounded-xl bg-primary text-xs font-bold text-primary-foreground shadow-sm"
@@ -172,7 +173,7 @@ function submitForm() {
         >
             <CardHeader class="border-b border-border/40 bg-muted/10 pb-3">
                 <CardTitle class="text-sm font-bold">
-                    Danh sách lô coupon
+                    Danh sách lô mã giảm giá
                     <span class="ml-1 text-xs font-bold text-muted-foreground"
                         >({{ batches.total }} lô)</span
                     >
@@ -182,8 +183,8 @@ function submitForm() {
                 <EmptyState
                     v-if="!batches.data.length"
                     :icon="Layers"
-                    title="Chưa có lô coupon nào"
-                    description="Tạo lô mới để sinh hàng loạt mã giảm giá dùng cho chiến dịch marketing hoặc đối tác."
+                    title="Chưa có lô mã giảm giá nào"
+                    description="Tạo lô mới để sinh hàng loạt mã giảm giá dùng cho chiến dịch tiếp thị hoặc đối tác."
                 />
                 <div v-else class="overflow-x-auto">
                     <table class="w-full text-xs font-semibold">
@@ -288,7 +289,7 @@ function submitForm() {
                                         >
                                         <span
                                             v-if="batch.has_qr_sheet"
-                                            title="Đã có QR sheet"
+                                            title="Đã có bảng QR"
                                             class="text-emerald-500"
                                         >
                                             <QrCode class="size-3.5" />
@@ -319,6 +320,7 @@ function submitForm() {
         leave-from-class="opacity-100 translate-y-0 sm:scale-100"
         leave-to-class="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
     >
+        <Teleport to="body">
         <div
             v-if="showForm"
             class="fixed inset-0 z-50 flex animate-in items-center justify-center bg-black/60 p-4 backdrop-blur-xs duration-300 fade-in"
@@ -336,7 +338,7 @@ function submitForm() {
                         >
                             <Layers class="size-4" />
                         </div>
-                        <span>Tạo lô coupon mới</span>
+                        <span>Tạo lô mã giảm giá mới</span>
                     </h2>
                     <button
                         class="cursor-pointer rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-muted"
@@ -513,5 +515,6 @@ function submitForm() {
                 </div>
             </div>
         </div>
+        </Teleport>
     </Transition>
 </template>

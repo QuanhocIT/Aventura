@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\AuditLog;
 use App\Models\Ingredient;
 use App\Models\Inventory;
 use App\Models\PurchaseOrder;
@@ -12,6 +13,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 
 class PurchaseOrderController extends Controller
 {
@@ -123,9 +125,64 @@ class PurchaseOrderController extends Controller
         $branchId = $this->tenantContext->activeBranchId()
             ?? ($user->isOwner() ? $user->assignedBranchId() : null);
 
-        abort_if($branchId === null, 422, 'Hãy chọn chi nhánh hiện tại trước khi tạo đơn mua hàng.');
-        abort_unless($user->canAccessBranch($branchId), 403);
+        if ($branchId === null) {
+            throw ValidationException::withMessages([
+                'branch_id' => 'Hãy chọn chi nhánh hiện tại trước khi tạo đơn mua hàng.',
+            ]);
+        }
+        if (! $user->canAccessBranch($branchId)) {
+            throw ValidationException::withMessages([
+                'branch_id' => 'Bạn không có quyền truy cập chi nhánh này.',
+            ]);
+        }
 
         return $branchId;
+    }
+
+    /**
+     * Gửi nhắc nhở giao hàng cho các đơn PO sắp đến hạn hoặc quá hạn.
+     */
+    public function sendDeliveryReminder(Request $request): RedirectResponse|JsonResponse
+    {
+        $user = $request->user();
+        abort_unless($user->can('manage_suppliers') || $user->hasAnyRole(['owner', 'manager', 'inventory_staff', 'super_admin']), 403);
+
+        $restaurantId = $user->restaurant_id;
+
+        $pos = PurchaseOrder::where('restaurant_id', $restaurantId)
+            ->whereIn('status', ['pending_approval', 'approved', 'preparing', 'shipping'])
+            ->get();
+
+        if ($pos->isEmpty()) {
+            $msg = 'Không có đơn mua hàng nào cần nhắc nhở giao hàng.';
+
+            return $request->wantsJson() ? response()->json(['success' => false, 'message' => $msg], 422) : back()->withErrors(['po' => $msg]);
+        }
+
+        $remindedCount = 0;
+        foreach ($pos as $po) {
+            $po->touch();
+            $remindedCount++;
+        }
+
+        AuditLog::log(
+            'po_delivery_reminded',
+            'updated',
+            $pos->first(),
+            null,
+            ['reminded_count' => $remindedCount]
+        );
+
+        $msg = "Đã gửi thông báo nhắc nhở giao hàng tới Nhà cung cấp cho {$remindedCount} đơn mua hàng.";
+
+        if ($request->wantsJson()) {
+            return response()->json([
+                'success' => true,
+                'message' => $msg,
+                'reminded_count' => $remindedCount,
+            ]);
+        }
+
+        return back()->with('success', $msg);
     }
 }

@@ -2,12 +2,16 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\ApprovalRequest;
 use App\Models\Employee;
 use App\Models\Restaurant;
+use App\Models\RestaurantBranch;
 use App\Models\ScheduleAssignment;
 use App\Models\ScheduleRegistration;
+use App\Models\ShiftClosing;
 use App\Models\ShiftSwap;
 use App\Models\WorkShift;
+use App\Services\AutoCheckoutService;
 use App\Services\QrCodeService;
 use App\Services\QuotaService;
 use App\Services\ShiftSwapService;
@@ -21,6 +25,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -31,6 +36,7 @@ class ScheduleController extends Controller
         private TenantContext $tenantContext,
         private TimeClockService $timeClock,
         private ShiftSwapService $shiftSwap,
+        private AutoCheckoutService $autoCheckout,
     ) {}
 
     /**
@@ -61,8 +67,8 @@ class ScheduleController extends Controller
         $branchId = $this->tenantContext->activeBranchId();
         $scopeKey = $this->tenantContext->scopeKey();
 
-        // 1. Nếu là Chủ hoặc Quản lý: Xem toàn cục
-        if ($user->hasAnyRole(['owner', 'manager'])) {
+        // 1. Nếu là Chủ, Quản lý hoặc Trưởng kho Tổng: Xem toàn cục
+        if ($user->hasAnyRole(['owner', 'manager', 'warehouse_manager'])) {
             $selectedDate = $request->input('date', today()->toDateString());
 
             // Lấy danh sách lịch xếp ca trong ngày được chọn
@@ -143,63 +149,109 @@ class ScheduleController extends Controller
                 ->get(['id', 'full_name', 'job_title', 'employee_code']);
 
             // ── AI Staffing Suggestions dựa trên peak hours ──────────────────
-            $staffingTips = Inertia::defer(function () use ($restaurantId, $shifts, $assignments, $branchId, $scopeKey) {
-                return Cache::remember("schedule_staffing_tips:{$restaurantId}:{$scopeKey}", 300, function () use ($restaurantId, $shifts, $assignments, $branchId) {
+            $staffingTips = Inertia::defer(function () use ($restaurantId, $branchId, $scopeKey, $selectedDate) {
+                return Cache::remember("schedule_staffing_tips_v5:{$restaurantId}:{$scopeKey}:{$selectedDate}", 300, function () use ($restaurantId, $branchId, $selectedDate) {
                     $isSqlite = DB::connection()->getDriverName() === 'sqlite';
                     $hourExpr = $isSqlite ? "CAST(strftime('%H', completed_at) AS INTEGER)" : 'HOUR(completed_at)';
+                    $ordersTable = Schema::hasTable('orders_unified') ? 'orders_unified' : 'orders';
 
-                    $peakHoursData = Cache::remember("schedule_peak_hours:{$restaurantId}:{$scopeKey}", 3600, function () use ($restaurantId, $hourExpr, $branchId) {
-                        return DB::table('orders_unified')
-                            ->where('restaurant_id', $restaurantId)
-                            ->when($branchId, fn ($query) => $query->where('branch_id', $branchId))
-                            ->where('status', 'completed')
-                            ->where('completed_at', '>=', now()->subDays(30))
-                            ->selectRaw("{$hourExpr} as hour, COUNT(*) as order_count, SUM(total_amount) as revenue")
-                            ->groupBy(DB::raw($hourExpr))
-                            ->orderByDesc('revenue')
-                            ->get()
-                            ->map(fn ($item) => (array) $item)
-                            ->toArray();
-                    });
+                    $dateCarbon = Carbon::parse($selectedDate);
+                    $dayOfWeekVi = match ($dateCarbon->dayOfWeek) {
+                        0 => 'Chủ Nhật',
+                        1 => 'Thứ Hai',
+                        2 => 'Thứ Ba',
+                        3 => 'Thứ Tư',
+                        4 => 'Thứ Năm',
+                        5 => 'Thứ Sáu',
+                        6 => 'Thứ Bảy',
+                    };
+                    $dateFormatted = $dateCarbon->format('d/m/Y');
 
-                    $peakHours = collect($peakHoursData)->map(fn ($item) => (object) $item);
+                    $branchesList = $branchId
+                        ? RestaurantBranch::where('id', $branchId)->get(['id', 'name'])
+                        : RestaurantBranch::where('restaurant_id', $restaurantId)->where('warehouse_type', 'business')->get(['id', 'name']);
 
-                    $totalRevenuePeak = $peakHours->sum('revenue');
+                    if ($branchesList->isEmpty()) {
+                        $branchesList = collect([(object) ['id' => null, 'name' => 'Toàn chuỗi']]);
+                    }
+
                     $tips = [];
 
-                    if ($peakHours->count() && $totalRevenuePeak > 0) {
-                        foreach ($shifts as $shift) {
-                            // Xác định giờ trong ca
-                            $startH = (int) substr($shift['start'], 0, 2);
-                            $endH = (int) substr($shift['end'], 0, 2);
-                            if ($endH <= $startH) {
-                                $endH += 24;
-                            } // overnight
+                    foreach ($branchesList as $b) {
+                        $targetBranchId = $b->id;
+                        $branchName = $b->name;
 
-                            $shiftRevenue = $peakHours
-                                ->filter(fn ($r) => $r->hour >= $startH && $r->hour < $endH)
-                                ->sum('revenue');
-                            $pct = round($shiftRevenue / $totalRevenuePeak * 100, 1);
+                        $peakHoursData = Cache::remember("schedule_peak_hours_v5:{$restaurantId}:{$targetBranchId}", 3600, function () use ($restaurantId, $hourExpr, $targetBranchId, $ordersTable) {
+                            return DB::table($ordersTable)
+                                ->where('restaurant_id', $restaurantId)
+                                ->when($targetBranchId, fn ($query) => $query->where('branch_id', $targetBranchId))
+                                ->where('status', 'completed')
+                                ->where('completed_at', '>=', now()->subDays(30))
+                                ->when($ordersTable === 'orders', fn ($query) => $query->whereNull('deleted_at'))
+                                ->selectRaw("{$hourExpr} as hour, COUNT(*) as order_count, SUM(total_amount) as revenue")
+                                ->groupBy(DB::raw($hourExpr))
+                                ->orderByDesc('revenue')
+                                ->get()
+                                ->map(fn ($item) => (array) $item)
+                                ->toArray();
+                        });
 
-                            $currentStaff = $assignments
-                                ->where('shift_name', $shift['name'])
-                                ->whereIn('status', ['scheduled', 'checked_in'])
-                                ->count();
+                        $peakHours = collect($peakHoursData)->map(fn ($item) => (object) $item);
+                        $totalRevenuePeak = $peakHours->sum('revenue');
 
-                            if ($pct >= 35 && $currentStaff < 3) {
-                                $tips[] = [
-                                    'shift' => $shift['name'],
-                                    'pct' => $pct,
-                                    'message' => "Ca <strong>{$shift['name']}</strong> chiếm {$pct}% doanh thu — hiện chỉ có {$currentStaff} nhân viên. Nên bố trí ít nhất 3 người.",
-                                    'level' => 'warning',
-                                ];
-                            } elseif ($pct < 10 && $currentStaff > 2) {
-                                $tips[] = [
-                                    'shift' => $shift['name'],
-                                    'pct' => $pct,
-                                    'message' => "Ca <strong>{$shift['name']}</strong> chỉ chiếm {$pct}% doanh thu — {$currentStaff} nhân viên có thể hơi nhiều. Cân nhắc tối ưu chi phí lương.",
-                                    'level' => 'info',
-                                ];
+                        if ($peakHours->count() && $totalRevenuePeak > 0) {
+                            $targetShifts = WorkShift::where('restaurant_id', $restaurantId)
+                                ->when($targetBranchId, fn ($q) => $q->where(function ($sq) use ($targetBranchId) {
+                                    $sq->whereNull('branch_id')->orWhere('branch_id', $targetBranchId);
+                                }))
+                                ->where('status', 'active')
+                                ->get(['id', 'name', 'start_time', 'end_time']);
+
+                            foreach ($targetShifts as $shiftModel) {
+                                $startH = (int) substr($shiftModel->start_time, 0, 2);
+                                $endH = (int) substr($shiftModel->end_time, 0, 2);
+                                if ($endH <= $startH) {
+                                    $endH += 24;
+                                }
+
+                                $shiftRevenue = $peakHours
+                                    ->filter(fn ($r) => $r->hour >= $startH && $r->hour < $endH)
+                                    ->sum('revenue');
+                                $pct = round($shiftRevenue / $totalRevenuePeak * 100, 1);
+
+                                $currentStaff = ScheduleAssignment::where('restaurant_id', $restaurantId)
+                                    ->whereDate('scheduled_date', $selectedDate)
+                                    ->when($targetBranchId, fn ($q) => $q->where('branch_id', $targetBranchId))
+                                    ->where('shift_id', $shiftModel->id)
+                                    ->whereIn('status', ['scheduled', 'checked_in'])
+                                    ->count();
+
+                                $cleanShiftName = trim($shiftModel->name);
+                                $shiftDisplay = Str::startsWith(mb_strtolower($cleanShiftName), 'ca ')
+                                    ? "<strong>{$cleanShiftName}</strong>"
+                                    : "Ca <strong>{$cleanShiftName}</strong>";
+
+                                if ($pct >= 35 && $currentStaff < 3) {
+                                    $tips[] = [
+                                        'shift' => $cleanShiftName,
+                                        'branch_name' => $branchName,
+                                        'day_of_week' => $dayOfWeekVi,
+                                        'date' => $dateFormatted,
+                                        'pct' => $pct,
+                                        'message' => "Tại <strong>{$branchName}</strong> vào <strong>{$dayOfWeekVi}, ngày {$dateFormatted}</strong>: {$shiftDisplay} chiếm <strong>{$pct}% doanh thu</strong> — hiện chỉ có <strong>{$currentStaff} nhân viên</strong>. Khuyến nghị bố trí ít nhất 3 nhân sự.",
+                                        'level' => 'warning',
+                                    ];
+                                } elseif ($pct < 10 && $currentStaff > 2) {
+                                    $tips[] = [
+                                        'shift' => $cleanShiftName,
+                                        'branch_name' => $branchName,
+                                        'day_of_week' => $dayOfWeekVi,
+                                        'date' => $dateFormatted,
+                                        'pct' => $pct,
+                                        'message' => "Tại <strong>{$branchName}</strong> vào <strong>{$dayOfWeekVi}, ngày {$dateFormatted}</strong>: {$shiftDisplay} chỉ chiếm <strong>{$pct}% doanh thu</strong> — hiện có <strong>{$currentStaff} nhân viên</strong>. Cân nhắc tối ưu chi phí lương.",
+                                        'level' => 'info',
+                                    ];
+                                }
                             }
                         }
                     }
@@ -252,12 +304,19 @@ class ScheduleController extends Controller
 
             $monthlyAssignments = Inertia::defer(function () use ($restaurantId, $startOfMonth, $endOfMonth, $restaurant, $branchId, $scopeKey) {
                 return Cache::remember("schedule_monthly_assignments:{$restaurantId}:{$scopeKey}:{$startOfMonth}:{$endOfMonth}", 300, function () use ($restaurantId, $startOfMonth, $endOfMonth, $restaurant, $branchId) {
+                    $checkinRequests = ApprovalRequest::where('restaurant_id', $restaurantId)
+                        ->where('operation_type', 'shift_checkin')
+                        ->get()
+                        ->keyBy(function ($req) {
+                            return $req->operation_data['assignment_id'] ?? null;
+                        });
+
                     return ScheduleAssignment::where('restaurant_id', $restaurantId)
                         ->whereBetween('scheduled_date', [$startOfMonth, $endOfMonth])
                         ->when($branchId, fn ($query) => $query->where('branch_id', $branchId))
                         ->with(['employee:id,full_name,employee_code,job_title,pay_rate,compensation_type,base_salary', 'shift'])
                         ->get()
-                        ->map(function ($a) use ($restaurant) {
+                        ->map(function ($a) use ($restaurant, $checkinRequests) {
                             $durationHours = 0;
                             if ($a->check_in_at && $a->check_out_at) {
                                 $diffInSeconds = Carbon::parse($a->check_in_at)->diffInSeconds(Carbon::parse($a->check_out_at));
@@ -274,6 +333,14 @@ class ScheduleController extends Controller
                                 }
                             }
 
+                            $req = $checkinRequests->get($a->id);
+                            $requestedAtStr = null;
+                            if ($req) {
+                                $requestedAtStr = Carbon::parse($req->created_at)->format('H:i:s d/m/Y');
+                            } elseif ($a->status === 'pending_checkin') {
+                                $requestedAtStr = Carbon::parse($a->updated_at)->format('H:i:s d/m/Y');
+                            }
+
                             return [
                                 'id' => $a->id,
                                 'employee_id' => $a->employee_id,
@@ -285,12 +352,52 @@ class ScheduleController extends Controller
                                 'base_salary' => (float) ($a->employee?->base_salary ?? 0),
                                 'scheduled_date' => $a->scheduled_date instanceof Carbon ? $a->scheduled_date->toDateString() : Carbon::parse($a->scheduled_date)->toDateString(),
                                 'status' => $a->status,
+                                'check_in_at' => $a->check_in_at ? Carbon::parse($a->check_in_at)->format('H:i:s d/m/Y') : null,
+                                'check_out_at' => $a->check_out_at ? Carbon::parse($a->check_out_at)->format('H:i:s d/m/Y') : null,
+                                'check_in_time' => $a->check_in_at ? Carbon::parse($a->check_in_at)->format('H:i') : null,
+                                'check_out_time' => $a->check_out_at ? Carbon::parse($a->check_out_at)->format('H:i') : null,
+                                'requested_at' => $requestedAtStr,
+                                'requested_time' => $requestedAtStr ? explode(' ', $requestedAtStr)[0] : null,
                                 'duration_hours' => $durationHours,
                                 'late_minutes' => $lateMin,
                                 'shift_id' => $a->shift_id,
                                 'shift_name' => $a->shift?->name ?? '—',
+                                'shift_start' => $a->shift ? substr($a->shift->start_time, 0, 5) : '',
+                                'shift_end' => $a->shift ? substr($a->shift->end_time, 0, 5) : '',
+                                'check_in_photo_path' => $a->check_in_photo_path ? asset('storage/'.$a->check_in_photo_path) : null,
+                                'is_shift_leader' => (bool) $a->is_shift_leader,
+                                'notes' => $a->notes,
                             ];
                         })->all();
+                });
+            });
+
+            $monthlyShiftClosings = Inertia::defer(function () use ($restaurantId, $startOfMonth, $endOfMonth, $branchId, $scopeKey) {
+                return Cache::remember("schedule_monthly_closings:{$restaurantId}:{$scopeKey}:{$startOfMonth}:{$endOfMonth}", 300, function () use ($restaurantId, $startOfMonth, $endOfMonth, $branchId) {
+                    if (! Schema::hasTable('shift_closings')) {
+                        return [];
+                    }
+
+                    return ShiftClosing::where('restaurant_id', $restaurantId)
+                        ->whereBetween('closing_date', [$startOfMonth, $endOfMonth])
+                        ->when($branchId, fn ($query) => $query->where('branch_id', $branchId))
+                        ->with(['cashier:id,name,email', 'shift:id,name'])
+                        ->get()
+                        ->map(fn ($c) => [
+                            'id' => $c->id,
+                            'shift_id' => $c->shift_id,
+                            'shift_name' => $c->shift?->name ?? '—',
+                            'closing_date' => $c->closing_date instanceof Carbon ? $c->closing_date->toDateString() : Carbon::parse($c->closing_date)->toDateString(),
+                            'cashier_name' => $c->cashier?->name ?? '—',
+                            'expected_cash' => (float) ($c->expected_cash ?? 0),
+                            'actual_cash' => (float) ($c->actual_cash ?? 0),
+                            'cash_difference' => (float) ($c->cash_difference ?? 0),
+                            'transfer_amount' => (float) ($c->transfer_amount ?? 0),
+                            'other_expense_amount' => (float) ($c->other_expense_amount ?? 0),
+                            'closed_at' => $c->closed_at ? Carbon::parse($c->closed_at)->format('H:i d/m/Y') : null,
+                            'notes' => $c->notes,
+                        ])
+                        ->all();
                 });
             });
 
@@ -306,6 +413,7 @@ class ScheduleController extends Controller
                 'registrations' => $registrations,
                 'allPendingSwaps' => $allPendingSwaps,
                 'monthlyAssignments' => $monthlyAssignments,
+                'monthlyShiftClosings' => $monthlyShiftClosings,
                 'gpsSettings' => [
                     'latitude' => $restaurant?->latitude,
                     'longitude' => $restaurant?->longitude,
@@ -318,6 +426,13 @@ class ScheduleController extends Controller
                 ],
                 'restaurantSettings' => [
                     'grace_period_minutes' => $restaurant?->grace_period_minutes ?? 10,
+                    'max_late_checkin_minutes' => $restaurant?->max_late_checkin_minutes ?? 60,
+                    'late_penalty_type' => $restaurant?->late_penalty_type ?? 'none',
+                    'late_penalty_amount' => (float) ($restaurant?->late_penalty_amount ?? 0),
+                    'early_checkout_grace_minutes' => $restaurant?->early_checkout_grace_minutes ?? 5,
+                    'max_early_checkout_minutes' => $restaurant?->max_early_checkout_minutes ?? 60,
+                    'early_checkout_penalty_type' => $restaurant?->early_checkout_penalty_type ?? 'none',
+                    'early_checkout_penalty_amount' => (float) ($restaurant?->early_checkout_penalty_amount ?? 0),
                     'ot_multiplier' => (float) ($restaurant?->ot_multiplier ?? 1.50),
                 ],
             ]);
@@ -328,6 +443,10 @@ class ScheduleController extends Controller
         if (! $employee) {
             abort(403, 'Bạn chưa được liên kết với hồ sơ nhân sự nào trên hệ thống.');
         }
+
+        // Đồng bộ ngay ca đã hết giờ để ca tiếp theo có thể hiện nút check-in,
+        // kể cả khi scheduler chưa kịp chạy tại đúng thời điểm kết thúc ca.
+        $this->autoCheckout->closeExpiredAssignments($employee->id);
 
         $startOfWeek = Carbon::now()->startOfWeek(Carbon::MONDAY)->toDateString();
         $endOfWeek = Carbon::now()->endOfWeek(Carbon::SUNDAY)->toDateString();
@@ -357,30 +476,31 @@ class ScheduleController extends Controller
         $todayActiveAssignment = null;
         $now = now();
 
-        // 1. Kiểm tra xem có ca đang checked_in hay không
+        // 1. Kiểm tra xem có ca đang checked_in hoặc pending_checkout hay không
         $checkedInAssignment = ScheduleAssignment::where('employee_id', $employee->id)
-            ->where('status', 'checked_in')
+            ->whereIn('status', ['checked_in', 'pending_checkout'])
             ->with('shift')
             ->first();
 
         if ($checkedInAssignment) {
-            $diff = Carbon::parse($checkedInAssignment->check_in_at)->diff($now);
+            $checkInTime = $checkedInAssignment->check_in_at ? Carbon::parse($checkedInAssignment->check_in_at) : $now;
+            $diff = $checkInTime->diff($now);
             $durationStr = sprintf('%02d:%02d:%02d', $diff->h + ($diff->days * 24), $diff->i, $diff->s);
 
             $todayActiveAssignment = [
                 'id' => $checkedInAssignment->id,
                 'shift_name' => $checkedInAssignment->shift?->name ?? '—',
                 'shift_time' => $checkedInAssignment->shift ? substr($checkedInAssignment->shift->start_time, 0, 5).' - '.substr($checkedInAssignment->shift->end_time, 0, 5) : '—',
-                'check_in_at' => Carbon::parse($checkedInAssignment->check_in_at)->format('H:i:s d/m/Y'),
+                'check_in_at' => $checkedInAssignment->check_in_at ? Carbon::parse($checkedInAssignment->check_in_at)->format('H:i:s d/m/Y') : null,
                 'status' => $checkedInAssignment->status,
                 'duration' => $durationStr,
                 'can_check_in' => false,
-                'can_check_out' => true,
+                'can_check_out' => $checkedInAssignment->status === 'checked_in',
             ];
         } else {
-            // 2. Tìm ca scheduled hôm nay trong khung giờ cho phép check-in
+            // 2. Tìm ca scheduled hoặc pending_checkin hôm nay trong khung giờ cho phép check-in
             $scheduledAssignments = ScheduleAssignment::where('employee_id', $employee->id)
-                ->where('status', 'scheduled')
+                ->whereIn('status', ['scheduled', 'pending_checkin'])
                 ->with('shift')
                 ->get();
 
@@ -411,7 +531,7 @@ class ScheduleController extends Controller
                         'check_in_at' => null,
                         'status' => $sa->status,
                         'duration' => null,
-                        'can_check_in' => true,
+                        'can_check_in' => $sa->status === 'scheduled',
                         'can_check_out' => false,
                     ];
                     break;
@@ -552,10 +672,12 @@ class ScheduleController extends Controller
      */
     public function checkInEmployee(Request $request): RedirectResponse
     {
-        abort_unless($request->user()->hasAnyRole(['owner', 'manager']), 403);
+        abort_unless($request->user()->hasAnyRole(['owner', 'manager', 'warehouse_manager']), 403);
 
         $data = $request->validate([
             'assignment_id' => ['required', TenantRule::exists('schedule_assignments')],
+            'is_on_time' => ['nullable', 'boolean'],
+            'actual_check_in_time' => ['nullable', 'string'],
             'notes' => ['nullable', 'string', 'max:250'],
             'apply_violation' => ['nullable', 'boolean'],
             'penalty_amount' => ['nullable', 'numeric', 'min:0'],
@@ -572,7 +694,7 @@ class ScheduleController extends Controller
      */
     public function checkOutEmployee(Request $request): RedirectResponse
     {
-        abort_unless($request->user()->hasAnyRole(['owner', 'manager']), 403);
+        abort_unless($request->user()->hasAnyRole(['owner', 'manager', 'warehouse_manager']), 403);
 
         $data = $request->validate([
             'assignment_id' => ['required', TenantRule::exists('schedule_assignments')],
@@ -592,7 +714,7 @@ class ScheduleController extends Controller
      */
     public function markAbsentEmployee(Request $request): RedirectResponse
     {
-        abort_unless($request->user()->hasAnyRole(['owner', 'manager']), 403);
+        abort_unless($request->user()->hasAnyRole(['owner', 'manager', 'warehouse_manager']), 403);
 
         $data = $request->validate([
             'assignment_id' => ['required', TenantRule::exists('schedule_assignments')],
@@ -654,7 +776,7 @@ class ScheduleController extends Controller
      */
     public function toggleShiftLeader(Request $request): RedirectResponse
     {
-        abort_unless($request->user()->hasAnyRole(['owner', 'manager']), 403);
+        abort_unless($request->user()->hasAnyRole(['owner', 'manager', 'warehouse_manager']), 403);
 
         $data = $request->validate([
             'assignment_id' => ['required', TenantRule::exists('schedule_assignments')],
@@ -675,10 +797,17 @@ class ScheduleController extends Controller
      */
     public function updateSettings(Request $request): RedirectResponse
     {
-        abort_unless($request->user()->hasAnyRole(['owner', 'manager']), 403);
+        abort_unless($request->user()->isOwner() || $request->user()->isSuperAdmin(), 403);
 
         $data = $request->validate([
             'grace_period_minutes' => ['required', 'integer', 'min:0', 'max:120'],
+            'max_late_checkin_minutes' => ['nullable', 'integer', 'min:0', 'max:480'],
+            'late_penalty_type' => ['required', 'string', 'in:none,per_minute,fixed_per_occurrence,deduct_minute_salary'],
+            'late_penalty_amount' => ['nullable', 'numeric', 'min:0'],
+            'early_checkout_grace_minutes' => ['required', 'integer', 'min:0', 'max:120'],
+            'max_early_checkout_minutes' => ['nullable', 'integer', 'min:0', 'max:480'],
+            'early_checkout_penalty_type' => ['required', 'string', 'in:none,per_minute,fixed_per_occurrence,deduct_minute_salary'],
+            'early_checkout_penalty_amount' => ['nullable', 'numeric', 'min:0'],
             'ot_multiplier' => ['required', 'numeric', 'min:1.0', 'max:5.0'],
             'latitude' => ['nullable', 'numeric', 'between:-90,90'],
             'longitude' => ['nullable', 'numeric', 'between:-180,180'],
@@ -689,6 +818,13 @@ class ScheduleController extends Controller
         if ($restaurant) {
             $restaurant->update([
                 'grace_period_minutes' => $data['grace_period_minutes'],
+                'max_late_checkin_minutes' => isset($data['max_late_checkin_minutes']) ? (int) $data['max_late_checkin_minutes'] : null,
+                'late_penalty_type' => $data['late_penalty_type'],
+                'late_penalty_amount' => isset($data['late_penalty_amount']) ? (float) $data['late_penalty_amount'] : 0,
+                'early_checkout_grace_minutes' => $data['early_checkout_grace_minutes'],
+                'max_early_checkout_minutes' => isset($data['max_early_checkout_minutes']) ? (int) $data['max_early_checkout_minutes'] : null,
+                'early_checkout_penalty_type' => $data['early_checkout_penalty_type'],
+                'early_checkout_penalty_amount' => isset($data['early_checkout_penalty_amount']) ? (float) $data['early_checkout_penalty_amount'] : 0,
                 'ot_multiplier' => (float) $data['ot_multiplier'],
                 'latitude' => $data['latitude'] ? (float) $data['latitude'] : null,
                 'longitude' => $data['longitude'] ? (float) $data['longitude'] : null,
@@ -704,7 +840,7 @@ class ScheduleController extends Controller
      */
     public function approveRegistration(Request $request): RedirectResponse
     {
-        abort_unless($request->user()->hasAnyRole(['owner', 'manager']), 403);
+        abort_unless($request->user()->hasAnyRole(['owner', 'manager', 'warehouse_manager']), 403);
 
         $data = $request->validate([
             'registration_id' => ['required', TenantRule::exists('schedule_registrations')],
@@ -740,7 +876,7 @@ class ScheduleController extends Controller
      */
     public function export(Request $request)
     {
-        abort_unless($request->user()->hasAnyRole(['owner', 'manager']), 403);
+        abort_unless($request->user()->hasAnyRole(['owner', 'manager', 'warehouse_manager']), 403);
 
         $restaurantId = $request->user()->restaurant_id;
         $selectedDate = $request->input('date', today()->toDateString());
@@ -827,7 +963,7 @@ class ScheduleController extends Controller
      */
     public function generateDailyQR(Request $request): RedirectResponse
     {
-        abort_unless($request->user()->hasAnyRole(['owner', 'manager']), 403);
+        abort_unless($request->user()->hasAnyRole(['owner', 'manager', 'warehouse_manager']), 403);
 
         $restaurant = Restaurant::find($request->user()->restaurant_id);
         if ($restaurant) {
@@ -845,7 +981,7 @@ class ScheduleController extends Controller
      */
     public function getDynamicQR(Request $request): JsonResponse
     {
-        abort_unless($request->user()->hasAnyRole(['owner', 'manager']), 403);
+        abort_unless($request->user()->hasAnyRole(['owner', 'manager', 'warehouse_manager']), 403);
         $restaurantId = $request->user()->restaurant_id;
 
         $now = now()->timestamp;

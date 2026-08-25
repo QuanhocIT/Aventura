@@ -20,7 +20,6 @@ import {
     Gauge,
     BarChart3,
     Package,
-    Star,
     Award,
     ShieldCheck,
     Search,
@@ -29,7 +28,6 @@ import {
     MapPin,
     User,
     Users,
-    Truck,
     Info,
     ClipboardList,
     Building,
@@ -48,7 +46,50 @@ import {
 } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { apiErrorMessage } from '@/composables/useApiCall';
 import { confirmDialog } from '@/composables/useConfirm';
+import {
+    internalTransfers as createInternalTransfer,
+    transferRecommendations as transferRecommendationsRoute,
+} from '@/routes/inventory';
+import { list as listInternalTransfers } from '@/routes/inventory/internal-transfers';
+import {
+    autoReplenish as autoReplenishRoute,
+    draftPoBulk,
+    ocrInvoice,
+    placeOrder as placeSupplierOrder,
+    priceAnalytics as supplierPriceAnalytics,
+    replenishCockpit,
+    sla as supplierSlaRoute,
+    slaDashboard,
+    store as storeSupplier,
+    update as updateSupplier,
+    destroy as destroySupplier,
+} from '@/routes/suppliers';
+import {
+    approve as approvePurchaseOrder,
+    releaseEscrow as releaseEscrowRoute,
+    refundEscrow as refundEscrowRoute,
+    verify as verifyPurchaseOrder,
+} from '@/routes/suppliers/orders';
+
+/**
+ * fetch() chỉ ném lỗi khi mạng hỏng — server trả 403 hay 500 thì nó vẫn coi là
+ * thành công, và JSON của trang lỗi sẽ được gán vào state như dữ liệu thật.
+ * Hàm này biến mã lỗi HTTP thành ngoại lệ để khối catch bắt được.
+ */
+async function assertOk(res: Response): Promise<void> {
+    if (res.ok) {
+        return;
+    }
+
+    const body = await res.json().catch(() => ({}) as { message?: string });
+
+    throw Object.assign(new Error(body.message ?? `HTTP ${res.status}`), {
+        response: { status: res.status, data: body },
+        isAxiosError: true,
+    });
+}
 
 const props = defineProps<{
     suppliers: any[];
@@ -201,7 +242,8 @@ const fetchCockpitData = async () => {
     loadingCockpit.value = true;
 
     try {
-        const res = await fetch(route('suppliers.replenish-cockpit'));
+        const res = await fetch(replenishCockpit.url());
+        await assertOk(res);
         const data = await res.json();
         cockpitRecommendations.value = data.recommendations || [];
         // By default, select all recommendations that have a supplier
@@ -209,7 +251,9 @@ const fetchCockpitData = async () => {
             .filter((r) => r.optimal_supplier)
             .map((r) => r.ingredient_id);
     } catch (e) {
-        console.error(e);
+        toast.error(
+            apiErrorMessage(e, 'Không tải được bảng điều khiển đặt bù hàng.'),
+        );
     } finally {
         loadingCockpit.value = false;
     }
@@ -259,7 +303,7 @@ const submitBulkDraftPo = async () => {
         })
     ) {
         router.post(
-            route('suppliers.draft-po-bulk'),
+            draftPoBulk.url(),
             {
                 items: itemsToSend,
             },
@@ -282,10 +326,13 @@ const fetchSlaDashboard = async () => {
     selectedSupplier.value = null;
 
     try {
-        const res = await fetch(route('suppliers.sla-dashboard'));
+        const res = await fetch(slaDashboard.url());
+        await assertOk(res);
         slaDashboardData.value = await res.json();
     } catch (e) {
-        console.error(e);
+        toast.error(
+            apiErrorMessage(e, 'Không tải được bảng SLA nhà cung cấp.'),
+        );
     } finally {
         loadingSlaDashboard.value = false;
     }
@@ -329,11 +376,17 @@ const fetchSla = async () => {
 
     try {
         const res = await fetch(
-            route('suppliers.sla', selectedSupplier.value.id),
+            supplierSlaRoute.url(selectedSupplier.value.id),
         );
+        await assertOk(res);
         slaData.value = await res.json();
     } catch (e) {
-        console.error(e);
+        toast.error(
+            apiErrorMessage(
+                e,
+                'Không tải được chỉ số SLA của nhà cung cấp này.',
+            ),
+        );
     } finally {
         loadingSla.value = false;
     }
@@ -371,14 +424,14 @@ const openEditModal = (supplier: any) => {
 
 const saveSupplier = () => {
     if (supplierForm.id) {
-        supplierForm.patch(route('suppliers.update', supplierForm.id), {
+        supplierForm.patch(updateSupplier.url(supplierForm.id), {
             onSuccess: () => {
                 showEditModal.value = false;
                 supplierForm.reset();
             },
         });
     } else {
-        supplierForm.post(route('suppliers.store'), {
+        supplierForm.post(storeSupplier.url(), {
             onSuccess: () => {
                 showAddModal.value = false;
                 supplierForm.reset();
@@ -394,7 +447,7 @@ const deleteSupplier = async (supplier: any) => {
             description: `Bạn có chắc chắn muốn xóa nhà cung cấp "${supplier.name}"?`,
         })
     ) {
-        router.delete(route('suppliers.destroy', supplier.id));
+        router.delete(destroySupplier.url(supplier.id));
     }
 };
 
@@ -408,7 +461,7 @@ const triggerAutoReplenish = async () => {
         })
     ) {
         router.post(
-            route('suppliers.auto-replenish'),
+            autoReplenishRoute.url(),
             {},
             {
                 onSuccess: () => {
@@ -569,13 +622,15 @@ const addPoItem = () => {
         poForm.items.push({ ingredient_id: available[0].id, quantity: 1 });
     }
 };
+void addPoItem;
 
 const removePoItem = (index: number | string) => {
     poForm.items.splice(Number(index), 1);
 };
+void removePoItem;
 
 const submitPo = () => {
-    poForm.post(route('suppliers.place-order', selectedSupplier.value.id), {
+    poForm.post(placeSupplierOrder.url(selectedSupplier.value.id), {
         onSuccess: () => {
             showPoModal.value = false;
             activeTab.value = 'pos';
@@ -584,7 +639,7 @@ const submitPo = () => {
 };
 
 const approvePo = (po: any) => {
-    router.post(route('suppliers.orders.approve', po.id));
+    router.post(approvePurchaseOrder.url(po.id));
 };
 
 const releaseEscrow = async (po: any) => {
@@ -595,7 +650,7 @@ const releaseEscrow = async (po: any) => {
             variant: 'default',
         })
     ) {
-        router.post(route('suppliers.orders.release-escrow', po.id));
+        router.post(releaseEscrowRoute.url(po.id));
     }
 };
 
@@ -607,7 +662,7 @@ const refundEscrow = async (po: any) => {
             variant: 'default',
         })
     ) {
-        router.post(route('suppliers.orders.refund-escrow', po.id));
+        router.post(refundEscrowRoute.url(po.id));
     }
 };
 
@@ -688,15 +743,11 @@ const submitVerification = () => {
         formData.append('rating_notes', verifyForm.rating_notes);
     }
 
-    router.post(
-        route('suppliers.orders.verify', selectedPo.value.id),
-        formData as any,
-        {
-            onSuccess: () => {
-                showVerifyModal.value = false;
-            },
+    router.post(verifyPurchaseOrder.url(selectedPo.value.id), formData as any, {
+        onSuccess: () => {
+            showVerifyModal.value = false;
         },
-    );
+    });
 };
 
 // Analytics handler
@@ -709,14 +760,17 @@ const fetchAnalytics = async () => {
 
     try {
         const res = await fetch(
-            route('suppliers.price-analytics', {
+            supplierPriceAnalytics.url({
                 supplier: selectedSupplier.value?.id || 0,
                 ingredient: selectedIngredient.value?.id || 0,
             }),
         );
+        await assertOk(res);
         analyticsData.value = await res.json();
     } catch (e) {
-        console.error(e);
+        toast.error(
+            apiErrorMessage(e, 'Không tải được phân tích giá nguyên liệu.'),
+        );
     } finally {
         loadingAnalytics.value = false;
     }
@@ -761,7 +815,7 @@ const handleFileUpload = async (e: Event) => {
         }));
         formData.append('po_items', JSON.stringify(contextItems));
 
-        const res = await fetch(route('suppliers.ocr-invoice'), {
+        const res = await fetch(ocrInvoice.url(), {
             method: 'POST',
             body: formData,
             headers: {
@@ -796,7 +850,12 @@ const handleFileUpload = async (e: Event) => {
             }
         }
     } catch (err) {
-        console.error('OCR scanning error:', err);
+        toast.error(
+            apiErrorMessage(
+                err,
+                'Không quét được hóa đơn. Vui lòng thử lại hoặc nhập tay.',
+            ),
+        );
     } finally {
         loadingOcr.value = false;
     }
@@ -823,9 +882,11 @@ const fetchTransfers = async () => {
 
     try {
         const [recRes, logRes] = await Promise.all([
-            fetch(route('inventory.transfer-recommendations')),
-            fetch(route('inventory.internal-transfers.list')),
+            fetch(transferRecommendationsRoute.url()),
+            fetch(listInternalTransfers.url()),
         ]);
+        await assertOk(recRes);
+        await assertOk(logRes);
         const recData = await recRes.json();
         const logData = await logRes.json();
         transferRecommendations.value = recData.recommendations || [];
@@ -833,7 +894,9 @@ const fetchTransfers = async () => {
         inventories.value = recData.inventories || [];
         transferLogs.value = logData.transfers || [];
     } catch (e) {
-        console.error('Failed to fetch transfer data', e);
+        toast.error(
+            apiErrorMessage(e, 'Không tải được dữ liệu điều chuyển kho.'),
+        );
     } finally {
         loadingTransfers.value = false;
     }
@@ -851,7 +914,7 @@ const executeTransfer = async (rec: any) => {
     }
 
     router.post(
-        route('inventory.internal-transfers'),
+        createInternalTransfer.url(),
         {
             from_branch_id: rec.from_branch_id,
             to_branch_id: rec.to_branch_id,
@@ -887,7 +950,7 @@ const submitManualTransfer = () => {
         return;
     }
 
-    transferForm.post(route('inventory.internal-transfers'), {
+    transferForm.post(createInternalTransfer.url(), {
         onSuccess: () => {
             showManualTransferModal.value = false;
             transferForm.reset();
@@ -1204,11 +1267,11 @@ onUnmounted(() => {
                 </div>
                 <div>
                     <h1 class="text-xl font-bold tracking-tight">
-                        Portal Chuỗi cung ứng & Nhà cung cấp
+                        Quản lý nhà cung cấp nội bộ
                     </h1>
                     <p class="text-sm text-muted-foreground">
-                        Quản lý danh sách đối tác cung ứng, đặt hàng hàng ngày,
-                        đối soát chéo 3 bên triệt tiêu gian lận.
+                        Quản lý danh mục nhà cung cấp, đơn nhập kho và công nợ
+                        nội bộ của nhà hàng.
                     </p>
                 </div>
             </div>
@@ -3666,203 +3729,211 @@ onUnmounted(() => {
         </div>
 
         <!-- Manual Transfer Modal -->
-        <div
-            v-if="showManualTransferModal"
-            class="fixed inset-0 z-50 overflow-y-auto bg-black/50 p-4 backdrop-blur-xs"
-        >
-            <div class="flex min-h-full items-center justify-center">
-                <Card
-                    class="w-full max-w-lg animate-in overflow-hidden shadow-2xl duration-150 zoom-in-95 fade-in"
-                >
-                    <CardHeader
-                        class="flex flex-row items-center justify-between border-b pb-4"
+        <Teleport to="body">
+            <div
+                v-if="showManualTransferModal"
+                class="fixed inset-0 z-50 overflow-y-auto bg-black/50 p-4 backdrop-blur-xs"
+            >
+                <div class="flex min-h-full items-center justify-center">
+                    <Card
+                        class="w-full max-w-lg animate-in overflow-hidden shadow-2xl duration-150 zoom-in-95 fade-in"
                     >
-                        <CardTitle class="text-lg font-bold"
-                            >Tạo Lệnh Luân Chuyển Kho Thủ Công</CardTitle
+                        <CardHeader
+                            class="flex flex-row items-center justify-between border-b pb-4"
                         >
-                        <Button
-                            variant="ghost"
-                            size="icon"
-                            @click="showManualTransferModal = false"
-                            class="h-8 w-8 text-muted-foreground"
+                            <CardTitle class="text-lg font-bold"
+                                >Tạo Lệnh Luân Chuyển Kho Thủ Công</CardTitle
+                            >
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                @click="showManualTransferModal = false"
+                                class="h-8 w-8 text-muted-foreground"
+                            >
+                                <X class="h-5 w-5" />
+                            </Button>
+                        </CardHeader>
+
+                        <form
+                            @submit.prevent="submitManualTransfer"
+                            class="space-y-4 p-6"
                         >
-                            <X class="h-5 w-5" />
-                        </Button>
-                    </CardHeader>
-
-                    <form
-                        @submit.prevent="submitManualTransfer"
-                        class="space-y-4 p-6"
-                    >
-                        <div class="grid grid-cols-2 gap-4">
-                            <!-- From Branch -->
-                            <div class="space-y-1.5">
-                                <Label
-                                    class="text-xs font-semibold tracking-wider text-muted-foreground uppercase"
-                                    >Từ chi nhánh (Xuất)</Label
-                                >
-                                <select
-                                    v-model="transferForm.from_branch_id"
-                                    required
-                                    class="w-full rounded-xl border border-input bg-background px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-500/20 focus:outline-none"
-                                >
-                                    <option
-                                        v-for="branch in branches"
-                                        :key="branch.id"
-                                        :value="branch.id"
-                                    >
-                                        {{ branch.name }}
-                                    </option>
-                                </select>
-                            </div>
-
-                            <!-- To Branch -->
-                            <div class="space-y-1.5">
-                                <Label
-                                    class="text-xs font-semibold tracking-wider text-muted-foreground uppercase"
-                                    >Sang chi nhánh (Nhập)</Label
-                                >
-                                <select
-                                    v-model="transferForm.to_branch_id"
-                                    required
-                                    class="w-full rounded-xl border border-input bg-background px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-500/20 focus:outline-none"
-                                >
-                                    <option
-                                        v-for="branch in branches.filter(
-                                            (b) =>
-                                                b.id !==
-                                                Number(
-                                                    transferForm.from_branch_id,
-                                                ),
-                                        )"
-                                        :key="branch.id"
-                                        :value="branch.id"
-                                    >
-                                        {{ branch.name }}
-                                    </option>
-                                </select>
-                            </div>
-
-                            <!-- Ingredient -->
-                            <div class="col-span-2 space-y-1.5">
-                                <Label
-                                    class="text-xs font-semibold tracking-wider text-muted-foreground uppercase"
-                                    >Nguyên vật liệu luân chuyển</Label
-                                >
-                                <select
-                                    v-model="transferForm.ingredient_id"
-                                    required
-                                    class="w-full rounded-xl border border-input bg-background px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-500/20 focus:outline-none"
-                                >
-                                    <option
-                                        v-for="ing in ingredients"
-                                        :key="ing.id"
-                                        :value="ing.id"
-                                    >
-                                        {{ ing.name }} (SKU: {{ ing.sku }})
-                                    </option>
-                                </select>
-                            </div>
-
-                            <!-- Quantity -->
-                            <div class="col-span-2 space-y-1.5">
-                                <div class="flex items-center justify-between">
+                            <div class="grid grid-cols-2 gap-4">
+                                <!-- From Branch -->
+                                <div class="space-y-1.5">
                                     <Label
                                         class="text-xs font-semibold tracking-wider text-muted-foreground uppercase"
-                                        >Số lượng cần chuyển</Label
+                                        >Từ chi nhánh (Xuất)</Label
                                     >
-                                    <span
-                                        class="text-xs font-semibold text-muted-foreground"
+                                    <select
+                                        v-model="transferForm.from_branch_id"
+                                        required
+                                        class="w-full rounded-xl border border-input bg-background px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-500/20 focus:outline-none"
                                     >
-                                        Tồn hiện có:
-                                        <strong
-                                            class="text-indigo-650 font-extrabold text-indigo-600 dark:text-indigo-400"
-                                            >{{
-                                                sourceStockOnHand.toFixed(3)
-                                            }}</strong
+                                        <option
+                                            v-for="branch in branches"
+                                            :key="branch.id"
+                                            :value="branch.id"
                                         >
-                                    </span>
+                                            {{ branch.name }}
+                                        </option>
+                                    </select>
                                 </div>
-                                <Input
-                                    v-model.number="transferForm.quantity"
-                                    required
-                                    type="number"
-                                    step="0.001"
-                                    min="0.001"
-                                />
-                                <!-- Inline warnings/errors -->
-                                <div
-                                    v-if="transferQuantityWarning"
-                                    class="mt-1.5 rounded-xl border p-3 text-xs font-medium"
-                                    :class="
-                                        transferQuantityWarning.type === 'error'
-                                            ? 'border-rose-250 bg-rose-50/50 text-rose-700 dark:border-rose-900/50 dark:bg-rose-950/20 dark:text-rose-400'
-                                            : 'border-amber-250 bg-amber-50/50 text-amber-700 dark:border-amber-900/50 dark:bg-amber-950/20 dark:text-amber-400'
-                                    "
-                                >
-                                    <div class="flex items-start gap-2">
-                                        <AlertTriangle
-                                            class="mt-0.5 size-4 shrink-0"
-                                            :class="
-                                                transferQuantityWarning.type ===
-                                                'error'
-                                                    ? 'text-rose-500'
-                                                    : 'text-amber-500'
-                                            "
-                                        />
-                                        <span>{{
-                                            transferQuantityWarning.message
-                                        }}</span>
+
+                                <!-- To Branch -->
+                                <div class="space-y-1.5">
+                                    <Label
+                                        class="text-xs font-semibold tracking-wider text-muted-foreground uppercase"
+                                        >Sang chi nhánh (Nhập)</Label
+                                    >
+                                    <select
+                                        v-model="transferForm.to_branch_id"
+                                        required
+                                        class="w-full rounded-xl border border-input bg-background px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-500/20 focus:outline-none"
+                                    >
+                                        <option
+                                            v-for="branch in branches.filter(
+                                                (b) =>
+                                                    b.id !==
+                                                    Number(
+                                                        transferForm.from_branch_id,
+                                                    ),
+                                            )"
+                                            :key="branch.id"
+                                            :value="branch.id"
+                                        >
+                                            {{ branch.name }}
+                                        </option>
+                                    </select>
+                                </div>
+
+                                <!-- Ingredient -->
+                                <div class="col-span-2 space-y-1.5">
+                                    <Label
+                                        class="text-xs font-semibold tracking-wider text-muted-foreground uppercase"
+                                        >Nguyên vật liệu luân chuyển</Label
+                                    >
+                                    <select
+                                        v-model="transferForm.ingredient_id"
+                                        required
+                                        class="w-full rounded-xl border border-input bg-background px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-500/20 focus:outline-none"
+                                    >
+                                        <option
+                                            v-for="ing in ingredients"
+                                            :key="ing.id"
+                                            :value="ing.id"
+                                        >
+                                            {{ ing.name }} (SKU: {{ ing.sku }})
+                                        </option>
+                                    </select>
+                                </div>
+
+                                <!-- Quantity -->
+                                <div class="col-span-2 space-y-1.5">
+                                    <div
+                                        class="flex items-center justify-between"
+                                    >
+                                        <Label
+                                            class="text-xs font-semibold tracking-wider text-muted-foreground uppercase"
+                                            >Số lượng cần chuyển</Label
+                                        >
+                                        <span
+                                            class="text-xs font-semibold text-muted-foreground"
+                                        >
+                                            Tồn hiện có:
+                                            <strong
+                                                class="text-indigo-650 font-extrabold text-indigo-600 dark:text-indigo-400"
+                                                >{{
+                                                    sourceStockOnHand.toFixed(3)
+                                                }}</strong
+                                            >
+                                        </span>
+                                    </div>
+                                    <Input
+                                        v-model.number="transferForm.quantity"
+                                        required
+                                        type="number"
+                                        step="0.001"
+                                        min="0.001"
+                                    />
+                                    <!-- Inline warnings/errors -->
+                                    <div
+                                        v-if="transferQuantityWarning"
+                                        class="mt-1.5 rounded-xl border p-3 text-xs font-medium"
+                                        :class="
+                                            transferQuantityWarning.type ===
+                                            'error'
+                                                ? 'border-rose-250 bg-rose-50/50 text-rose-700 dark:border-rose-900/50 dark:bg-rose-950/20 dark:text-rose-400'
+                                                : 'border-amber-250 bg-amber-50/50 text-amber-700 dark:border-amber-900/50 dark:bg-amber-950/20 dark:text-amber-400'
+                                        "
+                                    >
+                                        <div class="flex items-start gap-2">
+                                            <AlertTriangle
+                                                class="mt-0.5 size-4 shrink-0"
+                                                :class="
+                                                    transferQuantityWarning.type ===
+                                                    'error'
+                                                        ? 'text-rose-500'
+                                                        : 'text-amber-500'
+                                                "
+                                            />
+                                            <span>{{
+                                                transferQuantityWarning.message
+                                            }}</span>
+                                        </div>
                                     </div>
                                 </div>
+
+                                <!-- Notes -->
+                                <div class="col-span-2 space-y-1.5">
+                                    <Label
+                                        class="text-xs font-semibold tracking-wider text-muted-foreground uppercase"
+                                        >Lý do / Ghi chú</Label
+                                    >
+                                    <textarea
+                                        v-model="transferForm.notes"
+                                        rows="3"
+                                        placeholder="Ghi chú lý do luân chuyển kho..."
+                                        class="w-full rounded-xl border border-input bg-background px-3 py-2 text-sm focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:outline-none"
+                                    ></textarea>
+                                </div>
                             </div>
 
-                            <!-- Notes -->
-                            <div class="col-span-2 space-y-1.5">
-                                <Label
-                                    class="text-xs font-semibold tracking-wider text-muted-foreground uppercase"
-                                    >Lý do / Ghi chú</Label
+                            <div
+                                class="mt-6 flex justify-end gap-2 border-t pt-4"
+                            >
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    @click="showManualTransferModal = false"
                                 >
-                                <textarea
-                                    v-model="transferForm.notes"
-                                    rows="3"
-                                    placeholder="Ghi chú lý do luân chuyển kho..."
-                                    class="w-full rounded-xl border border-input bg-background px-3 py-2 text-sm focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:outline-none"
-                                ></textarea>
+                                    Hủy bỏ
+                                </Button>
+                                <Button
+                                    type="submit"
+                                    :disabled="
+                                        transferForm.processing ||
+                                        (transferQuantityWarning &&
+                                            transferQuantityWarning.type ===
+                                                'error')
+                                    "
+                                    class="bg-emerald-600 font-bold text-white hover:bg-emerald-700"
+                                >
+                                    {{
+                                        transferForm.processing
+                                            ? 'Đang thực hiện...'
+                                            : 'Thực hiện chuyển kho'
+                                    }}
+                                </Button>
                             </div>
-                        </div>
-
-                        <div class="mt-6 flex justify-end gap-2 border-t pt-4">
-                            <Button
-                                type="button"
-                                variant="outline"
-                                @click="showManualTransferModal = false"
-                            >
-                                Hủy bỏ
-                            </Button>
-                            <Button
-                                type="submit"
-                                :disabled="
-                                    transferForm.processing ||
-                                    (transferQuantityWarning &&
-                                        transferQuantityWarning.type ===
-                                            'error')
-                                "
-                                class="bg-emerald-600 font-bold text-white hover:bg-emerald-700"
-                            >
-                                {{
-                                    transferForm.processing
-                                        ? 'Đang thực hiện...'
-                                        : 'Thực hiện chuyển kho'
-                                }}
-                            </Button>
-                        </div>
-                    </form>
-                </Card>
+                        </form>
+                    </Card>
+                </div>
             </div>
-        </div>
+        </Teleport>
 
         <!-- Add/Edit Supplier Modals -->
+
         <div
             v-if="showAddModal || showEditModal"
             class="fixed inset-0 z-50 overflow-y-auto bg-black/60 p-4 backdrop-blur-sm"
@@ -4259,6 +4330,7 @@ onUnmounted(() => {
         </div>
 
         <!-- Place PO Modal (2-Step Workflow) -->
+
         <div
             v-if="showPoModal"
             class="fixed inset-0 z-50 overflow-y-auto bg-black/50 p-4 backdrop-blur-sm"
@@ -4760,143 +4832,122 @@ onUnmounted(() => {
         </div>
 
         <!-- Verify & Deliver Dual-Verification Modal -->
-        <div
-            v-if="showVerifyModal"
-            class="fixed inset-0 z-50 overflow-y-auto bg-black/50 p-4 backdrop-blur-sm"
-        >
-            <div class="flex min-h-full items-center justify-center">
-                <Card
-                    class="w-full max-w-3xl animate-in overflow-hidden shadow-2xl duration-150 zoom-in-95 fade-in"
-                >
-                    <CardHeader
-                        class="flex flex-row items-center justify-between border-b pb-4"
+        <Teleport to="body">
+            <div
+                v-if="showVerifyModal"
+                class="fixed inset-0 z-50 overflow-y-auto bg-black/50 p-4 backdrop-blur-sm"
+            >
+                <div class="flex min-h-full items-center justify-center">
+                    <Card
+                        class="w-full max-w-3xl animate-in overflow-hidden shadow-2xl duration-150 zoom-in-95 fade-in"
                     >
-                        <div>
-                            <CardTitle class="text-lg font-bold"
-                                >Đối soát kiểm đếm & Nhận hàng</CardTitle
-                            >
-                            <CardDescription class="mt-0.5 text-[10px]"
-                                >Mã PO: {{ selectedPo?.po_number }} • Nhà cung
-                                cấp:
-                                {{ selectedPo?.supplier_name }}</CardDescription
-                            >
-                        </div>
-                        <Button
-                            variant="ghost"
-                            size="icon"
-                            @click="showVerifyModal = false"
-                            class="h-8 w-8 text-muted-foreground"
+                        <CardHeader
+                            class="flex flex-row items-center justify-between border-b pb-4"
                         >
-                            <X class="h-5 w-5" />
-                        </Button>
-                    </CardHeader>
-
-                    <form
-                        @submit.prevent="submitVerification"
-                        class="space-y-6 p-6"
-                    >
-                        <!-- Check alert box if mismatch is detected -->
-                        <div
-                            v-if="hasMismatch"
-                            class="border-rose-250 flex animate-pulse gap-3 rounded-xl border bg-rose-50 p-4 text-rose-800 dark:border-rose-900 dark:bg-rose-950/40"
-                        >
-                            <AlertTriangle
-                                class="mt-0.5 h-5 w-5 shrink-0 text-rose-600 dark:text-rose-400"
-                            />
-                            <div class="space-y-1 text-xs">
-                                <h4 class="font-bold">
-                                    CẢNH BÁO: Phát hiện sai lệch đối soát chéo!
-                                </h4>
-                                <p
-                                    class="dark:text-rose-350 leading-relaxed text-rose-700"
+                            <div>
+                                <CardTitle class="text-lg font-bold"
+                                    >Đối soát kiểm đếm & Nhận hàng</CardTitle
                                 >
-                                    Số lượng thực tế hoặc đơn giá hóa đơn không
-                                    khớp với niêm yết ban đầu. Khi xác nhận, hệ
-                                    thống sẽ **ĐÓNG BĂNG giao dịch**, khóa cập
-                                    nhật kho tự động, ghi vết kiểm toán gian lận
-                                    và gửi cảnh báo đỏ trực tiếp đến Owner.
-                                </p>
+                                <CardDescription class="mt-0.5 text-[10px]"
+                                    >Mã PO: {{ selectedPo?.po_number }} • Nhà
+                                    cung cấp:
+                                    {{
+                                        selectedPo?.supplier_name
+                                    }}</CardDescription
+                                >
                             </div>
-                        </div>
-
-                        <!-- Items Verification Table -->
-                        <div class="overflow-hidden rounded-xl border">
-                            <table
-                                class="w-full text-left text-xs text-foreground"
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                @click="showVerifyModal = false"
+                                class="h-8 w-8 text-muted-foreground"
                             >
-                                <thead
-                                    class="border-b bg-muted/40 text-[10px] font-semibold tracking-wider text-muted-foreground uppercase"
-                                >
-                                    <tr>
-                                        <th class="px-4 py-3">
-                                            Tên nguyên liệu
-                                        </th>
-                                        <th class="px-4 py-3 text-center">
-                                            Đặt (PO)
-                                        </th>
-                                        <th class="w-28 px-4 py-3">
-                                            Thực nhận
-                                        </th>
-                                        <th class="px-4 py-3 text-center">
-                                            Giá niêm yết
-                                        </th>
-                                        <th class="w-32 px-4 py-3">
-                                            Giá hóa đơn
-                                        </th>
-                                        <th class="px-4 py-3 text-center">
-                                            Khớp
-                                        </th>
-                                    </tr>
-                                </thead>
-                                <tbody class="divide-y divide-border">
-                                    <tr
-                                        v-for="(
-                                            item, idx
-                                        ) in verifyDiscrepancies"
-                                        :key="idx"
-                                        class="hover:bg-muted/10"
+                                <X class="h-5 w-5" />
+                            </Button>
+                        </CardHeader>
+
+                        <form
+                            @submit.prevent="submitVerification"
+                            class="space-y-6 p-6"
+                        >
+                            <!-- Check alert box if mismatch is detected -->
+                            <div
+                                v-if="hasMismatch"
+                                class="border-rose-250 flex animate-pulse gap-3 rounded-xl border bg-rose-50 p-4 text-rose-800 dark:border-rose-900 dark:bg-rose-950/40"
+                            >
+                                <AlertTriangle
+                                    class="mt-0.5 h-5 w-5 shrink-0 text-rose-600 dark:text-rose-400"
+                                />
+                                <div class="space-y-1 text-xs">
+                                    <h4 class="font-bold">
+                                        CẢNH BÁO: Phát hiện sai lệch đối soát
+                                        chéo!
+                                    </h4>
+                                    <p
+                                        class="dark:text-rose-350 leading-relaxed text-rose-700"
                                     >
-                                        <td class="px-4 py-3 font-semibold">
-                                            {{ item.ingredient_name }}
-                                        </td>
-                                        <td
-                                            class="px-4 py-3 text-center font-semibold text-muted-foreground"
+                                        Số lượng thực tế hoặc đơn giá hóa đơn
+                                        không khớp với niêm yết ban đầu. Khi xác
+                                        nhận, hệ thống sẽ **ĐÓNG BĂNG giao
+                                        dịch**, khóa cập nhật kho tự động, ghi
+                                        vết kiểm toán gian lận và gửi cảnh báo
+                                        đỏ trực tiếp đến Owner.
+                                    </p>
+                                </div>
+                            </div>
+
+                            <!-- Items Verification Table -->
+                            <div class="overflow-hidden rounded-xl border">
+                                <table
+                                    class="w-full text-left text-xs text-foreground"
+                                >
+                                    <thead
+                                        class="border-b bg-muted/40 text-[10px] font-semibold tracking-wider text-muted-foreground uppercase"
+                                    >
+                                        <tr>
+                                            <th class="px-4 py-3">
+                                                Tên nguyên liệu
+                                            </th>
+                                            <th class="px-4 py-3 text-center">
+                                                Đặt (PO)
+                                            </th>
+                                            <th class="w-28 px-4 py-3">
+                                                Thực nhận
+                                            </th>
+                                            <th class="px-4 py-3 text-center">
+                                                Giá niêm yết
+                                            </th>
+                                            <th class="w-32 px-4 py-3">
+                                                Giá hóa đơn
+                                            </th>
+                                            <th class="px-4 py-3 text-center">
+                                                Khớp
+                                            </th>
+                                        </tr>
+                                    </thead>
+                                    <tbody class="divide-y divide-border">
+                                        <tr
+                                            v-for="(
+                                                item, idx
+                                            ) in verifyDiscrepancies"
+                                            :key="idx"
+                                            class="hover:bg-muted/10"
                                         >
-                                            {{ item.quantity_ordered }}
-                                        </td>
-                                        <td class="px-4 py-3">
-                                            <input
-                                                v-model="item.quantity_received"
-                                                @input="
-                                                    updateQuantityReceived(
-                                                        idx,
-                                                        (
-                                                            $event.target as HTMLInputElement
-                                                        ).value,
-                                                    )
-                                                "
-                                                type="number"
-                                                step="0.001"
-                                                class="w-full rounded border border-input bg-background px-2 py-1 text-xs focus:ring-1 focus:ring-emerald-500 focus:outline-none"
-                                            />
-                                        </td>
-                                        <td
-                                            class="px-4 py-3 text-center font-semibold text-muted-foreground"
-                                        >
-                                            {{
-                                                Number(
-                                                    item.price_per_unit,
-                                                ).toLocaleString('vi-VN')
-                                            }}đ
-                                        </td>
-                                        <td class="px-4 py-3">
-                                            <div
-                                                class="relative flex items-center"
+                                            <td class="px-4 py-3 font-semibold">
+                                                {{ item.ingredient_name }}
+                                            </td>
+                                            <td
+                                                class="px-4 py-3 text-center font-semibold text-muted-foreground"
                                             >
+                                                {{ item.quantity_ordered }}
+                                            </td>
+                                            <td class="px-4 py-3">
                                                 <input
-                                                    v-model="item.invoice_price"
+                                                    v-model="
+                                                        item.quantity_received
+                                                    "
                                                     @input="
-                                                        updateInvoicePrice(
+                                                        updateQuantityReceived(
                                                             idx,
                                                             (
                                                                 $event.target as HTMLInputElement
@@ -4904,208 +4955,254 @@ onUnmounted(() => {
                                                         )
                                                     "
                                                     type="number"
+                                                    step="0.001"
                                                     class="w-full rounded border border-input bg-background px-2 py-1 text-xs focus:ring-1 focus:ring-emerald-500 focus:outline-none"
                                                 />
-                                            </div>
-                                        </td>
-                                        <td class="px-4 py-3 text-center">
-                                            <span
-                                                v-if="!item.mismatch"
-                                                class="dark:text-emerald-450 inline-block rounded-full border border-emerald-200 bg-emerald-50 p-1 text-emerald-600 dark:border-emerald-900 dark:bg-emerald-950/40"
+                                            </td>
+                                            <td
+                                                class="px-4 py-3 text-center font-semibold text-muted-foreground"
                                             >
-                                                <Check class="h-3.5 w-3.5" />
-                                            </span>
-                                            <span
-                                                v-else
-                                                class="dark:text-rose-450 inline-block animate-bounce rounded-full border border-rose-200 bg-rose-50 p-1 text-rose-600 dark:border-rose-900 dark:bg-rose-950/40"
-                                            >
-                                                <X class="h-3.5 w-3.5" />
-                                            </span>
-                                        </td>
-                                    </tr>
-                                </tbody>
-                            </table>
-                        </div>
+                                                {{
+                                                    Number(
+                                                        item.price_per_unit,
+                                                    ).toLocaleString('vi-VN')
+                                                }}đ
+                                            </td>
+                                            <td class="px-4 py-3">
+                                                <div
+                                                    class="relative flex items-center"
+                                                >
+                                                    <input
+                                                        v-model="
+                                                            item.invoice_price
+                                                        "
+                                                        @input="
+                                                            updateInvoicePrice(
+                                                                idx,
+                                                                (
+                                                                    $event.target as HTMLInputElement
+                                                                ).value,
+                                                            )
+                                                        "
+                                                        type="number"
+                                                        class="w-full rounded border border-input bg-background px-2 py-1 text-xs focus:ring-1 focus:ring-emerald-500 focus:outline-none"
+                                                    />
+                                                </div>
+                                            </td>
+                                            <td class="px-4 py-3 text-center">
+                                                <span
+                                                    v-if="!item.mismatch"
+                                                    class="dark:text-emerald-450 inline-block rounded-full border border-emerald-200 bg-emerald-50 p-1 text-emerald-600 dark:border-emerald-900 dark:bg-emerald-950/40"
+                                                >
+                                                    <Check
+                                                        class="h-3.5 w-3.5"
+                                                    />
+                                                </span>
+                                                <span
+                                                    v-else
+                                                    class="dark:text-rose-450 inline-block animate-bounce rounded-full border border-rose-200 bg-rose-50 p-1 text-rose-600 dark:border-rose-900 dark:bg-rose-950/40"
+                                                >
+                                                    <X class="h-3.5 w-3.5" />
+                                                </span>
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
 
-                        <!-- Invoice Upload -->
-                        <div class="space-y-2">
-                            <Label
-                                class="block text-xs font-semibold tracking-wider text-muted-foreground uppercase"
-                                >Đính kèm hóa đơn đối chiếu (Hóa đơn giấy/điện
-                                tử) <span class="text-rose-500">*</span></Label
-                            >
-                            <div
-                                class="relative flex min-h-[120px] flex-col items-center justify-center rounded-xl border border-dashed border-border bg-muted/20 p-4 transition-colors hover:bg-muted/40"
-                            >
+                            <!-- Invoice Upload -->
+                            <div class="space-y-2">
+                                <Label
+                                    class="block text-xs font-semibold tracking-wider text-muted-foreground uppercase"
+                                    >Đính kèm hóa đơn đối chiếu (Hóa đơn
+                                    giấy/điện tử)
+                                    <span class="text-rose-500">*</span></Label
+                                >
                                 <div
-                                    v-if="loadingOcr"
-                                    class="flex flex-col items-center justify-center space-y-2"
+                                    class="relative flex min-h-[120px] flex-col items-center justify-center rounded-xl border border-dashed border-border bg-muted/20 p-4 transition-colors hover:bg-muted/40"
                                 >
-                                    <RefreshCw
-                                        class="h-8 w-8 animate-spin text-emerald-500"
-                                    />
-                                    <span
-                                        class="animate-pulse text-xs font-bold text-emerald-600"
-                                        >AI OCR: Đang phân tích và quét dữ liệu
-                                        hóa đơn...</span
+                                    <div
+                                        v-if="loadingOcr"
+                                        class="flex flex-col items-center justify-center space-y-2"
                                     >
+                                        <RefreshCw
+                                            class="h-8 w-8 animate-spin text-emerald-500"
+                                        />
+                                        <span
+                                            class="animate-pulse text-xs font-bold text-emerald-600"
+                                            >AI OCR: Đang phân tích và quét dữ
+                                            liệu hóa đơn...</span
+                                        >
+                                    </div>
+                                    <template v-else>
+                                        <Upload
+                                            class="mb-2 h-8 w-8 text-muted-foreground opacity-60"
+                                        />
+                                        <span
+                                            class="text-xs font-semibold text-muted-foreground"
+                                            >{{
+                                                verifyForm.invoice_file
+                                                    ? verifyForm.invoice_file
+                                                          .name
+                                                    : 'Nhấp để chọn tệp chứng từ hoặc kéo thả vào đây'
+                                            }}</span
+                                        >
+                                        <span
+                                            class="mt-1 text-[10px] text-muted-foreground"
+                                            >Hỗ trợ JPG, PNG, PDF tối đa 4MB. Tự
+                                            động quét và điền dữ liệu bằng
+                                            AI.</span
+                                        >
+                                        <input
+                                            type="file"
+                                            @change="handleFileUpload"
+                                            class="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+                                        />
+                                    </template>
                                 </div>
-                                <template v-else>
-                                    <Upload
-                                        class="mb-2 h-8 w-8 text-muted-foreground opacity-60"
-                                    />
-                                    <span
-                                        class="text-xs font-semibold text-muted-foreground"
-                                        >{{
-                                            verifyForm.invoice_file
-                                                ? verifyForm.invoice_file.name
-                                                : 'Nhấp để chọn tệp chứng từ hoặc kéo thả vào đây'
-                                        }}</span
-                                    >
-                                    <span
-                                        class="mt-1 text-[10px] text-muted-foreground"
-                                        >Hỗ trợ JPG, PNG, PDF tối đa 4MB. Tự
-                                        động quét và điền dữ liệu bằng AI.</span
-                                    >
-                                    <input
-                                        type="file"
-                                        @change="handleFileUpload"
-                                        class="absolute inset-0 h-full w-full cursor-pointer opacity-0"
-                                    />
-                                </template>
                             </div>
-                        </div>
 
-                        <!-- Mismatch Reason & Resolution Action (when discrepancies detected) -->
-                        <div
-                            v-if="hasMismatch"
-                            class="grid grid-cols-1 gap-4 rounded-xl border border-rose-500/30 bg-rose-500/5 p-4 md:grid-cols-2"
-                        >
-                            <div class="space-y-1.5">
-                                <Label
-                                    class="block text-xs font-bold tracking-wider text-rose-600 uppercase dark:text-rose-400"
-                                >
-                                    ⚠️ Nguyên nhân phát sinh sai lệch
-                                </Label>
-                                <select
-                                    v-model="verifyForm.mismatch_reason"
-                                    class="w-full rounded-xl border border-rose-300 bg-background px-3 py-2 text-xs font-semibold text-foreground focus:ring-2 focus:ring-rose-500/20 focus:outline-none dark:border-rose-800"
-                                >
-                                    <option value="Khối lượng giao không đủ">
-                                        📉 Khối lượng thực giao thiếu so với PO
-                                    </option>
-                                    <option value="Hàng hư hỏng / Dập nát">
-                                        🥀 Hàng hư hỏng / Không đạt chất lượng
-                                    </option>
-                                    <option value="Sai giá niêm yết">
-                                        💲 Đơn giá hóa đơn cao hơn niêm yết
-                                    </option>
-                                    <option value="Giao sai mặt hàng">
-                                        ❌ Giao sai chủng loại nguyên liệu
-                                    </option>
-                                </select>
-                            </div>
-                            <div class="space-y-1.5">
-                                <Label
-                                    class="block text-xs font-bold tracking-wider text-rose-600 uppercase dark:text-rose-400"
-                                >
-                                    🛠️ Phương án xử lý khắc phục
-                                </Label>
-                                <select
-                                    v-model="verifyForm.resolution_action"
-                                    class="w-full rounded-xl border border-rose-300 bg-background px-3 py-2 text-xs font-semibold text-foreground focus:ring-2 focus:ring-rose-500/20 focus:outline-none dark:border-rose-800"
-                                >
-                                    <option
-                                        value="Trừ trực tiếp vào công nợ đơn sau"
-                                    >
-                                        📝 Trừ tiền vào công nợ kỳ sau
-                                    </option>
-                                    <option
-                                        value="Yêu cầu giao bù ngay trong ngày"
-                                    >
-                                        🚚 Yêu cầu nhà cung cấp giao bù ngay
-                                    </option>
-                                    <option
-                                        value="Đổi trả hàng lỗi cho nhà cung cấp"
-                                    >
-                                        📦 Trả lại toàn bộ lô hàng lỗi
-                                    </option>
-                                    <option
-                                        value="Duyệt ngoại lệ (Chấp nhận chênh lệch)"
-                                    >
-                                        ✅ Duyệt ngoại lệ (Owner chấp nhận)
-                                    </option>
-                                </select>
-                            </div>
-                        </div>
-
-                        <!-- Rating and feedback -->
-                        <div
-                            class="grid grid-cols-1 gap-4 rounded-xl border border-border bg-muted/30 p-4 md:grid-cols-3"
-                        >
-                            <div class="col-span-1 space-y-1">
-                                <Label
-                                    class="block text-xs font-semibold tracking-wider text-muted-foreground uppercase"
-                                    >Đánh giá nhà cung cấp (1-5★)</Label
-                                >
-                                <select
-                                    v-model="verifyForm.rating"
-                                    class="w-full rounded-xl border border-input bg-background px-3 py-2 text-sm text-foreground focus:ring-2 focus:ring-emerald-500/20 focus:outline-none"
-                                >
-                                    <option :value="5">
-                                        5 ★★★★★ (Xuất sắc)
-                                    </option>
-                                    <option :value="4">4 ★★★★☆ (Tốt)</option>
-                                    <option :value="3">
-                                        3 ★★★☆☆ (Trung bình)
-                                    </option>
-                                    <option :value="2">2 ★★☆☆☆ (Kém)</option>
-                                    <option :value="1">
-                                        1 ★☆☆☆☆ (Rất kém)
-                                    </option>
-                                </select>
-                            </div>
-                            <div class="col-span-2 space-y-1">
-                                <Label
-                                    class="block text-xs font-semibold tracking-wider text-muted-foreground uppercase"
-                                    >Ghi chú chất lượng hàng hóa / vận
-                                    chuyển</Label
-                                >
-                                <Input
-                                    v-model="verifyForm.rating_notes"
-                                    type="text"
-                                    placeholder="Rau tươi sạch, giao đúng giờ..."
-                                />
-                            </div>
-                        </div>
-
-                        <!-- Footer -->
-                        <div class="mt-6 flex justify-end gap-2 border-t pt-4">
-                            <Button
-                                type="button"
-                                variant="outline"
-                                @click="showVerifyModal = false"
+                            <!-- Mismatch Reason & Resolution Action (when discrepancies detected) -->
+                            <div
+                                v-if="hasMismatch"
+                                class="grid grid-cols-1 gap-4 rounded-xl border border-rose-500/30 bg-rose-500/5 p-4 md:grid-cols-2"
                             >
-                                Hủy bỏ
-                            </Button>
-                            <Button
-                                type="submit"
-                                :disabled="verifyForm.processing"
-                                class="bg-emerald-600 text-white hover:bg-emerald-700"
+                                <div class="space-y-1.5">
+                                    <Label
+                                        class="block text-xs font-bold tracking-wider text-rose-600 uppercase dark:text-rose-400"
+                                    >
+                                        ⚠️ Nguyên nhân phát sinh sai lệch
+                                    </Label>
+                                    <select
+                                        v-model="verifyForm.mismatch_reason"
+                                        class="w-full rounded-xl border border-rose-300 bg-background px-3 py-2 text-xs font-semibold text-foreground focus:ring-2 focus:ring-rose-500/20 focus:outline-none dark:border-rose-800"
+                                    >
+                                        <option
+                                            value="Khối lượng giao không đủ"
+                                        >
+                                            📉 Khối lượng thực giao thiếu so với
+                                            PO
+                                        </option>
+                                        <option value="Hàng hư hỏng / Dập nát">
+                                            🥀 Hàng hư hỏng / Không đạt chất
+                                            lượng
+                                        </option>
+                                        <option value="Sai giá niêm yết">
+                                            💲 Đơn giá hóa đơn cao hơn niêm yết
+                                        </option>
+                                        <option value="Giao sai mặt hàng">
+                                            ❌ Giao sai chủng loại nguyên liệu
+                                        </option>
+                                    </select>
+                                </div>
+                                <div class="space-y-1.5">
+                                    <Label
+                                        class="block text-xs font-bold tracking-wider text-rose-600 uppercase dark:text-rose-400"
+                                    >
+                                        🛠️ Phương án xử lý khắc phục
+                                    </Label>
+                                    <select
+                                        v-model="verifyForm.resolution_action"
+                                        class="w-full rounded-xl border border-rose-300 bg-background px-3 py-2 text-xs font-semibold text-foreground focus:ring-2 focus:ring-rose-500/20 focus:outline-none dark:border-rose-800"
+                                    >
+                                        <option
+                                            value="Trừ trực tiếp vào công nợ đơn sau"
+                                        >
+                                            📝 Trừ tiền vào công nợ kỳ sau
+                                        </option>
+                                        <option
+                                            value="Yêu cầu giao bù ngay trong ngày"
+                                        >
+                                            🚚 Yêu cầu nhà cung cấp giao bù ngay
+                                        </option>
+                                        <option
+                                            value="Đổi trả hàng lỗi cho nhà cung cấp"
+                                        >
+                                            📦 Trả lại toàn bộ lô hàng lỗi
+                                        </option>
+                                        <option
+                                            value="Duyệt ngoại lệ (Chấp nhận chênh lệch)"
+                                        >
+                                            ✅ Duyệt ngoại lệ (Owner chấp nhận)
+                                        </option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <!-- Rating and feedback -->
+                            <div
+                                class="grid grid-cols-1 gap-4 rounded-xl border border-border bg-muted/30 p-4 md:grid-cols-3"
                             >
-                                {{
-                                    verifyForm.processing
-                                        ? 'Đang gửi...'
-                                        : hasMismatch
-                                          ? 'Xác nhận Đóng băng đơn hàng'
-                                          : 'Hoàn tất bàn giao nhập kho'
-                                }}
-                            </Button>
-                        </div>
-                    </form>
-                </Card>
+                                <div class="col-span-1 space-y-1">
+                                    <Label
+                                        class="block text-xs font-semibold tracking-wider text-muted-foreground uppercase"
+                                        >Đánh giá nhà cung cấp (1-5★)</Label
+                                    >
+                                    <select
+                                        v-model="verifyForm.rating"
+                                        class="w-full rounded-xl border border-input bg-background px-3 py-2 text-sm text-foreground focus:ring-2 focus:ring-emerald-500/20 focus:outline-none"
+                                    >
+                                        <option :value="5">
+                                            5 ★★★★★ (Xuất sắc)
+                                        </option>
+                                        <option :value="4">
+                                            4 ★★★★☆ (Tốt)
+                                        </option>
+                                        <option :value="3">
+                                            3 ★★★☆☆ (Trung bình)
+                                        </option>
+                                        <option :value="2">
+                                            2 ★★☆☆☆ (Kém)
+                                        </option>
+                                        <option :value="1">
+                                            1 ★☆☆☆☆ (Rất kém)
+                                        </option>
+                                    </select>
+                                </div>
+                                <div class="col-span-2 space-y-1">
+                                    <Label
+                                        class="block text-xs font-semibold tracking-wider text-muted-foreground uppercase"
+                                        >Ghi chú chất lượng hàng hóa / vận
+                                        chuyển</Label
+                                    >
+                                    <Input
+                                        v-model="verifyForm.rating_notes"
+                                        type="text"
+                                        placeholder="Rau tươi sạch, giao đúng giờ..."
+                                    />
+                                </div>
+                            </div>
+
+                            <!-- Footer -->
+                            <div
+                                class="mt-6 flex justify-end gap-2 border-t pt-4"
+                            >
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    @click="showVerifyModal = false"
+                                >
+                                    Hủy bỏ
+                                </Button>
+                                <Button
+                                    type="submit"
+                                    :disabled="verifyForm.processing"
+                                    class="bg-emerald-600 text-white hover:bg-emerald-700"
+                                >
+                                    {{
+                                        verifyForm.processing
+                                            ? 'Đang gửi...'
+                                            : hasMismatch
+                                              ? 'Xác nhận Đóng băng đơn hàng'
+                                              : 'Hoàn tất bàn giao nhập kho'
+                                    }}
+                                </Button>
+                            </div>
+                        </form>
+                    </Card>
+                </div>
             </div>
-        </div>
+        </Teleport>
     </div>
 </template>
 

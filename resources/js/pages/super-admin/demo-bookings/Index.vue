@@ -214,7 +214,7 @@ function getStatusLabel(status: string) {
                     <input
                         v-model="search"
                         type="search"
-                        placeholder="Tìm theo tên, SĐT, email, nhà hàng..."
+                        placeholder="Tìm theo tên, SĐT, thư điện tử, nhà hàng..."
                         class="h-9 w-full rounded-lg border border-border bg-background pr-3 pl-9 text-sm transition outline-none focus:border-primary"
                         @keyup.enter="applyFilters"
                     />
@@ -276,7 +276,9 @@ function getStatusLabel(status: string) {
                         <Mail class="size-3.5" />
                         <span class="truncate">{{ row.email }}</span>
                     </p>
-                    <p v-else class="text-muted-foreground">Chưa có email</p>
+                    <p v-else class="text-muted-foreground">
+                        Chưa có thư điện tử
+                    </p>
                 </div>
             </template>
 
@@ -391,9 +393,9 @@ function getStatusLabel(status: string) {
                         </a>
                     </div>
                     <div class="flex items-start justify-between gap-4">
-                        <span class="text-muted-foreground">Email</span>
+                        <span class="text-muted-foreground">Thư điện tử</span>
                         <span class="text-right">{{
-                            selectedBooking.email || 'Chưa có email'
+                            selectedBooking.email || 'Chưa có thư điện tử'
                         }}</span>
                     </div>
                     <div class="flex items-start justify-between gap-4">

@@ -30,7 +30,11 @@ type Assignment = {
     shift_id: number;
     shift_name: string;
     shift_time: string;
+    shift_start?: string | null;
+    shift_end?: string | null;
     scheduled_date: string;
+    requested_time?: string | null;
+    requested_at?: string | null;
     check_in_at: string | null;
     check_out_at: string | null;
     status:
@@ -124,7 +128,9 @@ const printRoster = () => {
 
 const statusLabels: Record<string, string> = {
     scheduled: 'Chưa vào ca',
+    pending_checkin: 'Chờ duyệt vào ca',
     checked_in: 'Đang làm việc',
+    pending_checkout: 'Chờ duyệt hết ca',
     completed: 'Đã hoàn thành ca',
     absent: 'Vắng mặt',
     leave_approved: 'Nghỉ phép',
@@ -133,8 +139,12 @@ const statusLabels: Record<string, string> = {
 const statusColors: Record<string, string> = {
     scheduled:
         'bg-amber-50 text-amber-600 border border-amber-200 dark:bg-amber-950/20 dark:text-amber-400 dark:border-amber-900/30',
+    pending_checkin:
+        'bg-amber-50 text-amber-700 border border-amber-300 animate-pulse dark:bg-amber-950/30 dark:text-amber-400 dark:border-amber-800',
     checked_in:
         'bg-emerald-50 text-emerald-600 border border-emerald-200 animate-pulse dark:bg-emerald-950/20 dark:text-emerald-400 dark:border-emerald-900/30',
+    pending_checkout:
+        'bg-amber-50 text-amber-700 border border-amber-300 animate-pulse dark:bg-amber-950/30 dark:text-amber-400 dark:border-amber-800',
     completed:
         'bg-indigo-50 text-indigo-600 border border-indigo-200 dark:bg-indigo-950/20 dark:text-indigo-400 dark:border-indigo-900/30',
     absent: 'bg-rose-50 text-rose-600 border border-rose-200 dark:bg-rose-950/20 dark:text-rose-400 dark:border-rose-900/30',
@@ -238,7 +248,7 @@ const statusColors: Record<string, string> = {
                         >
                             <th class="p-3.5">Nhân viên</th>
                             <th class="p-3.5">Ca trực xếp lịch</th>
-                            <th class="p-3.5">Giờ hành chính</th>
+                            <th class="p-3.5">Thời gian gửi yêu cầu</th>
                             <th class="p-3.5">Thực tế Vào Ca</th>
                             <th class="p-3.5">Thực tế Ra Ca</th>
                             <th class="p-3.5">Số giờ làm</th>
@@ -293,11 +303,22 @@ const statusColors: Record<string, string> = {
                             <td class="p-3.5">
                                 <span
                                     class="rounded bg-indigo-50 px-2 py-0.5 font-mono font-semibold text-indigo-700 dark:bg-indigo-950/30 dark:text-indigo-400"
-                                    >{{ a.shift_name }}</span
                                 >
+                                    {{ a.shift_name }} {{ a.shift_start ? `(${a.shift_start} - ${a.shift_end})` : '' }}
+                                </span>
                             </td>
-                            <td class="p-3.5 font-mono text-slate-500">
-                                {{ a.shift_time }}
+                            <td class="p-3.5 font-mono text-slate-600 dark:text-slate-300">
+                                <div v-if="a.requested_time || a.requested_at" class="flex flex-col gap-0.5">
+                                    <span class="font-mono font-bold text-indigo-600 dark:text-indigo-400">
+                                        {{ a.requested_time || a.requested_at?.split(' ')[0] }}
+                                    </span>
+                                    <span v-if="a.requested_at?.split(' ')[1]" class="text-[10px] text-slate-400">
+                                        {{ a.requested_at?.split(' ')[1] }}
+                                    </span>
+                                </div>
+                                <div v-else class="text-slate-300 dark:text-slate-700">
+                                    —
+                                </div>
                             </td>
                             <td
                                 class="text-slate-665 p-3.5 font-mono dark:text-slate-300"
@@ -394,15 +415,15 @@ const statusColors: Record<string, string> = {
                                 </button>
 
                                 <!-- Actions based on status -->
-                                <template v-if="a.status === 'scheduled'">
+                                <template v-if="['scheduled', 'pending_checkin'].includes(a.status)">
                                     <button
                                         @click="
                                             emit('open-override', a, 'check_in')
                                         "
                                         class="inline-flex cursor-pointer items-center justify-center rounded bg-emerald-600 px-2.5 py-1 text-[10px] font-bold text-white shadow-xs transition hover:bg-emerald-700 active:scale-95"
-                                        title="Check-in hộ nhân sự"
+                                        title="Xác nhận check-in cho nhân sự"
                                     >
-                                        Check-in hộ
+                                        Xác nhận check-in
                                     </button>
                                     <button
                                         @click="
@@ -414,7 +435,7 @@ const statusColors: Record<string, string> = {
                                         Báo Vắng
                                     </button>
                                 </template>
-                                <template v-else-if="a.status === 'checked_in'">
+                                <template v-else-if="['checked_in', 'pending_checkout'].includes(a.status)">
                                     <button
                                         @click="
                                             emit(
@@ -457,6 +478,7 @@ const statusColors: Record<string, string> = {
     </Card>
 
     <!-- Selfie Lightbox Modal -->
+    <Teleport to="body">
     <div
         v-if="viewSelfieUrl"
         class="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-xs"
@@ -482,4 +504,5 @@ const statusColors: Record<string, string> = {
             </div>
         </div>
     </div>
+    </Teleport>
 </template>

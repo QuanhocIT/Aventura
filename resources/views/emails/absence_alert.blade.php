@@ -1,4 +1,4 @@
-<div style='font-family:sans-serif;max-width:540px;margin:auto;padding:32px;background:#fff;border-radius:12px;border:2px solid #fde68a'>
+<div style="font-family:'Times New Roman',Times,serif;max-width:540px;margin:auto;padding:32px;background:#fff;border-radius:12px;border:2px solid #fde68a">
     <h2 style='color:#d97706'>⚠️ Cảnh báo vắng mặt không phép</h2>
     <p>Nhà hàng <strong>{{ $restaurant_name ?? 'Nhà hàng' }}</strong></p>
     <p>Các nhân viên sau <strong>chưa check-in</strong> sau {{ $minutes_late ?? 15 }} phút kể từ giờ bắt đầu ca:</p>

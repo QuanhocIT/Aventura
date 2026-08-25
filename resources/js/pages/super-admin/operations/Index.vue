@@ -4,6 +4,8 @@ import {
     Activity,
     AlertTriangle,
     CalendarClock,
+    ChevronLeft,
+    ChevronRight,
     Database,
     ListTodo,
     Mail,
@@ -13,7 +15,7 @@ import {
     Webhook,
     Wrench,
 } from 'lucide-vue-next';
-import { reactive, ref } from 'vue';
+import { computed, reactive, ref, watch } from 'vue';
 import { toast } from 'vue-sonner';
 import {
     PageHeader,
@@ -65,6 +67,11 @@ type Webhook = {
     created_at: string;
 };
 
+type ApiError = Error & {
+    code?: string;
+    redirect?: string;
+};
+
 const props = defineProps<{
     services: Service[];
     queue: {
@@ -107,6 +114,43 @@ const props = defineProps<{
 
 const localFailedJobs = ref<FailedJob[]>([...props.failedJobs]);
 const localWebhooks = ref<Webhook[]>([...props.webhooks.deliveries]);
+const PAGE_SIZE = 5;
+const failedJobPage = ref(1);
+const webhookPage = ref(1);
+
+const failedJobPageCount = computed(() =>
+    Math.max(1, Math.ceil(localFailedJobs.value.length / PAGE_SIZE)),
+);
+const webhookPageCount = computed(() =>
+    Math.max(1, Math.ceil(localWebhooks.value.length / PAGE_SIZE)),
+);
+const failedJobPageNumbers = computed(() =>
+    Array.from({ length: failedJobPageCount.value }, (_, index) => index + 1),
+);
+const webhookPageNumbers = computed(() =>
+    Array.from({ length: webhookPageCount.value }, (_, index) => index + 1),
+);
+const paginatedFailedJobs = computed(() => {
+    const start = (failedJobPage.value - 1) * PAGE_SIZE;
+
+    return localFailedJobs.value.slice(start, start + PAGE_SIZE);
+});
+const paginatedWebhooks = computed(() => {
+    const start = (webhookPage.value - 1) * PAGE_SIZE;
+
+    return localWebhooks.value.slice(start, start + PAGE_SIZE);
+});
+
+watch(localFailedJobs, () => {
+    failedJobPage.value = Math.min(
+        failedJobPage.value,
+        failedJobPageCount.value,
+    );
+});
+
+watch(localWebhooks, () => {
+    webhookPage.value = Math.min(webhookPage.value, webhookPageCount.value);
+});
 const maintenance = reactive({
     scope: 'global',
     restaurant_id: null as number | null,
@@ -121,7 +165,7 @@ const serviceLabels: Record<string, string> = {
     redis: 'Bộ nhớ đệm & hàng đợi Redis',
     reverb: 'WebSocket Laravel Reverb',
     meilisearch: 'Công cụ tìm kiếm Meilisearch',
-    email_service: 'Dịch vụ email',
+    email_service: 'Dịch vụ thư điện tử',
 };
 
 const csrf = () =>
@@ -141,10 +185,29 @@ async function postJson(url: string, body?: Record<string, unknown>) {
     const data = await response.json().catch(() => ({}));
 
     if (!response.ok) {
-        throw new Error(data.message || 'Yêu cầu không thành công.');
+        const error = new Error(
+            data.message || 'Yêu cầu không thành công.',
+        ) as ApiError;
+
+        error.code = data.code;
+        error.redirect = data.redirect;
+
+        throw error;
     }
 
     return data;
+}
+
+function redirectToTwoFactorConfirmation(error: unknown): boolean {
+    const apiError = error as ApiError;
+
+    if (apiError?.code !== 'superadmin_2fa_required' || !apiError.redirect) {
+        return false;
+    }
+
+    router.visit(apiError.redirect);
+
+    return true;
 }
 
 function refresh() {
@@ -159,6 +222,10 @@ async function retryJob(job: FailedJob) {
         );
         toast.success('Đã đưa công việc trở lại hàng đợi.');
     } catch (error) {
+        if (redirectToTwoFactorConfirmation(error)) {
+            return;
+        }
+
         toast.error(
             error instanceof Error
                 ? error.message
@@ -175,6 +242,10 @@ async function retryWebhook(webhook: Webhook) {
         );
         toast.success('Đã đưa webhook trở lại hàng đợi.');
     } catch (error) {
+        if (redirectToTwoFactorConfirmation(error)) {
+            return;
+        }
+
         toast.error(
             error instanceof Error
                 ? error.message
@@ -199,6 +270,10 @@ async function saveMaintenance() {
         );
         router.reload({ preserveScroll: true });
     } catch (error) {
+        if (redirectToTwoFactorConfirmation(error)) {
+            return;
+        }
+
         toast.error(
             error instanceof Error
                 ? error.message
@@ -264,7 +339,7 @@ function serviceEndpoint(service: Service) {
     <div class="space-y-6 px-6 py-5">
         <PageHeader
             title="Trung tâm vận hành"
-            subtitle="Theo dõi hàng đợi, bộ lập lịch, webhook, sức khỏe dịch vụ và chế độ bảo trì."
+            subtitle="Theo dõi hàng đợi, bộ lập lịch, sự kiện tích hợp, sức khỏe dịch vụ và chế độ bảo trì."
             :icon="Server"
         >
             <template #actions>
@@ -291,7 +366,7 @@ function serviceEndpoint(service: Service) {
                 change="Có thể thử lại từ danh sách"
             />
             <StatCard
-                label="Webhook lỗi / chờ"
+                label="Tích hợp lỗi / chờ"
                 :value="`${webhooks.failed} / ${webhooks.pending}`"
                 :icon="Webhook"
                 color="amber"
@@ -420,7 +495,7 @@ function serviceEndpoint(service: Service) {
                 <CardHeader>
                     <CardTitle class="flex items-center gap-2">
                         <Mail class="size-4 text-primary" />
-                        Email
+                        Thư điện tử
                     </CardTitle>
                 </CardHeader>
                 <CardContent>
@@ -453,7 +528,7 @@ function serviceEndpoint(service: Service) {
                 </CardHeader>
                 <CardContent class="space-y-3">
                     <div
-                        v-for="job in localFailedJobs"
+                        v-for="job in paginatedFailedJobs"
                         :key="job.uuid"
                         class="rounded-xl border border-border/60 bg-muted/10 p-3"
                     >
@@ -482,6 +557,51 @@ function serviceEndpoint(service: Service) {
                             </Button>
                         </div>
                     </div>
+                    <div
+                        v-if="failedJobPageCount > 1"
+                        class="flex flex-wrap items-center justify-between gap-3 border-t border-border/60 pt-3"
+                    >
+                        <span class="text-[11px] text-muted-foreground">
+                            Trang {{ failedJobPage }} /
+                            {{ failedJobPageCount }} ·
+                            {{ localFailedJobs.length }} dòng
+                        </span>
+                        <div class="flex flex-wrap items-center gap-1">
+                            <button
+                                type="button"
+                                class="inline-flex size-7 items-center justify-center rounded-md border border-border/60 text-muted-foreground transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-40"
+                                :disabled="failedJobPage === 1"
+                                aria-label="Trang công việc lỗi trước"
+                                @click="failedJobPage--"
+                            >
+                                <ChevronLeft class="size-4" />
+                            </button>
+                            <button
+                                v-for="page in failedJobPageNumbers"
+                                :key="`failed-${page}`"
+                                type="button"
+                                class="inline-flex size-7 items-center justify-center rounded-md border text-xs transition-colors"
+                                :class="
+                                    page === failedJobPage
+                                        ? 'border-primary bg-primary text-primary-foreground'
+                                        : 'border-border/60 text-muted-foreground hover:bg-muted'
+                                "
+                                :aria-label="`Đến trang công việc lỗi ${page}`"
+                                @click="failedJobPage = page"
+                            >
+                                {{ page }}
+                            </button>
+                            <button
+                                type="button"
+                                class="inline-flex size-7 items-center justify-center rounded-md border border-border/60 text-muted-foreground transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-40"
+                                :disabled="failedJobPage === failedJobPageCount"
+                                aria-label="Trang công việc lỗi sau"
+                                @click="failedJobPage++"
+                            >
+                                <ChevronRight class="size-4" />
+                            </button>
+                        </div>
+                    </div>
                     <p
                         v-if="!localFailedJobs.length"
                         class="py-5 text-center text-sm text-muted-foreground"
@@ -495,7 +615,7 @@ function serviceEndpoint(service: Service) {
                 <CardHeader>
                     <CardTitle class="flex items-center gap-2">
                         <Webhook class="size-4 text-amber-500" />
-                        Webhook cần xử lý
+                        Tích hợp cần xử lý
                     </CardTitle>
                     <CardDescription>
                         Thử lại các lần gửi đang chờ hoặc bị lỗi.
@@ -503,7 +623,7 @@ function serviceEndpoint(service: Service) {
                 </CardHeader>
                 <CardContent class="space-y-3">
                     <div
-                        v-for="webhook in localWebhooks"
+                        v-for="webhook in paginatedWebhooks"
                         :key="webhook.id"
                         class="rounded-xl border border-border/60 bg-muted/10 p-3"
                     >
@@ -532,11 +652,55 @@ function serviceEndpoint(service: Service) {
                             </Button>
                         </div>
                     </div>
+                    <div
+                        v-if="webhookPageCount > 1"
+                        class="flex flex-wrap items-center justify-between gap-3 border-t border-border/60 pt-3"
+                    >
+                        <span class="text-[11px] text-muted-foreground">
+                            Trang {{ webhookPage }} / {{ webhookPageCount }} ·
+                            {{ localWebhooks.length }} dòng
+                        </span>
+                        <div class="flex flex-wrap items-center gap-1">
+                            <button
+                                type="button"
+                                class="inline-flex size-7 items-center justify-center rounded-md border border-border/60 text-muted-foreground transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-40"
+                                :disabled="webhookPage === 1"
+                                aria-label="Trang webhook trước"
+                                @click="webhookPage--"
+                            >
+                                <ChevronLeft class="size-4" />
+                            </button>
+                            <button
+                                v-for="page in webhookPageNumbers"
+                                :key="`webhook-${page}`"
+                                type="button"
+                                class="inline-flex size-7 items-center justify-center rounded-md border text-xs transition-colors"
+                                :class="
+                                    page === webhookPage
+                                        ? 'border-primary bg-primary text-primary-foreground'
+                                        : 'border-border/60 text-muted-foreground hover:bg-muted'
+                                "
+                                :aria-label="`Đến trang webhook ${page}`"
+                                @click="webhookPage = page"
+                            >
+                                {{ page }}
+                            </button>
+                            <button
+                                type="button"
+                                class="inline-flex size-7 items-center justify-center rounded-md border border-border/60 text-muted-foreground transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-40"
+                                :disabled="webhookPage === webhookPageCount"
+                                aria-label="Trang webhook sau"
+                                @click="webhookPage++"
+                            >
+                                <ChevronRight class="size-4" />
+                            </button>
+                        </div>
+                    </div>
                     <p
                         v-if="!localWebhooks.length"
                         class="py-5 text-center text-sm text-muted-foreground"
                     >
-                        Không có webhook cần xử lý.
+                        Không có sự kiện tích hợp cần xử lý.
                     </p>
                 </CardContent>
             </Card>

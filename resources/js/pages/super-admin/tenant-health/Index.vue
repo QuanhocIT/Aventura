@@ -5,6 +5,7 @@ import {
     Building2,
     CheckCircle2,
     GitBranch,
+    ListChecks,
     RefreshCw,
     Settings2,
     ShieldAlert,
@@ -14,6 +15,7 @@ import { reactive, ref } from 'vue';
 import { toast } from 'vue-sonner';
 import {
     PageHeader,
+    Pagination,
     SectionCard,
     StatCard,
     StatusBadge,
@@ -75,6 +77,36 @@ type Candidate = {
     roles?: string[];
 };
 
+type IssuePagination = {
+    data: Issue[];
+    current_page: number;
+    last_page: number;
+    total: number;
+    per_page: number;
+    from: number | null;
+    to: number | null;
+    links: Array<{
+        url: string | null;
+        label: string;
+        active: boolean;
+    }>;
+};
+
+type TenantPagination = {
+    data: Tenant[];
+    current_page: number;
+    last_page: number;
+    total: number;
+    per_page: number;
+    from: number | null;
+    to: number | null;
+    links: Array<{
+        url: string | null;
+        label: string;
+        active: boolean;
+    }>;
+};
+
 const props = defineProps<{
     summary: {
         tenants: number;
@@ -83,8 +115,8 @@ const props = defineProps<{
         critical: number;
         by_type: Record<string, number>;
     };
-    issues: Issue[];
-    tenants: Tenant[];
+    issues: IssuePagination;
+    tenants: TenantPagination;
     branches: Branch[];
     manager_candidates: Candidate[];
     owner_candidates: Candidate[];
@@ -96,6 +128,7 @@ const managerSelection = reactive<Record<string, string>>({});
 const ownerSelection = reactive<Record<string, string>>({});
 const branchSelection = reactive<Record<string, string>>({});
 const busy = ref<string | null>(null);
+const activeTab = ref<'issues' | 'lifecycle'>('issues');
 
 const activeBranchesFor = (tenantId: number) =>
     props.branches.filter(
@@ -128,6 +161,7 @@ const issueLabel: Record<string, string> = {
     inactive_branch_active_user:
         'Chi nhánh ngừng hoạt động còn tài khoản đang dùng',
 };
+void issueLabel;
 
 const severityLabel: Record<string, string> = {
     critical: 'Nghiêm trọng',
@@ -308,7 +342,81 @@ function updateFeature(
             />
         </div>
 
-        <SectionCard accent-color="rose">
+        <div
+            class="grid gap-2 rounded-2xl border border-border/60 bg-card/60 p-2 sm:grid-cols-2"
+            role="tablist"
+            aria-label="Nội dung sức khỏe hệ thống"
+        >
+            <button
+                type="button"
+                role="tab"
+                :aria-selected="activeTab === 'issues'"
+                class="flex items-center justify-between gap-3 rounded-xl px-4 py-3 text-left transition-colors"
+                :class="
+                    activeTab === 'issues'
+                        ? 'bg-rose-500/10 text-rose-600 shadow-xs dark:text-rose-400'
+                        : 'text-muted-foreground hover:bg-muted/50 hover:text-foreground'
+                "
+                @click="activeTab = 'issues'"
+            >
+                <span class="flex min-w-0 items-center gap-3">
+                    <span
+                        class="flex size-9 shrink-0 items-center justify-center rounded-xl bg-rose-500/10"
+                    >
+                        <ListChecks class="size-4" />
+                    </span>
+                    <span class="min-w-0">
+                        <span class="block text-sm font-bold"
+                            >Lỗi cần xử lý</span
+                        >
+                        <span class="block truncate text-xs opacity-75"
+                            >Kiểm tra và sửa lỗi nhà hàng/chi nhánh</span
+                        >
+                    </span>
+                </span>
+                <span
+                    class="rounded-full border border-rose-500/20 px-2 py-0.5 text-[11px] font-bold"
+                >
+                    {{ summary.issues }}
+                </span>
+            </button>
+
+            <button
+                type="button"
+                role="tab"
+                :aria-selected="activeTab === 'lifecycle'"
+                class="flex items-center justify-between gap-3 rounded-xl px-4 py-3 text-left transition-colors"
+                :class="
+                    activeTab === 'lifecycle'
+                        ? 'bg-sky-500/10 text-sky-600 shadow-xs dark:text-sky-400'
+                        : 'text-muted-foreground hover:bg-muted/50 hover:text-foreground'
+                "
+                @click="activeTab = 'lifecycle'"
+            >
+                <span class="flex min-w-0 items-center gap-3">
+                    <span
+                        class="flex size-9 shrink-0 items-center justify-center rounded-xl bg-sky-500/10"
+                    >
+                        <Settings2 class="size-4" />
+                    </span>
+                    <span class="min-w-0">
+                        <span class="block text-sm font-bold"
+                            >Vòng đời & cờ tính năng</span
+                        >
+                        <span class="block truncate text-xs opacity-75"
+                            >Quản lý trạng thái và quyền tính năng</span
+                        >
+                    </span>
+                </span>
+                <span
+                    class="rounded-full border border-sky-500/20 px-2 py-0.5 text-[11px] font-bold"
+                >
+                    {{ tenants.total }}
+                </span>
+            </button>
+        </div>
+
+        <SectionCard v-if="activeTab === 'issues'" accent-color="rose">
             <div class="flex flex-wrap items-start justify-between gap-3">
                 <div>
                     <h2 class="flex items-center gap-2 text-base font-bold">
@@ -326,7 +434,7 @@ function updateFeature(
             </div>
 
             <div
-                v-if="!issues.length"
+                v-if="!issues.data.length"
                 class="flex items-center gap-2 rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-5 text-sm text-emerald-600 dark:text-emerald-400"
             >
                 <CheckCircle2 class="size-4" />
@@ -338,7 +446,7 @@ function updateFeature(
                 class="overflow-hidden rounded-2xl border border-border/60 bg-card/70"
             >
                 <div
-                    v-for="issue in issues"
+                    v-for="issue in issues.data"
                     :key="issue.id"
                     class="space-y-3 border-b border-border/50 p-5 last:border-0"
                 >
@@ -489,10 +597,18 @@ function updateFeature(
                         </Button>
                     </div>
                 </div>
+
+                <Pagination
+                    v-if="issues.last_page > 1"
+                    :links="issues.links"
+                    :current-page="issues.current_page"
+                    :last-page="issues.last_page"
+                    :total="issues.total"
+                />
             </div>
         </SectionCard>
 
-        <SectionCard accent-color="sky">
+        <SectionCard v-else accent-color="sky">
             <div>
                 <h2 class="flex items-center gap-2 text-base font-bold">
                     <Settings2 class="size-4 text-sky-500" />
@@ -506,7 +622,7 @@ function updateFeature(
 
             <div class="grid gap-4 xl:grid-cols-2">
                 <Card
-                    v-for="tenant in tenants"
+                    v-for="tenant in tenants.data"
                     :key="tenant.id"
                     class="overflow-hidden"
                 >
@@ -593,6 +709,14 @@ function updateFeature(
                     </CardContent>
                 </Card>
             </div>
+
+            <Pagination
+                v-if="tenants.last_page > 1"
+                :links="tenants.links"
+                :current-page="tenants.current_page"
+                :last-page="tenants.last_page"
+                :total="tenants.total"
+            />
         </SectionCard>
     </div>
 </template>

@@ -6,7 +6,7 @@
     <title>Bảo trì — Aventura</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { min-height: 100vh; display: flex; align-items: center; justify-content: center; font-family: 'Inter', system-ui, sans-serif; background: #0a0a0a; color: #fafafa; }
+        body { min-height: 100vh; display: flex; align-items: center; justify-content: center; font-family: 'Times New Roman', Times, serif; background: #0a0a0a; color: #fafafa; }
         .c { text-align: center; max-width: 480px; padding: 2rem; }
         .icon { font-size: 4rem; margin-bottom: 1rem; }
         h1 { font-size: 1.5rem; font-weight: 700; margin-bottom: 0.5rem; }

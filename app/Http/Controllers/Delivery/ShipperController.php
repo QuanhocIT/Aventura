@@ -14,6 +14,8 @@ class ShipperController extends Controller
 {
     public function index(Request $request): Response
     {
+        $this->authorizeManager($request);
+
         $restaurantId = $request->user()->restaurant_id;
 
         $shippers = Shipper::with(['employee'])
@@ -46,6 +48,8 @@ class ShipperController extends Controller
 
     public function store(Request $request): JsonResponse
     {
+        $this->authorizeManager($request);
+
         $restaurantId = $request->user()->restaurant_id;
 
         $validated = $request->validate([
@@ -55,6 +59,13 @@ class ShipperController extends Controller
             'max_orders_per_batch' => ['nullable', 'integer', 'min:1', 'max:20'],
             'max_capacity_kg' => ['nullable', 'numeric', 'min:1', 'max:500'],
         ]);
+
+        $employee = Employee::where('restaurant_id', $restaurantId)
+            ->whereKey($validated['employee_id'])
+            ->where('status', 'active')
+            ->first();
+
+        abort_unless($employee, 422, 'Chỉ có thể đăng ký nhân viên đang hoạt động làm shipper.');
 
         $shipper = Shipper::create([
             'employee_id' => $validated['employee_id'],
@@ -70,6 +81,8 @@ class ShipperController extends Controller
 
     public function update(Request $request, Shipper $shipper): JsonResponse
     {
+        $this->authorizeManager($request);
+
         abort_if($shipper->restaurant_id !== $request->user()->restaurant_id, 403);
 
         $validated = $request->validate([
@@ -80,6 +93,14 @@ class ShipperController extends Controller
             'is_active' => ['sometimes', 'boolean'],
         ]);
 
+        if (array_key_exists('is_active', $validated) && ! $validated['is_active']) {
+            $hasOpenBatch = $shipper->batches()
+                ->whereIn('status', ['pending', 'dispatched', 'in_progress'])
+                ->exists();
+
+            abort_if($hasOpenBatch, 422, 'Không thể tạm ngưng shipper đang có chuyến chưa hoàn tất.');
+        }
+
         $shipper->update($validated);
 
         return response()->json($shipper->fresh());
@@ -87,11 +108,32 @@ class ShipperController extends Controller
 
     public function destroy(Request $request, Shipper $shipper): JsonResponse
     {
+        $this->authorizeManager($request);
+
         abort_if($shipper->restaurant_id !== $request->user()->restaurant_id, 403);
+
+        $hasOpenBatch = $shipper->batches()
+            ->whereIn('status', ['pending', 'dispatched', 'in_progress'])
+            ->exists();
+
+        abort_if($hasOpenBatch, 422, 'Không thể vô hiệu hóa shipper đang có chuyến chưa hoàn tất.');
 
         $shipper->update(['is_active' => false]);
         $shipper->delete();
 
         return response()->json(['message' => 'Shipper đã được vô hiệu hóa']);
+    }
+
+    private function authorizeManager(Request $request): void
+    {
+        $user = $request->user();
+
+        abort_unless(
+            $user->isSuperAdmin()
+                || $user->hasAnyRole(['owner', 'manager'])
+                || $user->can('manage_orders'),
+            403,
+            'Bạn không có quyền quản lý đội ngũ shipper.'
+        );
     }
 }

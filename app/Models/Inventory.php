@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Jobs\SendLowStockAlertEmail;
 use App\Models\Concerns\BelongsToRestaurant;
+use App\Services\NegativeInventoryService;
 use Database\Factories\Restaurant\InventoryFactory;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -18,12 +19,13 @@ class Inventory extends Model
     use BelongsToRestaurant;
     use HasFactory;
 
-    protected $guarded = [];
+    protected $guarded = ['id'];
 
     protected function casts(): array
     {
         return [
             'last_counted_at' => 'datetime',
+            'opening_balance_reconciled_at' => 'datetime',
             'quantity_on_hand' => 'float',
             'theoretical_quantity' => 'float',
         ];
@@ -39,10 +41,71 @@ class Inventory extends Model
         return $this->hasMany(InventoryTransaction::class);
     }
 
+    /**
+     * Các reservation đang còn hiệu lực cho inventory record này.
+     * Chỉ tính theo (branch_id + ingredient_id) qua scope.
+     */
+    public function activeReservations(): HasMany
+    {
+        return $this->hasMany(InventoryReservation::class, 'ingredient_id', 'ingredient_id')
+            ->where('branch_id', $this->branch_id)
+            ->whereNull('released_at');
+    }
+
+    /**
+     * Tổng số lượng đang được giữ chỗ (chưa giải phóng, chưa hết hạn).
+     */
+    public function getQuantityReservedAttribute(): float
+    {
+        return (float) InventoryReservation::where('ingredient_id', $this->ingredient_id)
+            ->where('branch_id', $this->branch_id)
+            ->whereNull('released_at')
+            ->where(function ($q) {
+                $q->whereNull('expires_at')
+                    ->orWhere('expires_at', '>', now());
+            })
+            ->sum('quantity');
+    }
+
+    /**
+     * Tồn khả dụng = quantity_on_hand - quantity_reserved.
+     * Đây là số lượng thực sự có thể cấp phát thêm.
+     */
+    public function getQuantityAvailableAttribute(): float
+    {
+        return max(0, (float) $this->quantity_on_hand - $this->quantity_reserved);
+    }
+
+    /**
+     * Legacy inventory rows often have the database default 0 for the
+     * theoretical balance while carrying a real opening on-hand quantity.
+     * Treat that un-reconciled zero as the opening balance before applying a
+     * new movement; otherwise the first movement creates a false variance.
+     */
+    public function effectiveTheoreticalQuantity(): float
+    {
+        $theoretical = (float) $this->theoretical_quantity;
+        $onHand = (float) $this->quantity_on_hand;
+
+        return $this->opening_balance_reconciled_at === null
+            && abs($theoretical) < 0.0005
+            && abs($onHand) > 0.0005
+            ? $onHand
+            : $theoretical;
+    }
+
     protected static function booted()
     {
+        static::created(function (Inventory $inventory) {
+            if ((float) $inventory->quantity_on_hand < -0.0005) {
+                app(NegativeInventoryService::class)->sync($inventory);
+            }
+        });
+
         static::updated(function (Inventory $inventory) {
             if ($inventory->wasChanged('quantity_on_hand')) {
+                app(NegativeInventoryService::class)->sync($inventory);
+
                 try {
                     $ingredient = Ingredient::withoutGlobalScopes()->find($inventory->ingredient_id);
                     if ($ingredient && (float) $inventory->quantity_on_hand < (float) $ingredient->min_stock_level) {

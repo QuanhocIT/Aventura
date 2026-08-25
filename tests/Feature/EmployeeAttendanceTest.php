@@ -139,6 +139,77 @@ class EmployeeAttendanceTest extends TestCase
         Carbon::setTestNow();
     }
 
+    public function test_system_auto_checks_out_staff_at_shift_end(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-05-29 23:05:00'));
+
+        $schedule = ScheduleAssignment::create([
+            'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
+            'employee_id' => $this->employee->id,
+            'shift_id' => $this->shift->id,
+            'scheduled_date' => '2026-05-29',
+            'status' => 'checked_in',
+            'check_in_at' => '2026-05-29 15:55:00',
+        ]);
+
+        $this->artisan('attendance:auto-checkout')->assertExitCode(0);
+
+        $schedule = $schedule->fresh();
+        $this->assertSame('completed', $schedule->status);
+        $this->assertSame('2026-05-29 23:00:00', $schedule->check_out_at->toDateTimeString());
+        $this->assertStringContainsString('[AUTO_CHECKOUT]', $schedule->notes);
+
+        Carbon::setTestNow();
+    }
+
+    public function test_next_shift_is_presented_as_check_in_after_auto_checkout(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-05-29 23:05:00'));
+
+        $currentSchedule = ScheduleAssignment::create([
+            'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
+            'employee_id' => $this->employee->id,
+            'shift_id' => $this->shift->id,
+            'scheduled_date' => '2026-05-29',
+            'status' => 'checked_in',
+            'check_in_at' => '2026-05-29 15:55:00',
+        ]);
+
+        $nextShift = WorkShift::create([
+            'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
+            'name' => 'Ca Dem Tiep Theo',
+            'code' => 'CA_DEM_TIEP_THEO',
+            'start_time' => '23:00:00',
+            'end_time' => '23:59:00',
+            'is_overnight' => false,
+            'status' => 'active',
+        ]);
+
+        $nextSchedule = ScheduleAssignment::create([
+            'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
+            'employee_id' => $this->employee->id,
+            'shift_id' => $nextShift->id,
+            'scheduled_date' => '2026-05-29',
+            'status' => 'scheduled',
+        ]);
+
+        $response = $this->actingAs($this->cashierUser)->get('/schedules');
+
+        $response->assertInertia(fn ($page) => $page
+            ->component('schedules/Index')
+            ->where('todayActiveAssignment.id', $nextSchedule->id)
+            ->where('todayActiveAssignment.status', 'scheduled')
+            ->where('todayActiveAssignment.can_check_in', true));
+
+        $this->assertSame('completed', $currentSchedule->fresh()->status);
+
+        Carbon::setTestNow();
+    }
+
     public function test_admin_can_manually_check_in_employee(): void
     {
         $schedule = ScheduleAssignment::create([

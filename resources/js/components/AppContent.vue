@@ -3,6 +3,8 @@ import { computed } from 'vue';
 import { SidebarInset } from '@/components/ui/sidebar';
 import type { AppVariant } from '@/types';
 
+defineOptions({ inheritAttrs: false });
+
 type Props = {
     variant?: AppVariant;
     class?: string;

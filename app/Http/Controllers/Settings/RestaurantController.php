@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Settings;
 
+use App\Concerns\AuthorizesRestaurantSettings;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -12,8 +13,11 @@ use Inertia\Response;
 
 class RestaurantController extends Controller
 {
+    use AuthorizesRestaurantSettings;
+
     public function edit(Request $request): Response
     {
+        $this->authorizeRestaurantSettings($request);
         $restaurant = $request->user()?->restaurant;
 
         return Inertia::render('settings/Restaurant', [
@@ -40,6 +44,7 @@ class RestaurantController extends Controller
 
     public function update(Request $request): RedirectResponse
     {
+        $this->authorizeRestaurantSettings($request);
         $restaurant = $request->user()?->restaurant;
 
         if (! $restaurant) {

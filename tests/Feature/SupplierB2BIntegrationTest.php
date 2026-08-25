@@ -12,11 +12,13 @@ use App\Models\RequestForProposal;
 use App\Models\Restaurant;
 use App\Models\RestaurantBranch;
 use App\Models\RfpBid;
+use App\Models\RfpItem;
 use App\Models\Supplier;
 use App\Models\SupplierPriceHistory;
 use App\Models\Unit;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
@@ -42,6 +44,10 @@ class SupplierB2BIntegrationTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+
+        // Portal behavior is opt-in; these tests cover the retained portal
+        // implementation without changing the product default.
+        config(['portal.supplier_portal_enabled' => true]);
 
         Storage::fake('public');
 
@@ -257,6 +263,26 @@ class SupplierB2BIntegrationTest extends TestCase
 
         // 2. Supplier submits a bid
         $rfpItem = $rfp->items->first();
+        $otherRfp = RequestForProposal::create([
+            'restaurant_id' => $this->restaurant->id,
+            'title' => 'RFP khác',
+            'due_date' => now()->addDays(6),
+            'status' => 'open',
+        ]);
+        $foreignRfpItem = RfpItem::create([
+            'rfp_id' => $otherRfp->id,
+            'ingredient_name' => 'Mặt hàng khác',
+            'quantity_required' => 10,
+            'unit_symbol' => 'kg',
+        ]);
+
+        $this->actingAs($this->supplierUser)
+            ->postJson(route('supplier.rfps.bid', $rfp->id), [
+                'proposed_delivery_date' => now()->addDays(7)->toDateString(),
+                'items' => [['rfp_item_id' => $foreignRfpItem->id, 'proposed_price' => 1]],
+            ])
+            ->assertStatus(422);
+
         $response = $this->actingAs($this->supplierUser)->post(route('supplier.rfps.bid', $rfp->id), [
             'proposed_delivery_date' => now()->addDays(7)->toDateString(),
             'notes' => 'Giá tốt nhất thị trường',
@@ -362,7 +388,7 @@ class SupplierB2BIntegrationTest extends TestCase
             'total_cost' => 5000,
         ]);
 
-        // Verify with price mismatch -> freezes
+        // Verify with price mismatch -> freezes (bắt buộc ảnh + lý do khi lệch).
         $response = $this->actingAs($this->owner)->post(route('suppliers.orders.verify', $po2->id), [
             'items' => [
                 [
@@ -371,6 +397,8 @@ class SupplierB2BIntegrationTest extends TestCase
                     'invoice_price' => 600, // discrepant!
                 ],
             ],
+            'invoice_file' => UploadedFile::fake()->image('inv.jpg'),
+            'mismatch_reason' => 'Giá hoá đơn cao hơn báo giá',
         ]);
 
         $po2->refresh();

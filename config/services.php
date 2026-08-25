@@ -36,6 +36,14 @@ return [
         'account_name' => env('SEPAY_ACCOUNT_NAME'),
         'checkout_url' => env('SEPAY_CHECKOUT_URL', 'https://qr.sepay.vn/img'),
         'qr_template' => env('SEPAY_QR_TEMPLATE', 'compact'),
+        'api_version' => env('SEPAY_API_VERSION', 'v2'),
+        'api_base_url' => env('SEPAY_API_BASE_URL', 'https://userapi.sepay.vn/v2'),
+        'api_token' => env('SEPAY_API_TOKEN'),
+        'legacy_api_base_url' => env('SEPAY_LEGACY_API_BASE_URL', 'https://my.sepay.vn/userapi'),
+        'api_key' => env('SEPAY_API_KEY'),
+        'webhook_secret' => env('SEPAY_WEBHOOK_SECRET', env('BILLING_WEBHOOK_SECRET')),
+        'webhook_api_key' => env('SEPAY_WEBHOOK_API_KEY', env('SEPAY_API_KEY')),
+        'restaurant_id' => env('SEPAY_RESTAURANT_ID'),
     ],
 
     'email_microservice' => [

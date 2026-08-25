@@ -3,41 +3,20 @@
 namespace App\Http\Controllers\SuperAdmin;
 
 use App\Http\Controllers\Controller;
-use App\Models\MediaAsset;
-use Illuminate\Database\Eloquent\Relations\Relation;
+use App\Services\MediaCleanupService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 use Inertia\Response;
 
 class GarbageCollectorController extends Controller
 {
-    protected function getOrphansQuery()
+    public function __construct(protected MediaCleanupService $mediaCleanup) {}
+
+    protected function getOrphansQuery(bool $respectGracePeriod = false)
     {
-        $types = MediaAsset::whereNotNull('attachable_type')->distinct()->pluck('attachable_type');
-
-        return MediaAsset::query()->where(function ($q) use ($types) {
-            $q->whereNull('attachable_id')
-                ->orWhereNull('attachable_type');
-
-            foreach ($types as $type) {
-                $className = Relation::getMorphedModel($type) ?? $type;
-                if (class_exists($className)) {
-                    $model = new $className;
-                    $table = $model->getTable();
-                    $q->orWhere(function ($sub) use ($type, $table) {
-                        $sub->where('attachable_type', $type)
-                            ->whereNotExists(function ($existsQuery) use ($table) {
-                                $existsQuery->select(DB::raw(1))
-                                    ->from($table)
-                                    ->whereColumn("{$table}.id", 'media_assets.attachable_id');
-                            });
-                    });
-                }
-            }
-        });
+        return $this->mediaCleanup->orphanQuery(null, $respectGracePeriod);
     }
 
     public function index(Request $request): Response
@@ -86,12 +65,10 @@ class GarbageCollectorController extends Controller
             'all' => 'nullable|boolean',
         ]);
 
-        $query = MediaAsset::query();
-
         if ($request->boolean('all')) {
             $query = $this->getOrphansQuery();
         } else {
-            $query->whereIn('id', $request->input('ids', []));
+            $query = $this->getOrphansQuery()->whereIn('id', $request->input('ids', []));
         }
 
         $count = 0;

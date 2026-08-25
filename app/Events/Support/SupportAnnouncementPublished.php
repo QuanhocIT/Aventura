@@ -3,8 +3,8 @@
 namespace App\Events\Support;
 
 use App\Models\SupportAnnouncement;
-use Illuminate\Broadcasting\Channel;
 use Illuminate\Broadcasting\InteractsWithSockets;
+use Illuminate\Broadcasting\PrivateChannel;
 use Illuminate\Contracts\Broadcasting\ShouldBroadcastNow;
 use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Queue\SerializesModels;
@@ -17,7 +17,7 @@ class SupportAnnouncementPublished implements ShouldBroadcastNow
 
     public function broadcastOn(): array
     {
-        return [new Channel('support.announcements')];
+        return [new PrivateChannel('support.announcements')];
     }
 
     public function broadcastAs(): string

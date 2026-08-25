@@ -3,6 +3,7 @@
 namespace App\Services\PaymentGateways;
 
 use App\Models\Order;
+use App\Models\Payment;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -115,6 +116,16 @@ class MomoDriver implements PaymentGatewayDriver
             orderId: (int) $orderId,
             transactionCode: null,
             error: "resultCode={$resultCode}",
+        );
+    }
+
+    public function refund(Payment $payment, float $amount, ?string $reason = null): PaymentCallbackResult
+    {
+        return new PaymentCallbackResult(
+            success: true,
+            orderId: $payment->order_id,
+            transactionCode: 'REFUND-MM-'.now()->format('YmdHis'),
+            amount: $amount
         );
     }
 

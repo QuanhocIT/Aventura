@@ -46,6 +46,10 @@ app = FastAPI(
 # Dependency bảo mật chung — áp dụng lên toàn bộ route POST
 _auth = [Depends(require_api_key)]
 
+@app.get("/health")
+def health_check():
+    return {"status": "ok", "service": "analytics_service"}
+
 @app.get("/")
 def read_root(request: Request):
     payload = {"status": "online", "service": "analytics_service"}
@@ -406,6 +410,7 @@ def perform_inventory_forecast(request: InventoryForecastRequest):
         current_stock = ing.current_stock
         min_stock = ing.min_stock_level
         avg_daily = 0.0
+        data_status = "insufficient_data"
 
         if ing.history:
             history_df = pd.DataFrame([{"date": h.date, "qty": h.quantity} for h in ing.history])
@@ -434,14 +439,25 @@ def perform_inventory_forecast(request: InventoryForecastRequest):
                 reason = f"Dự báo dựa trên trung bình di động có trọng số. Tiêu thụ trung bình hàng ngày là {round(avg_daily, 2)} {ing.unit_symbol}."
                 confidence_score = 85.0
         else:
-            avg_daily = float(np.random.randint(50, 150))
-            predicted_usage = round(avg_daily * 7 * 1.1, 2)
-            reason = f"AI mô phỏng học máy: Nhận diện mẫu tiêu dùng tăng 12% vào thứ bảy và chủ nhật. Cần chuẩn bị lượng hàng bổ sung dự phòng."
-            confidence_score = 90.0
+            # Không có lịch sử tiêu thụ thì KHÔNG được bịa ra con số.
+            # Trước đây nhánh này trả về np.random.randint(50, 150) kèm nhãn
+            # "AI mô phỏng học máy" và độ tin cậy 90% — mỗi lần tải trang lại ra
+            # một mức đề xuất mua khác nhau, quản lý đặt hàng theo đó là đặt theo
+            # số ngẫu nhiên. Giữ đúng ngữ nghĩa của nhánh dự phòng PHP: báo thiếu
+            # dữ liệu và chỉ gợi ý bù cho đủ tồn tối thiểu.
+            avg_daily = 0.0
+            predicted_usage = 0.0
+            reason = "Chưa đủ dữ liệu tiêu thụ lịch sử để dự báo xu hướng. Đề xuất chỉ nhằm bù đủ mức tồn tối thiểu."
+            confidence_score = None
+            data_status = "insufficient_data"
 
-        suggested_purchase = max(0.0, round(predicted_usage - current_stock, 2))
-        if suggested_purchase < 1.0:
-            suggested_purchase = round(float(np.random.randint(100, 300)), 2)
+        if avg_daily > 0:
+            data_status = "normal"
+
+        # Mua bù cho đủ nhu cầu dự báo CỘNG mức tồn tối thiểu, trừ đi tồn hiện có.
+        # Ra 0 nghĩa là đang đủ hàng — đó là câu trả lời hợp lệ, không được thay
+        # bằng một con số ngẫu nhiên như trước.
+        suggested_purchase = max(0.0, round(predicted_usage + min_stock - current_stock, 2))
 
         forecast_results.append({
             "ingredient_id": ing.ingredient_id,
@@ -454,6 +470,7 @@ def perform_inventory_forecast(request: InventoryForecastRequest):
             "predicted_usage_next_7_days": round(predicted_usage, 2),
             "suggested_purchase": suggested_purchase,
             "confidence_score": confidence_score,
+            "data_status": data_status,
             "reason": reason
         })
 

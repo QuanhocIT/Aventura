@@ -19,6 +19,8 @@ use Illuminate\Support\Collection;
  */
 class ProductCostService
 {
+    public function __construct(private UnitConversionService $unitConversion) {}
+
     /**
      * Tính lại cost_price cho danh sách món. Trả về số món thực sự đổi giá vốn.
      *
@@ -36,7 +38,7 @@ class ProductCostService
 
         $recipesByProduct = ProductRecipe::withoutGlobalScopes()
             ->whereIn('product_id', $productIds)
-            ->with('ingredient:id,average_cost')
+            ->with(['ingredient:id,average_cost,unit_id', 'ingredient.unit:id,type,symbol,conversion_factor_to_base', 'unit:id,type,symbol,conversion_factor_to_base'])
             ->get()
             ->groupBy('product_id');
 
@@ -81,7 +83,7 @@ class ProductCostService
 
         foreach ($recipes as $recipe) {
             $ingredientCost = (float) ($recipe->ingredient?->average_cost ?? 0);
-            $quantity = (float) $recipe->quantity;
+            $quantity = $this->unitConversion->recipeQuantityInIngredientUnit($recipe);
             $wasteRate = (float) $recipe->waste_rate;
 
             $total += $quantity * $ingredientCost * (1.0 + ($wasteRate / 100.0));

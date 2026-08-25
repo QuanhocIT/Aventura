@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Concerns\AuthorizesRestaurantSettings;
 use App\Models\WebhookEndpoint;
 use App\Services\Integrations\WebhookDispatchService;
 use Illuminate\Http\RedirectResponse;
@@ -10,8 +11,11 @@ use Illuminate\Validation\Rule;
 
 class WebhookEndpointController extends Controller
 {
+    use AuthorizesRestaurantSettings;
+
     public function store(Request $request): RedirectResponse
     {
+        $this->authorizeRestaurantSettings($request);
         $data = $request->validate([
             'url' => ['required', 'url:https,http', 'max:500'],
             'events' => ['required', 'array', 'min:1'],
@@ -36,6 +40,7 @@ class WebhookEndpointController extends Controller
 
     public function toggle(Request $request, WebhookEndpoint $endpoint): RedirectResponse
     {
+        $this->authorizeRestaurantSettings($request);
         abort_unless($endpoint->restaurant_id === $request->user()->restaurant_id, 403);
 
         $endpoint->update(['is_active' => ! $endpoint->is_active]);
@@ -45,6 +50,7 @@ class WebhookEndpointController extends Controller
 
     public function destroy(Request $request, WebhookEndpoint $endpoint): RedirectResponse
     {
+        $this->authorizeRestaurantSettings($request);
         abort_unless($endpoint->restaurant_id === $request->user()->restaurant_id, 403);
 
         $endpoint->delete();
@@ -55,6 +61,7 @@ class WebhookEndpointController extends Controller
     /** Gửi sự kiện ping thử nghiệm tới endpoint. */
     public function test(Request $request, WebhookEndpoint $endpoint, WebhookDispatchService $service): RedirectResponse
     {
+        $this->authorizeRestaurantSettings($request);
         abort_unless($endpoint->restaurant_id === $request->user()->restaurant_id, 403);
 
         $delivery = $service->sendTest($endpoint);

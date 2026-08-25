@@ -29,6 +29,53 @@ const emit = defineEmits<{
     (e: 'check-in'): void;
 }>();
 
+const isRequestingCheckIn = ref(false);
+const isRequestingCheckOut = ref(false);
+
+const handleRequestCheckIn = () => {
+    isRequestingCheckIn.value = true;
+    router.post(
+        '/schedules/request-check-in',
+        {},
+        {
+            onSuccess: () => {
+                import('vue-sonner').then((m) =>
+                    m.toast.success('🚀 Đã gửi yêu cầu xác nhận vào ca tới Quản lý chi nhánh & Chủ doanh nghiệp! Hệ thống tạm thời ghi nhận chấm công (Tự động hủy sau 24h nếu không duyệt).'),
+                );
+            },
+            onError: (errors: any) => {
+                const msg = Object.values(errors)[0] || 'Lỗi khi gửi yêu cầu vào ca.';
+                import('vue-sonner').then((m) => m.toast.error(String(msg)));
+            },
+            onFinish: () => {
+                isRequestingCheckIn.value = false;
+            },
+        },
+    );
+};
+
+const handleRequestCheckOut = () => {
+    isRequestingCheckOut.value = true;
+    router.post(
+        '/schedules/request-check-out',
+        {},
+        {
+            onSuccess: () => {
+                import('vue-sonner').then((m) =>
+                    m.toast.success('🚀 Đã gửi yêu cầu xác nhận hết ca tới Quản lý chi nhánh & Chủ doanh nghiệp! Vui lòng chờ phê duyệt.'),
+                );
+            },
+            onError: (errors: any) => {
+                const msg = Object.values(errors)[0] || 'Lỗi khi gửi yêu cầu hết ca.';
+                import('vue-sonner').then((m) => m.toast.error(String(msg)));
+            },
+            onFinish: () => {
+                isRequestingCheckOut.value = false;
+            },
+        },
+    );
+};
+
 const liveDuration = ref('00:00:00');
 let durationInterval: any = null;
 
@@ -72,7 +119,7 @@ const handleCheckOut = async () => {
         await confirmDialog({
             title: 'Xác nhận thao tác',
             description:
-                'Bạn chắc chắn muốn check-out ra ca trực hiện tại? Hệ thống sẽ ghi nhận giờ chấm công của bạn.',
+                'Bạn chắc chắn muốn tự check-out ra ca trực hiện tại? Hệ thống sẽ ghi nhận giờ chấm công của bạn.',
             variant: 'default',
         })
     ) {
@@ -95,7 +142,7 @@ watch(
     (newAssign) => {
         if (
             newAssign &&
-            newAssign.status === 'checked_in' &&
+            ['checked_in', 'pending_checkout'].includes(newAssign.status) &&
             newAssign.check_in_at
         ) {
             startLiveDurationTimer(newAssign.check_in_at);
@@ -114,7 +161,7 @@ watch(
 onMounted(() => {
     if (
         props.todayActiveAssignment &&
-        props.todayActiveAssignment.status === 'checked_in' &&
+        ['checked_in', 'pending_checkout'].includes(props.todayActiveAssignment.status) &&
         props.todayActiveAssignment.check_in_at
     ) {
         startLiveDurationTimer(props.todayActiveAssignment.check_in_at);
@@ -150,13 +197,13 @@ onUnmounted(() => {
         >
             <!-- Clock Display Face -->
             <div
-                class="relative flex h-44 w-44 flex-col items-center justify-center rounded-full border-4 border-indigo-200 bg-white shadow-inner dark:bg-slate-950"
+                class="relative flex h-48 w-48 flex-col items-center justify-center rounded-full border-4 border-indigo-200 bg-white p-3 text-center shadow-inner dark:bg-slate-950 overflow-hidden"
             >
                 <div
                     class="absolute inset-0 rounded-full bg-indigo-500/5 blur-xs"
                 ></div>
                 <span
-                    class="font-mono text-xs text-[9px] font-bold tracking-widest text-slate-400 uppercase dark:text-slate-500"
+                    class="font-mono text-[9px] font-bold tracking-widest text-slate-400 uppercase dark:text-slate-500"
                     >CA HÔM NAY</span
                 >
                 <span
@@ -164,24 +211,34 @@ onUnmounted(() => {
                     >{{ currentTime }}</span
                 >
                 <!-- Live Status Indicator -->
-                <div class="mt-2 shrink-0">
+                <div class="mt-2 flex shrink-0 justify-center">
                     <span
                         v-if="todayActiveAssignment?.status === 'checked_in'"
-                        class="bg-emerald-555 animate-pulse rounded-full px-2 py-0.5 text-[9px] font-extrabold text-white uppercase"
+                        class="animate-pulse rounded-full bg-emerald-600 px-2.5 py-0.5 text-[9px] font-extrabold text-white uppercase text-center"
                     >
                         Đang làm việc
                     </span>
                     <span
-                        v-else-if="
-                            todayActiveAssignment?.status === 'completed'
-                        "
-                        class="rounded-full bg-indigo-500 px-2 py-0.5 text-[9px] font-extrabold text-white uppercase"
+                        v-else-if="todayActiveAssignment?.status === 'pending_checkout'"
+                        class="animate-pulse rounded-full bg-amber-500 px-2.5 py-1 text-[9px] font-extrabold text-white uppercase text-center leading-tight max-w-[140px] whitespace-normal block"
+                    >
+                        Chờ duyệt hết ca
+                    </span>
+                    <span
+                        v-else-if="todayActiveAssignment?.status === 'pending_checkin'"
+                        class="animate-pulse rounded-full bg-amber-500 px-2.5 py-1 text-[9px] font-extrabold text-white uppercase text-center leading-tight max-w-[140px] whitespace-normal block"
+                    >
+                        Đã chấm công (Chờ duyệt)
+                    </span>
+                    <span
+                        v-else-if="todayActiveAssignment?.status === 'completed'"
+                        class="rounded-full bg-indigo-500 px-2.5 py-0.5 text-[9px] font-extrabold text-white uppercase text-center"
                     >
                         Đã hoàn thành ca
                     </span>
                     <span
                         v-else
-                        class="rounded-full bg-slate-300 px-2 py-0.5 text-[9px] font-extrabold text-slate-600 uppercase dark:bg-slate-800 dark:text-slate-400"
+                        class="rounded-full bg-slate-300 px-2.5 py-0.5 text-[9px] font-extrabold text-slate-600 uppercase dark:bg-slate-800 dark:text-slate-400 text-center"
                     >
                         Chờ vào ca
                     </span>
@@ -209,9 +266,9 @@ onUnmounted(() => {
                     ({{ todayActiveAssignment.shift_time }})
                 </p>
 
-                <!-- Check-in details if working -->
+                <!-- Check-in details if working or pending checkout -->
                 <div
-                    v-if="todayActiveAssignment.status === 'checked_in'"
+                    v-if="['checked_in', 'pending_checkout'].includes(todayActiveAssignment.status)"
                     class="mt-3 space-y-2 border-t border-slate-200 pt-3 dark:border-slate-800"
                 >
                     <div class="flex items-center justify-between text-xs">
@@ -258,32 +315,59 @@ onUnmounted(() => {
 
         <!-- Interactive Buttons Block -->
         <CardContent
-            class="rounded-b-2xl border-t border-indigo-50/60 bg-slate-50/50 p-6 pt-0 pb-6 dark:bg-slate-950/20"
+            class="space-y-2.5 rounded-b-2xl border-t border-indigo-50/60 bg-slate-50/50 p-6 pt-0 pb-6 dark:bg-slate-950/20"
         >
-            <!-- Check In Action Button -->
+            <!-- 1. NÚT XÁC NHẬN VÀO CA (Gửi Quản Lý / Chủ Doanh Nghiệp Duyệt) -->
+            <Button
+                v-if="todayActiveAssignment && ['scheduled', 'pending_checkin'].includes(todayActiveAssignment?.status)"
+                @click="handleRequestCheckIn"
+                :disabled="isRequestingCheckIn || todayActiveAssignment?.status === 'pending_checkin'"
+                class="flex min-h-[48px] h-auto w-full cursor-pointer items-center justify-center gap-2 rounded-xl bg-emerald-600 px-3 py-2.5 text-xs font-bold leading-snug text-white shadow-md transition-all hover:bg-emerald-700 active:scale-98 disabled:opacity-90"
+            >
+                <LogIn class="size-4 shrink-0" />
+                <span class="min-w-0 text-center leading-tight">
+                    {{ todayActiveAssignment?.status === 'pending_checkin' ? '⏳ Đã tạm chấm công (Chờ Quản lý / Chủ duyệt)' : '📩 Xác nhận vào ca (Gửi Quản lý / Chủ)' }}
+                </span>
+            </Button>
+
+            <!-- 2. NÚT XÁC NHẬN HẾT CA (Gửi Quản Lý / Chủ Doanh Nghiệp Duyệt) -->
+            <Button
+                v-else-if="todayActiveAssignment && ['checked_in', 'pending_checkout'].includes(todayActiveAssignment?.status)"
+                @click="handleRequestCheckOut"
+                :disabled="isRequestingCheckOut || todayActiveAssignment?.status === 'pending_checkout'"
+                class="flex min-h-[48px] h-auto w-full cursor-pointer items-center justify-center gap-2 rounded-xl bg-amber-600 px-3 py-2.5 text-xs font-bold leading-snug text-white shadow-md transition-all hover:bg-amber-700 active:scale-98 disabled:opacity-90"
+            >
+                <LogOut class="size-4 shrink-0" />
+                <span class="min-w-0 text-center leading-tight">
+                    {{ todayActiveAssignment?.status === 'pending_checkout' ? '⏳ Đang chờ Quản lý / Chủ duyệt hết ca' : '📤 Xác nhận hết ca (Gửi Quản lý / Chủ)' }}
+                </span>
+            </Button>
+
+            <!-- Option 3a: Tự Chấm Công Bằng GPS / Selfie (Check-In) -->
             <Button
                 v-if="todayActiveAssignment?.can_check_in"
                 @click="emit('check-in')"
-                class="flex h-12 w-full animate-pulse cursor-pointer items-center justify-center gap-1.5 bg-indigo-600 text-sm font-black text-white shadow-md hover:bg-indigo-700 active:scale-98"
+                variant="outline"
+                class="flex h-9 w-full cursor-pointer items-center justify-center gap-1.5 border-indigo-200 text-[11px] font-bold text-indigo-700 hover:bg-indigo-50 dark:border-indigo-800 dark:text-indigo-400 dark:hover:bg-indigo-950/30"
             >
-                <LogIn class="size-4" />
-                BẤM GIỜ VÀO CA (CHECK IN)
+                <LogIn class="size-3.5" />
+                Tự Chấm Công Bằng GPS / Ảnh Selfie
             </Button>
 
-            <!-- Check Out Action Button -->
+            <!-- Option 3b: Tự Bấm Giờ Ra Ca Trực Tiếp (Check-Out) -->
             <Button
-                v-else-if="todayActiveAssignment?.can_check_out"
+                v-if="todayActiveAssignment?.status === 'checked_in'"
                 @click="handleCheckOut"
-                variant="destructive"
-                class="flex h-12 w-full cursor-pointer items-center justify-center gap-1.5 bg-rose-600 text-sm font-black text-white shadow-md hover:bg-rose-700 active:scale-98"
+                variant="ghost"
+                class="flex h-8 w-full cursor-pointer items-center justify-center gap-1.5 text-[11px] font-semibold text-rose-600 hover:bg-rose-50 dark:text-rose-400 dark:hover:bg-rose-950/30"
             >
-                <LogOut class="size-4" />
-                BẤM GIỜ RA CA (CHECK OUT)
+                <LogOut class="size-3.5" />
+                Tự Bấm Giờ Ra Ca Trực Tiếp (GPS)
             </Button>
 
             <!-- Completed state description -->
             <div
-                v-else-if="todayActiveAssignment?.status === 'completed'"
+                v-if="todayActiveAssignment?.status === 'completed'"
                 class="flex items-start gap-2 rounded-xl border border-indigo-100/50 bg-indigo-50 p-3 text-[11px] text-indigo-700 dark:bg-indigo-950/30 dark:text-indigo-400"
             >
                 <CheckCircle2
@@ -320,9 +404,7 @@ onUnmounted(() => {
             >
                 <HelpCircle class="mt-0.5 size-3.5 shrink-0" />
                 <p>
-                    Hệ thống tự động đồng bộ hóa chấm công với Spatie ACL. Bấm
-                    giờ ra ca sẽ chặn truy cập hệ thống để bảo an an ninh vận
-                    hành.
+                    Hệ thống tự động gửi yêu cầu xác nhận vào ca / hết ca tới Chủ doanh nghiệp phê duyệt để lưu vết chấm công chính xác.
                 </p>
             </div>
         </CardContent>

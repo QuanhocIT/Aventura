@@ -9,7 +9,6 @@ import {
     Loader2,
     Shield,
     Activity,
-    FileText,
     Lock,
     Globe,
     Server,
@@ -19,12 +18,7 @@ import {
 } from 'lucide-vue-next';
 import { computed, ref, watch } from 'vue';
 import { toast } from 'vue-sonner';
-import {
-    PageHeader,
-    SectionCard,
-    LedIndicator,
-    StatusBadge,
-} from '@/components/super-admin';
+import { PageHeader } from '@/components/super-admin';
 import { Button } from '@/components/ui/button';
 import {
     Card,
@@ -254,7 +248,7 @@ const sendTestEmail = () => {
         <!-- Header -->
         <PageHeader
             title="Cấu hình Hệ thống Toàn cục"
-            subtitle="Thiết lập tham số AI Chatbot, Email gửi đi, và giới hạn kích thước tệp upload toàn hệ thống."
+            subtitle="Thiết lập tham số AI Chatbot, thư điện tử gửi đi và giới hạn kích thước tệp tải lên toàn hệ thống."
             :icon="Settings"
         />
 
@@ -286,7 +280,7 @@ const sendTestEmail = () => {
                     ]"
                 >
                     <Mail class="size-4 shrink-0" />
-                    <span>Email & SMTP</span>
+                    <span>Thư điện tử & SMTP</span>
                 </button>
 
                 <button
@@ -319,7 +313,7 @@ const sendTestEmail = () => {
                                 class="flex items-center gap-2 text-xs font-black tracking-wider text-slate-800 uppercase dark:text-slate-100"
                             >
                                 <Bot class="size-5 text-orange-500" /> Cấu hình
-                                Matching & Cache Chatbot
+                                Đối sánh & bộ nhớ đệm Chatbot
                             </CardTitle>
                             <CardDescription
                                 class="mt-0.5 text-[10px] font-semibold text-muted-foreground"
@@ -414,8 +408,8 @@ const sendTestEmail = () => {
                                     <Label
                                         for="cache-ttl"
                                         class="text-xs font-bold text-slate-700 dark:text-slate-300"
-                                        >Thời gian sống của cache (Cache TTL -
-                                        Giây)</Label
+                                        >Thời gian sống của bộ nhớ đệm
+                                        (giây)</Label
                                     >
                                     <Input
                                         id="cache-ttl"
@@ -455,12 +449,13 @@ const sendTestEmail = () => {
                                 class="flex items-center gap-2 text-xs font-black tracking-wider text-slate-800 uppercase dark:text-slate-100"
                             >
                                 <Mail class="size-5 text-orange-500" /> Cấu hình
-                                Máy chủ Email gửi đi (SMTP)
+                                Máy chủ thư điện tử gửi đi (SMTP)
                             </CardTitle>
                             <CardDescription
                                 class="mt-0.5 text-[10px] font-semibold text-muted-foreground"
-                                >Chuyển đổi linh hoạt driver gửi email chính của
-                                hệ thống SaaS.</CardDescription
+                                >Chuyển đổi linh hoạt trình điều khiển gửi thư
+                                điện tử chính của hệ thống
+                                SaaS.</CardDescription
                             >
                         </CardHeader>
                         <CardContent class="space-y-6 p-5">
@@ -529,7 +524,7 @@ const sendTestEmail = () => {
                                         <Globe class="size-5 shrink-0" />
                                         <span
                                             class="mt-0.5 text-[10px] font-black tracking-wider uppercase"
-                                            >Mailgun Service</span
+                                            >Dịch vụ Mailgun</span
                                         >
                                     </label>
                                 </div>
@@ -635,7 +630,7 @@ const sendTestEmail = () => {
                                         <Label
                                             for="smtp-user"
                                             class="text-xs font-bold tracking-wider text-muted-foreground uppercase"
-                                            >Username</Label
+                                            >Tên người dùng</Label
                                         >
                                         <div class="relative flex items-center">
                                             <div
@@ -816,7 +811,7 @@ const sendTestEmail = () => {
                                         <Label
                                             for="mg-end"
                                             class="text-xs font-bold tracking-wider text-muted-foreground uppercase"
-                                            >API Endpoint</Label
+                                            >Đường dẫn API</Label
                                         >
                                         <Input
                                             id="mg-end"
@@ -844,7 +839,8 @@ const sendTestEmail = () => {
                                         <Label
                                             for="mail-from"
                                             class="text-xs font-bold tracking-wider text-muted-foreground uppercase"
-                                            >Email gửi đi (From Address)</Label
+                                            >Thư điện tử gửi đi (địa chỉ người
+                                            gửi)</Label
                                         >
                                         <div class="relative flex items-center">
                                             <div
@@ -907,16 +903,16 @@ const sendTestEmail = () => {
                                     <Send v-else class="size-4" />
                                     <span>{{
                                         testingEmail
-                                            ? 'Đang gửi email thử...'
-                                            : 'Gửi email thử nghiệm'
+                                            ? 'Đang gửi thư điện tử thử...'
+                                            : 'Gửi thư điện tử thử nghiệm'
                                     }}</span>
                                 </Button>
                                 <p
                                     class="text-[10px] leading-relaxed font-semibold text-muted-foreground"
                                 >
-                                    Gửi email thử đến địa chỉ email tài khoản
-                                    đang đăng nhập để xác nhận cấu hình hoạt
-                                    động.
+                                    Gửi thư điện tử thử đến địa chỉ thư điện tử
+                                    tài khoản đang đăng nhập để xác nhận cấu
+                                    hình hoạt động.
                                 </p>
                             </div>
                         </CardContent>
@@ -934,7 +930,7 @@ const sendTestEmail = () => {
                                 class="flex items-center gap-2 text-xs font-black tracking-wider text-slate-800 uppercase dark:text-slate-100"
                             >
                                 <UploadCloud class="size-5 text-orange-500" />
-                                Giới hạn dung lượng tải lên (Upload limits)
+                                Giới hạn dung lượng tải lên
                             </CardTitle>
                             <CardDescription
                                 class="mt-0.5 text-[10px] font-semibold text-muted-foreground"
@@ -1055,7 +1051,7 @@ const sendTestEmail = () => {
                             <h4
                                 class="text-xs font-black tracking-wider text-muted-foreground uppercase"
                             >
-                                AI Cấu hình Advisor
+                                Trợ lý AI cấu hình
                             </h4>
                             <span
                                 class="animate-pulse rounded-full border px-2 py-0.5 text-[9px] font-black uppercase"
@@ -1097,7 +1093,7 @@ const sendTestEmail = () => {
                                     <p
                                         class="text-xs font-bold text-slate-800 dark:text-slate-200"
                                     >
-                                        Matching Threshold
+                                        Ngưỡng đối sánh
                                     </p>
                                     <p
                                         class="mt-0.5 text-[10px] leading-normal font-semibold text-muted-foreground"
@@ -1129,7 +1125,7 @@ const sendTestEmail = () => {
                                     <p
                                         class="text-xs font-bold text-slate-800 dark:text-slate-200"
                                     >
-                                        Cache TTL
+                                        Thời gian sống bộ nhớ đệm
                                     </p>
                                     <p
                                         class="mt-0.5 text-[10px] leading-normal font-semibold text-muted-foreground"

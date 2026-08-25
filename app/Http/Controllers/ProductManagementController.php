@@ -2,14 +2,23 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\AuditLog;
+use App\Models\Ingredient;
+use App\Models\Inventory;
+use App\Models\InventoryBatch;
 use App\Models\Product;
 use App\Models\ProductCategory;
+use App\Models\ProductRecipe;
 use App\Models\RestaurantBranch;
 use App\Models\SystemSetting;
+use App\Models\Unit;
+use App\Notifications\ProductRecipeRequiredNotification;
 use App\Support\Tenant\TenantContext;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
@@ -50,7 +59,7 @@ class ProductManagementController extends Controller
                 ->when($context->isBranchScoped(), fn ($q) => $q->where(function ($q) use ($context) {
                     $q->whereNull('branch_id')->orWhere('branch_id', $context->activeBranchId());
                 }))
-                ->with('category')
+                ->with(['category', 'recipes'])
                 ->latest()
                 ->get()
                 ->map(fn ($p) => [
@@ -63,6 +72,9 @@ class ProductManagementController extends Controller
                     'description' => $p->description,
                     'is_available' => (bool) $p->is_available,
                     'is_active' => (bool) $p->is_active,
+                    'is_processed' => (bool) ($p->is_processed ?? true),
+                    'has_recipes' => $p->recipes->isNotEmpty(),
+                    'recipes_count' => $p->recipes->count(),
                     'branch_id' => $p->branch_id,
                     'branch_name' => $p->branch?->name,
                     'category' => $p->category ? ['id' => $p->category->id, 'name' => $p->category->name, 'description' => $p->category->description] : null,
@@ -78,6 +90,7 @@ class ProductManagementController extends Controller
             'activeBranchId' => $context->activeBranchId(),
             'branchScope' => $context->scope(),
             'canCreateShared' => $user->isOwner(),
+            'canManagePrices' => $user->isOwner() || $user->isSuperAdmin(),
         ]);
     }
 
@@ -94,6 +107,8 @@ class ProductManagementController extends Controller
             'description' => ['nullable', 'string'],
             'scope' => ['required', 'in:shared,branch'],
             'branch_id' => ['nullable', 'integer', Rule::exists('restaurant_branches', 'id')->where('restaurant_id', $user->restaurant_id)],
+            'earn_points' => ['nullable', 'integer', 'min:0'],
+            'redeem_points' => ['nullable', 'integer', 'min:0'],
         ]);
         $branchId = $this->resolveCatalogBranch($user, app(TenantContext::class), $data);
 
@@ -118,19 +133,24 @@ class ProductManagementController extends Controller
     public function storeProduct(Request $request): RedirectResponse
     {
         $user = $request->user();
-        abort_unless($user->hasAnyRole(['owner', 'manager']), 403);
+        abort_unless(
+            $user->isOwner() || $user->isSuperAdmin(),
+            403,
+            'Chỉ Chủ doanh nghiệp mới được tạo món cùng giá bán chính thức.'
+        );
 
         $maxSize = SystemSetting::get('upload_menu_image_max', 2048);
         $data = $request->validate([
             'category_id' => ['required', "exists:product_categories,id,restaurant_id,{$user->restaurant_id}"],
             'name' => ['required', 'string', 'max:255'],
             'price' => ['required', 'numeric', 'min:0'],
-            'earn_points' => ['nullable', 'integer', 'min:0'],
-            'redeem_points' => ['nullable', 'integer', 'min:0'],
+            'is_processed' => ['nullable', 'boolean'],
             'description' => ['required', 'string', 'min:5'],
             'image' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:'.$maxSize],
             'scope' => ['required', 'in:shared,branch'],
             'branch_id' => ['nullable', 'integer', Rule::exists('restaurant_branches', 'id')->where('restaurant_id', $user->restaurant_id)],
+            'earn_points' => ['nullable', 'integer', 'min:0'],
+            'redeem_points' => ['nullable', 'integer', 'min:0'],
         ]);
         $context = app(TenantContext::class);
         $branchId = $this->resolveCatalogBranch($user, $context, $data);
@@ -148,7 +168,7 @@ class ProductManagementController extends Controller
             $imageUrl = '/storage/'.$path;
         }
 
-        Product::create([
+        $product = Product::create([
             'restaurant_id' => $user->restaurant_id,
             'branch_id' => $branchId,
             'category_id' => $data['category_id'],
@@ -161,9 +181,18 @@ class ProductManagementController extends Controller
             'description' => $data['description'] ?? null,
             'image_url' => $imageUrl,
             'is_active' => true,
-            'is_available' => true,
+            // A tracked product stays hidden from selling menus until its
+            // first BOM row is saved in Inventory.
+            'is_available' => false,
+            'is_processed' => (bool) ($data['is_processed'] ?? true),
             'track_inventory' => true,
         ]);
+
+        if (! $product->is_processed) {
+            $this->autoProvisionUnprocessedInventory($product);
+        } else {
+            ($user->restaurant?->owner ?? $user)->notify(new ProductRecipeRequiredNotification($product));
+        }
 
         $this->forgetCatalogCaches($user->restaurant_id, $context, $branchId);
 
@@ -179,6 +208,17 @@ class ProductManagementController extends Controller
         abort_if($product->restaurant_id !== $user->restaurant_id, 403);
         abort_unless($user->canAccessBranch($product->branch_id), 403);
 
+        // is_processed quyết định món có đi qua BOM/COGS hay không, nên cũng
+        // là một thay đổi tài chính chứ không chỉ là thuộc tính hiển thị.
+        $financialFields = ['price', 'earn_points', 'redeem_points', 'is_processed'];
+        if (array_intersect($financialFields, array_keys($request->all()))) {
+            abort_unless(
+                $user->isOwner() || $user->isSuperAdmin(),
+                403,
+                'Chỉ Chủ doanh nghiệp mới được thay đổi giá bán hoặc chính sách điểm.'
+            );
+        }
+
         $maxSize = SystemSetting::get('upload_menu_image_max', 2048);
         $data = $request->validate([
             'name' => ['sometimes', 'string', 'max:255'],
@@ -189,22 +229,99 @@ class ProductManagementController extends Controller
             'description' => ['sometimes', 'required', 'string', 'min:5'],
             'is_available' => ['sometimes', 'boolean'],
             'is_active' => ['sometimes', 'boolean'],
+            'is_processed' => ['sometimes', 'boolean'],
             'image' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:'.$maxSize],
         ]);
 
         if ($request->hasFile('image')) {
             if ($product->image_url && str_starts_with($product->image_url, '/storage/')) {
-                \Storage::disk('public')->delete(str_replace('/storage/', '', $product->image_url));
+                Storage::disk('public')->delete(str_replace('/storage/', '', $product->image_url));
             }
             $path = $request->file('image')->store('products', 'public');
             $data['image_url'] = '/storage/'.$path;
         }
+        unset($data['image']);
 
         $product->update($data);
+
+        if (! $product->is_processed) {
+            $this->autoProvisionUnprocessedInventory($product);
+        }
 
         $this->forgetCatalogCaches($user->restaurant_id, app(TenantContext::class), $product->branch_id);
 
         return back()->with('success', 'Đã cập nhật thông tin món ăn.');
+    }
+
+    /**
+     * Tự động khởi tạo nguyên liệu 1-1 và tồn kho cho món bán sẵn (Không chế biến).
+     */
+    public function autoProvisionUnprocessedInventory(Product $product): void
+    {
+        if ((bool) $product->is_processed) {
+            return;
+        }
+
+        $unit = Unit::firstOrCreate([
+            'restaurant_id' => $product->restaurant_id,
+            'symbol' => 'Cái',
+        ], [
+            'name' => 'Chai/Lon/Cái/Gói',
+        ]);
+
+        $ingredient = Ingredient::firstOrCreate([
+            'restaurant_id' => $product->restaurant_id,
+            'name' => $product->name,
+        ], [
+            'sku' => 'ING-'.$product->code,
+            'unit_id' => $unit->id,
+            'min_stock_level' => 10,
+            'average_cost' => round((float) $product->price * 0.5, 2),
+        ]);
+
+        ProductRecipe::updateOrCreate([
+            'product_id' => $product->id,
+            'ingredient_id' => $ingredient->id,
+        ], [
+            'restaurant_id' => $product->restaurant_id,
+            'quantity' => 1,
+            'unit_id' => $unit->id,
+            'waste_rate' => 0,
+        ]);
+
+        $branchIds = $product->branch_id
+            ? [(int) $product->branch_id]
+            : RestaurantBranch::where('restaurant_id', $product->restaurant_id)->pluck('id')->all();
+
+        foreach ($branchIds as $bId) {
+            Inventory::firstOrCreate([
+                'restaurant_id' => $product->restaurant_id,
+                'branch_id' => $bId,
+                'ingredient_id' => $ingredient->id,
+            ], [
+                'quantity_on_hand' => 999999,
+                'theoretical_quantity' => 999999,
+                'last_cost' => round((float) $product->price * 0.5, 2),
+            ]);
+
+            InventoryBatch::firstOrCreate([
+                'restaurant_id' => $product->restaurant_id,
+                'branch_id' => $bId,
+                'ingredient_id' => $ingredient->id,
+                'status' => 'active',
+            ], [
+                'batch_number' => 'BATCH-'.$product->code,
+                'quantity_remaining' => 999999,
+                'unit_cost' => round((float) $product->price * 0.5, 2),
+                'purchased_at' => now(),
+                'expiry_date' => now()->addYears(5)->toDateString(),
+            ]);
+        }
+
+        $product->update([
+            'is_available' => true,
+            'track_inventory' => true,
+        ]);
     }
 
     /**
@@ -213,6 +330,11 @@ class ProductManagementController extends Controller
     public function destroyProduct(Request $request, Product $product): RedirectResponse
     {
         $user = $request->user();
+        abort_unless(
+            $user->isOwner() || $user->isSuperAdmin(),
+            403,
+            'Chỉ Chủ doanh nghiệp mới được xóa món khỏi thực đơn chính thức.'
+        );
         abort_if($product->restaurant_id !== $user->restaurant_id, 403);
         abort_unless($user->canAccessBranch($product->branch_id), 403);
 
@@ -284,5 +406,72 @@ class ProductManagementController extends Controller
 
         Cache::forget("restaurant_{$restaurantId}_products");
         Cache::forget("restaurant_{$restaurantId}_categories");
+    }
+
+    /**
+     * Tự động phát hiện và tạm ngưng bán các món dùng nguyên liệu sắp hết/hết hàng.
+     */
+    public function pauseProductsWithLowStockIngredients(Request $request): JsonResponse
+    {
+        $user = $request->user();
+        abort_unless($user->can('manage_products') || $user->hasAnyRole(['cashier', 'manager', 'owner', 'super_admin']), 403);
+
+        $restaurantId = $user->restaurant_id;
+        $context = app(TenantContext::class);
+        $branchId = $context->activeBranchId();
+
+        $lowStockIngredientIds = Ingredient::where('restaurant_id', $restaurantId)
+            ->whereHas('inventories', function ($inv) use ($branchId) {
+                $inv->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
+                    ->whereRaw('inventories.quantity_on_hand <= ingredients.min_stock_level');
+            })
+            ->pluck('id');
+
+        if ($lowStockIngredientIds->isEmpty()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Không tìm thấy nguyên liệu nào hết hoặc dưới định mức tồn kho.',
+            ], 422);
+        }
+
+        $productIdsToPause = ProductRecipe::where('restaurant_id', $restaurantId)
+            ->whereIn('ingredient_id', $lowStockIngredientIds)
+            ->pluck('product_id')
+            ->unique();
+
+        $affectedProducts = Product::where('restaurant_id', $restaurantId)
+            ->whereIn('id', $productIdsToPause)
+            ->where('is_active', true)
+            ->get();
+
+        if ($affectedProducts->isEmpty()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Tất cả các món liên quan đến nguyên liệu thiếu đã tạm ngưng trước đó.',
+            ], 422);
+        }
+
+        $pausedCount = 0;
+        foreach ($affectedProducts as $product) {
+            $product->update(['is_active' => false]);
+            $pausedCount++;
+        }
+
+        $this->forgetCatalogCaches($restaurantId, $context, $branchId);
+
+        AuditLog::log(
+            'products_paused_low_stock_ingredients',
+            'updated',
+            $affectedProducts->first(),
+            null,
+            ['paused_count' => $pausedCount]
+        );
+
+        return response()->json([
+            'success' => true,
+            'message' => "Đã tạm ngưng bán thành công {$pausedCount} món do thiếu nguyên liệu.",
+            'paused_count' => $pausedCount,
+            'paused_products' => $affectedProducts->pluck('name'),
+        ]);
     }
 }

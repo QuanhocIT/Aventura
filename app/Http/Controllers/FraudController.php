@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Employee;
 use App\Models\User;
 use App\Models\ViolationReport;
+use App\Services\ApprovalAuthorityService;
 use App\Services\ApprovalService;
 use App\Services\FraudDetectionService;
 use App\Services\QuotaService;
@@ -13,6 +14,7 @@ use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Hash;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -23,11 +25,12 @@ class FraudController extends Controller
         private SalaryService $salaryService,
         private ApprovalService $approvalService,
         private FraudDetectionService $fraudService,
+        private ApprovalAuthorityService $authorityService,
     ) {}
 
     public function index(Request $request): Response
     {
-        abort_unless($request->user()->can('view_fraud_detection'), 403);
+        abort_unless($request->user()->hasAnyRole(['owner', 'manager', 'super_admin']) || $request->user()->can('view_fraud_detection'), 403);
 
         $user = $request->user();
 
@@ -135,7 +138,10 @@ class FraudController extends Controller
                 ->where('restaurant_id', $restaurantId)
                 ->findOrFail($data['employee_id']);
 
-            if ($user->can('approve_requests')) {
+            // Trước đây dùng can('approve_requests'), mà vai trò manager cũng có
+            // quyền đó — nên Quản lý tự áp khấu trừ lương được, trái với quy định
+            // "không duyệt lương, thưởng, phạt tiền".
+            if ($this->authorityService->canActDirectly($user, 'salary_adjustment', $employee->branch_id)) {
                 $salary = $this->salaryService->getOrCreateDraft(
                     $restaurantId,
                     $employee,
@@ -165,8 +171,9 @@ class FraudController extends Controller
             }
         }
 
-        $msg = $request->boolean('apply_deduction') && ! $user->can('approve_requests')
-            ? 'Đã ghi vi phạm. Yêu cầu khấu trừ lương đã gửi chủ nhà hàng để phê duyệt.'
+        $msg = $request->boolean('apply_deduction')
+            && ! $this->authorityService->canActDirectly($user, 'salary_adjustment', $violation->employee?->branch_id)
+            ? 'Đã ghi vi phạm. Yêu cầu khấu trừ lương đã gửi Chủ nhà hàng để phê duyệt.'
             : 'Đã ghi nhận vi phạm thành công.';
 
         return back()->with('success', $msg);
@@ -181,8 +188,21 @@ class FraudController extends Controller
         $user = $request->user();
         $restaurantId = $user->restaurant_id;
 
+        $ip = $request->ip();
+        $cacheKey = "verify_manager_pin_fails:{$restaurantId}:".($user->id ?: "ip:{$ip}");
+        $failedAttempts = (int) Cache::get($cacheKey, 0);
+
+        if ($failedAttempts >= 5) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Bạn đã nhập sai mã PIN quá 5 lần. Chức năng xác thực bị khóa tạm thời trong 15 phút.',
+            ], 429);
+        }
+
         if (($user->hasAnyRole(['owner', 'manager']) || $user->can('approve_requests')) && $user->pin_code) {
             if (Hash::check($data['pin'], $user->pin_code)) {
+                Cache::forget($cacheKey);
+
                 return response()->json([
                     'success' => true,
                     'message' => 'Xác thực PIN thành công.',
@@ -193,24 +213,29 @@ class FraudController extends Controller
 
         $managers = User::where('restaurant_id', $restaurantId)
             ->whereNotNull('pin_code')
-            ->limit(10)
+            ->where(function ($q) {
+                $q->whereHas('roles', fn ($roleQuery) => $roleQuery->whereIn('name', ['owner', 'manager', 'super_admin']))
+                    ->orWhereHas('permissions', fn ($permQuery) => $permQuery->where('name', 'approve_requests'));
+            })
             ->get();
 
         foreach ($managers as $m) {
-            if (($m->hasAnyRole(['owner', 'manager']) || $m->can('approve_requests')) && $m->pin_code) {
-                if (Hash::check($data['pin'], $m->pin_code)) {
-                    return response()->json([
-                        'success' => true,
-                        'message' => 'Xác thực mã PIN Quản lý thành công.',
-                        'verified_by' => $m->name,
-                    ]);
-                }
+            if ($m->pin_code && Hash::check($data['pin'], $m->pin_code)) {
+                Cache::forget($cacheKey);
+
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Xác thực mã PIN Quản lý thành công.',
+                    'verified_by' => $m->name,
+                ]);
             }
         }
 
+        Cache::put($cacheKey, $failedAttempts + 1, now()->addMinutes(15));
+
         return response()->json([
             'success' => false,
-            'message' => 'Mã PIN Quản lý không chính xác hoặc không đủ quyền hạn.',
+            'message' => 'Mã PIN Quản lý không chính xác hoặc không đủ quyền hạn. Còn lại '.(5 - ($failedAttempts + 1)).' lần thử.',
         ], 422);
     }
 }

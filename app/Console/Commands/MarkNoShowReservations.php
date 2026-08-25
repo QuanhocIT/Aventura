@@ -3,6 +3,7 @@
 namespace App\Console\Commands;
 
 use App\Models\AuditLog;
+use App\Models\RestaurantTable;
 use App\Models\TableReservation;
 use Carbon\Carbon;
 use Illuminate\Console\Command;
@@ -22,7 +23,11 @@ class MarkNoShowReservations extends Command
 
         // We find confirmed reservations that are overdue.
         // If reservation_date is in the past, or if it is today but reservation_time is older than 30 mins ago.
-        $overdueReservations = TableReservation::where('status', 'confirmed')
+        // withoutGlobalScopes: lệnh chạy cho MỌI nhà hàng. Nếu một ngày nào đó
+        // lệnh được gọi từ trong request hoặc queue job có tenant context, global
+        // scope 'restaurant' sẽ âm thầm thu hẹp phạm vi xuống một nhà hàng.
+        $overdueReservations = TableReservation::withoutGlobalScopes()
+            ->where('status', 'confirmed')
             ->where(function ($query) use ($cutoff) {
                 $query->whereDate('reservation_date', '<', today()->toDateString())
                     ->orWhere(function ($q) use ($cutoff) {
@@ -42,6 +47,12 @@ class MarkNoShowReservations extends Command
                 $res->update([
                     'status' => 'no_show',
                 ]);
+
+                if ($res->table_id) {
+                    RestaurantTable::withoutGlobalScopes()->whereKey($res->table_id)
+                        ->where('status', 'reserved')
+                        ->update(['status' => 'available']);
+                }
 
                 // Record in audit log
                 AuditLog::create([

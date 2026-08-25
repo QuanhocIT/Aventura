@@ -10,6 +10,7 @@ use App\Models\OnlineStoreConfig;
 use App\Models\Product;
 use App\Models\RestaurantTable;
 use App\Models\User;
+use App\Services\CustomerPortalAccessService;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
@@ -167,7 +168,7 @@ class CustomerSmokeTest extends TestCase
             'QR feedback 5xx: '.optional($feedback->exception)->getMessage());
     }
 
-    // ── Customer portal + coupon wallet (signed-token protected) ───────────
+    // ── Customer portal + coupon wallet (random short-lived token protected) ─
 
     public function test_portal_dashboard_requires_valid_token(): void
     {
@@ -177,7 +178,7 @@ class CustomerSmokeTest extends TestCase
             ->orderBy('id')->value('phone');
         $this->assertNotNull($phone, 'No customer with phone for portal test');
 
-        $valid = hash('sha256', $this->rid.$phone.config('app.key'));
+        $valid = app(CustomerPortalAccessService::class)->issue($this->rid, (string) $phone);
 
         $this->get("/customer/portal/dashboard/{$this->rid}/{$phone}?token={$valid}")->assertOk();
         $this->get("/customer/portal/dashboard/{$this->rid}/{$phone}?token=sai-token")->assertForbidden();
@@ -203,14 +204,23 @@ class CustomerSmokeTest extends TestCase
 
     public function test_public_reservation_booking(): void
     {
-        $res = $this->post("/r/{$this->rid}/reservations", [
+        // Nhà hàng nhiều chi nhánh BẮT BUỘC chọn chi nhánh khi đặt bàn (đúng nghiệp
+        // vụ). Lấy một chi nhánh active để test không phụ thuộc dữ liệu clone.
+        $branchId = DB::table('restaurant_branches')
+            ->where('restaurant_id', $this->rid)
+            ->where('status', 'active')
+            ->orderBy('id')
+            ->value('id');
+
+        $res = $this->post("/r/{$this->rid}/reservations", array_filter([
             'guest_name' => 'Khách Đặt Bàn',
             'guest_phone' => '0900000003',
             'reservation_date' => now()->addDay()->toDateString(),
             'reservation_time' => '18:30',
             'party_size' => 4,
             'source' => 'website',
-        ]);
+            'branch_id' => $branchId,
+        ], fn ($v) => $v !== null));
 
         $this->assertLessThan(500, $res->getStatusCode(),
             'Reservation 5xx: '.optional($res->exception)->getMessage());

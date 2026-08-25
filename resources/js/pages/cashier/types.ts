@@ -4,8 +4,11 @@ export interface OrderItem {
     product_name?: string;
     price: number;
     quantity: number;
+    max_quantity?: number;
     notes?: string;
     status?: string;
+    prepared_at?: string | null;
+    served_at?: string | null;
 }
 
 export interface TableItem {
@@ -14,10 +17,13 @@ export interface TableItem {
     area: string;
     capacity: number;
     status: 'available' | 'occupied' | 'reserved' | 'cleaning' | 'inactive';
+    is_payment_requested?: boolean;
     active_order?: {
         id: number;
         order_number: string;
         status: string;
+        payment_status: string;
+        is_payment_requested?: boolean;
         subtotal: number;
         discount_amount: number;
         total_amount: number;
@@ -33,6 +39,7 @@ export interface ProductItem {
     name: string;
     price: number;
     category_id: number;
+    available_portions?: number | null;
     paused_until?: string | null;
     out_of_stock_until?: string | null;
     is_paused?: boolean;

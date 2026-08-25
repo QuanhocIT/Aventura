@@ -39,9 +39,13 @@ class ProfileController extends Controller implements HasMiddleware
     /**
      * Show the user's profile settings page.
      */
-    public function edit(Request $request): Response
+    public function edit(Request $request): Response|RedirectResponse
     {
         $user = $request->user();
+
+        if ($this->isEmployeeAccount($user)) {
+            return redirect()->route('employee-portal.profile');
+        }
 
         // 1. Profile data
         $mustVerifyEmail = $user instanceof MustVerifyEmail;
@@ -112,6 +116,19 @@ class ProfileController extends Controller implements HasMiddleware
         return Inertia::render('settings/Profile', $props);
     }
 
+    private function isEmployeeAccount(User $user): bool
+    {
+        return ! $user->isOwner()
+            && ! $user->isSuperAdmin()
+            && $user->hasAnyRole([
+                'cashier',
+                'waiter',
+                'kitchen',
+                'inventory_staff',
+                'shipper',
+            ]);
+    }
+
     /**
      * Update the user's profile information.
      */
@@ -136,6 +153,10 @@ class ProfileController extends Controller implements HasMiddleware
     public function destroy(ProfileDeleteRequest $request): RedirectResponse
     {
         $user = $request->user();
+
+        if ($user->restaurant_id && ! $user->isOwner() && ! $user->isSuperAdmin()) {
+            return back()->with('error', 'Tài khoản nhân viên không thể tự xóa. Vui lòng liên hệ chủ nhà hàng để chấm dứt tài khoản đúng quy trình.');
+        }
 
         Auth::logout();
 

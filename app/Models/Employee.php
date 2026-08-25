@@ -192,8 +192,13 @@ class Employee extends Model
         Cache::forget("employee_shift_access:{$this->id}");
 
         // Update current session if the current user is this employee
-        if (Auth::check() && Auth::id() === $this->user_id) {
-            session(['shift_allowed_until' => $this->getShiftAllowedUntil()]);
+        $user = Auth::user();
+        if ($user && Auth::id() === $this->user_id) {
+            if ($user->isExemptFromShiftLock()) {
+                session()->forget(['employee_id', 'shift_allowed_until']);
+            } else {
+                session(['shift_allowed_until' => $this->getShiftAllowedUntil()]);
+            }
         }
     }
 

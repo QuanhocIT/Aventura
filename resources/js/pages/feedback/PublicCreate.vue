@@ -54,6 +54,7 @@ const staffRating = ref<Record<number, { rating: number; comment: string }>>(
 
 const isSubmitting = ref(false);
 const isSuccess = ref(false);
+const feedbackStatusUrl = ref('');
 const errorMessage = ref('');
 
 // --- LIFECYCLE ---
@@ -73,7 +74,6 @@ onMounted(() => {
     }
 
     if (props.turnstileSiteKey) {
-        // @ts-ignore
         if (!window.turnstile) {
             const script = document.createElement('script');
             script.src =
@@ -81,10 +81,7 @@ onMounted(() => {
             script.async = true;
             script.defer = true;
             document.head.appendChild(script);
-
-            // @ts-ignore
             window.onloadTurnstileCallbackFeedback = () => {
-                // @ts-ignore
                 window.turnstile.render('#turnstile-container-feedback', {
                     sitekey: props.turnstileSiteKey,
                     callback: (token: string) => {
@@ -94,7 +91,6 @@ onMounted(() => {
             };
         } else {
             setTimeout(() => {
-                // @ts-ignore
                 window.turnstile.render('#turnstile-container-feedback', {
                     sitekey: props.turnstileSiteKey,
                     callback: (token: string) => {
@@ -182,11 +178,12 @@ const handleSubmit = async () => {
 
         if (result.success) {
             isSuccess.value = true;
+            feedbackStatusUrl.value = result.status_url || '';
         } else {
             errorMessage.value =
                 result.message || 'Đã xảy ra lỗi, vui lòng thử lại sau.';
         }
-    } catch (e) {
+    } catch {
         errorMessage.value = 'Lỗi kết nối hệ thống. Vui lòng thử lại.';
     } finally {
         isSubmitting.value = false;
@@ -258,6 +255,14 @@ const ratingTexts: Record<number, string> = {
                     hàng sẽ không ngừng nâng cao chất lượng dịch vụ để phục vụ
                     quý khách tốt hơn.
                 </p>
+
+                <a
+                    v-if="feedbackStatusUrl"
+                    :href="feedbackStatusUrl"
+                    class="mt-3 inline-flex items-center rounded-lg border px-3 py-2 text-xs font-semibold text-primary hover:bg-muted"
+                >
+                    Theo dõi kết quả xử lý phản hồi
+                </a>
 
                 <div
                     class="mt-6 flex items-center gap-1 text-[10px] font-medium text-slate-400 dark:text-slate-600"

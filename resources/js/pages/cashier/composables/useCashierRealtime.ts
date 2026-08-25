@@ -15,9 +15,14 @@ export function useCashierRealtime(restaurantId: () => number | undefined) {
         pollingActive.value = true;
         fallbackPollInterval = setInterval(() => {
             router.reload({
-                only: ['qrOrders', 'tablesData', 'externalOrders'],
+                only: [
+                    'qrOrders',
+                    'tablesData',
+                    'externalOrders',
+                    'kitchenReadyItems',
+                ],
             });
-        }, 8000);
+        }, 6000);
     };
 
     const stopPollingFallback = () => {
@@ -64,7 +69,12 @@ export function useCashierRealtime(restaurantId: () => number | undefined) {
             window.Echo.private(`restaurant.${restId}`)
                 .listen('.OrderCreated', () => {
                     router.reload({
-                        only: ['qrOrders', 'tablesData', 'externalOrders'],
+                        only: [
+                            'qrOrders',
+                            'tablesData',
+                            'externalOrders',
+                            'kitchenReadyItems',
+                        ],
                     });
                 })
                 .listen('.OrderStatusUpdated', () => {
@@ -73,9 +83,34 @@ export function useCashierRealtime(restaurantId: () => number | undefined) {
                             'tablesData',
                             'completedHistory',
                             'externalOrders',
+                            'kitchenReadyItems',
                         ],
                     });
                 });
+
+            // QR temporary orders use a public restaurant channel so the cashier
+            // screen refreshes when a customer submits, confirms a revision, or
+            // when staff rejects/approves the request.
+            window.Echo.private(`restaurant.${restId}`)
+                .listen('.temporary_order.created', () => {
+                    router.reload({
+                        only: ['qrOrders', 'tablesData'],
+                    });
+                })
+                .listen('.temporary_order.updated', () => {
+                    router.reload({
+                        only: ['qrOrders', 'tablesData'],
+                    });
+                });
+
+            window.Echo.private(`kitchen.${restId}`).listen(
+                '.kitchen.updated',
+                () => {
+                    router.reload({
+                        only: ['kitchenReadyItems', 'tablesData'],
+                    });
+                },
+            );
         }
     });
 
@@ -89,6 +124,7 @@ export function useCashierRealtime(restaurantId: () => number | undefined) {
 
         if (window.Echo && restId) {
             window.Echo.leave(`restaurant.${restId}`);
+            window.Echo.leave(`kitchen.${restId}`);
         }
     });
 

@@ -27,7 +27,7 @@ class OptimizeDatabase extends Command
     public function handle(DatabaseMaintenanceService $maintenanceService): int
     {
         $actionOpt = $this->option('action');
-        $validActions = ['cleanup_queues', 'clear_sessions', 'archive_audit_logs'];
+        $validActions = ['cleanup_queues', 'clear_sessions', 'archive_audit_logs', 'cleanup_temporary'];
 
         if ($actionOpt === 'all') {
             $actions = $validActions;

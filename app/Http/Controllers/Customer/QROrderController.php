@@ -6,11 +6,12 @@ use App\Events\Customer\FeedbackSubmitted;
 use App\Events\Customer\PaymentRequested;
 use App\Events\Customer\StaffCalled;
 use App\Events\Customer\TemporaryOrderCreated;
+use App\Events\Customer\TemporaryOrderUpdated;
 use App\Http\Controllers\Controller;
 use App\Jobs\VerifyTemporaryOrderDelayJob;
+use App\Models\AuditLog;
 use App\Models\Customer;
 use App\Models\CustomerFeedback;
-use App\Models\Inventory;
 use App\Models\Order;
 use App\Models\Product;
 use App\Models\ProductCategory;
@@ -20,12 +21,14 @@ use App\Models\ScheduleAssignment;
 use App\Models\TemporaryOrder;
 use App\Models\WorkShift;
 use App\Services\CdpService;
+use App\Services\InventoryAvailabilityService;
 use App\Support\TenantRule;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -34,17 +37,21 @@ class QROrderController extends Controller
     /**
      * Hiển thị giao diện khách hàng gọi món tại bàn qua QR code.
      */
-    public function showMenu($restaurantId, $qrToken): Response
+    public function showMenu(int $restaurantId, string $qrToken): Response
     {
-        $table = RestaurantTable::where('restaurant_id', $restaurantId)
+        $table = RestaurantTable::withoutGlobalScopes()
+            ->where('restaurant_id', $restaurantId)
             ->where('qr_token', $qrToken)
+            ->whereNull('deleted_at')
+            ->where('status', '!=', 'inactive')
             ->with(['area', 'branch'])
             ->firstOrFail();
 
         $restaurant = Restaurant::findOrFail($restaurantId);
 
         // 1. Lấy danh mục sản phẩm hoạt động
-        $categories = ProductCategory::where('restaurant_id', $restaurantId)
+        $categories = ProductCategory::withoutGlobalScopes()
+            ->where('restaurant_id', $restaurantId)
             ->where('status', 'active')
             ->orderBy('display_order')
             ->get()
@@ -55,34 +62,22 @@ class QROrderController extends Controller
             ])->toArray();
 
         // 2. Lấy danh sách sản phẩm hoạt động kèm công thức định lượng
-        $productsRaw = Product::where('restaurant_id', $restaurantId)
+        $productsRaw = Product::withoutGlobalScopes()
+            ->where('restaurant_id', $restaurantId)
             ->where('is_active', true)
             ->where('is_available', true)
+            ->sellableMenu()
             ->with(['category', 'recipes.ingredient'])
             ->get();
 
-        // 3. Lấy kho vật lý hiện tại của chi nhánh để tính toán "Hết hàng"
-        $inventories = Inventory::where('restaurant_id', $restaurantId)
-            ->where('branch_id', $table->branch_id)
-            ->get()
-            ->keyBy('ingredient_id');
+        // 3. Tính số suất có thể phục vụ từ các lô còn hạn, sau khi trừ phần đã giữ.
+        $availabilityService = app(InventoryAvailabilityService::class);
+        $availabilityService->refreshBranch((int) $restaurantId, (int) $table->branch_id, false);
+        $availability = $availabilityService->forProducts($productsRaw, (int) $restaurantId, (int) $table->branch_id);
 
-        $products = $productsRaw->map(function ($p) use ($inventories) {
-            $inStock = true;
-
-            if ($p->track_inventory && $p->recipes->isNotEmpty()) {
-                foreach ($p->recipes as $recipe) {
-                    $required = (float) $recipe->quantity * (1 + ((float) $recipe->waste_rate / 100));
-                    $inv = $inventories->get($recipe->ingredient_id);
-                    $available = $inv ? (float) $inv->quantity_on_hand : 0.0;
-
-                    if ($available < $required) {
-                        $inStock = false;
-                        break;
-                    }
-                }
-            }
-
+        $products = $productsRaw->map(function ($p) use ($availability) {
+            $stock = $availability->get($p->id, []);
+            $isInventorySoldOut = (bool) ($stock['is_sold_out'] ?? false);
             $isKitchenPaused = $p->paused_until && $p->paused_until->isFuture();
             $isKitchenOutOfStock = $p->out_of_stock_until && $p->out_of_stock_until->isFuture();
 
@@ -96,7 +91,10 @@ class QROrderController extends Controller
                 'image_url' => $p->image_url,
                 'sku' => $p->sku,
                 'category_id' => $p->category_id,
-                'in_stock' => $inStock && $p->is_available && ! $isKitchenPaused && ! $isKitchenOutOfStock,
+                'in_stock' => ! $isInventorySoldOut && $p->is_available && ! $isKitchenPaused && ! $isKitchenOutOfStock,
+                'available_portions' => $stock['available_portions'] ?? null,
+                'is_inventory_sold_out' => $isInventorySoldOut,
+                'inventory_bottleneck_ingredient' => $stock['bottleneck_ingredient_name'] ?? null,
                 'paused_until' => $p->paused_until ? $p->paused_until->toIso8601String() : null,
                 'out_of_stock_until' => $p->out_of_stock_until ? $p->out_of_stock_until->toIso8601String() : null,
                 'is_kitchen_paused' => $isKitchenPaused,
@@ -169,8 +167,22 @@ class QROrderController extends Controller
         }
 
         // 4. Lấy các đơn hàng tạm thời hoặc đơn hàng chính thức đang active tại bàn này
-        $activeTempOrders = TemporaryOrder::where('table_id', $table->id)
-            ->whereIn('status', ['waiting_verification', 'escalated', 'confirmed'])
+        $activeTempOrders = TemporaryOrder::withoutGlobalScopes()
+            ->where('table_id', $table->id)
+            ->whereIn('status', ['waiting_verification', 'escalated', 'confirmed', 'cancelled'])
+            ->when(
+                filled(request()->query('session_id')),
+                function ($query): void {
+                    // session_id is the primary browser capability. Do not OR
+                    // it with a phone number supplied in the URL, otherwise a
+                    // visitor could disclose another guest's orders by knowing
+                    // that phone number.
+                    $query->where('session_id', (string) request()->query('session_id'));
+                },
+                fn ($query) => filled(request()->query('phone'))
+                    ? $query->where('customer_phone', (string) request()->query('phone'))
+                    : $query->whereRaw('1 = 0'),
+            )
             ->with(['order.items.product'])
             ->latest()
             ->get()
@@ -179,24 +191,52 @@ class QROrderController extends Controller
                 $itemsStatus = [];
                 if ($to->status === 'confirmed' && $to->order) {
                     // Trạng thái đơn: pending/confirmed/preparing -> Bếp đang chế biến, completed/served -> Đã lên món
-                    foreach ($to->order->items as $item) {
+                    // Khi dữ liệu cũ từng gộp nhiều yêu cầu QR vào một đơn,
+                    // chỉ hiển thị các món được tạo từ lúc yêu cầu này gửi đi.
+                    // Nếu không lọc, khách thấy cả món của bàn từ các ngày trước.
+                    $orderItems = $to->order->items
+                        ->filter(fn ($item) => $item->created_at && $item->created_at->greaterThanOrEqualTo($to->created_at));
+
+                    if ($orderItems->isEmpty()) {
+                        // Giữ trạng thái chờ nấu cho dữ liệu cũ không có
+                        // timestamp món phù hợp, thay vì hiển thị nhầm món khác.
+                        $itemsStatus = collect($to->cart_data)->map(fn ($item) => [
+                            'name' => $item['name'] ?? 'Món ăn',
+                            'quantity' => (float) ($item['quantity'] ?? 0),
+                            'status' => 'pending',
+                        ])->values()->all();
+                    }
+
+                    foreach ($orderItems as $item) {
                         $itemsStatus[] = [
                             'name' => $item->product?->name ?? 'Món ăn',
                             'quantity' => (float) $item->quantity,
                             'status' => $item->status, // pending, sent, preparing, served, cancelled
+                            'notes' => $item->notes,
                         ];
                     }
+                } elseif ($to->status === 'cancelled') {
+                    $itemsStatus = collect($to->cart_data)->map(fn ($item) => [
+                        'name' => $item['name'] ?? 'Món ăn',
+                        'quantity' => (float) ($item['quantity'] ?? 0),
+                        'status' => 'cancelled',
+                        'notes' => $item['notes'] ?? null,
+                    ])->values()->all();
                 }
 
                 return [
                     'id' => $to->id,
                     'status' => $to->status,
-                    'total_amount' => (float) $to->total_amount,
+                    'awaiting_customer_confirmation' => (bool) $to->awaiting_customer_confirmation,
+                    'revision_note' => $to->revision_note,
+                    'total_amount' => (float) ($to->order?->total_amount ?? $to->total_amount),
                     'cart_data' => $to->cart_data,
                     'order_id' => $to->order_id,
                     'order_number' => $to->order?->order_number,
                     'order_status' => $to->order?->status,
+                    'order_note' => $to->order?->note,
                     'payment_status' => $to->order?->payment_status,
+                    'cancellation_reason' => $to->cancellation_reason,
                     'items_status' => $itemsStatus,
                     'created_at' => $to->created_at->toIso8601String(),
                 ];
@@ -235,6 +275,7 @@ class QROrderController extends Controller
                 'capacity' => $table->capacity,
                 'area_id' => $table->area_id,
                 'area_name' => $table->area?->name,
+                'qr_token' => $table->qr_token,
             ],
             'categories' => $categories,
             'products' => $products,
@@ -244,13 +285,110 @@ class QROrderController extends Controller
     }
 
     /**
+     * Khách tại bàn tự hủy yêu cầu gọi món trước khi nhân viên xác nhận.
+     *
+     * QR bàn là thông tin công khai nên không đủ để xác định chủ đơn. Yêu cầu
+     * phải kèm session_id (hoặc số điện thoại đúng với đơn) để tránh khách
+     * khác tại cùng bàn hủy đơn của nhau.
+     */
+    public function cancelOrder(Request $request, int $restaurantId, string $qrToken, TemporaryOrder $temporaryOrder): JsonResponse
+    {
+        $table = RestaurantTable::withoutGlobalScopes()
+            ->where('restaurant_id', $restaurantId)
+            ->where('qr_token', $qrToken)
+            ->whereNull('deleted_at')
+            ->where('status', '!=', 'inactive')
+            ->first();
+
+        abort_if(! $table, 404);
+        abort_if(
+            $temporaryOrder->restaurant_id !== (int) $restaurantId
+                || $temporaryOrder->table_id !== $table->id,
+            404,
+        );
+
+        $data = $request->validate([
+            'session_id' => ['nullable', 'string', 'max:255'],
+            'customer_phone' => ['nullable', 'string', 'max:20'],
+            'reason' => ['nullable', 'string', 'max:255'],
+        ]);
+
+        $sessionMatches = filled($data['session_id'] ?? null)
+            && filled($temporaryOrder->session_id)
+            && hash_equals((string) $temporaryOrder->session_id, (string) $data['session_id']);
+        $phoneMatches = filled($data['customer_phone'] ?? null)
+            && filled($temporaryOrder->customer_phone)
+            && hash_equals((string) $temporaryOrder->customer_phone, (string) $data['customer_phone']);
+
+        $hasSessionCapability = filled($temporaryOrder->session_id);
+        abort_unless(
+            $hasSessionCapability ? $sessionMatches : $phoneMatches,
+            403,
+            'Bạn không có quyền hủy yêu cầu này.',
+        );
+
+        try {
+            $updatedTemporaryOrder = DB::transaction(function () use ($temporaryOrder, $data) {
+                $lockedOrder = TemporaryOrder::withoutGlobalScopes()
+                    ->whereKey($temporaryOrder->id)
+                    ->lockForUpdate()
+                    ->firstOrFail();
+
+                if (! in_array($lockedOrder->status, ['waiting_verification', 'escalated'], true)) {
+                    throw new \RuntimeException('Đơn hàng đã được xử lý và không thể hủy.');
+                }
+
+                $oldValues = $lockedOrder->only(['status', 'cancellation_reason']);
+                $lockedOrder->update([
+                    'status' => 'cancelled',
+                    'cancelled_by' => null,
+                    'cancellation_reason' => $data['reason'] ?? 'Khách tự hủy yêu cầu gọi món',
+                ]);
+
+                AuditLog::log('temporary_order_cancelled_by_guest', 'updated', $lockedOrder, $oldValues, [
+                    'status' => 'cancelled',
+                    'cancellation_reason' => $lockedOrder->cancellation_reason,
+                    'session_id_present' => filled($lockedOrder->session_id),
+                ]);
+
+                return $lockedOrder->fresh(['table']);
+            });
+        } catch (\RuntimeException $exception) {
+            return response()->json([
+                'success' => false,
+                'message' => $exception->getMessage(),
+            ], 422);
+        }
+
+        try {
+            event(new TemporaryOrderUpdated($updatedTemporaryOrder));
+        } catch (\Throwable $exception) {
+            Log::warning('Broadcast guest temporary order cancellation failed: '.$exception->getMessage());
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Đã hủy yêu cầu gọi món thành công.',
+        ]);
+    }
+
+    /**
      * Khách hàng gửi đơn hàng đệm (Self-ordering request).
      */
-    public function submitOrder(Request $request, $restaurantId, $qrToken): JsonResponse
+    public function submitOrder(Request $request, int $restaurantId, string $qrToken): JsonResponse
     {
-        $table = RestaurantTable::where('restaurant_id', $restaurantId)
+        $table = RestaurantTable::withoutGlobalScopes()
+            ->where('restaurant_id', $restaurantId)
             ->where('qr_token', $qrToken)
-            ->firstOrFail();
+            ->whereNull('deleted_at')
+            ->where('status', '!=', 'inactive')
+            ->first();
+
+        if (! $table) {
+            return response()->json([
+                'message' => 'Bàn ăn này đã bị xóa hoặc không còn hoạt động.',
+            ], 404);
+        }
 
         $data = $request->validate([
             'customer_name' => ['nullable', 'string', 'max:255'],
@@ -269,15 +407,35 @@ class QROrderController extends Controller
 
         // Load sản phẩm để đối chiếu giá và tên
         $productIds = collect($data['items'])->pluck('product_id')->toArray();
-        $products = Product::where('restaurant_id', $restaurantId)
+        $products = Product::withoutGlobalScopes()
+            ->where('restaurant_id', $restaurantId)
             ->whereIn('id', $productIds)
+            ->sellableMenu()
+            ->with('recipes.ingredient.unit')
             ->get()
             ->keyBy('id');
 
-        $inventories = Inventory::where('restaurant_id', $restaurantId)
-            ->where('branch_id', $table->branch_id)
-            ->get()
-            ->keyBy('ingredient_id');
+        try {
+            app(InventoryAvailabilityService::class)->assertItemsAvailable(
+                (int) $restaurantId,
+                (int) $table->branch_id,
+                $data['items'],
+                null,
+                false,
+                // Khách tự đặt tại bàn thì không được phép đẩy tồn kho xuống âm:
+                // nhân viên có thể chủ động ghi đè và xử lý ca âm kho sau, còn
+                // khách thì phải được báo hết món ngay tại chỗ.
+                allowNegative: false,
+            );
+        } catch (\RuntimeException $exception) {
+            $firstProduct = $products->get((int) ($data['items'][0]['product_id'] ?? 0));
+
+            return response()->json([
+                'message' => $firstProduct
+                    ? "Món '{$firstProduct->name}' đã hết nguyên liệu chế biến."
+                    : $exception->getMessage(),
+            ], 422);
+        }
 
         foreach ($data['items'] as $item) {
             $product = $products->get($item['product_id']);
@@ -290,19 +448,6 @@ class QROrderController extends Controller
 
             if ($isKitchenPaused || $isKitchenOutOfStock) {
                 return response()->json(['message' => "Món ăn {$product->name} tạm thời ngừng phục vụ."], 422);
-            }
-
-            // Kiểm tra tồn kho của nguyên liệu
-            if ($product->track_inventory && $product->recipes->isNotEmpty()) {
-                foreach ($product->recipes as $recipe) {
-                    $required = (float) $recipe->quantity * (1 + ((float) $recipe->waste_rate / 100)) * (float) $item['quantity'];
-                    $inv = $inventories->get($recipe->ingredient_id);
-                    $available = $inv ? (float) $inv->quantity_on_hand : 0.0;
-
-                    if ($available < $required) {
-                        return response()->json(['message' => "Món '{$product->name}' đã hết nguyên liệu chế biến."], 422);
-                    }
-                }
             }
 
             $lineTotal = (float) $product->price * (float) $item['quantity'];
@@ -368,6 +513,7 @@ class QROrderController extends Controller
             'table_id' => $table->id,
             'customer_name' => $data['customer_name'] ?? 'Khách tại bàn',
             'customer_phone' => $data['customer_phone'] ?? null,
+            'session_id' => $data['session_id'] ?? null,
             'status' => 'waiting_verification',
             'cart_data' => $cartData,
             'total_amount' => $finalAmount,
@@ -388,7 +534,11 @@ class QROrderController extends Controller
         );
 
         // Kích hoạt Event thông báo Realtime (< 500ms) trên màn hình máy POS/Tablet của Staff
-        event(new TemporaryOrderCreated($tempOrder));
+        try {
+            event(new TemporaryOrderCreated($tempOrder));
+        } catch (\Throwable $e) {
+            Log::warning('Broadcast temporary order created failed: '.$e->getMessage());
+        }
 
         // Khởi tạo Delay Job trong queue với TTL là 2 phút (120 giây) để theo dõi lùi bước
         VerifyTemporaryOrderDelayJob::dispatch($tempOrder->id)->delay(now()->addSeconds(120));
@@ -407,23 +557,94 @@ class QROrderController extends Controller
     }
 
     /**
+     * Khách xác nhận lại phiên bản đơn do nhân viên chỉnh sửa.
+     */
+    public function confirmRevision(Request $request, int $restaurantId, string $qrToken, TemporaryOrder $temporaryOrder): JsonResponse
+    {
+        $table = RestaurantTable::withoutGlobalScopes()
+            ->where('restaurant_id', $restaurantId)
+            ->where('qr_token', $qrToken)
+            ->whereNull('deleted_at')
+            ->where('status', '!=', 'inactive')
+            ->first();
+
+        if (! $table) {
+            return response()->json([
+                'message' => 'Bàn ăn này đã bị xóa hoặc không còn hoạt động.',
+            ], 404);
+        }
+
+        abort_if(
+            $temporaryOrder->restaurant_id !== (int) $restaurantId
+                || $temporaryOrder->table_id !== $table->id,
+            404,
+        );
+
+        try {
+            $updatedTemporaryOrder = DB::transaction(function () use ($temporaryOrder) {
+                $lockedOrder = TemporaryOrder::where('id', $temporaryOrder->id)
+                    ->lockForUpdate()
+                    ->firstOrFail();
+
+                if (! $lockedOrder->awaiting_customer_confirmation) {
+                    throw new \Exception('Đơn này không còn chờ xác nhận chỉnh sửa.');
+                }
+
+                if (! in_array($lockedOrder->status, ['waiting_verification', 'escalated'], true)) {
+                    throw new \Exception('Đơn này đã được xử lý và không thể xác nhận lại.');
+                }
+
+                $lockedOrder->update([
+                    'awaiting_customer_confirmation' => false,
+                    'revision_confirmed_at' => now(),
+                ]);
+
+                return $lockedOrder->fresh(['table']);
+            });
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage(),
+            ], 422);
+        }
+
+        try {
+            event(new TemporaryOrderUpdated($updatedTemporaryOrder));
+        } catch (\Throwable $e) {
+            Log::warning('Broadcast temporary order revision confirmation failed: '.$e->getMessage());
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Đã xác nhận nội dung chỉnh sửa. Nhân viên sẽ duyệt đơn ngay.',
+        ]);
+    }
+
+    /**
      * Khách hàng bấm nút "Gọi nhân viên".
      */
-    public function callStaff(Request $request, $restaurantId): JsonResponse
+    public function callStaff(Request $request, int $restaurantId): JsonResponse
     {
         $data = $request->validate([
             'table_id' => ['required', TenantRule::exists('restaurant_tables', restaurantId: (int) $restaurantId)],
             'message' => ['nullable', 'string', 'max:100'],
         ]);
 
-        $table = RestaurantTable::where('restaurant_id', $restaurantId)
+        $table = RestaurantTable::withoutGlobalScopes()
+            ->where('restaurant_id', $restaurantId)
             ->where('id', $data['table_id'])
+            ->whereNull('deleted_at')
+            ->where('status', '!=', 'inactive')
             ->with(['area'])
             ->firstOrFail();
 
         $msg = $data['message'] ?: 'Khách hàng yêu cầu phục vụ tại bàn';
 
-        event(new StaffCalled($restaurantId, $table->name, $table->area?->name ?? 'Khu vực', $msg));
+        try {
+            event(new StaffCalled($restaurantId, $table->name, $table->area?->name ?? 'Khu vực', $msg));
+        } catch (\Throwable $e) {
+            Log::warning('Broadcast staff called failed: '.$e->getMessage());
+        }
 
         return response()->json([
             'success' => true,
@@ -434,19 +655,23 @@ class QROrderController extends Controller
     /**
      * Khách hàng bấm nút "Yêu cầu thanh toán".
      */
-    public function paymentRequest(Request $request, $restaurantId): JsonResponse
+    public function paymentRequest(Request $request, int $restaurantId): JsonResponse
     {
         $data = $request->validate([
             'table_id' => ['required', TenantRule::exists('restaurant_tables', restaurantId: (int) $restaurantId)],
         ]);
 
-        $table = RestaurantTable::where('restaurant_id', $restaurantId)
+        $table = RestaurantTable::withoutGlobalScopes()
+            ->where('restaurant_id', $restaurantId)
             ->where('id', $data['table_id'])
+            ->whereNull('deleted_at')
+            ->where('status', '!=', 'inactive')
             ->with(['area'])
             ->firstOrFail();
 
         // Kiểm tra xem bàn có hóa đơn chưa thanh toán nào không
-        $hasUnpaidOrder = Order::where('table_id', $table->id)
+        $hasUnpaidOrder = Order::withoutGlobalScopes()
+            ->where('table_id', $table->id)
             ->where('payment_status', 'unpaid')
             ->whereIn('status', ['pending', 'confirmed', 'preparing'])
             ->exists();
@@ -458,7 +683,11 @@ class QROrderController extends Controller
             ], 422);
         }
 
-        event(new PaymentRequested($restaurantId, $table->name, $table->area?->name ?? 'Khu vực'));
+        try {
+            event(new PaymentRequested($restaurantId, $table->name, $table->area?->name ?? 'Khu vực'));
+        } catch (\Throwable $e) {
+            Log::warning('Broadcast payment requested failed: '.$e->getMessage());
+        }
 
         return response()->json([
             'success' => true,
@@ -469,7 +698,7 @@ class QROrderController extends Controller
     /**
      * Khách hàng gửi đánh giá món ăn và nhân viên.
      */
-    public function submitFeedback(Request $request, $restaurantId): JsonResponse
+    public function submitFeedback(Request $request, int $restaurantId): JsonResponse
     {
         $data = $request->validate([
             'table_id' => ['required', TenantRule::exists('restaurant_tables', restaurantId: (int) $restaurantId)],
@@ -483,8 +712,11 @@ class QROrderController extends Controller
             'staff_rating' => ['nullable', 'array'], // [ ['employee_id' => X, 'rating' => Y, 'comment' => Z], ... ]
         ]);
 
-        $table = RestaurantTable::where('restaurant_id', $restaurantId)
+        $table = RestaurantTable::withoutGlobalScopes()
+            ->where('restaurant_id', $restaurantId)
             ->where('id', $data['table_id'])
+            ->whereNull('deleted_at')
+            ->where('status', '!=', 'inactive')
             ->firstOrFail();
 
         $feedback = CustomerFeedback::create([
@@ -501,11 +733,22 @@ class QROrderController extends Controller
             'status' => 'new',
         ]);
 
-        event(new FeedbackSubmitted($restaurantId, $feedback));
+        // Giữ luồng QR tương thích với các bản ghi/model cũ chưa chạy hook
+        // creating: link theo dõi phải luôn có capability token riêng.
+        if (blank($feedback->feedback_token)) {
+            $feedback->forceFill(['feedback_token' => bin2hex(random_bytes(32))])->saveQuietly();
+        }
+
+        try {
+            event(new FeedbackSubmitted($restaurantId, $feedback));
+        } catch (\Throwable $e) {
+            Log::warning('Broadcast feedback submitted failed: '.$e->getMessage());
+        }
 
         return response()->json([
             'success' => true,
             'message' => 'Cảm ơn ý kiến đóng góp quý báu của bạn!',
+            'status_url' => route('feedback.status', $feedback->feedback_token),
         ]);
     }
 
@@ -519,7 +762,8 @@ class QROrderController extends Controller
         $currentDateStr = $now->toDateString();
 
         // 1. Tìm ca trực hiện tại
-        $shifts = WorkShift::where('restaurant_id', $restaurantId)
+        $shifts = WorkShift::withoutGlobalScopes()
+            ->where('restaurant_id', $restaurantId)
             ->where('status', 'active')
             ->get();
 
@@ -549,7 +793,8 @@ class QROrderController extends Controller
         }
 
         // 2. Tìm danh sách phân công cho ca trực và ngày hôm nay
-        return ScheduleAssignment::where('restaurant_id', $restaurantId)
+        return ScheduleAssignment::withoutGlobalScopes()
+            ->where('restaurant_id', $restaurantId)
             ->whereDate('scheduled_date', $currentDateStr)
             ->where('shift_id', $matchedShiftId)
             ->with(['employee.user'])

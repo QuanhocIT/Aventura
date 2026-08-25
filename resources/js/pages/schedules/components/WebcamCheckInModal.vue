@@ -59,7 +59,7 @@ const startWebcam = async () => {
         if (videoRef.value) {
             videoRef.value.srcObject = stream;
         }
-    } catch (err: any) {
+    } catch (err) {
         console.error(err);
         webcamError.value =
             'Không thể truy cập camera. Vui lòng cấp quyền hoặc kiểm tra thiết bị.';
@@ -195,6 +195,7 @@ onUnmounted(() => {
 </script>
 
 <template>
+    <Teleport to="body">
     <div
         class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs print:hidden"
     >
@@ -427,4 +428,5 @@ onUnmounted(() => {
             </CardContent>
         </Card>
     </div>
+    </Teleport>
 </template>

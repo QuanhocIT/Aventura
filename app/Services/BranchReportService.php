@@ -35,6 +35,7 @@ class BranchReportService
             ->selectRaw('COALESCE(SUM(total_amount), 0) as gross_revenue')
             ->selectRaw('COALESCE(SUM(discount_amount), 0) as discount_total')
             ->selectRaw('COALESCE(SUM(service_charge), 0) as service_charge_total')
+            ->selectRaw('COALESCE(SUM(COALESCE(refund_amount, 0)), 0) as refund_total')
             ->groupBy(DB::raw($dateExpr))
             ->get()
             ->keyBy('report_date');
@@ -58,13 +59,15 @@ class BranchReportService
             })
             ->join('product_recipes', 'product_recipes.product_id', '=', 'order_items_unified.product_id')
             ->join('ingredients', 'ingredients.id', '=', 'product_recipes.ingredient_id')
+            ->join('units as recipe_units', 'recipe_units.id', '=', 'product_recipes.unit_id')
+            ->join('units as ingredient_units', 'ingredient_units.id', '=', 'ingredients.unit_id')
             ->where('orders_unified.restaurant_id', $restaurantId)
             ->where('orders_unified.status', 'completed')
             ->whereBetween('orders_unified.completed_at', [$start->copy()->startOfDay(), $end->copy()->endOfDay()])
             ->whereNull('ingredients.deleted_at')
             ->when($branchId !== null, fn ($query) => $query->where('orders_unified.branch_id', $branchId))
             ->selectRaw("{$cogsDateExpr} as report_date")
-            ->selectRaw('SUM(order_items_unified.quantity * product_recipes.quantity * (1 + product_recipes.waste_rate / 100) * ingredients.average_cost) as cogs_amount')
+            ->selectRaw('SUM(order_items_unified.quantity * product_recipes.quantity * (COALESCE(recipe_units.conversion_factor_to_base, 1) / COALESCE(ingredient_units.conversion_factor_to_base, 1)) * (1 + product_recipes.waste_rate / 100) * ingredients.average_cost) as cogs_amount')
             ->groupBy(DB::raw($cogsDateExpr))
             ->get()
             ->keyBy('report_date');
@@ -73,6 +76,9 @@ class BranchReportService
         // so this remains correct for all hot payment records.
         $paymentDateExpr = $this->dateExpression('paid_at');
         $payments = DB::table('payments')
+            // Truy vấn thô không đi qua model nên phải tự loại bản ghi đã xoá
+            // mềm — thiếu dòng này thì phiếu thu đã huỷ vẫn cộng vào doanh thu.
+            ->whereNull('deleted_at')
             ->where('restaurant_id', $restaurantId)
             ->where('status', 'paid')
             ->whereBetween('paid_at', [$start->copy()->startOfDay(), $end->copy()->endOfDay()])
@@ -96,7 +102,8 @@ class BranchReportService
 
             $gross = (float) ($completedRow->gross_revenue ?? 0);
             $discount = (float) ($completedRow->discount_total ?? 0);
-            $net = $gross - $discount;
+            $refund = (float) ($completedRow->refund_total ?? 0);
+            $net = max(0, $gross - $discount - $refund);
             $completedCount = (int) ($completedRow->completed_order_count ?? 0);
             $cogsAmount = (float) ($cogsRow->cogs_amount ?? 0);
 
@@ -109,6 +116,7 @@ class BranchReportService
                 'net_revenue' => $net,
                 'gross_revenue' => $gross,
                 'discount_total' => $discount,
+                'refund_total' => $refund,
                 'cogs_amount' => $cogsAmount,
                 'gross_profit' => $net - $cogsAmount,
                 'cash_revenue' => (float) ($paymentRow->cash_revenue ?? 0),
@@ -131,6 +139,7 @@ class BranchReportService
             'order_count' => (int) $rows->sum('order_count'),
             'completed_order_count' => (int) $rows->sum('completed_order_count'),
             'discount_total' => (float) $rows->sum('discount_total'),
+            'refund_total' => (float) $rows->sum('refund_total'),
             'cancelled_count' => (int) $rows->sum('cancelled_count'),
         ];
     }

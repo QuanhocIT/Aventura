@@ -11,11 +11,7 @@ import {
     Phone,
     User,
     TrendingDown,
-    Calendar,
     HelpCircle,
-    ChevronRight,
-    ArrowUpDown,
-    TicketCheck,
     Sparkles,
     Tag,
     Plus,
@@ -29,14 +25,10 @@ import { ref, computed } from 'vue';
 import { toast } from 'vue-sonner';
 import {
     PageHeader,
-    StatCard,
-    StatusBadge,
-    ProgressBar,
-    SectionCard,
     Pagination,
 } from '@/components/super-admin';
 import { Badge } from '@/components/ui/badge';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import {
     Dialog,
     DialogContent,
@@ -196,12 +188,13 @@ const sendOutreachEmail = (restaurantId: number) => {
         {
             onSuccess: (page: any) => {
                 toast.success(
-                    page.props.flash?.success ?? 'Đã gửi email thành công!',
+                    page.props.flash?.success ??
+                        'Đã gửi thư điện tử thành công!',
                 );
             },
             onError: () => {
                 toast.error(
-                    'Không thể gửi email. Vui lòng kiểm tra cấu hình SMTP.',
+                    'Không thể gửi thư điện tử. Vui lòng kiểm tra cấu hình SMTP.',
                 );
             },
             onFinish: () => {
@@ -489,7 +482,7 @@ const getRecommendations = (restaurant: RestaurantData) => {
         recs.push({
             type: 'warning',
             title: 'Sụt giảm kinh doanh',
-            desc: `Số đơn hàng giảm mạnh ${b.drop_percentage}% so với trung bình các tuần trước. Khuyến nghị gửi coupon ưu đãi 30% gia hạn và kích cầu kinh doanh.`,
+            desc: `Số đơn hàng giảm mạnh ${b.drop_percentage}% so với trung bình các tuần trước. Khuyến nghị gửi mã giảm giá ưu đãi 30% gia hạn và kích cầu kinh doanh.`,
         });
     }
 
@@ -497,7 +490,7 @@ const getRecommendations = (restaurant: RestaurantData) => {
         recs.push({
             type: 'info',
             title: 'Hỗ trợ kỹ thuật',
-            desc: `Có ${b.unresolved_tickets} khiếu nại kỹ thuật chưa giải quyết xong. Ưu tiên nhân sự Dev/Support xử lý triệt để trong ngày hôm nay để nâng cao sự hài lòng.`,
+            desc: `Có ${b.unresolved_tickets} khiếu nại kỹ thuật chưa giải quyết xong. Ưu tiên nhân sự Dev/Hỗ trợ xử lý triệt để trong ngày hôm nay để nâng cao sự hài lòng.`,
         });
     }
 
@@ -617,14 +610,15 @@ const healthScoreDistribution = computed(() => {
 </script>
 
 <template>
-    <Head title="Customer Success & Churn Prediction Dashboard" />
+    <Head title="Chăm sóc khách hàng & dự đoán rời bỏ" />
 
     <div class="flex flex-col gap-5 px-6 py-5">
         <!-- Header -->
         <PageHeader
             title="Dự Đoán Rời Bỏ & Chăm Sóc Khách Hàng"
-            subtitle="Chủ động phát hiện nhà hàng sắp ngừng sử dụng qua Tenant Health Score."
+            subtitle="Chủ động phát hiện nhà hàng sắp ngừng sử dụng qua điểm sức khỏe nhà hàng."
             :icon="ShieldAlert"
+            back-href="/super-admin/dashboard"
         >
             <template #actions>
                 <button
@@ -786,7 +780,7 @@ const healthScoreDistribution = computed(() => {
                     <p
                         class="text-[10px] font-bold tracking-wider text-blue-600 uppercase dark:text-blue-400"
                     >
-                        Đã gửi email
+                        Đã gửi thư điện tử
                     </p>
                     <div
                         class="flex items-center justify-center gap-1 font-mono text-2xl font-black text-blue-600 dark:text-blue-400"
@@ -795,7 +789,7 @@ const healthScoreDistribution = computed(() => {
                         {{ stats.emails_sent }}
                     </div>
                     <p class="text-[9px] text-muted-foreground">
-                        Tự động tặng coupon 30%
+                        Tự động tặng mã giảm giá 30%
                     </p>
                 </CardContent>
             </Card>
@@ -952,7 +946,7 @@ const healthScoreDistribution = computed(() => {
                     <input
                         v-model="search"
                         type="text"
-                        placeholder="Tìm theo tên nhà hàng, mã, hoặc email/sđt chủ..."
+                        placeholder="Tìm theo tên nhà hàng, mã, hoặc thư điện tử/sđt chủ..."
                         @keyup.enter="applyFilters"
                         class="w-full rounded-xl border border-border/80 py-2 pr-4 pl-9 text-xs focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none dark:bg-slate-900"
                     />
@@ -1047,7 +1041,7 @@ const healthScoreDistribution = computed(() => {
                                 Tình trạng rủi ro
                             </th>
                             <th class="w-[160px] p-4 text-center">
-                                Tự động email
+                                Tự động gửi thư điện tử
                             </th>
                             <th class="p-4 pr-6 text-right">Thao tác</th>
                         </tr>
@@ -1177,7 +1171,8 @@ const healthScoreDistribution = computed(() => {
                                     <span
                                         class="flex items-center gap-1 font-bold"
                                     >
-                                        <Mail class="size-3" /> Đã gửi email
+                                        <Mail class="size-3" /> Đã gửi thư điện
+                                        tử
                                     </span>
                                     <span
                                         class="font-mono text-[9px] text-slate-400"
@@ -1229,7 +1224,7 @@ const healthScoreDistribution = computed(() => {
                                                 },
                                             ]"
                                         />
-                                        Gửi email tri ân
+                                        Gửi thư điện tử tri ân
                                     </button>
                                 </div>
                             </td>
@@ -1913,7 +1908,7 @@ const healthScoreDistribution = computed(() => {
                                 },
                             ]"
                         />
-                        Gửi email tri ân chăm sóc
+                        Gửi thư điện tử tri ân chăm sóc
                     </button>
                 </div>
             </DialogContent>

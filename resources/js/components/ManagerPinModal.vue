@@ -55,7 +55,7 @@ const handleVerify = async () => {
         } else {
             errorMessage.value = data.message || 'Mã PIN không chính xác';
         }
-    } catch (e) {
+    } catch {
         errorMessage.value = 'Không thể kết nối đến máy chủ xác thực';
     } finally {
         isSubmitting.value = false;
@@ -64,6 +64,7 @@ const handleVerify = async () => {
 </script>
 
 <template>
+    <Teleport to="body">
     <div
         v-if="open"
         class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
@@ -151,4 +152,5 @@ const handleVerify = async () => {
             </form>
         </div>
     </div>
+    </Teleport>
 </template>

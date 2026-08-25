@@ -23,6 +23,7 @@ class PublicApiController extends Controller
             ->with('category:id,name')
             ->where('restaurant_id', $restaurantId)
             ->where('is_active', true)
+            ->sellableMenu()
             ->orderBy('name')
             ->paginate(min((int) $request->query('per_page', 50), 100));
 

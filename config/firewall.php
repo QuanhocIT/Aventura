@@ -34,6 +34,14 @@ return [
     */
 
     'rate_limit' => [
+        'auth' => [
+            // Login requests allowed within the auth rate-limit window.
+            'max_attempts' => (int) env('AUTH_LOGIN_RATE_LIMIT_MAX', 20),
+
+            // Auth rate-limit window in seconds (15 minutes by default).
+            'decay_seconds' => (int) env('AUTH_LOGIN_RATE_LIMIT_DECAY', 900),
+        ],
+
         'global' => [
             // Maximum requests allowed within the decay time
             'max_attempts' => (int) env('RATE_LIMIT_GLOBAL_MAX', 60),

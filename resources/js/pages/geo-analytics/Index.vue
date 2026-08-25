@@ -10,6 +10,7 @@ import {
     Banknote,
 } from 'lucide-vue-next';
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
+import { toast } from 'vue-sonner';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -145,7 +146,12 @@ const initMap = async () => {
         drawRestaurantMarker();
         drawMapLayers();
     } catch (err) {
+        // Hai khối catch còn lại trong file là dọn dẹp bản đồ lúc rời trang —
+        // lỗi ở đó người dùng không xử lý được nên vẫn để console.error.
         console.error('Lỗi khởi tạo bản đồ Leaflet:', err);
+        toast.error(
+            'Không hiển thị được bản đồ. Hãy tải lại trang hoặc kiểm tra đường truyền.',
+        );
     }
 };
 

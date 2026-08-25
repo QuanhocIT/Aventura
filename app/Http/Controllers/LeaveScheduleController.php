@@ -2,8 +2,13 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\AuditLog;
+use App\Models\Employee;
 use App\Models\LeaveRequest;
+use App\Models\ScheduleAssignment;
 use App\Models\ShiftSwap;
+use App\Models\User;
+use App\Notifications\EmergencyShiftReplacedNotification;
 use App\Services\LeaveRequestService;
 use App\Services\QuotaService;
 use App\Services\ScheduleAssignmentService;
@@ -12,6 +17,7 @@ use App\Support\TenantRule;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class LeaveScheduleController extends Controller
 {
@@ -27,6 +33,10 @@ class LeaveScheduleController extends Controller
     public function toggleAutoSchedule(Request $request): RedirectResponse
     {
         $user = $request->user();
+        // [SECURITY P0] Defense-in-depth: route middleware đã chặn, nhưng giữ lại tại đây.
+        abort_unless($user->hasAnyRole(['owner', 'manager', 'warehouse_manager']) || $user->isSuperAdmin(), 403,
+            'Chỉ Quản lý hoặc Trưởng kho được bật/tắt xếp ca tự động.');
+
         $restaurant = $user->restaurant;
         if (! $restaurant && ! $request->user()->hasRole('super_admin')) {
             abort(404, 'Không tìm thấy nhà hàng.');
@@ -46,23 +56,54 @@ class LeaveScheduleController extends Controller
     }
 
     /**
+     * Lấp nhanh các vị trí ca còn trống từ ngày được chọn đến hết tuần.
+     */
+    public function quickAutoSchedule(Request $request): RedirectResponse
+    {
+        $user = $request->user();
+        // [SECURITY P0] Defense-in-depth
+        abort_unless($user->hasAnyRole(['owner', 'manager', 'warehouse_manager']) || $user->isSuperAdmin(), 403,
+            'Chỉ Quản lý hoặc Trưởng kho được tạo lịch tự động.');
+
+        $restaurant = $user->restaurant;
+        if (! $restaurant && ! $request->user()->hasRole('super_admin')) {
+            abort(404, 'Không tìm thấy nhà hàng.');
+        }
+
+        $restaurant?->loadMissing('plan');
+        if ($restaurant && ! app(QuotaService::class)->hasFeature($restaurant, 'hr_timekeeping')) {
+            return back()->withErrors(['feature' => 'Gói dịch vụ hiện tại không hỗ trợ tính năng Lịch làm việc. Vui lòng nâng cấp gói.']);
+        }
+
+        $result = $this->assignments->quickAutoSchedule($restaurant, $user);
+
+        if (! $result['success']) {
+            return back()->withErrors(['quick_schedule' => $result['message']]);
+        }
+
+        return back()->with('success', $result['message']);
+    }
+
+    /**
      * Tạo mới hoặc cập nhật lịch xếp ca.
      */
     public function storeAssignment(Request $request): RedirectResponse
     {
+        // [SECURITY P0] Defense-in-depth: nhân viên thường không được xếp ca cho người khác.
+        $user = $request->user();
+        abort_unless($user->hasAnyRole(['owner', 'manager', 'warehouse_manager']) || $user->isSuperAdmin(), 403,
+            'Chỉ Quản lý hoặc Trưởng kho được xếp ca nhân sự.');
+
         $data = $request->validate([
             'day' => ['required', 'string', 'in:Monday,Tuesday,Wednesday,Thursday,Friday,Saturday,Sunday'],
             'employee_name' => ['required', 'string'],
-            'shift_name' => ['required', 'string'],
+            'shift_name' => ['nullable', 'string'],
+            'shift_id' => ['nullable', 'integer'],
         ]);
 
         $result = $this->assignments->storeAssignment(
             $request->user(),
             $data,
-            $request->input('bypass_code'),
-            $request->input('bypass_reason'),
-            $request->ip(),
-            $request->userAgent() ?? '',
         );
 
         if (! $result['success']) {
@@ -77,10 +118,16 @@ class LeaveScheduleController extends Controller
      */
     public function destroyAssignment(Request $request): RedirectResponse
     {
+        // [SECURITY P0] Defense-in-depth
+        $user = $request->user();
+        abort_unless($user->hasAnyRole(['owner', 'manager', 'warehouse_manager']) || $user->isSuperAdmin(), 403,
+            'Chỉ Quản lý hoặc Trưởng kho được hủy xếp ca.');
+
         $data = $request->validate([
             'day' => ['required', 'string', 'in:Monday,Tuesday,Wednesday,Thursday,Friday,Saturday,Sunday'],
             'employee_name' => ['required', 'string'],
-            'shift_name' => ['required', 'string'],
+            'shift_name' => ['nullable', 'string'],
+            'shift_id' => ['nullable', 'integer'],
         ]);
 
         $this->assignments->destroyAssignment($request->user(), $data);
@@ -123,7 +170,7 @@ class LeaveScheduleController extends Controller
     public function getReplacementSuggestions(Request $request, LeaveRequest $leave): JsonResponse
     {
         $user = $request->user();
-        abort_unless($user->hasAnyRole(['owner', 'manager']), 403);
+        abort_unless($user->hasAnyRole(['owner', 'manager', 'warehouse_manager']), 403);
         abort_if($leave->restaurant_id !== $user->restaurant_id, 403);
         abort_unless($user->canAccessBranch((int) $leave->branch_id), 403);
 
@@ -137,12 +184,86 @@ class LeaveScheduleController extends Controller
     }
 
     /**
+     * Thay ca KHẨN CẤP: nhân viên nghỉ đột xuất/không đến ca → quản lý xếp người thay
+     * ngay. Ca gốc đánh dấu vắng; ca thay được tạo, liên kết ngược và ghi lý do. Quản
+     * lý KHÔNG được tự xếp mình vào ca thay (chống tự duyệt tăng ca cho bản thân).
+     */
+    public function emergencyReplace(Request $request): RedirectResponse
+    {
+        $user = $request->user();
+        abort_unless($user->isSuperAdmin() || $user->hasAnyRole(['owner', 'manager', 'warehouse_manager']), 403);
+
+        $data = $request->validate([
+            'assignment_id' => ['required', 'integer', TenantRule::exists('schedule_assignments')],
+            'replacement_employee_id' => ['required', 'integer', TenantRule::exists('employees')],
+            'reason' => ['required', 'string', 'min:5', 'max:255'],
+        ]);
+
+        $original = ScheduleAssignment::where('restaurant_id', $user->restaurant_id)
+            ->findOrFail($data['assignment_id']);
+        abort_unless($user->canAccessBranch($original->branch_id), 403);
+
+        $replacement = Employee::where('restaurant_id', $user->restaurant_id)
+            ->findOrFail($data['replacement_employee_id']);
+
+        if ($replacement->id === $original->employee_id) {
+            return back()->withErrors(['replacement_employee_id' => 'Người thay phải khác người nghỉ.']);
+        }
+
+        // Guardrail: Quản lý (không phải Chủ) KHÔNG được tự xếp mình vào ca thay.
+        $isOwner = $user->isSuperAdmin() || $user->isOwner();
+        if (! $isOwner && $replacement->user_id === $user->id) {
+            return back()->withErrors([
+                'replacement_employee_id' => 'Quản lý không được tự xếp mình vào ca thay (tăng ca cho bản thân) — cần Chủ duyệt.',
+            ]);
+        }
+
+        try {
+            $newAssignment = DB::transaction(function () use ($original, $replacement, $data, $user) {
+                $original->update([
+                    'status' => 'absent',
+                    'notes' => trim(($original->notes ? $original->notes.' | ' : '').'Nghỉ đột xuất: '.$data['reason']),
+                ]);
+
+                return ScheduleAssignment::create([
+                    'restaurant_id' => $original->restaurant_id,
+                    'branch_id' => $original->branch_id,
+                    'employee_id' => $replacement->id,
+                    'shift_id' => $original->shift_id,
+                    'scheduled_date' => $original->scheduled_date,
+                    'status' => 'confirmed',
+                    'approved_by' => $user->id,
+                    'replaced_assignment_id' => $original->id,
+                    'replacement_reason' => $data['reason'],
+                    'notes' => 'Thay ca khẩn cấp cho '.($original->employee?->full_name ?? 'nhân viên nghỉ'),
+                ]);
+            });
+        } catch (\Throwable $e) {
+            return back()->with('error', 'Không thể xếp người thay: '.$e->getMessage());
+        }
+
+        // Báo Chủ để minh bạch (tránh manager lạm dụng xếp ca).
+        User::where('restaurant_id', $user->restaurant_id)->role('owner')
+            ->where('id', '!=', $user->id)->get()
+            ->each(fn (User $o) => $o->notify(new EmergencyShiftReplacedNotification($newAssignment, $user->name)));
+
+        AuditLog::log('shift_emergency_replaced', 'updated', $newAssignment, null, [
+            'replaced_assignment_id' => $original->id,
+            'replacement_employee_id' => $replacement->id,
+            'reason' => $data['reason'],
+            'by' => $user->name,
+        ]);
+
+        return back()->with('success', 'Đã xếp người thay ca khẩn cấp và báo Chủ.');
+    }
+
+    /**
      * Phê duyệt đơn xin nghỉ phép / nghỉ việc.
      */
     public function approveLeaveRequest(Request $request, LeaveRequest $leave): RedirectResponse
     {
         $user = $request->user();
-        abort_unless($user->hasAnyRole(['owner', 'manager']), 403);
+        abort_unless($user->hasAnyRole(['owner', 'manager', 'warehouse_manager']), 403);
         abort_if($leave->restaurant_id !== $user->restaurant_id, 403);
         abort_unless($user->canAccessBranch((int) $leave->branch_id), 403);
         abort_unless($leave->status === 'pending', 422);
@@ -170,7 +291,7 @@ class LeaveScheduleController extends Controller
     public function rejectLeaveRequest(Request $request, LeaveRequest $leave): RedirectResponse
     {
         $user = $request->user();
-        abort_unless($user->hasAnyRole(['owner', 'manager']), 403);
+        abort_unless($user->hasAnyRole(['owner', 'manager', 'warehouse_manager']), 403);
         abort_if($leave->restaurant_id !== $user->restaurant_id, 403);
         abort_unless($user->canAccessBranch((int) $leave->branch_id), 403);
         abort_unless($leave->status === 'pending', 422);
@@ -190,9 +311,10 @@ class LeaveScheduleController extends Controller
     public function copyLastWeekSchedules(Request $request): RedirectResponse
     {
         $user = $request->user();
-        abort_unless($user->hasAnyRole(['owner', 'manager']), 403);
+        abort_unless($user->hasAnyRole(['owner', 'manager', 'warehouse_manager']), 403);
 
-        $result = $this->assignments->copyLastWeekSchedules($user->restaurant_id);
+        $branchId = $request->integer('branch_id') ?: ($user->canViewAllBranches() ? null : $user->assignedBranchId());
+        $result = $this->assignments->copyLastWeekSchedules($user->restaurant_id, $branchId);
 
         if (! $result['success']) {
             return back()->with('error', $result['message']);
@@ -207,7 +329,7 @@ class LeaveScheduleController extends Controller
     public function approveSwap(Request $request, ShiftSwap $swap): RedirectResponse
     {
         $user = $request->user();
-        abort_unless($user->hasAnyRole(['owner', 'manager']), 403);
+        abort_unless($user->hasAnyRole(['owner', 'manager', 'warehouse_manager']), 403);
         abort_if($swap->restaurant_id !== $user->restaurant_id, 403);
         abort_unless($user->canAccessBranch((int) $swap->branch_id), 403);
         abort_unless($swap->status === 'accepted', 422);
@@ -236,7 +358,7 @@ class LeaveScheduleController extends Controller
     public function rejectSwap(Request $request, ShiftSwap $swap): RedirectResponse
     {
         $user = $request->user();
-        abort_unless($user->hasAnyRole(['owner', 'manager']), 403);
+        abort_unless($user->hasAnyRole(['owner', 'manager', 'warehouse_manager']), 403);
         abort_if($swap->restaurant_id !== $user->restaurant_id, 403);
         abort_unless($user->canAccessBranch((int) $swap->branch_id), 403);
 

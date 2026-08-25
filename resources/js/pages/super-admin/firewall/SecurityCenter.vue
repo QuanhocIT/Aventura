@@ -12,6 +12,7 @@ import {
 } from 'lucide-vue-next';
 import { ref } from 'vue';
 import { toast } from 'vue-sonner';
+import BackButton from '@/components/BackButton.vue';
 import { Button } from '@/components/ui/button';
 import {
     Card,
@@ -113,7 +114,7 @@ async function postJson(
     const data = await response.json().catch(() => ({}));
 
     if (!response.ok) {
-        throw new Error(data.message || 'Request failed');
+        throw new Error(data.message || 'Yêu cầu thất bại');
     }
 
     return data;
@@ -136,7 +137,7 @@ async function revokeSession(session: Session) {
 }
 
 async function forceLogoutUser(user: { id: number; email: string }) {
-    if (!window.confirm(`Force logout tài khoản ${user.email}?`)) {
+    if (!window.confirm(`Đăng xuất cưỡng chế tài khoản ${user.email}?`)) {
         return;
     }
 
@@ -158,7 +159,7 @@ async function forceLogoutUser(user: { id: number; email: string }) {
 async function forceLogoutAll() {
     if (
         !window.confirm(
-            'Force logout toàn hệ thống? Mọi tài khoản sẽ phải đăng nhập lại.',
+            'Đăng xuất cưỡng chế toàn hệ thống? Mọi tài khoản sẽ phải đăng nhập lại.',
         )
     ) {
         return;
@@ -180,7 +181,7 @@ async function forceLogoutAll() {
 async function rotateKey(key: ApiKey) {
     if (
         !window.confirm(
-            `Rotation key ${key.name} của ${key.restaurant_name || 'tenant'}?`,
+            `Xoay vòng khóa ${key.name} của ${key.restaurant_name || 'nhà hàng'}?`,
         )
     ) {
         return;
@@ -278,20 +279,24 @@ const formatUserAgent = (ua?: string) => {
 </script>
 
 <template>
-    <Head title="Security Center" />
+    <Head title="Trung tâm bảo mật" />
 
     <div class="space-y-6 p-6">
         <div class="flex flex-wrap items-start justify-between gap-3">
-            <div>
-                <h1 class="text-2xl font-bold tracking-tight">
-                    Security Center
-                </h1>
-                <p class="text-muted-foreground">
-                    Phiên đăng nhập, IP bất thường, API key và cảnh báo bảo mật.
-                </p>
+            <div class="flex items-center gap-3">
+                <BackButton fallback-href="/super-admin/firewall" label="Tường lửa" />
+                <div>
+                    <h1 class="text-2xl font-bold tracking-tight">
+                        Trung tâm bảo mật
+                    </h1>
+                    <p class="text-muted-foreground">
+                        Phiên đăng nhập, IP bất thường, API key và cảnh báo bảo mật.
+                    </p>
+                </div>
             </div>
             <Button variant="destructive" @click="forceLogoutAll">
-                <LogOut class="mr-2 h-4 w-4" /> Force logout toàn hệ thống
+                <LogOut class="mr-2 h-4 w-4" /> Đăng xuất cưỡng chế toàn hệ
+                thống
             </Button>
         </div>
 
@@ -302,8 +307,8 @@ const formatUserAgent = (ua?: string) => {
             <AlertTriangle class="mt-0.5 h-5 w-5 shrink-0 text-amber-500" />
             <span
                 >SESSION_DRIVER hiện là <strong>{{ sessionDriver }}</strong
-                >. Force logout vẫn hoạt động bằng session version, nhưng muốn
-                xem từng session/IP chính xác nên dùng database.</span
+                >. Đăng xuất cưỡng chế vẫn hoạt động bằng phiên hệ thống, nhưng
+                muốn xem từng phiên/IP chính xác nên dùng cơ sở dữ liệu.</span
             >
         </div>
 
@@ -325,8 +330,8 @@ const formatUserAgent = (ua?: string) => {
                         ><Users class="h-4 w-4" /> Phiên đang hoạt
                         động</CardTitle
                     ><CardDescription
-                        >Hủy một session hoặc force logout tất cả session của
-                        user.</CardDescription
+                        >Hủy một phiên hoặc đăng xuất cưỡng chế tất cả phiên của
+                        tài khoản.</CardDescription
                     ></CardHeader
                 >
                 <CardContent class="space-y-3">
@@ -358,17 +363,17 @@ const formatUserAgent = (ua?: string) => {
                         v-if="!localSessions.length"
                         class="py-4 text-center text-sm text-muted-foreground"
                     >
-                        Không có session đang hoạt động.
+                        Không có phiên đang hoạt động.
                     </p>
                 </CardContent>
             </Card>
 
             <Card>
                 <CardHeader
-                    ><CardTitle>Force logout theo tài khoản</CardTitle
+                    ><CardTitle>Đăng xuất cưỡng chế theo tài khoản</CardTitle
                     ><CardDescription
-                        >Thu hồi tất cả session của một user, kể cả session
-                        không lưu trong database.</CardDescription
+                        >Thu hồi tất cả phiên của một tài khoản, kể cả phiên
+                        không lưu trong cơ sở dữ liệu.</CardDescription
                     ></CardHeader
                 >
                 <CardContent class="max-h-80 space-y-2 overflow-auto">
@@ -383,14 +388,14 @@ const formatUserAgent = (ua?: string) => {
                             </p>
                             <p class="truncate text-xs text-muted-foreground">
                                 {{ user.email }} ·
-                                {{ user.restaurant_name || 'Platform' }}
+                                {{ user.restaurant_name || 'Nền tảng' }}
                             </p>
                         </div>
                         <Button
                             variant="outline"
                             size="sm"
                             @click="forceLogoutUser(user)"
-                            >Force logout</Button
+                            >Đăng xuất cưỡng chế</Button
                         >
                     </div>
                 </CardContent>
@@ -516,7 +521,7 @@ const formatUserAgent = (ua?: string) => {
         <Card>
             <CardHeader
                 ><CardTitle class="flex items-center gap-2"
-                    ><KeyRound class="h-4 w-4" /> API keys platform</CardTitle
+                    ><KeyRound class="h-4 w-4" /> Khóa API nền tảng</CardTitle
                 ><CardDescription
                     >Chỉ hiển thị prefix. Rotation hiển thị secret mới đúng một
                     lần.</CardDescription
@@ -526,8 +531,8 @@ const formatUserAgent = (ua?: string) => {
                 ><table class="w-full text-left text-sm">
                     <thead>
                         <tr class="border-b text-muted-foreground">
-                            <th class="p-2">Key</th>
-                            <th class="p-2">Tenant</th>
+                            <th class="p-2">Khóa</th>
+                            <th class="p-2">Nhà hàng</th>
                             <th class="p-2">Trạng thái</th>
                             <th class="p-2">Sử dụng gần nhất</th>
                             <th class="p-2 text-right">Thao tác</th>
@@ -556,7 +561,11 @@ const formatUserAgent = (ua?: string) => {
                                         : 'text-rose-600'
                                 "
                             >
-                                {{ key.is_active ? 'Active' : 'Revoked' }}
+                                {{
+                                    key.is_active
+                                        ? 'Đang hoạt động'
+                                        : 'Đã thu hồi'
+                                }}
                             </td>
                             <td class="p-2 text-xs text-muted-foreground">
                                 {{ key.last_used_at || 'Chưa dùng' }}
@@ -594,8 +603,8 @@ const formatUserAgent = (ua?: string) => {
                 ><CardTitle class="flex items-center gap-2"
                     ><Shield class="h-4 w-4" /> Lịch sử đăng nhập</CardTitle
                 ><CardDescription
-                    >Success và failed login được lưu kèm IP, user agent và thời
-                    điểm.</CardDescription
+                    >Đăng nhập thành công và thất bại được lưu kèm IP, user
+                    agent và thời điểm.</CardDescription
                 ></CardHeader
             >
             <CardContent class="overflow-x-auto"
@@ -618,7 +627,9 @@ const formatUserAgent = (ua?: string) => {
                             <td class="p-2 text-xs">{{ event.occurred_at }}</td>
                             <td class="p-2">
                                 {{
-                                    event.user_name || event.email || 'Unknown'
+                                    event.user_name ||
+                                    event.email ||
+                                    'Không xác định'
                                 }}
                             </td>
                             <td

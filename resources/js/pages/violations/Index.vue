@@ -1,30 +1,20 @@
 <script setup lang="ts">
-import { Head, useForm, usePage } from '@inertiajs/vue3';
+import { Head, router, useForm, usePage } from '@inertiajs/vue3';
 import {
     ShieldCheck,
     ShieldAlert,
     FileText,
     Send,
     CheckCircle2,
-    Calendar,
-    Filter,
     Search,
-    Shield,
     Info,
-    AlertTriangle,
-    Users,
-    AlertCircle,
     Clock,
-    Trash2,
-    Award,
-    PiggyBank,
-    EyeOff,
-    Eye,
     Scale,
-    HelpCircle,
     BadgeAlert,
+    Plus,
 } from 'lucide-vue-next';
 import { ref, computed } from 'vue';
+import { Pagination } from '@/components/super-admin';
 import { Button } from '@/components/ui/button';
 import {
     Card,
@@ -55,6 +45,16 @@ interface Report {
     status: 'open' | 'reviewed' | 'resolved' | 'dismissed';
     is_anonymous: boolean;
     created_at: string;
+    // Kháng cáo
+    appeal_status: 'none' | 'pending' | 'accepted' | 'rejected';
+    appeal_reason: string | null;
+    appealed_at_display: string | null;
+    appeal_review_note: string | null;
+    appeal_reviewed_by_name: string | null;
+    appeal_reviewed_at_display: string | null;
+    is_offender: boolean;
+    can_appeal: boolean;
+    can_review_appeal: boolean;
 }
 
 interface Employee {
@@ -66,9 +66,19 @@ interface Employee {
 
 const props = defineProps<{
     reports: Report[];
+    pagination: {
+        links: Array<{ url: string | null; label: string; active: boolean }>;
+        current_page: number;
+        last_page: number;
+        total: number;
+    };
     employees: Employee[];
     currentUserRole: string;
 }>();
+
+const goToPage = (url: string) => {
+    router.get(url, {}, { preserveState: true, preserveScroll: true });
+};
 
 // --- STATE ---
 const activeTab = ref<'reports' | 'submit'>('reports');
@@ -76,6 +86,17 @@ const activeFilter = ref<'all' | 'open' | 'resolved' | 'dismissed'>('all');
 const showResolveModal = ref(false);
 const selectedReport = ref<Report | null>(null);
 const searchQuery = ref('');
+
+const switchTab = (tab: 'reports' | 'submit') => {
+    activeTab.value = tab;
+
+    if (tab === 'reports') {
+        searchQuery.value = '';
+        activeFilter.value = 'all';
+    } else if (tab === 'submit' && isOwner.value) {
+        reportForm.is_anonymous = false;
+    }
+};
 
 // Form Whistleblower Creation
 const reportForm = useForm({
@@ -93,6 +114,79 @@ const resolveForm = useForm({
     status: 'resolved' as 'resolved' | 'dismissed',
     resolution_notes: '',
 });
+
+// --- KHÁNG CÁO ---
+const showAppealModal = ref(false);
+const showReviewAppealModal = ref(false);
+const appealForm = useForm({
+    appeal_reason: '',
+    appeal_evidence: null as File | null,
+});
+const reviewAppealForm = useForm({
+    decision: 'accepted' as 'accepted' | 'rejected',
+    appeal_review_note: '',
+});
+
+const openAppealModal = (report: Report) => {
+    selectedReport.value = report;
+    appealForm.reset();
+    appealForm.clearErrors();
+    showAppealModal.value = true;
+};
+
+const submitAppeal = () => {
+    if (!selectedReport.value || appealForm.processing) {
+        return;
+    }
+
+    appealForm.post(`/violations/${selectedReport.value.id}/appeal`, {
+        preserveScroll: true,
+        forceFormData: true,
+        onSuccess: () => {
+            showAppealModal.value = false;
+            appealForm.reset();
+        },
+    });
+};
+
+const openReviewAppealModal = (report: Report) => {
+    selectedReport.value = report;
+    reviewAppealForm.reset();
+    reviewAppealForm.clearErrors();
+    showReviewAppealModal.value = true;
+};
+
+const submitReviewAppeal = () => {
+    if (!selectedReport.value || reviewAppealForm.processing) {
+        return;
+    }
+
+    reviewAppealForm.post(
+        `/violations/${selectedReport.value.id}/appeal/review`,
+        {
+            preserveScroll: true,
+            onSuccess: () => {
+                showReviewAppealModal.value = false;
+                reviewAppealForm.reset();
+            },
+        },
+    );
+};
+
+const appealStatusConfig: Record<string, { label: string; cls: string }> = {
+    pending: {
+        label: '⏳ Đang chờ Chủ xét kháng cáo',
+        cls: 'text-amber-700 bg-amber-50 border-amber-200 dark:text-amber-300 dark:bg-amber-950/20',
+    },
+    accepted: {
+        label: '✅ Kháng cáo được chấp nhận (đã hoàn phạt)',
+        cls: 'text-emerald-700 bg-emerald-50 border-emerald-200 dark:text-emerald-300 dark:bg-emerald-950/20',
+    },
+    rejected: {
+        label: '❌ Kháng cáo bị bác (giữ nguyên phạt)',
+        cls: 'text-rose-700 bg-rose-50 border-rose-200 dark:text-rose-300 dark:bg-rose-950/20',
+    },
+};
 
 // --- COMPUTED ---
 const isOwner = computed(() => {
@@ -288,7 +382,7 @@ const statusConfig: Record<
                 <Button
                     variant="outline"
                     size="sm"
-                    @click="activeTab = 'reports'"
+                    @click="switchTab('reports')"
                     :class="[
                         'rounded-xl text-xs font-bold transition-all',
                         activeTab === 'reports'
@@ -297,12 +391,28 @@ const statusConfig: Record<
                     ]"
                 >
                     <FileText class="mr-1.5 size-4" />
-                    Danh sách tố cáo
+                    Danh sách sai phạm & tố cáo
                 </Button>
                 <Button
+                    v-if="isOwner"
+                    variant="default"
+                    size="sm"
+                    @click="switchTab('submit')"
+                    :class="[
+                        'rounded-xl bg-gradient-to-r from-rose-600 to-indigo-600 text-xs font-bold text-white shadow-sm transition-all hover:from-rose-700 hover:to-indigo-700',
+                        activeTab === 'submit'
+                            ? 'ring-2 ring-rose-400 ring-offset-1'
+                            : '',
+                    ]"
+                >
+                    <Plus class="mr-1.5 size-4" />
+                    Lập biên bản sai phạm
+                </Button>
+                <Button
+                    v-else
                     variant="outline"
                     size="sm"
-                    @click="activeTab = 'submit'"
+                    @click="switchTab('submit')"
                     :class="[
                         'rounded-xl text-xs font-bold transition-all',
                         activeTab === 'submit'
@@ -598,6 +708,102 @@ const statusConfig: Record<
                                         >
                                     </div>
                                 </div>
+
+                                <!-- Trạng thái kháng cáo -->
+                                <div
+                                    v-if="report.appeal_status !== 'none'"
+                                    :class="[
+                                        'animate-fade-in mt-3 flex flex-col gap-1.5 rounded-xl border p-3',
+                                        appealStatusConfig[report.appeal_status]
+                                            ?.cls,
+                                    ]"
+                                >
+                                    <div
+                                        class="text-[11px] font-extrabold tracking-wide"
+                                    >
+                                        {{
+                                            appealStatusConfig[
+                                                report.appeal_status
+                                            ]?.label
+                                        }}
+                                    </div>
+                                    <p
+                                        v-if="report.appeal_reason"
+                                        class="text-xs leading-relaxed text-slate-600 dark:text-slate-300"
+                                    >
+                                        <span class="font-bold">Lý do NV:</span>
+                                        {{ report.appeal_reason }}
+                                        <span
+                                            v-if="report.appealed_at_display"
+                                            class="text-[10px] text-slate-400"
+                                            >·
+                                            {{
+                                                report.appealed_at_display
+                                            }}</span
+                                        >
+                                    </p>
+                                    <p
+                                        v-if="report.appeal_review_note"
+                                        class="text-xs leading-relaxed text-slate-600 dark:text-slate-300"
+                                    >
+                                        <span class="font-bold"
+                                            >Phản hồi của Chủ:</span
+                                        >
+                                        {{ report.appeal_review_note }}
+                                        <span
+                                            v-if="
+                                                report.appeal_reviewed_by_name
+                                            "
+                                            class="text-[10px] text-slate-400"
+                                            >—
+                                            {{ report.appeal_reviewed_by_name }}
+                                            {{
+                                                report.appeal_reviewed_at_display
+                                            }}</span
+                                        >
+                                    </p>
+                                </div>
+
+                                <!-- Nhân viên bị lập biên bản: nút kháng cáo -->
+                                <div
+                                    v-if="report.can_appeal"
+                                    class="mt-3 flex flex-col gap-1.5 rounded-xl border border-amber-200 bg-amber-50/60 p-3 dark:border-amber-900/30 dark:bg-amber-950/10"
+                                >
+                                    <p
+                                        class="text-[11px] font-semibold text-amber-800 dark:text-amber-300"
+                                    >
+                                        Bạn cho rằng biên bản chưa thỏa đáng?
+                                        Bạn có quyền kháng cáo lên Chủ nhà hàng
+                                        (trong 7 ngày).
+                                    </p>
+                                    <Button
+                                        size="sm"
+                                        @click="openAppealModal(report)"
+                                        class="h-8 w-fit gap-1.5 rounded-lg border-0 bg-amber-600 text-[11px] font-bold text-white hover:bg-amber-700"
+                                    >
+                                        <Scale class="size-3.5" />
+                                        Gửi kháng cáo
+                                    </Button>
+                                </div>
+
+                                <!-- Chủ: xét đơn kháng cáo đang chờ -->
+                                <div
+                                    v-if="report.can_review_appeal"
+                                    class="mt-3 flex flex-wrap items-center gap-2 rounded-xl border border-indigo-200 bg-indigo-50/60 p-3 dark:border-indigo-900/30 dark:bg-indigo-950/10"
+                                >
+                                    <span
+                                        class="text-[11px] font-bold text-indigo-800 dark:text-indigo-300"
+                                        >Có đơn kháng cáo đang chờ:</span
+                                    >
+                                    <Button
+                                        size="sm"
+                                        @click="openReviewAppealModal(report)"
+                                        class="h-8 gap-1.5 rounded-lg border-0 bg-indigo-600 text-[11px] font-bold text-white hover:bg-indigo-700"
+                                    >
+                                        <Scale class="size-3.5" />
+                                        Xét kháng cáo
+                                    </Button>
+                                </div>
                             </div>
                         </div>
 
@@ -704,6 +910,20 @@ const statusConfig: Record<
                         hiệu sai phạm!
                     </p>
                 </div>
+
+                <!-- Danh sách chỉ tăng theo thời gian nên đã chuyển sang phân
+                     trang phía server; các chỉ số tổng vẫn tính trên toàn bộ. -->
+                <div v-if="pagination.last_page > 1" class="border-t p-3">
+                    <Pagination
+                        as="button"
+                        :links="pagination.links"
+                        :current-page="pagination.current_page"
+                        :last-page="pagination.last_page"
+                        :total="pagination.total"
+                        class="border-0 p-0"
+                        @navigate="goToPage"
+                    />
+                </div>
             </Card>
         </div>
 
@@ -717,6 +937,17 @@ const statusConfig: Record<
                     class="border-b bg-slate-50/50 p-6 dark:bg-slate-900/10"
                 >
                     <div
+                        v-if="isOwner"
+                        class="mb-1 flex items-center gap-2 text-sm font-extrabold tracking-wider text-rose-600 uppercase select-none dark:text-rose-500"
+                    >
+                        <FileText class="size-4 shrink-0" />
+                        <span
+                            >Biên Bản Kỷ Luật Nội Bộ (Official Violation
+                            Record)</span
+                        >
+                    </div>
+                    <div
+                        v-else
                         class="mb-1 flex items-center gap-2 text-sm font-extrabold tracking-wider text-rose-600 uppercase select-none dark:text-rose-500"
                     >
                         <ShieldAlert class="size-4 shrink-0" />
@@ -725,13 +956,19 @@ const statusConfig: Record<
                             Safebox)</span
                         >
                     </div>
-                    <CardTitle class="text-lg font-bold"
-                        >Báo Cáo Sai Phạm & Gian Lận Nội Bộ</CardTitle
-                    >
+                    <CardTitle class="text-lg font-bold">
+                        {{
+                            isOwner
+                                ? 'Lập Biên Bản & Ghi Nhận Sai Phạm Nhân Sự'
+                                : 'Báo Cáo Sai Phạm & Gian Lận Nội Bộ'
+                        }}
+                    </CardTitle>
                     <CardDescription class="mt-1 text-xs leading-relaxed">
-                        Hãy cung cấp thông tin chi tiết và chính xác. Chúng tôi
-                        cam kết bảo mật tuyệt đối 100% danh tính của bạn để ngăn
-                        chặn sự lạm dụng trù dập của cấp trên.
+                        {{
+                            isOwner
+                                ? 'Ghi nhận hành vi vi phạm kỷ luật của nhân sự để chuyển sang bước xem xét phê duyệt áp phạt & cấn trừ trực tiếp vào bảng lương.'
+                                : 'Hãy cung cấp thông tin chi tiết và chính xác. Chúng tôi cam kết bảo mật tuyệt đối 100% danh tính của bạn để ngăn chặn sự lạm dụng trù dập của cấp trên.'
+                        }}
                     </CardDescription>
                 </CardHeader>
                 <CardContent class="p-6">
@@ -838,14 +1075,28 @@ const statusConfig: Record<
                                 />
                             </div>
 
-                            <!-- Anonymity Toggle -->
+                            <!-- Anonymity Toggle / Official Record -->
                             <div class="flex flex-col gap-1.5">
                                 <Label
                                     class="text-xs font-bold text-slate-600 dark:text-slate-400"
                                 >
-                                    Cấu Hình Ẩn Danh (Bảo Vệ Người Gửi):
+                                    {{
+                                        isOwner
+                                            ? 'Hình Thức Ghi Nhận Biên Bản:'
+                                            : 'Cấu Hình Ẩn Danh (Bảo Vệ Người Gửi):'
+                                    }}
                                 </Label>
                                 <div
+                                    v-if="isOwner"
+                                    class="flex h-9 w-full items-center justify-between gap-2 rounded-lg border border-indigo-200 bg-indigo-50/60 px-3 text-xs font-bold text-indigo-700 dark:border-indigo-900/40 dark:bg-indigo-950/30 dark:text-indigo-300"
+                                >
+                                    <span
+                                        >📋 Biên bản xử lý chính thức bởi Quản
+                                        lý/Chủ nhà hàng</span
+                                    >
+                                </div>
+                                <div
+                                    v-else
                                     class="flex h-9 w-full items-center justify-between gap-2 rounded-lg border bg-slate-50 px-3 select-none dark:bg-slate-900"
                                 >
                                     <span
@@ -912,8 +1163,13 @@ const statusConfig: Record<
                                 :disabled="reportForm.processing"
                                 class="to-orange-650 flex h-10 w-full items-center justify-center gap-1.5 rounded-xl border-0 bg-gradient-to-r from-rose-600 px-5 text-xs font-bold text-white shadow-lg shadow-rose-100 select-none hover:from-rose-700 hover:to-orange-700 hover:shadow-xl sm:w-auto dark:shadow-none"
                             >
-                                <Send class="size-4" />
-                                Gửi Báo Cáo Bảo Mật
+                                <FileText v-if="isOwner" class="size-4" />
+                                <Send v-else class="size-4" />
+                                {{
+                                    isOwner
+                                        ? 'Tạo Biên Bản Sai Phạm'
+                                        : 'Gửi Báo Cáo Bảo Mật'
+                                }}
                             </Button>
                         </div>
                     </form>
@@ -923,169 +1179,365 @@ const statusConfig: Record<
     </div>
 
     <!-- OWNER RESOLUTION MODAL -->
+    <Teleport to="body">
+        <div
+            v-if="showResolveModal && selectedReport"
+            class="animate-fadeIn fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm dark:bg-slate-950/80"
+        >
+            <div
+                class="relative w-full max-w-lg overflow-hidden rounded-3xl border border-slate-200/60 bg-white p-6 shadow-2xl dark:border-slate-800 dark:bg-slate-900"
+            >
+                <div
+                    class="mb-4 flex items-center gap-2 border-b pb-3 text-sm font-extrabold tracking-wider text-rose-600 uppercase select-none dark:text-rose-500"
+                >
+                    <Scale class="size-4.5" />
+                    <span>Quyết định Xử lý kỷ luật & Áp tiền phạt</span>
+                </div>
+
+                <!-- Empathy message about report details -->
+                <div
+                    class="mb-4 rounded-2xl border border-rose-100/50 bg-rose-50/50 p-3.5 text-xs select-none dark:bg-rose-950/20"
+                >
+                    <div class="font-bold text-slate-800 dark:text-slate-200">
+                        Đối tượng: {{ selectedReport.employee_name }} ({{
+                            selectedReport.employee_code
+                        }})
+                    </div>
+                    <div class="mt-1 text-slate-500 dark:text-slate-400">
+                        Hành vi tố cáo:
+                        <span
+                            class="font-bold text-slate-700 dark:text-slate-300"
+                            >{{ selectedReport.violation_type }}</span
+                        >
+                    </div>
+                    <p class="text-slate-450 mt-1 italic dark:text-slate-500">
+                        "{{ selectedReport.description }}"
+                    </p>
+                </div>
+
+                <form
+                    @submit.prevent="submitResolve"
+                    class="flex flex-col gap-4"
+                >
+                    <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                        <!-- Severity select -->
+                        <div class="flex flex-col gap-1.5">
+                            <Label
+                                for="severity"
+                                class="text-xs font-bold text-slate-600 dark:text-slate-400"
+                            >
+                                Xác định mức độ nghiêm trọng:
+                            </Label>
+                            <select
+                                id="severity"
+                                v-model="resolveForm.severity"
+                                class="h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm focus:ring-2 focus:ring-ring focus:outline-none"
+                            >
+                                <option value="low">Thấp</option>
+                                <option value="medium">Trung bình</option>
+                                <option value="high">Cao</option>
+                                <option value="critical">Nghiêm trọng</option>
+                            </select>
+                        </div>
+
+                        <!-- Disciplinary Decision status -->
+                        <div class="flex flex-col gap-1.5">
+                            <Label
+                                for="status"
+                                class="text-xs font-bold text-slate-600 dark:text-slate-400"
+                            >
+                                Kết luận giải quyết:
+                            </Label>
+                            <select
+                                id="status"
+                                v-model="resolveForm.status"
+                                class="h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm focus:ring-2 focus:ring-ring focus:outline-none"
+                            >
+                                <option value="resolved">
+                                    Xác nhận sai phạm (Áp phạt)
+                                </option>
+                                <option value="dismissed">
+                                    Bác bỏ tố cáo (Không có căn cứ)
+                                </option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Penalty amount input -->
+                    <div
+                        v-if="resolveForm.status === 'resolved'"
+                        class="animate-fadeIn flex flex-col gap-1.5"
+                    >
+                        <Label
+                            for="amount"
+                            class="text-xs font-bold text-slate-600 dark:text-slate-400"
+                        >
+                            Số tiền phạt khấu trừ trực tiếp (VND):
+                        </Label>
+                        <div class="relative">
+                            <Input
+                                id="amount"
+                                type="number"
+                                v-model="resolveForm.penalty_amount"
+                                min="0"
+                                placeholder="Nhập số tiền phạt (Ví dụ: 500000)"
+                                class="pr-12"
+                            />
+                            <span
+                                class="pointer-events-none absolute top-2.5 right-3 text-xs font-bold text-slate-400 select-none"
+                            >
+                                VND
+                            </span>
+                        </div>
+
+                        <!-- Payroll Integration warning banner -->
+                        <div
+                            class="flex items-start gap-2 rounded-xl border border-orange-100 bg-orange-50 p-3 text-[10px] leading-normal font-bold text-orange-700 select-none dark:bg-orange-950/20 dark:text-orange-400"
+                        >
+                            <Info
+                                class="mt-0.5 size-3.5 shrink-0 text-orange-500"
+                            />
+                            <span>
+                                CHÚ Ý: Khi xác nhận, số tiền phạt này sẽ tự động
+                                móc nối tạo Salary Adjustment dạng violation và
+                                cấn trừ trực tiếp thời gian thực vào bảng lương
+                                tháng hiện tại của nhân sự vi phạm.
+                            </span>
+                        </div>
+                    </div>
+
+                    <!-- Disciplinary resolution notes -->
+                    <div class="flex flex-col gap-1.5">
+                        <Label
+                            for="notes"
+                            class="text-xs font-bold text-slate-600 dark:text-slate-400"
+                        >
+                            Biện pháp xử lý / Quyết định kỷ luật:
+                            <span class="text-rose-500">*</span>
+                        </Label>
+                        <textarea
+                            id="notes"
+                            v-model="resolveForm.resolution_notes"
+                            placeholder="Nhập nội dung quyết định kỷ luật (Ví dụ: Cảnh cáo trước toàn quán, phạt trừ lương 500k và yêu cầu nhân viên viết bản kiểm điểm hứa cải thiện...)"
+                            rows="3"
+                            required
+                            class="w-full resize-none rounded-xl border border-slate-200 bg-slate-50/50 px-3 py-2 text-xs transition-all focus:border-rose-500 focus:ring-2 focus:ring-rose-500/20 focus:outline-none dark:border-slate-800 dark:bg-slate-900"
+                        ></textarea>
+                    </div>
+
+                    <!-- Action button resolvers -->
+                    <div class="mt-2 flex justify-end gap-2.5 border-t pt-4">
+                        <Button
+                            type="button"
+                            variant="outline"
+                            @click="showResolveModal = false"
+                            class="h-9 rounded-xl text-xs"
+                        >
+                            Hủy
+                        </Button>
+                        <Button
+                            type="submit"
+                            :disabled="resolveForm.processing"
+                            class="h-9 rounded-xl border-0 bg-gradient-to-r from-rose-600 to-indigo-600 text-xs font-bold text-white shadow-md hover:from-rose-700 hover:to-indigo-700"
+                        >
+                            Phê duyệt & Khấu trừ
+                        </Button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </Teleport>
+
+    <!-- MODAL: NHÂN VIÊN GỬI KHÁNG CÁO -->
+
     <div
-        v-if="showResolveModal && selectedReport"
+        v-if="showAppealModal && selectedReport"
         class="animate-fadeIn fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm dark:bg-slate-950/80"
     >
         <div
             class="relative w-full max-w-lg overflow-hidden rounded-3xl border border-slate-200/60 bg-white p-6 shadow-2xl dark:border-slate-800 dark:bg-slate-900"
         >
             <div
-                class="mb-4 flex items-center gap-2 border-b pb-3 text-sm font-extrabold tracking-wider text-rose-600 uppercase select-none dark:text-rose-500"
+                class="mb-4 flex items-center gap-2 border-b pb-3 text-sm font-extrabold tracking-wider text-amber-600 uppercase select-none"
             >
                 <Scale class="size-4.5" />
-                <span>Quyết định Xử lý kỷ luật & Áp tiền phạt</span>
+                <span>Gửi đơn kháng cáo</span>
             </div>
 
-            <!-- Empathy message about report details -->
             <div
-                class="mb-4 rounded-2xl border border-rose-100/50 bg-rose-50/50 p-3.5 text-xs select-none dark:bg-rose-950/20"
+                class="mb-4 rounded-2xl border border-amber-100/60 bg-amber-50/50 p-3.5 text-xs select-none dark:bg-amber-950/20"
             >
                 <div class="font-bold text-slate-800 dark:text-slate-200">
-                    Đối tượng: {{ selectedReport.employee_name }} ({{
-                        selectedReport.employee_code
-                    }})
+                    Biên bản: {{ selectedReport.violation_type }}
                 </div>
                 <div class="mt-1 text-slate-500 dark:text-slate-400">
-                    Hành vi tố cáo:
-                    <span
-                        class="font-bold text-slate-700 dark:text-slate-300"
-                        >{{ selectedReport.violation_type }}</span
-                    >
+                    Khấu trừ:
+                    <span class="font-bold text-rose-600">{{
+                        formatCurrency(selectedReport.penalty_amount)
+                    }}</span>
                 </div>
-                <p class="text-slate-450 mt-1 italic dark:text-slate-500">
-                    "{{ selectedReport.description }}"
-                </p>
             </div>
 
-            <form @submit.prevent="submitResolve" class="flex flex-col gap-4">
-                <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                    <!-- Severity select -->
-                    <div class="flex flex-col gap-1.5">
-                        <Label
-                            for="severity"
-                            class="text-xs font-bold text-slate-600 dark:text-slate-400"
-                        >
-                            Xác định mức độ nghiêm trọng:
-                        </Label>
-                        <select
-                            id="severity"
-                            v-model="resolveForm.severity"
-                            class="h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm focus:ring-2 focus:ring-ring focus:outline-none"
-                        >
-                            <option value="low">Thấp</option>
-                            <option value="medium">Trung bình</option>
-                            <option value="high">Cao</option>
-                            <option value="critical">Nghiêm trọng</option>
-                        </select>
-                    </div>
-
-                    <!-- Disciplinary Decision status -->
-                    <div class="flex flex-col gap-1.5">
-                        <Label
-                            for="status"
-                            class="text-xs font-bold text-slate-600 dark:text-slate-400"
-                        >
-                            Kết luận giải quyết:
-                        </Label>
-                        <select
-                            id="status"
-                            v-model="resolveForm.status"
-                            class="h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm focus:ring-2 focus:ring-ring focus:outline-none"
-                        >
-                            <option value="resolved">
-                                Xác nhận sai phạm (Áp phạt)
-                            </option>
-                            <option value="dismissed">
-                                Bác bỏ tố cáo (Không có căn cứ)
-                            </option>
-                        </select>
-                    </div>
-                </div>
-
-                <!-- Penalty amount input -->
-                <div
-                    v-if="resolveForm.status === 'resolved'"
-                    class="animate-fadeIn flex flex-col gap-1.5"
-                >
-                    <Label
-                        for="amount"
-                        class="text-xs font-bold text-slate-600 dark:text-slate-400"
-                    >
-                        Số tiền phạt khấu trừ trực tiếp (VND):
-                    </Label>
-                    <div class="relative">
-                        <Input
-                            id="amount"
-                            type="number"
-                            v-model="resolveForm.penalty_amount"
-                            min="0"
-                            placeholder="Nhập số tiền phạt (Ví dụ: 500000)"
-                            class="pr-12"
-                        />
-                        <span
-                            class="pointer-events-none absolute top-2.5 right-3 text-xs font-bold text-slate-400 select-none"
-                        >
-                            VND
-                        </span>
-                    </div>
-
-                    <!-- Payroll Integration warning banner -->
-                    <div
-                        class="flex items-start gap-2 rounded-xl border border-orange-100 bg-orange-50 p-3 text-[10px] leading-normal font-bold text-orange-700 select-none dark:bg-orange-950/20 dark:text-orange-400"
-                    >
-                        <Info
-                            class="mt-0.5 size-3.5 shrink-0 text-orange-500"
-                        />
-                        <span>
-                            CHÚ Ý: Khi xác nhận, số tiền phạt này sẽ tự động móc
-                            nối tạo Salary Adjustment dạng violation và cấn trừ
-                            trực tiếp thời gian thực vào bảng lương tháng hiện
-                            tại của nhân sự vi phạm.
-                        </span>
-                    </div>
-                </div>
-
-                <!-- Disciplinary resolution notes -->
+            <form @submit.prevent="submitAppeal" class="flex flex-col gap-4">
                 <div class="flex flex-col gap-1.5">
                     <Label
-                        for="notes"
                         class="text-xs font-bold text-slate-600 dark:text-slate-400"
                     >
-                        Biện pháp xử lý / Quyết định kỷ luật:
-                        <span class="text-rose-500">*</span>
+                        Lý do kháng cáo <span class="text-rose-500">*</span>
                     </Label>
                     <textarea
-                        id="notes"
-                        v-model="resolveForm.resolution_notes"
-                        placeholder="Nhập nội dung quyết định kỷ luật (Ví dụ: Cảnh cáo trước toàn quán, phạt trừ lương 500k và yêu cầu nhân viên viết bản kiểm điểm hứa cải thiện...)"
-                        rows="3"
+                        v-model="appealForm.appeal_reason"
+                        rows="4"
                         required
-                        class="w-full resize-none rounded-xl border border-slate-200 bg-slate-50/50 px-3 py-2 text-xs transition-all focus:border-rose-500 focus:ring-2 focus:ring-rose-500/20 focus:outline-none dark:border-slate-800 dark:bg-slate-900"
+                        minlength="10"
+                        placeholder="Trình bày lý do bạn cho rằng biên bản/mức phạt chưa thỏa đáng (tối thiểu 10 ký tự)..."
+                        class="w-full resize-none rounded-xl border border-slate-200 bg-slate-50/50 px-3 py-2 text-xs focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 focus:outline-none dark:border-slate-800 dark:bg-slate-900"
                     ></textarea>
+                    <p
+                        v-if="appealForm.errors.appeal_reason"
+                        class="text-[11px] font-semibold text-rose-500"
+                    >
+                        {{ appealForm.errors.appeal_reason }}
+                    </p>
                 </div>
 
-                <!-- Action button resolvers -->
+                <div class="flex flex-col gap-1.5">
+                    <Label
+                        class="text-xs font-bold text-slate-600 dark:text-slate-400"
+                    >
+                        Ảnh bằng chứng (tùy chọn)
+                    </Label>
+                    <input
+                        type="file"
+                        accept="image/*"
+                        @input="
+                            appealForm.appeal_evidence =
+                                ($event.target as HTMLInputElement)
+                                    .files?.[0] ?? null
+                        "
+                        class="text-xs file:mr-3 file:rounded-lg file:border-0 file:bg-amber-100 file:px-3 file:py-1.5 file:text-xs file:font-bold file:text-amber-700"
+                    />
+                    <p
+                        v-if="appealForm.errors.appeal_evidence"
+                        class="text-[11px] font-semibold text-rose-500"
+                    >
+                        {{ appealForm.errors.appeal_evidence }}
+                    </p>
+                </div>
+
                 <div class="mt-2 flex justify-end gap-2.5 border-t pt-4">
                     <Button
                         type="button"
                         variant="outline"
-                        @click="showResolveModal = false"
+                        @click="showAppealModal = false"
                         class="h-9 rounded-xl text-xs"
                     >
                         Hủy
                     </Button>
                     <Button
                         type="submit"
-                        :disabled="resolveForm.processing"
-                        class="h-9 rounded-xl border-0 bg-gradient-to-r from-rose-600 to-indigo-600 text-xs font-bold text-white shadow-md hover:from-rose-700 hover:to-indigo-700"
+                        :disabled="appealForm.processing"
+                        class="h-9 rounded-xl border-0 bg-amber-600 text-xs font-bold text-white shadow-md hover:bg-amber-700"
                     >
-                        Phê duyệt & Khấu trừ
+                        Gửi kháng cáo
                     </Button>
                 </div>
             </form>
         </div>
     </div>
+
+    <!-- MODAL: CHỦ XÉT ĐƠN KHÁNG CÁO -->
+    <Teleport to="body">
+        <div
+            v-if="showReviewAppealModal && selectedReport"
+            class="animate-fadeIn fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm dark:bg-slate-950/80"
+        >
+            <div
+                class="relative w-full max-w-lg overflow-hidden rounded-3xl border border-slate-200/60 bg-white p-6 shadow-2xl dark:border-slate-800 dark:bg-slate-900"
+            >
+                <div
+                    class="mb-4 flex items-center gap-2 border-b pb-3 text-sm font-extrabold tracking-wider text-indigo-600 uppercase select-none"
+                >
+                    <Scale class="size-4.5" />
+                    <span>Xét đơn kháng cáo</span>
+                </div>
+
+                <div
+                    class="mb-4 rounded-2xl border border-slate-100 bg-slate-50/60 p-3.5 text-xs dark:bg-slate-800/40"
+                >
+                    <div class="font-bold text-slate-800 dark:text-slate-200">
+                        {{ selectedReport.employee_name }} —
+                        {{ selectedReport.violation_type }}
+                    </div>
+                    <p class="mt-1.5 text-slate-600 italic dark:text-slate-300">
+                        "{{ selectedReport.appeal_reason }}"
+                    </p>
+                    <div class="mt-1.5 text-slate-500 dark:text-slate-400">
+                        Khấu trừ hiện tại:
+                        <span class="font-bold text-rose-600">{{
+                            formatCurrency(selectedReport.penalty_amount)
+                        }}</span>
+                    </div>
+                </div>
+
+                <form
+                    @submit.prevent="submitReviewAppeal"
+                    class="flex flex-col gap-4"
+                >
+                    <div class="flex flex-col gap-1.5">
+                        <Label
+                            class="text-xs font-bold text-slate-600 dark:text-slate-400"
+                        >
+                            Quyết định
+                        </Label>
+                        <select
+                            v-model="reviewAppealForm.decision"
+                            class="h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm focus:ring-2 focus:ring-ring focus:outline-none"
+                        >
+                            <option value="accepted">
+                                Chấp nhận — hoàn lại khoản cấn trừ lương
+                            </option>
+                            <option value="rejected">
+                                Bác — giữ nguyên hình thức xử lý
+                            </option>
+                        </select>
+                    </div>
+
+                    <div class="flex flex-col gap-1.5">
+                        <Label
+                            class="text-xs font-bold text-slate-600 dark:text-slate-400"
+                        >
+                            Ghi chú phản hồi (tùy chọn)
+                        </Label>
+                        <textarea
+                            v-model="reviewAppealForm.appeal_review_note"
+                            rows="3"
+                            placeholder="Giải thích lý do chấp nhận/bác đơn kháng cáo..."
+                            class="w-full resize-none rounded-xl border border-slate-200 bg-slate-50/50 px-3 py-2 text-xs focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 focus:outline-none dark:border-slate-800 dark:bg-slate-900"
+                        ></textarea>
+                    </div>
+
+                    <div class="mt-2 flex justify-end gap-2.5 border-t pt-4">
+                        <Button
+                            type="button"
+                            variant="outline"
+                            @click="showReviewAppealModal = false"
+                            class="h-9 rounded-xl text-xs"
+                        >
+                            Hủy
+                        </Button>
+                        <Button
+                            type="submit"
+                            :disabled="reviewAppealForm.processing"
+                            class="h-9 rounded-xl border-0 bg-indigo-600 text-xs font-bold text-white shadow-md hover:bg-indigo-700"
+                        >
+                            Lưu quyết định
+                        </Button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </Teleport>
 </template>
 
 <style scoped>

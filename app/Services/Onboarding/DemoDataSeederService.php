@@ -16,6 +16,10 @@ use App\Models\Restaurant;
 use App\Models\RestaurantRevenueSummary;
 use App\Models\RestaurantTable;
 use App\Models\ScheduleAssignment;
+use App\Models\TrainingCourse;
+use App\Models\TrainingEnrollment;
+use App\Models\TrainingLesson;
+use App\Models\TrainingQuiz;
 use App\Models\Unit;
 use App\Models\User;
 use App\Models\WorkShift;
@@ -51,6 +55,7 @@ class DemoDataSeederService
             $shifts = $this->seedWorkShifts($restaurant);
             $this->seedScheduleAssignments($restaurant, $employees, $shifts);
             $this->seedHistoricalOrders($restaurant, $products, $employees);
+            $this->seedTrainingCourses($restaurant, $employees);
 
             $restaurant->forceFill([
                 'sandbox_mode' => true,
@@ -110,6 +115,13 @@ class DemoDataSeederService
             RestaurantTable::withTrashed()->where('restaurant_id', $rid)->forceDelete();
             Area::withTrashed()->where('restaurant_id', $rid)->forceDelete();
 
+            // Xóa training data
+            $courseIds = TrainingCourse::where('restaurant_id', $rid)->pluck('id');
+            TrainingEnrollment::where('restaurant_id', $rid)->delete();
+            TrainingQuiz::whereIn('course_id', $courseIds)->delete();
+            TrainingLesson::whereIn('course_id', $courseIds)->delete();
+            TrainingCourse::where('restaurant_id', $rid)->delete();
+
             // Reset sandbox flags
             $restaurant->forceFill([
                 'sandbox_mode' => false,
@@ -124,15 +136,15 @@ class DemoDataSeederService
     // ─────────────────────────────────────────
     private function seedBBQ(Restaurant $restaurant): array
     {
-        $branchId = null;
+        $branchId = $this->activeBranchId($restaurant);
         $rid = $restaurant->id;
         $units = $this->ensureUnits($restaurant);
 
         // Khu vực + bàn
-        $areaIn = $this->ensureArea($restaurant, 'IN', 'Phòng trong', 1);
-        $areaOut = $this->ensureArea($restaurant, 'OUT', 'Sân ngoài trời', 2);
-        $this->ensureTablesForArea($restaurant, $areaIn, ['B01', 'B02', 'B03', 'B04', 'B05'], 4);
-        $this->ensureTablesForArea($restaurant, $areaOut, ['S01', 'S02', 'S03', 'S04'], 6);
+        $areaIn = $this->ensureArea($restaurant, $branchId, 'IN', 'Phòng trong', 1);
+        $areaOut = $this->ensureArea($restaurant, $branchId, 'OUT', 'Sân ngoài trời', 2);
+        $this->ensureTablesForArea($restaurant, $branchId, $areaIn, ['B01', 'B02', 'B03', 'B04', 'B05'], 4);
+        $this->ensureTablesForArea($restaurant, $branchId, $areaOut, ['S01', 'S02', 'S03', 'S04'], 6);
 
         // Categories
         $catCombo = $this->cat($rid, $branchId, 'combo-nuong', 'Combo Nướng', 1);
@@ -191,14 +203,14 @@ class DemoDataSeederService
     // ─────────────────────────────────────────
     private function seedCafe(Restaurant $restaurant): array
     {
-        $branchId = null;
+        $branchId = $this->activeBranchId($restaurant);
         $rid = $restaurant->id;
         $units = $this->ensureUnits($restaurant);
 
-        $areaMain = $this->ensureArea($restaurant, 'CAFE-IN', 'Phòng máy lạnh', 1);
-        $areaBal = $this->ensureArea($restaurant, 'CAFE-OUT', 'Ban công', 2);
-        $this->ensureTablesForArea($restaurant, $areaMain, ['C01', 'C02', 'C03', 'C04', 'C05', 'C06'], 2);
-        $this->ensureTablesForArea($restaurant, $areaBal, ['BC01', 'BC02', 'BC03'], 2);
+        $areaMain = $this->ensureArea($restaurant, $branchId, 'CAFE-IN', 'Phòng máy lạnh', 1);
+        $areaBal = $this->ensureArea($restaurant, $branchId, 'CAFE-OUT', 'Ban công', 2);
+        $this->ensureTablesForArea($restaurant, $branchId, $areaMain, ['C01', 'C02', 'C03', 'C04', 'C05', 'C06'], 2);
+        $this->ensureTablesForArea($restaurant, $branchId, $areaBal, ['BC01', 'BC02', 'BC03'], 2);
 
         $catCoffee = $this->cat($rid, $branchId, 'ca-phe', 'Cà Phê', 1);
         $catMilk = $this->cat($rid, $branchId, 'sua-tua', 'Sữa Tươi & Matcha', 2);
@@ -255,12 +267,12 @@ class DemoDataSeederService
     // ─────────────────────────────────────────
     private function seedBubbleTea(Restaurant $restaurant): array
     {
-        $branchId = null;
+        $branchId = $this->activeBranchId($restaurant);
         $rid = $restaurant->id;
         $units = $this->ensureUnits($restaurant);
 
-        $areaMain = $this->ensureArea($restaurant, 'TS-MAIN', 'Khu ngồi chính', 1);
-        $this->ensureTablesForArea($restaurant, $areaMain, ['A01', 'A02', 'A03', 'A04', 'A05', 'A06', 'A07', 'A08'], 2);
+        $areaMain = $this->ensureArea($restaurant, $branchId, 'TS-MAIN', 'Khu ngồi chính', 1);
+        $this->ensureTablesForArea($restaurant, $branchId, $areaMain, ['A01', 'A02', 'A03', 'A04', 'A05', 'A06', 'A07', 'A08'], 2);
 
         $catTra = $this->cat($rid, $branchId, 'tra-sua', 'Trà Sữa', 1);
         $catFruTea = $this->cat($rid, $branchId, 'tra-trai-cay', 'Trà Trái Cây', 2);
@@ -594,20 +606,28 @@ class DemoDataSeederService
         ];
     }
 
-    private function ensureArea(Restaurant $restaurant, string $code, string $name, int $order): Area
+    private function activeBranchId(Restaurant $restaurant): ?int
+    {
+        return $restaurant->branches()
+            ->where('status', 'active')
+            ->orderBy('id')
+            ->value('id');
+    }
+
+    private function ensureArea(Restaurant $restaurant, ?int $branchId, string $code, string $name, int $order): Area
     {
         return Area::updateOrCreate(
             ['restaurant_id' => $restaurant->id, 'code' => $code],
-            ['branch_id' => null, 'name' => $name, 'display_order' => $order, 'status' => 'active']
+            ['branch_id' => $branchId, 'name' => $name, 'display_order' => $order, 'status' => 'active']
         );
     }
 
-    private function ensureTablesForArea(Restaurant $restaurant, Area $area, array $names, int $capacity): void
+    private function ensureTablesForArea(Restaurant $restaurant, ?int $branchId, Area $area, array $names, int $capacity): void
     {
         foreach ($names as $name) {
             $table = RestaurantTable::updateOrCreate(
                 ['restaurant_id' => $restaurant->id, 'area_id' => $area->id, 'name' => $name],
-                ['branch_id' => null, 'capacity' => $capacity, 'status' => 'available']
+                ['branch_id' => $branchId, 'capacity' => $capacity, 'status' => 'available']
             );
 
             // Nếu chưa có QR token, gán luôn
@@ -672,5 +692,99 @@ class DemoDataSeederService
                 'track_inventory' => true,
             ]
         );
+    }
+
+    /**
+     * Nạp dữ liệu mẫu Đào tạo & Onboarding nhân viên.
+     */
+    private function seedTrainingCourses(Restaurant $restaurant, Collection $employees): void
+    {
+        $rid = $restaurant->id;
+        $branchId = $restaurant->branches()->first()?->id;
+
+        // Course 1: Quy trình Vận hành & Phục vụ Bàn chuẩn F&B
+        $course1 = TrainingCourse::create([
+            'restaurant_id' => $rid,
+            'title' => 'Quy trình Vận hành & Phục vụ Bàn chuẩn F&B',
+            'description' => 'Khóa học bắt buộc dành cho nhân viên Phục vụ và Thu ngân mới gia nhập nhà hàng.',
+            'category' => 'service',
+            'is_required' => true,
+            'is_active' => true,
+            'created_by' => $restaurant->owner_user_id,
+        ]);
+
+        TrainingLesson::create([
+            'course_id' => $course1->id,
+            'branch_id' => $branchId,
+            'title' => 'Bài 1: Nụ cười & Quy chuẩn Đón tiếp Khách hàng',
+            'content_type' => 'text',
+            'content' => 'Quy tắc 5s khi chào đón khách: Nụ cười thân thiện, Giới thiệu vị trí ngồi, Trao menu và tư vấn món ăn phù hợp với khẩu vị khách.',
+            'duration_minutes' => 15,
+            'sort_order' => 1,
+        ]);
+
+        TrainingLesson::create([
+            'course_id' => $course1->id,
+            'branch_id' => $branchId,
+            'title' => 'Bài 2: Quy trình Order trên Tablet/POS & Báo Bếp',
+            'content_type' => 'text',
+            'content' => 'Hướng dẫn thao tác tạo đơn trên màn hình POS, ghi chú đặc biệt (ít đường, không cay) và gửi đơn trực tiếp sang màn hình Bếp (Kitchen Display).',
+            'duration_minutes' => 20,
+            'sort_order' => 2,
+        ]);
+
+        TrainingQuiz::create([
+            'course_id' => $course1->id,
+            'title' => 'Bài kiểm tra Quy trình Phục vụ Bàn',
+            'pass_score' => 80,
+            'max_attempts' => 3,
+            'questions' => [
+                [
+                    'question' => 'Thời gian tối đa để nhân viên ra đón tiếp khi khách vừa vào nhà hàng là bao nhiêu?',
+                    'options' => ['10 giây', '30 giây', '1 phút', '2 phút'],
+                    'answer' => '30 giây',
+                ],
+                [
+                    'question' => 'Khi khách yêu cầu không cay, nhân viên thao tác như thế nào?',
+                    'options' => ['Nhớ trong đầu', 'Nhập ghi chú "Không cay" trực tiếp trên POS khi tạo đơn', 'Nói thầm với bếp', 'Bỏ qua'],
+                    'answer' => 'Nhập ghi chú "Không cay" trực tiếp trên POS khi tạo đơn',
+                ],
+            ],
+        ]);
+
+        // Course 2: An toàn Vệ sinh Thực phẩm & Bảo quản Kho Bếp
+        $course2 = TrainingCourse::create([
+            'restaurant_id' => $rid,
+            'title' => 'An toàn Vệ sinh Thực phẩm & Bảo quản Kho Bếp',
+            'description' => 'Quy định về vệ sinh an toàn thực phẩm, phân loại nguyên liệu và bảo quản lạnh chuẩn HACCP.',
+            'category' => 'food_safety',
+            'is_required' => true,
+            'is_active' => true,
+            'created_by' => $restaurant->owner_user_id,
+        ]);
+
+        TrainingLesson::create([
+            'course_id' => $course2->id,
+            'branch_id' => $branchId,
+            'title' => 'Bài 1: Nguyên tắc FIFO trong Nhập xuất kho Bếp',
+            'content_type' => 'text',
+            'content' => 'First-In, First-Out: Nguyên liệu nhập trước phải được sắp xếp ở vị trí dễ lấy để xuất dùng trước. Kiểm tra hạn sử dụng hàng ngày.',
+            'duration_minutes' => 15,
+            'sort_order' => 1,
+        ]);
+
+        // Ghi danh nhân viên mẫu
+        foreach ($employees->take(3) as $idx => $emp) {
+            TrainingEnrollment::create([
+                'restaurant_id' => $rid,
+                'course_id' => $course1->id,
+                'employee_id' => $emp->id,
+                'completed_lessons' => [1],
+                'status' => $idx === 0 ? 'completed' : 'in_progress',
+                'progress_percent' => $idx === 0 ? 100 : 50,
+                'started_at' => now()->subDays(3),
+                'completed_at' => $idx === 0 ? now()->subDay() : null,
+            ]);
+        }
     }
 }

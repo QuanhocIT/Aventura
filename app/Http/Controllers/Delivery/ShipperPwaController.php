@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Delivery;
 
 use App\Events\Delivery\ShipperLocationUpdated;
 use App\Http\Controllers\Controller;
+use App\Models\Delivery\DeliveryBatch;
 use App\Models\Delivery\DeliveryBatchItem;
 use App\Models\Delivery\Shipper;
 use App\Models\Delivery\ShipperLocationLog;
@@ -21,37 +22,35 @@ class ShipperPwaController extends Controller
     /** GET /delivery/shipper — shipper's PWA page */
     public function app(Request $request): Response
     {
-        $user = $request->user();
-
-        $shipper = Shipper::with(['employee', 'activeBatch.items.order.deliveryDetail'])
-            ->active()
-            ->whereHas('employee', fn ($q) => $q->where('user_id', $user->id))
-            ->first();
+        $shipper = $this->findCurrentShipper($request);
 
         return Inertia::render('delivery/shipper/App', [
-            'shipper' => $shipper ? [
-                'id' => $shipper->id,
-                'vehicle_type' => $shipper->vehicle_type,
-                'name' => $shipper->employee?->full_name,
-                'active_batch' => $shipper->activeBatch ? [
-                    'id' => $shipper->activeBatch->id,
-                    'status' => $shipper->activeBatch->status,
-                    'items' => $shipper->activeBatch->items->map(fn ($item) => [
-                        'id' => $item->id,
-                        'order_id' => $item->order_id,
-                        'order_number' => $item->order?->order_number,
-                        'sequence_order' => $item->sequence_order,
-                        'status' => $item->status,
-                        'eta' => $item->eta?->toISOString(),
-                        'address' => $item->order?->deliveryDetail?->address,
-                        'customer_name' => $item->order?->deliveryDetail?->customer_name,
-                        'phone' => $item->order?->deliveryDetail?->phone,
-                        'latitude' => $item->order?->deliveryDetail?->latitude ? (float) $item->order->deliveryDetail->latitude : null,
-                        'longitude' => $item->order?->deliveryDetail?->longitude ? (float) $item->order->deliveryDetail->longitude : null,
-                        'cod_amount' => (float) ($item->order?->deliveryDetail?->cod_amount ?? 0),
-                    ])->values(),
-                ] : null,
-            ] : null,
+            'shipper' => $this->serializeShipper($shipper),
+        ]);
+    }
+
+    /** GET /delivery/api/shipper/current — lightweight polling for a new batch. */
+    public function current(Request $request): JsonResponse
+    {
+        return response()->json([
+            'shipper' => $this->serializeShipper($this->findCurrentShipper($request)),
+        ]);
+    }
+
+    /** POST /delivery/api/shipper/batches/{batch}/accept — shipper accepts dispatch. */
+    public function acceptBatch(Request $request, DeliveryBatch $batch): JsonResponse
+    {
+        $shipper = $this->findCurrentShipper($request);
+
+        abort_unless($shipper, 403, 'Tài khoản chưa được đăng ký làm shipper.');
+        abort_if($batch->restaurant_id !== $request->user()->restaurant_id, 403);
+        abort_if($batch->shipper_id !== $shipper->id, 403);
+        abort_if($batch->status !== 'dispatched', 422, 'Chuyến không còn chờ shipper nhận.');
+
+        $batch->update(['accepted_at' => now()]);
+
+        return response()->json([
+            'batch' => $batch->fresh(['items']),
         ]);
     }
 
@@ -175,6 +174,10 @@ class ShipperPwaController extends Controller
             'notes' => ['nullable', 'string', 'max:500'],
         ]);
 
+        if ($validated['status'] === 'failed' && blank($validated['notes'] ?? null)) {
+            abort(422, 'Vui lòng nhập lý do giao thất bại.');
+        }
+
         $item = $this->dispatcher->updateItemStatus(
             $item,
             $validated['status'],
@@ -182,5 +185,46 @@ class ShipperPwaController extends Controller
         );
 
         return response()->json(['item' => $item]);
+    }
+
+    private function findCurrentShipper(Request $request): ?Shipper
+    {
+        return Shipper::with(['employee', 'activeBatch.items.order.deliveryDetail'])
+            ->active()
+            ->where('restaurant_id', $request->user()->restaurant_id)
+            ->whereHas('employee', fn ($q) => $q->where('user_id', $request->user()->id))
+            ->first();
+    }
+
+    private function serializeShipper(?Shipper $shipper): ?array
+    {
+        if (! $shipper) {
+            return null;
+        }
+
+        return [
+            'id' => $shipper->id,
+            'vehicle_type' => $shipper->vehicle_type,
+            'name' => $shipper->employee?->full_name,
+            'active_batch' => $shipper->activeBatch ? [
+                'id' => $shipper->activeBatch->id,
+                'status' => $shipper->activeBatch->status,
+                'accepted_at' => $shipper->activeBatch->accepted_at?->toISOString(),
+                'items' => $shipper->activeBatch->items->map(fn ($item) => [
+                    'id' => $item->id,
+                    'order_id' => $item->order_id,
+                    'order_number' => $item->order?->order_number,
+                    'sequence_order' => $item->sequence_order,
+                    'status' => $item->status,
+                    'eta' => $item->eta?->toISOString(),
+                    'address' => $item->order?->deliveryDetail?->address,
+                    'customer_name' => $item->order?->deliveryDetail?->customer_name,
+                    'phone' => $item->order?->deliveryDetail?->phone,
+                    'latitude' => $item->order?->deliveryDetail?->latitude ? (float) $item->order->deliveryDetail->latitude : null,
+                    'longitude' => $item->order?->deliveryDetail?->longitude ? (float) $item->order->deliveryDetail->longitude : null,
+                    'cod_amount' => (float) ($item->order?->deliveryDetail?->cod_amount ?? 0),
+                ])->values(),
+            ] : null,
+        ];
     }
 }

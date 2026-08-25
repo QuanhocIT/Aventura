@@ -1,23 +1,6 @@
 <script setup lang="ts">
 import { Head, useForm, router, usePage } from '@inertiajs/vue3';
-import {
-    LayoutGrid,
-    Plus,
-    Pencil,
-    Trash2,
-    X,
-    QrCode,
-    Users,
-    MapPin,
-    CheckCircle2,
-    Clock,
-    AlertCircle,
-    Move,
-    Eye,
-    Settings2,
-    Sparkles,
-    RefreshCw,
-} from 'lucide-vue-next';
+import { LayoutGrid, Plus, Pencil, Trash2, X, QrCode, Users, MapPin, Clock, AlertCircle, Move } from 'lucide-vue-next';
 import { computed, ref, watch, onUnmounted } from 'vue';
 import { toast } from 'vue-sonner';
 import { Button } from '@/components/ui/button';
@@ -52,6 +35,7 @@ type PendingItem = {
 type ActiveOrder = {
     id: number;
     order_number: string;
+    is_payment_requested?: boolean;
     waiter_name: string;
     total_amount: number;
     elapsed_minutes: number;
@@ -65,6 +49,7 @@ type Table = {
     name: string;
     capacity: number;
     status: string; // 'available', 'occupied', 'reserved', 'inactive', 'cleaning'
+    is_payment_requested?: boolean;
     x_pos: number;
     y_pos: number;
     area: { id: number; name: string } | null;
@@ -278,9 +263,20 @@ const submitDelete = () => {
         return;
     }
 
+    if (deletingTable.value.status === 'occupied' || deletingTable.value.active_order) {
+        toast.error(`Không thể xóa bàn ${deletingTable.value.name} vì bàn đang có đơn hàng chưa hoàn tất. Vui lòng thanh toán hoặc hủy đơn trước.`);
+        deletingTable.value = null;
+
+        return;
+    }
+
     router.delete(`/tables/${deletingTable.value.id}`, {
         onSuccess: () => {
             deletingTable.value = null;
+            toast.success('Đã xóa bàn thành công.');
+        },
+        onError: (errs: any) => {
+            toast.error(String(Object.values(errs)[0] ?? 'Có lỗi khi xóa bàn.'));
         },
     });
 };
@@ -455,6 +451,7 @@ const onDragStart = (table: Table, event: MouseEvent) => {
     const cardEl = event.currentTarget as HTMLElement;
     const parentEl = cardEl.parentElement as HTMLElement;
     const parentRect = parentEl.getBoundingClientRect();
+void parentRect;
 
     // Drag offsets relative to percentage
     dragOffset.value = {
@@ -659,6 +656,7 @@ const vnd = (value: number) => {
         </div>
 
         <!-- Add Area Modal -->
+        <Teleport to="body">
         <div
             v-if="showAddArea"
             class="fixed inset-0 z-50 overflow-y-auto bg-black/50 p-4 backdrop-blur-xs"
@@ -741,8 +739,10 @@ const vnd = (value: number) => {
                 </Card>
             </div>
         </div>
+        </Teleport>
 
         <!-- Add Table Modal -->
+        
         <div
             v-if="showAddTable"
             class="fixed inset-0 z-50 overflow-y-auto bg-black/50 p-4 backdrop-blur-xs"
@@ -855,8 +855,10 @@ const vnd = (value: number) => {
                 </Card>
             </div>
         </div>
+        
 
         <!-- Edit Table Modal -->
+        
         <div
             v-if="editingTable"
             class="fixed inset-0 z-50 overflow-y-auto bg-black/50 p-4 backdrop-blur-xs"
@@ -952,8 +954,10 @@ const vnd = (value: number) => {
                 </Card>
             </div>
         </div>
+        
 
         <!-- Delete Confirm -->
+        
         <div
             v-if="deletingTable"
             class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-xs"
@@ -988,8 +992,10 @@ const vnd = (value: number) => {
                 </CardContent>
             </Card>
         </div>
+        
 
         <!-- QR Code Modal -->
+        
         <div
             v-if="selectedQrTable"
             class="fixed inset-0 z-50 overflow-y-auto bg-black/50 p-4 backdrop-blur-xs"
@@ -1079,6 +1085,7 @@ const vnd = (value: number) => {
                 </Card>
             </div>
         </div>
+        
 
         <div class="grid grid-cols-1 gap-6 lg:grid-cols-4">
             <!-- Left: Area list selection -->
@@ -1438,7 +1445,14 @@ const vnd = (value: number) => {
                                 <div
                                     v-for="t in paginatedTables"
                                     :key="t.id"
-                                    class="group relative cursor-pointer rounded-2xl border border-slate-100 bg-white p-4 transition-all hover:shadow-md dark:border-slate-800 dark:bg-slate-900"
+                                    class="group relative cursor-pointer rounded-2xl border p-4 transition-all hover:shadow-md"
+                                    :class="[
+                                        t.is_payment_requested || t.active_order?.is_payment_requested
+                                            ? 'border-amber-500 bg-amber-50/60 ring-2 ring-amber-500/40 shadow-md shadow-amber-500/10 dark:bg-amber-950/30'
+                                            : editingTable?.id === t.id
+                                              ? 'border-teal-500 bg-teal-50/20 ring-2 ring-teal-500/30'
+                                              : 'border-slate-100 bg-white hover:border-slate-300 dark:border-slate-800 dark:bg-slate-900',
+                                    ]"
                                     @click="openEdit(t)"
                                 >
                                     <div
@@ -1449,7 +1463,11 @@ const vnd = (value: number) => {
                                         </h4>
                                         <span
                                             class="mt-1 size-2 shrink-0 rounded-full"
-                                            :class="statusConfig[t.status]?.dot"
+                                            :class="
+                                                t.is_payment_requested || t.active_order?.is_payment_requested
+                                                    ? 'bg-amber-500 animate-ping'
+                                                    : statusConfig[t.status]?.dot
+                                            "
                                         />
                                     </div>
 
@@ -1466,10 +1484,16 @@ const vnd = (value: number) => {
                                         <span
                                             class="rounded-full px-2 py-0.5 text-[9px] font-semibold"
                                             :class="
-                                                statusConfig[t.status]?.color
+                                                t.is_payment_requested || t.active_order?.is_payment_requested
+                                                    ? 'bg-amber-500 text-white font-black animate-pulse shadow-xs shadow-amber-500/40'
+                                                    : statusConfig[t.status]?.color
                                             "
                                         >
-                                            {{ statusConfig[t.status]?.label }}
+                                            {{
+                                                t.is_payment_requested || t.active_order?.is_payment_requested
+                                                    ? '💳 Chờ thanh toán'
+                                                    : statusConfig[t.status]?.label
+                                            }}
                                         </span>
                                         <span
                                             v-if="t.area"

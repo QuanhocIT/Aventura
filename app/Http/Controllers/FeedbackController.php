@@ -15,12 +15,14 @@ use App\Models\RestaurantTable;
 use App\Models\ScheduleAssignment;
 use App\Models\SystemSetting;
 use App\Models\WorkShift;
+use App\Services\Sms\SmsService;
 use App\Support\Tenant\TenantContext;
 use Carbon\Carbon;
 use Carbon\CarbonInterface;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Str;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -38,10 +40,16 @@ class FeedbackController extends Controller
         $restaurantId = $user->restaurant_id;
 
         // 1. Lấy danh sách phản hồi kèm bối cảnh truy vết ca trực & món lỗi
-        $feedbackModels = CustomerFeedback::where('restaurant_id', $restaurantId)
+        // Phản hồi khách chỉ tăng theo thời gian; ->get() sẽ đổ toàn bộ lịch sử
+        // ra một trang. Các chỉ số tổng phía dưới được tính bằng aggregate riêng
+        // để không phụ thuộc vào trang đang xem.
+        $feedbackPage = CustomerFeedback::where('restaurant_id', $restaurantId)
             ->with(['order.table', 'order.items.product'])
             ->latest()
-            ->get();
+            ->paginate(25)
+            ->withQueryString();
+
+        $feedbackModels = $feedbackPage->getCollection();
 
         // Lấy tất cả ca trực hoạt động của nhà hàng một lần duy nhất ngoài vòng lặp
         $shifts = WorkShift::where('restaurant_id', $restaurantId)
@@ -180,21 +188,35 @@ class FeedbackController extends Controller
             ]);
 
         // 3. Tính toán các KPI Thống kê
-        $totalFeedback = $feedbackModels->count();
-        $newFeedback = $feedbackModels->where('status', 'new')->count();
-        $averageRating = $totalFeedback > 0 ? round($feedbackModels->avg('rating'), 1) : 5.0;
+        // Đếm trên TOÀN BỘ dữ liệu, không phải trên 25 dòng của trang hiện tại.
+        $statsQuery = fn () => CustomerFeedback::where('restaurant_id', $restaurantId);
+
+        $totalFeedback = $statsQuery()->count();
+        $newFeedback = $statsQuery()->where('status', 'new')->count();
+        $averageRating = $totalFeedback > 0 ? round((float) $statsQuery()->avg('rating'), 1) : 5.0;
+
+        $ratingCounts = $statsQuery()
+            ->selectRaw('rating, COUNT(*) as total')
+            ->groupBy('rating')
+            ->pluck('total', 'rating');
 
         // Tính phân phối sao
         $ratingDistribution = [
-            5 => $feedbackModels->where('rating', 5)->count(),
-            4 => $feedbackModels->where('rating', 4)->count(),
-            3 => $feedbackModels->where('rating', 3)->count(),
-            2 => $feedbackModels->where('rating', 2)->count(),
-            1 => $feedbackModels->where('rating', 1)->count(),
+            5 => (int) ($ratingCounts[5] ?? 0),
+            4 => (int) ($ratingCounts[4] ?? 0),
+            3 => (int) ($ratingCounts[3] ?? 0),
+            2 => (int) ($ratingCounts[2] ?? 0),
+            1 => (int) ($ratingCounts[1] ?? 0),
         ];
 
         return Inertia::render('feedback/Index', [
-            'feedbacks' => $feedbacks,
+            'feedbacks' => $feedbacks->values()->all(),
+            'pagination' => [
+                'links' => $feedbackPage->linkCollection()->toArray(),
+                'current_page' => $feedbackPage->currentPage(),
+                'last_page' => $feedbackPage->lastPage(),
+                'total' => $feedbackPage->total(),
+            ],
             'vouchers' => $vouchers,
             'stats' => [
                 'total' => $totalFeedback,
@@ -295,6 +317,36 @@ class FeedbackController extends Controller
         ]);
     }
 
+    public function publicStatus(Request $request, string $feedbackToken): Response|JsonResponse
+    {
+        $feedback = CustomerFeedback::withoutGlobalScopes()
+            ->where('feedback_token', $feedbackToken)
+            ->with('restaurant')
+            ->firstOrFail();
+
+        $payload = [
+            'restaurant' => [
+                'id' => $feedback->restaurant_id,
+                'name' => $feedback->restaurant?->name ?? 'Nhà hàng',
+            ],
+            'feedback' => [
+                'rating' => (int) $feedback->rating,
+                'content' => $feedback->content,
+                'status' => $feedback->status,
+                'resolution_notes' => $feedback->resolution_notes,
+                'compensation_voucher' => $feedback->compensation_voucher,
+                'created_at' => $feedback->created_at?->toIso8601String(),
+                'updated_at' => $feedback->updated_at?->toIso8601String(),
+            ],
+        ];
+
+        if ($request->wantsJson()) {
+            return response()->json($payload);
+        }
+
+        return Inertia::render('feedback/Status', $payload);
+    }
+
     /**
      * Lưu phản hồi khách hàng công khai.
      */
@@ -357,7 +409,7 @@ class FeedbackController extends Controller
 
         // 3. Dự phòng lấy từ TenantContext hoặc tham số truyền lên
         if (! $restaurantId) {
-            $restaurantId = $data['restaurant_id'] ?? app(TenantContext::class)->getRestaurantId();
+            $restaurantId = $data['restaurant_id'] ?? app(TenantContext::class)->restaurantId();
         }
 
         if (! $restaurantId) {
@@ -393,6 +445,7 @@ class FeedbackController extends Controller
             'success' => true,
             'message' => 'Cảm ơn quý khách đã gửi đánh giá! Ý kiến của quý khách đã được tiếp nhận và xử lý.',
             'feedback_id' => $feedback->id,
+            'status_url' => route('feedback.status', $feedback->feedback_token),
         ]);
     }
 
@@ -578,6 +631,8 @@ class FeedbackController extends Controller
             'resolved_by' => $user->name,
         ]);
 
+        $this->notifyFeedbackCustomer($feedback->fresh());
+
         return back()->with('success', 'Đã lưu phương án xử lý và đền bù khủng hoảng thành công!');
     }
 
@@ -640,5 +695,101 @@ class FeedbackController extends Controller
             ->filter()
             ->values()
             ->toArray();
+    }
+
+    /**
+     * Xử lý phản hồi khách hàng theo các mẫu nhanh (Xin lỗi + Voucher, Đổi món, Chuyển Quản lý).
+     */
+    public function quickTemplateReply(Request $request, CustomerFeedback $feedback): JsonResponse
+    {
+        $user = $request->user();
+        abort_unless($user->can('manage_feedback') || $user->hasAnyRole(['cashier', 'manager', 'owner', 'super_admin']), 403);
+
+        if ((int) $feedback->restaurant_id !== (int) $user->restaurant_id && ! $user->isSuperAdmin()) {
+            abort(403, 'Phản hồi khách hàng không thuộc nhà hàng của bạn.');
+        }
+
+        $data = $request->validate([
+            'template_type' => 'required|string|in:apology_voucher,exchange_item,escalate_manager',
+            'custom_note' => 'nullable|string|max:500',
+        ]);
+
+        $voucherCode = null;
+        $status = 'resolved';
+        $replyText = '';
+
+        switch ($data['template_type']) {
+            case 'apology_voucher':
+                $voucherCode = 'APOLOGY-'.strtoupper(Str::random(6));
+                $replyText = "Thành thật xin lỗi quý khách về trải nghiệm chưa tốt. Nhà hàng xin gửi tặng quý khách mã voucher giảm giá 15% cho lần ghé thăm tiếp theo: [{$voucherCode}].";
+                break;
+            case 'exchange_item':
+                $replyText = 'Thành thật xin lỗi quý khách. Nhân viên nhà hàng sẽ hỗ trợ đổi món mới ngay lập tức cho quý khách!';
+                break;
+            case 'escalate_manager':
+                $status = 'escalated';
+                $replyText = 'Đã chuyển phản hồi của quý khách lên Quản lý / Chủ nhà hàng để kiểm tra và xử lý thỏa đáng.';
+                break;
+        }
+
+        if (! empty($data['custom_note'])) {
+            $replyText .= " (Ghi chú thêm: {$data['custom_note']})";
+        }
+
+        $feedback->update([
+            'status' => $status,
+            'compensation_voucher' => $voucherCode,
+            'resolution_notes' => $replyText,
+        ]);
+
+        AuditLog::log(
+            'feedback_template_replied',
+            'updated',
+            $feedback,
+            null,
+            [
+                'template_type' => $data['template_type'],
+                'voucher_code' => $voucherCode,
+                'status' => $status,
+            ]
+        );
+
+        $this->notifyFeedbackCustomer($feedback->fresh());
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Đã xử lý phản hồi khách hàng theo mẫu thành công.',
+            'status' => $status,
+            'reply_text' => $replyText,
+            'voucher_code' => $voucherCode,
+        ]);
+    }
+
+    private function notifyFeedbackCustomer(CustomerFeedback $feedback): void
+    {
+        if (! $feedback->submitted_by_phone || $feedback->is_anonymous) {
+            return;
+        }
+
+        try {
+            $statusUrl = route('feedback.status', $feedback->feedback_token);
+            $message = $feedback->status === 'resolved'
+                ? 'Aventura: Nhà hàng đã xử lý phản hồi của bạn. Xem kết quả'
+                : 'Aventura: Phản hồi của bạn đã được chuyển đến quản lý. Xem cập nhật';
+
+            if ($feedback->compensation_voucher) {
+                $message .= " và voucher {$feedback->compensation_voucher}";
+            }
+
+            app(SmsService::class)->send(
+                $feedback->submitted_by_phone,
+                $message.": {$statusUrl}"
+            );
+        } catch (\Throwable $e) {
+            logger()->warning('Feedback customer notification failed.', [
+                'feedback_id' => $feedback->id,
+                'error' => $e->getMessage(),
+            ]);
+        }
     }
 }

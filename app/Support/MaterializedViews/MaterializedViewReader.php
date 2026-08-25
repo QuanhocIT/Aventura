@@ -21,8 +21,13 @@ class MaterializedViewReader
     ) {}
 
     /** @return array<string, mixed> */
-    public function read(string $viewName, int $restaurantId, ?int $branchId = null, ?CarbonInterface $date = null): array
-    {
+    public function read(
+        string $viewName,
+        int $restaurantId,
+        ?int $branchId = null,
+        ?CarbonInterface $date = null,
+        bool $allowStale = false,
+    ): array {
         $view = $this->registry->get($viewName);
         $date ??= Carbon::today();
         $builder = $view->builder();
@@ -40,6 +45,13 @@ class MaterializedViewReader
             }
 
             RefreshMaterializedViewJob::dispatch($viewName, $restaurantId, $date->toDateString());
+
+            // Các dashboard có dữ liệu ít thay đổi có thể dùng snapshot cũ ngay
+            // trong lúc job refresh chạy nền, tránh biến thời gian chờ thành thời
+            // gian phản hồi của người dùng. Các view khác vẫn giữ fallback live mặc định.
+            if ($allowStale && $row) {
+                return $row['data'];
+            }
         }
 
         return $builder->build($restaurantId, $branchId, $date);

@@ -19,12 +19,12 @@ const {
     activeBranchId,
     currentBranchName,
     isAllBranches,
-    isOwner,
+    canSelectBranch,
     switchBranch,
 } = useBranchContext();
 
 const canSelect = computed(
-    () => props.selectable && isOwner.value && branches.value.length > 0,
+    () => props.selectable && canSelectBranch.value && branches.value.length > 0,
 );
 
 const handleChange = (event: Event) => {
@@ -45,7 +45,7 @@ const handleChange = (event: Event) => {
             v-if="!compact"
             class="hidden font-medium tracking-wider text-muted-foreground uppercase sm:inline"
         >
-            Chi nhánh hiện tại:
+            Phạm vi dữ liệu:
         </span>
 
         <select

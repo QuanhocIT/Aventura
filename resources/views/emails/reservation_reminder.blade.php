@@ -1,4 +1,4 @@
-<div style='font-family:sans-serif;max-width:560px;margin:auto;padding:0'>
+<div style="font-family:'Times New Roman',Times,serif;max-width:560px;margin:auto;padding:0">
     <div style='background:linear-gradient(135deg,#f59e0b,#d97706);padding:32px;border-radius:12px 12px 0 0;text-align:center'>
         <div style='font-size:48px'>🍽️</div>
         <h1 style='color:#fff;margin:8px 0;font-size:24px'>Nhắc nhở đặt bàn</h1>

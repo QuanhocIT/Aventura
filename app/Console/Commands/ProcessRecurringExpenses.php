@@ -18,7 +18,11 @@ class ProcessRecurringExpenses extends Command
         $today = today();
         $this->info('Processing recurring expenses for: '.$today->toDateString());
 
-        $recurringExpenses = RecurringExpense::where('is_active', true)
+        // withoutGlobalScopes: lệnh chạy cho MỌI nhà hàng. Nếu một ngày nào đó
+        // lệnh được gọi từ trong request hoặc queue job có tenant context, global
+        // scope 'restaurant' sẽ âm thầm thu hẹp phạm vi xuống một nhà hàng.
+        $recurringExpenses = RecurringExpense::withoutGlobalScopes()
+            ->where('is_active', true)
             ->where('start_date', '<=', $today->toDateString())
             ->where(function ($query) use ($today) {
                 $query->whereNull('end_date')
@@ -43,7 +47,8 @@ class ProcessRecurringExpenses extends Command
                 }
 
                 // Avoid duplication for the exact date
-                $exists = OperatingExpense::where('recurring_expense_id', $recurring->id)
+                $exists = OperatingExpense::withoutGlobalScopes()
+                    ->where('recurring_expense_id', $recurring->id)
                     ->where('expense_date', $nextTrigger->toDateString())
                     ->exists();
 

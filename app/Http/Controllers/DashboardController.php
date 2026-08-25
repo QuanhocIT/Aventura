@@ -18,7 +18,9 @@ use App\Services\OrderStatsCacheService;
 use App\Services\QuotaService;
 use App\Support\Tenant\TenantContext;
 use Carbon\Carbon;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
 use Inertia\Inertia;
 
@@ -44,6 +46,32 @@ class DashboardController extends Controller
         return $group ? Inertia::defer($callback, group: $group) : Inertia::defer($callback);
     }
 
+    /**
+     * Return one low-stock row per ingredient for the active scope.
+     *
+     * Inventory is stored once per branch. A chain-wide dashboard must sum
+     * those rows before applying the threshold, otherwise the same ingredient
+     * can appear multiple times.
+     */
+    private function lowStockInventoryQuery(int $restaurantId, ?int $branchId): Builder
+    {
+        return Inventory::query()
+            ->join('ingredients', 'inventories.ingredient_id', '=', 'ingredients.id')
+            ->leftJoin('units', 'ingredients.unit_id', '=', 'units.id')
+            ->where('inventories.restaurant_id', $restaurantId)
+            ->when($branchId, fn ($q) => $q->where('inventories.branch_id', $branchId))
+            ->selectRaw('ingredients.id, ingredients.name as ingredient_name,
+                SUM(inventories.quantity_on_hand) as quantity_on_hand,
+                MAX(ingredients.min_stock_level) as min_stock_level,
+                MAX(ingredients.reorder_level) as reorder_level,
+                units.name as unit_name,
+                COUNT(DISTINCT inventories.branch_id) as branch_count,
+                MAX(inventories.updated_at) as updated_at')
+            ->groupBy('ingredients.id', 'ingredients.name', 'units.name')
+            ->havingRaw('SUM(inventories.quantity_on_hand) <= MAX(ingredients.min_stock_level)')
+            ->orderByRaw('SUM(inventories.quantity_on_hand) asc');
+    }
+
     public function index(Request $request): mixed
     {
         $user = $request->user();
@@ -53,12 +81,42 @@ class DashboardController extends Controller
             return redirect('/super-admin/dashboard');
         }
 
+        if ($user && $user->hasRole('supplier')) {
+            if (! (bool) config('portal.supplier_portal_enabled', false)) {
+                Auth::logout();
+                $request->session()->invalidate();
+                $request->session()->regenerateToken();
+
+                return redirect('/login')->withErrors([
+                    'email' => 'Cổng Nhà cung cấp hiện đã được tắt. Vui lòng liên hệ quản lý nhà hàng.',
+                ]);
+            }
+
+            return redirect()->route('supplier.dashboard');
+        }
+
+        if ($user && $user->hasAnyRole(['operations_inspector', 'compliance_auditor'])) {
+            return redirect()->route('operations.audit');
+        }
+
+        // Nhân viên Kho Tổng có cổng tác vụ riêng, tối ưu cho thao tác hằng ngày
+        // trên thiết bị di động. Trưởng kho/Owner vẫn vào cockpit điều phối.
+        if ($user
+            && $user->hasRole('warehouse_staff')
+            && ! $user->hasAnyRole(['warehouse_manager', 'owner', 'super_admin'])) {
+            return redirect()->route('inventory.staff-portal');
+        }
+
+        if ($user && $user->hasAnyRole(['warehouse_manager', 'warehouse_staff'])) {
+            return redirect()->route('inventory.central-warehouse');
+        }
+
         if ($user && $user->can('manage_kitchen') && ! $user->can('view_report')) {
             return redirect()->route('kitchen.index');
         }
 
         if ($user && $user->can('create_orders') && ! $user->can('view_report')) {
-            return app(CashierDashboardController::class)->index();
+            return app(CashierDashboardController::class)->index($request);
         }
 
         // Nhân viên kho: đưa thẳng vào trang quản lý Tồn kho (giống pattern Kitchen/Cashier ở trên)
@@ -132,20 +190,14 @@ class DashboardController extends Controller
 
             // Today summary & Yesterday summary for active branch/consolidated
             $todaySummaryQuery = RestaurantRevenueSummary::where('restaurant_id', $rid)
+                ->where('scope_key', TenantContext::summaryScopeKey($branchId))
                 ->where('summary_date', today())
                 ->where('summary_type', 'daily');
 
             $yesterdaySummaryQuery = RestaurantRevenueSummary::where('restaurant_id', $rid)
+                ->where('scope_key', TenantContext::summaryScopeKey($branchId))
                 ->where('summary_date', today()->subDay())
                 ->where('summary_type', 'daily');
-
-            if ($branchId) {
-                $todaySummaryQuery->where('branch_id', $branchId);
-                $yesterdaySummaryQuery->where('branch_id', $branchId);
-            } else {
-                $todaySummaryQuery->whereNull('branch_id');
-                $yesterdaySummaryQuery->whereNull('branch_id');
-            }
 
             $todaySummary = $todaySummaryQuery->first();
             $yesterdaySummary = $yesterdaySummaryQuery->first();
@@ -184,8 +236,17 @@ class DashboardController extends Controller
             // Cache resource counts per branch or consolidated
             $cacheSuffix = $branchId ? ":{$branchId}" : '';
             $resourceCounts = Cache::remember("dashboard_counts:{$rid}{$cacheSuffix}", 300, function () use ($restaurant, $branchId) {
+                $productsQuery = $restaurant->products();
+                if ($branchId !== null) {
+                    $productsQuery->where(function ($q) use ($branchId) {
+                        $q->whereNull('branch_id')->orWhere('branch_id', $branchId);
+                    });
+                }
+
                 return [
-                    'products_count' => $restaurant->products()->when($branchId, fn ($q) => $q->where('branch_id', $branchId))->count(),
+                    // Products with NULL branch_id are chain-wide menu items
+                    // and are visible from every concrete branch.
+                    'products_count' => $productsQuery->count(),
                     'employees_count' => $restaurant->employees()->where('status', 'active')->when($branchId, fn ($q) => $q->where('branch_id', $branchId))->count(),
                     'branches_count' => $restaurant->branches()->count(),
                     'tables_count' => $restaurant->tables()->when($branchId, fn ($q) => $q->where('branch_id', $branchId))->count(),
@@ -207,15 +268,17 @@ class DashboardController extends Controller
             $alerts = [];
 
             // ── Recent orders ────────────────────────────────────────────────
-            $recentOrders = Order::with('table')
+            $recentOrders = Order::with(['table', 'branch:id,name'])
                 ->where('restaurant_id', $rid)
-                ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
+                ->when($branchId !== null, fn ($q) => $q->where('branch_id', $branchId))
                 ->latest()
                 ->take(5)
                 ->get()
                 ->map(fn (Order $o) => [
                     'id' => $o->id,
                     'order_number' => $o->order_number,
+                    'branch_id' => $o->branch_id,
+                    'branch_name' => $o->branch?->name ?? ($branchId === null ? 'Chưa xác định' : '—'),
                     'table_name' => $o->table?->name ?? null,
                     'total_amount' => (float) $o->total_amount,
                     'status' => $o->status,
@@ -265,14 +328,12 @@ class DashboardController extends Controller
                         ->get()
                         ->keyBy('branch_id');
 
-                    $cogsByBranch = OrderItem::whereHas('order', function ($q) use ($rid, $branchIds) {
-                        $q->where('restaurant_id', $rid)
-                            ->whereIn('branch_id', $branchIds)
-                            ->where('status', 'completed')
-                            ->whereBetween('created_at', [today()->startOfDay(), today()->endOfDay()]);
-                    })
-                        ->join('orders', 'order_items.order_id', '=', 'orders.id')
+                    $cogsByBranch = OrderItem::join('orders', 'order_items.order_id', '=', 'orders.id')
                         ->join('products', 'order_items.product_id', '=', 'products.id')
+                        ->where('orders.restaurant_id', $rid)
+                        ->whereIn('orders.branch_id', $branchIds)
+                        ->where('orders.status', 'completed')
+                        ->whereBetween('orders.created_at', [today()->startOfDay(), today()->endOfDay()])
                         ->groupBy('orders.branch_id')
                         ->selectRaw('orders.branch_id, SUM(order_items.quantity * products.cost_price) as total_cogs')
                         ->pluck('total_cogs', 'branch_id');
@@ -359,14 +420,7 @@ class DashboardController extends Controller
 
                 $lowStocksForFeed = [];
                 if ($hasInventoryBasic) {
-                    $lowStocksForFeed = Inventory::query()
-                        ->join('ingredients', 'inventories.ingredient_id', '=', 'ingredients.id')
-                        ->leftJoin('units', 'ingredients.unit_id', '=', 'units.id')
-                        ->where('inventories.restaurant_id', $rid)
-                        ->when($branchId, fn ($q) => $q->where('inventories.branch_id', $branchId))
-                        ->whereRaw('inventories.quantity_on_hand <= ingredients.min_stock_level')
-                        ->select('ingredients.name as ingredient_name', 'inventories.quantity_on_hand',
-                            'ingredients.min_stock_level', 'units.name as unit_name', 'inventories.updated_at')
+                    $lowStocksForFeed = $this->lowStockInventoryQuery((int) $rid, $branchId)
                         ->take(4)->get();
                 }
 
@@ -415,12 +469,11 @@ class DashboardController extends Controller
                 ->get()
                 ->map(function ($t) {
                     $status = $t->status;
-                    if ($status === 'occupied') {
-                        $activeOrder = $t->activeOrder;
-                        if (! $activeOrder) {
-                            $status = 'available';
-                            $t->update(['status' => 'available']);
-                        }
+                    $activeOrder = $t->activeOrder;
+                    if ($activeOrder) {
+                        $status = 'occupied';
+                    } elseif ($status === 'occupied') {
+                        $status = 'available';
                     }
 
                     return [
@@ -430,16 +483,8 @@ class DashboardController extends Controller
                     ];
                 })->all(), 'quick_feed'),
 
-            'lowStockInventory' => $this->deferProp(fn () => $hasInventoryBasic ? Inventory::query()
-                ->join('ingredients', 'inventories.ingredient_id', '=', 'ingredients.id')
-                ->leftJoin('units', 'ingredients.unit_id', '=', 'units.id')
-                ->where('inventories.restaurant_id', $rid)
-                ->when($branchId, fn ($q) => $q->where('inventories.branch_id', $branchId))
-                ->whereRaw('inventories.quantity_on_hand <= ingredients.min_stock_level')
-                ->select('ingredients.id', 'ingredients.name as ingredient_name',
-                    'inventories.quantity_on_hand', 'ingredients.min_stock_level',
-                    'ingredients.reorder_level', 'units.name as unit_name')
-                ->orderBy('inventories.quantity_on_hand')->take(8)->get()
+            'lowStockInventory' => $this->deferProp(fn () => $hasInventoryBasic ? $this->lowStockInventoryQuery((int) $rid, $branchId)
+                ->take(8)->get()
                 ->map(fn ($item) => [
                     'id' => $item->id,
                     'ingredient_name' => $item->ingredient_name,
@@ -464,7 +509,7 @@ class DashboardController extends Controller
     private function getForecastData(int $rid, ?int $branchId = null): ?array
     {
         $scopeKey = TenantContext::branchScopeKey($branchId);
-        $key = "dashboard:forecast:{$rid}:{$scopeKey}:".today()->toDateString();
+        $key = "dashboard:forecast:v2:{$rid}:{$scopeKey}:".today()->toDateString();
 
         return Cache::remember($key, 300, function () use ($rid, $branchId) {
             return $this->forecast->forecastTomorrow($rid, $branchId);

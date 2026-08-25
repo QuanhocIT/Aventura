@@ -310,7 +310,11 @@ class FiveProposalsDevelopmentTest extends TestCase
             'branch_id' => $this->branch->id,
             'status' => 'active',
         ]);
-        $cashierUser->assignRole(Role::firstOrCreate(['name' => 'waiter', 'guard_name' => 'web']));
+        // Phải là thu ngân: PromotionController::apply cố tình chỉ cho thu ngân
+        // (hoặc người có quyền manage_orders/process_payments) áp mã giảm giá.
+        // Gán role waiter thì bị chặn ở tầng quyền, không bao giờ chạm tới
+        // rate limiter mà test này muốn kiểm tra.
+        $cashierUser->assignRole($this->cashierRole);
 
         $product = Product::factory()->create([
             'restaurant_id' => $this->restaurant->id,
@@ -371,7 +375,7 @@ class FiveProposalsDevelopmentTest extends TestCase
             $managerUser = User::factory()->create(['restaurant_id' => $this->restaurant->id, 'branch_id' => $this->branch->id, 'status' => 'active']);
             $managerUser->assignRole($managerRole);
         }
-        $managerUser->update(['pin_code' => '8888']);
+        $this->owner->update(['pin_code' => '8888']);
 
         $response = $this->postJson(route('promotions.apply'), [
             'order_id' => $order->id,

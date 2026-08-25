@@ -58,6 +58,37 @@ class BranchManagementTest extends TestCase
         ]);
     }
 
+    public function test_creating_the_first_branch_assigns_legacy_branch_data(): void
+    {
+        $managerRole = Role::firstOrCreate(['name' => 'manager', 'guard_name' => 'web']);
+        $manager = User::factory()->create(['restaurant_id' => $this->restaurant->id]);
+        $manager->assignRole($managerRole);
+        $employee = Employee::factory()->create([
+            'restaurant_id' => $this->restaurant->id,
+            'user_id' => $manager->id,
+            'branch_id' => null,
+        ]);
+
+        $this->actingAs($this->owner);
+
+        $response = $this->post(route('branches.store'), [
+            'code' => 'CN01',
+            'name' => 'Chi nhánh chính',
+        ]);
+
+        $response->assertRedirect()->assertSessionHasNoErrors();
+        $branchId = RestaurantBranch::where('restaurant_id', $this->restaurant->id)->value('id');
+
+        $this->assertDatabaseHas('employees', [
+            'id' => $employee->id,
+            'branch_id' => $branchId,
+        ]);
+        $this->assertDatabaseHas('users', [
+            'id' => $manager->id,
+            'branch_id' => $branchId,
+        ]);
+    }
+
     public function test_branch_creation_is_blocked_once_quota_reached(): void
     {
         RestaurantBranch::factory()->create(['restaurant_id' => $this->restaurant->id, 'code' => 'CN01']);

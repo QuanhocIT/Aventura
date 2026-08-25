@@ -9,7 +9,6 @@ import {
     Search,
     Brain,
     Sparkles,
-    DollarSign,
     Wallet,
     AlertTriangle,
     Calendar,
@@ -17,9 +16,7 @@ import {
 import { ref, watch, computed } from 'vue';
 import {
     PageHeader,
-    StatusBadge,
     Pagination,
-    FilterBar,
 } from '@/components/super-admin';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -49,6 +46,19 @@ interface LedgerEntry {
     direction: 'credit' | 'debit';
     status: string;
     ref_id: number;
+}
+
+const ledgerStatusLabels: Record<string, string> = {
+    pending: 'Đang chờ',
+    processed: 'Đã xử lý',
+    success: 'Thành công',
+    failed: 'Thất bại',
+    refunded: 'Đã hoàn tiền',
+    cancelled: 'Đã hủy',
+};
+
+function ledgerStatusLabel(status: string): string {
+    return ledgerStatusLabels[status] ?? status;
 }
 interface PaginatorLink {
     url: string | null;
@@ -142,6 +152,7 @@ const typeBadgeClass: Record<string, string> = {
     adjustment: 'bg-amber-100 text-amber-800',
     commission: 'bg-sky-100 text-sky-800',
 };
+void typeBadgeClass;
 
 const ledgerTrends = computed(() => {
     return [
@@ -233,7 +244,7 @@ const netPositive = props.totals.credit_raw >= props.totals.debit_raw;
     <div class="flex flex-col gap-5 px-6 py-5">
         <PageHeader
             title="Sổ Cái Tài Chính"
-            subtitle="Tổng hợp chronological: Hóa đơn + Điều chỉnh + Hoa hồng."
+            subtitle="Tổng hợp theo thời gian: Hóa đơn + Điều chỉnh + Hoa hồng."
             :icon="BookOpen"
         >
             <template #actions>
@@ -243,7 +254,7 @@ const netPositive = props.totals.credit_raw >= props.totals.debit_raw;
                         size="sm"
                         class="shadow-3xs h-9 cursor-pointer rounded-xl border-border/80 px-4 text-xs font-bold"
                     >
-                        <ArrowLeft class="mr-1.5 size-4" /> Billing Center
+                        <ArrowLeft class="mr-1.5 size-4" /> Trung tâm thanh toán
                     </Button>
                 </Link>
                 <Button
@@ -489,7 +500,7 @@ const netPositive = props.totals.credit_raw >= props.totals.debit_raw;
                         class="flex items-center gap-1.5 text-sm font-bold"
                     >
                         <Brain class="size-4 text-indigo-500" />
-                        AI Advisor & Thống kê
+                        Trợ lý AI & Thống kê
                     </CardTitle>
                 </CardHeader>
                 <CardContent
@@ -745,7 +756,9 @@ const netPositive = props.totals.credit_raw >= props.totals.debit_raw;
                                     <Badge
                                         variant="outline"
                                         class="rounded-full border border-slate-500/25 bg-slate-500/10 px-2 py-0.5 text-[9px] font-black text-slate-600 uppercase dark:text-slate-400"
-                                        >{{ entry.status }}</Badge
+                                        >{{
+                                            ledgerStatusLabel(entry.status)
+                                        }}</Badge
                                     >
                                 </td>
                             </tr>

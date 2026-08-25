@@ -120,14 +120,24 @@ class SupplierPortalController extends Controller
         $ingredients = Ingredient::withoutGlobalScopes()
             ->where('supplier_id', $supplier->id)
             ->with(['unit'])
+            ->get();
+
+        $supplierPrices = SupplierPriceHistory::where('supplier_id', $supplier->id)
+            ->whereIn('ingredient_id', $ingredients->pluck('id'))
+            ->orderByDesc('effective_date')
+            ->orderByDesc('id')
             ->get()
+            ->unique('ingredient_id')
+            ->keyBy('ingredient_id');
+
+        $ingredients = $ingredients
             ->map(fn ($ing) => [
                 'id' => $ing->id,
                 'name' => $ing->name,
                 'sku' => $ing->sku,
                 'category_name' => $ing->category_name,
                 'description' => $ing->description,
-                'price' => (float) $ing->average_cost,
+                'price' => (float) ($supplierPrices->get($ing->id)?->price ?? $ing->average_cost),
                 'unit_symbol' => $ing->unit?->symbol ?? '—',
                 'status' => $ing->status,
             ]);
@@ -171,11 +181,14 @@ class SupplierPortalController extends Controller
                 $ingredient = Ingredient::withoutGlobalScopes()->findOrFail($id);
                 abort_unless((int) $ingredient->supplier_id === (int) $supplier->id, 403);
 
-                $oldPrice = (float) $ingredient->average_cost;
+                $oldPrice = (float) (SupplierPriceHistory::where('supplier_id', $supplier->id)
+                    ->where('ingredient_id', $ingredient->id)
+                    ->orderByDesc('effective_date')
+                    ->orderByDesc('id')
+                    ->value('price') ?? $ingredient->average_cost);
                 $ingredient->update([
                     'name' => $request->input('name'),
                     'sku' => $request->input('sku'),
-                    'average_cost' => $price,
                     'unit_id' => $request->input('unit_id'),
                     'category_name' => $request->input('category_name'),
                     'description' => $request->input('description'),
@@ -199,7 +212,7 @@ class SupplierPortalController extends Controller
                     'supplier_id' => $supplier->id,
                     'name' => $request->input('name'),
                     'sku' => $request->input('sku'),
-                    'average_cost' => $price,
+                    'average_cost' => 0,
                     'unit_id' => $request->input('unit_id'),
                     'category_name' => $request->input('category_name'),
                     'description' => $request->input('description'),

@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\ServiceHealthLog;
 use App\Models\ServiceMaintenanceStatus;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
 class ServiceMonitorService
@@ -215,11 +216,47 @@ class ServiceMonitorService
             $host = $parsed['host'] ?? $host;
         }
 
+        $httpEndpoints = [
+            'email_service' => "http://{$host}:{$port}/health",
+            'chatbot_service' => "http://{$host}:{$port}/health",
+            'analytics_service' => "http://{$host}:{$port}/health",
+            'meilisearch' => "http://{$host}:{$port}/health",
+        ];
+
+        // Nếu là HTTP microservice, dùng HTTP GET check thực tế
+        if (isset($httpEndpoints[$serviceKey])) {
+            $startTime = microtime(true);
+            try {
+                $response = Http::timeout(3)->get($httpEndpoints[$serviceKey]);
+                $latency = (microtime(true) - $startTime) * 1000;
+
+                if ($response->successful()) {
+                    return [
+                        'status' => 'online',
+                        'latency' => round($latency, 2),
+                        'error' => null,
+                    ];
+                }
+
+                return [
+                    'status' => 'offline',
+                    'latency' => round($latency, 2),
+                    'error' => "HTTP health check failed with status {$response->status()}",
+                ];
+            } catch (\Throwable $e) {
+                return [
+                    'status' => 'offline',
+                    'latency' => 0.0,
+                    'error' => 'HTTP connection error: '.$e->getMessage(),
+                ];
+            }
+        }
+
         $startTime = microtime(true);
         $errno = 0;
         $errstr = '';
 
-        // 2-second TCP socket timeout
+        // 2-second TCP socket timeout for MySQL/Redis
         $connection = @fsockopen($host, $port, $errno, $errstr, 2.0);
         $latency = (microtime(true) - $startTime) * 1000;
 

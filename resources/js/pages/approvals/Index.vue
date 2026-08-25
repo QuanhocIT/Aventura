@@ -17,6 +17,10 @@ import {
     UserPlus,
     Timer,
     Bell,
+    RotateCcw,
+    LogIn,
+    LogOut,
+    Lock,
 } from 'lucide-vue-next';
 import { computed, ref } from 'vue';
 import { toast } from 'vue-sonner';
@@ -35,7 +39,7 @@ defineOptions({ layout: AppLayout });
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-type ApprovalStatus = 'pending' | 'approved' | 'rejected';
+type ApprovalStatus = 'pending' | 'approved' | 'rejected' | 'escalated';
 
 type Approval = {
     id: number;
@@ -43,15 +47,25 @@ type Approval = {
     operation_label: string;
     operation_data: Record<string, unknown>;
     status: ApprovalStatus;
+    branch_name: string | null;
+    amount_involved: number | null;
+    required_authority: string;
     requester_name: string;
     reviewer_name: string | null;
+    reviewer_role: string | null;
     rejection_reason: string | null;
+    escalation_reason: string | null;
     reviewed_at: string | null;
     created_at: string;
+    /** Người đang xem có đủ thẩm quyền quyết định yêu cầu này không. */
+    can_decide: boolean;
+    /** Lý do bị khóa, hiển thị khi can_decide = false. */
+    block_reason: string | null;
 };
 
 type Stats = {
     pending: number;
+    escalated: number;
     approved_today: number;
     rejected_today: number;
 };
@@ -62,6 +76,8 @@ const props = defineProps<{
     approvals: Approval[];
     stats: Stats;
     statusFilter: string;
+    /** 'chain' = Chủ xem toàn chuỗi, 'branch' = Quản lý xem chi nhánh mình. */
+    viewerScope: 'chain' | 'branch';
 }>();
 
 // ── State ─────────────────────────────────────────────────────────────────────
@@ -103,12 +119,36 @@ function timeAgo(dateStr: string): string {
     return 'Vừa xong';
 }
 
+function formatExactDateTime(dateStr: string | null | undefined): string {
+    if (!dateStr) {
+        return '';
+    }
+
+    const d = new Date(dateStr);
+
+    if (isNaN(d.getTime())) {
+        return dateStr;
+    }
+
+    const day = String(d.getDate()).padStart(2, '0');
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const year = d.getFullYear();
+    const hours = String(d.getHours()).padStart(2, '0');
+    const minutes = String(d.getMinutes()).padStart(2, '0');
+
+    return `${hours}:${minutes} ${day}/${month}/${year}`;
+}
+
 function pendingHours(dateStr: string): number {
     return (Date.now() - new Date(dateStr).getTime()) / 3_600_000;
 }
 
+function isOpen(status: ApprovalStatus): boolean {
+    return status === 'pending' || status === 'escalated';
+}
+
 function slaClass(dateStr: string, status: ApprovalStatus): string {
-    if (status !== 'pending') {
+    if (!isOpen(status)) {
         return 'text-slate-400 dark:text-slate-500 font-semibold';
     }
 
@@ -126,7 +166,7 @@ function slaClass(dateStr: string, status: ApprovalStatus): string {
 }
 
 function slaIcon(dateStr: string, status: ApprovalStatus) {
-    if (status !== 'pending') {
+    if (!isOpen(status)) {
         return null;
     }
 
@@ -153,7 +193,7 @@ function slaIcon(dateStr: string, status: ApprovalStatus) {
 
 const urgentPending = computed(() =>
     props.approvals.filter(
-        (a) => a.status === 'pending' && pendingHours(a.created_at) >= 24,
+        (a) => isOpen(a.status) && pendingHours(a.created_at) >= 24,
     ),
 );
 
@@ -181,12 +221,44 @@ const statusConfig: Record<
             'bg-rose-50 text-rose-700 border border-rose-250/50 dark:bg-rose-950/30 dark:text-rose-400 dark:border-rose-900/30',
         dotClass: 'bg-rose-500',
     },
+    escalated: {
+        label: 'Chờ Chủ quyết',
+        badgeClass:
+            'bg-violet-50 text-violet-700 border border-violet-250/50 dark:bg-violet-950/30 dark:text-violet-400 dark:border-violet-900/30',
+        dotClass: 'bg-violet-500 animate-pulse',
+    },
 };
+
+const currencyFormatter = new Intl.NumberFormat('vi-VN');
+
+function formatAmount(value: number | null): string {
+    return value === null ? '' : `${currencyFormatter.format(value)}đ`;
+}
 
 const operationConfig: Record<
     string,
     { icon: any; color: string; bg: string }
 > = {
+    inventory_create: {
+        icon: Package,
+        color: 'text-emerald-600 dark:text-emerald-400',
+        bg: 'bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-100 dark:border-emerald-900/20',
+    },
+    inventory_update: {
+        icon: Package,
+        color: 'text-indigo-600 dark:text-indigo-400',
+        bg: 'bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-100 dark:border-indigo-900/20',
+    },
+    inventory_delete: {
+        icon: Trash2,
+        color: 'text-rose-600 dark:text-rose-400',
+        bg: 'bg-rose-50 dark:bg-rose-950/40 border border-rose-100 dark:border-rose-900/20',
+    },
+    inventory_adjustment: {
+        icon: Coins,
+        color: 'text-sky-600 dark:text-sky-400',
+        bg: 'bg-sky-50 dark:bg-sky-950/40 border border-sky-100 dark:border-sky-900/20',
+    },
     inventory_purchase: {
         icon: Package,
         color: 'text-blue-600 dark:text-blue-400',
@@ -207,6 +279,26 @@ const operationConfig: Record<
         color: 'text-teal-600 dark:text-teal-400',
         bg: 'bg-teal-50 dark:bg-teal-950/40 border border-teal-100 dark:border-teal-900/20',
     },
+    order_refund: {
+        icon: RotateCcw,
+        color: 'text-rose-600 dark:text-rose-400',
+        bg: 'bg-rose-50 dark:bg-rose-950/40 border border-rose-100 dark:border-rose-900/20',
+    },
+    order_item_cancel: {
+        icon: Trash2,
+        color: 'text-orange-600 dark:text-orange-400',
+        bg: 'bg-orange-50 dark:bg-orange-950/40 border border-orange-100 dark:border-orange-900/20',
+    },
+    shift_checkin: {
+        icon: LogIn,
+        color: 'text-emerald-600 dark:text-emerald-400',
+        bg: 'bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-100 dark:border-emerald-900/20',
+    },
+    shift_checkout: {
+        icon: LogOut,
+        color: 'text-amber-600 dark:text-amber-400',
+        bg: 'bg-amber-50 dark:bg-amber-950/40 border border-amber-100 dark:border-amber-900/20',
+    },
 };
 
 function opConfig(type: string) {
@@ -225,6 +317,9 @@ const dataLabels: Record<string, string> = {
     ingredient_id: 'ID nguyên liệu',
     ingredient_name: 'Nguyên liệu',
     quantity: 'Số lượng',
+    unit_symbol: 'Đơn vị',
+    waste_category: 'Nguyên nhân hao hụt',
+    estimated_cost: 'Chi phí ước tính',
     unit_cost: 'Đơn giá',
     supplier_id: 'Nhà cung cấp ID',
     notes: 'Ghi chú',
@@ -234,6 +329,17 @@ const dataLabels: Record<string, string> = {
     amount: 'Số tiền',
     reason: 'Lý do',
     salary_id: 'ID bảng lương',
+    order_id: 'ID đơn hàng',
+    order_number: 'Mã đơn hàng',
+    table_name: 'Bàn',
+    refund_type: 'Hình thức hoàn tiền',
+    refund_amount: 'Số tiền hoàn',
+    refund_reason: 'Lý do hoàn tiền',
+    product_name: 'Món ăn',
+    was_started: 'Đã bắt đầu chế biến',
+    assignment_id: 'ID Ca trực',
+    shift_name: 'Tên ca trực',
+    requested_at: 'Thời gian yêu cầu',
 };
 
 const typeAdjLabels: Record<string, string> = {
@@ -242,6 +348,15 @@ const typeAdjLabels: Record<string, string> = {
     cash_shortage: 'Hụt két',
     inventory_loss: 'Hao hụt kho',
     violation: 'Vi phạm',
+};
+
+const wasteCategoryLabels: Record<string, string> = {
+    spoilage: 'Hư hỏng / xuống chất lượng',
+    expired: 'Hết hạn sử dụng',
+    damaged: 'Hư hỏng bao bì',
+    cooking_loss: 'Hao hụt chế biến',
+    theft: 'Thất thoát',
+    other: 'Khác',
 };
 
 function formatDataEntry(
@@ -282,6 +397,22 @@ function formatDataEntry(
         };
     }
 
+    if (key === 'refund_type') {
+        return {
+            label,
+            display: value === 'full' ? 'Hoàn toàn phần' : 'Hoàn một phần',
+            highlight: false,
+        };
+    }
+
+    if (key === 'waste_category') {
+        return {
+            label,
+            display: wasteCategoryLabels[String(value)] ?? String(value),
+            highlight: false,
+        };
+    }
+
     if (key === 'occurred_at') {
         const d = new Date(String(value));
 
@@ -302,6 +433,10 @@ function visibleDataEntries(data: Record<string, unknown>) {
 
     if (data['ingredient_name']) {
         skip.add('ingredient_id');
+    }
+
+    if (data['order_number']) {
+        skip.add('order_id');
     }
 
     return Object.entries(data)
@@ -331,8 +466,8 @@ function approveRequest(approval: Approval) {
                 toast.success('Đã phê duyệt yêu cầu.');
                 processingId.value = null;
             },
-            onError: () => {
-                toast.error('Có lỗi khi phê duyệt.');
+            onError: (errors: Record<string, string>) => {
+                toast.error(errors.error ?? 'Có lỗi khi phê duyệt.');
                 processingId.value = null;
             },
         },
@@ -361,7 +496,12 @@ function submitReject() {
             toast.success('Đã từ chối yêu cầu.');
             closeReject();
         },
-        onError: () => toast.error('Vui lòng nhập lý do từ chối.'),
+        onError: (errors: Record<string, string>) =>
+            toast.error(
+                errors.error ??
+                    errors.rejection_reason ??
+                    'Không thể từ chối yêu cầu.',
+            ),
     });
 }
 </script>
@@ -520,9 +660,14 @@ function submitReject() {
                     <button
                         v-for="f in [
                             {
-                                value: 'pending',
-                                label: 'Chờ duyệt',
-                                count: stats.pending,
+                                value: 'open',
+                                label: 'Cần xử lý',
+                                count: stats.pending + stats.escalated,
+                            },
+                            {
+                                value: 'escalated',
+                                label: 'Vượt thẩm quyền',
+                                count: stats.escalated,
                             },
                             {
                                 value: 'approved',
@@ -658,11 +803,15 @@ function submitReject() {
                                     </p>
                                     <!-- Mobile details -->
                                     <div
-                                        class="mt-1 flex items-center gap-2 text-[10px] font-medium text-slate-400 lg:hidden"
+                                        class="mt-1 flex flex-wrap items-center gap-1.5 text-[10px] font-medium text-slate-400 lg:hidden"
                                     >
                                         <span>{{
                                             approval.requester_name
                                         }}</span>
+                                        <span>·</span>
+                                        <span class="font-mono font-bold text-slate-700 dark:text-slate-300">
+                                            {{ formatExactDateTime(approval.created_at) }}
+                                        </span>
                                         <span>·</span>
                                         <span
                                             :class="
@@ -678,48 +827,68 @@ function submitReject() {
                                 </div>
                             </div>
 
-                            <!-- Desktop Col 2: Requester -->
+                            <!-- Desktop Col 2: Requester + chi nhánh + số tiền -->
                             <div class="hidden lg:block">
                                 <span
-                                    class="text-xs font-semibold text-slate-700 dark:text-slate-300"
+                                    class="block text-xs font-semibold text-slate-700 dark:text-slate-300"
                                 >
                                     {{ approval.requester_name }}
+                                </span>
+                                <span
+                                    v-if="
+                                        viewerScope === 'chain' &&
+                                        approval.branch_name
+                                    "
+                                    class="block text-[10px] font-medium text-slate-400 dark:text-slate-500"
+                                >
+                                    {{ approval.branch_name }}
+                                </span>
+                                <span
+                                    v-if="approval.amount_involved"
+                                    class="mt-0.5 inline-block rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-bold text-slate-600 tabular-nums dark:bg-slate-800 dark:text-slate-300"
+                                >
+                                    {{ formatAmount(approval.amount_involved) }}
                                 </span>
                             </div>
 
                             <!-- Desktop Col 3: SLA / Time -->
-                            <div class="hidden items-center gap-1.5 lg:flex">
-                                <component
-                                    v-if="
-                                        slaIcon(
-                                            approval.created_at,
-                                            approval.status,
-                                        )
-                                    "
-                                    :is="
-                                        slaIcon(
-                                            approval.created_at,
-                                            approval.status,
-                                        )!.icon
-                                    "
-                                    :class="
-                                        slaIcon(
-                                            approval.created_at,
-                                            approval.status,
-                                        )!.cls
-                                    "
-                                />
-                                <span
-                                    class="text-xs font-semibold"
-                                    :class="
-                                        slaClass(
-                                            approval.created_at,
-                                            approval.status,
-                                        )
-                                    "
-                                >
-                                    {{ timeAgo(approval.created_at) }}
+                            <div class="hidden flex-col justify-center lg:flex">
+                                <span class="font-mono text-xs font-bold text-slate-800 dark:text-slate-200">
+                                    {{ formatExactDateTime(approval.created_at) }}
                                 </span>
+                                <div class="mt-0.5 flex items-center gap-1">
+                                    <component
+                                        v-if="
+                                            slaIcon(
+                                                approval.created_at,
+                                                approval.status,
+                                            )
+                                        "
+                                        :is="
+                                            slaIcon(
+                                                approval.created_at,
+                                                approval.status,
+                                            )!.icon
+                                        "
+                                        :class="
+                                            slaIcon(
+                                                approval.created_at,
+                                                approval.status,
+                                            )!.cls
+                                        "
+                                    />
+                                    <span
+                                        class="text-[10px] font-semibold"
+                                        :class="
+                                            slaClass(
+                                                approval.created_at,
+                                                approval.status,
+                                            )
+                                        "
+                                    >
+                                        {{ timeAgo(approval.created_at) }}
+                                    </span>
+                                </div>
                             </div>
 
                             <!-- Desktop Col 4: Status -->
@@ -749,9 +918,12 @@ function submitReject() {
                                 class="flex items-center justify-end gap-2"
                                 @click.stop
                             >
-                                <!-- Inline quick actions for pending -->
+                                <!-- Hành động nhanh cho yêu cầu còn mở -->
                                 <div
-                                    v-if="approval.status === 'pending'"
+                                    v-if="
+                                        isOpen(approval.status) &&
+                                        approval.can_decide
+                                    "
                                     class="flex items-center gap-1.5"
                                 >
                                     <Button
@@ -778,6 +950,26 @@ function submitReject() {
                                             >Từ chối</span
                                         >
                                     </Button>
+                                </div>
+
+                                <!-- Vượt thẩm quyền: nói rõ lý do thay vì để
+                                     người dùng bấm rồi mới nhận lỗi -->
+                                <div
+                                    v-else-if="isOpen(approval.status)"
+                                    class="flex max-w-[15rem] items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5 dark:border-slate-800 dark:bg-slate-900/60"
+                                    :title="approval.block_reason ?? ''"
+                                >
+                                    <Lock
+                                        class="h-3.5 w-3.5 shrink-0 text-slate-400"
+                                    />
+                                    <span
+                                        class="line-clamp-2 text-[10px] leading-tight font-semibold text-slate-500 dark:text-slate-400"
+                                    >
+                                        {{
+                                            approval.block_reason ??
+                                            'Ngoài thẩm quyền của bạn'
+                                        }}
+                                    </span>
                                 </div>
 
                                 <!-- Chevron toggle on Mobile -->
@@ -837,7 +1029,13 @@ function submitReject() {
                                                     class="font-medium text-slate-500 dark:text-slate-400"
                                                     >{{ entry.label }}</span
                                                 >
+                                                <template v-if="entry.key === 'photo_url' || entry.key === 'invoice_file_url'">
+                                                    <a :href="String(entry.display)" target="_blank" class="inline-flex items-center gap-1 text-xs text-indigo-600 underline font-bold hover:text-indigo-800 dark:text-indigo-400">
+                                                        🖼️ Xem ảnh chứng từ / bằng chứng
+                                                    </a>
+                                                </template>
                                                 <span
+                                                    v-else
                                                     :class="[
                                                         'font-mono font-bold',
                                                         entry.highlight
@@ -1002,6 +1200,7 @@ function submitReject() {
             leave-from-class="opacity-100"
             leave-to-class="opacity-0"
         >
+            
             <div
                 v-if="rejectTarget"
                 class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs"
@@ -1132,6 +1331,7 @@ function submitReject() {
                     </CardContent>
                 </Card>
             </div>
+            
         </Transition>
     </Teleport>
 </template>

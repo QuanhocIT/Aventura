@@ -345,7 +345,9 @@ class ShiftSwapController extends Controller
                     'id' => $n->id,
                     'type' => $n->data['type'] ?? 'general',
                     'action' => $n->data['action'] ?? 'info',
+                    'title' => $n->data['title'] ?? null,
                     'message' => $n->data['message'] ?? '',
+                    'url' => $n->data['url'] ?? null,
                     'created_at' => $n->created_at->diffForHumans(),
                 ];
             });

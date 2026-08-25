@@ -93,11 +93,41 @@ class OrderPaymentWebhookController extends Controller
             ], 500);
         }
 
+        // Lấy số tiền thực nhận từ payload webhook (hỗ trợ amount, transferAmount, transfer_amount, creditAmount)
+        $paidAmount = (float) (
+            $request->input('amount')
+            ?? $request->input('transferAmount')
+            ?? $request->input('transfer_amount')
+            ?? $request->input('creditAmount')
+            ?? 0
+        );
+
+        if ($paidAmount <= 0) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Số tiền giao dịch trong callback không hợp lệ (amount <= 0).',
+            ], 400);
+        }
+
+        if ($paidAmount < (float) $order->total_amount) {
+            Log::warning('Webhook thanh toán không đủ số tiền đơn hàng:', [
+                'order_id' => $order->id,
+                'order_total' => $order->total_amount,
+                'paid_amount' => $paidAmount,
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => "Số tiền chuyển khoản ({$paidAmount}) nhỏ hơn tổng tiền đơn hàng ({$order->total_amount}).",
+                'order_id' => $order->id,
+            ], 422);
+        }
+
         try {
             $paymentData = [
                 'payment_method' => 'bank_transfer',
-                'cash_received' => $order->total_amount,
-                'change_amount' => 0,
+                'cash_received' => $paidAmount,
+                'change_amount' => max(0, $paidAmount - (float) $order->total_amount),
             ];
 
             // payOrder() tự khoá row + re-check trong transaction; trả false nghĩa là

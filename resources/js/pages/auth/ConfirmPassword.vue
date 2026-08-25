@@ -1,13 +1,10 @@
 <script setup lang="ts">
 import { Form, Head, Link } from '@inertiajs/vue3';
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment
-// @ts-ignore Vue SFC module declaration is provided by the project shim.
+
 import AppLogoIcon from '@/components/AppLogoIcon.vue';
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment
-// @ts-ignore Vue SFC module declaration is provided by the project shim.
+
 import InputError from '@/components/InputError.vue';
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment
-// @ts-ignore Vue SFC module declaration is provided by the project shim.
+
 import PasswordInput from '@/components/PasswordInput.vue';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';

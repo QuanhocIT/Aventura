@@ -8,12 +8,16 @@ export function useCashierCart(
     products: () => ProductItem[],
     tablesData: () => TableItem[],
     toast: (msg: string, type?: 'success' | 'error') => void,
+    sharedCartItems?: Ref<OrderItem[]>,
+    sharedCartNote?: Ref<string>,
+    sharedIsNotified?: Ref<boolean>,
+    sharedIsCartOpen?: Ref<boolean>,
 ) {
-    const isCartOpen = ref(false);
-    const cartItems = ref<OrderItem[]>([]);
-    const cartNote = ref('');
+    const isCartOpen = sharedIsCartOpen ?? ref(false);
+    const cartItems = sharedCartItems ?? ref<OrderItem[]>([]);
+    const cartNote = sharedCartNote ?? ref('');
     const cartBounce = ref(false);
-    const isNotified = ref(false);
+    const isNotified = sharedIsNotified ?? ref(false);
     const isSubmitting = ref(false);
 
     const triggerCartBounce = () => {
@@ -24,6 +28,23 @@ export function useCashierCart(
     };
 
     const addToCart = (product: ProductItem) => {
+        const currentQty = cartItems.value
+            .filter((item) => item.product_id === product.id && !item.id)
+            .reduce((sum, item) => sum + item.quantity, 0);
+
+        if (
+            product.available_portions !== null &&
+            product.available_portions !== undefined &&
+            currentQty >= product.available_portions
+        ) {
+            toast(
+                `Món ${product.name} chỉ còn ${product.available_portions} suất có thể phục vụ.`,
+                'error',
+            );
+
+            return;
+        }
+
         isNotified.value = false;
         triggerCartBounce();
         const existing = cartItems.value.find(
@@ -68,6 +89,21 @@ export function useCashierCart(
         );
 
         if (item) {
+            const product = products().find((p) => p.id === productId);
+
+            if (
+                product?.available_portions !== null &&
+                product?.available_portions !== undefined &&
+                item.quantity >= product.available_portions
+            ) {
+                toast(
+                    `Món ${product.name} đã đạt số suất còn lại trong kho.`,
+                    'error',
+                );
+
+                return;
+            }
+
             item.quantity += 1;
         } else {
             const product = products().find((p) => p.id === productId);
@@ -96,6 +132,23 @@ export function useCashierCart(
     };
 
     const increaseQty = (item: OrderItem) => {
+        if (!item.id) {
+            const product = products().find((p) => p.id === item.product_id);
+
+            if (
+                product?.available_portions !== null &&
+                product?.available_portions !== undefined &&
+                item.quantity >= product.available_portions
+            ) {
+                toast(
+                    `Món ${product.name} đã đạt số suất còn lại trong kho.`,
+                    'error',
+                );
+
+                return;
+            }
+        }
+
         isNotified.value = false;
         item.quantity += 1;
         triggerCartBounce();
@@ -179,6 +232,7 @@ export function useCashierCart(
                     preserveState: true,
                     onSuccess: () => {
                         isNotified.value = true;
+                        isCartOpen.value = false;
                         setTimeout(() => {
                             const updated = tablesData().find(
                                 (t) => t.id === activeTable.value!.id,
@@ -187,9 +241,12 @@ export function useCashierCart(
                             if (updated) {
                                 activeTable.value = updated;
                                 cartItems.value =
-                                    updated.active_order?.items.map((item) => ({
-                                        ...item,
-                                    })) ?? [];
+                                    updated.active_order?.items
+                                        .filter(
+                                            (item) =>
+                                                item.status !== 'cancelled',
+                                        )
+                                        .map((item) => ({ ...item })) ?? [];
                             }
                         }, 200);
                         toast('Đã gửi bổ sung món xuống nhà bếp thành công!');
@@ -214,6 +271,7 @@ export function useCashierCart(
                     preserveState: true,
                     onSuccess: () => {
                         isNotified.value = true;
+                        isCartOpen.value = false;
                         setTimeout(() => {
                             const updated = tablesData().find(
                                 (t) => t.id === activeTable.value!.id,
@@ -222,9 +280,12 @@ export function useCashierCart(
                             if (updated) {
                                 activeTable.value = updated;
                                 cartItems.value =
-                                    updated.active_order?.items.map((item) => ({
-                                        ...item,
-                                    })) ?? [];
+                                    updated.active_order?.items
+                                        .filter(
+                                            (item) =>
+                                                item.status !== 'cancelled',
+                                        )
+                                        .map((item) => ({ ...item })) ?? [];
                             }
                         }, 200);
                         toast('Đã tạo đơn mới thành công!');

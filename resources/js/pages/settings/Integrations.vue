@@ -25,6 +25,7 @@ import {
 } from 'lucide-vue-next';
 import { computed, ref } from 'vue';
 import { toast } from 'vue-sonner';
+import BackButton from '@/components/BackButton.vue';
 import DataTable from '@/components/DataTable.vue';
 import type { DataTableColumn } from '@/components/DataTable.vue';
 import { Badge } from '@/components/ui/badge';
@@ -486,9 +487,10 @@ const platformOrderColumns: DataTableColumn[] = [
 <template>
     <Head title="Tích hợp" />
 
-    <div class="w-full space-y-6">
+    <div class="w-full space-y-8">
         <!-- Header -->
-        <div class="flex items-center gap-4">
+        <div class="settings-page-intro flex items-center gap-3">
+            <BackButton fallback-href="/settings/profile" label="Cài đặt" />
             <div
                 class="shrink-0 rounded-xl bg-neutral-100 p-2.5 text-neutral-800 dark:bg-neutral-800 dark:text-neutral-200"
             >
@@ -496,11 +498,13 @@ const platformOrderColumns: DataTableColumn[] = [
             </div>
             <div>
                 <h1
-                    class="text-lg font-black text-neutral-900 dark:text-neutral-50"
+                    class="text-2xl font-black text-neutral-900 dark:text-neutral-50"
                 >
                     Trung tâm Tích hợp
                 </h1>
-                <p class="text-xs text-neutral-500 dark:text-neutral-400">
+                <p
+                    class="mt-1 text-sm leading-6 text-neutral-500 dark:text-neutral-400"
+                >
                     Kết nối Aventura với các công cụ bạn đang dùng — thanh toán,
                     giao hàng, analytics, kế toán
                 </p>
@@ -570,7 +574,7 @@ const platformOrderColumns: DataTableColumn[] = [
         </Card>
 
         <!-- ═══ Các tích hợp cấu hình theo nhà hàng ═══ -->
-        <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div class="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
             <Card
                 v-for="p in providers"
                 :key="p.provider"

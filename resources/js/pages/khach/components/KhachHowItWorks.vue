@@ -44,12 +44,12 @@ const howItWorksSteps = [
                 </p>
             </div>
             <div
-                class="reveal-on-scroll relative mt-10 grid gap-4 md:grid-cols-3"
+                class="reveal-on-scroll relative mt-8 grid grid-cols-3 gap-2 sm:mt-10 sm:gap-4"
             >
                 <div
                     v-for="(step, i) in howItWorksSteps"
                     :key="step.step"
-                    class="stagger-child group relative flex flex-col items-center rounded-2xl border border-white/15 bg-card/90 p-6 text-center backdrop-blur-sm transition-all duration-300 hover:-translate-y-1 hover:border-primary/30 hover:shadow-xl hover:shadow-primary/5 dark:border-white/10 dark:bg-card/80"
+                    class="stagger-child group relative flex min-w-0 flex-col items-center rounded-2xl border border-white/15 bg-card/90 p-2 text-center backdrop-blur-sm transition-all duration-300 hover:-translate-y-1 hover:border-primary/30 hover:shadow-xl hover:shadow-primary/5 sm:p-6 dark:border-white/10 dark:bg-card/80"
                 >
                     <!-- Connector arrow -->
                     <div
@@ -59,18 +59,22 @@ const howItWorksSteps = [
                         <ChevronRight class="size-5 text-muted-foreground" />
                     </div>
                     <div
-                        class="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl border border-primary/20 bg-primary/5 text-primary transition-all duration-300 group-hover:scale-105 group-hover:bg-primary/10 group-hover:shadow-lg group-hover:shadow-primary/15"
+                        class="mb-2 flex h-9 w-9 items-center justify-center rounded-xl border border-primary/20 bg-primary/5 text-primary transition-all duration-300 group-hover:scale-105 group-hover:bg-primary/10 group-hover:shadow-lg group-hover:shadow-primary/15 sm:mb-4 sm:h-14 sm:w-14 sm:rounded-2xl"
                     >
-                        <component :is="step.icon" class="size-7" />
+                        <component :is="step.icon" class="size-5 sm:size-7" />
                     </div>
                     <span
-                        class="mb-1 text-xs font-semibold tracking-wider text-muted-foreground uppercase"
+                        class="mb-1 text-[9px] font-semibold tracking-wider text-muted-foreground uppercase sm:text-xs"
                         >Bước {{ step.step }}</span
                     >
-                    <h3 class="mb-2 text-base font-semibold">
+                    <h3
+                        class="mb-1 text-[11px] leading-tight font-semibold sm:mb-2 sm:text-base"
+                    >
                         {{ step.title }}
                     </h3>
-                    <p class="text-sm leading-relaxed text-muted-foreground">
+                    <p
+                        class="text-[10px] leading-tight text-muted-foreground sm:text-sm sm:leading-relaxed"
+                    >
                         {{ step.description }}
                     </p>
                 </div>

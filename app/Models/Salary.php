@@ -20,10 +20,10 @@ class Salary extends Model
             'pay_period_start' => 'date:Y-m-d',
             'pay_period_end' => 'date:Y-m-d',
             'paid_at' => 'datetime',
-            'base_salary' => 'encrypted',
-            'bonus_amount' => 'encrypted',
-            'deduction_amount' => 'encrypted',
-            'net_salary' => 'encrypted',
+            'base_salary' => 'decimal:2',
+            'bonus_amount' => 'decimal:2',
+            'deduction_amount' => 'decimal:2',
+            'net_salary' => 'decimal:2',
         ];
     }
 
@@ -40,6 +40,11 @@ class Salary extends Model
     public function adjustments(): HasMany
     {
         return $this->hasMany(SalaryAdjustment::class);
+    }
+
+    public function payments(): HasMany
+    {
+        return $this->hasMany(SalaryPayment::class);
     }
 
     /**

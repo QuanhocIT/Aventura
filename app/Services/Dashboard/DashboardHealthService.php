@@ -24,23 +24,15 @@ class DashboardHealthService
     private function calculateBranchHealthScore(int $rid, ?int $branchId = null): int
     {
         $todaySummary = RestaurantRevenueSummary::where('restaurant_id', $rid)
+            ->where('scope_key', TenantContext::summaryScopeKey($branchId))
             ->where('summary_date', today())
             ->where('summary_type', 'daily');
-        if ($branchId) {
-            $todaySummary->where('branch_id', $branchId);
-        } else {
-            $todaySummary->whereNull('branch_id');
-        }
         $todaySummary = $todaySummary->first();
 
         $yesterdaySummary = RestaurantRevenueSummary::where('restaurant_id', $rid)
+            ->where('scope_key', TenantContext::summaryScopeKey($branchId))
             ->where('summary_date', today()->subDay())
             ->where('summary_type', 'daily');
-        if ($branchId) {
-            $yesterdaySummary->where('branch_id', $branchId);
-        } else {
-            $yesterdaySummary->whereNull('branch_id');
-        }
         $yesterdaySummary = $yesterdaySummary->first();
 
         $ordersStats = Order::where('restaurant_id', $rid)

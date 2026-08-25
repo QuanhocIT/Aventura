@@ -25,14 +25,7 @@ import {
 } from 'lucide-vue-next';
 import { computed, ref, watch } from 'vue';
 import { toast } from 'vue-sonner';
-import {
-    PageHeader,
-    StatCard,
-    StatusBadge,
-    Pagination,
-    ProgressBar,
-    EmptyState,
-} from '@/components/super-admin';
+import { PageHeader, Pagination } from '@/components/super-admin';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -179,7 +172,7 @@ function submitForm() {
         router.patch(`/super-admin/coupons/${editingCoupon.value.id}`, data, {
             preserveScroll: true,
             onSuccess: () => {
-                toast.success('Đã cập nhật coupon!');
+                toast.success('Đã cập nhật mã giảm giá!');
                 closeForm();
             },
             onError: (e: any) => toast.error(Object.values(e)[0] as string),
@@ -188,7 +181,7 @@ function submitForm() {
         router.post('/super-admin/coupons', data, {
             preserveScroll: true,
             onSuccess: () => {
-                toast.success('Đã tạo coupon!');
+                toast.success('Đã tạo mã giảm giá!');
                 closeForm();
             },
             onError: (e: any) => toast.error(Object.values(e)[0] as string),
@@ -216,7 +209,7 @@ async function deleteCoupon(coupon: Coupon) {
     if (
         !(await confirmDialog({
             title: 'Xác nhận thao tác',
-            description: `Xóa coupon "${coupon.code}"? Nếu đã được dùng sẽ chỉ vô hiệu hoá.`,
+            description: `Xóa mã giảm giá "${coupon.code}"? Nếu đã được dùng sẽ chỉ vô hiệu hoá.`,
         }))
     ) {
         return;
@@ -224,7 +217,7 @@ async function deleteCoupon(coupon: Coupon) {
 
     router.delete(`/super-admin/coupons/${coupon.id}`, {
         preserveScroll: true,
-        onSuccess: () => toast.success('Đã xóa coupon!'),
+        onSuccess: () => toast.success('Đã xóa mã giảm giá!'),
     });
 }
 
@@ -581,7 +574,7 @@ const chartAreaPath = computed(() => {
                         class="flex items-center gap-1.5 text-sm font-bold"
                     >
                         <Brain class="size-4 text-indigo-500" />
-                        AI Advisor & Khuyến nghị
+                        Trợ lý AI & Khuyến nghị
                     </CardTitle>
                 </CardHeader>
                 <CardContent
@@ -878,6 +871,7 @@ const chartAreaPath = computed(() => {
         leave-from-class="opacity-100 translate-y-0 sm:scale-100"
         leave-to-class="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
     >
+        <Teleport to="body">
         <div
             v-if="showForm"
             class="fixed inset-0 z-50 flex animate-in items-center justify-center bg-black/60 p-4 backdrop-blur-xs duration-300 fade-in"
@@ -1083,5 +1077,6 @@ const chartAreaPath = computed(() => {
                 </div>
             </div>
         </div>
+        </Teleport>
     </Transition>
 </template>

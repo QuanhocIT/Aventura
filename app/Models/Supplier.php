@@ -37,6 +37,11 @@ class Supplier extends Model
         return $this->hasMany(Ingredient::class);
     }
 
+    public function ingredientOptions()
+    {
+        return $this->hasMany(IngredientSupplier::class);
+    }
+
     public function priceHistories()
     {
         return $this->hasMany(SupplierPriceHistory::class);

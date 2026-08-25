@@ -86,7 +86,7 @@ class BillingController extends Controller
         return Inertia::render('super-admin/billing/Index', [
             'filters' => $request->only(['restaurant_id', 'status', 'type', 'search']),
             'restaurants' => $restaurants,
-            'invoices' => $invoiceQuery->paginate(10, ['*'], 'invoices_page')->withQueryString()->through(fn ($invoice) => [
+            'invoices' => $invoiceQuery->paginate(5, ['*'], 'invoices_page')->withQueryString()->through(fn ($invoice) => [
                 'id' => $invoice->id,
                 'invoice_number' => $invoice->invoice_number,
                 'restaurant' => $invoice->restaurant?->name ?? '',

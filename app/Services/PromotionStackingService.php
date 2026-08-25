@@ -27,19 +27,28 @@ class PromotionStackingService
             $now = now()->format('H:i');
             $start = $conditions['time_range']['start'] ?? '00:00';
             $end = $conditions['time_range']['end'] ?? '23:59';
-            if ($now < $start || $now > $end) {
+            $isInRange = $start <= $end
+                ? $now >= $start && $now <= $end
+                : $now >= $start || $now <= $end;
+            if (! $isInRange) {
                 return false;
             }
         }
 
         if (! empty($conditions['min_items'])) {
-            $itemCount = $order->items()->count();
+            $itemCount = $order->relationLoaded('items')
+                ? $order->items->where('status', '!=', 'cancelled')->count()
+                : $order->items()->where('status', '!=', 'cancelled')->count();
             if ($itemCount < $conditions['min_items']) {
                 return false;
             }
         }
 
         if (! empty($conditions['first_order_only'])) {
+            if (! $order->customer_id) {
+                return false;
+            }
+
             $previousOrders = Order::where('customer_id', $order->customer_id)
                 ->where('id', '!=', $order->id)
                 ->where('status', 'completed')

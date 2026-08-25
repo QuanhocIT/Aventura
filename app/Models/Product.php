@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Models\Concerns\BelongsToRestaurant;
 use App\Services\MenuCatalogCacheService;
 use Database\Factories\Restaurant\ProductFactory;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -53,6 +54,7 @@ class Product extends Model
             'out_of_stock_until' => 'datetime',
             'is_active' => 'boolean',
             'is_available' => 'boolean',
+            'is_processed' => 'boolean',
             'earn_points' => 'integer',
             'redeem_points' => 'integer',
         ];
@@ -71,6 +73,19 @@ class Product extends Model
     public function recipes(): HasMany
     {
         return $this->hasMany(ProductRecipe::class);
+    }
+
+    /**
+     * Products that may be shown in a selling menu.
+     * Tracked products require at least one BOM row; packaged/untracked items
+     * intentionally remain eligible without a recipe.
+     */
+    public function scopeSellableMenu(Builder $query): Builder
+    {
+        return $query->where(function (Builder $query): void {
+            $query->where('track_inventory', false)
+                ->orWhereHas('recipes');
+        });
     }
 
     public function media(): MorphMany
@@ -130,6 +145,15 @@ class Product extends Model
 
     protected static function booted(): void
     {
+        static::creating(function (Product $product): void {
+            // Products created outside the menu form must explicitly opt in
+            // to inventory tracking. The menu form already sets this true
+            // and then the BOM safety gate applies to those products.
+            if (! array_key_exists('track_inventory', $product->getAttributes())) {
+                $product->track_inventory = false;
+            }
+        });
+
         static::saved(function ($product) {
             Cache::forget("restaurant_{$product->restaurant_id}_products");
             if ($product->restaurant_id) {

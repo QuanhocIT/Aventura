@@ -7,6 +7,7 @@ use App\Models\Payment;
 use App\Models\Restaurant;
 use App\Models\RestaurantRevenueSummary;
 use App\Models\ShiftClosing;
+use App\Support\Tenant\TenantContext;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -38,11 +39,11 @@ class DailyReportService
         return $stats;
     }
 
-    public function generateForRestaurant(int $restaurantId, string $date): array
+    public function generateForRestaurant(int $restaurantId, string $date, ?int $branchId = null): array
     {
-        $data = $this->computeForRestaurant($restaurantId, $date);
+        $data = $this->computeForRestaurant($restaurantId, $date, $branchId);
 
-        $this->upsertSummary($restaurantId, $date, $data);
+        $this->upsertSummary($restaurantId, $date, $data, $branchId);
 
         return $data;
     }
@@ -58,16 +59,16 @@ class DailyReportService
      * UniqueConstraintViolationException do updateOrCreate() không phải 1 câu lệnh
      * UPSERT nguyên tử — đã phát hiện qua test tích hợp trước khi lên production.
      */
-    public function computeForRestaurant(int $restaurantId, string $date): array
+    public function computeForRestaurant(int $restaurantId, string $date, ?int $branchId = null): array
     {
         $restaurant = Restaurant::with('owner')->findOrFail($restaurantId);
 
-        $revenue = $this->calculateRevenue($restaurantId, $date);
-        $cogs = $this->calculateCogs($restaurantId, $date);
-        $products = $this->getTopProducts($restaurantId, $date);
-        $shifts = $this->getShiftSummary($restaurantId, $date);
-        $comparison = $this->getComparison($restaurantId, $date);
-        $peakHour = $this->getPeakHour($restaurantId, $date);
+        $revenue = $this->calculateRevenue($restaurantId, $date, $branchId);
+        $cogs = $this->calculateCogs($restaurantId, $date, $branchId);
+        $products = $this->getTopProducts($restaurantId, $date, $branchId);
+        $shifts = $this->getShiftSummary($restaurantId, $date, $branchId);
+        $comparison = $this->getComparison($restaurantId, $date, $branchId);
+        $peakHour = $this->getPeakHour($restaurantId, $date, $branchId);
 
         return array_merge($revenue, [
             'restaurant_id' => $restaurantId,
@@ -88,10 +89,11 @@ class DailyReportService
         ]);
     }
 
-    private function upsertSummary(int $restaurantId, string $date, array $data): RestaurantRevenueSummary
+    private function upsertSummary(int $restaurantId, string $date, array $data, ?int $branchId = null): RestaurantRevenueSummary
     {
+        $scopeKey = TenantContext::summaryScopeKey($branchId);
         $values = [
-            'branch_id' => null,
+            'branch_id' => $branchId,
             'order_count' => $data['order_count'],
             'completed_order_count' => $data['completed_count'],
             'cancelled_order_count' => $data['cancelled_count'],
@@ -129,7 +131,7 @@ class DailyReportService
         // whereDate() so sánh đúng theo phần ngày bất kể định dạng lưu trữ.
         $existing = RestaurantRevenueSummary::withoutGlobalScopes()
             ->where('restaurant_id', $restaurantId)
-            ->where('scope_key', 'restaurant')
+            ->where('scope_key', $scopeKey)
             ->where('summary_type', 'daily')
             ->whereDate('summary_date', $date)
             ->first();
@@ -142,25 +144,27 @@ class DailyReportService
 
         return RestaurantRevenueSummary::withoutGlobalScopes()->create($values + [
             'restaurant_id' => $restaurantId,
-            'scope_key' => 'restaurant',
+            'scope_key' => $scopeKey,
             'summary_type' => 'daily',
             'summary_date' => $date,
         ]);
     }
 
-    private function calculateRevenue(int $restaurantId, string $date): array
+    private function calculateRevenue(int $restaurantId, string $date, ?int $branchId = null): array
     {
         $start = Carbon::parse($date)->startOfDay();
         $end = Carbon::parse($date)->endOfDay();
 
         $orders = Order::withoutGlobalScopes()
             ->where('restaurant_id', $restaurantId)
+            ->when($branchId !== null, fn ($q) => $q->where('branch_id', $branchId))
             ->where('status', 'completed')
             ->whereBetween('completed_at', [$start, $end])
             ->get(['id', 'total_amount', 'discount_amount', 'service_charge', 'tax_amount', 'completed_at']);
 
         $allOrders = Order::withoutGlobalScopes()
             ->where('restaurant_id', $restaurantId)
+            ->when($branchId !== null, fn ($q) => $q->where('branch_id', $branchId))
             ->whereBetween('created_at', [$start, $end])
             ->selectRaw('status, COUNT(*) as cnt')
             ->groupBy('status')
@@ -171,7 +175,14 @@ class DailyReportService
         $discountTotal = $orders->sum('discount_amount');
         $serviceCharge = $orders->sum('service_charge');
         $taxTotal = $orders->sum('tax_amount');
-        $netRevenue = $grossRevenue - $discountTotal;
+
+        $refundTotal = (float) Payment::withoutGlobalScopes()
+            ->where('restaurant_id', $restaurantId)
+            ->where('status', 'refunded')
+            ->whereBetween('created_at', [$start, $end])
+            ->sum('amount');
+
+        $netRevenue = max(0.0, $grossRevenue - $refundTotal);
         $completedCount = $orders->count();
         $cancelledCount = (int) ($allOrders->get('cancelled', 0));
         $orderCount = $allOrders->sum();
@@ -203,7 +214,7 @@ class DailyReportService
         ];
     }
 
-    private function getTopProducts(int $restaurantId, string $date): array
+    private function getTopProducts(int $restaurantId, string $date, ?int $branchId = null): array
     {
         $start = Carbon::parse($date)->startOfDay();
         $end = Carbon::parse($date)->endOfDay();
@@ -212,6 +223,7 @@ class DailyReportService
             ->join('orders', 'order_items.order_id', '=', 'orders.id')
             ->join('products', 'order_items.product_id', '=', 'products.id')
             ->where('orders.restaurant_id', $restaurantId)
+            ->when($branchId !== null, fn ($q) => $q->where('orders.branch_id', $branchId))
             ->where('orders.status', 'completed')
             ->whereBetween('orders.completed_at', [$start, $end])
             ->select(
@@ -231,10 +243,11 @@ class DailyReportService
             ->all();
     }
 
-    private function getShiftSummary(int $restaurantId, string $date): array
+    private function getShiftSummary(int $restaurantId, string $date, ?int $branchId = null): array
     {
         return ShiftClosing::withoutGlobalScopes()
             ->where('restaurant_id', $restaurantId)
+            ->when($branchId !== null, fn ($q) => $q->where('branch_id', $branchId))
             ->whereDate('closing_date', $date)
             ->with('shift')
             ->get()
@@ -248,13 +261,14 @@ class DailyReportService
             ->all();
     }
 
-    private function getComparison(int $restaurantId, string $date): array
+    private function getComparison(int $restaurantId, string $date, ?int $branchId = null): array
     {
         $yesterday = Carbon::parse($date)->subDay()->toDateString();
+        $scopeKey = TenantContext::summaryScopeKey($branchId);
 
         $prev = RestaurantRevenueSummary::withoutGlobalScopes()
             ->where('restaurant_id', $restaurantId)
-            ->where('scope_key', 'restaurant')
+            ->where('scope_key', $scopeKey)
             ->where('summary_type', 'daily')
             ->whereDate('summary_date', $yesterday)
             ->first();
@@ -290,7 +304,7 @@ class DailyReportService
         return $data;
     }
 
-    private function calculateCogs(int $restaurantId, string $date): float
+    private function calculateCogs(int $restaurantId, string $date, ?int $branchId = null): float
     {
         $start = Carbon::parse($date)->startOfDay();
         $end = Carbon::parse($date)->endOfDay();
@@ -299,7 +313,10 @@ class DailyReportService
             ->join('orders', 'order_items.order_id', '=', 'orders.id')
             ->join('product_recipes', 'product_recipes.product_id', '=', 'order_items.product_id')
             ->join('ingredients', 'ingredients.id', '=', 'product_recipes.ingredient_id')
+            ->join('units as recipe_units', 'recipe_units.id', '=', 'product_recipes.unit_id')
+            ->join('units as ingredient_units', 'ingredient_units.id', '=', 'ingredients.unit_id')
             ->where('orders.restaurant_id', $restaurantId)
+            ->when($branchId !== null, fn ($q) => $q->where('orders.branch_id', $branchId))
             ->where('orders.status', 'completed')
             ->whereBetween('orders.completed_at', [$start, $end])
             ->whereNull('ingredients.deleted_at')
@@ -307,6 +324,7 @@ class DailyReportService
                 SUM(
                     order_items.quantity
                     * product_recipes.quantity
+                    * (COALESCE(recipe_units.conversion_factor_to_base, 1) / COALESCE(ingredient_units.conversion_factor_to_base, 1))
                     * (1 + product_recipes.waste_rate / 100)
                     * ingredients.average_cost
                 ) as total_cogs
@@ -316,7 +334,7 @@ class DailyReportService
         return (float) ($result ?? 0.0);
     }
 
-    private function getPeakHour(int $restaurantId, string $date): ?array
+    private function getPeakHour(int $restaurantId, string $date, ?int $branchId = null): ?array
     {
         $start = Carbon::parse($date)->startOfDay();
         $end = Carbon::parse($date)->endOfDay();
@@ -326,6 +344,7 @@ class DailyReportService
 
         $row = DB::table('orders')
             ->where('restaurant_id', $restaurantId)
+            ->when($branchId !== null, fn ($q) => $q->where('branch_id', $branchId))
             ->where('status', 'completed')
             ->whereBetween('completed_at', [$start, $end])
             ->select(

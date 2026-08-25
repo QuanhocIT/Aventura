@@ -265,6 +265,7 @@ class QROrderingLifecycleTest extends TestCase
         $response->assertOk();
         $response->assertInertia(fn (Assert $page) => $page
             ->component('customers/QROrder')
+            ->where('table.qr_token', $this->table->qr_token)
             ->has('products', 2)
             ->where('products.0.name', 'Lẩu Tôm Sú')
             ->where('products.0.in_stock', false)
@@ -468,6 +469,25 @@ class QROrderingLifecycleTest extends TestCase
             'track_inventory' => false,
         ]);
 
+        // Bàn có thể còn bản ghi cũ chưa được chốt do dữ liệu/đồng bộ trước đó.
+        // Yêu cầu QR mới vẫn phải tạo một đơn riêng và trở thành đơn hiện hành.
+        $staleOrder = Order::create([
+            'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
+            'table_id' => $this->table->id,
+            'created_by' => $this->staff->id,
+            'order_number' => 'ORD-STALE-QR',
+            'channel' => 'dine_in',
+            'status' => 'pending',
+            'payment_status' => 'unpaid',
+            'subtotal' => 50000,
+            'total_amount' => 50000,
+        ]);
+        $staleOrder->forceFill([
+            'created_at' => now()->subDay(),
+            'updated_at' => now()->subDay(),
+        ])->saveQuietly();
+
         $tempOrder = TemporaryOrder::create([
             'restaurant_id' => $this->restaurant->id,
             'branch_id' => $this->branch->id,
@@ -501,6 +521,7 @@ class QROrderingLifecycleTest extends TestCase
         // Verify official order was created with status pending, channel qr, and links table
         $order = Order::find($tempOrder->order_id);
         $this->assertNotNull($order);
+        $this->assertNotSame($staleOrder->id, $order->id);
         $this->assertEquals('qr', $order->channel);
         $this->assertEquals($this->table->id, $order->table_id);
         $this->assertEquals(360000.0, $order->total_amount);
@@ -508,6 +529,12 @@ class QROrderingLifecycleTest extends TestCase
         // Verify table status is occupied
         $this->table->refresh();
         $this->assertEquals('occupied', $this->table->status);
+        $this->assertEquals($order->id, $this->table->activeOrder?->id);
+
+        $tablesPage = $this->actingAs($this->owner)->get(route('tables.index'));
+        $tablesPage->assertInertia(fn (Assert $page) => $page
+            ->where('tables', fn ($tables) => collect($tables)->firstWhere('id', $this->table->id)['status'] === 'occupied')
+        );
 
         // Verify WebSocket event broadcasted
         Event::assertDispatched(TemporaryOrderUpdated::class);
@@ -516,6 +543,57 @@ class QROrderingLifecycleTest extends TestCase
     /**
      * Test Pha 4: Waiter cancels the temporary order.
      */
+    public function test_guest_can_cancel_only_own_pending_qr_order(): void
+    {
+        Event::fake();
+
+        $tempOrder = TemporaryOrder::create([
+            'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
+            'table_id' => $this->table->id,
+            'customer_phone' => '0912345678',
+            'session_id' => 'guest-session-a',
+            'status' => 'waiting_verification',
+            'cart_data' => [],
+            'total_amount' => 0.0,
+        ]);
+
+        $forbidden = $this->postJson(route('customer.qr-order.cancel', [
+            'restaurant' => $this->restaurant->id,
+            'token' => $this->table->qr_token,
+            'temporaryOrder' => $tempOrder->id,
+        ]), [
+            'session_id' => 'guest-session-b',
+        ]);
+
+        $forbidden->assertForbidden();
+        $this->assertDatabaseHas('temporary_orders', [
+            'id' => $tempOrder->id,
+            'status' => 'waiting_verification',
+        ]);
+
+        $cancelled = $this->postJson(route('customer.qr-order.cancel', [
+            'restaurant' => $this->restaurant->id,
+            'token' => $this->table->qr_token,
+            'temporaryOrder' => $tempOrder->id,
+        ]), [
+            'session_id' => 'guest-session-a',
+            'reason' => 'Khách đổi ý',
+        ]);
+
+        $cancelled->assertOk()->assertJsonPath('success', true);
+        $this->assertDatabaseHas('temporary_orders', [
+            'id' => $tempOrder->id,
+            'status' => 'cancelled',
+            'cancelled_by' => null,
+            'cancellation_reason' => 'Khách đổi ý',
+        ]);
+        $this->assertDatabaseHas('audit_logs', [
+            'action' => 'temporary_order_cancelled_by_guest',
+            'subject_id' => $tempOrder->id,
+        ]);
+    }
+
     public function test_waiter_cancels_temporary_order(): void
     {
         Event::fake();
@@ -554,6 +632,77 @@ class QROrderingLifecycleTest extends TestCase
     }
 
     /**
+     * Nhân viên chỉnh đơn QR và khách tại bàn xác nhận lại phiên bản mới.
+     */
+    public function test_staff_can_request_qr_order_revision_and_customer_can_confirm_it(): void
+    {
+        Event::fake();
+
+        $product = Product::factory()->create([
+            'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
+            'category_id' => $this->category->id,
+            'name' => 'Món thay thế',
+            'code' => 'PROD-REVISED',
+            'price' => 75000,
+            'is_active' => true,
+            'is_available' => true,
+        ]);
+
+        $tempOrder = TemporaryOrder::create([
+            'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
+            'table_id' => $this->table->id,
+            'customer_name' => 'Khách tại bàn',
+            'status' => 'waiting_verification',
+            'cart_data' => [
+                [
+                    'product_id' => $product->id,
+                    'name' => $product->name,
+                    'sku' => $product->code,
+                    'quantity' => 1,
+                    'unit_price' => 75000,
+                    'line_total' => 75000,
+                ],
+            ],
+            'total_amount' => 75000,
+        ]);
+
+        $revisionResponse = $this->actingAs($this->staff)
+            ->patchJson(route('temporary-orders.revise', $tempOrder->id), [
+                'message' => 'Món cũ đã hết, vui lòng xác nhận món thay thế.',
+                'items' => [
+                    [
+                        'product_id' => $product->id,
+                        'quantity' => 2,
+                        'notes' => 'Ít cay',
+                    ],
+                ],
+            ]);
+
+        $revisionResponse->assertOk()->assertJsonPath('success', true);
+
+        $tempOrder->refresh();
+        $this->assertTrue($tempOrder->awaiting_customer_confirmation);
+        $this->assertSame('Món cũ đã hết, vui lòng xác nhận món thay thế.', $tempOrder->revision_note);
+        $this->assertSame(150000.0, (float) $tempOrder->total_amount);
+        $this->assertSame(2.0, (float) $tempOrder->cart_data[0]['quantity']);
+
+        $confirmResponse = $this->postJson(route('customer.qr-order.confirm-revision', [
+            'restaurant' => $this->restaurant->id,
+            'token' => $this->table->qr_token,
+            'temporaryOrder' => $tempOrder->id,
+        ]));
+
+        $confirmResponse->assertOk()->assertJsonPath('success', true);
+
+        $tempOrder->refresh();
+        $this->assertFalse($tempOrder->awaiting_customer_confirmation);
+        $this->assertNotNull($tempOrder->revision_confirmed_at);
+        Event::assertDispatched(TemporaryOrderUpdated::class);
+    }
+
+    /**
      * Test Pha 5: Manager reviews rejected QR order logs.
      */
     public function test_manager_reviews_rejected_logs(): void
@@ -588,6 +737,19 @@ class QROrderingLifecycleTest extends TestCase
             'cancellation_reason' => 'Không đúng món',
             'cancelled_by_name' => $this->staff->name,
         ]);
+        // The orders page must also include cancelled QR requests in the
+        // selected date's cancellation view, not only in the QR audit tab.
+        $ordersPage = $this->actingAs($this->owner)
+            ->get(route('orders.index', [
+                'status' => 'cancelled',
+                'date' => today()->toDateString(),
+            ]));
+
+        $ordersPage->assertOk();
+        $ordersProps = $ordersPage->original->getData()['page']['props'];
+        $this->assertCount(1, $ordersProps['cancelledQrOrders']);
+        $this->assertSame($tempOrder->id, $ordersProps['cancelledQrOrders'][0]['id']);
+        $this->assertSame(1, $ordersProps['summary']['cancelled']);
     }
 
     /**
@@ -663,6 +825,7 @@ class QROrderingLifecycleTest extends TestCase
 
         $response->assertOk();
         $response->assertJsonPath('success', true);
+        $this->assertNotEmpty($response->json('status_url'));
 
         $this->assertDatabaseHas('customer_feedback', [
             'restaurant_id' => $this->restaurant->id,
@@ -678,6 +841,63 @@ class QROrderingLifecycleTest extends TestCase
         $this->assertEquals(99, $feedback->items_rating[0]['product_id']);
         $this->assertEquals(88, $feedback->staff_rating[0]['employee_id']);
 
+        $this->getJson(route('feedback.status', $feedback->feedback_token))
+            ->assertOk()
+            ->assertJsonPath('feedback.status', 'new');
+
         Event::assertDispatched(FeedbackSubmitted::class);
+    }
+
+    /**
+     * Test khi chủ doanh nghiệp/quản lý xóa bàn thì QR và link đã tạo trước đó bị vô hiệu hóa hoàn toàn.
+     */
+    public function test_deleted_table_invalidates_qr_and_link(): void
+    {
+        $oldToken = $this->table->qr_token;
+
+        // Tạo đơn đệm QR đang chờ cho bàn này
+        $tempOrder = TemporaryOrder::create([
+            'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
+            'table_id' => $this->table->id,
+            'customer_name' => 'Khách Bàn Xóa',
+            'status' => 'waiting_verification',
+            'cart_data' => [],
+            'total_amount' => 0,
+        ]);
+
+        // Thực hiện xóa bàn bởi Owner
+        $response = $this->actingAs($this->owner)
+            ->delete(route('tables.destroy', $this->table->id));
+
+        $response->assertRedirect();
+
+        // Kiểm tra bàn đã bị soft delete, status inactive và qr_token được làm mới
+        $this->table->refresh();
+        $this->assertNotNull($this->table->deleted_at);
+        $this->assertEquals('inactive', $this->table->status);
+        $this->assertNotEquals($oldToken, $this->table->qr_token);
+
+        // Kiểm tra đơn đệm QR của bàn đã bị hủy
+        $tempOrder->refresh();
+        $this->assertEquals('cancelled', $tempOrder->status);
+        $this->assertEquals('Bàn ăn đã bị xóa bởi chủ nhà hàng/quản lý', $tempOrder->cancellation_reason);
+
+        // Truy cập menu bằng link/mã QR cũ thu về 404
+        $menuResponse = $this->get(route('customer.qr-order.show', [
+            'restaurant' => $this->restaurant->id,
+            'token' => $oldToken,
+        ]));
+        $menuResponse->assertStatus(404);
+
+        // Gửi đơn bằng link/mã QR cũ thu về 404
+        $submitResponse = $this->postJson(route('customer.qr-order.submit', [
+            'restaurant' => $this->restaurant->id,
+            'token' => $oldToken,
+        ]), [
+            'customer_name' => 'Test',
+            'items' => [['product_id' => 1, 'quantity' => 1]],
+        ]);
+        $submitResponse->assertStatus(404);
     }
 }

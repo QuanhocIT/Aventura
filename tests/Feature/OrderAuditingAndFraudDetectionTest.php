@@ -218,6 +218,11 @@ class OrderAuditingAndFraudDetectionTest extends TestCase
 
     public function test_split_order_inflicts_negative_expected_cash_penalty_at_shift_closing(): void
     {
+        // Ca sáng 06:00–14:00, và khi chốt ca trực tiếp thì khoảng thống kê kết
+        // thúc đúng lúc bấm chốt. Không ghim giờ thì test này hỏng mỗi khi chạy
+        // trong khoảng 06:00–09:00 vì đơn lúc 09:00 nằm ngoài cửa sổ.
+        $this->travelTo(today()->setHour(13));
+
         // 1. Create a completed split order (not overridden yet)
         $order = Order::create([
             'restaurant_id' => $this->restaurant->id,
@@ -395,7 +400,11 @@ class OrderAuditingAndFraudDetectionTest extends TestCase
 
         $dbAlert = collect($alerts)->firstWhere('violation_type', 'AI: Sửa đổi giá món nhạy cảm');
         $this->assertNotNull($dbAlert);
-        $this->assertEquals(92.5, $dbAlert['risk_score']);
+        // Điểm rủi ro giờ tính theo biên độ đổi giá thật (50.000đ → 30.000đ = 40%),
+        // thay cho hằng số 92.5 áp cứng cho mọi lần sửa giá bất kể lớn nhỏ.
+        $this->assertEquals(80.0, $dbAlert['risk_score']);
+        $this->assertSame('high', $dbAlert['severity']);
+        $this->assertSame(20000.0, $dbAlert['penalty_amount']);
         $this->assertStringContainsString('Nguyễn Thị Thu', $dbAlert['description']);
     }
 
@@ -452,5 +461,8 @@ class OrderAuditingAndFraudDetectionTest extends TestCase
             'change_amount' => 0,
         ]);
         $responsePay->assertStatus(403);
+
+        $responseIndex = $this->actingAs($waiter)->get(route('orders.index'));
+        $responseIndex->assertStatus(403);
     }
 }

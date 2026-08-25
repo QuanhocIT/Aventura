@@ -6,7 +6,6 @@ import {
     Eye,
     Newspaper,
     Plus,
-    RefreshCcw,
     Star,
     StarOff,
     Trash2,
@@ -16,14 +15,8 @@ import {
 import { computed, ref } from 'vue';
 import {
     PageHeader,
-    StatCard,
-    StatusBadge,
-    FilterBar,
     Pagination,
-    EmptyState,
-} from '@/components/super-admin';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
+} from '@/components/super-admin';import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -239,6 +232,7 @@ const categoryColors: Record<string, string> = {
     'cap-nhat': 'bg-amber-100 text-amber-700',
     'thong-bao': 'bg-red-100 text-red-700',
 };
+void categoryColors;
 function catLabel(val: string) {
     return categoryOptions.find((o) => o.value === val)?.label ?? val;
 }
@@ -864,7 +858,7 @@ const hasFilters = computed(
                                     >{{ avgViewsPerPost }}
                                     <span
                                         class="block text-center text-[8px] font-bold text-muted-foreground"
-                                        >views/bài</span
+                                        >lượt xem/bài</span
                                     ></span
                                 >
                             </div>
@@ -918,9 +912,9 @@ const hasFilters = computed(
                                         Lượt xem trung bình đang ở mức thấp ({{
                                             avgViewsPerPost
                                         }}
-                                        views/bài). Hãy cải thiện tiêu đề với từ
-                                        khóa gây tò mò hoặc đính kèm tag chiến
-                                        dịch quảng bá.
+                                        lượt xem/bài). Hãy cải thiện tiêu đề với
+                                        từ khóa gây tò mò hoặc đính kèm tag
+                                        chiến dịch quảng bá.
                                     </p>
                                 </div>
                             </div>
@@ -1025,6 +1019,7 @@ const hasFilters = computed(
         leave-from-class="opacity-100"
         leave-to-class="opacity-0"
     >
+        <Teleport to="body">
         <div
             v-if="showDialog"
             class="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-900/60 p-4 pt-10 backdrop-blur-xs"
@@ -1334,5 +1329,6 @@ const hasFilters = computed(
                 </form>
             </div>
         </div>
+        </Teleport>
     </Transition>
 </template>

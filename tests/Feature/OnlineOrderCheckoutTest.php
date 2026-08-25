@@ -7,6 +7,7 @@ use App\Models\OnlineStoreConfig;
 use App\Models\Order;
 use App\Models\Product;
 use App\Models\Restaurant;
+use App\Models\RestaurantBranch;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -160,14 +161,77 @@ class OnlineOrderCheckoutTest extends TestCase
         ]))->assertStatus(422);
     }
 
+    public function test_checkout_rejects_disabled_channel_and_unaccepted_payment(): void
+    {
+        $this->config->update([
+            'enable_delivery' => false,
+            'accepted_payments' => ['bank_transfer'],
+        ]);
+
+        $this->postJson('/api/online/quan-test-online/checkout', $this->checkoutPayload([
+            'channel' => 'delivery',
+            'address' => '12 Nguyen Hue',
+        ]))->assertStatus(422);
+
+        $this->postJson('/api/online/quan-test-online/checkout', $this->checkoutPayload())
+            ->assertStatus(422)
+            ->assertJsonPath('success', false);
+    }
+
+    public function test_checkout_is_idempotent_for_offline_retry(): void
+    {
+        $payload = $this->checkoutPayload(['client_request_id' => 'offline-retry-001']);
+
+        $first = $this->postJson('/api/online/quan-test-online/checkout', $payload)->assertOk();
+        $second = $this->postJson('/api/online/quan-test-online/checkout', $payload)->assertOk();
+
+        $this->assertSame($first->json('order_number'), $second->json('order_number'));
+        $this->assertSame(1, Order::withoutGlobalScopes()
+            ->where('restaurant_id', $this->restaurant->id)
+            ->where('client_request_id', 'offline-retry-001')
+            ->count());
+    }
+
+    public function test_online_order_and_menu_are_bound_to_configured_branch(): void
+    {
+        $branch = RestaurantBranch::factory()->create([
+            'restaurant_id' => $this->restaurant->id,
+            'manager_user_id' => null,
+        ]);
+        $this->config->update(['branch_id' => $branch->id]);
+        $this->product->update(['branch_id' => $branch->id]);
+
+        $this->getJson('/api/online/quan-test-online/menu')
+            ->assertOk()
+            ->assertJsonFragment(['id' => $this->product->id]);
+
+        $checkout = $this->postJson('/api/online/quan-test-online/checkout', $this->checkoutPayload())
+            ->assertOk();
+
+        $order = Order::withoutGlobalScopes()->where('order_number', $checkout->json('order_number'))->firstOrFail();
+        $this->assertSame($branch->id, (int) $order->branch_id);
+    }
+
     public function test_guest_can_track_order_after_checkout(): void
     {
         $checkout = $this->postJson('/api/online/quan-test-online/checkout', $this->checkoutPayload());
         $orderNumber = $checkout->json('order_number');
+        $order = Order::withoutGlobalScopes()->where('order_number', $orderNumber)->firstOrFail();
+        $token = $order->tracking_token;
 
-        $this->get("/order/track/{$orderNumber}")->assertOk();
+        $this->get("/order/track/{$orderNumber}?token={$token}")->assertOk();
+        $this->get("/order/payment/return?token={$token}")->assertOk();
 
-        $status = $this->getJson("/api/online/order/{$orderNumber}/status");
+        $status = $this->getJson("/api/online/order/{$orderNumber}/status?token={$token}");
         $status->assertOk();
+    }
+
+    public function test_guest_cannot_track_order_without_tracking_token(): void
+    {
+        $checkout = $this->postJson('/api/online/quan-test-online/checkout', $this->checkoutPayload());
+        $orderNumber = $checkout->json('order_number');
+
+        $this->get("/order/track/{$orderNumber}")->assertForbidden();
+        $this->getJson("/api/online/order/{$orderNumber}/status")->assertForbidden();
     }
 }

@@ -1,11 +1,15 @@
 <script setup lang="ts">
 import type { Component, HTMLAttributes } from 'vue';
+import BackButton from '@/components/BackButton.vue';
 import { cn } from '@/lib/utils';
 
 const props = defineProps<{
     title: string;
     subtitle?: string;
     icon?: Component;
+    backHref?: string;
+    backLabel?: string;
+    showBack?: boolean;
     class?: HTMLAttributes['class'];
 }>();
 </script>
@@ -16,7 +20,11 @@ const props = defineProps<{
             class="group flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between"
         >
             <div class="space-y-1">
-                <slot name="breadcrumb" />
+                <slot name="breadcrumb">
+                    <div v-if="backHref || showBack" class="mb-1.5">
+                        <BackButton :fallback-href="backHref || '/super-admin/dashboard'" :label="backLabel || 'Quay lại'" />
+                    </div>
+                </slot>
                 <h1
                     class="flex items-center gap-2.5 text-2xl font-bold tracking-tight"
                 >

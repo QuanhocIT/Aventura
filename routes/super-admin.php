@@ -13,6 +13,7 @@ use App\Http\Controllers\SuperAdmin\ChurnController;
 use App\Http\Controllers\SuperAdmin\CouponController;
 use App\Http\Controllers\SuperAdmin\CustomPlanBuilderController;
 use App\Http\Controllers\SuperAdmin\DashboardController;
+use App\Http\Controllers\SuperAdmin\DataLifecycleController;
 use App\Http\Controllers\SuperAdmin\DemoBookingManagementController;
 use App\Http\Controllers\SuperAdmin\FirewallController;
 use App\Http\Controllers\SuperAdmin\GarbageCollectorController;
@@ -316,6 +317,10 @@ Route::prefix('super-admin')
                 ->name('backup-maintenance.download')
                 ->middleware('superadmin.stepup:always');
             Route::delete('backup-maintenance/delete/{filename}', [BackupMaintenanceController::class, 'delete'])->name('backup-maintenance.delete');
+            Route::get('data-lifecycle', [DataLifecycleController::class, 'index'])->name('data-lifecycle.index');
+            Route::post('data-lifecycle/runs', [DataLifecycleController::class, 'preview'])->name('data-lifecycle.runs.store');
+            Route::post('data-lifecycle/runs/{run}/approve', [DataLifecycleController::class, 'approve'])->name('data-lifecycle.runs.approve');
+            Route::patch('data-lifecycle/restaurants/{restaurant}/legal-hold', [DataLifecycleController::class, 'legalHold'])->name('data-lifecycle.legal-hold');
         });
 
         // Audit read/export access.

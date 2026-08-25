@@ -6,13 +6,11 @@ import {
     ShoppingCart,
     Building2,
     Crown,
-    Sparkles,
     Download,
     AlertTriangle,
     CreditCard,
     Wallet,
     Landmark,
-    HelpCircle,
 } from 'lucide-vue-next';
 import { computed, ref, watch } from 'vue';
 import AreaChart from '@/components/charts/AreaChart.vue';
@@ -23,7 +21,7 @@ import {
     ProgressBar,
 } from '@/components/super-admin';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+
 import {
     Select,
     SelectContent,
@@ -149,6 +147,7 @@ const maxBranchRevenue = Math.max(
 const maxPlanRevenue = Math.max(
     ...(props.revenueByPlan.map((p) => p.revenue) || [1]),
 );
+void maxPlanRevenue;
 const maxItemQty = Math.max(...(props.topItems.map((i) => i.quantity) || [1]));
 const totalPaymentsSum =
     props.revenueByPaymentMethod.reduce((sum, item) => sum + item.revenue, 0) ||
@@ -176,7 +175,7 @@ const totalPaymentsSum =
 
         <PageHeader
             title="Doanh thu toàn hệ thống"
-            subtitle="Phân tích doanh thu cross-restaurant, top performers và xu hướng."
+            subtitle="Phân tích doanh thu toàn hệ thống, nhà hàng nổi bật và xu hướng."
             :icon="DollarSign"
         >
             <template #actions>

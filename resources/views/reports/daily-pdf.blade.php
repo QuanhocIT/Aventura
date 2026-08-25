@@ -5,7 +5,7 @@
     <title>Aventura - {{ $restaurant->name }} - {{ $date }}</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: DejaVu Sans, sans-serif; font-size: 12px; color: #1a1a2e; padding: 40px; }
+        body { font-family: 'Times New Roman', Times, serif; font-size: 12px; color: #1a1a2e; padding: 40px; }
         .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 3px solid #E97316; padding-bottom: 15px; margin-bottom: 25px; }
         .brand { font-size: 24px; font-weight: 900; color: #E97316; }
         .subtitle { font-size: 10px; color: #666; margin-top: 4px; }

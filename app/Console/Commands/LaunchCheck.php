@@ -62,6 +62,51 @@ class LaunchCheck extends Command
         }
 
         // ── Hạ tầng runtime ──────────────────────────────────────────────────
+        if ($dbOk) {
+            $this->section('Chốt an toàn kho & bán hàng');
+            try {
+                $missingRecipes = DB::table('products as p')
+                    ->leftJoin('product_recipes as pr', 'pr.product_id', '=', 'p.id')
+                    ->where('p.is_active', true)
+                    ->where('p.is_available', true)
+                    ->where('p.track_inventory', true)
+                    ->whereNull('pr.id')
+                    ->count();
+                $negativeStock = DB::table('inventories')->where('quantity_on_hand', '<', 0)->count();
+                $openingPending = DB::table('ingredients as i')
+                    ->join('product_recipes as pr', 'pr.ingredient_id', '=', 'i.id')
+                    ->join('products as p', function ($join): void {
+                        $join->on('p.id', '=', 'pr.product_id')
+                            ->where('p.is_active', true)
+                            ->where('p.is_available', true)
+                            ->where('p.track_inventory', true);
+                    })
+                    ->leftJoin('inventories as inv', function ($join): void {
+                        $join->on('inv.ingredient_id', '=', 'i.id')
+                            ->on('inv.branch_id', '=', 'i.branch_id');
+                    })
+                    ->whereNull('inv.opening_balance_reconciled_at')
+                    ->distinct('i.id')
+                    ->count('i.id');
+                $legacyPending = DB::table('inventory_batches')
+                    ->where('batch_number', 'like', 'LEGACY-%')
+                    ->where('quantity_remaining', '>', 0)
+                    ->whereNull('reconciled_at')
+                    ->count();
+
+                $this->assert('100% món bán được có công thức', $missingRecipes === 0,
+                    "{$missingRecipes} món tracked chưa có BOM", 'fail');
+                $this->assert('Không có tồn âm', $negativeStock === 0,
+                    "{$negativeStock} dòng tồn đang âm", 'fail');
+                $this->assert('Đã đối soát số dư đầu kỳ', $openingPending === 0,
+                    "{$openingPending} nguyên liệu chưa đối soát", 'fail');
+                $this->assert('Dữ liệu LEGACY-* đã đối soát', $legacyPending === 0,
+                    "{$legacyPending} lô LEGACY còn số dư chưa đối soát", 'fail');
+            } catch (\Throwable $e) {
+                $this->assert('Kiểm tra chốt an toàn kho', false, 'schema chưa đủ — chạy migrate --force', 'fail');
+            }
+        }
+
         $this->section('Cache / Queue / Realtime');
         $cacheOk = false;
         $token = bin2hex(random_bytes(8));

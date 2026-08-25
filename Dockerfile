@@ -73,6 +73,6 @@ COPY docker/php.ini /usr/local/etc/php/conf.d/custom.ini
 
 RUN chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cache
 
-EXPOSE 10000
+EXPOSE 80 8080
 
 CMD ["/usr/bin/supervisord", "-c", "/etc/supervisord.conf"]

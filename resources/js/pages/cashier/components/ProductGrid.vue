@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { Search, Plus, Minus, Lock } from 'lucide-vue-next';
 import { ref, computed } from 'vue';
-import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import type { ProductItem, CategoryItem } from '../types';
 
@@ -9,6 +8,7 @@ const props = defineProps<{
     products: ProductItem[];
     categories: CategoryItem[];
     getCartItemQty: (productId: number) => number;
+    compact?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -37,13 +37,30 @@ const filteredProducts = computed(() => {
 
 const numberFormat = (val: number) =>
     new Intl.NumberFormat('vi-VN').format(val);
+
+const portionLabel = (product: ProductItem) => {
+    if (
+        product.available_portions === null ||
+        product.available_portions === undefined
+    ) {
+        return null;
+    }
+
+    return product.available_portions > 0
+        ? `Còn ${product.available_portions} suất`
+        : 'Hết suất';
+};
 </script>
 
 <template>
     <div class="flex flex-col gap-4">
         <!-- Thanh tìm kiếm & lọc danh mục -->
         <div
-            class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"
+            :class="
+                props.compact
+                    ? 'flex flex-col gap-3'
+                    : 'flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between'
+            "
         >
             <div class="relative flex-1">
                 <Search
@@ -90,7 +107,11 @@ const numberFormat = (val: number) =>
 
         <!-- Grid danh sách món ăn -->
         <div
-            class="grid grid-cols-2 gap-3.5 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5"
+            :class="
+                props.compact
+                    ? 'grid grid-cols-2 gap-3'
+                    : 'grid grid-cols-2 gap-3.5 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7'
+            "
         >
             <div
                 v-for="product in filteredProducts"
@@ -118,6 +139,12 @@ const numberFormat = (val: number) =>
                         class="mt-1 font-mono text-sm font-black text-indigo-600 dark:text-indigo-400"
                     >
                         {{ numberFormat(product.price) }}đ
+                    </span>
+                    <span
+                        v-if="portionLabel(product)"
+                        class="mt-1 text-[10px] font-semibold text-emerald-600 dark:text-emerald-400"
+                    >
+                        {{ portionLabel(product) }}
                     </span>
                 </div>
 

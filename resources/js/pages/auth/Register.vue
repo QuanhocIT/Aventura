@@ -1,14 +1,9 @@
 <script setup lang="ts">
 import { Form, Head, Link } from '@inertiajs/vue3';
 import { computed, ref, onMounted } from 'vue';
-// @ts-ignore
 import AppLogoIcon from '@/components/AppLogoIcon.vue';
-// @ts-ignore
 import InputError from '@/components/InputError.vue';
-// @ts-ignore
 import PasswordInput from '@/components/PasswordInput.vue';
-// @ts-ignore
-// @ts-ignore
 import PlanCard from '@/components/PlanCard.vue';
 import type { Plan } from '@/components/PlanCard.vue';
 import TextLink from '@/components/TextLink.vue';
@@ -37,7 +32,6 @@ const turnstileToken = ref('');
 
 onMounted(() => {
     if (props.turnstileSiteKey) {
-        // @ts-ignore
         if (!window.turnstile) {
             const script = document.createElement('script');
             script.src =
@@ -45,10 +39,7 @@ onMounted(() => {
             script.async = true;
             script.defer = true;
             document.head.appendChild(script);
-
-            // @ts-ignore
             window.onloadTurnstileCallbackRegister = () => {
-                // @ts-ignore
                 window.turnstile.render('#turnstile-container-register', {
                     sitekey: props.turnstileSiteKey,
                     callback: (token: string) => {
@@ -58,7 +49,6 @@ onMounted(() => {
             };
         } else {
             setTimeout(() => {
-                // @ts-ignore
                 window.turnstile.render('#turnstile-container-register', {
                     sitekey: props.turnstileSiteKey,
                     callback: (token: string) => {
@@ -138,11 +128,11 @@ const passwordStrength = computed(
     <Head title="Đăng ký · Aventura" />
 
     <div
-        class="flex min-h-dvh grid-cols-1 flex-col lg:grid lg:grid-cols-[1.1fr_2fr]"
+        class="flex h-dvh min-h-0 grid-cols-1 flex-col overflow-hidden lg:grid lg:grid-cols-[1.1fr_2fr]"
     >
         <!-- LEFT: Form with a rich subtle gradient and highly defined glassmorphic container -->
         <div
-            class="relative flex min-h-dvh flex-col overflow-hidden bg-gradient-to-b from-zinc-50 via-white to-zinc-50 px-6 py-10 sm:px-10 md:px-12 dark:from-zinc-950 dark:via-zinc-900 dark:to-zinc-950"
+            class="relative flex h-dvh min-h-0 flex-col overflow-hidden bg-gradient-to-b from-zinc-50 via-white to-zinc-50 px-4 py-6 sm:px-10 sm:py-10 md:px-12 dark:from-zinc-950 dark:via-zinc-900 dark:to-zinc-950"
         >
             <!-- Decorative dynamic glowing elements (clearly visible) -->
             <div
@@ -179,10 +169,10 @@ const passwordStrength = computed(
 
             <!-- Form (middle — brought up to eliminate whitespace) -->
             <div
-                class="relative z-10 flex flex-1 flex-col justify-start pt-6 sm:pt-8"
+                class="register-scroll-area relative z-10 flex min-h-0 flex-1 flex-col justify-start overflow-y-auto overscroll-contain pt-5 pb-2 sm:pt-8"
             >
                 <div
-                    class="focus-glow-card mx-auto w-full max-w-md animate-in rounded-3xl border border-white/40 bg-white/75 p-8 shadow-[0_24px_64px_rgba(0,0,0,0.06),0_8px_20px_rgba(0,0,0,0.03)] backdrop-blur-2xl transition-all duration-500 fill-mode-both fade-in slide-in-from-bottom-6 sm:p-10 dark:border-white/[0.08] dark:bg-zinc-950/65 dark:shadow-[0_24px_64px_rgba(0,0,0,0.35)]"
+                    class="focus-glow-card mx-auto w-full max-w-md animate-in rounded-2xl border border-white/40 bg-white/75 p-5 shadow-[0_24px_64px_rgba(0,0,0,0.06),0_8px_20px_rgba(0,0,0,0.03)] backdrop-blur-2xl transition-all duration-500 fill-mode-both fade-in slide-in-from-bottom-6 sm:rounded-3xl sm:p-10 dark:border-white/[0.08] dark:bg-zinc-950/65 dark:shadow-[0_24px_64px_rgba(0,0,0,0.35)]"
                 >
                     <div
                         class="mb-4 inline-flex items-center gap-1.5 rounded-full border border-primary/20 bg-primary/5 px-3.5 py-1 text-xs font-bold text-primary"
@@ -193,7 +183,7 @@ const passwordStrength = computed(
                         Miễn phí 14 ngày
                     </div>
                     <h1
-                        class="bg-gradient-to-r from-zinc-950 via-zinc-800 to-primary bg-clip-text text-3xl leading-none font-black tracking-tight text-transparent dark:from-white dark:via-zinc-200 dark:to-primary"
+                        class="bg-gradient-to-r from-zinc-950 via-zinc-800 to-primary bg-clip-text text-2xl leading-tight font-black tracking-tight text-transparent sm:text-3xl sm:leading-none dark:from-white dark:via-zinc-200 dark:to-primary"
                     >
                         Tạo tài khoản doanh nghiệp
                     </h1>
@@ -201,6 +191,75 @@ const passwordStrength = computed(
                         Điền thông tin bên dưới — hệ thống sẵn sàng trong dưới 3
                         giây.
                     </p>
+
+                    <!-- Mobile plan selector: the desktop panel is hidden below lg -->
+                    <div v-if="plans?.length" class="mt-5 lg:hidden">
+                        <div
+                            class="mb-2.5 flex items-center justify-between gap-2"
+                        >
+                            <span
+                                class="text-xs font-bold tracking-wider text-muted-foreground uppercase"
+                            >
+                                Chọn gói dịch vụ
+                            </span>
+                            <span
+                                class="truncate text-xs font-semibold text-primary"
+                            >
+                                {{
+                                    plans.find((p) => p.code === selectedPlan)
+                                        ?.name ?? 'Free'
+                                }}
+                            </span>
+                        </div>
+
+                        <div
+                            class="mb-2 flex w-full rounded-xl border border-white/10 bg-white/5 p-1 text-xs backdrop-blur-md"
+                        >
+                            <button
+                                type="button"
+                                @click="selectedCycle = 'monthly'"
+                                class="flex-1 rounded-lg px-2 py-2 font-semibold transition-colors"
+                                :class="
+                                    selectedCycle === 'monthly'
+                                        ? 'bg-zinc-800 text-white shadow-sm'
+                                        : 'text-zinc-400 hover:text-white'
+                                "
+                            >
+                                Theo tháng
+                            </button>
+                            <button
+                                type="button"
+                                @click="selectedCycle = 'yearly'"
+                                class="flex-1 rounded-lg px-2 py-2 font-semibold transition-colors"
+                                :class="
+                                    selectedCycle === 'yearly'
+                                        ? 'bg-zinc-800 text-white shadow-sm'
+                                        : 'text-zinc-400 hover:text-white'
+                                "
+                            >
+                                Theo năm
+                                <span class="ml-0.5 text-primary"
+                                    >-{{ maxDiscountPercent }}%</span
+                                >
+                            </button>
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-2">
+                            <PlanCard
+                                v-for="plan in plans"
+                                :key="`mobile-${plan.code}`"
+                                :plan="plan"
+                                compact
+                                :selected="selectedPlan === plan.code"
+                                :billing-cycle="
+                                    selectedCycle === 'yearly'
+                                        ? 'yearly'
+                                        : 'monthly'
+                                "
+                                @select="selectedPlan = $event"
+                            />
+                        </div>
+                    </div>
 
                     <Form
                         v-bind="store.form()"
@@ -256,13 +315,17 @@ const passwordStrength = computed(
                                 :tabindex="2"
                                 autocomplete="name"
                                 placeholder="Nguyễn Văn A"
+                                @input="(e: Event) => {
+                                    const target = e.target as HTMLInputElement;
+                                    target.value = target.value.replace(/[^\p{L}\s]/gu, '');
+                                }"
                                 class="rounded-xl border-zinc-200 shadow-sm transition-all duration-300 hover:border-zinc-300 focus-visible:border-primary focus-visible:ring-primary/20 dark:border-zinc-800 dark:hover:border-zinc-700"
                             />
                             <InputError :message="errors.name" />
                         </div>
 
                         <div
-                            class="animate-enter stagger-3 grid grid-cols-2 gap-3.5"
+                            class="animate-enter stagger-3 grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-3.5"
                         >
                             <div class="grid gap-1.5">
                                 <Label
@@ -295,6 +358,11 @@ const passwordStrength = computed(
                                     :tabindex="4"
                                     autocomplete="tel"
                                     placeholder="0900 000 000"
+                                    maxlength="15"
+                                    @input="(e: Event) => {
+                                        const target = e.target as HTMLInputElement;
+                                        target.value = target.value.replace(/\D/g, '');
+                                    }"
                                     class="rounded-xl border-zinc-200 shadow-sm transition-all duration-300 hover:border-zinc-300 focus-visible:border-primary focus-visible:ring-primary/20 dark:border-zinc-800 dark:hover:border-zinc-700"
                                 />
                                 <InputError :message="errors.phone" />
@@ -487,13 +555,13 @@ const passwordStrength = computed(
                                     name="captcha_token"
                                     :value="captchaToken"
                                 />
-                                <Input
+                                <input
                                     id="captcha_answer"
                                     type="number"
                                     name="captcha_answer"
                                     required
                                     placeholder="Nhập kết quả"
-                                    class="h-9 rounded-xl border-zinc-200 text-xs font-semibold shadow-sm transition-all duration-300 focus-visible:border-primary focus-visible:ring-primary/20 dark:border-zinc-800"
+                                    class="flex h-9 w-full rounded-xl border border-zinc-200 bg-transparent px-3 py-1 text-xs font-semibold shadow-sm transition-all duration-300 outline-none focus-visible:border-primary focus-visible:ring-primary/20 dark:border-zinc-800"
                                 />
                             </div>
                         </div>
@@ -521,7 +589,11 @@ const passwordStrength = computed(
             >
                 Đã có tài khoản?
                 <TextLink
-                    :href="login()"
+                    :href="
+                        login.url({
+                            query: { plan: selectedPlan, cycle: selectedCycle },
+                        })
+                    "
                     :tabindex="8"
                     class="font-bold text-primary underline underline-offset-4 transition-colors hover:text-primary/80"
                 >
@@ -532,41 +604,16 @@ const passwordStrength = computed(
 
         <!-- RIGHT: Plans panel (desktop only) -->
         <div
-            class="relative hidden flex-col justify-between overflow-hidden border-l border-zinc-900 bg-zinc-950 px-12 py-10 lg:flex lg:min-h-dvh"
+            class="relative hidden h-dvh min-h-0 flex-col justify-between overflow-hidden border-l border-zinc-900 bg-zinc-950 px-12 py-10 lg:flex"
         >
-            <!-- Dot-grid dynamic background -->
-            <svg
-                class="pointer-events-none absolute inset-0 size-full opacity-[0.06]"
-                xmlns="http://www.w3.org/2000/svg"
-            >
-                <defs>
-                    <pattern
-                        id="dots-register-panel"
-                        x="0"
-                        y="0"
-                        width="24"
-                        height="24"
-                        patternUnits="userSpaceOnUse"
-                    >
-                        <circle cx="1.5" cy="1.5" r="1.5" fill="white" />
-                    </pattern>
-                </defs>
-                <rect
-                    width="100%"
-                    height="100%"
-                    fill="url(#dots-register-panel)"
-                />
-            </svg>
-            <div
-                class="pointer-events-none absolute inset-x-0 top-0 h-72 bg-[radial-gradient(ellipse_80%_60%_at_50%_0%,rgba(255,255,255,0.08),transparent)]"
-            />
-
-            <!-- Ambient light blob that floats in the dark section (vividly visible) -->
-            <div
-                class="pointer-events-none absolute top-1/4 left-1/3 z-0 h-[500px] w-[500px] rounded-full bg-primary/[0.12] blur-[80px]"
+            <!-- Restaurant background image -->
+            <img
+                src="/restaurant-register-bg.png"
+                alt=""
+                class="pointer-events-none absolute inset-0 size-full object-cover opacity-75"
             />
             <div
-                class="pointer-events-none absolute right-1/4 bottom-1/4 z-0 h-[450px] w-[450px] rounded-full bg-violet-500/[0.10] blur-[80px]"
+                class="pointer-events-none absolute inset-0 bg-zinc-950/55"
             />
 
             <!-- Header (top) -->
@@ -726,3 +773,16 @@ const passwordStrength = computed(
         </div>
     </div>
 </template>
+
+<style scoped>
+.register-scroll-area {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+}
+
+.register-scroll-area::-webkit-scrollbar {
+    display: none;
+    width: 0;
+    height: 0;
+}
+</style>

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Head, useForm, usePage } from '@inertiajs/vue3';
+import { Head, router, useForm, usePage } from '@inertiajs/vue3';
 import axios from 'axios';
 import {
     Camera,
@@ -7,7 +7,9 @@ import {
     Circle,
     ClipboardCheck,
     Loader2,
+    Pencil,
     Plus,
+    Settings2,
     Trash2,
     TrendingUp,
 } from 'lucide-vue-next';
@@ -44,6 +46,8 @@ const props = defineProps<{
     date: string;
     canComplete?: boolean;
     branchContext?: { scope: string; active_branch_id: number | null };
+    branches?: Array<{ id: number; name: string }>;
+    canManageTemplates: boolean;
 }>();
 
 const page = usePage();
@@ -68,12 +72,14 @@ const typeLabel: Record<string, string> = {
     opening: 'Mở cửa',
     closing: 'Đóng cửa',
     attp: 'ATTP / Vệ sinh',
+    handover: 'Bàn giao ca',
     custom: 'Tùy chỉnh',
 };
 const typeColor: Record<string, string> = {
     opening: 'bg-green-100 text-green-800',
     closing: 'bg-blue-100 text-blue-800',
     attp: 'bg-red-100 text-red-800',
+    handover: 'bg-purple-100 text-purple-800',
     custom: 'bg-gray-100 text-gray-700',
 };
 
@@ -201,32 +207,119 @@ function completedPercent(templateId: number): number {
     return total > 0 ? Math.round((done / total) * 100) : 0;
 }
 
-// Create template
-const showCreateDialog = ref(false);
-const createForm = useForm({
+// Template management
+const activeView = ref<'run' | 'manage'>('run');
+const showTemplateDialog = ref(false);
+const isEditingTemplate = ref(false);
+const editingTemplateId = ref<number | null>(null);
+const templateForm = useForm<{
+    name: string;
+    type: string;
+    items: Array<{
+        id?: number;
+        title: string;
+        requires_photo: boolean;
+    }>;
+    branch_ids: number[];
+}>({
     name: '',
     type: 'opening' as string,
     items: [{ title: '', requires_photo: false }] as {
         title: string;
         requires_photo: boolean;
     }[],
+    branch_ids: [] as number[],
 });
 
 function addItem() {
-    createForm.items.push({ title: '', requires_photo: false });
+    templateForm.items.push({ title: '', requires_photo: false });
 }
 function removeItem(idx: number) {
-    createForm.items.splice(idx, 1);
+    templateForm.items.splice(idx, 1);
+}
+
+function resetTemplateForm() {
+    templateForm.reset();
+    templateForm.type = 'opening';
+    templateForm.items = [{ title: '', requires_photo: false }];
+    templateForm.branch_ids = [];
+    templateForm.clearErrors();
+}
+
+function openCreateDialog() {
+    isEditingTemplate.value = false;
+    editingTemplateId.value = null;
+    resetTemplateForm();
+    showTemplateDialog.value = true;
+}
+
+function openEditDialog(template: any) {
+    isEditingTemplate.value = true;
+    editingTemplateId.value = template.id;
+    templateForm.name = template.name;
+    templateForm.type = template.type;
+    templateForm.items = template.items.map((item: any) => ({
+        id: item.id,
+        title: item.title,
+        requires_photo: !!item.requires_photo,
+    }));
+    templateForm.branch_ids = (template.branches ?? []).map(
+        (branch: any) => branch.id,
+    );
+    templateForm.clearErrors();
+    showTemplateDialog.value = true;
+}
+
+function closeTemplateDialog() {
+    showTemplateDialog.value = false;
+    editingTemplateId.value = null;
+    templateForm.cancel();
 }
 
 function submitTemplate() {
-    createForm.post('/operations-checklist/templates', {
+    const options = {
+        preserveScroll: true,
         onSuccess: () => {
-            showCreateDialog.value = false;
-            createForm.reset();
-            createForm.items = [{ title: '', requires_photo: false }];
+            closeTemplateDialog();
+            resetTemplateForm();
+        },
+    };
+
+    if (isEditingTemplate.value && editingTemplateId.value) {
+        templateForm.put(
+            `/operations-checklist/templates/${editingTemplateId.value}`,
+            options,
+        );
+
+        return;
+    }
+
+    templateForm.post('/operations-checklist/templates', options);
+}
+
+function deleteTemplate(template: any) {
+    const confirmed = window.confirm(
+        `Xóa mẫu "${template.name}"? Các mục checklist và lịch sử hoàn thành của mẫu này cũng sẽ bị xóa.`,
+    );
+
+    if (!confirmed) {
+        return;
+    }
+
+    router.delete(`/operations-checklist/templates/${template.id}`, {
+        preserveScroll: true,
+        onSuccess: () => {
+            toast.success('Đã xóa mẫu checklist.');
         },
     });
+}
+
+function assignedBranchLabel(template: any): string {
+    const assigned = template.branches ?? [];
+
+    return assigned.length > 0
+        ? assigned.map((branch: any) => branch.name).join(', ')
+        : 'Toàn chuỗi';
 }
 
 const totalTemplates = computed(() => props.templates.length);
@@ -306,7 +399,8 @@ const overallPercent = computed(() => {
                     Đang xem toàn chuỗi — chọn chi nhánh để cập nhật
                 </p>
                 <Button
-                    @click="showCreateDialog = true"
+                    v-if="props.canManageTemplates"
+                    @click="openCreateDialog"
                     class="flex h-10 items-center gap-1.5 bg-indigo-600 text-xs font-semibold text-white hover:bg-indigo-700"
                 >
                     <Plus class="size-4" />
@@ -394,161 +488,283 @@ const overallPercent = computed(() => {
             </Card>
         </div>
 
-        <!-- CDP sub-navigation (Tab bar style representation) -->
-        <div class="flex items-center gap-2 border-b pb-2">
+        <!-- Checklist workspace navigation -->
+        <div class="flex items-center gap-2 border-b border-border pb-2">
             <button
                 type="button"
-                class="border-b-2 border-indigo-600 px-4 py-2 text-xs font-bold text-indigo-600 focus:outline-none"
+                @click="activeView = 'run'"
+                :class="[
+                    'border-b-2 px-4 py-2 text-xs font-bold transition focus:outline-none',
+                    activeView === 'run'
+                        ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400'
+                        : 'border-transparent text-muted-foreground hover:text-foreground',
+                ]"
             >
                 📋 Bảng checklist vận hành
+            </button>
+            <button
+                v-if="props.canManageTemplates"
+                type="button"
+                @click="activeView = 'manage'"
+                :class="[
+                    'flex items-center gap-1.5 border-b-2 px-4 py-2 text-xs font-bold transition focus:outline-none',
+                    activeView === 'manage'
+                        ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400'
+                        : 'border-transparent text-muted-foreground hover:text-foreground',
+                ]"
+            >
+                <Settings2 class="size-3.5" /> Quản lý mẫu checklist
             </button>
         </div>
 
         <!-- Checklist cards -->
-        <div v-for="template in templates" :key="template.id" class="space-y-4">
-            <Card
-                class="overflow-hidden rounded-2xl border border-slate-100 bg-white p-6 shadow-md transition-transform duration-200 hover:translate-y-[-2px] dark:border-slate-800 dark:bg-slate-900/45"
+        <template v-if="activeView === 'run'">
+            <div
+                v-for="template in templates"
+                :key="template.id"
+                class="space-y-4"
             >
-                <div
-                    class="flex flex-col justify-between gap-4 border-b border-border/60 pb-4 sm:flex-row sm:items-center"
+                <Card
+                    class="overflow-hidden rounded-2xl border border-slate-100 bg-white p-6 shadow-md transition-transform duration-200 hover:translate-y-[-2px] dark:border-slate-800 dark:bg-slate-900/45"
                 >
-                    <div>
-                        <h3
-                            class="flex items-center gap-2 text-base font-bold text-slate-800 dark:text-slate-100"
-                        >
-                            {{ template.name }}
-                            <Badge
-                                :class="typeColor[template.type]"
-                                class="text-xs font-semibold"
-                                >{{ typeLabel[template.type] }}</Badge
-                            >
-                        </h3>
-                        <p class="mt-1 text-xs font-medium text-slate-500">
-                            {{ completedPercent(template.id) }}% hoàn thành
-                        </p>
-                    </div>
-                    <div class="flex shrink-0 items-center gap-3">
-                        <div
-                            class="h-2 w-28 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800"
-                        >
-                            <div
-                                class="h-full bg-indigo-500 transition-all duration-300"
-                                :style="{
-                                    width: completedPercent(template.id) + '%',
-                                }"
-                            ></div>
-                        </div>
-                        <span
-                            class="text-xs font-bold"
-                            :class="
-                                completedPercent(template.id) === 100
-                                    ? 'text-indigo-600 dark:text-indigo-400'
-                                    : 'text-slate-500'
-                            "
-                        >
-                            {{
-                                props.branchContext?.scope === 'all'
-                                    ? (stats[template.id]?.completed ?? 0)
-                                    : template.items.filter((i: any) =>
-                                          isCompleted(i.id),
-                                      ).length
-                            }}/{{
-                                props.branchContext?.scope === 'all'
-                                    ? (stats[template.id]?.expected ?? 0)
-                                    : template.items.length
-                            }}
-                        </span>
-                    </div>
-                </div>
-                <CardContent class="divide-y divide-border/60 p-0 pt-2">
                     <div
-                        v-for="item in template.items"
-                        :key="item.id"
-                        class="flex items-center gap-3 py-3.5 transition-colors hover:bg-muted/15"
+                        class="flex flex-col justify-between gap-4 border-b border-border/60 pb-4 sm:flex-row sm:items-center"
                     >
-                        <!-- Checkbox -->
-                        <button
-                            v-if="!isCompleted(item.id)"
-                            @click="
-                                item.requires_photo
-                                    ? openCamera(item.id)
-                                    : completeItem(item.id)
-                            "
-                            :disabled="
-                                completing === item.id ||
-                                props.canComplete === false
-                            "
-                            class="shrink-0 focus:outline-none"
-                        >
-                            <Loader2
-                                v-if="completing === item.id"
-                                class="size-5 animate-spin text-muted-foreground"
-                            />
-                            <Circle
-                                v-else
-                                class="size-5 text-slate-400 transition-colors hover:text-indigo-500"
-                            />
-                        </button>
-                        <button
-                            v-else
-                            @click="uncompleteItem(item.id)"
-                            :disabled="props.canComplete === false"
-                            class="shrink-0 focus:outline-none"
-                        >
-                            <CheckCircle2 class="size-5 text-indigo-500" />
-                        </button>
-
-                        <!-- Title -->
-                        <div class="min-w-0 flex-1">
-                            <p
-                                :class="[
-                                    'text-xs',
-                                    isCompleted(item.id)
-                                        ? 'text-muted-foreground line-through'
-                                        : 'font-bold text-slate-700 dark:text-slate-200',
-                                ]"
+                        <div>
+                            <h3
+                                class="flex items-center gap-2 text-base font-bold text-slate-800 dark:text-slate-100"
                             >
-                                {{ item.title }}
-                            </p>
-                            <p
-                                v-if="
-                                    isCompleted(item.id) && completions[item.id]
-                                "
-                                class="mt-0.5 text-[10px] text-muted-foreground"
-                            >
-                                ✔️
-                                {{ completions[item.id].completed_by?.name }}
-                                lúc
-                                {{
-                                    new Date(
-                                        completions[item.id].completed_at,
-                                    ).toLocaleTimeString('vi-VN', {
-                                        hour: '2-digit',
-                                        minute: '2-digit',
-                                    })
-                                }}
+                                {{ template.name }}
+                                <Badge
+                                    :class="typeColor[template.type]"
+                                    class="text-xs font-semibold"
+                                    >{{ typeLabel[template.type] }}</Badge
+                                >
+                            </h3>
+                            <p class="mt-1 text-xs font-medium text-slate-500">
+                                {{ completedPercent(template.id) }}% hoàn thành
                             </p>
                         </div>
-
-                        <!-- Photo badge -->
-                        <Badge
-                            v-if="item.requires_photo"
-                            variant="outline"
-                            class="shrink-0 gap-1 bg-slate-50 px-1.5 py-0 text-[10px] dark:bg-slate-800"
+                        <div class="flex shrink-0 items-center gap-3">
+                            <div
+                                class="h-2 w-28 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800"
+                            >
+                                <div
+                                    class="h-full bg-indigo-500 transition-all duration-300"
+                                    :style="{
+                                        width:
+                                            completedPercent(template.id) + '%',
+                                    }"
+                                ></div>
+                            </div>
+                            <span
+                                class="text-xs font-bold"
+                                :class="
+                                    completedPercent(template.id) === 100
+                                        ? 'text-indigo-600 dark:text-indigo-400'
+                                        : 'text-slate-500'
+                                "
+                            >
+                                {{
+                                    props.branchContext?.scope === 'all'
+                                        ? (stats[template.id]?.completed ?? 0)
+                                        : template.items.filter((i: any) =>
+                                              isCompleted(i.id),
+                                          ).length
+                                }}/{{
+                                    props.branchContext?.scope === 'all'
+                                        ? (stats[template.id]?.expected ?? 0)
+                                        : template.items.length
+                                }}
+                            </span>
+                        </div>
+                    </div>
+                    <CardContent class="divide-y divide-border/60 p-0 pt-2">
+                        <div
+                            v-for="item in template.items"
+                            :key="item.id"
+                            class="flex items-center gap-3 py-3.5 transition-colors hover:bg-muted/15"
                         >
-                            <Camera class="size-3" /> Ảnh
-                        </Badge>
+                            <!-- Checkbox -->
+                            <button
+                                v-if="!isCompleted(item.id)"
+                                @click="
+                                    item.requires_photo
+                                        ? openCamera(item.id)
+                                        : completeItem(item.id)
+                                "
+                                :disabled="
+                                    completing === item.id ||
+                                    props.canComplete === false
+                                "
+                                class="shrink-0 focus:outline-none"
+                            >
+                                <Loader2
+                                    v-if="completing === item.id"
+                                    class="size-5 animate-spin text-muted-foreground"
+                                />
+                                <Circle
+                                    v-else
+                                    class="size-5 text-slate-400 transition-colors hover:text-indigo-500"
+                                />
+                            </button>
+                            <button
+                                v-else
+                                @click="uncompleteItem(item.id)"
+                                :disabled="props.canComplete === false"
+                                class="shrink-0 focus:outline-none"
+                            >
+                                <CheckCircle2 class="size-5 text-indigo-500" />
+                            </button>
+
+                            <!-- Title -->
+                            <div class="min-w-0 flex-1">
+                                <p
+                                    :class="[
+                                        'text-xs',
+                                        isCompleted(item.id)
+                                            ? 'text-muted-foreground line-through'
+                                            : 'font-bold text-slate-700 dark:text-slate-200',
+                                    ]"
+                                >
+                                    {{ item.title }}
+                                </p>
+                                <p
+                                    v-if="
+                                        isCompleted(item.id) &&
+                                        completions[item.id]
+                                    "
+                                    class="mt-0.5 text-[10px] text-muted-foreground"
+                                >
+                                    ✔️
+                                    {{
+                                        completions[item.id].completed_by?.name
+                                    }}
+                                    lúc
+                                    {{
+                                        new Date(
+                                            completions[item.id].completed_at,
+                                        ).toLocaleTimeString('vi-VN', {
+                                            hour: '2-digit',
+                                            minute: '2-digit',
+                                        })
+                                    }}
+                                </p>
+                            </div>
+
+                            <!-- Photo badge -->
+                            <Badge
+                                v-if="item.requires_photo"
+                                variant="outline"
+                                class="shrink-0 gap-1 bg-slate-50 px-1.5 py-0 text-[10px] dark:bg-slate-800"
+                            >
+                                <Camera class="size-3" /> Ảnh
+                            </Badge>
+                        </div>
+                    </CardContent>
+                </Card>
+            </div>
+
+            <p
+                v-if="!templates.length"
+                class="py-16 text-center text-xs font-semibold text-muted-foreground"
+            >
+                Chưa có checklist nào. Nhấn "Tạo checklist" để bắt đầu.
+            </p>
+        </template>
+
+        <!-- Owner/manager template management -->
+        <template
+            v-else-if="activeView === 'manage' && props.canManageTemplates"
+        >
+            <Card class="overflow-hidden border-border/80">
+                <CardHeader class="border-b border-border bg-muted/20 py-5">
+                    <div
+                        class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"
+                    >
+                        <div>
+                            <h2
+                                class="flex items-center gap-2 text-base font-bold text-foreground"
+                            >
+                                <Settings2 class="size-4 text-indigo-400" />
+                                Quản lý mẫu checklist
+                            </h2>
+                            <CardDescription class="mt-1 text-xs">
+                                Tổ chức quy trình theo loại và chi nhánh; chỉnh
+                                sửa sẽ giữ nguyên các mục đang có để không làm
+                                mất dấu vết vận hành.
+                            </CardDescription>
+                        </div>
+                        <Button
+                            @click="openCreateDialog"
+                            class="h-9 gap-1.5 bg-indigo-600 text-xs font-semibold text-white hover:bg-indigo-500"
+                        >
+                            <Plus class="size-3.5" /> Thêm mẫu
+                        </Button>
+                    </div>
+                </CardHeader>
+                <CardContent class="p-0">
+                    <div
+                        v-for="template in templates"
+                        :key="`manage-${template.id}`"
+                        class="flex flex-col gap-4 border-b border-border p-4 last:border-b-0 sm:flex-row sm:items-center sm:justify-between sm:p-5"
+                    >
+                        <div class="flex min-w-0 items-start gap-3">
+                            <div
+                                class="flex size-10 shrink-0 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600 dark:bg-indigo-950/40 dark:text-indigo-300"
+                            >
+                                <ClipboardCheck class="size-5" />
+                            </div>
+                            <div class="min-w-0">
+                                <div class="flex flex-wrap items-center gap-2">
+                                    <h3
+                                        class="truncate text-sm font-bold text-foreground"
+                                    >
+                                        {{ template.name }}
+                                    </h3>
+                                    <Badge
+                                        :class="typeColor[template.type]"
+                                        class="text-[10px] font-semibold"
+                                    >
+                                        {{ typeLabel[template.type] }}
+                                    </Badge>
+                                </div>
+                                <p
+                                    class="mt-1 text-[11px] text-muted-foreground"
+                                >
+                                    {{ template.items.length }} mục ·
+                                    {{ assignedBranchLabel(template) }}
+                                </p>
+                            </div>
+                        </div>
+                        <div class="flex shrink-0 items-center gap-2">
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                class="h-8 gap-1.5 text-xs text-indigo-600 hover:bg-indigo-50 dark:text-indigo-300 dark:hover:bg-indigo-950/30"
+                                @click="openEditDialog(template)"
+                            >
+                                <Pencil class="size-3.5" /> Sửa
+                            </Button>
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                class="h-8 gap-1.5 border-rose-200 text-xs text-rose-600 hover:bg-rose-50 dark:border-rose-900/50 dark:text-rose-300 dark:hover:bg-rose-950/30"
+                                @click="deleteTemplate(template)"
+                            >
+                                <Trash2 class="size-3.5" /> Xóa
+                            </Button>
+                        </div>
+                    </div>
+                    <div
+                        v-if="!templates.length"
+                        class="p-12 text-center text-xs text-muted-foreground"
+                    >
+                        Chưa có mẫu checklist để quản lý.
                     </div>
                 </CardContent>
             </Card>
-        </div>
-
-        <p
-            v-if="!templates.length"
-            class="py-16 text-center text-xs font-semibold text-slate-500"
-        >
-            Chưa có checklist nào. Nhấn "Tạo checklist" để bắt đầu.
-        </p>
+        </template>
     </div>
 
     <!-- Photo capture dialog -->
@@ -581,17 +797,21 @@ const overallPercent = computed(() => {
     </Dialog>
 
     <!-- Create template dialog -->
-    <Dialog v-model:open="showCreateDialog">
+    <Dialog v-model:open="showTemplateDialog">
         <DialogContent class="max-h-[80vh] max-w-lg overflow-y-auto">
-            <DialogHeader
-                ><DialogTitle>Tạo Checklist mới</DialogTitle></DialogHeader
-            >
+            <DialogHeader>
+                <DialogTitle>{{
+                    isEditingTemplate
+                        ? 'Sửa mẫu checklist'
+                        : 'Tạo Checklist mới'
+                }}</DialogTitle>
+            </DialogHeader>
             <form @submit.prevent="submitTemplate" class="space-y-4">
                 <div class="grid grid-cols-2 gap-4">
                     <div class="grid gap-1.5">
                         <Label>Tên checklist</Label>
                         <Input
-                            v-model="createForm.name"
+                            v-model="templateForm.name"
                             placeholder="Checklist mở cửa"
                             required
                         />
@@ -599,21 +819,47 @@ const overallPercent = computed(() => {
                     <div class="grid gap-1.5">
                         <Label>Loại</Label>
                         <select
-                            v-model="createForm.type"
+                            v-model="templateForm.type"
                             class="h-9 rounded-md border bg-background px-3 text-sm"
                         >
                             <option value="opening">Mở cửa</option>
                             <option value="closing">Đóng cửa</option>
                             <option value="attp">ATTP / Vệ sinh</option>
+                            <option value="handover">Bàn giao ca</option>
                             <option value="custom">Tùy chỉnh</option>
                         </select>
+                    </div>
+                </div>
+
+                <!-- Áp dụng cho chi nhánh (bỏ trống = toàn chuỗi) -->
+                <div v-if="(props.branches?.length ?? 0) > 0" class="space-y-2">
+                    <Label
+                        >Áp dụng cho chi nhánh
+                        <span class="text-xs font-normal text-muted-foreground"
+                            >(bỏ trống = toàn chuỗi)</span
+                        ></Label
+                    >
+                    <div class="flex flex-wrap gap-2">
+                        <label
+                            v-for="br in props.branches"
+                            :key="br.id"
+                            class="flex cursor-pointer items-center gap-1.5 rounded-lg border border-border px-2.5 py-1 text-xs"
+                        >
+                            <input
+                                type="checkbox"
+                                :value="br.id"
+                                v-model="templateForm.branch_ids"
+                                class="rounded"
+                            />
+                            {{ br.name }}
+                        </label>
                     </div>
                 </div>
 
                 <div class="space-y-2">
                     <Label>Các mục kiểm tra</Label>
                     <div
-                        v-for="(item, idx) in createForm.items"
+                        v-for="(item, idx) in templateForm.items"
                         :key="idx"
                         class="flex items-center gap-2"
                     >
@@ -634,7 +880,7 @@ const overallPercent = computed(() => {
                             <Camera class="size-3" />
                         </label>
                         <Button
-                            v-if="createForm.items.length > 1"
+                            v-if="templateForm.items.length > 1"
                             variant="ghost"
                             size="sm"
                             class="shrink-0 text-red-500"
@@ -659,14 +905,18 @@ const overallPercent = computed(() => {
                     <Button
                         variant="outline"
                         type="button"
-                        @click="showCreateDialog = false"
+                        @click="closeTemplateDialog"
                         >Hủy</Button
                     >
-                    <Button type="submit" :disabled="createForm.processing">
+                    <Button type="submit" :disabled="templateForm.processing">
                         {{
-                            createForm.processing
-                                ? 'Đang tạo...'
-                                : 'Tạo checklist'
+                            templateForm.processing
+                                ? isEditingTemplate
+                                    ? 'Đang lưu...'
+                                    : 'Đang tạo...'
+                                : isEditingTemplate
+                                  ? 'Lưu thay đổi'
+                                  : 'Tạo checklist'
                         }}
                     </Button>
                 </DialogFooter>

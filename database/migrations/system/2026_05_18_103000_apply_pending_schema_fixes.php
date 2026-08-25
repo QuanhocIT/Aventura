@@ -144,7 +144,7 @@ return new class extends Migration
         Schema::create('inventory_reservations', function (Blueprint $table) {
             $table->id();
             $table->foreignId('restaurant_id')->constrained()->cascadeOnDelete();
-            $table->foreignId('order_id')->constrained('orders')->cascadeOnDelete();
+            $table->foreignId('order_id')->nullable()->constrained('orders')->nullOnDelete();
             $table->foreignId('ingredient_id')->constrained('ingredients')->cascadeOnDelete();
             $table->decimal('reserved_quantity', 12, 3)->default(0);
             $table->enum('status', ['holding', 'committed', 'released'])->default('holding');

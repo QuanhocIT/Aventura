@@ -20,6 +20,8 @@ class BusinessGoalController extends Controller
 
     public function index(Request $request): Response
     {
+        abort_unless($request->user()->canManageGoals(), 403, 'Bạn không có quyền xem hoặc quản lý Mục tiêu kinh doanh.');
+
         $restaurant = $request->user()->restaurant;
         if (! $restaurant && ! $request->user()->hasRole('super_admin')) {
             abort(403, 'Không tìm thấy nhà hàng.');
@@ -35,11 +37,17 @@ class BusinessGoalController extends Controller
         }
 
         $restaurantId = $request->user()->restaurant_id;
+        if (! $restaurantId) {
+            return Inertia::render('business-goals/Index', [
+                'activeGoals' => [],
+                'history' => [],
+            ]);
+        }
 
         $cooldownKey = "goals_sync_cooldown:{$restaurantId}";
-        if (! Cache::has($cooldownKey)) {
+        if ($request->boolean('refresh') || ! Cache::has($cooldownKey)) {
             $this->tracking->syncAllActive($restaurantId);
-            Cache::put($cooldownKey, true, 1800); // 30 minutes cooldown
+            Cache::put($cooldownKey, true, 300); // 5 minutes cooldown; users can still force refresh
         }
 
         $activeGoals = BusinessGoal::where('restaurant_id', $restaurantId)
@@ -58,6 +66,7 @@ class BusinessGoalController extends Controller
 
     public function store(Request $request): RedirectResponse
     {
+        abort_unless($request->user()->canManageGoals(), 403, 'Bạn không có quyền quản lý Mục tiêu kinh doanh.');
         $data = $request->validate([
             'title' => ['required', 'string', 'max:255'],
             'description' => ['nullable', 'string'],
@@ -68,9 +77,9 @@ class BusinessGoalController extends Controller
             'start_date' => ['required', 'date'],
             'end_date' => ['required', 'date', 'after:start_date'],
             'target_value' => ['required', 'numeric', 'min:0.01'],
-            'milestones' => ['nullable', 'array'],
+            'milestones' => ['nullable', 'array', 'max:8'],
             'milestones.*.title' => ['required', 'string', 'max:100'],
-            'milestones.*.threshold_percent' => ['required', 'integer', 'min:1', 'max:100'],
+            'milestones.*.threshold_percent' => ['required', 'integer', 'min:1', 'max:100', 'distinct'],
         ]);
 
         $goal = BusinessGoal::create([
@@ -100,9 +109,11 @@ class BusinessGoalController extends Controller
 
     public function storeAction(Request $request, BusinessGoal $goal): RedirectResponse
     {
+        $this->authorizeGoal($request, $goal);
+
         $data = $request->validate([
             'title' => ['required', 'string', 'max:255'],
-            'description' => ['nullable', 'string'],
+            'description' => ['nullable', 'string', 'max:2000'],
             'assigned_to' => ['nullable', TenantRule::exists('users')],
             'due_date' => ['nullable', 'date'],
         ]);
@@ -112,8 +123,11 @@ class BusinessGoalController extends Controller
         return back()->with('success', 'Đã thêm hành động.');
     }
 
-    public function toggleAction(GoalAction $action): RedirectResponse
+    public function toggleAction(Request $request, GoalAction $action): RedirectResponse
     {
+        $goal = BusinessGoal::withoutGlobalScopes()->findOrFail($action->goal_id);
+        $this->authorizeGoal($request, $goal);
+
         $newStatus = $action->status === 'done' ? 'pending' : 'done';
         $action->update(['status' => $newStatus]);
 
@@ -122,6 +136,9 @@ class BusinessGoalController extends Controller
 
     public function updateCustomValue(Request $request, BusinessGoal $goal): RedirectResponse
     {
+        $this->authorizeGoal($request, $goal);
+        abort_unless($goal->metric === 'custom', 422, 'Chỉ mục tiêu tùy chỉnh mới được nhập giá trị thủ công.');
+
         $data = $request->validate(['current_value' => ['required', 'numeric', 'min:0']]);
 
         $goal->update(['current_value' => $data['current_value']]);
@@ -130,10 +147,24 @@ class BusinessGoalController extends Controller
         return back()->with('success', 'Đã cập nhật giá trị.');
     }
 
-    public function destroy(BusinessGoal $goal): RedirectResponse
+    public function destroy(Request $request, BusinessGoal $goal): RedirectResponse
     {
+        $this->authorizeGoal($request, $goal);
         $goal->delete();
 
         return back()->with('success', 'Đã xóa mục tiêu.');
+    }
+
+    private function authorizeGoal(Request $request, BusinessGoal $goal): void
+    {
+        abort_unless($request->user()->canManageGoals(), 403, 'Bạn không có quyền quản lý Mục tiêu kinh doanh.');
+
+        if (! $request->user()->isSuperAdmin()) {
+            abort_unless(
+                (int) $goal->restaurant_id === (int) $request->user()->restaurant_id,
+                403,
+                'Mục tiêu không thuộc nhà hàng của bạn.',
+            );
+        }
     }
 }

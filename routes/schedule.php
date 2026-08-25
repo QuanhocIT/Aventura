@@ -1,9 +1,15 @@
 <?php
 
 use App\Jobs\RecalculateTrustScoresJob;
+use App\Models\Restaurant;
+use App\Models\ScheduledTaskRun;
+use App\Services\ApprovalService;
+use App\Services\CentralWarehouseService;
 use App\Services\SupportPortalService;
+use App\Services\WarehouseFraudDetectionService;
 use App\Support\MaterializedViews\MaterializedViewRegistry;
 use Illuminate\Console\Scheduling\Schedule;
+use Illuminate\Support\Facades\Log;
 
 /**
  * NGUỒN DUY NHẤT khai báo lịch chạy định kỳ của hệ thống (Task Scheduler).
@@ -29,14 +35,54 @@ use Illuminate\Console\Scheduling\Schedule;
  * Xem SCHEDULER_RESTORE.md để biết trình tự bật khuyến nghị.
  */
 return function (Schedule $schedule): void {
+    // Task logger helper
+    $logRun = function (string $taskName, callable $callback) {
+        $startTime = microtime(true);
+        $runId = null;
+        try {
+            $run = ScheduledTaskRun::create([
+                'task_name' => $taskName,
+                'started_at' => now(),
+                'status' => 'running',
+            ]);
+            $runId = $run->id;
+        } catch (Throwable) {
+        }
+
+        try {
+            $callback();
+            $durationMs = (int) round((microtime(true) - $startTime) * 1000);
+            if ($runId) {
+                ScheduledTaskRun::where('id', $runId)->update([
+                    'finished_at' => now(),
+                    'status' => 'success',
+                    'duration_ms' => $durationMs,
+                ]);
+            }
+        } catch (Throwable $e) {
+            $durationMs = (int) round((microtime(true) - $startTime) * 1000);
+            if ($runId) {
+                ScheduledTaskRun::where('id', $runId)->update([
+                    'finished_at' => now(),
+                    'status' => 'failed',
+                    'error_message' => $e->getMessage(),
+                    'duration_ms' => $durationMs,
+                ]);
+            }
+            throw $e;
+        }
+    };
+
     // Operations Center heartbeat: proves that the Laravel scheduler itself is ticking,
     // independently from the health checks it runs.
-    $schedule->call(function (): void {
-        $path = storage_path('framework/scheduler-heartbeat.json');
-        @file_put_contents($path, json_encode([
-            'last_run_at' => now()->toIso8601String(),
-            'pid' => getmypid(),
-        ], JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
+    $schedule->call(function () use ($logRun): void {
+        $logRun('operations-center-heartbeat', function () {
+            $path = storage_path('framework/scheduler-heartbeat.json');
+            @file_put_contents($path, json_encode([
+                'last_run_at' => now()->toIso8601String(),
+                'pid' => getmypid(),
+            ], JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
+        });
     })->everyMinute()->name('operations-center-heartbeat')->withoutOverlapping();
 
     // ── Nhóm việc đã và đang chạy ổn định (giữ nguyên từ routes/console.php cũ) ──
@@ -52,14 +98,37 @@ return function (Schedule $schedule): void {
     $schedule->command('services:check-health')->everyFiveMinutes();
     $schedule->command('system:check-maintenance')->everyMinute();
     $schedule->command('db:backup')->dailyAt('02:00');
-    $schedule->command('db:optimize')->weeklyOn(0, '03:00');
+    $schedule->command('data:cleanup --action=technical --confirm --automatic')->weeklyOn(0, '03:00');
+    $schedule->command('data:cleanup --action=audit --confirm --automatic')->weeklyOn(0, '03:10');
+    $schedule->command('data:storage-snapshot')->dailyAt('03:20');
+    $schedule->command('data:health-check')->everyFiveMinutes()->withoutOverlapping();
     $schedule->command('loyalty:expire-points')->dailyAt('00:30');
     $schedule->command('loyalty:birthday-bonuses')->dailyAt('09:00');
     $schedule->command('inventory:check-expiry')->dailyAt('07:00');
+    $schedule->command('reservations:cleanup-expired')->everyThirtyMinutes();
     $schedule->command('checklist:send-reminders')->dailyAt('10:00');
     $schedule->command('checklist:send-reminders')->dailyAt('16:00');
     $schedule->command('system:audit-consistency')->dailyAt('03:00');
     $schedule->command('goals:sync')->hourly();
+    $schedule->call(function (): void {
+        app(ApprovalService::class)->autoEscalateOverdue();
+    })->everyMinute()->name('approval-auto-escalation')->withoutOverlapping();
+
+    // ── [P1.11]: Quét phát hiện gian lận kho & Cảnh báo đơn cấp phát quá hạn ───────
+    $schedule->call(function () {
+        $restaurants = Restaurant::where('status', 'active')->get();
+        $fraudService = app(WarehouseFraudDetectionService::class);
+        $centralService = app(CentralWarehouseService::class);
+
+        foreach ($restaurants as $restaurant) {
+            try {
+                $fraudService->analyzeRiskAndFraudPatterns((int) $restaurant->id);
+                $centralService->checkAndAlertOverdueRequests((int) $restaurant->id);
+            } catch (Throwable $e) {
+                Log::warning("Lỗi scheduler kiểm tra kho cho nhà hàng #{$restaurant->id}: ".$e->getMessage());
+            }
+        }
+    })->everyTenMinutes()->name('warehouse-fraud-and-overdue-monitoring')->withoutOverlapping();
 
     // ── Chuỗi báo cáo/tổng hợp cuối ngày — PHẢI giữ đúng thứ tự (comment gốc trong
     //    Kernel.php cũ đã ghi rõ lý do: archive chạy sau khi report + kpi xong) ──
@@ -82,7 +151,7 @@ return function (Schedule $schedule): void {
     // Kernel.php cũ định làm). Vì quyết định KHÔNG partition bảng `orders` (giữ FK),
     // việc giữ bảng hot nhỏ qua archive hàng ngày là cơ chế hiệu năng chính. Lên dần:
     // bắt đầu 3 tháng/ngày, xác nhận ổn định vài ngày rồi mới xiết còn 1 tháng.
-    $schedule->command('orders:archive-old --months=3')
+    $schedule->command('orders:archive-old --months='.config('data_lifecycle.orders.archive_months', 3))
         ->dailyAt('02:30')
         ->withoutOverlapping(60)
         ->onOneServer()
@@ -103,15 +172,24 @@ return function (Schedule $schedule): void {
     // --prune: dọn partition quá hạn retention_months (config/partitioning.php) —
     // bảng retention_months=null (tiền mặt, hoa hồng, điểm thưởng...) tự bỏ qua.
     // Chạy riêng, sau job đảm bảo partition tương lai ở trên, hàng tháng cùng ngày.
-    $schedule->command('db:manage-partitions --prune')
+    $schedule->command('db:manage-partitions --prune --dry-run')
         ->monthlyOn(1, '03:45')
         ->withoutOverlapping()
         ->onOneServer();
 
-    // orders:purge: TỪNG KHÔNG được lên lịch ở đâu cả — phải chạy tay. Mặc định lệnh
-    // là dry-run (an toàn), phải thêm --confirm mới thực sự DROP partition.
-    $schedule->command('orders:purge --months=36 --confirm')
+    // orders:purge chỉ tạo báo cáo dry-run định kỳ. Xóa partition phải đi qua
+    // data_cleanup_runs và được Super Admin phê duyệt.
+    $schedule->command('orders:purge --months='.config('data_lifecycle.orders.purge_months', 36))
         ->monthlyOn(1, '04:00')
+        ->withoutOverlapping()
+        ->onOneServer();
+
+    $schedule->command('data:cleanup --action=backups --confirm --automatic')
+        ->weeklyOn(0, '04:10')
+        ->withoutOverlapping()
+        ->onOneServer();
+    $schedule->command('data:cleanup --action=snapshots --confirm --automatic')
+        ->monthlyOn(1, '04:20')
         ->withoutOverlapping()
         ->onOneServer();
 
@@ -141,6 +219,20 @@ return function (Schedule $schedule): void {
 
     $restoreGuard = fn (string $envKey) => ! filter_var(env($envKey, false), FILTER_VALIDATE_BOOL);
 
+    // Fix #10: Cảnh báo khi các job vận hành quan trọng chưa được bật
+    $criticalJobs = [
+        'SCHEDULER_RESTORE_RESERVATIONS_NO_SHOWS' => 'reservations:mark-no-shows',
+        'SCHEDULER_RESTORE_RESERVATIONS_EXPIRE_PENDING' => 'reservations:expire-pending',
+        'SCHEDULER_RESTORE_SHIFTS_AUTO_CLOSE' => 'shifts:auto-close-expired',
+        'SCHEDULER_RESTORE_KITCHEN_ALERT_OVERDUE' => 'kitchen:alert-overdue-orders',
+        'SCHEDULER_RESTORE_RESERVATIONS_REMINDERS' => 'reservations:send-reminders',
+    ];
+    foreach ($criticalJobs as $envKey => $cmd) {
+        if ($restoreGuard($envKey)) {
+            Log::warning("Scheduler: Job '{$cmd}' đang TẮT. Bật env {$envKey}=true trước khi go-live.");
+        }
+    }
+
     $schedule->command('restaurants:validate-activity')
         ->dailyAt('23:00')
         ->skip($restoreGuard('SCHEDULER_RESTORE_RESTAURANTS_VALIDATE'));
@@ -161,6 +253,10 @@ return function (Schedule $schedule): void {
         ->everyFifteenMinutes()
         ->skip($restoreGuard('SCHEDULER_RESTORE_RESERVATIONS_NO_SHOWS'));
 
+    $schedule->command('reservations:expire-pending')
+        ->everyFifteenMinutes()
+        ->skip($restoreGuard('SCHEDULER_RESTORE_RESERVATIONS_EXPIRE_PENDING'));
+
     $schedule->command('promotions:expire-outdated')
         ->dailyAt('00:01')
         ->skip($restoreGuard('SCHEDULER_RESTORE_PROMOTIONS_EXPIRE'));
@@ -168,6 +264,11 @@ return function (Schedule $schedule): void {
     $schedule->command('shifts:auto-close-expired')
         ->dailyAt('23:45')
         ->skip($restoreGuard('SCHEDULER_RESTORE_SHIFTS_AUTO_CLOSE'));
+
+    // Tự chốt giờ ra cho nhân viên quên check-out ngay khi ca kết thúc.
+    $schedule->command('attendance:auto-checkout')
+        ->everyMinute()
+        ->withoutOverlapping(1);
 
     $schedule->command('kitchen:alert-overdue-orders')
         ->everyFiveMinutes()
@@ -182,4 +283,8 @@ return function (Schedule $schedule): void {
     $schedule->command('onboarding:sync')
         ->everyThirtyMinutes()
         ->skip($restoreGuard('SCHEDULER_RESTORE_ONBOARDING_SYNC'));
+
+    $schedule->command('training:sync-compliance')
+        ->hourly()
+        ->skip($restoreGuard('SCHEDULER_RESTORE_TRAINING_COMPLIANCE'));
 };

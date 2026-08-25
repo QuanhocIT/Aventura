@@ -16,7 +16,6 @@ import {
     ShieldAlert,
     CheckCircle2,
     AlertTriangle,
-    AlertCircle,
     Shield,
     CheckCircle,
     User,
@@ -162,7 +161,7 @@ async function resetPassword(account: { id: number; name: string }) {
     if (
         !(await confirmDialog({
             title: 'Xác nhận thao tác',
-            description: `Reset mật khẩu cho "${account.name}"?`,
+            description: `Đặt lại mật khẩu cho "${account.name}"?`,
             variant: 'default',
         }))
     ) {
@@ -298,7 +297,7 @@ const roleLabel: Record<string, string> = {
     inventory_staff: 'Kho',
     staff: 'Nhân viên',
     waiter: 'Nhân viên order',
-    super_admin: 'Super Admin',
+    super_admin: 'Quản trị viên cấp cao',
     system_admin: 'Quản trị hệ thống',
     billing_admin: 'Kế toán',
     support_specialist: 'Hỗ trợ KH',
@@ -377,7 +376,7 @@ const securityAlerts = computed(() => {
             type: 'info',
             icon: Lightbulb,
             title: 'Khuyến nghị xác thực',
-            description: `Còn ${totalAccountsOnPage.value - totalVerifiedEmails.value} tài khoản chưa xác thực email.`,
+            description: `Còn ${totalAccountsOnPage.value - totalVerifiedEmails.value} tài khoản chưa xác thực thư điện tử.`,
             color: 'text-sky-600 dark:text-sky-400',
             bg: 'bg-sky-100/50 dark:bg-sky-900/20',
             border: 'border-sky-200 dark:border-sky-800',
@@ -390,7 +389,7 @@ const securityAlerts = computed(() => {
             icon: CheckCircle2,
             title: 'Hệ thống an toàn',
             description:
-                'Tất cả tài khoản trên trang này đã bật 2FA và xác thực email đầy đủ.',
+                'Tất cả tài khoản trên trang này đã bật 2FA và xác thực thư điện tử đầy đủ.',
             color: 'text-emerald-600 dark:text-emerald-400',
             bg: 'bg-emerald-100/50 dark:bg-emerald-900/20',
             border: 'border-emerald-200 dark:border-emerald-800',
@@ -426,13 +425,13 @@ const columns: Column[] = [
                     @click="showCreateDialog = true"
                     class="gap-1.5"
                 >
-                    <Plus class="size-4" /> Tạo tài khoản Admin
+                    <Plus class="size-4" /> Tạo tài khoản quản trị
                 </Button>
                 <a
                     href="/super-admin/audit-logs"
                     class="inline-flex items-center gap-2 rounded-lg border border-border/60 px-4 py-2 text-sm font-medium transition-colors hover:bg-muted"
                 >
-                    <ShieldCheck class="size-4" /> Xem Audit Log
+                    <ShieldCheck class="size-4" /> Xem nhật ký kiểm toán
                 </a>
             </template>
         </PageHeader>
@@ -475,7 +474,8 @@ const columns: Column[] = [
                         (trang này)
                     </CardTitle>
                     <CardDescription
-                        >Tiến độ phủ 2FA và xác thực email</CardDescription
+                        >Tiến độ phủ 2FA và xác thực thư điện
+                        tử</CardDescription
                     >
                 </CardHeader>
                 <CardContent class="space-y-5">
@@ -507,7 +507,7 @@ const columns: Column[] = [
                         <div class="flex items-center justify-between text-sm">
                             <span class="flex items-center gap-1.5 font-medium">
                                 <CheckCircle class="size-4 text-sky-500" /> Đã
-                                xác thực Email
+                                xác thực thư điện tử
                             </span>
                             <span class="font-bold">{{ rateVerified }}%</span>
                         </div>
@@ -579,7 +579,7 @@ const columns: Column[] = [
                 />
                 <Input
                     v-model="search"
-                    placeholder="Tìm tên, email..."
+                    placeholder="Tìm tên, thư điện tử..."
                     class="border-border/60 bg-background/50 pl-9 backdrop-blur-sm transition-all hover:border-border focus-visible:ring-primary/20"
                 />
             </div>
@@ -761,7 +761,8 @@ const columns: Column[] = [
                                 :disabled="processingReset === row.id"
                                 class="cursor-pointer"
                             >
-                                <KeyRound class="mr-2 h-4 w-4" /> Reset mật khẩu
+                                <KeyRound class="mr-2 h-4 w-4" /> Đặt lại mật
+                                khẩu
                             </DropdownMenuItem>
                             <DropdownMenuItem
                                 v-if="row.has_2fa"
@@ -851,7 +852,7 @@ const columns: Column[] = [
                     >
                         <Plus class="size-4.5" />
                     </div>
-                    <span>Tạo tài khoản Admin mới</span>
+                    <span>Tạo tài khoản quản trị mới</span>
                 </DialogTitle>
             </DialogHeader>
 
@@ -888,7 +889,7 @@ const columns: Column[] = [
                 <div class="grid gap-1.5">
                     <Label
                         class="flex items-center gap-1 text-xs font-bold tracking-wider text-muted-foreground uppercase"
-                        >Email <span class="text-rose-500">*</span></Label
+                        >Thư điện tử <span class="text-rose-500">*</span></Label
                     >
                     <div class="relative flex items-center">
                         <div

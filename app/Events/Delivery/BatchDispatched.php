@@ -32,6 +32,7 @@ class BatchDispatched implements ShouldBroadcastNow
                 'total_orders' => $this->batch->total_orders,
                 'estimated_duration_minutes' => $this->batch->estimated_duration_minutes,
                 'dispatched_at' => $this->batch->dispatched_at?->toISOString(),
+                'accepted_at' => $this->batch->accepted_at?->toISOString(),
                 'items' => $this->batch->items->map(fn ($item) => [
                     'id' => $item->id,
                     'order_id' => $item->order_id,

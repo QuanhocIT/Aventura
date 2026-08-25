@@ -98,6 +98,19 @@ class FortifyServiceProvider extends ServiceProvider
                 ]);
             }
 
+            // Supplier accounts are retained for historical data and internal
+            // supplier records, but cannot authenticate while the external
+            // supplier portal is disabled.
+            $activeUsers = $activeUsers
+                ->reject(fn (User $user) => $this->isDisabledSupplier($user))
+                ->values();
+
+            if ($activeUsers->isEmpty()) {
+                throw ValidationException::withMessages([
+                    'email' => ['Cổng Nhà cung cấp hiện đã được tắt. Vui lòng liên hệ quản lý nhà hàng.'],
+                ]);
+            }
+
             // Nếu chỉ có đúng 1 tài khoản hoạt động, áp dụng kiểm tra ca làm việc ngay lập tức
             if ($activeUsers->count() === 1) {
                 $user = $activeUsers->first();
@@ -122,6 +135,12 @@ class FortifyServiceProvider extends ServiceProvider
 
             return $user;
         });
+    }
+
+    private function isDisabledSupplier(User $user): bool
+    {
+        return ! (bool) config('portal.supplier_portal_enabled', false)
+            && $user->hasRole('supplier');
     }
 
     private function configureActions(): void
@@ -283,10 +302,12 @@ class FortifyServiceProvider extends ServiceProvider
         });
 
         RateLimiter::for('login', function (Request $request) {
-            // Giới hạn tối đa 5 lần thử trong 15 phút (900s) cho login để chống brute-force
+            // Keep the Fortify limiter aligned with the global auth login limiter.
             $throttleKey = Str::transliterate(Str::lower($request->input(Fortify::username())).'|'.$request->ip());
+            $maxAttempts = (int) config('firewall.rate_limit.auth.max_attempts', 20);
+            $decaySeconds = (int) config('firewall.rate_limit.auth.decay_seconds', 900);
 
-            return Limit::perMinutes(15, 5)->by($throttleKey);
+            return Limit::perSecond($maxAttempts, $decaySeconds)->by($throttleKey);
         });
     }
 

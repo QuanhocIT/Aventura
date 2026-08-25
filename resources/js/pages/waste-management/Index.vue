@@ -88,6 +88,7 @@ const categoryColor: Record<string, string> = {
     expired: '#ef4444', // red
     damaged: '#eab308', // yellow
     cooking_loss: '#3b82f6', // blue
+    order_cancellation: '#f43f5e', // rose
     theft: '#a855f7', // purple
     other: '#94a3b8', // gray
 };

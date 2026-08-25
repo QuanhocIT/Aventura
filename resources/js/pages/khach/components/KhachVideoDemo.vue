@@ -65,7 +65,7 @@ const demoSteps: Record<
 <template>
     <section
         id="video-demo"
-        class="relative overflow-hidden bg-background py-20 lg:py-28"
+        class="relative overflow-hidden bg-background py-14 sm:py-20 lg:py-28"
     >
         <!-- Decorative blobs using CSS variables -->
         <div class="pointer-events-none absolute inset-0 overflow-hidden">
@@ -79,7 +79,7 @@ const demoSteps: Record<
 
         <div class="relative mx-auto max-w-7xl px-4 lg:px-8">
             <!-- Header -->
-            <div class="reveal-on-scroll mb-12 text-center">
+            <div class="reveal-on-scroll mb-8 text-center sm:mb-12">
                 <span
                     class="mb-4 inline-block rounded-full border border-primary/30 bg-primary/10 px-4 py-1.5 text-xs font-semibold tracking-widest text-primary uppercase"
                 >
@@ -96,27 +96,30 @@ const demoSteps: Record<
 
             <!-- Tab selector -->
             <div
-                class="reveal-on-scroll mb-8 flex flex-wrap justify-center gap-2"
+                class="reveal-on-scroll mx-auto mb-8 flex max-w-2xl flex-wrap justify-center gap-1.5 px-1 sm:gap-2"
             >
                 <button
                     v-for="tab in tabs"
                     :key="tab.key"
                     @click="activeTab = tab.key"
-                    class="flex items-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-medium transition-all duration-300"
+                    class="flex items-center gap-1.5 rounded-xl border px-3 py-2 text-xs font-medium transition-all duration-300 sm:gap-2 sm:px-4 sm:py-2.5 sm:text-sm"
                     :class="
                         activeTab === tab.key
                             ? 'border-primary/40 bg-primary/10 text-primary shadow-sm'
                             : 'border-border bg-card text-muted-foreground hover:border-primary/20 hover:text-foreground'
                     "
                 >
-                    <component :is="tab.icon" class="h-4 w-4" />
+                    <component
+                        :is="tab.icon"
+                        class="h-3.5 w-3.5 sm:h-4 sm:w-4"
+                    />
                     {{ tab.label }}
                 </button>
             </div>
 
             <!-- Demo card -->
             <div
-                class="reveal-on-scroll grid items-center gap-8 lg:grid-cols-2 lg:gap-12"
+                class="reveal-on-scroll grid items-center gap-6 sm:gap-8 lg:grid-cols-2 lg:gap-12"
             >
                 <!-- Mockup screen -->
                 <div class="relative order-2 lg:order-1">
@@ -144,7 +147,7 @@ const demoSteps: Record<
                         </div>
 
                         <!-- Animated content area -->
-                        <div class="min-h-[280px] p-5">
+                        <div class="min-h-[300px] p-3 sm:min-h-[280px] sm:p-5">
                             <Transition name="fade-tab" mode="out-in">
                                 <!-- QR Order mockup -->
                                 <div
@@ -467,7 +470,7 @@ const demoSteps: Record<
 
                     <!-- Play badge overlay -->
                     <div
-                        class="absolute -right-4 -bottom-4 z-10 flex h-14 w-14 cursor-pointer items-center justify-center rounded-full bg-primary shadow-lg ring-4 shadow-primary/30 ring-background transition-transform hover:scale-110"
+                        class="absolute -right-2 -bottom-2 z-10 flex h-12 w-12 cursor-pointer items-center justify-center rounded-full bg-primary shadow-lg ring-4 shadow-primary/30 ring-background transition-transform hover:scale-110 sm:-right-4 sm:-bottom-4 sm:h-14 sm:w-14"
                     >
                         <Play
                             class="ml-0.5 h-5 w-5 fill-primary-foreground text-primary-foreground"
@@ -476,10 +479,12 @@ const demoSteps: Record<
                 </div>
 
                 <!-- Steps -->
-                <div class="order-1 space-y-6 lg:order-2">
+                <div class="order-1 space-y-4 sm:space-y-6 lg:order-2">
                     <Transition name="fade-tab" mode="out-in">
                         <div :key="activeTab">
-                            <h3 class="mb-6 text-xl font-bold text-foreground">
+                            <h3
+                                class="mb-4 text-xl font-bold text-foreground sm:mb-6"
+                            >
                                 {{ demoSteps[activeTab].title }}
                             </h3>
                             <ol class="space-y-4">
@@ -487,7 +492,7 @@ const demoSteps: Record<
                                     v-for="(step, i) in demoSteps[activeTab]
                                         .steps"
                                     :key="i"
-                                    class="flex items-start gap-4"
+                                    class="flex items-start gap-3 sm:gap-4"
                                 >
                                     <span
                                         class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-primary/30 bg-primary/10 text-xs font-bold text-primary"
@@ -503,7 +508,7 @@ const demoSteps: Record<
 
                             <!-- Stat callout -->
                             <div
-                                class="mt-8 flex items-center gap-5 rounded-2xl border border-border bg-accent p-5"
+                                class="mt-6 flex flex-col items-start gap-3 rounded-2xl border border-border bg-accent p-4 sm:mt-8 sm:flex-row sm:items-center sm:gap-5 sm:p-5"
                             >
                                 <div class="shrink-0 text-center">
                                     <p class="text-3xl font-black text-primary">

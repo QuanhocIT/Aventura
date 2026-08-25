@@ -35,7 +35,7 @@ class DemoBookingManagementController extends Controller
             });
         }
 
-        $bookings = $query->paginate(15)->withQueryString();
+        $bookings = $query->paginate(10)->withQueryString();
 
         $stats = [
             'total' => DemoBooking::count(),

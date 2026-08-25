@@ -6,6 +6,7 @@ use App\Models\Customer;
 use App\Models\LoyaltyReward;
 use App\Models\Promotion;
 use App\Models\Restaurant;
+use App\Services\CustomerPortalAccessService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -15,7 +16,7 @@ class CustomerPortalTokenSecurityTest extends TestCase
 
     private function tokenFor(int $restaurantId, string $phone): string
     {
-        return hash('sha256', $restaurantId.$phone.config('app.key'));
+        return app(CustomerPortalAccessService::class)->issue($restaurantId, $phone);
     }
 
     public function test_coupon_wallet_rejects_request_without_valid_token(): void

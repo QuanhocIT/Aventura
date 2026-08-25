@@ -44,4 +44,72 @@ class InventoryStaffDashboardRedirectTest extends TestCase
 
         $response->assertOk();
     }
+
+    public function test_central_warehouse_staff_is_redirected_to_staff_portal(): void
+    {
+        $restaurant = Restaurant::factory()->create();
+        $centralBranch = RestaurantBranch::factory()->create([
+            'restaurant_id' => $restaurant->id,
+            'is_central_warehouse' => true,
+            'warehouse_type' => 'central',
+        ]);
+        $role = Role::firstOrCreate(['name' => 'warehouse_staff', 'guard_name' => 'web']);
+
+        $user = User::factory()->create([
+            'restaurant_id' => $restaurant->id,
+            'branch_id' => $centralBranch->id,
+            'warehouse_branch_id' => $centralBranch->id,
+            'status' => 'active',
+        ]);
+        $user->assignRole($role);
+
+        $response = $this->actingAs($user)->get(route('dashboard'));
+
+        $response->assertRedirect(route('inventory.staff-portal'));
+    }
+
+    public function test_central_warehouse_manager_still_enters_coordination_workspace(): void
+    {
+        $restaurant = Restaurant::factory()->create();
+        $role = Role::firstOrCreate(['name' => 'warehouse_manager', 'guard_name' => 'web']);
+
+        $user = User::factory()->create([
+            'restaurant_id' => $restaurant->id,
+            'status' => 'active',
+        ]);
+        $user->assignRole($role);
+
+        $response = $this->actingAs($user)->get(route('dashboard'));
+
+        $response->assertRedirect(route('inventory.central-warehouse'));
+    }
+
+    public function test_central_warehouse_staff_can_open_their_staff_portal(): void
+    {
+        $restaurant = Restaurant::factory()->create();
+        $centralBranch = RestaurantBranch::factory()->create([
+            'restaurant_id' => $restaurant->id,
+            'is_central_warehouse' => true,
+            'warehouse_type' => 'central',
+        ]);
+        $role = Role::firstOrCreate(['name' => 'warehouse_staff', 'guard_name' => 'web']);
+
+        $user = User::factory()->create([
+            'restaurant_id' => $restaurant->id,
+            'branch_id' => $centralBranch->id,
+            'warehouse_branch_id' => $centralBranch->id,
+            'status' => 'active',
+        ]);
+        $user->assignRole($role);
+
+        $response = $this->actingAs($user)->get(route('inventory.staff-portal'));
+
+        $response->assertOk();
+        $response->assertInertia(fn ($page) => $page
+            ->component('inventory/WarehouseStaffPortal')
+            ->has('myTasks')
+            ->has('taskSummary')
+            ->has('currentUser')
+        );
+    }
 }

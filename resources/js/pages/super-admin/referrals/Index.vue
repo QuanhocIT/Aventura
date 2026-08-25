@@ -1,21 +1,10 @@
 <script setup lang="ts">
 import { Head, useForm } from '@inertiajs/vue3';
-import {
-    AlertTriangle,
-    Check,
-    CheckCircle2,
-    Crown,
-    Landmark,
-    X,
-    XCircle,
-} from 'lucide-vue-next';
+import { AlertTriangle, CheckCircle2, Crown, Landmark } from 'lucide-vue-next';
 import { ref } from 'vue';
 import {
     PageHeader,
-    DataTable,
-    StatusBadge,
     Pagination,
-    EmptyState,
 } from '@/components/super-admin';
 import { Button } from '@/components/ui/button';
 import {

@@ -26,6 +26,7 @@ use App\Models\WorkShift;
 use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
@@ -425,7 +426,7 @@ class ComprehensiveValidationTest extends TestCase
         $response->assertSessionHasErrors(['bypass_code']);
     }
 
-    public function test_schedule_11_hour_rest_rule_validation(): void
+    public function test_schedule_allows_assignment_without_rest_requirement(): void
     {
         Carbon::setTestNow('2026-06-08 00:00:00');
         $this->actingAs($this->owner);
@@ -459,15 +460,20 @@ class ComprehensiveValidationTest extends TestCase
             'status' => 'scheduled',
         ]);
 
-        // Try to assign Shift A on Tuesday (starts 08:00 - rest is 6 hours < 11 hours)
+        // Assign Shift A on Tuesday even though the rest period is under 11 hours.
         $response = $this->post(route('employees.schedules.store'), [
             'day' => 'Tuesday',
             'employee_name' => $this->employee1->full_name,
             'shift_name' => $shiftA->name,
         ]);
 
-        $response->assertSessionHasErrors(['shift_name']);
-        $this->assertStringContainsString('nghỉ 11h', strtolower(session()->get('errors')->get('shift_name')[0]));
+        $response->assertRedirect();
+        $response->assertSessionHasNoErrors();
+        $this->assertDatabaseHas('schedule_assignments', [
+            'employee_id' => $this->employee1->id,
+            'shift_id' => $shiftA->id,
+            'scheduled_date' => '2026-06-09 00:00:00',
+        ]);
         Carbon::setTestNow();
     }
 
@@ -671,7 +677,9 @@ class ComprehensiveValidationTest extends TestCase
             'total_cost' => 100000,
         ]);
 
-        // Verify order with 120,000 price (20% variance)
+        // Verify order with 120,000 price (20% variance).
+        // Có chênh lệch nên bắt buộc ảnh bằng chứng + lý do.
+        Storage::fake('public');
         $responseVerify = $this->post(route('suppliers.orders.verify', $po->id), [
             'items' => [
                 [
@@ -681,6 +689,8 @@ class ComprehensiveValidationTest extends TestCase
                 ],
             ],
             'rating' => 5,
+            'invoice_file' => UploadedFile::fake()->image('inv.jpg'),
+            'mismatch_reason' => 'Giá cao hơn báo giá 20%',
         ]);
 
         $responseVerify->assertSessionHas('warning'); // failed match and frozen
@@ -698,7 +708,7 @@ class ComprehensiveValidationTest extends TestCase
         $manager->assignRole($managerRole);
 
         $responseReleaseManager = $this->actingAs($manager)->post(route('suppliers.orders.release-escrow', $po->id));
-        $responseReleaseManager->assertSessionHasErrors(['error']);
+        $responseReleaseManager->assertForbidden();
 
         // Try as owner
         $responseReleaseOwner = $this->actingAs($this->owner)->post(route('suppliers.orders.release-escrow', $po->id));

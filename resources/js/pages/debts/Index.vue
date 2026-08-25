@@ -2,27 +2,15 @@
 import { Head, router, useForm } from '@inertiajs/vue3';
 import {
     BadgeDollarSign,
-    PlusCircle,
-    Calendar,
-    User,
-    AlertTriangle,
-    Clock,
-    TrendingUp,
-    TrendingDown,
-    CheckCircle2,
-    Edit2,
-    FileText,
     LayoutDashboard,
     ListFilter,
     X,
     Users,
-    Receipt,
     Settings,
     ArrowUpRight,
     ArrowDownLeft,
-    Check,
 } from 'lucide-vue-next';
-import { ref, computed } from 'vue';
+import { ref } from 'vue';
 import { toast } from 'vue-sonner';
 import { Pagination } from '@/components/super-admin';
 import { Button } from '@/components/ui/button';
@@ -124,6 +112,7 @@ const props = defineProps<{
     payables: PaginatedList<AccountPayable>;
     receivables: PaginatedList<AccountReceivable>;
     customers: PaginatedList<Customer>;
+    canManageDebt: boolean;
     filters: {
         payable_status: string;
         receivable_status: string;
@@ -774,7 +763,7 @@ function getPercentage(value: number, total: number) {
                                 </td>
                                 <td class="p-3 text-center">
                                     <Button
-                                        v-if="p.status !== 'paid'"
+                                        v-if="canManageDebt && p.status !== 'paid'"
                                         @click="openPayModal(p)"
                                         size="sm"
                                         class="h-7 rounded-md bg-indigo-600 px-2.5 text-[10px] font-bold text-white hover:bg-indigo-700"
@@ -950,7 +939,7 @@ function getPercentage(value: number, total: number) {
                                 </td>
                                 <td class="p-3 text-center">
                                     <Button
-                                        v-if="r.status !== 'paid'"
+                                        v-if="canManageDebt && r.status !== 'paid'"
                                         @click="openCollectModal(r)"
                                         size="sm"
                                         class="h-7 rounded-md bg-emerald-600 px-2.5 text-[10px] font-bold text-white hover:bg-emerald-700"
@@ -1104,6 +1093,7 @@ function getPercentage(value: number, total: number) {
                                 </td>
                                 <td class="p-3 text-center">
                                     <button
+                                        v-if="canManageDebt"
                                         @click="openCreditModal(c)"
                                         class="cursor-pointer rounded-sm p-1 text-slate-500 hover:bg-slate-100 hover:text-indigo-600 dark:hover:bg-slate-800"
                                         title="Sửa hạn mức"
@@ -1128,6 +1118,7 @@ function getPercentage(value: number, total: number) {
         <!-- ── MODALS ── -->
 
         <!-- Pay Supplier Modal -->
+        <Teleport to="body">
         <div
             v-if="showPayModal && selectedPayable"
             class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs"
@@ -1237,8 +1228,10 @@ function getPercentage(value: number, total: number) {
                 </div>
             </div>
         </div>
+        </Teleport>
 
         <!-- Collect Customer Modal -->
+        
         <div
             v-if="showCollectModal && selectedReceivable"
             class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs"
@@ -1346,8 +1339,10 @@ function getPercentage(value: number, total: number) {
                 </div>
             </div>
         </div>
+        
 
         <!-- Edit Customer Credit Limit Modal -->
+        <Teleport to="body">
         <div
             v-if="showCreditModal && selectedCustomer"
             class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs"
@@ -1444,5 +1439,6 @@ function getPercentage(value: number, total: number) {
                 </div>
             </div>
         </div>
+        </Teleport>
     </div>
 </template>

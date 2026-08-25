@@ -13,6 +13,7 @@ use App\Support\TenantFeatureFlags;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
@@ -24,7 +25,7 @@ class TenantHealthController extends Controller
 {
     public function __construct(private readonly QuotaService $quota) {}
 
-    public function index(): Response
+    public function index(Request $request): Response
     {
         $restaurants = Restaurant::with(['plan', 'owner', 'featureFlags'])
             ->withCount('branches')
@@ -36,7 +37,7 @@ class TenantHealthController extends Controller
             ->orderBy('id')
             ->get();
 
-        $users = User::with(['roles', 'employee'])
+        $users = User::with(['roles', 'employee', 'restaurant'])
             ->whereNotNull('restaurant_id')
             ->get();
 
@@ -212,6 +213,33 @@ class TenantHealthController extends Controller
             ])
             ->values();
 
+        $issuesPerPage = 10;
+        $issuesTotal = $issues->count();
+        $issuesLastPage = max(1, (int) ceil($issuesTotal / $issuesPerPage));
+        $issuesPage = min(
+            max((int) $request->query('issues_page', 1), 1),
+            $issuesLastPage,
+        );
+        $issuesPaginator = new LengthAwarePaginator(
+            $issues->forPage($issuesPage, $issuesPerPage)->values(),
+            $issuesTotal,
+            $issuesPerPage,
+            $issuesPage,
+            [
+                'path' => $request->url(),
+                'pageName' => 'issues_page',
+                'query' => $request->query(),
+            ],
+        );
+
+        $tenantsPerPage = 10;
+        $tenantsTotal = $restaurants->count();
+        $tenantsLastPage = max(1, (int) ceil($tenantsTotal / $tenantsPerPage));
+        $tenantsPage = min(
+            max((int) $request->query('tenants_page', 1), 1),
+            $tenantsLastPage,
+        );
+
         return Inertia::render('super-admin/tenant-health/Index', [
             'summary' => [
                 'tenants' => $restaurants->count(),
@@ -220,8 +248,8 @@ class TenantHealthController extends Controller
                 'critical' => $issues->where('severity', 'critical')->count(),
                 'by_type' => $issues->groupBy('type')->map->count()->all(),
             ],
-            'issues' => $issues->values()->all(),
-            'tenants' => $restaurants->map(function (Restaurant $restaurant): array {
+            'issues' => $issuesPaginator,
+            'tenants' => new LengthAwarePaginator($restaurants->map(function (Restaurant $restaurant): array {
                 $overrides = $restaurant->featureFlags->keyBy('feature');
                 $effective = collect(TenantFeatureFlags::keys())->mapWithKeys(function (string $feature) use ($restaurant, $overrides): array {
                     $override = $overrides->get($feature);
@@ -242,7 +270,11 @@ class TenantHealthController extends Controller
                     'features' => $effective,
                     'feature_overrides' => $overrides->mapWithKeys(fn ($flag) => [$flag->feature => (bool) $flag->enabled])->all(),
                 ];
-            })->values()->all(),
+            })->values()->forPage($tenantsPage, $tenantsPerPage), $tenantsTotal, $tenantsPerPage, $tenantsPage, [
+                'path' => $request->url(),
+                'pageName' => 'tenants_page',
+                'query' => $request->query(),
+            ]),
             'branches' => $branches->map(fn (RestaurantBranch $branch) => [
                 'id' => $branch->id,
                 'tenant_id' => $branch->restaurant_id,

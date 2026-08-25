@@ -4,12 +4,10 @@ import axios from 'axios';
 import {
     Bell,
     CreditCard,
-    MessageSquare,
     AlertTriangle,
     X,
     Check,
     Bot,
-    ChevronRight,
     Utensils,
     Sparkles,
     Trash2,
@@ -112,7 +110,7 @@ function playAlarm(type = 'normal') {
             osc.start();
             osc.stop(audioCtx.currentTime + 0.35);
         }
-    } catch (e) {
+    } catch (e: any) {
         console.error('AudioContext error', e);
     }
 }
@@ -182,7 +180,7 @@ async function submitCancel() {
             // Reload parent Inertia pages
             window.location.reload();
         }
-    } catch (err) {
+    } catch {
         toast.error('Có lỗi xảy ra khi hủy yêu cầu.');
     }
 }
@@ -200,7 +198,8 @@ async function addUpsellItem() {
         // Or we can let the cashier update it on their screen.
         // Let's implement an API call to the existing order update:
         // First, let's fetch the products list to find the ID matching recommended_item.
-        const res = await axios.get('/orders/create'); // This returns Inertia, but wait, we can search in products list
+        const res = await axios.get('/orders/create');
+void res; // This returns Inertia, but wait, we can search in products list
         // Let's call the orders update patch endpoint
         const orderRes = await axios.patch(`/orders/${currentOrderId.value}`, {
             items: [
@@ -211,11 +210,12 @@ async function addUpsellItem() {
                 },
             ],
         });
+void orderRes;
         toast.success(
             `Đã thêm món đề xuất '${upsellData.value.recommended_item}' vào đơn hàng!`,
         );
         showUpsellModal.value = false;
-    } catch (e) {
+    } catch {
         // If product ID resolution fails or validation rejects, notify staff to append manually.
         toast.info(
             `Vui lòng thêm thủ công món '${upsellData.value.recommended_item}' từ màn hình POS.`,
@@ -232,7 +232,7 @@ onMounted(() => {
     const restaurantId = user.value.restaurant_id;
 
     if (window.Echo) {
-        window.Echo.channel(`restaurant.${restaurantId}`)
+        window.Echo.private(`restaurant.${restaurantId}`)
             // 1. Listening to new QR order alerts
             .listen('.temporary_order.created', (e: any) => {
                 playAlarm('normal');
@@ -329,6 +329,53 @@ onMounted(() => {
                         { duration: 15000 },
                     );
                 }
+            })
+
+            // 6. Listening to Kitchen Item Cancelled Alerts (Cashier, Order/Waiter, Owner)
+            .listen('.kitchen.item_cancelled', (e: any) => {
+                playAlarm('escalated');
+                const isAll = e.scope === 'all_pending';
+                const alertTitle = isAll
+                    ? `🚨 CẢNH BÁO: BẾP HỦY TOÀN BỘ MÓN "${e.product_name.toUpperCase()}"`
+                    : `🚨 CẢNH BÁO: BẾP HỦY MÓN BÀN ${e.table_name}`;
+
+                const detailsMsg = isAll
+                    ? `Bếp (${e.cancelled_by_name}) đã hủy toàn bộ ${e.cancelled_count} phần món "${e.product_name}" ở tất cả đơn chờ. Lý do: ${e.reason || 'Không ghi lý do'}. Thu ngân & Order vui lòng báo ngay cho khách đổi/hủy món!`
+                    : `Bếp (${e.cancelled_by_name}) đã hủy món "${e.product_name}" (x${e.quantity}) tại Bàn ${e.table_name}. Lý do: ${e.reason || 'Không ghi lý do'}. Thu ngân & Order vui lòng báo ngay cho khách!`;
+
+                activeNotifications.value.unshift({
+                    uid: `cancel-item-${Date.now()}`,
+                    type: 'kitchen_item_cancelled',
+                    title: alertTitle,
+                    subtitle: isAll ? `Áp dụng toàn bộ đơn chờ` : `Bàn ${e.table_name}`,
+                    details: detailsMsg,
+                    time: e.timestamp,
+                    urgency: 'critical',
+                });
+
+                toast.error(
+                    `⚠️ Bếp báo hủy món: ${e.product_name} (${isAll ? 'Tất cả đơn chờ' : 'Bàn ' + e.table_name}). Vui lòng báo khách!`,
+                    { duration: 15000 }
+                );
+            })
+
+            // 7. Listening to Kitchen Call Waiter Alerts
+            .listen('.kitchen.waiter_called', (e: any) => {
+                playAlarm('escalated');
+                activeNotifications.value.unshift({
+                    uid: `kitchen-call-${Date.now()}`,
+                    type: 'kitchen_waiter_called',
+                    title: `🛎️ BẾP RÉO LẤY MÓN - BÀN ${e.table_name}`,
+                    subtitle: e.item_name ? `Món: ${e.item_name}` : `Đơn #${e.order_number}`,
+                    details: e.message || 'Món ăn đã chế biến xong, bếp gọi phục vụ ra lấy món gấp!',
+                    time: e.timestamp,
+                    urgency: 'high',
+                });
+
+                toast.info(
+                    `🛎️ Bếp réo lấy món! Bàn ${e.table_name} ${e.item_name ? '(' + e.item_name + ')' : ''}`,
+                    { duration: 10000 }
+                );
             });
     }
 });
@@ -429,6 +476,7 @@ onUnmounted(() => {
         </div>
 
         <!-- ── AI Upsell proposal modal ────────────────────────────────────── -->
+        <Teleport to="body">
         <div
             v-if="showUpsellModal && upsellData"
             class="pointer-events-auto fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-sm"
@@ -515,8 +563,10 @@ onUnmounted(() => {
                 </footer>
             </div>
         </div>
+        </Teleport>
 
         <!-- ── Cancellation Reason Modal ────────────────────────────────────── -->
+        <Teleport to="body">
         <div
             v-if="showCancelModal"
             class="pointer-events-auto fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-sm"
@@ -566,6 +616,7 @@ onUnmounted(() => {
                 </footer>
             </div>
         </div>
+        </Teleport>
     </div>
 </template>
 

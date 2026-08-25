@@ -1,29 +1,19 @@
 <script setup lang="ts">
-import { Head, useForm, router } from '@inertiajs/vue3';
+import { Head, router, useForm } from '@inertiajs/vue3';
 import {
-    Heart,
     Star,
-    AlertTriangle,
-    ShieldCheck,
     CheckCircle2,
-    Calendar,
-    RefreshCw,
-    Filter,
     Search,
     ShieldAlert,
-    ChevronRight,
-    ArrowUpRight,
     Award,
     MessageSquare,
     Coffee,
-    UserX,
-    Clock,
-    Users,
     Flame,
     Percent,
     Utensils,
 } from 'lucide-vue-next';
 import { ref, computed } from 'vue';
+import { Pagination } from '@/components/super-admin';
 import { Button } from '@/components/ui/button';
 import {
     Card,
@@ -86,9 +76,19 @@ interface Stats {
 
 const props = defineProps<{
     feedbacks: Feedback[];
+    pagination: {
+        links: Array<{ url: string | null; label: string; active: boolean }>;
+        current_page: number;
+        last_page: number;
+        total: number;
+    };
     vouchers: Voucher[];
     stats: Stats;
 }>();
+
+const goToPage = (url: string) => {
+    router.get(url, {}, { preserveState: true, preserveScroll: true });
+};
 
 // --- STATE ---
 const activeFilter = ref<'all' | 'new' | 'resolved' | 'critical'>('all');
@@ -1123,167 +1123,188 @@ const sentimentConfig: Record<string, { text: string; class: string }> = {
                     </p>
                 </div>
             </div>
+
+            <!-- Danh sách chỉ tăng theo thời gian nên đã chuyển sang phân
+                     trang phía server; các chỉ số tổng vẫn tính trên toàn bộ. -->
+            <div v-if="pagination.last_page > 1" class="border-t p-3">
+                <Pagination
+                    as="button"
+                    :links="pagination.links"
+                    :current-page="pagination.current_page"
+                    :last-page="pagination.last_page"
+                    :total="pagination.total"
+                    class="border-0 p-0"
+                    @navigate="goToPage"
+                />
+            </div>
         </Card>
     </div>
 
     <!-- CRISIS RESOLUTION MODAL -->
-    <div
-        v-if="showResolveModal && selectedFeedback"
-        class="animate-fadeIn fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm dark:bg-slate-950/80"
-    >
+    <Teleport to="body">
         <div
-            class="relative w-full max-w-lg overflow-hidden rounded-3xl border border-slate-200/60 bg-white p-6 shadow-2xl dark:border-slate-800 dark:bg-slate-900"
+            v-if="showResolveModal && selectedFeedback"
+            class="animate-fadeIn fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm dark:bg-slate-950/80"
         >
             <div
-                class="mb-4 flex items-center gap-2 border-b pb-3 text-sm font-extrabold tracking-wider text-violet-700 uppercase select-none dark:text-violet-400"
+                class="relative w-full max-w-lg overflow-hidden rounded-3xl border border-slate-200/60 bg-white p-6 shadow-2xl dark:border-slate-800 dark:bg-slate-900"
             >
-                <Award class="size-4.5" />
-                <span>Phương án Đền bù Khủng hoảng (Crisis Resolution)</span>
-            </div>
-
-            <!-- Empathy message about feedback context -->
-            <div
-                class="mb-4 rounded-2xl border border-indigo-100/50 bg-indigo-50/50 p-3.5 text-xs select-none dark:bg-indigo-950/20"
-            >
-                <div class="font-bold text-slate-800 dark:text-slate-200">
-                    Khách hàng: {{ selectedFeedback.submitted_by_name }} ({{
-                        selectedFeedback.table_name
-                    }})
-                </div>
-                <div class="mt-1 text-slate-500 italic dark:text-slate-400">
-                    "{{
-                        selectedFeedback.content ??
-                        'Khách không để lại ý kiến đóng góp chi tiết.'
-                    }}"
-                </div>
-
-                <!-- Detailed ratings context inside modal -->
                 <div
-                    v-if="
-                        (selectedFeedback.items_rating &&
-                            selectedFeedback.items_rating.length > 0) ||
-                        (selectedFeedback.staff_rating &&
-                            selectedFeedback.staff_rating.length > 0)
-                    "
-                    class="mt-2.5 flex flex-col gap-1.5 border-t border-indigo-100/30 pt-2.5 text-[10px] text-slate-600 dark:border-slate-800/80 dark:text-slate-400"
+                    class="mb-4 flex items-center gap-2 border-b pb-3 text-sm font-extrabold tracking-wider text-violet-700 uppercase select-none dark:text-violet-400"
                 >
-                    <div
-                        v-if="
-                            selectedFeedback.items_rating &&
-                            selectedFeedback.items_rating.length > 0
-                        "
-                        class="flex flex-wrap items-center gap-1.5"
+                    <Award class="size-4.5" />
+                    <span
+                        >Phương án Đền bù Khủng hoảng (Crisis Resolution)</span
                     >
-                        <span class="font-bold">Món ăn: </span>
-                        <span
-                            v-for="ir in selectedFeedback.items_rating"
-                            :key="ir.product_id"
-                            class="rounded bg-indigo-100/20 px-1.5 py-0.5 text-indigo-700 dark:bg-slate-900 dark:text-indigo-300"
-                        >
-                            {{ ir.name }} ({{ ir.rating }}★)<span
-                                v-if="ir.comment"
-                                class="font-normal opacity-80"
-                            >
-                                - {{ ir.comment }}</span
-                            >
-                        </span>
+                </div>
+
+                <!-- Empathy message about feedback context -->
+                <div
+                    class="mb-4 rounded-2xl border border-indigo-100/50 bg-indigo-50/50 p-3.5 text-xs select-none dark:bg-indigo-950/20"
+                >
+                    <div class="font-bold text-slate-800 dark:text-slate-200">
+                        Khách hàng: {{ selectedFeedback.submitted_by_name }} ({{
+                            selectedFeedback.table_name
+                        }})
                     </div>
+                    <div class="mt-1 text-slate-500 italic dark:text-slate-400">
+                        "{{
+                            selectedFeedback.content ??
+                            'Khách không để lại ý kiến đóng góp chi tiết.'
+                        }}"
+                    </div>
+
+                    <!-- Detailed ratings context inside modal -->
                     <div
                         v-if="
-                            selectedFeedback.staff_rating &&
-                            selectedFeedback.staff_rating.length > 0
+                            (selectedFeedback.items_rating &&
+                                selectedFeedback.items_rating.length > 0) ||
+                            (selectedFeedback.staff_rating &&
+                                selectedFeedback.staff_rating.length > 0)
                         "
-                        class="mt-1 flex flex-wrap items-center gap-1.5"
+                        class="mt-2.5 flex flex-col gap-1.5 border-t border-indigo-100/30 pt-2.5 text-[10px] text-slate-600 dark:border-slate-800/80 dark:text-slate-400"
                     >
-                        <span class="font-bold">Nhân sự: </span>
-                        <span
-                            v-for="sr in selectedFeedback.staff_rating"
-                            :key="sr.employee_id"
-                            class="rounded bg-indigo-100/20 px-1.5 py-0.5 text-indigo-700 dark:bg-slate-900 dark:text-indigo-300"
+                        <div
+                            v-if="
+                                selectedFeedback.items_rating &&
+                                selectedFeedback.items_rating.length > 0
+                            "
+                            class="flex flex-wrap items-center gap-1.5"
                         >
-                            {{ sr.name }} ({{ sr.rating }}★)<span
-                                v-if="sr.comment"
-                                class="font-normal opacity-80"
+                            <span class="font-bold">Món ăn: </span>
+                            <span
+                                v-for="ir in selectedFeedback.items_rating"
+                                :key="ir.product_id"
+                                class="rounded bg-indigo-100/20 px-1.5 py-0.5 text-indigo-700 dark:bg-slate-900 dark:text-indigo-300"
                             >
-                                - {{ sr.comment }}</span
+                                {{ ir.name }} ({{ ir.rating }}★)<span
+                                    v-if="ir.comment"
+                                    class="font-normal opacity-80"
+                                >
+                                    - {{ ir.comment }}</span
+                                >
+                            </span>
+                        </div>
+                        <div
+                            v-if="
+                                selectedFeedback.staff_rating &&
+                                selectedFeedback.staff_rating.length > 0
+                            "
+                            class="mt-1 flex flex-wrap items-center gap-1.5"
+                        >
+                            <span class="font-bold">Nhân sự: </span>
+                            <span
+                                v-for="sr in selectedFeedback.staff_rating"
+                                :key="sr.employee_id"
+                                class="rounded bg-indigo-100/20 px-1.5 py-0.5 text-indigo-700 dark:bg-slate-900 dark:text-indigo-300"
                             >
-                        </span>
+                                {{ sr.name }} ({{ sr.rating }}★)<span
+                                    v-if="sr.comment"
+                                    class="font-normal opacity-80"
+                                >
+                                    - {{ sr.comment }}</span
+                                >
+                            </span>
+                        </div>
                     </div>
                 </div>
+
+                <form
+                    @submit.prevent="submitResolve"
+                    class="flex flex-col gap-4"
+                >
+                    <!-- Voucher selection -->
+                    <div class="flex flex-col gap-1.5">
+                        <Label
+                            for="voucher"
+                            class="text-xs font-bold text-slate-600 dark:text-slate-400"
+                        >
+                            Chọn Voucher Đền Bù giảm giá cho khách:
+                        </Label>
+                        <select
+                            id="voucher"
+                            v-model="resolveForm.compensation_voucher"
+                            class="h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm focus:ring-2 focus:ring-ring focus:outline-none"
+                        >
+                            <option value="">
+                                -- Không tặng Voucher (Gặp xin lỗi trực tiếp) --
+                            </option>
+                            <option
+                                v-for="v in vouchers"
+                                :key="v.id"
+                                :value="v.code"
+                            >
+                                {{ v.name }} [Mã: {{ v.code }} - Giảm:
+                                {{
+                                    v.type === 'percent'
+                                        ? v.value + '%'
+                                        : formatCurrency(v.value)
+                                }}]
+                            </option>
+                        </select>
+                    </div>
+
+                    <!-- Notes for Resolution action -->
+                    <div class="flex flex-col gap-1.5">
+                        <Label
+                            for="notes"
+                            class="text-xs font-bold text-slate-600 dark:text-slate-400"
+                        >
+                            Nội dung phương án đền bù / giải quyết sự cố:
+                            <span class="font-bold text-rose-500">*</span>
+                        </Label>
+                        <textarea
+                            id="notes"
+                            v-model="resolveForm.resolution_notes"
+                            placeholder="Ví dụ: Đã ra bàn xin lỗi khách vì súp gà bị nguội, trực tiếp đổi tô súp nóng mới và tặng voucher giảm giá 20% cho lần ăn tiếp theo..."
+                            rows="3"
+                            required
+                            class="w-full resize-none rounded-xl border border-slate-200 bg-slate-50/50 px-3 py-2 text-xs transition-all focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 focus:outline-none dark:border-slate-800 dark:bg-slate-900"
+                        ></textarea>
+                    </div>
+
+                    <!-- Action buttons -->
+                    <div class="mt-2 flex justify-end gap-2.5 border-t pt-4">
+                        <Button
+                            type="button"
+                            variant="outline"
+                            @click="showResolveModal = false"
+                            class="h-9 rounded-xl text-xs"
+                        >
+                            Hủy
+                        </Button>
+                        <Button
+                            type="submit"
+                            :disabled="resolveForm.processing"
+                            class="h-9 rounded-xl border-0 bg-gradient-to-r from-violet-600 to-indigo-600 text-xs font-bold text-white shadow-md hover:from-violet-700 hover:to-indigo-700"
+                        >
+                            Xác nhận Giải quyết
+                        </Button>
+                    </div>
+                </form>
             </div>
-
-            <form @submit.prevent="submitResolve" class="flex flex-col gap-4">
-                <!-- Voucher selection -->
-                <div class="flex flex-col gap-1.5">
-                    <Label
-                        for="voucher"
-                        class="text-xs font-bold text-slate-600 dark:text-slate-400"
-                    >
-                        Chọn Voucher Đền Bù giảm giá cho khách:
-                    </Label>
-                    <select
-                        id="voucher"
-                        v-model="resolveForm.compensation_voucher"
-                        class="h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm focus:ring-2 focus:ring-ring focus:outline-none"
-                    >
-                        <option value="">
-                            -- Không tặng Voucher (Gặp xin lỗi trực tiếp) --
-                        </option>
-                        <option
-                            v-for="v in vouchers"
-                            :key="v.id"
-                            :value="v.code"
-                        >
-                            {{ v.name }} [Mã: {{ v.code }} - Giảm:
-                            {{
-                                v.type === 'percent'
-                                    ? v.value + '%'
-                                    : formatCurrency(v.value)
-                            }}]
-                        </option>
-                    </select>
-                </div>
-
-                <!-- Notes for Resolution action -->
-                <div class="flex flex-col gap-1.5">
-                    <Label
-                        for="notes"
-                        class="text-xs font-bold text-slate-600 dark:text-slate-400"
-                    >
-                        Nội dung phương án đền bù / giải quyết sự cố:
-                        <span class="font-bold text-rose-500">*</span>
-                    </Label>
-                    <textarea
-                        id="notes"
-                        v-model="resolveForm.resolution_notes"
-                        placeholder="Ví dụ: Đã ra bàn xin lỗi khách vì súp gà bị nguội, trực tiếp đổi tô súp nóng mới và tặng voucher giảm giá 20% cho lần ăn tiếp theo..."
-                        rows="3"
-                        required
-                        class="w-full resize-none rounded-xl border border-slate-200 bg-slate-50/50 px-3 py-2 text-xs transition-all focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 focus:outline-none dark:border-slate-800 dark:bg-slate-900"
-                    ></textarea>
-                </div>
-
-                <!-- Action buttons -->
-                <div class="mt-2 flex justify-end gap-2.5 border-t pt-4">
-                    <Button
-                        type="button"
-                        variant="outline"
-                        @click="showResolveModal = false"
-                        class="h-9 rounded-xl text-xs"
-                    >
-                        Hủy
-                    </Button>
-                    <Button
-                        type="submit"
-                        :disabled="resolveForm.processing"
-                        class="h-9 rounded-xl border-0 bg-gradient-to-r from-violet-600 to-indigo-600 text-xs font-bold text-white shadow-md hover:from-violet-700 hover:to-indigo-700"
-                    >
-                        Xác nhận Giải quyết
-                    </Button>
-                </div>
-            </form>
         </div>
-    </div>
+    </Teleport>
 </template>
 
 <style scoped>

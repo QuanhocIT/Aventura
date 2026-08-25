@@ -1,11 +1,9 @@
 <script setup lang="ts">
 import { Form, Head, usePage } from '@inertiajs/vue3';
 import { computed, ref } from 'vue';
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment
-// @ts-ignore Vue SFC module declaration is provided by the project shim.
+
 import InputError from '@/components/InputError.vue';
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment
-// @ts-ignore Vue SFC module declaration is provided by the project shim.
+
 import TextLink from '@/components/TextLink.vue';
 import { Button } from '@/components/ui/button';
 import {

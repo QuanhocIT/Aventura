@@ -11,8 +11,6 @@ import {
     CheckCircle2,
     XCircle,
     Users,
-    Building2,
-    CalendarDays,
     Package,
 } from 'lucide-vue-next';
 import { ref, computed } from 'vue';

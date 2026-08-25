@@ -28,6 +28,7 @@ class MenuCatalogCacheService
                     $q->whereNull('branch_id')->orWhere('branch_id', $branchId);
                 }))
                 ->where('is_active', true)
+                ->sellableMenu()
                 ->with(['category:id,name'])
                 ->get()
                 ->map(fn ($p) => [

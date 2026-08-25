@@ -5,7 +5,7 @@
     <title>Nhắc Nhở Công Nợ - Aventura</title>
     <style>
         body {
-            font-family: 'Inter', Arial, sans-serif;
+            font-family: 'Times New Roman', Times, serif;
             background-color: #f8fafc;
             margin: 0;
             padding: 20px;

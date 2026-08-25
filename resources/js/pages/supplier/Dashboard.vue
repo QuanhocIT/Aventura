@@ -8,7 +8,6 @@ import {
     ClipboardList,
     Clock,
     CheckCircle2,
-    ShieldAlert,
 } from 'lucide-vue-next';
 
 const props = defineProps<{
