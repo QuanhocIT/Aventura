@@ -500,10 +500,9 @@ const ownerNav = computed<NavItem[]>(() => {
             feature: 'inventory_basic',
         },
         {
-            title: 'Nhận hàng & GRN',
+            title: 'Nhận hàng & GRN Kho Tổng',
             href: '/inventory/central-warehouse/receiving',
             icon: PackageCheck,
-            permission: 'warehouse.receiving.verify',
             feature: 'inventory_basic',
         },
         {
@@ -524,6 +523,13 @@ const ownerNav = computed<NavItem[]>(() => {
             title: 'Kiểm kê & Điều chỉnh',
             href: '/inventory/count-sessions',
             icon: ClipboardCheck,
+            feature: 'inventory_basic',
+        },
+        {
+            title: 'Chốt nguyên liệu',
+            href: '/inventory/central-warehouse/material-closing',
+            icon: ClipboardCheck,
+            permission: 'inventory.count',
             feature: 'inventory_basic',
         },
         {
@@ -788,9 +794,13 @@ const ownerNav = computed<NavItem[]>(() => {
         '/inventory/transfers': 'supply',
         '/waste-management': 'supply',
         '/inventory/central-warehouse': 'supply',
+        '/inventory/central-warehouse/requests': 'supply',
+        '/inventory/central-warehouse/receiving': 'supply',
+        '/inventory/central-warehouse/prices': 'supply',
         '/inventory/central-warehouse/ai-advisor': 'supply',
         '/inventory/central-warehouse/stock': 'supply',
         '/inventory/count-sessions': 'supply',
+        '/inventory/central-warehouse/material-closing': 'supply',
         '/inventory/central-kitchen': 'supply',
         '/inventory/delivery-manifests': 'supply',
         '/inventory/batch-recalls': 'supply',
@@ -1316,10 +1326,9 @@ const warehouseManagerNav = computed<NavItem[]>(() => {
             feature: 'inventory_basic',
         },
         {
-            title: 'Nhận hàng & GRN',
+            title: 'Nhận hàng & GRN Kho Tổng',
             href: '/inventory/central-warehouse/receiving',
             icon: PackageCheck,
-            permission: 'warehouse.receiving.verify',
             feature: 'inventory_basic',
         },
         {
@@ -1391,6 +1400,12 @@ const warehouseManagerNav = computed<NavItem[]>(() => {
             feature: 'inventory_basic',
         },
         {
+            title: 'Chốt nguyên liệu',
+            href: '/inventory/central-warehouse/material-closing',
+            icon: ClipboardCheck,
+            feature: 'inventory_basic',
+        },
+        {
             title: 'Điều chuyển Nội bộ',
             href: '/inventory/transfers',
             icon: ArrowLeftRight,
@@ -1410,6 +1425,12 @@ const warehouseStaffNav = computed<NavItem[]>(() => {
             title: 'Cổng tác vụ của tôi',
             href: '/inventory/staff-portal',
             icon: CheckSquare,
+            feature: 'inventory_basic',
+        },
+        {
+            title: 'Nhận hàng & GRN Kho Tổng',
+            href: '/inventory/central-warehouse/receiving',
+            icon: PackageCheck,
             feature: 'inventory_basic',
         },
         {
