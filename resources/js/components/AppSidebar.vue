@@ -49,7 +49,6 @@ import {
     Crown,
     Trash2,
     Database,
-    Globe,
     ServerCog,
 } from 'lucide-vue-next';
 import { computed } from 'vue';
@@ -129,7 +128,7 @@ const isOperationsInspector = computed(() =>
 const isWarehouseManager = computed(() => hasRole('warehouse_manager'));
 const isWarehouseStaff = computed(() => hasRole('warehouse_staff'));
 const usesManagementSidebar = computed(
-    () => isOwner.value || isManager.value || isWarehouseManager.value,
+    () => isOwner.value || isManager.value || isWarehouseManager.value || isOperationsInspector.value,
 );
 const isSupplier = computed(() => hasRole('supplier'));
 const supplierPortalEnabled = computed(() =>
@@ -420,12 +419,6 @@ const ownerNav = computed<NavItem[]>(() => {
             feature: 'advanced_analytics',
         },
         {
-            title: 'Phân tích địa lý',
-            href: '/geo-analytics',
-            icon: Route,
-            feature: 'advanced_analytics',
-        },
-        {
             title: 'Mục tiêu & OKR',
             href: '/business-goals',
             icon: BarChart3,
@@ -575,18 +568,6 @@ const ownerNav = computed<NavItem[]>(() => {
             feature: 'supplier_portal',
         },
         {
-            title: 'Giao hàng',
-            href: '/delivery',
-            icon: Route,
-            feature: 'qr_ordering',
-        },
-        {
-            title: 'Đặt hàng Online',
-            href: '/online-store',
-            icon: Globe,
-            feature: 'qr_ordering',
-        },
-        {
             title: 'Nhân sự',
             href: '/employees',
             icon: UserCheck,
@@ -715,12 +696,6 @@ const ownerNav = computed<NavItem[]>(() => {
             title: 'Quản lý chi phí',
             href: '/expenses',
             icon: Receipt,
-            feature: 'inventory_basic',
-        },
-        {
-            title: 'Quản lý công nợ',
-            href: '/debts',
-            icon: BadgeDollarSign,
             feature: 'inventory_basic',
         },
         {
@@ -900,8 +875,21 @@ const ownerNav = computed<NavItem[]>(() => {
 const managerNav = computed<NavItem[]>(() => {
     const nav = [
         { title: 'Tổng quan', href: '/dashboard', icon: LayoutGrid },
-        { title: 'Đơn hàng hôm nay', href: '/orders', icon: ShoppingCart },
+        { title: 'Quản lý đơn hàng', href: '/orders', icon: ShoppingCart },
         { title: 'Đặt bàn', href: '/reservations', icon: CalendarDays },
+        { title: 'Thực đơn & Món', href: '/products', icon: UtensilsCrossed },
+        {
+            title: 'Phân tích thực đơn',
+            href: '/menu-engineering',
+            icon: BarChart3,
+            feature: 'advanced_analytics',
+        },
+        {
+            title: 'Món bán chạy',
+            href: '/best-sellers',
+            icon: Flame,
+            feature: 'advanced_analytics',
+        },
         {
             title: 'Kho nguyên liệu',
             href: '/inventory',
@@ -925,18 +913,6 @@ const managerNav = computed<NavItem[]>(() => {
             href: '/rfps',
             icon: ScrollText,
             feature: 'supplier_portal',
-        },
-        {
-            title: 'Giao hàng',
-            href: '/delivery',
-            icon: Route,
-            feature: 'qr_ordering',
-        },
-        {
-            title: 'Đặt hàng Online',
-            href: '/online-store',
-            icon: Globe,
-            feature: 'qr_ordering',
         },
         {
             title: 'Nhân sự',
@@ -1053,12 +1029,6 @@ const managerNav = computed<NavItem[]>(() => {
             title: 'Quản lý chi phí',
             href: '/expenses',
             icon: Receipt,
-            feature: 'inventory_basic',
-        },
-        {
-            title: 'Quản lý công nợ',
-            href: '/debts',
-            icon: BadgeDollarSign,
             feature: 'inventory_basic',
         },
         {
@@ -1301,26 +1271,31 @@ const operationsInspectorNav: NavItem[] = [
         title: 'Tổng quan thanh tra',
         href: '/operations/audit/overview',
         icon: LayoutGrid,
+        section: 'overview',
     },
     {
         title: 'Kế hoạch & Biên bản thanh tra',
         href: '/operations/audit',
         icon: ShieldAlert,
+        section: 'governance',
     },
     {
         title: 'Phiên kiểm tra hiện trường',
         href: '/operations/inspection-workspace',
         icon: ClipboardCheck,
+        section: 'operations',
     },
     {
         title: 'Bộ Quy định & Tiêu chuẩn',
         href: '/operations/company-policies',
         icon: BookOpen,
+        section: 'operations',
     },
     {
         title: 'Checklist vận hành',
         href: '/operations-checklist',
         icon: CheckSquare,
+        section: 'operations',
     },
     {
         title: 'Kiểm tra tài sản',
@@ -1332,18 +1307,21 @@ const operationsInspectorNav: NavItem[] = [
         title: 'Sự cố vận hành',
         href: '/incidents',
         icon: Siren,
+        section: 'operations',
     },
     {
         title: 'Vi phạm nội bộ',
         href: '/violations',
         icon: FileSearch2,
+        section: 'governance',
     },
     {
         title: 'Nhật ký kiểm toán',
         href: '/audit-logs',
         icon: ScrollText,
+        section: 'governance',
     },
-    { title: 'Liên hệ & Hỗ trợ', href: '/support', icon: Headset },
+    { title: 'Liên hệ & Hỗ trợ', href: '/support', icon: Headset, section: 'settings' },
 ];
 
 const warehouseManagerNav = computed<NavItem[]>(() => {
@@ -1587,6 +1565,16 @@ const mainNavItems = computed<NavItem[]>(() => {
             (item) => item.href !== '/suppliers' && item.href !== '/rfps',
         );
     }
+
+    items = items.filter((item) => {
+        const perm = (item as any).permission;
+
+        if (perm && !can(perm)) {
+            return false;
+        }
+
+        return true;
+    });
 
     const showPortalLink =
         !isSuperAdmin.value &&
