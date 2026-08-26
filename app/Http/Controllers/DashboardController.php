@@ -96,7 +96,7 @@ class DashboardController extends Controller
         }
 
         if ($user && $user->hasAnyRole(['operations_inspector', 'compliance_auditor'])) {
-            return redirect()->route('operations.audit');
+            return redirect()->route('operations.audit.overview');
         }
 
         // Nhân viên Kho Tổng có cổng tác vụ riêng, tối ưu cho thao tác hằng ngày

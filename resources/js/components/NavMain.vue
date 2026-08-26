@@ -470,19 +470,19 @@ watch(
                 "
                 :aria-label="props.collapsibleGroups ? group.label : undefined"
                 :class="[
-                    'group/header relative flex h-11 w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold tracking-[0.02em] text-sidebar-foreground/75 transition-all duration-200',
+                    'group/header relative flex h-11 w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-bold tracking-[0.01em] text-slate-800 dark:text-slate-200 transition-all duration-200',
                     props.collapsibleGroups
-                        ? 'cursor-pointer hover:bg-sidebar-accent/60 hover:text-sidebar-foreground focus-visible:ring-2 focus-visible:ring-sidebar-ring'
-                        : 'text-slate-450 dark:text-slate-500',
+                        ? 'cursor-pointer hover:bg-sidebar-accent/80 hover:text-slate-950 dark:hover:text-white focus-visible:ring-2 focus-visible:ring-sidebar-ring'
+                        : 'text-slate-800 dark:text-slate-200',
                     isGroupExpanded(group) && !isGroupActive(group)
-                        ? 'bg-sidebar-accent/40 text-sidebar-foreground'
+                        ? 'bg-sidebar-accent/50 text-slate-900 dark:text-white'
                         : '',
                 ]"
                 @click="props.collapsibleGroups && toggleGroup(group.key)"
             >
                 <component
                     :is="group.icon"
-                    class="size-[18px] shrink-0 opacity-75 transition-opacity duration-200"
+                    class="size-[18px] shrink-0 opacity-90 transition-opacity duration-200 text-indigo-600 dark:text-indigo-400"
                     aria-hidden="true"
                 />
                 <span class="min-w-0 flex-1 truncate leading-none">
@@ -490,7 +490,7 @@ watch(
                 </span>
                 <ChevronDown
                     v-if="props.collapsibleGroups"
-                    class="size-4 shrink-0 opacity-60 transition-transform duration-200"
+                    class="size-4 shrink-0 opacity-70 transition-transform duration-200"
                     :class="
                         isGroupExpanded(group) ? 'rotate-180 opacity-100' : ''
                     "
@@ -502,7 +502,7 @@ watch(
                 :class="[
                     isGroupContentVisible(group) ? 'mt-1.5' : '',
                     props.collapsibleGroups
-                        ? 'ml-2 border-l border-sidebar-border/60 pl-2'
+                        ? 'ml-2 border-l border-sidebar-border/80 pl-2'
                         : '',
                 ]"
                 v-show="isGroupContentVisible(group)"
@@ -512,7 +512,7 @@ watch(
                         as-child
                         :is-active="isCurrentUrl(item.href)"
                         :tooltip="item.title"
-                        class="group relative h-9 rounded-lg text-[13px] transition-all duration-200 hover:translate-x-0.5 hover:bg-sidebar-accent/70 active:translate-x-0 data-[active=true]:bg-sidebar-accent/80 data-[active=true]:text-primary"
+                        class="group relative h-9.5 rounded-lg text-[13.5px] transition-all duration-200 hover:translate-x-0.5 hover:bg-sidebar-accent/80 active:translate-x-0 data-[active=true]:bg-primary/10 data-[active=true]:font-bold data-[active=true]:text-primary"
                     >
                         <Link
                             :id="
@@ -524,7 +524,7 @@ watch(
                             "
                             :href="item.href"
                             :prefetch="item.prefetch ?? false"
-                            class="relative flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 pl-3"
+                            class="relative flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 pl-3 text-slate-800 dark:text-slate-200"
                         >
                             <!-- Active left border marker -->
                             <span
@@ -539,7 +539,7 @@ watch(
                                 :is="item.icon"
                                 class="size-4 shrink-0 transition-transform duration-300 ease-out group-hover:scale-110 group-hover:rotate-6 group-active:scale-90"
                             />
-                            <span class="flex-1 font-medium">{{
+                            <span class="flex-1 font-semibold">{{
                                 item.title
                             }}</span>
                             <span

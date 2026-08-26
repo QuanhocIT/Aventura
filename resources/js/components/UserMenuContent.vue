@@ -29,16 +29,9 @@ const roles = computed(() => {
         : Object.values(raw as Record<string, string>);
 });
 const isOwner = computed(() => roles.value.includes('owner'));
-const isEmployee = computed(() =>
+const isOwnerOrSuperAdmin = computed(() =>
     roles.value.some((role) =>
-        [
-            'cashier',
-            'waiter',
-            'kitchen',
-            'inventory_staff',
-            'warehouse_staff',
-            'shipper',
-        ].includes(role),
+        ['owner', 'super_admin', 'system_admin'].includes(role),
     ),
 );
 
@@ -67,12 +60,12 @@ const handleLogout = () => {
         <DropdownMenuItem :as-child="true">
             <Link
                 class="block w-full cursor-pointer"
-                :href="isEmployee ? '/employee-portal/profile' : edit()"
+                :href="isOwnerOrSuperAdmin ? edit() : '/settings/profile'"
                 prefetch
             >
-                <UserRound v-if="isEmployee" class="mr-2 h-4 w-4" />
-                <Settings v-else class="mr-2 h-4 w-4" />
-                {{ isEmployee ? 'Hồ sơ cá nhân' : 'Cài đặt hệ thống' }}
+                <Settings v-if="isOwnerOrSuperAdmin" class="mr-2 h-4 w-4" />
+                <UserRound v-else class="mr-2 h-4 w-4" />
+                {{ isOwnerOrSuperAdmin ? 'Cài đặt hệ thống' : 'Hồ sơ cá nhân' }}
             </Link>
         </DropdownMenuItem>
         <DropdownMenuItem

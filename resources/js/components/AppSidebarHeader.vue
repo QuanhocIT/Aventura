@@ -99,13 +99,13 @@ const showPolicyModal = ref(false);
             </template>
             <nav
                 v-else-if="user && !isSuperAdminRoute && !isEmployee"
-                class="hidden items-center gap-0.5 md:flex"
+                class="hidden shrink-0 items-center gap-0.5 md:flex"
             >
                 <Link
                     v-for="item in navItems"
                     :key="item.href"
                     :href="item.href"
-                    class="rounded-md px-3 py-1.5 text-sm transition-colors"
+                    class="shrink-0 rounded-md px-3 py-1.5 text-sm whitespace-nowrap transition-colors"
                     :class="
                         page.url.startsWith(item.href)
                             ? 'bg-muted font-medium text-foreground'

@@ -8,6 +8,7 @@ use App\Models\Employee;
 use App\Models\Order;
 use App\Models\RestaurantTable;
 use App\Models\ViolationReport;
+use App\Support\Tenant\TenantContext;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -22,10 +23,12 @@ class AuditLogController extends Controller
         abort_unless($user->can('view_audit_log') || $user->can('audit.read') || $user->can('audit.manage'), 403);
 
         $restaurantId = $user->restaurant_id;
+        $tenantContext = app(TenantContext::class);
 
-        $query = AuditLog::with('user')
+        $query = AuditLog::with(['user', 'branch'])
             ->where('restaurant_id', $restaurantId)
             ->latest('created_at');
+        $tenantContext->applyBranchScope($query);
 
         if ($request->filled('action')) {
             $query->where('action', $request->action);
@@ -37,6 +40,10 @@ class AuditLogController extends Controller
 
         if ($request->filled('user_role')) {
             $query->where('user_role', $request->user_role);
+        }
+
+        if ($request->filled('branch_id')) {
+            $query->where('branch_id', $request->branch_id);
         }
 
         if ($request->filled('from')) {
@@ -55,10 +62,11 @@ class AuditLogController extends Controller
         if ($logs->isNotEmpty()) {
             $minDate = $logs->min('created_at')->subMinutes(5);
             $maxDate = $logs->max('created_at')->addMinutes(5);
-            $systemViolations = ViolationReport::where('restaurant_id', $restaurantId)
+            $violationsQuery = ViolationReport::where('restaurant_id', $restaurantId)
                 ->whereNull('reported_by')
-                ->whereBetween('occurred_at', [$minDate, $maxDate])
-                ->get();
+                ->whereBetween('occurred_at', [$minDate, $maxDate]);
+            $tenantContext->applyBranchScope($violationsQuery);
+            $systemViolations = $violationsQuery->get();
 
             $userIds = $logs->pluck('user_id')->filter()->unique();
             $employees = Employee::withoutGlobalScopes()
@@ -101,6 +109,8 @@ class AuditLogController extends Controller
                     'user_name' => $l->user?->name ?? 'Hệ thống',
                     'user_email' => $l->user?->email,
                     'user_role' => $l->user_role,
+                    'branch_id' => $l->branch_id,
+                    'branch_name' => $l->branch?->name ?? ($l->branch_id ? "Chi nhánh #{$l->branch_id}" : 'Toàn chuỗi / Cố định'),
                     'event' => $l->event,
                     'action' => $l->action,
                     'subject_type' => $l->subject_type ? class_basename($l->subject_type) : null,
@@ -117,7 +127,7 @@ class AuditLogController extends Controller
                     ] : null,
                 ];
             }),
-            'filters' => $request->only(['action', 'event', 'user_role', 'from', 'to']),
+            'filters' => $request->only(['action', 'event', 'user_role', 'branch_id', 'from', 'to']),
             'total' => $logs->total(),
         ]);
     }
@@ -128,10 +138,12 @@ class AuditLogController extends Controller
         abort_unless($user->can('view_audit_log') || $user->can('audit.read') || $user->can('audit.manage'), 403);
 
         $restaurantId = $user->restaurant_id;
+        $tenantContext = app(TenantContext::class);
 
-        $query = AuditLog::with('user')
+        $query = AuditLog::with(['user', 'branch'])
             ->where('restaurant_id', $restaurantId)
             ->latest('created_at');
+        $tenantContext->applyBranchScope($query);
 
         if ($request->filled('action')) {
             $query->where('action', $request->action);
@@ -143,6 +155,10 @@ class AuditLogController extends Controller
 
         if ($request->filled('user_role')) {
             $query->where('user_role', $request->user_role);
+        }
+
+        if ($request->filled('branch_id')) {
+            $query->where('branch_id', $request->branch_id);
         }
 
         if ($request->filled('from')) {
@@ -170,6 +186,7 @@ class AuditLogController extends Controller
                 'Thời gian',
                 'Người thực hiện',
                 'Vai trò',
+                'Chi nhánh đối tượng',
                 'Sự kiện',
                 'Hành động',
                 'Đối tượng',
@@ -205,6 +222,7 @@ class AuditLogController extends Controller
                         $l->created_at->format('d/m/Y H:i:s'),
                         $l->user?->name ?? 'Hệ thống',
                         $l->user_role ?? 'N/A',
+                        $l->branch?->name ?? ($l->branch_id ? "Chi nhánh #{$l->branch_id}" : 'Toàn chuỗi / Cố định'),
                         $eventLabels[$l->event] ?? $l->event,
                         $actionLabels[$l->action] ?? $l->action,
                         $l->subject_type ? class_basename($l->subject_type) : '—',

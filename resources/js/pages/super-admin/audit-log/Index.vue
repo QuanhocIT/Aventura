@@ -885,7 +885,11 @@ const securityInsights = computed(() => {
                                         class="px-4 py-3.5 text-xs font-semibold text-muted-foreground"
                                     >
                                         <span v-if="log.subject_type">
-                                            {{ formatSubjectType(log.subject_type) }}
+                                            {{
+                                                formatSubjectType(
+                                                    log.subject_type,
+                                                )
+                                            }}
                                             <span
                                                 v-if="log.subject_id"
                                                 class="font-mono text-[10px] text-slate-400"
@@ -935,9 +939,8 @@ const securityInsights = computed(() => {
                                                         <Terminal
                                                             class="size-3"
                                                         />
-                                                        Trình xem thay đổi thuộc
-                                                        tính (Trình xem thay
-                                                        đổi)
+                                                        Chi tiết thay đổi dữ
+                                                        liệu
                                                     </span>
                                                 </div>
                                                 <div
@@ -1000,12 +1003,16 @@ const securityInsights = computed(() => {
                                                             <td
                                                                 class="px-3.5 py-2 text-rose-400 line-through"
                                                             >
-                                                                {{ item.oldFormatted }}
+                                                                {{
+                                                                    item.oldFormatted
+                                                                }}
                                                             </td>
                                                             <td
                                                                 class="px-3.5 py-2 font-bold text-emerald-400"
                                                             >
-                                                                {{ item.newFormatted }}
+                                                                {{
+                                                                    item.newFormatted
+                                                                }}
                                                             </td>
                                                         </tr>
                                                     </tbody>
@@ -1069,7 +1076,6 @@ const securityInsights = computed(() => {
                                                 >
                                                     <Plus class="size-3" /> Dữ
                                                     liệu được ghi nhận mới
-                                                    (Recorded Values)
                                                 </p>
                                                 <pre
                                                     class="max-h-56 overflow-auto rounded-lg border border-emerald-500/10 bg-emerald-950/20 p-3.5 font-mono text-[11px] leading-relaxed text-emerald-300"

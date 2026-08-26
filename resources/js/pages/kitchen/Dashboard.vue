@@ -1049,7 +1049,7 @@ onUnmounted(() => {
     <Head title="Màn hình Bếp - Aventura" />
 
     <div
-        class="flex min-h-screen flex-col gap-6 bg-slate-50/50 p-6 dark:bg-slate-900/30"
+        class="dashboard-shell flex min-h-screen flex-col gap-6 bg-slate-50/50 p-6 dark:bg-slate-900/30"
     >
         <!-- ── HEADER ── -->
         <div
@@ -1149,7 +1149,7 @@ onUnmounted(() => {
         </div>
 
         <!-- ── THỐNG KÊ TỐC ĐỘ BẾP HÔM NAY ── -->
-        <div class="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <div class="dashboard-kpi-grid">
             <div
                 class="rounded-2xl border border-slate-200 bg-white p-3.5 dark:border-slate-800/60 dark:bg-slate-900"
             >

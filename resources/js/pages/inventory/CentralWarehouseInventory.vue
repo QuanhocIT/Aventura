@@ -345,7 +345,7 @@ const activityTypeLabel = (type: string) =>
 
     <div class="mx-auto w-full max-w-[1500px] space-y-5 p-4 sm:p-6">
         <section
-            class="rounded-3xl border border-indigo-500/20 bg-gradient-to-br from-slate-950 via-indigo-950/90 to-slate-900 p-6 text-white shadow-xl sm:p-8"
+            class="rounded-3xl border border-indigo-200/80 bg-gradient-to-br from-indigo-50/70 via-slate-50 to-indigo-100/40 p-6 text-slate-900 shadow-sm sm:p-8 dark:border-indigo-500/20 dark:bg-gradient-to-br dark:from-slate-950 dark:via-indigo-950/90 dark:to-slate-900 dark:text-white dark:shadow-xl"
         >
             <div
                 class="flex flex-col justify-between gap-5 lg:flex-row lg:items-end"
@@ -353,22 +353,22 @@ const activityTypeLabel = (type: string) =>
                 <div>
                     <Link
                         href="/inventory/central-warehouse"
-                        class="mb-3 inline-flex items-center gap-1 text-xs text-indigo-200 hover:text-white"
+                        class="mb-3 inline-flex items-center gap-1 text-xs text-indigo-700 hover:text-indigo-900 dark:text-indigo-200 dark:hover:text-white"
                         >← Tổng quan Kho Tổng</Link
                     >
                     <div class="flex items-center gap-3">
                         <div
-                            class="flex h-12 w-12 items-center justify-center rounded-2xl bg-indigo-500/20 text-indigo-200"
+                            class="flex h-12 w-12 items-center justify-center rounded-2xl bg-indigo-500/10 text-indigo-600 dark:bg-indigo-500/20 dark:text-indigo-200"
                         >
                             <Warehouse class="h-6 w-6" />
                         </div>
                         <div>
                             <h1
-                                class="text-2xl font-bold tracking-tight sm:text-3xl"
+                                class="text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl dark:text-white"
                             >
                                 Tồn kho Kho Tổng
                             </h1>
-                            <p class="mt-1 text-sm text-indigo-100/75">
+                            <p class="mt-1 text-sm text-slate-600 dark:text-indigo-100/75">
                                 Theo dõi tồn thực tế, tồn khả dụng và lô hàng
                                 tại kho nguồn.
                             </p>

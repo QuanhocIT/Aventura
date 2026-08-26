@@ -172,7 +172,7 @@ function formatMoneyFull(v: number): string {
 </script>
 
 <template>
-    <div class="flex flex-col gap-6">
+    <div class="flex flex-col gap-6 lg:sticky lg:top-20">
         <!-- Onboarding widget -->
         <template v-if="!onboardingComplete">
             <div>

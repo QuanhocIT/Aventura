@@ -1159,7 +1159,7 @@ function cohortCellStyle(value: number | null): string {
 
     <div
         :class="[
-            'mx-auto flex w-full flex-col gap-5 px-6 py-5',
+            'dashboard-shell mx-auto flex w-full flex-col gap-5 px-6 py-5',
             { 'compact-mode': compactMode },
         ]"
     >

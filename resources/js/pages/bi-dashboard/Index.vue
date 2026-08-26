@@ -681,7 +681,7 @@ const statusClasses: Record<string, string> = {
 <template>
     <Head title="BI — Điều hành kinh doanh" />
 
-    <div class="mx-auto w-full max-w-[1600px] space-y-5 p-4 lg:p-7">
+    <div class="dashboard-shell mx-auto w-full max-w-[1600px] p-4 lg:p-7">
         <header
             class="overflow-hidden rounded-[1.75rem] border border-slate-200/80 bg-white shadow-sm dark:border-white/[0.08] dark:bg-slate-950/70"
         >
@@ -905,12 +905,12 @@ const statusClasses: Record<string, string> = {
                         </div>
                     </div>
                     <div
-                        class="rounded-2xl border border-slate-200/80 bg-slate-950 p-5 text-white shadow-sm dark:border-white/[0.08]"
+                        class="rounded-2xl border border-slate-200/80 bg-white p-5 text-slate-900 shadow-sm dark:border-white/[0.08] dark:bg-slate-950 dark:text-white"
                     >
                         <div class="flex items-start justify-between gap-3">
                             <div>
                                 <p
-                                    class="text-xs font-bold tracking-[0.14em] text-slate-400 uppercase"
+                                    class="text-xs font-bold tracking-[0.14em] text-slate-500 uppercase dark:text-slate-400"
                                 >
                                     Điểm hòa vốn
                                 </p>
@@ -926,8 +926,8 @@ const statusClasses: Record<string, string> = {
                                 class="flex size-9 items-center justify-center rounded-xl"
                                 :class="
                                     be.is_profitable
-                                        ? 'bg-emerald-500/15 text-emerald-400'
-                                        : 'bg-amber-500/15 text-amber-300'
+                                        ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400'
+                                        : 'bg-amber-500/15 text-amber-600 dark:text-amber-300'
                                 "
                             >
                                 <Gauge class="size-5" />
@@ -936,26 +936,26 @@ const statusClasses: Record<string, string> = {
                         <div class="mt-5 flex items-end justify-between">
                             <div>
                                 <p
-                                    class="text-3xl font-semibold tracking-tight"
+                                    class="text-3xl font-semibold tracking-tight text-slate-900 dark:text-white"
                                 >
                                     {{ formatNumber(be.total_orders) }}
                                 </p>
-                                <p class="mt-1 text-xs text-slate-400">
+                                <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">
                                     đơn thực tế trong kỳ
                                 </p>
                             </div>
                             <p
-                                class="text-right text-sm font-semibold text-slate-300"
+                                class="text-right text-sm font-semibold text-slate-700 dark:text-slate-300"
                             >
                                 {{ formatNumber(be.break_even_orders) }}
                                 đơn<br /><span
-                                    class="text-xs font-normal text-slate-500"
+                                    class="text-xs font-normal text-slate-400 dark:text-slate-500"
                                     >để hòa vốn</span
                                 >
                             </p>
                         </div>
                         <div
-                            class="mt-5 h-2 overflow-hidden rounded-full bg-white/10"
+                            class="mt-5 h-2 overflow-hidden rounded-full bg-slate-100 dark:bg-white/10"
                         >
                             <div
                                 class="h-full rounded-full bg-orange-500 transition-all"
@@ -963,7 +963,7 @@ const statusClasses: Record<string, string> = {
                             />
                         </div>
                         <div
-                            class="mt-2 flex justify-between text-[11px] text-slate-500"
+                            class="mt-2 flex justify-between text-[11px] text-slate-500 dark:text-slate-400"
                         >
                             <span
                                 >{{ formatNumber(breakEvenProgress, 0) }}% tiến

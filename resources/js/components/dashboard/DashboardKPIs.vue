@@ -83,13 +83,12 @@ watch(
 </script>
 
 <template>
-    <div class="space-y-5">
+    <div class="dashboard-home-kpis space-y-4">
         <!-- Today's KPI row -->
         <div
             v-if="stats"
             :class="[
-                'grid grid-cols-2 gap-3 sm:grid-cols-4',
-                can('advanced_analytics') ? 'lg:grid-cols-8' : 'lg:grid-cols-7',
+                'dashboard-kpi-grid dashboard-main-kpi-grid',
             ]"
         >
             <!-- Đơn hàng -->

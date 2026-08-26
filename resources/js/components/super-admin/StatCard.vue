@@ -149,7 +149,7 @@ const sparklinePoints = computed(() => {
     <div
         :class="
             cn(
-                'group relative overflow-hidden rounded-2xl border border-white/[0.12] bg-card/90 p-4 shadow-[var(--shadow-premium)] backdrop-blur-sm transition-all duration-300 hover:-translate-y-0.5 hover:border-white/20 hover:shadow-[var(--shadow-elevated)] dark:border-white/[0.08] dark:bg-card/80',
+                'dashboard-kpi-card group relative overflow-hidden rounded-2xl border border-white/[0.12] bg-card/90 p-4 shadow-[var(--shadow-premium)] backdrop-blur-sm transition-all duration-300 hover:-translate-y-0.5 hover:border-white/20 hover:shadow-[var(--shadow-elevated)] dark:border-white/[0.08] dark:bg-card/80',
                 clickable && 'cursor-pointer',
                 props.class,
             )

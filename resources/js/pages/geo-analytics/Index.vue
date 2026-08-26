@@ -270,7 +270,7 @@ onUnmounted(() => {
     <!-- Skeleton loading state -->
     <div
         v-if="isLoading"
-        class="mx-auto flex w-full max-w-7xl animate-pulse flex-col gap-5 p-4 lg:p-6"
+        class="dashboard-shell mx-auto flex w-full max-w-7xl animate-pulse flex-col gap-5 p-4 lg:p-6"
     >
         <!-- Header skeleton -->
         <div class="flex items-center gap-3 border-b border-border pb-5">
@@ -318,7 +318,7 @@ onUnmounted(() => {
     </div>
 
     <!-- Main content loaded state -->
-    <div v-else class="mx-auto flex w-full max-w-7xl flex-col gap-5 p-4 lg:p-6">
+    <div v-else class="dashboard-shell mx-auto flex w-full max-w-7xl flex-col gap-5 p-4 lg:p-6">
         <!-- ── Header ──────────────────────────────────────────────────────── -->
         <div
             class="flex flex-col gap-4 border-b border-border pb-5 sm:flex-row sm:items-center sm:justify-between"
@@ -405,7 +405,7 @@ onUnmounted(() => {
         </Card>
 
         <!-- KPI Cards -->
-        <div v-if="zoneStats" class="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <div v-if="zoneStats" class="dashboard-kpi-grid">
             <!-- 1. Tổng đơn giao hàng -->
             <Card>
                 <CardContent class="px-4 pt-4 pb-4">
@@ -487,7 +487,7 @@ onUnmounted(() => {
             </Card>
         </div>
 
-        <div class="grid grid-cols-1 gap-6 lg:grid-cols-3">
+        <div class="dashboard-grid">
             <!-- Delivery Zone Distribution -->
             <Card>
                 <CardContent class="space-y-3 pt-5">

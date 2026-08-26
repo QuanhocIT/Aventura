@@ -311,19 +311,19 @@ const getStatusBadge = (status: string) => {
     <div class="mx-auto max-w-7xl space-y-6 p-6">
         <!-- Header -->
         <div
-            class="flex flex-col gap-4 rounded-2xl bg-gradient-to-r from-slate-900 to-indigo-900 p-6 text-white shadow-xl md:flex-row md:items-center md:justify-between"
+            class="flex flex-col gap-4 rounded-2xl border border-indigo-200/80 bg-gradient-to-r from-indigo-50/70 via-slate-50 to-indigo-100/40 p-6 text-slate-900 shadow-sm md:flex-row md:items-center md:justify-between dark:border-indigo-400/20 dark:bg-gradient-to-r dark:from-slate-900 dark:to-indigo-900 dark:text-white dark:shadow-xl"
         >
             <div class="flex items-center gap-3">
                 <div
-                    class="rounded-xl border border-indigo-400/30 bg-indigo-500/20 p-3"
+                    class="rounded-xl border border-indigo-200 bg-indigo-500/10 p-3 text-indigo-600 dark:border-indigo-400/30 dark:bg-indigo-500/20 dark:text-indigo-300"
                 >
-                    <ShoppingCart class="h-8 w-8 text-indigo-300" />
+                    <ShoppingCart class="h-8 w-8" />
                 </div>
                 <div>
-                    <h1 class="text-2xl font-bold tracking-tight">
+                    <h1 class="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
                         Đặt Hàng Cấp Phát Kho Tổng
                     </h1>
-                    <p class="text-sm text-indigo-200">
+                    <p class="text-sm text-slate-600 dark:text-indigo-200">
                         Gửi đơn yêu cầu bổ sung nguyên liệu daily đến Kho Tổng
                         cho Chi nhánh
                     </p>

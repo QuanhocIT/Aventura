@@ -365,7 +365,7 @@ const triggerAutoVoucherCode = () => {
 <template>
     <Head title="Nền tảng CDP & Phân tích RFM" />
 
-    <div class="mx-auto flex w-full max-w-7xl flex-col gap-6 p-6">
+    <div class="dashboard-shell mx-auto flex w-full max-w-7xl flex-col gap-6 p-6">
         <!-- HEADER -->
         <div
             class="flex flex-col gap-4 border-b pb-5 sm:flex-row sm:items-center sm:justify-between"
@@ -462,7 +462,7 @@ const triggerAutoVoucherCode = () => {
         <!-- ── VIEW 1: RFM ANALYTICS ── -->
         <div v-if="activeSubTab === 'analytics'" class="space-y-6">
             <!-- CDP KPI STATS -->
-            <div class="grid grid-cols-1 gap-4 md:grid-cols-4">
+            <div class="dashboard-kpi-grid">
                 <Card
                     class="border-indigo-100/30 bg-gradient-to-br from-indigo-50/20 to-white shadow-xs transition-all hover:translate-y-[-2px] dark:from-indigo-950/10 dark:to-slate-900"
                 >

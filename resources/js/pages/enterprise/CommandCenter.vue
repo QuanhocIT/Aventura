@@ -10,7 +10,10 @@ import {
     TrendingUp,
 } from 'lucide-vue-next';
 import { computed } from 'vue';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import DashboardKpiCard from '@/components/dashboard/DashboardKpiCard.vue';
+import DashboardListCard from '@/components/dashboard/DashboardListCard.vue';
+import DashboardShell from '@/components/dashboard/DashboardShell.vue';
+import DashboardSummaryCard from '@/components/dashboard/DashboardSummaryCard.vue';
 import AppLayout from '@/layouts/AppLayout.vue';
 
 defineOptions({ layout: AppLayout });
@@ -70,108 +73,46 @@ const summaryCards = computed(() => [
     },
 ]);
 
-function toneClasses(tone: string) {
-    return (
-        {
-            indigo: 'border-indigo-100 dark:border-indigo-950/30',
-            emerald: 'border-emerald-100 dark:border-emerald-950/30',
-            rose: 'border-rose-100 dark:border-rose-950/30',
-            amber: 'border-amber-100 dark:border-amber-950/30',
-        }[tone] ?? 'border-border'
-    );
-}
-
-function iconClasses(tone: string) {
-    return (
-        {
-            indigo: 'bg-indigo-50 text-indigo-600 dark:bg-indigo-950/50 dark:text-indigo-400',
-            emerald:
-                'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/50 dark:text-emerald-400',
-            rose: 'bg-rose-50 text-rose-600 dark:bg-rose-950/50 dark:text-rose-400',
-            amber: 'bg-amber-50 text-amber-600 dark:bg-amber-950/50 dark:text-amber-400',
-        }[tone] ?? 'bg-muted text-muted-foreground'
-    );
-}
 </script>
 
 <template>
     <Head title="Trung tâm điều hành chuỗi" />
 
-    <div class="mx-auto flex w-full max-w-7xl flex-col gap-6 p-4 sm:p-6">
-        <div
-            class="flex flex-col gap-4 rounded-2xl bg-gradient-to-r from-slate-950 via-indigo-950 to-slate-950 p-6 text-white shadow-xl sm:flex-row sm:items-center sm:justify-between"
-        >
-            <div class="flex items-center gap-3">
-                <div
-                    class="rounded-2xl border border-indigo-300/20 bg-indigo-400/15 p-3"
-                >
-                    <BarChart3 class="size-7 text-indigo-200" />
-                </div>
-                <div>
-                    <h1 class="text-2xl font-bold tracking-tight">
-                        Trung tâm điều hành chuỗi
-                    </h1>
-                    <p class="mt-1 text-sm text-indigo-200/80">
-                        Theo dõi sức khỏe, doanh thu, tiền mặt, tồn kho và vi
-                        phạm của toàn bộ chi nhánh.
-                    </p>
-                </div>
-            </div>
-            <div class="text-right text-xs text-indigo-200/70">
+    <DashboardShell
+        title="Trung tâm điều hành chuỗi"
+        eyebrow="TỔNG QUAN CHUỖI"
+        description="Theo dõi sức khỏe, doanh thu, tiền mặt, tồn kho và vi phạm của toàn bộ chi nhánh."
+        :icon="BarChart3"
+    >
+        <template #actions>
+            <span class="dashboard-filterbar__period">
                 Cập nhật theo tháng hiện tại
-            </div>
-        </div>
+            </span>
+        </template>
 
-        <div class="grid grid-cols-2 gap-3 lg:grid-cols-4">
-            <Card
+        <section class="dashboard-kpi-grid">
+            <DashboardKpiCard
                 v-for="card in summaryCards"
                 :key="card.label"
-                :class="[
-                    'shadow-sm transition hover:-translate-y-0.5',
-                    toneClasses(card.tone),
-                ]"
+                :label="card.label"
+                :value="card.value"
+                :icon="card.icon"
+                :tone="card.tone as any"
+            />
+        </section>
+
+        <section class="dashboard-grid">
+            <DashboardListCard
+                class="col-span-12 lg:col-span-8"
+                title="Sức khỏe từng chi nhánh"
+                description="Tối đa 10 chi nhánh quan trọng nhất; danh sách dài được giới hạn trong vùng cuộn."
+                :icon="Building2"
+                :empty="scorecards.length === 0"
+                empty-title="Chưa có chi nhánh để theo dõi"
             >
-                <CardContent
-                    class="flex items-center justify-between gap-3 p-4"
-                >
-                    <div>
-                        <p class="text-xs font-medium text-muted-foreground">
-                            {{ card.label }}
-                        </p>
-                        <p
-                            class="mt-1 text-xl font-black text-foreground tabular-nums"
-                        >
-                            {{ card.value }}
-                        </p>
-                    </div>
-                    <div :class="['rounded-xl p-2.5', iconClasses(card.tone)]">
-                        <component :is="card.icon" class="size-5" />
-                    </div>
-                </CardContent>
-            </Card>
-        </div>
-
-        <Card class="overflow-hidden shadow-sm">
-            <CardHeader class="border-b bg-slate-50/50 dark:bg-slate-900/50">
-                <CardTitle class="flex items-center gap-2 text-base">
-                    <Building2
-                        class="size-4 text-indigo-600 dark:text-indigo-400"
-                    />
-                    Sức khỏe từng chi nhánh
-                </CardTitle>
-            </CardHeader>
-            <CardContent class="p-0">
-                <div
-                    v-if="scorecards.length === 0"
-                    class="flex flex-col items-center justify-center gap-3 py-16 text-sm text-muted-foreground"
-                >
-                    <Building2 class="size-8 opacity-50" />
-                    Chưa có chi nhánh để theo dõi.
-                </div>
-
-                <div v-else class="grid gap-3 p-4 lg:grid-cols-2">
+                <div class="grid gap-3 p-4 md:grid-cols-2">
                     <div
-                        v-for="branch in scorecards"
+                        v-for="branch in scorecards.slice(0, 10)"
                         :key="branch.branch_id"
                         class="rounded-xl border border-border/70 bg-background p-4 transition hover:border-indigo-300/70 hover:shadow-sm dark:bg-slate-950/20"
                     >
@@ -264,7 +205,41 @@ function iconClasses(tone: string) {
                         </div>
                     </div>
                 </div>
-            </CardContent>
-        </Card>
-    </div>
+
+                <template #footer>
+                    <span v-if="scorecards.length > 10" class="text-xs text-muted-foreground">
+                        Đang hiển thị 10/{{ scorecards.length }} chi nhánh. Cuộn để xem danh sách đầy đủ.
+                    </span>
+                </template>
+            </DashboardListCard>
+
+            <DashboardSummaryCard
+                class="col-span-12 lg:col-span-4"
+                title="Tóm tắt chuỗi"
+                description="Các chỉ số tổng hợp trong phạm vi hiện tại."
+                :icon="TrendingUp"
+            >
+                <div class="grid gap-3 sm:grid-cols-3 lg:grid-cols-1">
+                    <div class="rounded-xl bg-muted/50 p-3">
+                        <p class="dashboard-card-label">Doanh thu tháng này</p>
+                        <p class="mt-1 text-lg font-black text-emerald-600 dark:text-emerald-300">
+                            {{ currency.format(summary.total_revenue) }}
+                        </p>
+                    </div>
+                    <div class="rounded-xl bg-muted/50 p-3">
+                        <p class="dashboard-card-label">Vi phạm đang mở</p>
+                        <p class="mt-1 text-lg font-black text-rose-600 dark:text-rose-300">
+                            {{ summary.total_open_infringements }} hồ sơ
+                        </p>
+                    </div>
+                    <div class="rounded-xl bg-muted/50 p-3">
+                        <p class="dashboard-card-label">Mặt hàng cần bổ sung</p>
+                        <p class="mt-1 text-lg font-black text-amber-600 dark:text-amber-300">
+                            {{ summary.total_low_stock }} mặt hàng
+                        </p>
+                    </div>
+                </div>
+            </DashboardSummaryCard>
+        </section>
+    </DashboardShell>
 </template>

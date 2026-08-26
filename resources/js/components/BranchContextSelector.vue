@@ -43,7 +43,7 @@ const handleChange = (event: Event) => {
         <MapPin class="size-3.5 shrink-0 text-indigo-500" />
         <span
             v-if="!compact"
-            class="hidden font-medium tracking-wider text-muted-foreground uppercase sm:inline"
+            class="hidden font-bold tracking-wider text-slate-700 uppercase sm:inline dark:text-slate-300"
         >
             Phạm vi dữ liệu:
         </span>

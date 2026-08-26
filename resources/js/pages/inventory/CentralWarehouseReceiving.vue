@@ -962,7 +962,7 @@ const documentTypeLabel = (type: string) =>
     <Head title="Nhập nguyên liệu vào Kho Tổng" />
     <div class="mx-auto w-full max-w-[1500px] space-y-5 p-4 sm:p-6">
         <section
-            class="rounded-3xl border border-orange-500/20 bg-gradient-to-br from-slate-950 via-orange-950/80 to-slate-900 p-6 text-white shadow-xl sm:p-8"
+            class="rounded-3xl border border-orange-200/80 bg-gradient-to-br from-orange-50/70 via-slate-50 to-orange-100/40 p-6 text-slate-900 shadow-sm sm:p-8 dark:border-orange-500/20 dark:bg-gradient-to-br dark:from-slate-950 dark:via-orange-950/80 dark:to-slate-900 dark:text-white dark:shadow-xl"
         >
             <div
                 class="flex flex-col justify-between gap-5 lg:flex-row lg:items-center"
@@ -970,18 +970,18 @@ const documentTypeLabel = (type: string) =>
                 <div>
                     <Link
                         href="/inventory/central-warehouse"
-                        class="mb-3 inline-flex items-center gap-1 text-xs text-orange-200 hover:text-white"
+                        class="mb-3 inline-flex items-center gap-1 text-xs text-orange-700 hover:text-orange-900 dark:text-orange-200 dark:hover:text-white"
                         ><ArrowLeft class="size-3.5" /> Tổng quan Kho Tổng</Link
                     >
                     <div class="flex items-center gap-3">
                         <div
-                            class="flex size-12 items-center justify-center rounded-2xl bg-orange-500/20 text-orange-200"
+                            class="flex size-12 items-center justify-center rounded-2xl bg-orange-500/10 text-orange-600 dark:bg-orange-500/20 dark:text-orange-200"
                         >
                             <ClipboardCheck class="size-7" />
                         </div>
                         <div>
                             <h1
-                                class="text-2xl font-black tracking-tight sm:text-3xl"
+                                class="text-2xl font-black tracking-tight text-slate-900 sm:text-3xl dark:text-white"
                             >
                                 Nhận hàng & GRN
                             </h1>

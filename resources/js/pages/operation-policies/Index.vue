@@ -497,7 +497,7 @@ function toggleAudit(logId: number): void {
 
     <div class="mx-auto w-full max-w-[1600px] space-y-5 p-4 lg:p-7">
         <header
-            class="relative overflow-hidden rounded-[1.75rem] border border-indigo-500/20 bg-slate-950 text-white shadow-xl"
+            class="relative overflow-hidden rounded-[1.75rem] border border-indigo-200/80 bg-gradient-to-r from-indigo-50/70 via-slate-50 to-indigo-100/40 text-slate-900 shadow-sm dark:border-indigo-500/20 dark:bg-slate-950 dark:text-white dark:shadow-xl"
         >
             <div
                 class="absolute -top-36 -right-16 size-96 rounded-full bg-indigo-500/20 blur-3xl"
@@ -510,30 +510,30 @@ function toggleAudit(logId: number): void {
             >
                 <div class="flex items-start gap-4">
                     <div
-                        class="flex size-14 shrink-0 items-center justify-center rounded-2xl border border-indigo-300/20 bg-indigo-500/20 text-indigo-200 shadow-lg shadow-indigo-900/30"
+                        class="flex size-14 shrink-0 items-center justify-center rounded-2xl border border-indigo-200 bg-indigo-500/10 text-indigo-600 dark:border-indigo-300/20 dark:bg-indigo-500/20 dark:text-indigo-200 dark:shadow-lg dark:shadow-indigo-900/30"
                     >
                         <ShieldCheck class="size-7" />
                     </div>
                     <div>
                         <div class="mb-2 flex flex-wrap items-center gap-2">
                             <Badge
-                                class="border-emerald-400/20 bg-emerald-400/10 text-emerald-200"
+                                class="border-emerald-500/20 bg-emerald-500/10 text-emerald-700 dark:border-emerald-400/20 dark:bg-emerald-400/10 dark:text-emerald-200"
                                 ><span
-                                    class="mr-1.5 size-1.5 rounded-full bg-emerald-400"
+                                    class="mr-1.5 size-1.5 rounded-full bg-emerald-500 dark:bg-emerald-400"
                                 />
                                 Đang áp dụng</Badge
                             ><Badge
-                                class="border-indigo-300/20 bg-indigo-400/10 text-indigo-100"
+                                class="border-indigo-300/30 bg-indigo-500/10 text-indigo-700 dark:border-indigo-300/20 dark:bg-indigo-400/10 dark:text-indigo-100"
                                 >Điểm kiểm soát {{ policyScore }}/100</Badge
                             >
                         </div>
                         <h1
-                            class="text-2xl font-black tracking-tight lg:text-3xl"
+                            class="text-2xl font-black tracking-tight text-slate-900 lg:text-3xl dark:text-white"
                         >
                             Phân quyền & Giới hạn thao tác
                         </h1>
                         <p
-                            class="mt-2 max-w-2xl text-sm leading-6 text-slate-300"
+                            class="mt-2 max-w-2xl text-sm leading-6 text-slate-600 dark:text-slate-300"
                         >
                             Điều hành hạn mức giảm giá, hủy đơn, dữ liệu nhạy
                             cảm và dấu vết kiểm toán theo vai trò.

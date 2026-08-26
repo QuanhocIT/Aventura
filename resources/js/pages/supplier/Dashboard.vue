@@ -9,6 +9,7 @@ import {
     Clock,
     CheckCircle2,
 } from 'lucide-vue-next';
+import DashboardShell from '@/components/dashboard/DashboardShell.vue';
 
 const props = defineProps<{
     supplier: any;
@@ -30,10 +31,10 @@ const props = defineProps<{
 <template>
     <Head title="Supplier Dashboard" />
 
-    <div class="mx-auto max-w-7xl space-y-8 px-6 py-8 text-slate-100">
+    <DashboardShell :show-header="false" class="text-slate-100">
         <!-- Banner Header -->
         <div
-            class="relative flex flex-col gap-6 overflow-hidden rounded-2xl border border-slate-800 bg-gradient-to-r from-slate-900 to-emerald-950/40 p-6 shadow-xl backdrop-blur-sm md:flex-row md:items-center md:justify-between"
+            class="relative flex flex-col gap-6 overflow-hidden rounded-2xl border border-emerald-200/80 bg-gradient-to-r from-emerald-50/70 via-slate-50 to-emerald-100/40 p-6 text-slate-900 shadow-sm backdrop-blur-sm md:flex-row md:items-center md:justify-between dark:border-slate-800 dark:bg-gradient-to-r dark:from-slate-900 dark:to-emerald-950/40 dark:text-slate-100 dark:shadow-xl"
         >
             <div
                 class="absolute -top-16 -right-16 h-44 w-44 rounded-full bg-emerald-500/10 blur-3xl"
@@ -41,14 +42,14 @@ const props = defineProps<{
             <div class="space-y-1">
                 <div class="flex items-center gap-2">
                     <span
-                        class="rounded border border-emerald-500/20 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-bold text-emerald-400 uppercase"
+                        class="rounded border border-emerald-500/20 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-bold text-emerald-700 uppercase dark:text-emerald-400"
                         >Portal B2B</span
                     >
-                    <h1 class="text-2xl font-black text-slate-200">
+                    <h1 class="text-2xl font-black text-slate-900 dark:text-slate-200">
                         Chào mừng, {{ supplier.name }}
                     </h1>
                 </div>
-                <p class="text-sm leading-relaxed text-slate-400">
+                <p class="text-sm leading-relaxed text-slate-600 dark:text-slate-400">
                     Cổng kết nối chuỗi cung ứng trực tiếp với Aventura SaaS.
                     Theo dõi vận đơn, cập nhật giá bán thời gian thực.
                 </p>
@@ -63,10 +64,10 @@ const props = defineProps<{
         </div>
 
         <!-- KPIs Stats Grid -->
-        <div class="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
+        <div class="dashboard-kpi-grid">
             <!-- Stat 1 -->
             <div
-                class="flex items-center justify-between rounded-xl border border-slate-800/80 bg-slate-900/60 p-5 shadow-md backdrop-blur-sm"
+                class="dashboard-kpi-card flex items-center justify-between rounded-xl border border-slate-800/80 bg-slate-900/60 p-5 shadow-md backdrop-blur-sm"
             >
                 <div class="space-y-1">
                     <span
@@ -86,7 +87,7 @@ const props = defineProps<{
 
             <!-- Stat 2 -->
             <div
-                class="flex items-center justify-between rounded-xl border border-slate-800/80 bg-slate-900/60 p-5 shadow-md backdrop-blur-sm"
+                class="dashboard-kpi-card flex items-center justify-between rounded-xl border border-slate-800/80 bg-slate-900/60 p-5 shadow-md backdrop-blur-sm"
             >
                 <div class="space-y-1">
                     <span
@@ -106,7 +107,7 @@ const props = defineProps<{
 
             <!-- Stat 3 -->
             <div
-                class="flex items-center justify-between rounded-xl border border-slate-800/80 bg-slate-900/60 p-5 shadow-md backdrop-blur-sm"
+                class="dashboard-kpi-card flex items-center justify-between rounded-xl border border-slate-800/80 bg-slate-900/60 p-5 shadow-md backdrop-blur-sm"
             >
                 <div class="space-y-1">
                     <span
@@ -126,7 +127,7 @@ const props = defineProps<{
 
             <!-- Stat 4 -->
             <div
-                class="flex items-center justify-between rounded-xl border border-slate-800/80 bg-slate-900/60 p-5 shadow-md backdrop-blur-sm"
+                class="dashboard-kpi-card flex items-center justify-between rounded-xl border border-slate-800/80 bg-slate-900/60 p-5 shadow-md backdrop-blur-sm"
             >
                 <div class="space-y-1">
                     <span
@@ -149,7 +150,7 @@ const props = defineProps<{
 
         <!-- SLA Metrics Dashboard Section -->
         <div
-            class="space-y-4 rounded-xl border border-slate-800/80 bg-slate-900/40 p-6 backdrop-blur-sm"
+            class="dashboard-card-frame space-y-4 rounded-xl border border-slate-800/80 bg-slate-900/40 p-6 backdrop-blur-sm"
         >
             <div class="flex items-center justify-between">
                 <div>
@@ -259,10 +260,10 @@ const props = defineProps<{
         </div>
 
         <!-- Recent Activity & Quick Links -->
-        <div class="grid grid-cols-1 gap-6 lg:grid-cols-3">
+        <div class="dashboard-grid">
             <!-- Recent Orders Table -->
             <div
-                class="space-y-4 rounded-xl border border-slate-800/80 bg-slate-900/40 p-5 backdrop-blur-sm lg:col-span-2"
+                class="dashboard-card-frame dashboard-list-card col-span-12 border-slate-800/80 bg-slate-900/40 p-5 text-slate-100 lg:col-span-8"
             >
                 <div class="flex items-center justify-between">
                     <h3 class="text-lg font-bold text-slate-200">
@@ -275,7 +276,7 @@ const props = defineProps<{
                     >
                 </div>
 
-                <div class="divide-y divide-slate-800/50">
+                <div class="dashboard-list-card__body divide-y divide-slate-800/50">
                     <div
                         v-for="po in recentOrders"
                         :key="po.id"
@@ -308,7 +309,7 @@ const props = defineProps<{
 
                     <div
                         v-if="recentOrders.length === 0"
-                        class="py-8 text-center text-xs text-slate-500"
+                        class="dashboard-empty-state min-h-0 py-8 text-xs text-slate-500"
                     >
                         Chưa nhận được đơn đặt hàng nào.
                     </div>
@@ -317,7 +318,7 @@ const props = defineProps<{
 
             <!-- Quick tools -->
             <div
-                class="space-y-5 rounded-xl border border-slate-800/80 bg-slate-900/40 p-5 backdrop-blur-sm lg:col-span-1"
+                class="dashboard-card-frame dashboard-summary-card col-span-12 border-slate-800/80 bg-slate-900/40 p-5 text-slate-100 lg:col-span-4"
             >
                 <h3 class="text-lg font-bold text-slate-200">
                     Phím tắt tác vụ
@@ -365,5 +366,5 @@ const props = defineProps<{
                 </div>
             </div>
         </div>
-    </div>
+    </DashboardShell>
 </template>

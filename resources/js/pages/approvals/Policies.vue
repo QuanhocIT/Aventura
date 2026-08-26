@@ -465,7 +465,7 @@ function revokeDelegation(delegation: Delegation): void {
 
     <div class="mx-auto flex w-full max-w-[1480px] flex-col gap-5 p-4 sm:p-6">
         <section
-            class="relative overflow-hidden rounded-3xl border border-indigo-400/20 bg-[radial-gradient(circle_at_top_right,_rgba(79,70,229,0.32),_transparent_48%),linear-gradient(135deg,_#101827,_#080b12_62%)] p-6 text-white shadow-2xl sm:p-8"
+            class="relative overflow-hidden rounded-3xl border border-indigo-200/80 bg-gradient-to-r from-indigo-50/70 via-slate-50 to-indigo-100/40 p-6 text-slate-900 shadow-sm dark:border-indigo-400/20 dark:bg-[radial-gradient(circle_at_top_right,_rgba(79,70,229,0.32),_transparent_48%),linear-gradient(135deg,_#101827,_#080b12_62%)] dark:text-white dark:shadow-2xl sm:p-8"
         >
             <div
                 class="absolute -top-16 -right-12 size-48 rounded-full bg-indigo-500/10 blur-3xl"
@@ -475,34 +475,34 @@ function revokeDelegation(delegation: Delegation): void {
             >
                 <div class="max-w-3xl">
                     <div
-                        class="mb-4 flex items-center gap-3 text-xs font-bold tracking-[0.2em] text-indigo-200/80 uppercase"
+                        class="mb-4 flex items-center gap-3 text-xs font-bold tracking-[0.2em] uppercase text-indigo-700 dark:text-indigo-200/80"
                     >
                         <span
-                            class="rounded-full border border-indigo-300/20 bg-indigo-300/10 px-3 py-1"
+                            class="rounded-full border border-indigo-300/40 bg-indigo-500/10 px-3 py-1 dark:border-indigo-300/20 dark:bg-indigo-300/10"
                             >Governance cockpit</span
                         >
                         <span
-                            class="inline-flex items-center gap-1.5 text-emerald-300"
+                            class="inline-flex items-center gap-1.5 text-emerald-600 dark:text-emerald-300"
                             ><span
-                                class="size-1.5 rounded-full bg-emerald-400"
+                                class="size-1.5 rounded-full bg-emerald-500 dark:bg-emerald-400"
                             />
                             Đang kiểm soát</span
                         >
                     </div>
                     <div class="flex items-start gap-4">
                         <span
-                            class="flex size-14 shrink-0 items-center justify-center rounded-2xl border border-indigo-300/20 bg-indigo-500/20 text-indigo-200 shadow-lg shadow-indigo-950/50"
+                            class="flex size-14 shrink-0 items-center justify-center rounded-2xl border border-indigo-200 bg-indigo-500/10 text-indigo-600 shadow-sm dark:border-indigo-300/20 dark:bg-indigo-500/20 dark:text-indigo-200 dark:shadow-lg dark:shadow-indigo-950/50"
                         >
                             <SlidersHorizontal class="size-7" />
                         </span>
                         <div>
                             <h1
-                                class="text-2xl font-black tracking-tight sm:text-4xl"
+                                class="text-2xl font-black tracking-tight text-slate-900 sm:text-4xl dark:text-white"
                             >
                                 Thẩm quyền phê duyệt
                             </h1>
                             <p
-                                class="mt-2 max-w-2xl text-sm leading-6 text-slate-300"
+                                class="mt-2 max-w-2xl text-sm leading-6 text-slate-600 dark:text-slate-300"
                             >
                                 Thiết kế rõ ai được quyết định, trong phạm vi
                                 nào, và khi nào yêu cầu phải chuyển lên Chủ
@@ -512,17 +512,17 @@ function revokeDelegation(delegation: Delegation): void {
                     </div>
                 </div>
                 <div
-                    class="min-w-[250px] rounded-2xl border border-white/10 bg-black/20 p-4 backdrop-blur"
+                    class="min-w-[250px] rounded-2xl border border-slate-200/80 bg-white/80 p-4 shadow-sm backdrop-blur dark:border-white/10 dark:bg-black/20"
                 >
                     <div
-                        class="flex items-center justify-between text-xs text-slate-400"
+                        class="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400"
                     >
                         <span>Cấu hình gần nhất</span><History class="size-4" />
                     </div>
-                    <p class="mt-2 text-lg font-bold text-white">
+                    <p class="mt-2 text-lg font-bold text-slate-900 dark:text-white">
                         {{ formatDate(summary.last_updated_at) }}
                     </p>
-                    <p class="mt-1 text-xs text-slate-400">
+                    <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">
                         {{ summary.total }} luồng toàn chuỗi ·
                         {{ summary.branch_overrides }} ghi đè chi nhánh
                     </p>

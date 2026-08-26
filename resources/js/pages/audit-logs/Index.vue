@@ -32,6 +32,8 @@ type LogEntry = {
     user_name: string;
     user_email: string | null;
     user_role: string;
+    branch_id: number | null;
+    branch_name: string | null;
     event: string;
     action: string;
     subject_type: string | null;
@@ -184,7 +186,6 @@ const eventConfig: Record<string, { label: string; cls: string; icon: any }> = {
         icon: Trash2,
     },
 };
-
 
 const { formatAction, formatSubjectType, formatFieldLabel, formatFieldValue } =
     useAuditLogFormatter();
@@ -570,6 +571,13 @@ function getDiff(
                                     >
                                 </span>
 
+                                <span
+                                    v-if="log.branch_name"
+                                    class="inline-flex items-center gap-1 rounded-md border border-indigo-200 bg-indigo-50/80 px-2 py-0.5 text-[10px] font-bold text-indigo-700 dark:border-indigo-900/60 dark:bg-indigo-950/40 dark:text-indigo-300"
+                                >
+                                    <span>📍 {{ log.branch_name }}</span>
+                                </span>
+
                                 <!-- Event badge -->
                                 <Badge
                                     :class="[
@@ -691,7 +699,7 @@ function getDiff(
                             <p
                                 class="text-[9px] font-bold tracking-wider text-muted-foreground uppercase"
                             >
-                                Chi tiết thay đổi dữ liệu (Data Diff)
+                                Chi tiết thay đổi dữ liệu
                             </p>
                             <div
                                 class="overflow-hidden rounded-xl border border-border bg-card shadow-xs"

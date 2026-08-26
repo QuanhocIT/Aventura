@@ -693,27 +693,27 @@ return `${Math.round(hours)} giờ`;
 
     <div class="mx-auto flex w-full max-w-7xl flex-col gap-5 p-4 sm:p-6">
         <section
-            class="flex flex-col gap-4 rounded-2xl border border-teal-400/20 bg-gradient-to-r from-slate-950 via-slate-900 to-teal-950/70 p-5 text-white shadow-xl sm:flex-row sm:items-center sm:justify-between sm:p-6"
+            class="flex flex-col gap-4 rounded-2xl border border-teal-200/80 bg-gradient-to-r from-teal-50/70 via-slate-50 to-teal-100/40 p-5 text-slate-900 shadow-sm sm:flex-row sm:items-center sm:justify-between sm:p-6 dark:border-teal-400/20 dark:bg-gradient-to-r dark:from-slate-950 dark:via-slate-900 dark:to-teal-950/70 dark:text-white dark:shadow-xl"
         >
             <div class="flex items-start gap-3">
                 <div
-                    class="flex size-12 shrink-0 items-center justify-center rounded-xl border border-teal-300/30 bg-teal-400/15 text-teal-200"
+                    class="flex size-12 shrink-0 items-center justify-center rounded-xl border border-teal-200 bg-teal-500/10 text-teal-600 dark:border-teal-300/30 dark:bg-teal-400/15 dark:text-teal-200"
                 >
                     <ArrowLeftRight class="size-6" />
                 </div>
                 <div>
                     <p
-                        class="text-[10px] font-bold tracking-[0.22em] text-teal-300/80 uppercase"
+                        class="text-[10px] font-bold tracking-[0.22em] text-teal-700 uppercase dark:text-teal-300/80"
                     >
                         Kho vận hành
                     </p>
                     <h1
-                        class="mt-1 text-xl font-black tracking-tight sm:text-2xl"
+                        class="mt-1 text-xl font-black tracking-tight text-slate-900 sm:text-2xl dark:text-white"
                     >
                         Điều chuyển liên chi nhánh
                     </h1>
                     <p
-                        class="mt-1 max-w-2xl text-xs leading-5 text-teal-100/70"
+                        class="mt-1 max-w-2xl text-xs leading-5 text-slate-600 dark:text-teal-100/70"
                     >
                         Theo dõi đủ chu trình yêu cầu, định tuyến nguồn, xuất
                         kho, bàn giao, nhận thực tế và xử lý chênh lệch.

@@ -29,6 +29,7 @@ import TopProductsLeaderboard from '@/components/dashboard/charts/TopProductsLea
 import WeatherForecastCard from '@/components/dashboard/charts/WeatherForecastCard.vue';
 import DashboardHeader from '@/components/dashboard/DashboardHeader.vue';
 import DashboardKPIs from '@/components/dashboard/DashboardKPIs.vue';
+import DashboardShell from '@/components/dashboard/DashboardShell.vue';
 import OperationsCenter from '@/components/dashboard/operations/OperationsCenter.vue';
 import QuickActions from '@/components/dashboard/QuickActions.vue';
 import DashboardSidebar from '@/components/dashboard/sidebar/DashboardSidebar.vue';
@@ -266,7 +267,10 @@ function getTableStatusInfo(status: string) {
     />
 
     <!-- Main Content Section -->
-    <div class="relative mx-auto max-w-7xl space-y-5 px-4 py-4 lg:px-6">
+    <DashboardShell
+        :show-header="false"
+        class="dashboard-home-shell max-w-[1500px]"
+    >
         <!-- Branch context comes from the global selector in AppSidebarHeader. -->
         <div
             v-if="props.branches?.length"
@@ -723,7 +727,7 @@ function getTableStatusInfo(status: string) {
                         />
                     </Deferred>
                 </div>
-                <div>
+                <div class="lg:sticky lg:top-20 self-start">
                     <DashboardSidebar
                         :onboarding-complete="props.onboardingComplete"
                         :recent-orders="props.recentOrders"
@@ -1461,7 +1465,7 @@ function getTableStatusInfo(status: string) {
                         :shift-revenue="props.shiftRevenue"
                     />
                 </div>
-                <div>
+                <div class="lg:sticky lg:top-20 self-start">
                     <DashboardSidebar
                         :onboarding-complete="props.onboardingComplete"
                         :recent-orders="props.recentOrders"
@@ -1833,7 +1837,7 @@ function getTableStatusInfo(status: string) {
                         </CardContent>
                     </Card>
                 </div>
-                <div class="space-y-6">
+                <div class="space-y-6 lg:sticky lg:top-20 self-start">
                     <CashFlowWidget
                         :cash-flow-summary="props.cashFlowSummary"
                     />
@@ -1901,6 +1905,7 @@ function getTableStatusInfo(status: string) {
                             </div>
                         </CardContent>
                     </Card>
+                    <WeatherForecastCard />
                     <AIInsightsCard
                         :forecast-data="null"
                         :stats="props.stats"
@@ -2292,7 +2297,7 @@ function getTableStatusInfo(status: string) {
                         </CardContent>
                     </Card>
                 </div>
-                <div class="space-y-6">
+                <div class="space-y-6 lg:sticky lg:top-20 self-start">
                     <CashFlowWidget
                         :cash-flow-summary="props.cashFlowSummary"
                     />
@@ -2313,5 +2318,5 @@ function getTableStatusInfo(status: string) {
                 </div>
             </div>
         </template>
-    </div>
+    </DashboardShell>
 </template>

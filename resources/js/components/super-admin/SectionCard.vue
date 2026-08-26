@@ -25,7 +25,7 @@ const accentStyles: Record<string, string> = {
     <div
         :class="
             cn(
-                'space-y-4 rounded-3xl border p-6 shadow-xs backdrop-blur-xl transition-all duration-300',
+                'dashboard-card-frame space-y-4 rounded-3xl border p-6 shadow-xs backdrop-blur-xl transition-all duration-300',
                 accentStyles[accentColor],
                 props.class,
             )

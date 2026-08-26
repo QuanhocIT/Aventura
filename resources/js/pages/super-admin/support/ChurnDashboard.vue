@@ -612,7 +612,7 @@ const healthScoreDistribution = computed(() => {
 <template>
     <Head title="Chăm sóc khách hàng & dự đoán rời bỏ" />
 
-    <div class="flex flex-col gap-5 px-6 py-5">
+    <div class="dashboard-shell flex flex-col gap-5 px-6 py-5">
         <!-- Header -->
         <PageHeader
             title="Dự Đoán Rời Bỏ & Chăm Sóc Khách Hàng"
@@ -639,7 +639,7 @@ const healthScoreDistribution = computed(() => {
         </PageHeader>
 
         <!-- Overviews Metric Cards (Responsive Grid 7 Columns) -->
-        <div class="grid grid-cols-2 gap-4 md:grid-cols-4 xl:grid-cols-7">
+        <div class="dashboard-kpi-grid">
             <!-- Avg health score -->
             <Card
                 class="border border-border/40 bg-card/45 backdrop-blur-md transition-all hover:shadow-md"
@@ -796,7 +796,7 @@ const healthScoreDistribution = computed(() => {
         </div>
 
         <!-- Visual Analytics Charts Row (Donut Risk Distribution + Band Distribution Chart) -->
-        <div class="grid gap-4 md:grid-cols-2">
+        <div class="dashboard-grid">
             <!-- Pie/Donut Risk Distribution -->
             <Card
                 class="border border-border/40 bg-card/50 shadow-xs backdrop-blur-md"

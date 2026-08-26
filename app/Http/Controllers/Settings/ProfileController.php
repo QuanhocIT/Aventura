@@ -152,20 +152,7 @@ class ProfileController extends Controller implements HasMiddleware
      */
     public function destroy(ProfileDeleteRequest $request): RedirectResponse
     {
-        $user = $request->user();
-
-        if ($user->restaurant_id && ! $user->isOwner() && ! $user->isSuperAdmin()) {
-            return back()->with('error', 'Tài khoản nhân viên không thể tự xóa. Vui lòng liên hệ chủ nhà hàng để chấm dứt tài khoản đúng quy trình.');
-        }
-
-        Auth::logout();
-
-        $user->delete();
-
-        $request->session()->invalidate();
-        $request->session()->regenerateToken();
-
-        return redirect('/');
+        return back()->with('error', 'Tính năng xóa tài khoản đã bị khóa vĩnh viễn theo chính sách an toàn dữ liệu doanh nghiệp.');
     }
 
     /**

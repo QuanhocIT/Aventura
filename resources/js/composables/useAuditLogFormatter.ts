@@ -35,12 +35,35 @@ export function useAuditLogFormatter() {
         // Orders & POS
         order_created: 'Tạo đơn hàng mới',
         order_updated: 'Cập nhật đơn hàng',
+        order_confirmed: 'Xác nhận đơn hàng',
+        order_paid: 'Thanh toán đơn hàng',
         order_cancelled: 'Hủy đơn hàng',
+        order_item_cancelled: 'Hủy món trong đơn',
+        kitchen_item_cancelled: 'Hủy món trong bếp',
+        temporary_order_confirmed: 'Xác nhận đơn tạm',
+        temporary_order_revision_requested: 'Yêu cầu sửa đơn tạm',
+        temporary_order_cancelled_by_guest: 'Khách hủy đơn tạm',
         order_split: 'Tách đơn hàng',
         order_split_override: 'Xác nhận duyệt tách đơn',
         price_modified: 'Thay đổi đơn giá món',
         discount_applied: 'Áp dụng mã giảm giá',
         kitchen_menu_unavailable: 'Tạm ngưng phục vụ món bếp',
+        kitchen_product_paused: 'Tạm ngưng phục vụ món',
+        kitchen_product_resumed: 'Mở lại phục vụ món',
+        kitchen_product_branch_paused: 'Tạm ngưng món tại chi nhánh',
+        kitchen_reopen_requested: 'Yêu cầu mở lại món',
+        kitchen_reopen_approved: 'Duyệt mở lại món',
+
+        // Reservations, cash and warehouse workflows
+        reservation_created: 'Tạo lượt đặt bàn',
+        reservation_confirmed: 'Xác nhận đặt bàn',
+        reservation_cancelled: 'Hủy đặt bàn',
+        cash_register_opened: 'Mở ca thu ngân',
+        cash_transaction_posted: 'Ghi nhận giao dịch tiền',
+        cash_transaction_reversed: 'Đảo giao dịch tiền',
+        warehouse_staff_status_updated: 'Cập nhật trạng thái nhân viên kho',
+        warehouse_task_assigned: 'Phân công công việc kho',
+        warehouse_task_reassigned: 'Đổi người phụ trách công việc kho',
 
         // Inspections, Violations & Policies
         violation_reported: 'Lập báo cáo sai phạm nội bộ',
@@ -91,6 +114,16 @@ export function useAuditLogFormatter() {
         OvertimeRequest: 'Yêu cầu tăng ca',
         'App\\Models\\Order': 'Đơn hàng',
         Order: 'Đơn hàng',
+        'App\\Models\\TemporaryOrder': 'Đơn hàng tạm',
+        TemporaryOrder: 'Đơn hàng tạm',
+        'App\\Models\\OrderItem': 'Món trong đơn',
+        OrderItem: 'Món trong đơn',
+        'App\\Models\\Product': 'Món ăn / sản phẩm',
+        Product: 'Món ăn / sản phẩm',
+        'App\\Models\\TableReservation': 'Lượt đặt bàn',
+        TableReservation: 'Lượt đặt bàn',
+        'App\\Models\\Incident': 'Sự cố vận hành',
+        Incident: 'Sự cố vận hành',
         'App\\Models\\ShiftHandover': 'Biên bản bàn giao ca',
         ShiftHandover: 'Biên bản bàn giao ca',
         'App\\Models\\CompanyPolicy': 'Bộ Quy định & Tiêu chuẩn',
@@ -169,6 +202,392 @@ export function useAuditLogFormatter() {
         split_from_order_id: 'Tách từ đơn hàng #',
     };
 
+    const EXTENDED_FIELD_MAP: Record<string, string> = {
+        id: 'Mã bản ghi',
+        code: 'Mã',
+        type: 'Loại',
+        task_type: 'Loại công việc',
+        task_id: 'Mã công việc kho',
+        order_id: 'Mã đơn hàng',
+        order_number: 'Số đơn hàng',
+        temporary_order_id: 'Mã đơn tạm',
+        reservation_id: 'Mã đặt bàn',
+        order_item_id: 'Mã món trong đơn',
+        product_id: 'Mã món / sản phẩm',
+        ingredient_id: 'Mã nguyên liệu',
+        employee_id: 'Mã nhân viên',
+        user_id: 'Mã người dùng',
+        restaurant_id: 'Mã nhà hàng',
+        branch_id: 'Mã chi nhánh',
+        table_id: 'Mã bàn',
+        supplier_id: 'Mã nhà cung cấp',
+        report_id: 'Mã báo cáo',
+        report_code: 'Mã báo cáo',
+        incident_id: 'Mã sự cố',
+        violation_id: 'Mã vi phạm',
+        approval_id: 'Mã phê duyệt',
+        approval_request_id: 'Mã yêu cầu phê duyệt',
+        shift_id: 'Mã ca làm',
+        shift_closing_id: 'Mã phiếu chốt ca',
+        voucher_code: 'Mã phiếu',
+        voucher_id: 'Mã phiếu',
+        purchase_order_id: 'Mã đơn mua hàng',
+        supply_request_id: 'Mã yêu cầu cấp hàng',
+        receiving_voucher_id: 'Mã phiếu nhận hàng',
+        stock_transfer_id: 'Mã phiếu điều chuyển',
+        fixed_asset_id: 'Mã tài sản',
+        asset_id: 'Mã tài sản',
+        ip_address: 'Địa chỉ IP',
+        user_agent: 'Trình duyệt và thiết bị',
+        performed_at: 'Thời điểm thực hiện',
+        performed_by: 'Người thực hiện',
+        result_notes: 'Ghi chú kết quả',
+        evidence_count: 'Số lượng bằng chứng',
+        evidence_path: 'Tài liệu bằng chứng',
+        evidence_paths: 'Tài liệu bằng chứng',
+        created_by: 'Người tạo',
+        updated_by: 'Người cập nhật',
+        deleted_by: 'Người xóa',
+        started_by: 'Người bắt đầu',
+        completed_by: 'Người hoàn thành',
+        submitted_by: 'Người nộp',
+        approved_by: 'Người phê duyệt',
+        rejected_by: 'Người từ chối',
+        resolved_by: 'Người xử lý',
+        cancelled_by: 'Người hủy',
+        reviewed_by: 'Người xem xét',
+        verified_by: 'Người xác minh',
+        assigned_to: 'Người được phân công',
+        assigned_at: 'Thời điểm phân công',
+        accepted_by: 'Người tiếp nhận',
+        requested_by: 'Người yêu cầu',
+        requested_by_user_id: 'Mã người yêu cầu',
+        target_user_id: 'Mã người dùng đích',
+        to_user_id: 'Mã người nhận',
+        from_branch_id: 'Mã chi nhánh gửi',
+        to_branch_id: 'Mã chi nhánh nhận',
+        branch_name: 'Tên chi nhánh',
+        branch_code: 'Mã chi nhánh',
+        restaurant_name: 'Tên nhà hàng',
+        restaurant_code: 'Mã nhà hàng',
+        employee_name: 'Tên nhân viên',
+        product_name: 'Tên món / sản phẩm',
+        supplier_name: 'Tên nhà cung cấp',
+        table_name: 'Tên bàn',
+        title: 'Tiêu đề',
+        description: 'Mô tả',
+        details: 'Chi tiết',
+        message: 'Thông báo',
+        reason: 'Lý do',
+        note: 'Ghi chú',
+        notes: 'Ghi chú',
+        internal_notes: 'Ghi chú nội bộ',
+        result: 'Kết quả',
+        source: 'Nguồn phát sinh',
+        method: 'Phương thức',
+        channel: 'Kênh',
+        scope: 'Phạm vi áp dụng',
+        level: 'Mức độ',
+        severity: 'Mức độ nghiêm trọng',
+        priority: 'Mức độ ưu tiên',
+        workflow_status: 'Trạng thái quy trình',
+        assignment_status: 'Trạng thái phân công',
+        payment_status: 'Trạng thái thanh toán',
+        approval_status: 'Trạng thái phê duyệt',
+        verification_status: 'Trạng thái xác minh',
+        delivery_status: 'Trạng thái giao hàng',
+        payment_method: 'Phương thức thanh toán',
+        task_status: 'Trạng thái công việc',
+        role: 'Vai trò / phân quyền',
+        roles: 'Vai trò / phân quyền',
+        old_roles: 'Vai trò trước khi đổi',
+        new_roles: 'Vai trò sau khi đổi',
+        user_role: 'Vai trò người thực hiện',
+        quantity: 'Số lượng',
+        qty: 'Số lượng',
+        requested_quantity: 'Số lượng yêu cầu',
+        received_quantity: 'Số lượng đã nhận',
+        dispatched_quantity: 'Số lượng đã xuất',
+        quantity_on_hand: 'Số lượng tồn kho',
+        cancelled_quantity: 'Số lượng đã hủy',
+        reserved_quantity: 'Số lượng đã giữ',
+        physical_quantity: 'Số lượng thực tế',
+        theoretical_quantity: 'Số lượng theo sổ',
+        count: 'Số lượng',
+        total: 'Tổng số',
+        subtotal: 'Tạm tính',
+        amount: 'Số tiền',
+        amount_in: 'Tiền vào',
+        amount_out: 'Tiền ra',
+        unit_price: 'Đơn giá',
+        unit_cost: 'Giá vốn đơn vị',
+        cost: 'Chi phí',
+        total_cost: 'Tổng chi phí',
+        discount_percent: 'Tỷ lệ giảm giá',
+        tax_amount: 'Tiền thuế',
+        tax_rate: 'Thuế suất',
+        service_charge: 'Phí dịch vụ',
+        refund_amount: 'Số tiền hoàn',
+        balance: 'Số dư',
+        variance: 'Chênh lệch',
+        variance_amount: 'Giá trị chênh lệch',
+        start_date: 'Ngày bắt đầu',
+        end_date: 'Ngày kết thúc',
+        started_at: 'Thời điểm bắt đầu',
+        completed_at: 'Thời điểm hoàn thành',
+        submitted_at: 'Thời điểm nộp',
+        approved_at: 'Thời điểm phê duyệt',
+        rejected_at: 'Thời điểm từ chối',
+        resolved_at: 'Thời điểm xử lý',
+        cancelled_at: 'Thời điểm hủy',
+        deleted_at: 'Thời điểm xóa',
+        due_at: 'Hạn xử lý',
+        due_date: 'Ngày đến hạn',
+        duration: 'Thời lượng',
+        duration_minutes: 'Thời lượng (phút)',
+        duration_hours: 'Thời lượng (giờ)',
+        reason_code: 'Mã lý do',
+        rejection_reason: 'Lý do từ chối',
+        cancellation_reason: 'Lý do hủy',
+        resolution_notes: 'Ghi chú xử lý',
+        verification_notes: 'Ghi chú xác minh',
+        received_note: 'Ghi chú nhận hàng',
+        features: 'Tính năng',
+        settings: 'Thiết lập',
+        changed_policies: 'Quy định đã thay đổi',
+        before: 'Giá trị trước',
+        after: 'Giá trị sau',
+        old_values: 'Dữ liệu trước thay đổi',
+        new_values: 'Dữ liệu sau thay đổi',
+        seeder: 'Nguồn tạo dữ liệu',
+    };
+
+    const VALUE_MAP: Record<string, string> = {
+        waiting_verification: 'Chờ nhân viên xác minh',
+        pending: 'Đang chờ xử lý',
+        confirmed: 'Đã xác nhận',
+        preparing: 'Đang chế biến',
+        ready: 'Sẵn sàng phục vụ',
+        completed: 'Đã hoàn thành',
+        cancelled: 'Đã hủy',
+        no_show: 'Không đến',
+        escalated: 'Đã chuyển cấp xử lý',
+        draft: 'Bản nháp',
+        submitted: 'Đã nộp',
+        approved: 'Đã phê duyệt',
+        rejected: 'Đã từ chối',
+        disputed: 'Đang tranh chấp',
+        resolved: 'Đã xử lý',
+        active: 'Đang hoạt động',
+        inactive: 'Ngừng hoạt động',
+        enabled: 'Đã bật',
+        disabled: 'Đã tắt',
+        in_progress: 'Đang thực hiện',
+        planned: 'Đã lên kế hoạch',
+        assigned: 'Đã phân công',
+        accepted: 'Đã tiếp nhận',
+        received: 'Đã nhận',
+        dispatched: 'Đã xuất kho',
+        delivered: 'Đã giao',
+        paid: 'Đã thanh toán',
+        unpaid: 'Chưa thanh toán',
+        refunded: 'Đã hoàn tiền',
+        processing: 'Đang xử lý',
+        failed: 'Thất bại',
+        success: 'Thành công',
+        closed: 'Đã đóng',
+        opened: 'Đã mở',
+        packing: 'Đóng gói',
+        putaway: 'Đưa hàng vào vị trí',
+        receiving: 'Tiếp nhận hàng',
+        dispatching: 'Xuất hàng',
+        stocktaking: 'Kiểm kê kho',
+        transfer: 'Điều chuyển kho',
+        cash: 'Tiền mặt',
+        card: 'Thẻ',
+        bank_transfer: 'Chuyển khoản',
+        ewallet: 'Ví điện tử',
+        cod: 'Thu hộ khi giao hàng',
+        owner: 'Chủ nhà hàng',
+        manager: 'Quản lý chi nhánh',
+        cashier: 'Nhân viên thu ngân',
+        kitchen: 'Nhân viên bếp',
+        inventory_staff: 'Nhân viên kho',
+        warehouse_manager: 'Quản lý kho tổng',
+        warehouse_staff: 'Nhân viên kho tổng',
+    };
+
+    const FIELD_VALUE_MAP: Record<string, Record<string, string>> = {
+        task_type: {
+            packing: 'Đóng gói',
+            putaway: 'Đưa hàng vào vị trí',
+            receiving: 'Tiếp nhận hàng',
+            dispatching: 'Xuất hàng',
+            stocktaking: 'Kiểm kê kho',
+            transfer: 'Điều chuyển kho',
+        },
+        payment_status: {
+            unpaid: 'Chưa thanh toán',
+            paid: 'Đã thanh toán',
+            partially_paid: 'Đã thanh toán một phần',
+            refunded: 'Đã hoàn tiền',
+        },
+        payment_method: {
+            cash: 'Tiền mặt',
+            card: 'Thẻ',
+            bank_transfer: 'Chuyển khoản',
+            ewallet: 'Ví điện tử',
+            cod: 'Thu hộ khi giao hàng',
+        },
+    };
+
+    const ENUM_TOKEN_MAP: Record<string, string> = {
+        waiting: 'đang chờ',
+        verification: 'xác minh',
+        progress: 'tiến độ',
+        requested: 'đã yêu cầu',
+        customer: 'khách hàng',
+        staff: 'nhân viên',
+        branch: 'chi nhánh',
+        central: 'kho tổng',
+    };
+
+    const SENSITIVE_FIELD_PATTERN =
+        /(password|secret|token|api_key|private_key|credential)/i;
+
+    const ACTION_TOKEN_MAP: Record<string, string> = {
+        create: 'tạo',
+        created: 'tạo',
+        update: 'cập nhật',
+        updated: 'cập nhật',
+        delete: 'xóa',
+        deleted: 'xóa',
+        cancel: 'hủy',
+        cancelled: 'hủy',
+        confirm: 'xác nhận',
+        confirmed: 'xác nhận',
+        approve: 'phê duyệt',
+        approved: 'phê duyệt',
+        reject: 'từ chối',
+        rejected: 'từ chối',
+        start: 'bắt đầu',
+        started: 'bắt đầu',
+        complete: 'hoàn thành',
+        completed: 'hoàn thành',
+        assign: 'phân công',
+        assigned: 'phân công',
+        receive: 'tiếp nhận',
+        received: 'đã nhận',
+        dispatch: 'xuất kho',
+        dispatched: 'đã xuất kho',
+        resolve: 'xử lý',
+        resolved: 'xử lý',
+        request: 'yêu cầu',
+        requested: 'yêu cầu',
+        report: 'báo cáo',
+        reported: 'báo cáo',
+        order: 'đơn hàng',
+        temporary: 'đơn tạm',
+        item: 'món',
+        kitchen: 'bếp',
+        warehouse: 'kho',
+        task: 'công việc',
+        reservation: 'đặt bàn',
+        transfer: 'điều chuyển',
+        stock: 'tồn kho',
+        payment: 'thanh toán',
+        refund: 'hoàn tiền',
+        policy: 'quy định',
+        violation: 'vi phạm',
+        incident: 'sự cố',
+        audit: 'kiểm toán',
+        branch: 'chi nhánh',
+        user: 'người dùng',
+        account: 'tài khoản',
+    };
+
+    function normalizeValue(value: unknown): string {
+        return String(value).trim().toLowerCase();
+    }
+
+    function formatEnumValue(value: string, key: string): string {
+        const normalized = normalizeValue(value);
+        const fieldValues = FIELD_VALUE_MAP[key];
+
+        if (fieldValues?.[normalized]) {
+            return fieldValues[normalized];
+        }
+
+        if (VALUE_MAP[normalized]) {
+            return VALUE_MAP[normalized];
+        }
+
+        if (/^[a-z0-9]+(?:[_-][a-z0-9]+)+$/i.test(value)) {
+            const words = normalized
+                .split(/[_-]/)
+                .map((word) => ENUM_TOKEN_MAP[word] ?? word);
+
+            return words.join(' ').replace(/^\S/, (char) => char.toUpperCase());
+        }
+
+        return value;
+    }
+
+    function formatUserAgent(userAgent: string): string {
+        const edge = userAgent.match(/Edg\/([\d.]+)/i);
+        const opera = userAgent.match(/OPR\/([\d.]+)/i);
+        const chrome = userAgent.match(/Chrome\/([\d.]+)/i);
+        const firefox = userAgent.match(/Firefox\/([\d.]+)/i);
+        const safari = userAgent.match(/Version\/([\d.]+).*Safari/i);
+        const browser = edge
+            ? `Microsoft Edge ${edge[1].split('.')[0]}`
+            : opera
+              ? `Opera ${opera[1].split('.')[0]}`
+              : chrome
+                ? `Google Chrome ${chrome[1].split('.')[0]}`
+                : firefox
+                  ? `Firefox ${firefox[1].split('.')[0]}`
+                  : safari
+                    ? `Safari ${safari[1].split('.')[0]}`
+                    : null;
+        const platform = /Windows NT/i.test(userAgent)
+            ? 'Windows 10/11'
+            : /Android/i.test(userAgent)
+              ? 'Android'
+              : /iPhone|iPad/i.test(userAgent)
+                ? 'iPhone/iPad'
+                : /Mac OS X/i.test(userAgent)
+                  ? 'macOS'
+                  : /Linux/i.test(userAgent)
+                    ? 'Linux'
+                    : null;
+
+        return [browser, platform].filter(Boolean).join(' · ') || userAgent;
+    }
+
+    function formatNumber(value: number): string {
+        return new Intl.NumberFormat('vi-VN', {
+            maximumFractionDigits: 2,
+        }).format(value);
+    }
+
+    function isMoneyField(key: string): boolean {
+        return (
+            /(?:amount|price|salary|cost|penalty|bonus|revenue|fee|balance|budget|wage|deposit|commission|tax)/i.test(
+                key,
+            ) && !/(percent|rate|count|id|quantity)/i.test(key)
+        );
+    }
+
+    function formatObjectValue(value: Record<string, any>): string {
+        return Object.entries(value)
+            .map(
+                ([nestedKey, nestedValue]) =>
+                    `${formatFieldLabel(nestedKey)}: ${formatFieldValue(nestedValue, nestedKey)}`,
+            )
+            .join('; ');
+    }
+
     /**
      * Translates action strings to readable Vietnamese.
      */
@@ -182,9 +601,13 @@ export function useAuditLogFormatter() {
         }
 
         // Format raw snake_case or dotted string
-        return action
-            .replace(/[._]/g, ' ')
-            .replace(/\b\w/g, (char) => char.toUpperCase());
+        const translatedTokens = action
+            .split(/[._]/)
+            .map((token) => ACTION_TOKEN_MAP[token.toLowerCase()] ?? token);
+
+        return translatedTokens
+            .join(' ')
+            .replace(/^\S/, (char) => char.toUpperCase());
     }
 
     /**
@@ -208,8 +631,16 @@ export function useAuditLogFormatter() {
             return FIELD_MAP[key];
         }
 
+        if (EXTENDED_FIELD_MAP[key]) {
+            return EXTENDED_FIELD_MAP[key];
+        }
+
         return key
+            .replace(/([a-z])([A-Z])/g, '$1 $2')
             .replace(/_/g, ' ')
+            .replace(/\bip\b/gi, 'IP')
+            .replace(/\bqr\b/gi, 'QR')
+            .replace(/\bgps\b/gi, 'GPS')
             .replace(/\b\w/g, (char) => char.toUpperCase());
     }
 
@@ -221,30 +652,86 @@ export function useAuditLogFormatter() {
             return '—';
         }
 
+        if (SENSITIVE_FIELD_PATTERN.test(key)) {
+            return 'Đã cập nhật (đã ẩn thông tin bảo mật)';
+        }
+
         if (typeof val === 'boolean') {
-            return val ? 'Có (Đã bật)' : 'Không (Tắt)';
+            return val ? 'Có' : 'Không';
         }
 
         if (typeof val === 'number') {
-            // Check if key implies currency
-            if (/(amount|salary|price|penalty|bonus)/i.test(key) && val > 100) {
-                return new Intl.NumberFormat('vi-VN').format(val) + ' đ';
+            if (isMoneyField(key)) {
+                return `${formatNumber(val)} đ`;
             }
 
-            return String(val);
+            if (key === 'evidence_count') {
+                return `${formatNumber(val)} tệp`;
+            }
+
+            if (/(?:^|_)count$/i.test(key)) {
+                return `${formatNumber(val)} mục`;
+            }
+
+            if (/(percent|percentage|rate)/i.test(key)) {
+                return `${formatNumber(val)}%`;
+            }
+
+            if (/(minutes?|mins?)/i.test(key)) {
+                return `${formatNumber(val)} phút`;
+            }
+
+            if (/(hours?|hrs?)/i.test(key)) {
+                return `${formatNumber(val)} giờ`;
+            }
+
+            if (/(temperature|_temp|temp_)/i.test(key)) {
+                return `${formatNumber(val)} °C`;
+            }
+
+            if (/(^id$|_id$)/i.test(key)) {
+                return `#${String(val)}`;
+            }
+
+            return formatNumber(val);
         }
 
         if (typeof val === 'object') {
-            return JSON.stringify(val);
+            if (Array.isArray(val)) {
+                if (val.length === 0) {
+                    return 'Không có';
+                }
+
+                return val
+                    .map((item) =>
+                        typeof item === 'object'
+                            ? formatObjectValue(item)
+                            : formatFieldValue(item, key),
+                    )
+                    .join(', ');
+            }
+
+            return formatObjectValue(val);
         }
 
         const strVal = String(val);
 
-        // Format ISO date format YYYY-MM-DD or YYYY-MM-DDTHH:mm:ss
+        if (key === 'user_agent') {
+            return formatUserAgent(strVal);
+        }
+
+        if (/(^id$|_id$)/i.test(key) && /^\d+$/.test(strVal)) {
+            return `#${strVal}`;
+        }
+
+        if (isMoneyField(key) && /^-?\d+(?:\.\d+)?$/.test(strVal)) {
+            return `${formatNumber(Number(strVal))} đ`;
+        }
+
         if (/^\d{4}-\d{2}-\d{2}(T|\s)?/.test(strVal)) {
             const date = new Date(strVal);
 
-            if (!isNaN(date.getTime())) {
+            if (!Number.isNaN(date.getTime())) {
                 const day = String(date.getDate()).padStart(2, '0');
                 const month = String(date.getMonth() + 1).padStart(2, '0');
                 const year = date.getFullYear();
@@ -259,7 +746,7 @@ export function useAuditLogFormatter() {
             }
         }
 
-        return strVal;
+        return formatEnumValue(strVal, key);
     }
 
     return {

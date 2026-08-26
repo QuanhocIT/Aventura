@@ -8,9 +8,9 @@
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
-    --font-sans: 'Times New Roman', Times, serif;
-    --font-serif: 'Times New Roman', Times, serif;
-    --font-mono: 'Times New Roman', Times, serif;
+    --font-sans: 'Be Vietnam Pro', system-ui, -apple-system, sans-serif;
+    --font-serif: 'Be Vietnam Pro', system-ui, -apple-system, sans-serif;
+    --font-mono: 'Be Vietnam Pro', ui-monospace, SFMono-Regular, monospace;
 
     --radius-lg: var(--radius);
     --radius-md: calc(var(--radius) - 2px);
@@ -186,7 +186,8 @@
     }
     body {
         overflow-x: clip;
-        font-family: 'Times New Roman', Times, serif;
+        font-family: 'Be Vietnam Pro', system-ui, -apple-system, sans-serif;
+        color: #1f2937;
     }
 
     /* Tàng hình thanh cuộn toàn hệ thống (Hide all scrollbars globally) */
@@ -196,7 +197,9 @@
     *::before,
     *::after {
         -ms-overflow-style: none; /* IE & Edge */
-        scrollbar-width: none; /* Firefox */
+        @supports (scrollbar-width: none) {
+            scrollbar-width: none; /* Firefox & Modern Browsers */
+        }
     }
 
     ::-webkit-scrollbar {
@@ -216,9 +219,9 @@
 @layer utilities {
     body,
     html {
-        --font-sans: 'Times New Roman', Times, serif;
-        --font-serif: 'Times New Roman', Times, serif;
-        --font-mono: 'Times New Roman', Times, serif;
+        --font-sans: 'Be Vietnam Pro', system-ui, -apple-system, sans-serif;
+        --font-serif: 'Be Vietnam Pro', system-ui, -apple-system, sans-serif;
+        --font-mono: 'Be Vietnam Pro', ui-monospace, SFMono-Regular, monospace;
     }
 
     /* Scrollbar Utility Classes */
@@ -227,7 +230,9 @@
     .scrollbar-hidden,
     .hide-scrollbar {
         -ms-overflow-style: none !important;
-        scrollbar-width: none !important;
+        @supports (scrollbar-width: none) {
+            scrollbar-width: none !important;
+        }
     }
 
     .no-scrollbar::-webkit-scrollbar,
@@ -342,8 +347,10 @@
     .sidebar,
     .sidebar-content,
     [data-slot='sidebar-content'] {
-        scrollbar-width: thin;
-        scrollbar-color: hsl(0 0% 50% / 0.45) transparent;
+        @supports (scrollbar-width: thin) {
+            scrollbar-width: thin;
+            scrollbar-color: hsl(0 0% 50% / 0.45) transparent;
+        }
     }
 
     .Sidebar::-webkit-scrollbar,
@@ -364,7 +371,9 @@
     .dark .sidebar,
     .dark .sidebar-content,
     .dark [data-slot='sidebar-content'] {
-        scrollbar-color: hsl(0 0% 100% / 0.3) transparent;
+        @supports (scrollbar-color: auto) {
+            scrollbar-color: hsl(0 0% 100% / 0.3) transparent;
+        }
     }
     .dark .Sidebar::-webkit-scrollbar,
     .dark .sidebar::-webkit-scrollbar,
@@ -666,6 +675,403 @@ button:not(:disabled):active,
     button:not(:disabled):active,
     [role='button']:not([aria-disabled='true']):active {
         transform: none;
+    }
+}
+
+/* -------------------------------------------------------------------------- */
+/* Shared dashboard system                                                   */
+/* -------------------------------------------------------------------------- */
+:root {
+    --dashboard-gap: 1rem;
+    --dashboard-radius: 1rem;
+    --dashboard-card-min-height: 10rem;
+    --dashboard-section-min-height: 18rem;
+}
+
+.dashboard-shell {
+    box-sizing: border-box;
+    display: flex;
+    width: 100%;
+    max-width: 1600px;
+    min-height: 100%;
+    flex-direction: column;
+    gap: var(--dashboard-gap);
+    margin-inline: auto;
+    padding: clamp(1rem, 2vw, 2rem);
+}
+
+.dashboard-shell > * {
+    min-width: 0;
+}
+
+.dashboard-home-shell {
+    min-height: 0;
+    gap: 0.875rem;
+}
+
+.audit-overview-shell {
+    min-height: 0;
+    gap: 1rem;
+}
+
+.audit-overview-hero {
+    min-height: 9.75rem;
+}
+
+.dashboard-page-header {
+    display: flex;
+    min-height: 6.5rem;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+    border-bottom: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+    padding-bottom: 1rem;
+}
+
+.dashboard-page-title {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    color: var(--foreground);
+    font-size: clamp(1.5rem, 2vw, 2rem);
+    font-weight: 800;
+    letter-spacing: -0.025em;
+    line-height: 1.15;
+}
+
+.dashboard-eyebrow,
+.dashboard-card-label {
+    color: var(--muted-foreground);
+    font-size: 0.6875rem;
+    font-weight: 800;
+    letter-spacing: 0.1em;
+    line-height: 1.25;
+    text-transform: uppercase;
+}
+
+.dashboard-eyebrow {
+    margin-bottom: 0.375rem;
+}
+
+.dashboard-title-icon,
+.dashboard-section-icon {
+    display: inline-flex;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: center;
+    border-radius: 0.75rem;
+}
+
+.dashboard-title-icon {
+    width: 2.25rem;
+    height: 2.25rem;
+    background: color-mix(in srgb, var(--primary) 12%, transparent);
+    color: var(--primary);
+}
+
+.dashboard-page-description,
+.dashboard-card-description,
+.dashboard-card-meta {
+    color: var(--muted-foreground);
+    font-size: 0.8125rem;
+    line-height: 1.5;
+}
+
+.dashboard-page-description {
+    max-width: 62rem;
+    margin-top: 0.5rem;
+}
+
+.dashboard-page-actions,
+.dashboard-filterbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.dashboard-filterbar {
+    justify-content: flex-end;
+    border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+    border-radius: 0.875rem;
+    background: color-mix(in srgb, var(--card) 88%, transparent);
+    padding: 0.625rem;
+}
+
+.dashboard-filterbar__period {
+    color: var(--muted-foreground);
+    font-size: 0.75rem;
+    font-weight: 650;
+}
+
+.dashboard-kpi-grid,
+.dashboard-grid {
+    display: grid;
+    align-items: stretch;
+    gap: var(--dashboard-gap);
+}
+
+.dashboard-kpi-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.dashboard-main-kpi-grid {
+    gap: 0.75rem;
+}
+
+.dashboard-kpi-grid > * {
+    min-height: var(--dashboard-card-min-height);
+    height: 100%;
+}
+
+.dashboard-main-kpi-grid > * {
+    min-height: 6rem;
+    height: auto;
+}
+
+.dashboard-main-kpi-grid .text-xl {
+    font-size: 1.125rem;
+}
+
+/* Trang chủ chỉ giữ lại 4 chỉ số điều hành chính; các chỉ số phụ vẫn được
+   hiển thị trong các khối tổng hợp theo gói ở bên dưới. */
+.dashboard-main-kpi-grid > :nth-child(n + 5) {
+    display: none;
+}
+
+.dashboard-grid {
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+}
+
+.dashboard-grid > *:not([class*='col-span-']) {
+    grid-column: span 6;
+    min-height: var(--dashboard-section-min-height);
+    min-width: 0;
+}
+
+.dashboard-kpi-card,
+.dashboard-card-frame {
+    box-sizing: border-box;
+    min-width: 0;
+    border: 1px solid color-mix(in srgb, var(--border) 82%, transparent);
+    border-radius: var(--dashboard-radius);
+    background: color-mix(in srgb, var(--card) 96%, transparent);
+    box-shadow: 0 8px 24px rgb(15 23 42 / 0.04);
+}
+
+.dashboard-kpi-card {
+    display: flex;
+    min-height: var(--dashboard-card-min-height);
+    height: 100%;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 1rem;
+}
+
+.dashboard-kpi-value {
+    margin-top: 0.5rem;
+    overflow: hidden;
+    font-size: clamp(1.25rem, 2vw, 1.75rem);
+    font-weight: 800;
+    letter-spacing: -0.025em;
+    line-height: 1.1;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.dashboard-kpi-icon {
+    display: inline-flex;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: center;
+    border-radius: 0.75rem;
+    padding: 0.625rem;
+}
+
+.dashboard-kpi-trend {
+    margin-top: 0.5rem;
+    color: var(--muted-foreground);
+    font-size: 0.6875rem;
+    font-weight: 600;
+}
+
+.dashboard-card-frame {
+    display: flex;
+    min-height: var(--dashboard-section-min-height);
+    height: 100%;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.dashboard-card-header {
+    display: flex;
+    min-height: 4.5rem;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.75rem;
+    border-bottom: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+    padding: 1rem 1.125rem;
+}
+
+.dashboard-card-title {
+    overflow: hidden;
+    color: var(--foreground);
+    font-size: 0.9375rem;
+    font-weight: 750;
+    line-height: 1.35;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.dashboard-card-description {
+    display: -webkit-box;
+    margin-top: 0.25rem;
+    overflow: hidden;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+}
+
+.dashboard-card-body {
+    min-height: 0;
+    flex: 1 1 auto;
+    padding: 1rem 1.125rem;
+}
+
+.dashboard-chart-card__body,
+.dashboard-summary-card__body {
+    display: flex;
+    flex-direction: column;
+}
+
+.dashboard-list-card__body {
+    max-height: 24rem;
+    overflow-y: auto;
+    padding: 0;
+    scrollbar-gutter: stable;
+}
+
+.dashboard-card-footer {
+    border-top: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+    padding: 0.75rem 1.125rem;
+}
+
+.dashboard-section-icon {
+    width: 2rem;
+    height: 2rem;
+}
+
+.dashboard-section-icon--indigo {
+    background: color-mix(in srgb, #6366f1 12%, transparent);
+    color: #6366f1;
+}
+
+.dashboard-section-icon--emerald {
+    background: color-mix(in srgb, #10b981 12%, transparent);
+    color: #059669;
+}
+
+.dashboard-section-icon--violet {
+    background: color-mix(in srgb, #8b5cf6 12%, transparent);
+    color: #7c3aed;
+}
+
+.dashboard-view-all {
+    display: inline-flex;
+    flex: 0 0 auto;
+    align-items: center;
+    gap: 0.25rem;
+    color: var(--primary);
+    font-size: 0.6875rem;
+    font-weight: 750;
+    white-space: nowrap;
+}
+
+.dashboard-empty-state {
+    display: flex;
+    min-height: 12rem;
+    flex: 1 1 auto;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 1.5rem;
+    text-align: center;
+}
+
+.dashboard-empty-state__icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 0.875rem;
+    background: color-mix(in srgb, var(--primary) 10%, transparent);
+    color: color-mix(in srgb, var(--primary) 72%, var(--muted-foreground));
+    padding: 0.75rem;
+}
+
+.dashboard-empty-state__title {
+    margin-top: 0.75rem;
+    color: var(--foreground);
+    font-size: 0.8125rem;
+    font-weight: 700;
+}
+
+.dashboard-empty-state__description {
+    max-width: 24rem;
+    margin-top: 0.25rem;
+    color: var(--muted-foreground);
+    font-size: 0.75rem;
+    line-height: 1.5;
+}
+
+@media (max-width: 1024px) {
+    .dashboard-kpi-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 640px) {
+    .dashboard-shell {
+        gap: 0.875rem;
+        padding: 1rem;
+    }
+
+    .dashboard-page-header {
+        min-height: auto;
+        flex-direction: column;
+    }
+
+    .dashboard-page-actions,
+.dashboard-filterbar {
+        width: 100%;
+    }
+
+    .dashboard-page-actions > *,
+    .dashboard-filterbar > * {
+        max-width: 100%;
+    }
+
+    .dashboard-kpi-grid {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .dashboard-main-kpi-grid {
+        gap: 0.75rem;
+    }
+
+    .dashboard-grid {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .dashboard-grid > *:not([class*='col-span-']) {
+        grid-column: 1 / -1 !important;
+    }
+
+    .dashboard-grid > [class*='col-span-'] {
+        grid-column: 1 / -1 !important;
+    }
+
+    .dashboard-card-frame {
+        min-height: 15rem;
     }
 }
 

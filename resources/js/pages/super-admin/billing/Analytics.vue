@@ -278,7 +278,7 @@ function quickRenew(restaurantName: string) {
 <template>
     <Head title="Phân tích thanh toán" />
 
-    <div class="flex flex-col gap-5 px-6 py-5">
+    <div class="dashboard-shell flex flex-col gap-5 px-6 py-5">
         <!-- Header -->
         <PageHeader
             title="Phân tích doanh thu"
@@ -335,7 +335,7 @@ function quickRenew(restaurantName: string) {
         </PageHeader>
 
         <!-- KPI Cards Row 1 (Sparklines added) -->
-        <div class="grid gap-4 md:grid-cols-4">
+        <div class="dashboard-kpi-grid">
             <StatCard
                 label="MRR"
                 :value="`${kpis.mrr}₫`"
@@ -406,7 +406,7 @@ function quickRenew(restaurantName: string) {
         </div>
 
         <!-- KPI Cards Row 2 (Glassmorphism & Urgency indicators) -->
-        <div class="grid gap-4 md:grid-cols-4">
+        <div class="dashboard-kpi-grid">
             <!-- Expiring 7d -->
             <Card
                 :class="[

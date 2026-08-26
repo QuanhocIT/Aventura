@@ -198,15 +198,15 @@ const handleLogout = () => {
                     :key="item.label"
                     :is="item.href.startsWith('#') ? 'a' : Link"
                     :href="item.href"
-                    class="rounded-md px-3 py-2 text-sm transition-colors"
+                    class="rounded-lg px-3.5 py-2 text-sm font-semibold transition-all duration-200"
                     :class="
                         transparent
                             ? isActiveNav(item.href)
-                                ? 'bg-white/15 font-semibold text-white shadow-sm backdrop-blur-sm'
-                                : 'text-zinc-300 transition-all duration-300 hover:bg-white/10 hover:text-white'
+                                ? 'bg-white/15 font-bold text-white shadow-sm backdrop-blur-sm'
+                                : 'text-zinc-200 hover:bg-white/10 hover:text-white'
                             : isActiveNav(item.href)
-                              ? 'bg-primary/10 font-semibold text-primary'
-                              : 'text-muted-foreground transition-all duration-300 hover:bg-muted hover:text-foreground'
+                              ? 'bg-primary/10 font-extrabold text-primary shadow-xs'
+                              : 'text-slate-800 hover:bg-slate-100 hover:text-slate-950 dark:text-slate-200 dark:hover:bg-slate-800 dark:hover:text-white'
                     "
                 >
                     {{ item.label }}

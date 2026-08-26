@@ -133,6 +133,20 @@ class TenantContext
         return $query;
     }
 
+    /**
+     * Guard a branch-bearing write against the branch selected for this
+     * request. Chain-wide users may intentionally write to any branch, while
+     * a branch-scoped request must never be able to post another branch's ID.
+     */
+    public function assertWriteBranch(?int $branchId): void
+    {
+        abort_unless($branchId !== null && ! $this->isUnassigned(), 403, 'Tài khoản chưa được gán phạm vi chi nhánh.');
+
+        if ($this->isBranchScoped()) {
+            abort_unless((int) $branchId === (int) $this->activeBranchId, 403, 'Dữ liệu phải thuộc chi nhánh đang được chọn.');
+        }
+    }
+
     public function cacheKey(string $prefix, ...$parts): string
     {
         $parts[] = 'scope';
