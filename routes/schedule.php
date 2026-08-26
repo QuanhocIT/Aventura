@@ -108,6 +108,12 @@ return function (Schedule $schedule): void {
     $schedule->command('reservations:cleanup-expired')->everyThirtyMinutes();
     $schedule->command('checklist:send-reminders')->dailyAt('10:00');
     $schedule->command('checklist:send-reminders')->dailyAt('16:00');
+    // Nhắc phiên kiểm tra sắp/quá lịch và CAPA sắp/quá hạn; lệnh có khóa
+    // idempotent nên chạy theo giờ mà không spam người dùng.
+    $schedule->command('operational-audit:send-reminders')
+        ->hourly()
+        ->withoutOverlapping(10)
+        ->name('operational-audit-sla-reminders');
     $schedule->command('system:audit-consistency')->dailyAt('03:00');
     $schedule->command('goals:sync')->hourly();
     $schedule->call(function (): void {

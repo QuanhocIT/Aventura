@@ -10,6 +10,7 @@ use App\Services\CentralWarehouseService;
 use App\Services\InventoryCountScopeService;
 use App\Services\InventoryCountService;
 use App\Services\MaterialClosingService;
+use App\Services\QuotaService;
 use App\Services\WarehouseTaskService;
 use App\Support\TenantRule;
 use Illuminate\Http\JsonResponse;
@@ -31,6 +32,16 @@ class MaterialClosingController extends Controller
     public function page(Request $request): Response
     {
         $user = $request->user();
+        $restaurant = $user->restaurant;
+        $restaurant?->loadMissing('plan');
+        if ($restaurant && ! app(QuotaService::class)->hasFeature($restaurant, 'inventory_basic')) {
+            return Inertia::render('FeatureGate', [
+                'feature' => 'inventory_basic',
+                'feature_label' => 'Chốt nguyên liệu Kho Tổng',
+                'plan_name' => $restaurant->plan?->name ?? 'Miễn phí',
+                'required_plan' => 'Cơ bản',
+            ]);
+        }
         $centralBranch = $this->assertCentralScope($user);
         $canManage = $this->canManage($user);
 

@@ -524,13 +524,21 @@ class CentralWarehouseService
                 ]);
             }
 
+            $isFullyPrepared = $request->items->every(fn (SupplyRequestItem $item): bool =>
+                $item->actual_dispatched_quantity !== null
+                && (float) $item->actual_dispatched_quantity >= (float) $item->approved_quantity
+            );
+            $nextStatus = $isFullyPrepared
+                ? SupplyRequest::STATUS_PREPARED
+                : SupplyRequest::STATUS_PREPARING;
+
             $request->update([
-                'status' => SupplyRequest::STATUS_PREPARED,
+                'status' => $nextStatus,
                 'prepared_by' => $picker->id,
                 'prepared_at' => now(),
             ]);
 
-            $this->notifyStakeholders($request, 'prepared');
+            $this->notifyStakeholders($request, $isFullyPrepared ? 'prepared' : 'preparing');
 
             return $request->fresh(['items.ingredient', 'items.batch']);
         });

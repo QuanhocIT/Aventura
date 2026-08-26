@@ -4,6 +4,7 @@ use App\Http\Controllers\ApiKeyController;
 use App\Http\Controllers\ApprovalController;
 use App\Http\Controllers\ApprovalPolicyController;
 use App\Http\Controllers\AttendanceController;
+use App\Http\Controllers\BonusController;
 use App\Http\Controllers\AuditLogController;
 use App\Http\Controllers\BankReconciliationController;
 use App\Http\Controllers\BatchRecallController;
@@ -56,6 +57,7 @@ use App\Http\Controllers\MenuEngineeringController;
 use App\Http\Controllers\MenuInsightController;
 use App\Http\Controllers\MyRequestsController;
 use App\Http\Controllers\OnboardingController;
+use App\Http\Controllers\OvertimeController;
 use App\Http\Controllers\OnlineStoreSettingsController;
 use App\Http\Controllers\OperationalAuditController;
 use App\Http\Controllers\OperationPolicyController;
@@ -173,6 +175,8 @@ Route::middleware(['auth', 'verified', 'tenant.subscription', 'tenant.ratelimit'
     Route::post('inventory/auto-po/generate', [PurchaseOrderController::class, 'generateAutoPo'])->name('inventory.auto-po.generate');
 
     Route::get('employees', [EmployeeManagementController::class, 'employeesPage'])->name('employees.index');
+    Route::get('bonuses', [BonusController::class, 'index'])->name('bonuses.index');
+    Route::post('bonuses', [EmployeeManagementController::class, 'storeBonus'])->name('bonuses.store');
     Route::post('employees', [EmployeeManagementController::class, 'storeEmployee'])->name('employees.store')->middleware('tenant.quota:employees');
     Route::patch('employees/{employee}', [EmployeeManagementController::class, 'updateEmployee'])->name('employees.update');
     Route::patch('employees/{employee}/toggle-status', [EmployeeManagementController::class, 'toggleEmployeeStatus'])->name('employees.toggle-status');
@@ -201,6 +205,21 @@ Route::middleware(['auth', 'verified', 'tenant.subscription', 'tenant.ratelimit'
 
     // Chấm công & Lịch biểu
     Route::get('schedules', [ScheduleController::class, 'index'])->name('schedules.index');
+    Route::get('overtime-requests', [OvertimeController::class, 'index'])->name('overtime.index');
+    Route::post('overtime-requests', [OvertimeController::class, 'store'])->name('overtime.store');
+    Route::patch('overtime-requests/{overtimeRequest}/approve', [OvertimeController::class, 'approve'])->name('overtime.approve');
+    Route::patch('overtime-requests/{overtimeRequest}/reject', [OvertimeController::class, 'reject'])->name('overtime.reject');
+    Route::patch('overtime-requests/{overtimeRequest}/accept', [OvertimeController::class, 'accept'])->name('overtime.accept');
+    Route::patch('overtime-requests/{overtimeRequest}/decline', [OvertimeController::class, 'decline'])->name('overtime.decline');
+    Route::post('overtime-requests/{overtimeRequest}/check-in', [OvertimeController::class, 'checkIn'])->name('overtime.check-in');
+    Route::post('overtime-requests/{overtimeRequest}/check-out', [OvertimeController::class, 'checkOut'])->name('overtime.check-out');
+    Route::patch('overtime-requests/{overtimeRequest}/withdraw', [OvertimeController::class, 'withdraw'])->name('overtime.withdraw');
+    Route::patch('overtime-requests/{overtimeRequest}/cancel', [OvertimeController::class, 'cancel'])->name('overtime.cancel');
+    Route::patch('overtime-requests/{overtimeRequest}/reconcile', [OvertimeController::class, 'reconcile'])->name('overtime.reconcile');
+    Route::get('overtime-requests/export', [OvertimeController::class, 'export'])->name('overtime.export');
+    Route::post('overtime-policies', [OvertimeController::class, 'updatePolicy'])->name('overtime.policies.update');
+    Route::post('overtime-holidays', [OvertimeController::class, 'storeHoliday'])->name('overtime.holidays.store');
+    Route::delete('overtime-holidays/{overtimeHoliday}', [OvertimeController::class, 'destroyHoliday'])->name('overtime.holidays.destroy');
     Route::post('schedules/check-in', [AttendanceController::class, 'checkIn'])->name('schedules.check-in');
     Route::post('schedules/request-check-in', [AttendanceController::class, 'requestCheckIn'])->name('schedules.request-check-in');
     Route::post('schedules/request-check-out', [AttendanceController::class, 'requestCheckOut'])->name('schedules.request-check-out');
@@ -937,8 +956,12 @@ Route::middleware(['auth', 'verified', 'tenant.subscription', 'tenant.ratelimit'
     Route::put('api/company-policy-categories/{id}', [CompanyPolicyController::class, 'updateCategory'])->middleware('role_or_permission:owner|super_admin|company_policies.manage')->name('company-policy-categories.update');
     Route::delete('api/company-policy-categories/{id}', [CompanyPolicyController::class, 'destroyCategory'])->middleware('role_or_permission:owner|super_admin|company_policies.manage')->name('company-policy-categories.destroy');
 
+    // Tổng quan thanh tra phải có route riêng. Không dùng /dashboard vì
+    // DashboardController chủ động chuyển inspector về trang vận hành.
+    Route::get('operations/audit/overview', [OperationalAuditController::class, 'overview'])->middleware('role_or_permission:owner|super_admin|operational_audit.view|operational_audit.approve')->name('operations.audit.overview');
     // Giám Sát Vận Hành & Lập/Duyệt Biên Bản Vi Phạm Xử Phạt
     Route::get('operations/audit', [OperationalAuditController::class, 'page'])->middleware('role_or_permission:owner|super_admin|operational_audit.view|operational_audit.approve')->name('operations.audit');
+    Route::get('operations/inspection-workspace', [OperationalAuditController::class, 'inspectionWorkspace'])->middleware('role_or_permission:owner|super_admin|operational_inspection.view|operational_inspection.create|operational_audit.report')->name('operations.inspection-workspace');
     Route::post('api/operational-audit/reports', [OperationalAuditController::class, 'storeReport'])->middleware('role_or_permission:owner|super_admin|operational_audit.report')->name('operational-audit.reports.store');
     Route::post('api/operational-audit/reports/{id}/approve', [OperationalAuditController::class, 'approveReport'])->middleware('role_or_permission:owner|super_admin|operational_audit.approve')->name('operational-audit.reports.approve');
     Route::post('api/operational-audit/reports/{id}/reject', [OperationalAuditController::class, 'rejectReport'])->middleware('role_or_permission:owner|super_admin|operational_audit.approve')->name('operational-audit.reports.reject');
@@ -951,6 +974,19 @@ Route::middleware(['auth', 'verified', 'tenant.subscription', 'tenant.ratelimit'
     Route::post('api/operational-audit/inspection-plans/{id}/start', [OperationalAuditController::class, 'startInspectionPlan'])->middleware('role_or_permission:owner|super_admin|operational_audit.manage|operational_audit.report')->name('operational-audit.inspection-plans.start');
     Route::post('api/operational-audit/inspection-plans/{id}/complete', [OperationalAuditController::class, 'completeInspectionPlan'])->middleware('role_or_permission:owner|super_admin|operational_audit.manage|operational_audit.report')->name('operational-audit.inspection-plans.complete');
     Route::post('api/operational-audit/inspection-plans/{id}/cancel', [OperationalAuditController::class, 'cancelInspectionPlan'])->middleware('role_or_permission:owner|super_admin|operational_audit.manage|operational_audit.report')->name('operational-audit.inspection-plans.cancel');
+    Route::post('api/operational-audit/inspections', [OperationalAuditController::class, 'storeInspection'])->middleware('role_or_permission:owner|super_admin|operational_inspection.create|operational_inspection.manage|operational_audit.report')->name('operational-audit.inspections.store');
+    Route::post('api/operational-audit/inspections/{id}/start', [OperationalAuditController::class, 'startInspection'])->middleware('role_or_permission:owner|super_admin|operational_inspection.execute|operational_audit.report')->name('operational-audit.inspections.start');
+    Route::post('api/operational-audit/inspections/{id}/complete', [OperationalAuditController::class, 'completeInspection'])->middleware('role_or_permission:owner|super_admin|operational_inspection.execute|operational_audit.report')->name('operational-audit.inspections.complete');
+    Route::post('api/operational-audit/inspections/{id}/checklist', [OperationalAuditController::class, 'recordChecklistResult'])->middleware('role_or_permission:owner|super_admin|operational_inspection.execute|operational_audit.report')->name('operational-audit.inspections.checklist');
+    Route::post('api/operational-audit/reports/{id}/assignment/accept', [OperationalAuditController::class, 'acceptAssignment'])->name('operational-audit.reports.assignment.accept');
+    Route::post('api/operational-audit/reports/{id}/assignment/reject', [OperationalAuditController::class, 'rejectAssignment'])->name('operational-audit.reports.assignment.reject');
+    Route::post('api/operational-audit/reports/{id}/acknowledge', [OperationalAuditController::class, 'acknowledgeReport'])->middleware('role_or_permission:owner|super_admin|manager|operational_audit.branch_acknowledge')->name('operational-audit.reports.acknowledge');
+    Route::post('api/operational-audit/reports/{id}/actions', [OperationalAuditController::class, 'storeCorrectiveAction'])->middleware('role_or_permission:owner|super_admin|operational_audit.capa.manage|operational_audit.manage|operational_audit.report')->name('operational-audit.reports.actions.store');
+    Route::post('api/operational-audit/inspections/{id}/actions', [OperationalAuditController::class, 'storeInspectionCorrectiveAction'])->middleware('role_or_permission:owner|super_admin|operational_audit.capa.manage|operational_audit.manage|operational_audit.report')->name('operational-audit.inspections.actions.store');
+    Route::patch('api/operational-audit/actions/{id}', [OperationalAuditController::class, 'updateCorrectiveAction'])->name('operational-audit.actions.update');
+    Route::post('api/operational-audit/evidence', [OperationalAuditController::class, 'storeEvidence'])->middleware('role_or_permission:owner|super_admin|operational_audit.evidence.upload|operational_audit.report')->name('operational-audit.evidence.store');
+    Route::get('api/operational-audit/evidence/{id}', [OperationalAuditController::class, 'downloadEvidence'])->name('operational-audit.evidence.download');
+    Route::post('api/operational-audit/links', [OperationalAuditController::class, 'storeCaseLink'])->middleware('role_or_permission:owner|super_admin|operational_audit.report')->name('operational-audit.links.store');
 
     // Quản lý Đấu thầu RFP (Dành cho nhà hàng)
     Route::middleware('supplier.portal')->group(function () {
@@ -1031,6 +1067,9 @@ Route::middleware(['auth', 'verified', 'tenant.subscription', 'tenant.ratelimit'
             Route::get('/profile', [EmployeePortalController::class, 'profile'])->name('profile');
             Route::get('/data', [EmployeePortalController::class, 'getDashboardData'])->name('data');
             Route::get('/salaries', [EmployeePortalController::class, 'getSalaries'])->name('salaries');
+            Route::get('/overtime', [OvertimeController::class, 'portalIndex'])->name('overtime');
+            Route::post('/overtime', [OvertimeController::class, 'portalStore'])->name('overtime.store');
+            Route::post('/overtime/{overtimeRequest}/respond', [OvertimeController::class, 'portalRespond'])->name('overtime.respond');
             Route::get('/leaves', [EmployeePortalController::class, 'getLeaves'])->name('leaves');
             Route::post('/leaves', [EmployeePortalController::class, 'storeLeaveRequest'])->name('leaves.store');
             Route::get('/swaps', [EmployeePortalController::class, 'getSwaps'])->name('swaps');
