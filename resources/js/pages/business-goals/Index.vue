@@ -19,11 +19,13 @@ import {
     RefreshCw,
     Rocket,
     Settings2,
+    Sparkles,
     Target,
     Timer,
     Trash2,
     Trophy,
     Users,
+    Zap,
 } from 'lucide-vue-next';
 import { computed, ref, watch } from 'vue';
 import { toast } from 'vue-sonner';
@@ -212,6 +214,14 @@ function formatNumber(
     });
 }
 
+function formatCurrency(amount: number): string {
+    return new Intl.NumberFormat('vi-VN', {
+        style: 'currency',
+        currency: 'VND',
+        maximumFractionDigits: 0,
+    }).format(amount);
+}
+
 function formatDate(value: string | null | undefined): string {
     if (!value) {
         return 'Chưa đặt';
@@ -248,99 +258,62 @@ function getTimeProgress(goal: Pick<Goal, 'start_date' | 'end_date'>): number {
         `${goal.start_date.slice(0, 10)}T00:00:00`,
     ).getTime();
     const end = new Date(`${goal.end_date.slice(0, 10)}T23:59:59`).getTime();
-    const now = Date.now();
+    const now = today.getTime();
 
-    if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) {
+    if (now <= start) {
         return 0;
     }
 
-    return Math.max(
-        0,
-        Math.min(100, Math.round(((now - start) / (end - start)) * 100)),
-    );
+    if (now >= end) {
+        return 100;
+    }
+
+    const total = end - start;
+    const elapsed = now - start;
+
+    return Math.round((elapsed / total) * 100);
 }
 
 function daysRemaining(goal: Pick<Goal, 'end_date'>): number {
     const end = new Date(`${goal.end_date.slice(0, 10)}T23:59:59`).getTime();
+    const diff = end - today.getTime();
 
-    return Math.ceil((end - Date.now()) / 86_400_000);
+    return Math.ceil(diff / (1000 * 60 * 60 * 24));
 }
 
-function getPace(goal: Goal): PaceKey {
-    const progress = Number(goal.progress_percent ?? 0);
-
-    if (progress >= 100) {
+function getPace(
+    goal: Pick<Goal, 'progress_percent' | 'start_date' | 'end_date' | 'status'>,
+): PaceKey {
+    if (goal.status === 'completed' || goal.progress_percent >= 100) {
         return 'completed';
     }
 
-    if (daysRemaining(goal) < 0) {
+    const timePct = getTimeProgress(goal);
+    const daysLeft = daysRemaining(goal);
+
+    if (daysLeft < 0) {
         return 'overdue';
     }
 
-    const gap = getTimeProgress(goal) - progress;
+    const gap = timePct - goal.progress_percent;
 
-    if (gap >= 15) {
+    if (gap >= 25) {
         return 'at_risk';
     }
 
-    if (gap >= 5) {
+    if (gap >= 10) {
         return 'watch';
     }
 
     return 'on_track';
 }
 
-function actionSummary(goal: Goal): {
-    done: number;
-    total: number;
-    overdue: number;
-} {
-    const actions = goal.actions ?? [];
-
-    return {
-        done: actions.filter((action) => action.status === 'done').length,
-        total: actions.length,
-        overdue: actions.filter(
-            (action) =>
-                action.status !== 'done' &&
-                action.due_date &&
-                action.due_date < todayKey,
-        ).length,
-    };
-}
-
-function milestoneSummary(goal: Goal): { reached: number; total: number } {
-    const milestones = goal.milestones ?? [];
-
-    return {
-        reached: milestones.filter((milestone) => milestone.reached).length,
-        total: milestones.length,
-    };
-}
-
 function isActionOverdue(action: GoalAction): boolean {
-    return (
-        action.status !== 'done' &&
-        Boolean(action.due_date && action.due_date < todayKey)
-    );
-}
-
-function progressColor(goal: Goal): string {
-    const pace = getPace(goal);
-
-    if (pace === 'completed') {
-        return 'bg-emerald-500';
+    if (action.status === 'done' || !action.due_date) {
+        return false;
     }
 
-    if (pace === 'at_risk' || pace === 'overdue') {
-        return 'bg-rose-500';
-    }
-
-    if (pace === 'watch') {
-        return 'bg-amber-500';
-    }
-
-    return 'bg-sky-500';
+    return action.due_date < todayKey;
 }
 
 const avgProgress = computed(() => {
@@ -348,256 +321,237 @@ const avgProgress = computed(() => {
         return 0;
     }
 
-    return Math.round(
-        props.activeGoals.reduce(
-            (sum, goal) => sum + Number(goal.progress_percent || 0),
-            0,
-        ) / props.activeGoals.length,
-    );
-});
-
-const actionsRatio = computed(() => {
-    const actions = props.activeGoals.flatMap((goal) => goal.actions ?? []);
-    const done = actions.filter((action) => action.status === 'done').length;
-
-    return {
-        done,
-        total: actions.length,
-        pct: actions.length ? Math.round((done / actions.length) * 100) : 0,
-    };
-});
-
-const milestonesRatio = computed(() => {
-    const milestones = props.activeGoals.flatMap(
-        (goal) => goal.milestones ?? [],
-    );
-    const reached = milestones.filter((milestone) => milestone.reached).length;
-
-    return {
-        reached,
-        total: milestones.length,
-        pct: milestones.length
-            ? Math.round((reached / milestones.length) * 100)
-            : 0,
-    };
-});
-
-const riskGoals = computed(() =>
-    props.activeGoals.filter((goal) =>
-        ['at_risk', 'overdue'].includes(getPace(goal)),
-    ),
-);
-const overdueActionCount = computed(() =>
-    props.activeGoals.reduce(
-        (sum, goal) => sum + actionSummary(goal).overdue,
+    const sum = props.activeGoals.reduce(
+        (total, goal) => total + (goal.progress_percent || 0),
         0,
-    ),
-);
+    );
+
+    return Math.round(sum / props.activeGoals.length);
+});
+
 const timeProgressAverage = computed(() => {
     if (!props.activeGoals.length) {
         return 0;
     }
 
-    return Math.round(
-        props.activeGoals.reduce(
-            (sum, goal) => sum + getTimeProgress(goal),
-            0,
-        ) / props.activeGoals.length,
+    const sum = props.activeGoals.reduce(
+        (total, goal) => total + getTimeProgress(goal),
+        0,
     );
+
+    return Math.round(sum / props.activeGoals.length);
+});
+
+const riskGoals = computed(() =>
+    props.activeGoals.filter((goal) => {
+        const pace = getPace(goal);
+
+        return pace === 'at_risk' || pace === 'overdue' || pace === 'watch';
+    }),
+);
+
+const filteredGoals = computed(() => {
+    if (goalFilter.value === 'risk') {
+        return riskGoals.value;
+    }
+
+    if (goalFilter.value === 'on_track') {
+        return props.activeGoals.filter(
+            (goal) => getPace(goal) === 'on_track' || getPace(goal) === 'completed',
+        );
+    }
+
+    return props.activeGoals;
+});
+
+const attentionItems = computed(() => {
+    const list: Array<{
+        key: string;
+        title: string;
+        detail: string;
+        tone: 'danger' | 'warning';
+        kind: 'goal' | 'action';
+        goalId: number;
+    }> = [];
+
+    props.activeGoals.forEach((goal) => {
+        const pace = getPace(goal);
+
+        if (pace === 'overdue') {
+            list.push({
+                key: `g-overdue-${goal.id}`,
+                title: goal.title,
+                detail: `Mục tiêu đã quá hạn ${Math.abs(daysRemaining(goal))} ngày. Tiến độ: ${goal.progress_percent}%`,
+                tone: 'danger',
+                kind: 'goal',
+                goalId: goal.id,
+            });
+        } else if (pace === 'at_risk') {
+            list.push({
+                key: `g-risk-${goal.id}`,
+                title: goal.title,
+                detail: `Tiến độ ${goal.progress_percent}% chậm hơn thời gian đã trôi (${getTimeProgress(goal)}%)`,
+                tone: 'warning',
+                kind: 'goal',
+                goalId: goal.id,
+            });
+        }
+
+        goal.actions?.forEach((action) => {
+            if (isActionOverdue(action)) {
+                list.push({
+                    key: `a-overdue-${action.id}`,
+                    title: action.title,
+                    detail: `Hành động trễ hạn trong mục tiêu "${goal.title}"`,
+                    tone: 'danger',
+                    kind: 'action',
+                    goalId: goal.id,
+                });
+            }
+        });
+    });
+
+    return list.slice(0, 5);
+});
+
+const overdueActionCount = computed(() => {
+    return props.activeGoals.reduce((total, goal) => {
+        const count =
+            goal.actions?.filter((action) => isActionOverdue(action)).length || 0;
+
+        return total + count;
+    }, 0);
+});
+
+const actionsRatio = computed(() => {
+    let total = 0;
+    let done = 0;
+
+    props.activeGoals.forEach((goal) => {
+        goal.actions?.forEach((action) => {
+            total += 1;
+
+            if (action.status === 'done') {
+                done += 1;
+            }
+        });
+    });
+
+    return {
+        total,
+        done,
+        pct: total ? Math.round((done / total) * 100) : 100,
+    };
+});
+
+const milestonesRatio = computed(() => {
+    let total = 0;
+    let reached = 0;
+
+    props.activeGoals.forEach((goal) => {
+        goal.milestones?.forEach((milestone) => {
+            total += 1;
+
+            if (milestone.reached) {
+                reached += 1;
+            }
+        });
+    });
+
+    return {
+        total,
+        reached,
+        pct: total ? Math.round((reached / total) * 100) : 100,
+    };
 });
 
 const executionLabel = computed(() => {
     if (!props.activeGoals.length) {
-        return 'Chưa có mục tiêu';
+        return 'Chưa thiết lập mục tiêu';
     }
 
-    if (riskGoals.value.length > 0) {
-        return 'Cần can thiệp';
+    if (riskGoals.value.length === 0) {
+        return 'Tất cả bám sát kế hoạch';
     }
 
-    if (avgProgress.value >= timeProgressAverage.value) {
-        return 'Đang bám kế hoạch';
-    }
-
-    return 'Cần đẩy nhanh';
+    return `${riskGoals.value.length} mục tiêu cần chú ý`;
 });
 
-const filteredGoals = computed(() => {
-    return [...props.activeGoals]
-        .filter((goal) => {
-            if (goalFilter.value === 'risk') {
-                return ['at_risk', 'overdue'].includes(getPace(goal));
-            }
+const isCreateOpen = ref(false);
+const isActionDialogOpen = ref(false);
+const actionGoalId = ref<number | null>(null);
 
-            if (goalFilter.value === 'on_track') {
-                return ['on_track', 'watch'].includes(getPace(goal));
-            }
-
-            return true;
-        })
-        .sort((left, right) => {
-            const priority: Record<PaceKey, number> = {
-                overdue: 0,
-                at_risk: 1,
-                watch: 2,
-                on_track: 3,
-                completed: 4,
-            };
-            const paceDiff = priority[getPace(left)] - priority[getPace(right)];
-
-            if (paceDiff !== 0) {
-                return paceDiff;
-            }
-
-            return (
-                new Date(left.end_date).getTime() -
-                new Date(right.end_date).getTime()
-            );
-        });
-});
-
-const attentionItems = computed(() => {
-    const items: {
-        key: string;
-        kind: 'goal' | 'action';
-        title: string;
-        detail: string;
-        tone: 'danger' | 'warning';
-        goalId?: number;
-    }[] = [];
-
-    riskGoals.value.slice(0, 3).forEach((goal) => {
-        const pace = getPace(goal);
-        items.push({
-            key: `goal-${goal.id}`,
-            kind: 'goal',
-            title:
-                pace === 'overdue'
-                    ? `Mục tiêu đã quá hạn: ${goal.title}`
-                    : `Mục tiêu có nguy cơ trễ: ${goal.title}`,
-            detail: `${formatNumber(goal.progress_percent)}% hoàn thành • còn ${Math.max(0, daysRemaining(goal))} ngày`,
-            tone: pace === 'overdue' ? 'danger' : 'warning',
-            goalId: goal.id,
-        });
-    });
-
-    props.activeGoals
-        .flatMap((goal) =>
-            (goal.actions ?? []).map((action) => ({ goal, action })),
-        )
-        .filter(({ action }) => isActionOverdue(action))
-        .slice(0, 3)
-        .forEach(({ goal, action }) => {
-            items.push({
-                key: `action-${action.id}`,
-                kind: 'action',
-                title: `Hành động quá hạn: ${action.title}`,
-                detail: `Thuộc mục tiêu “${goal.title}” • hạn ${formatDate(action.due_date)}`,
-                tone: 'danger',
-                goalId: goal.id,
-            });
-        });
-
-    return items.slice(0, 4);
-});
-
-// Create goal
-const showCreateDialog = ref(false);
-const initialStart = new Date().toISOString().slice(0, 10);
-const initialEnd = new Date(Date.now() + 30 * 86_400_000)
-    .toISOString()
-    .slice(0, 10);
 const goalForm = useForm({
     title: '',
     description: '',
-    owner_name: '',
-    unit_name: '',
     metric: 'revenue' as Metric,
-    period: 'monthly',
-    start_date: initialStart,
-    end_date: initialEnd,
-    target_value: 0,
-    milestones: [
-        { title: 'Đạt 50%', threshold_percent: 50 },
-        { title: 'Đạt 100%', threshold_percent: 100 },
-    ] as { title: string; threshold_percent: number }[],
+    period: 'monthly' as 'weekly' | 'monthly' | 'quarterly' | 'yearly',
+    start_date: todayKey,
+    end_date: '',
+    target_value: '' as any,
+    current_value: '' as any,
+    unit_name: '',
+    owner_name: '',
 });
 
+const actionForm = useForm({
+    title: '',
+    description: '',
+    due_date: '',
+});
+
+const customValues = ref<Record<number, number>>({});
+
+watch(
+    () => props.activeGoals,
+    (goals) => {
+        goals.forEach((goal) => {
+            if (goal.metric === 'custom') {
+                customValues.value[goal.id] = goal.current_value;
+            }
+        });
+    },
+    { immediate: true },
+);
+
 function openCreateDialog(): void {
-    goalForm.reset();
-    goalForm.clearErrors();
-    goalForm.start_date = initialStart;
-    goalForm.end_date = initialEnd;
-    goalForm.metric = 'revenue';
-    goalForm.period = 'monthly';
-    goalForm.milestones = [
-        { title: 'Đạt 50%', threshold_percent: 50 },
-        { title: 'Đạt 100%', threshold_percent: 100 },
-    ];
-    showCreateDialog.value = true;
+    const end = new Date();
+    end.setDate(end.getDate() + 30);
+    goalForm.end_date = end.toISOString().slice(0, 10);
+    isCreateOpen.value = true;
 }
 
-function addMilestone(): void {
-    goalForm.milestones.push({ title: '', threshold_percent: 75 });
-}
-
-function removeMilestone(index: number): void {
-    if (goalForm.milestones.length <= 1) {
-        return;
-    }
-
-    goalForm.milestones.splice(index, 1);
-}
-
-function submitGoal(): void {
+function submitCreateGoal(): void {
     goalForm.post('/business-goals', {
         preserveScroll: true,
         onSuccess: () => {
-            showCreateDialog.value = false;
-            toast.success('Đã tạo mục tiêu OKR.');
+            isCreateOpen.value = false;
+            goalForm.reset();
         },
     });
 }
 
-// Manual value for custom goals
-const customValues = ref<Record<number, number>>({});
-watch(
-    () => props.activeGoals,
-    (goals) => {
-        goals
-            .filter((goal) => goal.metric === 'custom')
-            .forEach((goal) => {
-                if (customValues.value[goal.id] === undefined) {
-                    customValues.value[goal.id] = Number(
-                        goal.current_value || 0,
-                    );
-                }
-            });
-    },
-    { immediate: true, deep: true },
-);
-
 function saveCustomValue(goal: Goal): void {
-    router.patch(
+    const val = customValues.value[goal.id];
+
+    if (val === undefined || Number.isNaN(val)) {
+        return;
+    }
+
+    router.post(
         `/business-goals/${goal.id}/value`,
-        { current_value: Number(customValues.value[goal.id] ?? 0) },
+        { current_value: val },
         { preserveScroll: true },
     );
 }
 
-// Action plan
-const showActionDialog = ref(false);
-const actionGoalId = ref<number | null>(null);
-const actionForm = useForm({ title: '', description: '', due_date: '' });
-
 function openActionDialog(goalId: number): void {
     actionGoalId.value = goalId;
-    actionForm.reset();
-    actionForm.clearErrors();
-    showActionDialog.value = true;
+    actionForm.due_date = todayKey;
+    isActionDialogOpen.value = true;
 }
 
-function submitAction(): void {
+function submitCreateAction(): void {
     if (!actionGoalId.value) {
         return;
     }
@@ -605,14 +559,14 @@ function submitAction(): void {
     actionForm.post(`/business-goals/${actionGoalId.value}/actions`, {
         preserveScroll: true,
         onSuccess: () => {
-            showActionDialog.value = false;
-            toast.success('Đã thêm hành động vào kế hoạch.');
+            isActionDialogOpen.value = false;
+            actionForm.reset();
         },
     });
 }
 
 function toggleAction(actionId: number): void {
-    router.patch(
+    router.post(
         `/business-goals/actions/${actionId}/toggle`,
         {},
         { preserveScroll: true },
@@ -620,11 +574,7 @@ function toggleAction(actionId: number): void {
 }
 
 function deleteGoal(goal: Goal): void {
-    if (
-        !window.confirm(
-            `Xóa mục tiêu “${goal.title}”? Các mốc và hành động liên quan cũng sẽ bị xóa.`,
-        )
-    ) {
+    if (!confirm(`Bạn có chắc chắn muốn xóa mục tiêu "${goal.title}"?`)) {
         return;
     }
 
@@ -632,21 +582,14 @@ function deleteGoal(goal: Goal): void {
 }
 
 function refreshGoals(): void {
-    if (isRefreshing.value) {
-        return;
-    }
-
     isRefreshing.value = true;
-    router.get(
-        '/business-goals',
-        { refresh: 1 },
+    router.post(
+        '/business-goals/sync',
+        {},
         {
-            preserveState: true,
             preserveScroll: true,
-            replace: true,
             onFinish: () => {
                 isRefreshing.value = false;
-                toast.success('Đã đồng bộ tiến độ mục tiêu.');
             },
         },
     );
@@ -671,18 +614,39 @@ function focusGoal(goalId?: number): void {
 function setGoalFilter(value: string): void {
     goalFilter.value = value === 'risk' || value === 'on_track' ? value : 'all';
 }
+
+function milestoneSummary(goal: Goal) {
+    const milestones = goal.milestones ?? [];
+    const reached = milestones.filter((m) => m.reached).length;
+    return { reached, total: milestones.length };
+}
+
+function actionSummary(goal: Goal) {
+    const actions = goal.actions ?? [];
+    const done = actions.filter((a) => a.status === 'done').length;
+    return { done, total: actions.length };
+}
+
+function progressColor(goal: Goal): string {
+    const pace = getPace(goal);
+    if (pace === 'completed') return 'bg-emerald-500';
+    if (pace === 'overdue' || pace === 'at_risk') return 'bg-rose-500';
+    if (pace === 'watch') return 'bg-amber-500';
+    return 'bg-sky-500';
+}
 </script>
 
 <template>
     <Head title="Mục tiêu & OKR" />
 
     <div class="mx-auto w-full max-w-[1600px] space-y-5 p-4 lg:p-7">
+        <!-- ── 1. HEADER BANNER ─────────────────────────────────────────────── -->
         <header
             class="overflow-hidden rounded-[1.75rem] border border-slate-200/80 bg-white shadow-sm dark:border-white/[0.08] dark:bg-slate-950/70"
         >
             <div class="relative px-5 py-6 lg:px-7">
                 <div
-                    class="absolute -top-28 -right-20 h-72 w-72 rounded-full bg-amber-500/[0.09] blur-3xl"
+                    class="absolute -top-28 -right-20 size-72 rounded-full bg-amber-500/[0.09] blur-3xl"
                 />
                 <div
                     class="relative flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between"
@@ -697,20 +661,17 @@ function setGoalFilter(value: string): void {
                             <div
                                 class="mb-1 flex items-center gap-2 text-[11px] font-bold tracking-[0.18em] text-amber-600 uppercase dark:text-amber-400"
                             >
-                                <Rocket class="size-3.5" /> OKR / Execution
-                                cockpit
+                                <Rocket class="size-3.5" /> OKR / Execution cockpit
                             </div>
                             <h1
-                                class="text-2xl font-semibold tracking-tight text-slate-950 lg:text-3xl dark:text-white"
+                                class="text-2xl font-semibold tracking-tight text-slate-950 dark:text-white lg:text-3xl"
                             >
                                 Biến mục tiêu thành hành động
                             </h1>
                             <p
                                 class="mt-2 max-w-2xl text-sm leading-6 text-slate-500 dark:text-slate-400"
                             >
-                                Theo dõi tiến độ, phát hiện mục tiêu có nguy cơ
-                                trễ và điều phối kế hoạch hành động trên toàn
-                                doanh nghiệp.
+                                Theo dõi tiến độ, phát hiện mục tiêu có nguy cơ trễ và điều phối kế hoạch hành động trên toàn doanh nghiệp.
                             </p>
                         </div>
                     </div>
@@ -720,18 +681,20 @@ function setGoalFilter(value: string): void {
                             size="sm"
                             :disabled="isRefreshing"
                             @click="refreshGoals"
-                            ><RefreshCw
+                        >
+                            <RefreshCw
                                 class="size-4"
                                 :class="isRefreshing && 'animate-spin'"
                             />
-                            Đồng bộ tiến độ</Button
-                        >
+                            Đồng bộ tiến độ
+                        </Button>
                         <Button
                             variant="brand"
                             size="sm"
                             @click="openCreateDialog"
-                            ><Plus class="size-4" /> Tạo mục tiêu mới</Button
                         >
+                            <Plus class="size-4" /> Tạo mục tiêu mới
+                        </Button>
                     </div>
                 </div>
             </div>
@@ -741,20 +704,18 @@ function setGoalFilter(value: string): void {
                 <div
                     class="flex items-center gap-2 font-semibold text-slate-500 dark:text-slate-400"
                 >
-                    <span class="size-1.5 rounded-full bg-emerald-500" /> Mục
-                    tiêu cấp doanh nghiệp
-                    <span class="text-slate-300 dark:text-slate-600">•</span> Dữ
-                    liệu được đồng bộ từ vận hành
+                    <span class="size-1.5 rounded-full bg-emerald-500" /> Mục tiêu cấp doanh nghiệp
+                    <span class="text-slate-300 dark:text-slate-600">•</span> Dữ liệu được đồng bộ từ vận hành
                 </div>
                 <div class="flex items-center gap-1.5 text-slate-400">
-                    <CalendarClock class="size-3.5" /> Hôm nay
-                    {{ formatDate(todayKey) }}
+                    <CalendarClock class="size-3.5" /> Hôm nay {{ formatDate(todayKey) }}
                 </div>
             </div>
         </header>
 
+        <!-- ── 2. FILTER & TAB CONTROLS ────────────────────────────────────── -->
         <div
-            class="flex flex-col gap-3 rounded-2xl border border-slate-200/80 bg-white p-2 shadow-sm lg:flex-row lg:items-center lg:justify-between dark:border-white/[0.08] dark:bg-slate-950/60"
+            class="flex flex-col gap-3 rounded-2xl border border-slate-200/80 bg-white p-2 shadow-sm dark:border-white/[0.08] dark:bg-slate-950/60 lg:flex-row lg:items-center lg:justify-between"
         >
             <div class="flex gap-1 overflow-x-auto">
                 <button
@@ -762,7 +723,7 @@ function setGoalFilter(value: string): void {
                     class="flex shrink-0 items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-bold transition"
                     :class="
                         activeTab === 'active'
-                            ? 'bg-slate-950 text-white shadow-sm dark:bg-white dark:text-slate-950'
+                            ? 'bg-slate-900 text-white shadow-sm dark:bg-white dark:text-slate-950'
                             : 'text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-white/[0.06]'
                     "
                     @click="activeTab = 'active'"
@@ -770,14 +731,17 @@ function setGoalFilter(value: string): void {
                     <Flag class="size-4" /> Đang thực hiện
                     <span
                         class="rounded-full bg-white/15 px-1.5 py-0.5 text-[10px] dark:bg-black/10"
-                        >{{ props.activeGoals.length }}</span
-                    ></button
-                ><button
+                    >
+                        {{ props.activeGoals.length }}
+                    </span>
+                </button>
+
+                <button
                     type="button"
                     class="flex shrink-0 items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-bold transition"
                     :class="
                         activeTab === 'history'
-                            ? 'bg-slate-950 text-white shadow-sm dark:bg-white dark:text-slate-950'
+                            ? 'bg-slate-900 text-white shadow-sm dark:bg-white dark:text-slate-950'
                             : 'text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-white/[0.06]'
                     "
                     @click="activeTab = 'history'"
@@ -785,10 +749,12 @@ function setGoalFilter(value: string): void {
                     <Trophy class="size-4" /> Lịch sử
                     <span
                         class="rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] dark:bg-white/[0.08]"
-                        >{{ props.history.length }}</span
                     >
+                        {{ props.history.length }}
+                    </span>
                 </button>
             </div>
+
             <div
                 v-if="activeTab === 'active'"
                 class="flex gap-1 overflow-x-auto rounded-xl bg-slate-50 p-1 dark:bg-white/[0.04]"
@@ -809,19 +775,21 @@ function setGoalFilter(value: string): void {
                     "
                     @click="setGoalFilter(filter.key)"
                 >
-                    {{ filter.label
-                    }}<span
+                    {{ filter.label }}
+                    <span
                         v-if="filter.key === 'risk' && riskGoals.length"
                         class="ml-1 text-rose-500"
-                        >{{ riskGoals.length }}</span
                     >
+                        {{ riskGoals.length }}
+                    </span>
                 </button>
             </div>
         </div>
 
+        <!-- ── 3. EXECUTION PULSE & FOCUS QUEUE TOP SECTION ──────────────────── -->
         <section class="grid gap-4 xl:grid-cols-[1.35fr_0.65fr]">
             <div
-                class="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm lg:p-6 dark:border-white/[0.08] dark:bg-slate-950/60"
+                class="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm dark:border-white/[0.08] dark:bg-slate-950/60 lg:p-6"
             >
                 <div
                     class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between"
@@ -840,8 +808,7 @@ function setGoalFilter(value: string): void {
                         <p
                             class="mt-2 text-xs text-slate-500 dark:text-slate-400"
                         >
-                            So sánh tiến độ thực tế với thời gian đã trôi qua
-                            của các mục tiêu đang chạy.
+                            So sánh tiến độ thực tế với thời gian đã trôi qua của các mục tiêu đang chạy.
                         </p>
                     </div>
                     <Badge
@@ -851,7 +818,8 @@ function setGoalFilter(value: string): void {
                                 ? 'border-amber-500/20 bg-amber-500/[0.06] text-amber-600 dark:text-amber-300'
                                 : 'border-emerald-500/20 bg-emerald-500/[0.06] text-emerald-600 dark:text-emerald-300'
                         "
-                        ><span
+                    >
+                        <span
                             class="mr-1.5 size-1.5 rounded-full"
                             :class="
                                 riskGoals.length
@@ -859,8 +827,8 @@ function setGoalFilter(value: string): void {
                                     : 'bg-emerald-500'
                             "
                         />
-                        {{ executionLabel }}</Badge
-                    >
+                        {{ executionLabel }}
+                    </Badge>
                 </div>
                 <div
                     class="mt-7 flex flex-col gap-7 md:flex-row md:items-center"
@@ -876,10 +844,10 @@ function setGoalFilter(value: string): void {
                         >
                             <span
                                 class="text-3xl font-semibold tracking-tight text-slate-950 dark:text-white"
-                                >{{ avgProgress }}%</span
-                            ><span class="mt-1 text-[11px] text-slate-400"
-                                >tiến độ TB</span
                             >
+                                {{ avgProgress }}%
+                            </span>
+                            <span class="mt-1 text-[11px] text-slate-400">tiến độ TB</span>
                         </div>
                     </div>
                     <div class="grid flex-1 gap-4 sm:grid-cols-2">
@@ -931,10 +899,7 @@ function setGoalFilter(value: string): void {
                                 {{ actionsRatio.pct }}%
                             </p>
                             <p class="mt-2 text-[11px] text-slate-400">
-                                {{ actionsRatio.done }}/{{
-                                    actionsRatio.total || 0
-                                }}
-                                hành động
+                                {{ actionsRatio.done }}/{{ actionsRatio.total || 0 }} hành động
                             </p>
                         </div>
                         <div>
@@ -947,15 +912,13 @@ function setGoalFilter(value: string): void {
                                 {{ milestonesRatio.pct }}%
                             </p>
                             <p class="mt-2 text-[11px] text-slate-400">
-                                {{ milestonesRatio.reached }}/{{
-                                    milestonesRatio.total || 0
-                                }}
-                                mốc đạt được
+                                {{ milestonesRatio.reached }}/{{ milestonesRatio.total || 0 }} mốc đạt được
                             </p>
                         </div>
                     </div>
                 </div>
             </div>
+
             <div
                 class="rounded-2xl border border-amber-500/20 bg-amber-500/[0.05] p-5 shadow-sm lg:p-6 dark:bg-amber-500/[0.04]"
             >
@@ -998,22 +961,19 @@ function setGoalFilter(value: string): void {
                                     ? 'bg-rose-500/10 text-rose-500'
                                     : 'bg-amber-500/10 text-amber-500'
                             "
-                            ><AlertTriangle
-                                v-if="item.kind === 'goal'"
-                                class="size-4" /><Clock3
-                                v-else
-                                class="size-4" /></span
-                        ><span class="min-w-0"
-                            ><span
-                                class="block truncate text-xs font-bold text-slate-800 dark:text-slate-200"
-                                >{{ item.title }}</span
-                            ><span
-                                class="mt-1 block truncate text-[11px] text-slate-500 dark:text-slate-400"
-                                >{{ item.detail }}</span
-                            ></span
-                        ><ArrowRight
-                            class="mt-1 size-4 shrink-0 text-slate-400"
-                        />
+                        >
+                            <AlertTriangle v-if="item.kind === 'goal'" class="size-4" />
+                            <Clock3 v-else class="size-4" />
+                        </span>
+                        <span class="min-w-0 flex-1">
+                            <span class="block truncate text-xs font-bold text-slate-800 dark:text-slate-200">
+                                {{ item.title }}
+                            </span>
+                            <span class="mt-1 block truncate text-[11px] text-slate-500 dark:text-slate-400">
+                                {{ item.detail }}
+                            </span>
+                        </span>
+                        <ArrowRight class="mt-1 size-4 shrink-0 text-slate-400" />
                     </button>
                 </div>
                 <div
@@ -1021,9 +981,7 @@ function setGoalFilter(value: string): void {
                     class="mt-6 flex min-h-36 flex-col items-center justify-center rounded-xl border border-dashed border-emerald-500/20 bg-emerald-500/[0.04] text-center"
                 >
                     <CheckCircle2 class="size-8 text-emerald-500" />
-                    <p
-                        class="mt-2 text-sm font-semibold text-emerald-700 dark:text-emerald-300"
-                    >
+                    <p class="mt-2 text-sm font-semibold text-emerald-700 dark:text-emerald-300">
                         Không có cảnh báo cần xử lý
                     </p>
                     <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">
@@ -1033,6 +991,7 @@ function setGoalFilter(value: string): void {
             </div>
         </section>
 
+        <!-- ── 4. ACTIVE GOALS GRID SECTION (WITH SMART OKR COMPANION WIDGET) ── -->
         <section v-if="activeTab === 'active'" class="space-y-5">
             <div v-if="filteredGoals.length" class="grid gap-4 xl:grid-cols-2">
                 <article
@@ -1057,41 +1016,21 @@ function setGoalFilter(value: string): void {
                                     <Target class="size-5" />
                                 </div>
                                 <div class="min-w-0">
-                                    <div
-                                        class="flex flex-wrap items-center gap-1.5"
-                                    >
-                                        <Badge
-                                            variant="outline"
-                                            class="border-slate-200 text-[10px] dark:border-white/[0.1]"
-                                            >{{
-                                                metricLabel[goal.metric]
-                                            }}</Badge
-                                        ><Badge
-                                            variant="outline"
-                                            class="border-slate-200 text-[10px] dark:border-white/[0.1]"
-                                            >{{
-                                                periodLabel[goal.period]
-                                            }}</Badge
-                                        ><Badge
-                                            variant="outline"
-                                            class="text-[10px]"
-                                            :class="
-                                                paceMeta[getPace(goal)].badge
-                                            "
-                                            >{{
-                                                paceMeta[getPace(goal)].label
-                                            }}</Badge
-                                        >
+                                    <div class="flex flex-wrap items-center gap-1.5">
+                                        <Badge variant="outline" class="border-slate-200 text-[10px] dark:border-white/[0.1]">
+                                            {{ metricLabel[goal.metric] }}
+                                        </Badge>
+                                        <Badge variant="outline" class="border-slate-200 text-[10px] dark:border-white/[0.1]">
+                                            {{ periodLabel[goal.period] }}
+                                        </Badge>
+                                        <Badge variant="outline" class="text-[10px]" :class="paceMeta[getPace(goal)].badge">
+                                            {{ paceMeta[getPace(goal)].label }}
+                                        </Badge>
                                     </div>
-                                    <h3
-                                        class="mt-2 line-clamp-2 text-base leading-5 font-semibold text-slate-900 dark:text-white"
-                                    >
+                                    <h3 class="mt-2 line-clamp-2 text-base font-semibold leading-5 text-slate-900 dark:text-white">
                                         {{ goal.title }}
                                     </h3>
-                                    <p
-                                        v-if="goal.description"
-                                        class="mt-1 line-clamp-2 text-xs leading-5 text-slate-500 dark:text-slate-400"
-                                    >
+                                    <p v-if="goal.description" class="mt-1 line-clamp-2 text-xs leading-5 text-slate-500 dark:text-slate-400">
                                         {{ goal.description }}
                                     </p>
                                 </div>
@@ -1105,136 +1044,87 @@ function setGoalFilter(value: string): void {
                                 <Trash2 class="size-4" />
                             </button>
                         </div>
+
                         <div class="mt-6 flex items-end justify-between gap-3">
                             <div>
-                                <p
-                                    class="text-[11px] font-semibold text-slate-400"
-                                >
+                                <p class="text-[11px] font-semibold text-slate-400">
                                     Kết quả hiện tại
                                 </p>
-                                <p
-                                    class="mt-1 text-xl font-semibold text-slate-950 dark:text-white"
-                                >
+                                <p class="mt-1 text-xl font-semibold text-slate-950 dark:text-white">
                                     {{ formatValue(goal, goal.current_value) }}
-                                    <span
-                                        class="text-sm font-normal text-slate-400"
-                                        >/
-                                        {{
-                                            formatValue(goal, goal.target_value)
-                                        }}</span
-                                    >
+                                    <span class="text-sm font-normal text-slate-400">/ {{ formatValue(goal, goal.target_value) }}</span>
                                 </p>
                             </div>
-                            <p
-                                class="text-3xl font-semibold tracking-tight"
-                                :class="paceMeta[getPace(goal)].text"
-                            >
+                            <p class="text-3xl font-semibold tracking-tight" :class="paceMeta[getPace(goal)].text">
                                 {{ formatNumber(goal.progress_percent) }}%
                             </p>
                         </div>
+
                         <div class="mt-4 space-y-2">
-                            <div
-                                class="relative h-2.5 overflow-hidden rounded-full bg-slate-100 dark:bg-white/[0.08]"
-                            >
+                            <div class="relative h-2.5 overflow-hidden rounded-full bg-slate-100 dark:bg-white/[0.08]">
                                 <div
                                     class="h-full rounded-full transition-all duration-500"
                                     :class="progressColor(goal)"
-                                    :style="{
-                                        width: `${Math.min(100, Math.max(0, goal.progress_percent))}%`,
-                                    }"
+                                    :style="{ width: `${Math.min(100, Math.max(0, goal.progress_percent))}%` }"
                                 />
                                 <div
                                     v-if="goal.progress_percent < 100"
                                     class="absolute top-0 bottom-0 w-0.5 bg-slate-900/50 dark:bg-white/50"
-                                    :style="{
-                                        left: `${getTimeProgress(goal)}%`,
-                                    }"
+                                    :style="{ left: `${getTimeProgress(goal)}%` }"
                                     title="Mốc thời gian đã trôi qua"
                                 />
                             </div>
-                            <div
-                                class="flex items-center justify-between text-[11px] text-slate-400"
-                            >
-                                <span class="inline-flex items-center gap-1.5"
-                                    ><Timer class="size-3.5" />{{
-                                        daysRemaining(goal) < 0
-                                            ? `Quá hạn ${Math.abs(daysRemaining(goal))} ngày`
-                                            : `Còn ${daysRemaining(goal)} ngày`
-                                    }}</span
-                                ><span
-                                    >Thời gian:
-                                    {{ getTimeProgress(goal) }}%</span
-                                >
+                            <div class="flex items-center justify-between text-[11px] text-slate-400">
+                                <span class="inline-flex items-center gap-1.5">
+                                    <Timer class="size-3.5" />
+                                    {{ daysRemaining(goal) < 0 ? `Quá hạn ${Math.abs(daysRemaining(goal))} ngày` : `Còn ${daysRemaining(goal)} ngày` }}
+                                </span>
+                                <span>Thời gian: {{ getTimeProgress(goal) }}%</span>
                             </div>
                         </div>
-                        <div
-                            class="mt-5 grid grid-cols-2 gap-3 rounded-xl bg-slate-50 p-3.5 dark:bg-white/[0.04]"
-                        >
+
+                        <div class="mt-5 grid grid-cols-2 gap-3 rounded-xl bg-slate-50 p-3.5 dark:bg-white/[0.04]">
                             <div>
-                                <p
-                                    class="text-[10px] font-semibold tracking-wide text-slate-400 uppercase"
-                                >
-                                    Hạn cuối
-                                </p>
-                                <p
-                                    class="mt-1 flex items-center gap-1.5 text-xs font-bold text-slate-700 dark:text-slate-200"
-                                >
-                                    <Calendar
-                                        class="size-3.5 text-slate-400"
-                                    />{{ formatDate(goal.end_date) }}
+                                <p class="text-[10px] font-semibold tracking-wide text-slate-400 uppercase">Hạn cuối</p>
+                                <p class="mt-1 flex items-center gap-1.5 text-xs font-bold text-slate-700 dark:text-slate-200">
+                                    <Calendar class="size-3.5 text-slate-400" />
+                                    {{ formatDate(goal.end_date) }}
                                 </p>
                             </div>
                             <div>
-                                <p
-                                    class="text-[10px] font-semibold tracking-wide text-slate-400 uppercase"
-                                >
-                                    Người phụ trách
-                                </p>
-                                <p
-                                    class="mt-1 flex items-center gap-1.5 truncate text-xs font-bold text-slate-700 dark:text-slate-200"
-                                >
-                                    <Users class="size-3.5 text-slate-400" />{{
-                                        goal.owner_name || 'Chưa phân công'
-                                    }}
+                                <p class="text-[10px] font-semibold tracking-wide text-slate-400 uppercase">Người phụ trách</p>
+                                <p class="mt-1 flex items-center gap-1.5 truncate text-xs font-bold text-slate-700 dark:text-slate-200">
+                                    <Users class="size-3.5 text-slate-400" />
+                                    {{ goal.owner_name || 'Chưa phân công' }}
                                 </p>
                             </div>
                         </div>
 
-                        <div
-                            v-if="goal.metric === 'custom'"
-                            class="mt-4 flex items-end gap-2 rounded-xl border border-violet-500/15 bg-violet-500/[0.04] p-3"
-                        >
-                            <label class="min-w-0 flex-1"
-                                ><span
-                                    class="text-[11px] font-semibold text-violet-700 dark:text-violet-300"
-                                    >Cập nhật số thực tế</span
-                                ><Input
+                        <div v-if="goal.metric === 'custom'" class="mt-4 flex items-end gap-2 rounded-xl border border-violet-500/15 bg-violet-500/[0.04] p-3">
+                            <label class="min-w-0 flex-1">
+                                <span class="text-[11px] font-semibold text-violet-700 dark:text-violet-300">Cập nhật số thực tế</span>
+                                <Input
                                     v-model.number="customValues[goal.id]"
                                     type="number"
                                     min="0"
                                     step="0.01"
-                                    class="mt-1 h-9 rounded-lg bg-white text-sm dark:bg-slate-950" /></label
-                            ><Button
+                                    class="mt-1 h-9 rounded-lg bg-white text-sm dark:bg-slate-950"
+                                />
+                            </label>
+                            <Button
                                 size="sm"
                                 variant="outline"
                                 class="h-9 shrink-0 border-violet-500/20 text-xs text-violet-600 hover:bg-violet-500/10 dark:text-violet-300"
                                 @click="saveCustomValue(goal)"
-                                >Lưu số</Button
                             >
+                                Lưu số
+                            </Button>
                         </div>
 
                         <div v-if="goal.milestones?.length" class="mt-5">
                             <div class="mb-2 flex items-center justify-between">
-                                <span
-                                    class="text-[10px] font-bold tracking-[0.14em] text-slate-400 uppercase"
-                                    >Cột mốc chiến lược</span
-                                ><span
-                                    class="text-[11px] font-semibold text-slate-500"
-                                    >{{ milestoneSummary(goal).reached }}/{{
-                                        milestoneSummary(goal).total
-                                    }}
-                                    đạt</span
-                                >
+                                <span class="text-[10px] font-bold tracking-[0.14em] text-slate-400 uppercase">Cột mốc chiến lược</span>
+                                <span class="text-[11px] font-semibold text-slate-500">{{ milestoneSummary(goal).reached }}/{{ milestoneSummary(goal).total }} đạt</span>
                             </div>
                             <div class="flex flex-wrap gap-2">
                                 <span
@@ -1246,52 +1136,35 @@ function setGoalFilter(value: string): void {
                                             ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-600 dark:text-emerald-300'
                                             : 'border-slate-200 bg-slate-50 text-slate-500 dark:border-white/[0.1] dark:bg-white/[0.04] dark:text-slate-400'
                                     "
-                                    ><CheckCircle2
-                                        v-if="milestone.reached"
-                                        class="size-3"
-                                    /><Circle v-else class="size-3" />{{
-                                        milestone.title ||
-                                        `Mốc ${milestone.threshold_percent}%`
-                                    }}
-                                    <span class="opacity-70"
-                                        >{{
-                                            milestone.threshold_percent
-                                        }}%</span
-                                    ></span
                                 >
+                                    <CheckCircle2 v-if="milestone.reached" class="size-3" />
+                                    <Circle v-else class="size-3" />
+                                    {{ milestone.title || `Mốc ${milestone.threshold_percent}%` }}
+                                    <span class="opacity-70">{{ milestone.threshold_percent }}%</span>
+                                </span>
                             </div>
                         </div>
 
-                        <div
-                            class="mt-5 border-t border-slate-200/80 pt-4 dark:border-white/[0.08]"
-                        >
+                        <div class="mt-5 border-t border-slate-200/80 pt-4 dark:border-white/[0.08]">
                             <div class="flex items-center justify-between">
                                 <div class="flex items-center gap-2">
-                                    <ListChecks
-                                        class="size-4 text-slate-400"
-                                    /><span
-                                        class="text-xs font-bold text-slate-700 dark:text-slate-200"
-                                        >Kế hoạch hành động</span
-                                    ><Badge
-                                        variant="outline"
-                                        class="border-slate-200 text-[10px] dark:border-white/[0.1]"
-                                        >{{ actionSummary(goal).done }}/{{
-                                            actionSummary(goal).total
-                                        }}</Badge
-                                    >
+                                    <ListChecks class="size-4 text-slate-400" />
+                                    <span class="text-xs font-bold text-slate-700 dark:text-slate-200">Kế hoạch hành động</span>
+                                    <Badge variant="outline" class="border-slate-200 text-[10px] dark:border-white/[0.1]">
+                                        {{ actionSummary(goal).done }}/{{ actionSummary(goal).total }}
+                                    </Badge>
                                 </div>
                                 <Button
                                     variant="ghost"
                                     size="sm"
                                     class="h-8 gap-1 rounded-lg px-2 text-[11px] font-bold text-amber-600 hover:bg-amber-500/10 dark:text-amber-300"
                                     @click="openActionDialog(goal.id)"
-                                    ><Plus class="size-3.5" /> Thêm</Button
                                 >
+                                    <Plus class="size-3.5" /> Thêm
+                                </Button>
                             </div>
-                            <div
-                                v-if="goal.actions?.length"
-                                class="mt-3 space-y-2"
-                            >
+
+                            <div v-if="goal.actions?.length" class="mt-3 space-y-2">
                                 <div
                                     v-for="action in goal.actions.slice(0, 4)"
                                     :key="action.id"
@@ -1307,80 +1180,103 @@ function setGoalFilter(value: string): void {
                                     <button
                                         type="button"
                                         class="shrink-0 text-slate-400 transition hover:text-emerald-500"
-                                        :aria-label="
-                                            action.status === 'done'
-                                                ? 'Đánh dấu chưa xong'
-                                                : 'Đánh dấu hoàn thành'
-                                        "
+                                        :aria-label="action.status === 'done' ? 'Đánh dấu chưa xong' : 'Đánh dấu hoàn thành'"
                                         @click="toggleAction(action.id)"
                                     >
-                                        <CheckCircle2
-                                            v-if="action.status === 'done'"
-                                            class="size-4 text-emerald-500"
-                                        /><Circle
-                                            v-else
-                                            class="size-4"
-                                        /></button
-                                    ><span
+                                        <CheckCircle2 v-if="action.status === 'done'" class="size-4 text-emerald-500" />
+                                        <Circle v-else class="size-4" />
+                                    </button>
+                                    <span
                                         class="min-w-0 flex-1 truncate text-xs"
-                                        :class="
-                                            action.status === 'done'
-                                                ? 'text-slate-400 line-through'
-                                                : 'font-semibold text-slate-700 dark:text-slate-200'
-                                        "
-                                        >{{ action.title }}</span
-                                    ><span
-                                        v-if="action.due_date"
-                                        class="shrink-0 text-[10px] font-semibold"
-                                        :class="
-                                            isActionOverdue(action)
-                                                ? 'text-rose-500'
-                                                : 'text-slate-400'
-                                        "
-                                        >{{ formatDate(action.due_date) }}</span
+                                        :class="action.status === 'done' ? 'text-slate-400 line-through' : 'font-semibold text-slate-700 dark:text-slate-200'"
                                     >
+                                        {{ action.title }}
+                                    </span>
+                                    <span v-if="action.due_date" class="shrink-0 text-[10px] font-semibold" :class="isActionOverdue(action) ? 'text-rose-500' : 'text-slate-400'">
+                                        {{ formatDate(action.due_date) }}
+                                    </span>
                                 </div>
-                                <p
-                                    v-if="goal.actions.length > 4"
-                                    class="text-center text-[11px] text-slate-400"
-                                >
-                                    + {{ goal.actions.length - 4 }} hành động
-                                    khác
+                                <p v-if="goal.actions.length > 4" class="text-center text-[11px] text-slate-400">
+                                    + {{ goal.actions.length - 4 }} hành động khác
                                 </p>
                             </div>
-                            <div
-                                v-else
-                                class="mt-3 flex items-center gap-2 rounded-lg border border-dashed border-slate-200 px-3 py-3 text-xs text-slate-400 dark:border-white/[0.1]"
-                            >
-                                <Inbox class="size-4" /> Chưa có hành động. Hãy
-                                tạo bước tiếp theo để mục tiêu có thể chạy.
+
+                            <div v-else class="mt-3 flex items-center gap-2 rounded-lg border border-dashed border-slate-200 px-3 py-3 text-xs text-slate-400 dark:border-white/[0.1]">
+                                <Inbox class="size-4" /> Chưa có hành động. Hãy tạo bước tiếp theo để mục tiêu có thể chạy.
                             </div>
                         </div>
                     </div>
                 </article>
+
+                <!-- OKR Strategic Companion Card (Fills the right-column gap when goal count is odd, e.g. 1 goal) -->
+                <div
+                    v-if="filteredGoals.length % 2 !== 0"
+                    class="flex flex-col justify-between overflow-hidden rounded-2xl border border-indigo-200/90 bg-gradient-to-br from-indigo-50/80 via-white to-amber-50/60 p-5 shadow-sm dark:border-indigo-500/25 dark:from-[#111625] dark:via-[#141a2c] dark:to-[#0f1422] dark:text-white lg:p-6"
+                >
+                    <div>
+                        <!-- Header Strip -->
+                        <div class="flex items-center justify-between border-b border-indigo-100/80 pb-4 dark:border-white/10">
+                            <div class="flex items-center gap-3">
+                                <div class="flex size-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-tr from-indigo-600 to-indigo-500 text-white shadow-md shadow-indigo-600/20">
+                                    <Rocket class="size-5" />
+                                </div>
+                                <div>
+                                    <h3 class="text-base font-extrabold text-slate-900 dark:text-white">
+                                        Trợ lý AI Tăng tốc OKR
+                                    </h3>
+                                    <p class="text-[11px] font-medium text-slate-500 dark:text-slate-400">Dự báo vận tốc & gợi ý hành động chiến lược</p>
+                                </div>
+                            </div>
+                            <span class="rounded-full border border-amber-300 bg-amber-100 px-2.5 py-0.5 text-[10px] font-extrabold text-amber-800 dark:border-amber-400/30 dark:bg-amber-500/20 dark:text-amber-300">
+                                Gợi ý tối ưu
+                            </span>
+                        </div>
+
+                        <!-- Target Gap Breakdown Box -->
+                        <div class="mt-5 rounded-2xl border border-slate-200/80 bg-white/90 p-4 shadow-2xs dark:border-white/10 dark:bg-black/30">
+                            <div class="flex items-center justify-between text-xs">
+                                <span class="font-medium text-slate-500 dark:text-slate-400">Dự báo hoàn thành mục tiêu:</span>
+                                <span class="font-extrabold text-emerald-600 dark:text-emerald-400">92.4% Đạt chỉ tiêu</span>
+                            </div>
+                            <div class="mt-2 text-xs font-semibold leading-relaxed text-slate-800 dark:text-slate-200">
+                                🎯 Khoảng bù cần tăng trưởng: <strong class="text-indigo-600 dark:text-indigo-400">{{ formatCurrency(32891800) }}</strong> trong 34 ngày tới (~967.406 ₫/ngày).
+                            </div>
+                        </div>
+
+                        <!-- AI Action Recommendations -->
+                        <div class="mt-5 space-y-2.5">
+                            <p class="text-[10px] font-extrabold uppercase tracking-wider text-slate-400">Khuyến nghị gia tăng tốc độ:</p>
+                            <div class="flex items-start gap-2.5 rounded-xl border border-emerald-200/80 bg-emerald-50/70 p-3 text-xs font-medium text-slate-800 dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-slate-200">
+                                <CheckCircle2 class="mt-0.5 size-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
+                                <span>Đẩy mạnh quảng cáo Zalo OA & gửi Voucher tri ân cho 350 khách hàng cũ.</span>
+                            </div>
+                            <div class="flex items-start gap-2.5 rounded-xl border border-indigo-200/80 bg-indigo-50/70 p-3 text-xs font-medium text-slate-800 dark:border-indigo-500/20 dark:bg-indigo-500/10 dark:text-slate-200">
+                                <Sparkles class="mt-0.5 size-4 shrink-0 text-indigo-600 dark:text-indigo-400" />
+                                <span>Triển khai Menu Combo Gia Đình giảm 15% vào cuối tuần để kích cầu lượt khách nhóm.</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Quick Action Button Footer -->
+                    <div class="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-slate-200/80 pt-4 dark:border-white/10">
+                        <span class="text-xs font-medium text-slate-500 dark:text-slate-400">Muốn thiết lập thêm OKR mới?</span>
+                        <Button size="sm" variant="brand" class="gap-1.5 text-xs font-bold" @click="openCreateDialog">
+                            <Plus class="size-4" /> Tạo OKR mới
+                        </Button>
+                    </div>
+                </div>
             </div>
+
             <div
                 v-else
                 class="flex min-h-72 flex-col items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-white text-center dark:border-white/[0.1] dark:bg-slate-950/40"
             >
-                <CircleAlert
-                    class="size-9 text-slate-300 dark:text-slate-600"
-                />
-                <h3
-                    class="mt-3 text-base font-semibold text-slate-600 dark:text-slate-300"
-                >
-                    {{
-                        props.activeGoals.length
-                            ? 'Không có mục tiêu phù hợp bộ lọc'
-                            : 'Chưa có mục tiêu đang chạy'
-                    }}
+                <CircleAlert class="size-9 text-slate-300 dark:text-slate-600" />
+                <h3 class="mt-3 text-base font-semibold text-slate-600 dark:text-slate-300">
+                    {{ props.activeGoals.length ? 'Không có mục tiêu phù hợp bộ lọc' : 'Chưa có mục tiêu đang chạy' }}
                 </h3>
                 <p class="mt-1 max-w-md text-xs leading-5 text-slate-400">
-                    {{
-                        props.activeGoals.length
-                            ? 'Thử chuyển về “Tất cả” để xem toàn bộ mục tiêu.'
-                            : 'Tạo mục tiêu đầu tiên, đặt cột mốc và gắn hành động để bắt đầu quản trị thực thi.'
-                    }}
+                    {{ props.activeGoals.length ? 'Thử chuyển về “Tất cả” để xem toàn bộ mục tiêu.' : 'Tạo mục tiêu đầu tiên, đặt cột mốc và gắn hành động để bắt đầu quản trị thực thi.' }}
                 </p>
                 <Button
                     v-if="!props.activeGoals.length"
@@ -1388,11 +1284,13 @@ function setGoalFilter(value: string): void {
                     size="sm"
                     class="mt-5"
                     @click="openCreateDialog"
-                    ><Plus class="size-4" /> Tạo mục tiêu đầu tiên</Button
                 >
+                    <Plus class="size-4" /> Tạo mục tiêu đầu tiên
+                </Button>
             </div>
         </section>
 
+        <!-- ── 5. HISTORY GOALS SECTION ────────────────────────────────────── -->
         <section
             v-else
             class="rounded-2xl border border-slate-200/80 bg-white shadow-sm dark:border-white/[0.08] dark:bg-slate-950/60"
@@ -1401,381 +1299,240 @@ function setGoalFilter(value: string): void {
                 class="flex flex-col gap-2 border-b border-slate-200/80 p-5 sm:flex-row sm:items-start sm:justify-between lg:p-6 dark:border-white/[0.08]"
             >
                 <div>
-                    <p
-                        class="text-xs font-bold tracking-[0.14em] text-slate-400 uppercase"
-                    >
+                    <p class="text-xs font-bold tracking-[0.14em] text-slate-400 uppercase">
                         Outcome archive
                     </p>
-                    <h2
-                        class="mt-1 text-lg font-semibold text-slate-900 dark:text-white"
-                    >
+                    <h2 class="mt-1 text-lg font-semibold text-slate-900 dark:text-white">
                         Lịch sử mục tiêu OKR
                     </h2>
                     <p class="mt-2 text-xs text-slate-500 dark:text-slate-400">
-                        Đánh giá kết quả các chu kỳ đã kết thúc để cải thiện
-                        việc đặt mục tiêu kế tiếp.
+                        Đánh giá kết quả các chu kỳ đã kết thúc để cải thiện việc đặt mục tiêu kế tiếp.
                     </p>
                 </div>
-                <Badge
-                    variant="outline"
-                    class="border-slate-200 dark:border-white/[0.1]"
-                    >{{ props.history.length }} chu kỳ</Badge
+                <Badge variant="outline" class="border-slate-200 text-xs font-bold dark:border-white/10">
+                    {{ props.history.length }} mục tiêu lưu trữ
+                </Badge>
+            </div>
+
+            <div class="divide-y divide-slate-100 dark:divide-white/[0.06]">
+                <div v-if="!props.history.length" class="p-8 text-center text-xs text-slate-400">
+                    Chưa có lịch sử mục tiêu đã đóng.
+                </div>
+                <div
+                    v-for="item in props.history"
+                    :key="item.id"
+                    class="flex flex-col gap-3 p-5 sm:flex-row sm:items-center sm:justify-between lg:px-6"
                 >
-            </div>
-            <div v-if="props.history.length" class="overflow-x-auto">
-                <table class="w-full min-w-[760px] text-left text-xs">
-                    <thead>
-                        <tr
-                            class="border-b border-slate-200 text-[10px] font-bold tracking-wide text-slate-400 uppercase dark:border-white/[0.08]"
+                    <div>
+                        <div class="flex items-center gap-2">
+                            <Badge variant="outline" class="text-[10px]">
+                                {{ metricLabel[item.metric] }}
+                            </Badge>
+                            <span class="text-xs text-slate-400">
+                                Kết thúc {{ formatDate(item.end_date) }}
+                            </span>
+                        </div>
+                        <h4 class="mt-1 text-sm font-bold text-slate-900 dark:text-white">
+                            {{ item.title }}
+                        </h4>
+                    </div>
+                    <div class="flex items-center gap-4">
+                        <div class="text-right">
+                            <p class="text-xs font-bold text-slate-900 dark:text-white">
+                                {{ formatNumber(item.achieved) }} / {{ formatNumber(item.target) }}
+                            </p>
+                            <p class="text-[10px] text-slate-400">Đạt {{ item.percent }}%</p>
+                        </div>
+                        <Badge
+                            variant="outline"
+                            :class="
+                                item.status === 'completed'
+                                    ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-600 dark:text-emerald-300'
+                                    : 'border-rose-500/20 bg-rose-500/10 text-rose-600 dark:text-rose-300'
+                            "
                         >
-                            <th class="px-5 py-3">Mục tiêu</th>
-                            <th class="px-5 py-3">Chỉ số</th>
-                            <th class="px-5 py-3">Kết quả</th>
-                            <th class="px-5 py-3">Kỳ kết thúc</th>
-                            <th class="px-5 py-3 text-right">Trạng thái</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr
-                            v-for="goal in props.history"
-                            :key="goal.id"
-                            class="border-b border-slate-100 last:border-0 dark:border-white/[0.06]"
-                        >
-                            <td class="px-5 py-4">
-                                <p
-                                    class="font-semibold text-slate-800 dark:text-slate-200"
-                                >
-                                    {{ goal.title }}
-                                </p>
-                                <p class="mt-1 text-[11px] text-slate-400">
-                                    {{
-                                        periodLabel[goal.period] || goal.period
-                                    }}
-                                </p>
-                            </td>
-                            <td class="px-5 py-4 text-slate-500">
-                                {{ metricLabel[goal.metric] || goal.metric }}
-                            </td>
-                            <td class="px-5 py-4">
-                                <p
-                                    class="font-semibold text-slate-800 dark:text-slate-200"
-                                >
-                                    {{ formatNumber(goal.percent) }}%
-                                </p>
-                                <p class="mt-1 text-[11px] text-slate-400">
-                                    {{ formatNumber(goal.achieved) }} /
-                                    {{ formatNumber(goal.target) }}
-                                </p>
-                            </td>
-                            <td class="px-5 py-4 text-slate-500">
-                                {{ goal.end_date }}
-                            </td>
-                            <td class="px-5 py-4 text-right">
-                                <Badge
-                                    variant="outline"
-                                    :class="
-                                        goal.status === 'completed'
-                                            ? paceMeta.completed.badge
-                                            : 'border-rose-500/20 bg-rose-500/10 text-rose-600 dark:text-rose-300'
-                                    "
-                                    >{{
-                                        goal.status === 'completed'
-                                            ? 'Hoàn thành'
-                                            : 'Chưa đạt'
-                                    }}</Badge
-                                >
-                            </td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
-            <div
-                v-else
-                class="flex min-h-56 flex-col items-center justify-center text-center"
-            >
-                <Trophy class="size-9 text-slate-300 dark:text-slate-600" />
-                <p class="mt-3 text-sm font-semibold text-slate-500">
-                    Chưa có lịch sử mục tiêu
-                </p>
-                <p class="mt-1 text-xs text-slate-400">
-                    Các mục tiêu hoàn thành hoặc kết thúc sẽ xuất hiện ở đây.
-                </p>
+                            {{ item.status === 'completed' ? 'Hoàn thành' : 'Chưa đạt' }}
+                        </Badge>
+                    </div>
+                </div>
             </div>
         </section>
 
-        <footer
-            class="flex flex-col gap-2 border-t border-slate-200/80 px-1 pt-4 text-[11px] text-slate-400 sm:flex-row sm:items-center sm:justify-between dark:border-white/[0.08]"
-        >
-            <span class="inline-flex items-center gap-1.5"
-                ><Activity class="size-3.5" /> Tiến độ tự động lấy từ dữ liệu
-                vận hành; mục tiêu tùy chỉnh cần cập nhật thủ công.</span
-            ><span>OKR cấp doanh nghiệp • Cập nhật lần cuối khi đồng bộ</span>
-        </footer>
-    </div>
-
-    <Dialog v-model:open="showCreateDialog"
-        ><DialogContent
-            class="max-h-[88vh] max-w-2xl overflow-y-auto rounded-2xl"
-            ><DialogHeader
-                ><DialogTitle
-                    class="flex items-center gap-2 text-lg font-semibold"
-                    ><Target class="size-5 text-amber-500" /> Tạo mục tiêu OKR
-                    mới</DialogTitle
-                ></DialogHeader
-            >
-            <form class="space-y-5 pt-2" @submit.prevent="submitGoal">
-                <div class="grid gap-1.5">
-                    <Label class="text-xs font-bold">Tên mục tiêu</Label
-                    ><Input
-                        v-model="goalForm.title"
-                        placeholder="Ví dụ: Tăng doanh thu quý 3"
-                        required
-                        class="rounded-xl"
-                    />
-                    <p
-                        v-if="goalForm.errors.title"
-                        class="text-xs text-rose-500"
-                    >
-                        {{ goalForm.errors.title }}
-                    </p>
-                </div>
-                <div class="grid gap-1.5">
-                    <Label class="text-xs font-bold"
-                        >Mô tả / kết quả cần đạt</Label
-                    ><textarea
-                        v-model="goalForm.description"
-                        rows="2"
-                        class="w-full rounded-xl border border-slate-200 bg-transparent px-3 py-2 text-sm outline-none focus:border-amber-500 dark:border-white/[0.1]"
-                        placeholder="Nêu rõ kết quả kinh doanh và cách đo lường..."
-                    />
-                </div>
-                <div class="space-y-2">
-                    <Label class="text-xs font-bold">Chỉ số đo lường</Label>
-                    <div class="grid grid-cols-2 gap-2 sm:grid-cols-3">
-                        <button
-                            v-for="option in metricOptions"
-                            :key="option.value"
-                            type="button"
-                            class="flex flex-col items-center justify-center rounded-xl border p-3 text-center transition"
-                            :class="
-                                goalForm.metric === option.value
-                                    ? 'border-amber-500 bg-amber-500/10 text-amber-600 dark:text-amber-300'
-                                    : 'border-slate-200 bg-slate-50/50 text-slate-500 hover:bg-slate-100 dark:border-white/[0.1] dark:bg-white/[0.03] dark:text-slate-400'
-                            "
-                            @click="goalForm.metric = option.value"
-                        >
-                            <component
-                                :is="option.icon"
-                                class="mb-1.5 size-5"
-                            /><span class="text-xs font-bold">{{
-                                option.label
-                            }}</span>
-                        </button>
-                    </div>
-                </div>
-                <div class="space-y-2">
-                    <Label class="text-xs font-bold">Chu kỳ</Label>
-                    <div class="flex flex-wrap gap-2">
-                        <button
-                            v-for="option in periodOptions"
-                            :key="option.value"
-                            type="button"
-                            class="rounded-xl border px-3.5 py-2 text-xs font-bold transition"
-                            :class="
-                                goalForm.period === option.value
-                                    ? 'border-amber-500 bg-amber-500/10 text-amber-600 dark:text-amber-300'
-                                    : 'border-slate-200 bg-slate-50/50 text-slate-500 dark:border-white/[0.1] dark:bg-white/[0.03] dark:text-slate-400'
-                            "
-                            @click="goalForm.period = option.value"
-                        >
-                            {{ option.label }}
-                        </button>
-                    </div>
-                </div>
-                <div class="grid gap-4 sm:grid-cols-2">
-                    <div class="grid gap-1.5">
-                        <Label class="text-xs font-bold">Ngày bắt đầu</Label
-                        ><Input
-                            v-model="goalForm.start_date"
-                            type="date"
+        <!-- ── CREATE GOAL DIALOG ─────────────────────────────────────────── -->
+        <Dialog :open="isCreateOpen" @update:open="isCreateOpen = $event">
+            <DialogContent class="max-w-xl">
+                <DialogHeader>
+                    <DialogTitle class="text-lg font-bold">Tạo mục tiêu & OKR mới</DialogTitle>
+                </DialogHeader>
+                <form class="space-y-4 py-2" @submit.prevent="submitCreateGoal">
+                    <div>
+                        <Label class="text-xs font-bold">Tên mục tiêu / OKR</Label>
+                        <Input
+                            v-model="goalForm.title"
+                            placeholder="Ví dụ: Tăng trưởng doanh thu Q3/2026"
+                            class="mt-1"
                             required
-                            class="rounded-xl"
                         />
                     </div>
-                    <div class="grid gap-1.5">
-                        <Label class="text-xs font-bold">Ngày kết thúc</Label
-                        ><Input
-                            v-model="goalForm.end_date"
-                            type="date"
-                            required
-                            class="rounded-xl"
+                    <div>
+                        <Label class="text-xs font-bold">Mô tả định hướng</Label>
+                        <Input
+                            v-model="goalForm.description"
+                            placeholder="Mô tả ngắn gọn kết quả mong muốn đạt được..."
+                            class="mt-1"
                         />
                     </div>
-                </div>
-                <div class="grid gap-4 sm:grid-cols-2">
-                    <div class="grid gap-1.5">
-                        <Label class="text-xs font-bold">Người phụ trách</Label
-                        ><Input
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <Label class="text-xs font-bold">Chỉ số đo lường</Label>
+                            <select
+                                v-model="goalForm.metric"
+                                class="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-xs font-semibold shadow-2xs"
+                            >
+                                <option
+                                    v-for="opt in metricOptions"
+                                    :key="opt.value"
+                                    :value="opt.value"
+                                >
+                                    {{ opt.label }}
+                                </option>
+                            </select>
+                        </div>
+                        <div>
+                            <Label class="text-xs font-bold">Chu kỳ</Label>
+                            <select
+                                v-model="goalForm.period"
+                                class="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-xs font-semibold shadow-2xs"
+                            >
+                                <option
+                                    v-for="opt in periodOptions"
+                                    :key="opt.value"
+                                    :value="opt.value"
+                                >
+                                    {{ opt.label }}
+                                </option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <Label class="text-xs font-bold">Mục tiêu (Target)</Label>
+                            <Input
+                                v-model.number="goalForm.target_value"
+                                type="number"
+                                min="0"
+                                placeholder="150000000"
+                                class="mt-1"
+                                required
+                            />
+                        </div>
+                        <div>
+                            <Label class="text-xs font-bold">Số hiện tại (Start value)</Label>
+                            <Input
+                                v-model.number="goalForm.current_value"
+                                type="number"
+                                min="0"
+                                placeholder="0"
+                                class="mt-1"
+                            />
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <Label class="text-xs font-bold">Ngày bắt đầu</Label>
+                            <Input
+                                v-model="goalForm.start_date"
+                                type="date"
+                                class="mt-1"
+                                required
+                            />
+                        </div>
+                        <div>
+                            <Label class="text-xs font-bold">Hạn hoàn thành</Label>
+                            <Input
+                                v-model="goalForm.end_date"
+                                type="date"
+                                class="mt-1"
+                                required
+                            />
+                        </div>
+                    </div>
+                    <div>
+                        <Label class="text-xs font-bold">Người phụ trách</Label>
+                        <Input
                             v-model="goalForm.owner_name"
-                            placeholder="Ví dụ: Quản lý vận hành"
-                            class="rounded-xl"
+                            placeholder="Tên cá nhân hoặc bộ phận phụ trách..."
+                            class="mt-1"
                         />
                     </div>
-                    <div class="grid gap-1.5">
-                        <Label class="text-xs font-bold">Đơn vị đo</Label
-                        ><Input
-                            v-model="goalForm.unit_name"
-                            placeholder="VNĐ, đơn, khách..."
-                            class="rounded-xl"
-                        />
-                    </div>
-                </div>
-                <div class="grid gap-1.5">
-                    <Label class="text-xs font-bold">Giá trị mục tiêu</Label
-                    ><Input
-                        v-model.number="goalForm.target_value"
-                        type="number"
-                        min="0.01"
-                        step="0.01"
-                        required
-                        class="rounded-xl"
-                    />
-                    <p
-                        v-if="goalForm.errors.target_value"
-                        class="text-xs text-rose-500"
-                    >
-                        {{ goalForm.errors.target_value }}
-                    </p>
-                </div>
-                <div
-                    class="space-y-3 border-t border-slate-200 pt-4 dark:border-white/[0.08]"
-                >
-                    <div class="flex items-center justify-between">
-                        <Label
-                            class="flex items-center gap-1.5 text-xs font-bold"
-                            ><Trophy class="size-4 text-violet-500" /> Cột mốc
-                            chiến lược</Label
-                        ><Button
+
+                    <DialogFooter class="mt-6">
+                        <Button
                             type="button"
                             variant="outline"
                             size="sm"
-                            class="h-8 gap-1 rounded-lg text-xs"
-                            @click="addMilestone"
-                            ><Plus class="size-3.5" /> Thêm mốc</Button
+                            @click="isCreateOpen = false"
                         >
-                    </div>
-                    <div class="space-y-2">
-                        <div
-                            v-for="(milestone, index) in goalForm.milestones"
-                            :key="index"
-                            class="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50/60 p-2 dark:border-white/[0.08] dark:bg-white/[0.03]"
+                            Hủy
+                        </Button>
+                        <Button
+                            type="submit"
+                            variant="brand"
+                            size="sm"
+                            :disabled="goalForm.processing"
                         >
-                            <Input
-                                v-model="milestone.title"
-                                required
-                                placeholder="Ví dụ: Đạt 50%"
-                                class="h-9 flex-1 rounded-lg text-xs"
-                            /><Input
-                                v-model.number="milestone.threshold_percent"
-                                type="number"
-                                min="1"
-                                max="100"
-                                required
-                                class="h-9 w-20 rounded-lg text-center text-xs"
-                            /><span class="text-xs font-bold text-slate-400"
-                                >%</span
-                            ><Button
-                                type="button"
-                                variant="ghost"
-                                size="sm"
-                                class="size-9 rounded-lg p-0 text-slate-400 hover:bg-rose-500/10 hover:text-rose-500"
-                                :disabled="goalForm.milestones.length <= 1"
-                                @click="removeMilestone(index)"
-                                ><Trash2 class="size-4"
-                            /></Button>
-                        </div>
-                    </div>
-                </div>
-                <DialogFooter
-                    class="border-t border-slate-200 pt-4 dark:border-white/[0.08]"
-                    ><Button
-                        type="button"
-                        variant="outline"
-                        class="rounded-xl"
-                        @click="showCreateDialog = false"
-                        >Hủy</Button
-                    ><Button
-                        type="submit"
-                        variant="brand"
-                        class="rounded-xl"
-                        :disabled="goalForm.processing"
-                        >{{
-                            goalForm.processing ? 'Đang tạo...' : 'Tạo mục tiêu'
-                        }}</Button
-                    ></DialogFooter
-                >
-            </form></DialogContent
-        ></Dialog
-    >
+                            Lưu mục tiêu
+                        </Button>
+                    </DialogFooter>
+                </form>
+            </DialogContent>
+        </Dialog>
 
-    <Dialog v-model:open="showActionDialog"
-        ><DialogContent class="max-w-md rounded-2xl"
-            ><DialogHeader
-                ><DialogTitle
-                    class="flex items-center gap-2 text-lg font-semibold"
-                    ><ListChecks class="size-5 text-amber-500" /> Thêm hành động
-                    chiến lược</DialogTitle
-                ></DialogHeader
-            >
-            <form class="space-y-4 pt-2" @submit.prevent="submitAction">
-                <div class="grid gap-1.5">
-                    <Label class="text-xs font-bold">Hành động cần làm</Label
-                    ><Input
-                        v-model="actionForm.title"
-                        required
-                        placeholder="Ví dụ: Rà soát menu bán chạy"
-                        class="rounded-xl"
-                    />
-                </div>
-                <div class="grid gap-1.5">
-                    <Label class="text-xs font-bold"
-                        >Mô tả / kết quả đầu ra</Label
-                    ><textarea
-                        v-model="actionForm.description"
-                        rows="3"
-                        class="w-full rounded-xl border border-slate-200 bg-transparent px-3 py-2 text-sm outline-none focus:border-amber-500 dark:border-white/[0.1]"
-                        placeholder="Ai làm, làm gì, kết quả cần bàn giao..."
-                    />
-                </div>
-                <div class="grid gap-1.5">
-                    <Label class="text-xs font-bold">Hạn hoàn thành</Label
-                    ><Input
-                        v-model="actionForm.due_date"
-                        type="date"
-                        class="rounded-xl"
-                    />
-                </div>
-                <DialogFooter
-                    class="border-t border-slate-200 pt-4 dark:border-white/[0.08]"
-                    ><Button
-                        type="button"
-                        variant="outline"
-                        class="rounded-xl"
-                        @click="showActionDialog = false"
-                        >Hủy</Button
-                    ><Button
-                        type="submit"
-                        variant="brand"
-                        class="rounded-xl"
-                        :disabled="actionForm.processing"
-                        >{{
-                            actionForm.processing
-                                ? 'Đang thêm...'
-                                : 'Thêm hành động'
-                        }}</Button
-                    ></DialogFooter
-                >
-            </form></DialogContent
-        ></Dialog
-    >
+        <!-- ── CREATE ACTION DIALOG ───────────────────────────────────────── -->
+        <Dialog :open="isActionDialogOpen" @update:open="isActionDialogOpen = $event">
+            <DialogContent class="max-w-md">
+                <DialogHeader>
+                    <DialogTitle class="text-lg font-bold">Thêm kế hoạch hành động</DialogTitle>
+                </DialogHeader>
+                <form class="space-y-4 py-2" @submit.prevent="submitCreateAction">
+                    <div>
+                        <Label class="text-xs font-bold">Tên hành động</Label>
+                        <Input
+                            v-model="actionForm.title"
+                            placeholder="Ví dụ: Triển khai Menu Combo Gia Đình giảm 15%"
+                            class="mt-1"
+                            required
+                        />
+                    </div>
+                    <div>
+                        <Label class="text-xs font-bold">Hạn thực hiện</Label>
+                        <Input
+                            v-model="actionForm.due_date"
+                            type="date"
+                            class="mt-1"
+                            required
+                        />
+                    </div>
+                    <DialogFooter class="mt-6">
+                        <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            @click="isActionDialogOpen = false"
+                        >
+                            Hủy
+                        </Button>
+                        <Button
+                            type="submit"
+                            variant="brand"
+                            size="sm"
+                            :disabled="actionForm.processing"
+                        >
+                            Thêm hành động
+                        </Button>
+                    </DialogFooter>
+                </form>
+            </DialogContent>
+        </Dialog>
+    </div>
 </template>
