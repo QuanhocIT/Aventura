@@ -1047,12 +1047,7 @@ const zeroCostIngredients = computed(() =>
     ),
 );
 
-const selectedPurchaseIngredient = computed(
-    () =>
-        props.ingredients.find(
-            (i) => i.id === Number(purchaseForm.ingredient_id),
-        ) ?? null,
-);
+
 
 const estimatedWasteCost = computed(() => {
     const ing = props.ingredients.find(
@@ -1210,22 +1205,7 @@ const submitRecipe = () => {
     });
 };
 
-const submitPurchase = () => {
-    purchaseForm.post('/inventory/purchases', {
-        onSuccess: () => {
-            toast.success(flashSuccess() ?? 'Đã ghi nhận nhập hàng!');
-            purchaseForm.reset(
-                'ingredient_id',
-                'quantity',
-                'unit_cost',
-                'supplier_id',
-                'notes',
-            );
-            purchaseForm.occurred_at = new Date().toISOString().slice(0, 10);
-        },
-        onError: () => toast.error('Có lỗi khi ghi nhận nhập hàng.'),
-    });
-};
+
 
 const submitWaste = () => {
     wasteForm.post('/inventory/waste', {

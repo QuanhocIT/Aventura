@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { Head, useForm, router } from '@inertiajs/vue3';
-import { computed, ref } from 'vue';
 import {
     Banknote,
     CalendarDays,
@@ -8,7 +7,6 @@ import {
     Clock3,
     Filter,
     Mail,
-    MapPin,
     Plus,
     Search,
     Settings2,
@@ -16,10 +14,11 @@ import {
     UserRound,
     X,
 } from 'lucide-vue-next';
-import AppLayout from '@/layouts/AppLayout.vue';
+import { computed, ref } from 'vue';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import AppLayout from '@/layouts/AppLayout.vue';
 
 defineOptions({ layout: AppLayout });
 
@@ -227,9 +226,17 @@ const sourceLabel = (source: OvertimeRequest['request_source']) =>
     source === 'management' ? 'Quản lý yêu cầu' : 'Nhân viên xin tăng ca';
 
 const responseLabel = (item: OvertimeRequest) => {
-    if (item.request_source !== 'management') return '';
-    if (item.employee_response === 'accepted') return 'Nhân viên đã xác nhận';
-    if (item.employee_response === 'declined') return 'Nhân viên đã từ chối';
+    if (item.request_source !== 'management') {
+return '';
+}
+
+    if (item.employee_response === 'accepted') {
+return 'Nhân viên đã xác nhận';
+}
+
+    if (item.employee_response === 'declined') {
+return 'Nhân viên đã từ chối';
+}
 
     return 'Đang chờ nhân viên xác nhận';
 };
@@ -264,6 +271,7 @@ const attendance = (id: number, action: 'check-in' | 'check-out') => {
             accuracy: location.coords.accuracy,
         } : {}, { preserveScroll: true });
     };
+
     if (props.attendanceSettings?.require_gps && navigator.geolocation) {
         navigator.geolocation.getCurrentPosition(send, () => send(), { enableHighAccuracy: true, timeout: 10000 });
     } else {
@@ -289,14 +297,25 @@ const withdraw = (id: number) => {
 
 const cancelRequest = (id: number) => {
     const reason = window.prompt('Lý do huỷ yêu cầu OT:');
-    if (reason) router.patch(`/overtime-requests/${id}/cancel`, { cancel_reason: reason }, { preserveScroll: true });
+
+    if (reason) {
+router.patch(`/overtime-requests/${id}/cancel`, { cancel_reason: reason }, { preserveScroll: true });
+}
 };
 
 const reconcile = (item: OvertimeRequest) => {
     const hours = window.prompt('Số giờ OT thực tế:', String(item.worked_hours || item.hours_approved));
-    if (hours === null) return;
+
+    if (hours === null) {
+return;
+}
+
     const reason = window.prompt('Lý do đối soát / điều chỉnh:', 'Đã kiểm tra chấm công OT');
-    if (!reason) return;
+
+    if (!reason) {
+return;
+}
+
     router.patch(`/overtime-requests/${item.id}/reconcile`, { worked_hours: Number(hours), adjustment_reason: reason }, { preserveScroll: true });
 };
 
@@ -309,7 +328,9 @@ const saveHoliday = () => {
 };
 
 const deleteHoliday = (id: number) => {
-    if (window.confirm('Tắt ngày lễ này khỏi lịch tính OT?')) router.delete(`/overtime-holidays/${id}`, { preserveScroll: true });
+    if (window.confirm('Tắt ngày lễ này khỏi lịch tính OT?')) {
+router.delete(`/overtime-holidays/${id}`, { preserveScroll: true });
+}
 };
 
 const exportReport = () => {
@@ -388,7 +409,7 @@ const exportReport = () => {
                     <div class="rounded-xl bg-amber-500/10 p-3"><p class="text-xs text-muted-foreground">Cần đối soát</p><p class="mt-1 text-xl font-black text-amber-600">{{ props.report.pending_reconciliation }}</p></div>
                 </div>
                 <div v-if="props.report.by_employee.length" class="mt-4 divide-y rounded-xl border">
-                    <div v-for="row in props.report.by_employee" :key="row.employee_code" class="flex items-center justify-between px-3 py-2 text-sm">
+                    <div v-for="row in props.report.by_employee" :key="(row.employee_code ?? row.employee_name) as string" class="flex items-center justify-between px-3 py-2 text-sm">
                         <span>{{ row.employee_name }} <span class="text-xs text-muted-foreground">({{ row.employee_code }})</span></span>
                         <span class="font-semibold">{{ row.hours.toFixed(2) }}h · {{ vnd(row.amount) }}</span>
                     </div>

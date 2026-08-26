@@ -26,16 +26,25 @@ const isCancelling = ref(false);
 const errorMessage = ref('');
 
 const statusIcon = computed(() => {
-    if (reservation.value.status === 'cancelled') return XCircle;
-    if (reservation.value.status === 'confirmed') return CheckCircle2;
+    if (reservation.value.status === 'cancelled') {
+return XCircle;
+}
+
+    if (reservation.value.status === 'confirmed') {
+return CheckCircle2;
+}
 
     return Clock3;
 });
 
 async function cancelReservation() {
-    if (!reservation.value.can_cancel || isCancelling.value) return;
+    if (!reservation.value.can_cancel || isCancelling.value) {
+return;
+}
 
-    if (!window.confirm('Bạn có chắc muốn hủy đặt bàn này không?')) return;
+    if (!window.confirm('Bạn có chắc muốn hủy đặt bàn này không?')) {
+return;
+}
 
     isCancelling.value = true;
     errorMessage.value = '';

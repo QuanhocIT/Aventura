@@ -156,6 +156,7 @@ const openDetailModal = (req: any) => {
 
 const setEvidenceFile = (type: 'photo' | 'signature', event: Event) => {
     const file = (event.target as HTMLInputElement).files?.[0] || null;
+
     if (type === 'photo') {
         receiptPhoto.value = file;
     } else {
@@ -184,14 +185,23 @@ const receiveGoods = async () => {
             payload.append(`items[${index}][received_expired_quantity]`, String(expired));
             payload.append(`items[${index}][received_condition]`, damaged + expired > 0 ? 'damaged' : (total < Number(item.approved_quantity ?? item.requested_quantity ?? 0) ? 'shortage' : 'good'));
         });
-        if (receiveTemperatureMin.value !== '') payload.append('received_temperature_min_c', String(receiveTemperatureMin.value));
-        if (receiveTemperatureMax.value !== '') payload.append('received_temperature_max_c', String(receiveTemperatureMax.value));
+
+        if (receiveTemperatureMin.value !== '') {
+payload.append('received_temperature_min_c', String(receiveTemperatureMin.value));
+}
+
+        if (receiveTemperatureMax.value !== '') {
+payload.append('received_temperature_max_c', String(receiveTemperatureMax.value));
+}
+
         if (receiveNotes.value.trim()) {
             payload.append('notes', receiveNotes.value.trim());
         }
+
         if (receiptPhoto.value) {
             payload.append('receipt_photo', receiptPhoto.value);
         }
+
         if (receiverSignature.value) {
             payload.append('receiver_signature', receiverSignature.value);
         }

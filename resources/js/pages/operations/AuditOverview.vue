@@ -18,8 +18,8 @@ import {
     TrendingUp,
     UserRound,
 } from 'lucide-vue-next';
-import AppLayout from '@/layouts/AppLayout.vue';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
+import AppLayout from '@/layouts/AppLayout.vue';
 
 defineOptions({ layout: AppLayout });
 
@@ -84,7 +84,10 @@ const props = defineProps<{
 const trendMax = Math.max(1, ...props.trend.map((item) => Number(item.total || 0)));
 
 const formatDate = (value?: string | null) => {
-    if (!value) return 'Chưa đặt hạn';
+    if (!value) {
+return 'Chưa đặt hạn';
+}
+
     return new Date(`${value}T00:00:00`).toLocaleDateString('vi-VN');
 };
 

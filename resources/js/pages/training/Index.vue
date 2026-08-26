@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { Head, useForm, usePage } from '@inertiajs/vue3';
+import axios from 'axios';
 import {
     AlertTriangle,
     Award,
@@ -13,7 +14,6 @@ import {
     ShieldCheck,
     Users,
 } from 'lucide-vue-next';
-import axios from 'axios';
 import { ref, watch } from 'vue';
 import { toast } from 'vue-sonner';
 import { Badge } from '@/components/ui/badge';
@@ -87,7 +87,10 @@ function openAssignmentDialog(course: any) {
     showAssignmentDialog.value = true;
 }
 function submitAssignment() {
-    if (!assignmentCourseId.value || assignmentForm.employee_ids.length === 0) return;
+    if (!assignmentCourseId.value || assignmentForm.employee_ids.length === 0) {
+return;
+}
+
     assignmentForm.post('/training/enroll', {
         onSuccess: () => {
             showAssignmentDialog.value = false;
@@ -102,6 +105,7 @@ const learningLoading = ref(false);
 const quizAnswers = ref<Record<number, number[]>>({});
 async function openLearning(enrollment: any) {
     learningLoading.value = true;
+
     try {
         const response = await axios.get(`/training/courses/${enrollment.course_id || enrollment.course?.id}/content`);
         learning.value = response.data;
@@ -112,7 +116,10 @@ async function openLearning(enrollment: any) {
     }
 }
 async function completeLearningLesson(lessonId: number) {
-    if (!learning.value?.enrollment?.id) return;
+    if (!learning.value?.enrollment?.id) {
+return;
+}
+
     const response = await axios.post('/training/complete-lesson', {
         enrollment_id: learning.value.enrollment.id,
         lesson_id: lessonId,
@@ -123,7 +130,10 @@ async function completeLearningLesson(lessonId: number) {
     learning.value.enrollment.progress_percent = response.data.progress ?? learning.value.enrollment.progress_percent;
 }
 async function submitLearningQuiz(quiz: any) {
-    if (!learning.value?.enrollment?.id) return;
+    if (!learning.value?.enrollment?.id) {
+return;
+}
+
     const response = await axios.post('/training/submit-quiz', {
         enrollment_id: learning.value.enrollment.id,
         quiz_id: quiz.id,
@@ -131,12 +141,16 @@ async function submitLearningQuiz(quiz: any) {
     });
     toast.success(`Kết quả: ${response.data.score}%`);
     learning.value.enrollment.progress_percent = Math.max(learning.value.enrollment.progress_percent, response.data.progress || learning.value.enrollment.progress_percent);
-    if (response.data.certificate_code) learning.value.enrollment.certificate_code = response.data.certificate_code;
+
+    if (response.data.certificate_code) {
+learning.value.enrollment.certificate_code = response.data.certificate_code;
+}
 }
 function quizAnswersFor(quiz: any): number[] {
     if (!quizAnswers.value[quiz.id]) {
         quizAnswers.value[quiz.id] = [];
     }
+
     return quizAnswers.value[quiz.id];
 }
 async function approveEnrollment(enrollment: any) {

@@ -223,7 +223,6 @@ const submitCancelItem = () => {
         },
     );
 };
-
 // Product status actions
 const handlePauseProduct = (
     productId: number,
@@ -275,11 +274,13 @@ const pauseBranch = (product: Product, minutes?: number, reason?: string) => {
         reason ??
         window.prompt(`Lý do tạm ngưng món "${product.name}" tại chi nhánh này:`, '') ??
         '';
+
     if (finalReason.trim().length < 3) {
         toast.error('Cần nhập lý do tạm ngưng (tối thiểu 3 ký tự).');
 
         return;
     }
+
     router.post(
         `/kitchen/products/${product.id}/pause-branch`,
         { reason: finalReason.trim(), minutes: minutes ?? null },
@@ -302,7 +303,7 @@ const approveReopen = (productId: number) => {
         { preserveScroll: true, preserveState: true },
     );
 };
-
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const handlePauseCustom = (product: Product) => {
     const res = window.prompt(
         `Nhập số phút tạm dừng cho món "${product.name}":`,
@@ -329,7 +330,6 @@ const handlePauseCustom = (product: Product) => {
 
     handlePauseProduct(product.id, mins, reason.trim() || undefined);
 };
-
 const handleOutOfStockCustom = (product: Product) => {
     const res = window.prompt(
         `Nhập số phút báo hết cho món "${product.name}":`,
@@ -563,9 +563,12 @@ const callingWaiter = ref<Record<number, boolean>>({});
 async function triggerCallWaiter(item: any) {
     if (!item?.order_id) {
         toast.error('Món ăn không thuộc đơn hợp lệ.');
+
         return;
     }
+
     callingWaiter.value[item.id] = true;
+
     try {
         await axios.post(`/orders/${item.order_id}/call-waiter`, {
             item_name: item.product_name || item.name || '',

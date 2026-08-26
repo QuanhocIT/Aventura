@@ -309,7 +309,11 @@ async function refreshTasks(silent = false) {
         const { data } = await axios.get('/api/warehouse/my-tasks');
         taskList.value = data.tasks;
         taskSummaryData.value = data.summary;
-        if (silent) return;
+
+        if (silent) {
+return;
+}
+
         toast.success('Đã làm mới danh sách tác vụ.');
     } catch {
         toast.error('Không thể tải danh sách công việc.');
@@ -325,9 +329,11 @@ async function startTask(taskId: number) {
         const { data } = await axios.post(`/api/warehouse/tasks/${taskId}/start`);
         toast.success('Bắt đầu công việc thành công!');
         const idx = taskList.value.findIndex(t => t.id === taskId);
+
         if (idx !== -1) {
             taskList.value[idx] = { ...taskList.value[idx], ...data.task };
         }
+
         taskSummaryData.value.in_progress++;
         taskSummaryData.value.pending = Math.max(0, taskSummaryData.value.pending - 1);
     } catch (e: any) {
@@ -344,9 +350,11 @@ async function completeTask(taskId: number) {
         ? crypto.randomUUID()
         : `task-${taskId}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
     formData.append('idempotency_key', idempotencyKey);
+
     if (taskResultNote.value) {
         formData.append('result_notes', taskResultNote.value);
     }
+
     taskFiles.value.forEach(f => formData.append('evidence[]', f));
 
     try {
@@ -394,6 +402,7 @@ async function submitGrn() {
     }
 
     const invalidIndex = grnForm.value.items.findIndex(item => !item.ingredient_id);
+
     if (invalidIndex !== -1) {
         toast.error(`Vui lòng chọn nguyên liệu cho mặt hàng #${invalidIndex + 1}.`);
 
@@ -418,8 +427,11 @@ async function submitGrn() {
         temperature_max_c: grnForm.value.temperature_max_c,
     };
     Object.entries(grnMeta).forEach(([key, value]) => {
-        if (value !== '' && value !== null && value !== undefined) formData.append(key, String(value));
+        if (value !== '' && value !== null && value !== undefined) {
+formData.append(key, String(value));
+}
     });
+
     if (grnForm.value.notes) {
         formData.append('notes', grnForm.value.notes);
     }
@@ -428,18 +440,23 @@ async function submitGrn() {
         if (item.ingredient_id) {
             formData.append(`items[${i}][ingredient_id]`, String(item.ingredient_id));
         }
+
         formData.append(`items[${i}][expected_qty]`, String(item.expected_qty));
         formData.append(`items[${i}][actual_qty]`, String(item.actual_qty));
         formData.append(`items[${i}][unit_cost]`, String(item.unit_cost));
+
         if (item.lot_number) {
             formData.append(`items[${i}][lot_number]`, item.lot_number);
         }
+
         if (item.expiry_date) {
             formData.append(`items[${i}][expiry_date]`, item.expiry_date);
         }
+
         if (item.location_id) {
             formData.append(`items[${i}][location_id]`, String(item.location_id));
         }
+
         if (item.discrepancy_reason) {
             formData.append(`items[${i}][discrepancy_reason]`, item.discrepancy_reason);
         }
@@ -452,9 +469,11 @@ async function submitGrn() {
             headers: { 'Content-Type': 'multipart/form-data' },
         });
         toast.success(data.message || 'Tạo phiếu nhận hàng thành công.');
+
         if (data.voucher) {
             voucherList.value.unshift(data.voucher);
         }
+
         grnForm.value.items = [];
         addGrnItem();
         grnFiles.value = [];
@@ -465,6 +484,7 @@ async function submitGrn() {
 
         if (errors) {
             const firstKey = Object.keys(errors)[0];
+
             if (firstKey && errors[firstKey]?.[0]) {
                 errorMessage = errors[firstKey][0];
             }
@@ -499,14 +519,23 @@ async function submitIncident() {
     formData.append('incident_type', incidentForm.value.incident_type);
     formData.append('idempotency_key', idempotencyKey);
     formData.append('description', incidentForm.value.description);
+
     if (incidentForm.value.ingredient_id) {
         formData.append('ingredient_id', String(incidentForm.value.ingredient_id));
     }
-    if (incidentForm.value.batch_id) formData.append('batch_id', String(incidentForm.value.batch_id));
-    if (incidentForm.value.location_id) formData.append('location_id', String(incidentForm.value.location_id));
+
+    if (incidentForm.value.batch_id) {
+formData.append('batch_id', String(incidentForm.value.batch_id));
+}
+
+    if (incidentForm.value.location_id) {
+formData.append('location_id', String(incidentForm.value.location_id));
+}
+
     if (incidentForm.value.quantity_affected !== null && incidentForm.value.quantity_affected !== undefined) {
         formData.append('quantity_affected', String(incidentForm.value.quantity_affected));
     }
+
     incidentFiles.value.forEach(f => formData.append('evidence[]', f));
 
     try {
@@ -528,16 +557,20 @@ async function submitIncident() {
 async function submitHandover() {
     if (!handoverForm.value.received_by) {
         toast.error('Hãy chọn người nhận ca trước khi nộp biên bản.');
+
         return;
     }
+
     isSubmittingHandover.value = true;
 
     try {
         const { data } = await axios.post('/api/warehouse/shift-handover', handoverForm.value);
         toast.success(data.message || 'Đã nộp biên bản bàn giao ca.');
+
         if (data.is_system_locked) {
             toast.warning(`Cảnh báo: Còn ${data.pending_tasks} task chưa hoàn thành trong ca.`);
         }
+
         if (data.handover) {
             handoverList.value.unshift(data.handover);
         }
@@ -550,6 +583,7 @@ async function submitHandover() {
 
 async function respondToDispute(dispute: any) {
     const response = prompt('Nhập ý kiến phản hồi / bằng chứng đối với biên bản '+dispute.dispute_code+':');
+
     if (!response?.trim()) {
         return;
     }
@@ -593,11 +627,19 @@ async function markNotificationRead(notification: any) {
 
 async function confirmPutaway(task: any) {
     const locationId = window.prompt('Nhập ID vị trí đã quét:');
-    if (!locationId || Number.isNaN(Number(locationId))) return;
+
+    if (!locationId || Number.isNaN(Number(locationId))) {
+return;
+}
+
     const putawayItems = task.receiving_voucher?.items ?? [];
     const defaultBatchId = putawayItems.length === 1 ? putawayItems[0].batch_id : null;
     const batchInput = defaultBatchId || window.prompt('Nhập ID batch/lô cần cất:', '');
-    if (putawayItems.length > 1 && (!batchInput || Number.isNaN(Number(batchInput)))) return;
+
+    if (putawayItems.length > 1 && (!batchInput || Number.isNaN(Number(batchInput)))) {
+return;
+}
+
     try {
         await axios.post(`/api/warehouse/tasks/${task.id}/putaway-confirm`, {
             location_id: Number(locationId),
@@ -613,10 +655,13 @@ async function confirmPutaway(task: any) {
 
 function openPickingModal(task: any) {
     const items = task.supply_request?.items ?? [];
+
     if (!task.supply_request?.id || items.length === 0) {
         toast.error('Task soạn hàng chưa có dữ liệu đơn cấp phát.');
+
         return;
     }
+
     activePickingTask.value = task;
     pickingFormItems.value = items.map((item: any) => ({
         id: item.id,
@@ -631,15 +676,20 @@ function openPickingModal(task: any) {
 }
 
 async function submitPickingModal() {
-    if (!activePickingTask.value?.supply_request?.id) return;
+    if (!activePickingTask.value?.supply_request?.id) {
+return;
+}
 
     const invalidItem = pickingFormItems.value.find(item => item.actual_dispatched_quantity < 0);
+
     if (invalidItem) {
         toast.error(`Số lượng soạn cho ${invalidItem.ingredient_name} không hợp lệ.`);
+
         return;
     }
 
     isSubmittingPicking.value = true;
+
     try {
         const preparedItems = pickingFormItems.value.map(item => ({
             id: item.id,
@@ -666,10 +716,16 @@ async function submitPickingModal() {
 async function dispatchHandoverTask(task: any) {
     if (!task.supply_request?.id) {
         toast.error('Task bàn giao chưa có đơn cấp phát.');
+
         return;
     }
+
     const sealCode = window.prompt('Nhập mã niêm phong trước khi bàn giao:', '');
-    if (sealCode === null) return;
+
+    if (sealCode === null) {
+return;
+}
+
     try {
         await axios.post(`/api/supply-requests/${task.supply_request.id}/dispatch`, { seal_code: sealCode || null });
         toast.success('Đã ghi nhận bàn giao Kho Tổng.');
@@ -680,14 +736,28 @@ async function dispatchHandoverTask(task: any) {
 }
 
 function openTaskCompletion(task: any) {
-    if (task.task_type === 'putaway') return confirmPutaway(task);
-    if (task.task_type === 'picking') return openPickingModal(task);
-    if (task.task_type === 'handover') return dispatchHandoverTask(task);
+    if (task.task_type === 'putaway') {
+return confirmPutaway(task);
+}
+
+    if (task.task_type === 'picking') {
+return openPickingModal(task);
+}
+
+    if (task.task_type === 'handover') {
+return dispatchHandoverTask(task);
+}
+
     if (task.task_type === 'packing') {
         const packingNote = window.prompt('Nhập số kiện/carton, seal và ghi chú đóng gói:');
-        if (packingNote === null) return;
+
+        if (packingNote === null) {
+return;
+}
+
         taskResultNote.value = packingNote;
     }
+
     activeTaskId.value = task.id;
 }
 
@@ -703,6 +773,7 @@ async function handleScan() {
     try {
         const { data } = await axios.post('/api/warehouse/scan', { code: scanInput.value.trim() });
         scanResult.value = data;
+
         if (data.warning) {
             toast.warning(data.warning);
         }
@@ -715,6 +786,7 @@ async function handleScan() {
 
 function handleFileInput(event: Event, target: 'grn' | 'incident' | 'task') {
     const files = (event.target as HTMLInputElement).files;
+
     if (!files) {
         return;
     }
@@ -740,31 +812,44 @@ function removeFile(index: number, target: 'grn' | 'incident' | 'task') {
 
 async function startCameraScan() {
     cameraError.value = '';
+
     if (!("BarcodeDetector" in window) || !navigator.mediaDevices?.getUserMedia) {
         cameraError.value = 'Trình duyệt chưa hỗ trợ quét camera. Hãy nhập mã thủ công.';
+
         return;
     }
+
     try {
         cameraStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' } } });
         isCameraScanning.value = true;
         const video = document.querySelector<HTMLVideoElement>('#warehouse-scan-video');
-        if (!video) return;
+
+        if (!video) {
+return;
+}
+
         video.srcObject = cameraStream;
         await video.play();
         const detector = new (window as any).BarcodeDetector({ formats: ['qr_code', 'code_128', 'ean_13', 'ean_8'] });
         const scanFrame = async () => {
-            if (!isCameraScanning.value) return;
+            if (!isCameraScanning.value) {
+return;
+}
+
             try {
                 const detected = await detector.detect(video);
+
                 if (detected?.[0]?.rawValue) {
                     scanInput.value = detected[0].rawValue;
                     stopCameraScan();
                     await handleScan();
+
                     return;
                 }
             } catch {
                 // Continue scanning; unsupported formats are handled by the manual field.
             }
+
             window.requestAnimationFrame(scanFrame);
         };
         window.requestAnimationFrame(scanFrame);
@@ -790,7 +875,10 @@ onMounted(() => {
 });
 
 onBeforeUnmount(() => {
-    if (refreshTimer) clearInterval(refreshTimer);
+    if (refreshTimer) {
+clearInterval(refreshTimer);
+}
+
     stopCameraScan();
 });
 </script>
@@ -1815,7 +1903,7 @@ onBeforeUnmount(() => {
                                     <td class="p-3">
                                         <Input
                                             type="number"
-                                            v-model.number="item.batch_id"
+                                            v-model.number="(item.batch_id as any)"
                                             placeholder="Tự chọn lô FEFO"
                                             class="h-8 w-28 font-mono text-xs"
                                         />

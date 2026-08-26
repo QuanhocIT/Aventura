@@ -22,6 +22,7 @@ import { Pagination } from '@/components/super-admin';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { useAuditLogFormatter } from '@/composables/useAuditLogFormatter';
 import AppLayout from '@/layouts/AppLayout.vue';
 
 defineOptions({ layout: AppLayout });
@@ -184,7 +185,6 @@ const eventConfig: Record<string, { label: string; cls: string; icon: any }> = {
     },
 };
 
-import { useAuditLogFormatter } from '@/composables/useAuditLogFormatter';
 
 const { formatAction, formatSubjectType, formatFieldLabel, formatFieldValue } =
     useAuditLogFormatter();

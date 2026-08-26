@@ -443,6 +443,7 @@ const rejectVoucher = async () => {
     }
 
     isRejecting.value = true;
+
     try {
         await axios.post(`/api/warehouse/receiving-vouchers/${rejecting.value.id}/reject`, {
             reason: rejectReason.value.trim(),

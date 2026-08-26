@@ -217,12 +217,15 @@ const statusStartedAt = (transfer: Transfer): string | null => {
     if (transfer.status === 'requested') {
         return transfer.created_at;
     }
+
     if (transfer.status === 'routed') {
         return transfer.routed_at;
     }
+
     if (transfer.status === 'dispatched') {
         return transfer.dispatched_at;
     }
+
     if (transfer.status === 'discrepancy') {
         return transfer.received_at;
     }
@@ -239,6 +242,7 @@ const slaHours: Partial<Record<TransferStatus, number>> = {
 
 const ageInHours = (transfer: Transfer) => {
     const startedAt = parseDate(statusStartedAt(transfer));
+
     if (!startedAt) {
         return 0;
     }
@@ -248,6 +252,7 @@ const ageInHours = (transfer: Transfer) => {
 
 const isOverdue = (transfer: Transfer) => {
     const limit = slaHours[transfer.status];
+
     return limit !== undefined && ageInHours(transfer) > limit;
 };
 
@@ -261,10 +266,22 @@ const needsAction = (transfer: Transfer) =>
     transfer.can_resolve;
 
 const nextAction = (transfer: Transfer) => {
-    if (transfer.can_route) return 'Định tuyến nguồn cấp';
-    if (transfer.can_dispatch) return 'Xác nhận xuất kho';
-    if (transfer.can_receive) return 'Kiểm đếm & nhận hàng';
-    if (transfer.can_resolve) return 'Chốt chênh lệch';
+    if (transfer.can_route) {
+return 'Định tuyến nguồn cấp';
+}
+
+    if (transfer.can_dispatch) {
+return 'Xác nhận xuất kho';
+}
+
+    if (transfer.can_receive) {
+return 'Kiểm đếm & nhận hàng';
+}
+
+    if (transfer.can_resolve) {
+return 'Chốt chênh lệch';
+}
+
     return 'Theo dõi tiến độ';
 };
 
@@ -297,6 +314,7 @@ const operationalStats = computed(() => {
         .map((transfer) => {
             const createdAt = parseDate(transfer.created_at);
             const receivedAt = parseDate(transfer.received_at);
+
             return createdAt && receivedAt
                 ? (receivedAt.getTime() - createdAt.getTime()) / 3_600_000
                 : null;
@@ -321,6 +339,7 @@ const workQueue = computed(() =>
         .filter(needsAction)
         .sort((a, b) => {
             const overdueDiff = Number(isOverdue(b)) - Number(isOverdue(a));
+
             return overdueDiff || ageInHours(b) - ageInHours(a);
         })
         .slice(0, 5),
@@ -497,9 +516,11 @@ const openReject = (transfer: Transfer) => {
 
 const openCreateRequest = () => {
     requestForm.reset();
+
     if (props.branches.length > 0 && !requestForm.to_branch_id) {
         requestForm.to_branch_id = props.branches[0].id;
     }
+
     showRequest.value = true;
 };
 
@@ -655,8 +676,14 @@ const formatCurrency = (value: number) =>
     }).format(value || 0);
 
 const formatDuration = (hours: number) => {
-    if (!hours) return '—';
-    if (hours < 24) return `${Math.round(hours)} giờ`;
+    if (!hours) {
+return '—';
+}
+
+    if (hours < 24) {
+return `${Math.round(hours)} giờ`;
+}
+
     return `${Math.floor(hours / 24)} ngày ${Math.round(hours % 24)} giờ`;
 };
 </script>

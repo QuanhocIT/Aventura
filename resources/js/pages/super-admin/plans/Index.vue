@@ -32,7 +32,6 @@ import {
 } from 'lucide-vue-next';
 import { ref, computed } from 'vue';
 import { PageHeader, StatusBadge } from '@/components/super-admin';
-import { store } from '@/routes/superadmin/plans';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -66,6 +65,7 @@ import {
     SheetTitle,
 } from '@/components/ui/sheet';
 import AppLayout from '@/layouts/AppLayout.vue';
+import { store } from '@/routes/superadmin/plans';
 
 defineOptions({ layout: AppLayout });
 

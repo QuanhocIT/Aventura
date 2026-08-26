@@ -641,10 +641,12 @@ watch(showAddEmployee, (val) => {
             employeeForm.job_title = 'Nhân viên Kho Tổng';
         } else {
             const availableValues = createRoleOptions.value.map((o) => o.value);
+
             if (!availableValues.includes(employeeForm.role)) {
                 const firstRole = availableValues[0] || 'cashier';
 
                 employeeForm.role = firstRole;
+
                 if (firstRole === 'cashier') {
                     employeeForm.job_title = 'Thu Ngân';
                 } else if (firstRole === 'kitchen') {

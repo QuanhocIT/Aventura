@@ -176,11 +176,13 @@ function formatPeriodVietnamese(periodStr: string): string {
     if (!periodStr) {
         return '';
     }
+
     const parts = periodStr.split('-');
 
     if (parts.length !== 2) {
         return periodStr;
     }
+
     const year = parts[0];
     const month = parseInt(parts[1], 10);
 
@@ -195,6 +197,7 @@ function toggleMonthPicker() {
             pickerYear.value = parseInt(parts[0], 10) || new Date().getFullYear();
         }
     }
+
     showMonthPicker.value = !showMonthPicker.value;
 }
 

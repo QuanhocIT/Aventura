@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue';
 import { Head, Link, useForm, router } from '@inertiajs/vue3';
 import {
     Users,
@@ -14,14 +13,15 @@ import {
     PauseCircle,
     PlayCircle
 } from 'lucide-vue-next';
+import { ref, computed } from 'vue';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { assignSupervisor, toggleStatus } from '@/routes/warehouse/team';
-import { assign, reassign } from '@/routes/warehouse/team/tasks';
-import { approve } from '@/routes/warehouse/team/leave';
 import WarehouseAiRecommendations from '@/components/WarehouseAiRecommendations.vue';
+import { assignSupervisor, toggleStatus } from '@/routes/warehouse/team';
+import { approve } from '@/routes/warehouse/team/leave';
+import { assign, reassign } from '@/routes/warehouse/team/tasks';
 
 interface StaffMember {
     id: number;
@@ -134,7 +134,9 @@ const filteredStaff = computed(() => {
     if (!searchQuery.value.trim()) {
         return props.staffMembers;
     }
+
     const q = searchQuery.value.toLowerCase();
+
     return props.staffMembers.filter(
         s => s.name.toLowerCase().includes(q) || s.email.toLowerCase().includes(q) || s.phone?.includes(q)
     );
@@ -166,9 +168,11 @@ function toggleStaffStatus(staff: StaffMember) {
 
 function openAssignTaskModal(staff?: StaffMember) {
     taskForm.reset();
+
     if (staff) {
         taskForm.assigned_to = String(staff.id);
     }
+
     showAssignTaskModal.value = true;
 }
 
@@ -191,6 +195,7 @@ function submitReassign() {
     if (!selectedTaskForReassign.value) {
         return;
     }
+
     reassignForm.post(reassign.url(selectedTaskForReassign.value.id), {
         onSuccess: () => {
             showReassignModal.value = false;

@@ -2,9 +2,9 @@
 import { Head, Link, router } from '@inertiajs/vue3';
 import { AlertCircle, ArrowUpRight, Calculator, CheckCircle2, Info, Plus, Trash2 } from 'lucide-vue-next';
 import { ref } from 'vue';
+import FinancePageHeader from '@/components/finance/FinancePageHeader.vue';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import FinancePageHeader from '@/components/finance/FinancePageHeader.vue';
 import AppLayout from '@/layouts/AppLayout.vue';
 
 defineOptions({ layout: AppLayout });
@@ -41,12 +41,28 @@ const form = ref({
     lines: [{ period_month: new Date().getFullYear() + '-01', account_code: defaultAccount, category_id: null, budget_amount: 0 }],
 });
 
-function money(value: number) { return new Intl.NumberFormat('vi-VN').format(value) + ' đ'; }
-function accountFor(code: string) { return props.budgetAccounts.find((account) => account.code === code); }
-function addLine() { form.value.lines.push({ period_month: form.value.period_start.slice(0, 7), account_code: defaultAccount, category_id: null, budget_amount: 0 }); }
-function save() { router.post('/financial-budgets', form.value, { onSuccess: () => { showForm.value = false; } }); }
-function approve(id: number) { if (window.confirm('Duyệt ngân sách này?')) router.patch('/financial-budgets/' + id + '/approve'); }
-function statusLabel(status: string) { return status === 'approved' ? 'Đã duyệt' : 'Bản nháp'; }
+function money(value: number) {
+ return new Intl.NumberFormat('vi-VN').format(value) + ' đ'; 
+}
+function accountFor(code: string) {
+ return props.budgetAccounts.find((account) => account.code === code); 
+}
+function addLine() {
+ form.value.lines.push({ period_month: form.value.period_start.slice(0, 7), account_code: defaultAccount, category_id: null, budget_amount: 0 }); 
+}
+function save() {
+ router.post('/financial-budgets', form.value, { onSuccess: () => {
+ showForm.value = false; 
+} }); 
+}
+function approve(id: number) {
+ if (window.confirm('Duyệt ngân sách này?')) {
+router.patch('/financial-budgets/' + id + '/approve');
+} 
+}
+function statusLabel(status: string) {
+ return status === 'approved' ? 'Đã duyệt' : 'Bản nháp'; 
+}
 </script>
 
 <template>

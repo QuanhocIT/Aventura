@@ -342,13 +342,21 @@ function approveExpense(expense: OperatingExpense) {
 
 function rejectExpense(expense: OperatingExpense) {
     const reason = window.prompt('Lý do từ chối chứng từ chi phí:');
-    if (!reason?.trim()) return;
+
+    if (!reason?.trim()) {
+return;
+}
+
     router.patch('/expenses/' + expense.id + '/reject', { reason }, { preserveScroll: true });
 }
 
 function payExpense(expense: OperatingExpense) {
     const method = window.prompt('Phương thức thanh toán: cash hoặc bank_transfer', 'bank_transfer');
-    if (!method || !['cash', 'bank_transfer'].includes(method)) return;
+
+    if (!method || !['cash', 'bank_transfer'].includes(method)) {
+return;
+}
+
     router.patch('/expenses/' + expense.id + '/pay', { payment_method: method }, { preserveScroll: true });
 }
 

@@ -12,9 +12,9 @@ import {
     XCircle,
 } from 'lucide-vue-next';
 import { computed, ref, watch } from 'vue';
+import FinancePageHeader from '@/components/finance/FinancePageHeader.vue';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import FinancePageHeader from '@/components/finance/FinancePageHeader.vue';
 import AppLayout from '@/layouts/AppLayout.vue';
 
 defineOptions({ layout: AppLayout });
@@ -256,7 +256,10 @@ function saveAsset() {
 }
 
 function submitAssetDetails() {
-    if (!selectedAsset.value) return;
+    if (!selectedAsset.value) {
+return;
+}
+
     assetDetailForm.patch('/fixed-assets/' + selectedAsset.value.id, {
         preserveScroll: true,
         onSuccess: closeModal,
@@ -301,7 +304,10 @@ function openInspection(asset: Asset) {
 }
 
 function submitHandover() {
-    if (!selectedAsset.value) return;
+    if (!selectedAsset.value) {
+return;
+}
+
     handoverForm.post(
         '/fixed-assets/' + selectedAsset.value.id + '/handovers',
         { forceFormData: true, preserveScroll: true, onSuccess: closeModal },
@@ -309,7 +315,10 @@ function submitHandover() {
 }
 
 function submitInspection() {
-    if (!selectedAsset.value) return;
+    if (!selectedAsset.value) {
+return;
+}
+
     inspectionForm.post(
         '/fixed-assets/' + selectedAsset.value.id + '/inspections',
         { forceFormData: true, preserveScroll: true, onSuccess: closeModal },
@@ -318,23 +327,39 @@ function submitInspection() {
 
 function acceptHandover(asset: Asset) {
     const handover = asset.latest_handover;
-    if (!handover) return;
+
+    if (!handover) {
+return;
+}
+
     const notes = window.prompt('Ghi chú khi nhận tài sản (không bắt buộc):') ?? '';
     router.post('/fixed-asset-handovers/' + handover.id + '/accept', { notes }, { preserveScroll: true });
 }
 
 function rejectHandover(asset: Asset) {
     const handover = asset.latest_handover;
-    if (!handover) return;
+
+    if (!handover) {
+return;
+}
+
     const reason = window.prompt('Lý do từ chối nhận tài sản:');
-    if (!reason?.trim()) return;
+
+    if (!reason?.trim()) {
+return;
+}
+
     router.post('/fixed-asset-handovers/' + handover.id + '/reject', { reason }, { preserveScroll: true });
 }
 
 function onFileChange(event: Event, target: 'handover' | 'inspection') {
     const file = (event.target as HTMLInputElement).files?.[0] ?? null;
-    if (target === 'handover') handoverForm.evidence = file;
-    else inspectionForm.evidence = file;
+
+    if (target === 'handover') {
+handoverForm.evidence = file;
+} else {
+inspectionForm.evidence = file;
+}
 }
 
 function closeModal() {

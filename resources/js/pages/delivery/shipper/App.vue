@@ -231,9 +231,11 @@ async function updateStatus(
 
     if (status === 'failed') {
         const reason = window.prompt('Lý do giao thất bại?', notes ?? '');
+
         if (!reason?.trim()) {
             return;
         }
+
         notes = reason.trim();
     }
 

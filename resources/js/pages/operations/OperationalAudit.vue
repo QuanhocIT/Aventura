@@ -209,6 +209,7 @@ const submitReport = async () => {
         if (reportForm.value.inspection_plan_id) {
             payload.append('inspection_plan_id', String(reportForm.value.inspection_plan_id));
         }
+
         if (reportForm.value.operational_inspection_id) {
             payload.append('operational_inspection_id', String(reportForm.value.operational_inspection_id));
         }
@@ -242,8 +243,11 @@ const submitReport = async () => {
         if (reportForm.value.remediation_plan.trim()) {
             payload.append('remediation_plan', reportForm.value.remediation_plan);
         }
+
         for (const field of ['finding_category', 'requirement_reference', 'observed_condition', 'root_cause', 'corrective_action', 'preventive_action'] as const) {
-            if (reportForm.value[field].trim()) payload.append(field, reportForm.value[field]);
+            if (reportForm.value[field].trim()) {
+payload.append(field, reportForm.value[field]);
+}
         }
 
         const res = await axios.post(
@@ -273,7 +277,9 @@ const submitReport = async () => {
 };
 
 onMounted(() => {
-    if (initialInspectionId) isCreateModalOpen.value = true;
+    if (initialInspectionId) {
+isCreateModalOpen.value = true;
+}
 });
 
 const onProofPhotoChange = (event: Event) => {
@@ -308,6 +314,7 @@ const submitPlan = async () => {
 
     try {
         const res = await axios.post('/api/operational-audit/inspection-plans', planForm.value);
+
         if (res.data.success) {
             toast.success(res.data.message);
             isPlanModalOpen.value = false;
@@ -322,24 +329,32 @@ const submitPlan = async () => {
 
 const updatePlanStatus = async (plan: any, action: 'start' | 'complete' | 'cancel') => {
     let body: Record<string, string> = {};
+
     if (action === 'complete') {
         const notes = window.prompt('Tóm tắt kết quả và các tồn tại cần theo dõi:', plan.notes || '');
+
         if (!notes) {
             return;
         }
+
         body = { notes };
     }
+
     if (action === 'cancel') {
         const reason = window.prompt('Lý do hủy kế hoạch:', 'Điều chỉnh lịch kiểm tra');
+
         if (!reason) {
             return;
         }
+
         body = { reason };
     }
 
     isProcessing.value = true;
+
     try {
         const res = await axios.post(`/api/operational-audit/inspection-plans/${plan.id}/${action}`, body);
+
         if (res.data.success) {
             toast.success(res.data.message);
             router.reload();
@@ -353,9 +368,19 @@ const updatePlanStatus = async (plan: any, action: 'start' | 'complete' | 'cance
 
 const exportReports = () => {
     const params = new URLSearchParams();
-    if (statusFilter.value !== 'all') params.set('status', statusFilter.value);
-    if (severityFilter.value !== 'all') params.set('severity', severityFilter.value);
-    if (branchFilter.value !== 'all') params.set('branch_id', branchFilter.value);
+
+    if (statusFilter.value !== 'all') {
+params.set('status', statusFilter.value);
+}
+
+    if (severityFilter.value !== 'all') {
+params.set('severity', severityFilter.value);
+}
+
+    if (branchFilter.value !== 'all') {
+params.set('branch_id', branchFilter.value);
+}
+
     window.location.href = `/api/operational-audit/export?${params.toString()}`;
 };
 
@@ -450,7 +475,10 @@ const submitAssignment = async () => {
 };
 
 const acceptAssignment = async () => {
-    if (!selectedReport.value) return;
+    if (!selectedReport.value) {
+return;
+}
+
     try {
         const res = await axios.post(`/api/operational-audit/reports/${selectedReport.value.id}/assignment/accept`);
         toast.success(res.data.message || 'Đã nhận việc.');
@@ -461,9 +489,16 @@ const acceptAssignment = async () => {
 };
 
 const rejectAssignment = async () => {
-    if (!selectedReport.value) return;
+    if (!selectedReport.value) {
+return;
+}
+
     const reason = window.prompt('Lý do từ chối nhận việc (bắt buộc):', 'Không thuộc phạm vi phụ trách hoặc thiếu nguồn lực.');
-    if (!reason?.trim()) return;
+
+    if (!reason?.trim()) {
+return;
+}
+
     try {
         const res = await axios.post(`/api/operational-audit/reports/${selectedReport.value.id}/assignment/reject`, { reason });
         toast.success(res.data.message || 'Đã gửi lý do từ chối.');
@@ -474,9 +509,16 @@ const rejectAssignment = async () => {
 };
 
 const acknowledgeReport = async () => {
-    if (!selectedReport.value) return;
+    if (!selectedReport.value) {
+return;
+}
+
     const responseText = window.prompt('Phản hồi của chi nhánh và cam kết xử lý:', 'Đã tiếp nhận, sẽ xử lý theo hạn SLA và cập nhật bằng chứng.');
-    if (!responseText?.trim()) return;
+
+    if (!responseText?.trim()) {
+return;
+}
+
     try {
         const res = await axios.post(`/api/operational-audit/reports/${selectedReport.value.id}/acknowledge`, { response: responseText });
         toast.success(res.data.message || 'Đã xác nhận hồ sơ.');
@@ -533,7 +575,11 @@ const submitReinspection = async () => {
         const payload = new FormData();
         payload.append('result', reinspectionResult.value);
         payload.append('reinspection_notes', reinspectionNotes.value);
-        if (reinspectionProof.value) payload.append('reinspection_proof', reinspectionProof.value);
+
+        if (reinspectionProof.value) {
+payload.append('reinspection_proof', reinspectionProof.value);
+}
+
         const res = await axios.post(`/api/operational-audit/reports/${selectedReport.value.id}/reinspect`, payload, { headers: { 'Content-Type': 'multipart/form-data' } });
 
         if (res.data.success) {

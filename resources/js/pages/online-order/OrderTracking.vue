@@ -93,6 +93,7 @@ onUnmounted(() => {
     clearInterval(pollInterval);
     echoChannel?.stopListening('.order.updated');
     echoChannel?.stopListening('.delivery.status.updated');
+
     if (trackingToken) {
         echo.leaveChannel(`order.${trackingToken}`);
     }

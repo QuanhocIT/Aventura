@@ -826,9 +826,11 @@ onMounted(() => {
     if (urlSessionId !== sessionToken.value || (storedPhone && !urlPhone)) {
         const newUrl = new URL(window.location.href);
         newUrl.searchParams.set('session_id', sessionToken.value);
+
         if (!urlPhone && storedPhone) {
             newUrl.searchParams.set('phone', storedPhone);
         }
+
         window.location.replace(newUrl.toString());
 
         return;

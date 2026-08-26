@@ -40,6 +40,7 @@ const returnItemsLabel = (row: Row) => (row.items ?? []).map((item: Row) => `${i
 
 const load = async () => {
     loading.value = true;
+
     try {
         const [q, r, c] = await Promise.all([
             axios.get('/api/warehouse/reverse-logistics/quarantines', { params: { status: ['open', 'return_requested'] } }),
@@ -51,7 +52,9 @@ const load = async () => {
         claims.value = c.data.claims ?? [];
     } catch (error: any) {
         toast.error(error.response?.data?.message ?? 'Không thể tải danh sách xử lý kho.');
-    } finally { loading.value = false; }
+    } finally {
+ loading.value = false; 
+}
 };
 
 const openReturn = (row: Row) => {
@@ -59,29 +62,94 @@ const openReturn = (row: Row) => {
     returnModal.value = true;
 };
 const submitReturn = async () => {
-    if (!returnForm.row || !returnForm.quantity || Number(returnForm.quantity) <= 0 || returnForm.reason.trim().length < 5) { toast.error('Cần nhập số lượng hoàn trả và lý do hợp lệ.'); return; }
+    if (!returnForm.row || !returnForm.quantity || Number(returnForm.quantity) <= 0 || returnForm.reason.trim().length < 5) {
+ toast.error('Cần nhập số lượng hoàn trả và lý do hợp lệ.');
+
+ return; 
+}
+
     const form = new FormData(); form.append('quantity', returnForm.quantity); form.append('reason', returnForm.reason);
-    if (returnForm.to_branch_id) form.append('to_branch_id', returnForm.to_branch_id); if (returnForm.supplier_id) form.append('supplier_id', returnForm.supplier_id); if (returnForm.notes) form.append('notes', returnForm.notes); if (returnForm.evidence) form.append('evidence', returnForm.evidence);
-    try { await axios.post(`/api/warehouse/reverse-logistics/quarantines/${returnForm.row.id}/return`, form); toast.success('Đã lập phiếu hoàn trả và khóa số lượng tương ứng.'); returnModal.value = false; await load(); } catch (error: any) { toast.error(error.response?.data?.message ?? 'Không thể lập phiếu hoàn trả.'); }
+
+    if (returnForm.to_branch_id) {
+form.append('to_branch_id', returnForm.to_branch_id);
+}
+
+ if (returnForm.supplier_id) {
+form.append('supplier_id', returnForm.supplier_id);
+}
+
+ if (returnForm.notes) {
+form.append('notes', returnForm.notes);
+}
+
+ if (returnForm.evidence) {
+form.append('evidence', returnForm.evidence);
+}
+
+    try {
+ await axios.post(`/api/warehouse/reverse-logistics/quarantines/${returnForm.row.id}/return`, form); toast.success('Đã lập phiếu hoàn trả và khóa số lượng tương ứng.'); returnModal.value = false; await load(); 
+} catch (error: any) {
+ toast.error(error.response?.data?.message ?? 'Không thể lập phiếu hoàn trả.'); 
+}
 };
 
-const openDestroy = (row: Row) => { Object.assign(destroyForm, { row, reason: row.reason ?? 'Hàng không thể sử dụng.', evidence: null }); destroyModal.value = true; };
+const openDestroy = (row: Row) => {
+ Object.assign(destroyForm, { row, reason: row.reason ?? 'Hàng không thể sử dụng.', evidence: null }); destroyModal.value = true; 
+};
 const submitDestroy = async () => {
-    if (!destroyForm.row || !destroyForm.evidence || destroyForm.reason.trim().length < 5) { toast.error('Tiêu hủy bắt buộc có lý do và ảnh/biên bản bằng chứng.'); return; }
+    if (!destroyForm.row || !destroyForm.evidence || destroyForm.reason.trim().length < 5) {
+ toast.error('Tiêu hủy bắt buộc có lý do và ảnh/biên bản bằng chứng.');
+
+ return; 
+}
+
     const form = new FormData(); form.append('reason', destroyForm.reason); form.append('evidence', destroyForm.evidence);
-    try { await axios.post(`/api/warehouse/reverse-logistics/quarantines/${destroyForm.row.id}/destroy`, form); toast.success('Đã ghi nhận tiêu hủy và khóa hồ sơ cách ly.'); destroyModal.value = false; await load(); } catch (error: any) { toast.error(error.response?.data?.message ?? 'Không thể ghi nhận tiêu hủy.'); }
+
+    try {
+ await axios.post(`/api/warehouse/reverse-logistics/quarantines/${destroyForm.row.id}/destroy`, form); toast.success('Đã ghi nhận tiêu hủy và khóa hồ sơ cách ly.'); destroyModal.value = false; await load(); 
+} catch (error: any) {
+ toast.error(error.response?.data?.message ?? 'Không thể ghi nhận tiêu hủy.'); 
+}
 };
 
 const approveReturn = async (row: Row) => {
-    if (!window.confirm(`Duyệt phiếu ${row.return_code}? Sau khi duyệt, số hàng sẽ chuyển sang trạng thái đang vận chuyển.`)) return;
-    try { await axios.post(`/api/warehouse/reverse-logistics/returns/${row.id}/approve`); toast.success('Đã duyệt phiếu hoàn trả.'); await load(); } catch (error: any) { toast.error(error.response?.data?.message ?? 'Không thể duyệt phiếu hoàn trả.'); }
+    if (!window.confirm(`Duyệt phiếu ${row.return_code}? Sau khi duyệt, số hàng sẽ chuyển sang trạng thái đang vận chuyển.`)) {
+return;
+}
+
+    try {
+ await axios.post(`/api/warehouse/reverse-logistics/returns/${row.id}/approve`); toast.success('Đã duyệt phiếu hoàn trả.'); await load(); 
+} catch (error: any) {
+ toast.error(error.response?.data?.message ?? 'Không thể duyệt phiếu hoàn trả.'); 
+}
 };
-const openComplete = (row: Row) => { Object.assign(completeForm, { row, disposition: row.supplier_id ? 'supplier_confirmed' : 'supplier_confirmed', notes: '', evidence: null }); completeModal.value = true; };
+const openComplete = (row: Row) => {
+ Object.assign(completeForm, { row, disposition: row.supplier_id ? 'supplier_confirmed' : 'supplier_confirmed', notes: '', evidence: null }); completeModal.value = true; 
+};
 const submitComplete = async () => {
-    if (!completeForm.row || completeForm.notes.trim().length < 5) { toast.error('Cần ghi nhận biên bản đối chiếu tối thiểu 5 ký tự.'); return; }
-    if (completeForm.disposition === 'destroyed' && !completeForm.evidence) { toast.error('Tiêu hủy hàng hoàn trả bắt buộc có ảnh/biên bản.'); return; }
-    const form = new FormData(); form.append('disposition', completeForm.disposition); form.append('notes', completeForm.notes); if (completeForm.evidence) form.append('evidence', completeForm.evidence);
-    try { await axios.post(`/api/warehouse/reverse-logistics/returns/${completeForm.row.id}/complete`, form); toast.success('Đã chốt kết quả phiếu hoàn trả.'); completeModal.value = false; await load(); } catch (error: any) { toast.error(error.response?.data?.message ?? 'Không thể chốt phiếu hoàn trả.'); }
+    if (!completeForm.row || completeForm.notes.trim().length < 5) {
+ toast.error('Cần ghi nhận biên bản đối chiếu tối thiểu 5 ký tự.');
+
+ return; 
+}
+
+    if (completeForm.disposition === 'destroyed' && !completeForm.evidence) {
+ toast.error('Tiêu hủy hàng hoàn trả bắt buộc có ảnh/biên bản.');
+
+ return; 
+}
+
+    const form = new FormData(); form.append('disposition', completeForm.disposition); form.append('notes', completeForm.notes);
+
+ if (completeForm.evidence) {
+form.append('evidence', completeForm.evidence);
+}
+
+    try {
+ await axios.post(`/api/warehouse/reverse-logistics/returns/${completeForm.row.id}/complete`, form); toast.success('Đã chốt kết quả phiếu hoàn trả.'); completeModal.value = false; await load(); 
+} catch (error: any) {
+ toast.error(error.response?.data?.message ?? 'Không thể chốt phiếu hoàn trả.'); 
+}
 };
 
 const openClaim = (source?: { type?: string; id?: number; supplierId?: number }) => {
@@ -89,17 +157,46 @@ const openClaim = (source?: { type?: string; id?: number; supplierId?: number })
     claimFiles.value = []; claimModal.value = true;
 };
 const submitClaim = async () => {
-    if ((!claimForm.supplier_id && !claimForm.carrier_name.trim()) || claimForm.reason.trim().length < 5) { toast.error('Khiếu nại phải có nhà cung cấp/đơn vị vận chuyển và lý do.'); return; }
-    const form = new FormData(); Object.entries(claimForm).forEach(([key, value]) => { if (value) form.append(key, value); }); claimFiles.value.forEach((file) => form.append('evidence[]', file));
-    try { await axios.post('/api/warehouse/reverse-logistics/claims', form); toast.success('Đã lập hồ sơ khiếu nại.'); claimModal.value = false; await load(); } catch (error: any) { toast.error(error.response?.data?.message ?? 'Không thể lập hồ sơ khiếu nại.'); }
+    if ((!claimForm.supplier_id && !claimForm.carrier_name.trim()) || claimForm.reason.trim().length < 5) {
+ toast.error('Khiếu nại phải có nhà cung cấp/đơn vị vận chuyển và lý do.');
+
+ return; 
+}
+
+    const form = new FormData(); Object.entries(claimForm).forEach(([key, value]) => {
+ if (value) {
+form.append(key, value);
+} 
+}); claimFiles.value.forEach((file) => form.append('evidence[]', file));
+
+    try {
+ await axios.post('/api/warehouse/reverse-logistics/claims', form); toast.success('Đã lập hồ sơ khiếu nại.'); claimModal.value = false; await load(); 
+} catch (error: any) {
+ toast.error(error.response?.data?.message ?? 'Không thể lập hồ sơ khiếu nại.'); 
+}
 };
-const openResolve = (row: Row) => { resolveClaimId.value = row.id; resolveNotes.value = ''; resolveModal.value = true; };
+const openResolve = (row: Row) => {
+ resolveClaimId.value = row.id; resolveNotes.value = ''; resolveModal.value = true; 
+};
 const submitResolve = async () => {
-    if (!resolveClaimId.value || resolveNotes.value.trim().length < 5) { toast.error('Cần ghi nhận kết quả xử lý khiếu nại.'); return; }
-    try { await axios.post(`/api/warehouse/reverse-logistics/claims/${resolveClaimId.value}/resolve`, { response_notes: resolveNotes.value }); toast.success('Đã đóng hồ sơ khiếu nại.'); resolveModal.value = false; await load(); } catch (error: any) { toast.error(error.response?.data?.message ?? 'Không thể đóng hồ sơ khiếu nại.'); }
+    if (!resolveClaimId.value || resolveNotes.value.trim().length < 5) {
+ toast.error('Cần ghi nhận kết quả xử lý khiếu nại.');
+
+ return; 
+}
+
+    try {
+ await axios.post(`/api/warehouse/reverse-logistics/claims/${resolveClaimId.value}/resolve`, { response_notes: resolveNotes.value }); toast.success('Đã đóng hồ sơ khiếu nại.'); resolveModal.value = false; await load(); 
+} catch (error: any) {
+ toast.error(error.response?.data?.message ?? 'Không thể đóng hồ sơ khiếu nại.'); 
+}
 };
-const setFile = (target: { evidence: File | null }, event: Event) => { target.evidence = (event.target as HTMLInputElement).files?.[0] ?? null; };
-const setClaimFiles = (event: Event) => { claimFiles.value = Array.from((event.target as HTMLInputElement).files ?? []); };
+const setFile = (target: { evidence: File | null }, event: Event) => {
+ target.evidence = (event.target as HTMLInputElement).files?.[0] ?? null; 
+};
+const setClaimFiles = (event: Event) => {
+ claimFiles.value = Array.from((event.target as HTMLInputElement).files ?? []); 
+};
 onMounted(load);
 </script>
 

@@ -25,13 +25,13 @@ import {
 } from 'lucide-vue-next';
 import { computed, ref } from 'vue';
 
+import NegativeInventoryCases from '@/components/NegativeInventoryCases.vue';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import AppLayout from '@/layouts/AppLayout.vue';
-import NegativeInventoryCases from '@/components/NegativeInventoryCases.vue';
 import WarehouseAiRecommendations from '@/components/WarehouseAiRecommendations.vue';
+import AppLayout from '@/layouts/AppLayout.vue';
 
 defineOptions({ layout: AppLayout });
 

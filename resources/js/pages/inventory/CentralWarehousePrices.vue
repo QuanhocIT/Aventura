@@ -20,7 +20,6 @@ import {
     Send,
     ShieldAlert,
     ShieldCheck,
-    Timer,
     TrendingDown,
     TrendingUp,
     X,
@@ -32,8 +31,8 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import AppLayout from '@/layouts/AppLayout.vue';
 import WarehouseAiRecommendations from '@/components/WarehouseAiRecommendations.vue';
+import AppLayout from '@/layouts/AppLayout.vue';
 
 defineOptions({ layout: AppLayout });
 
@@ -150,7 +149,9 @@ const totalAbsoluteDelta = computed(() =>
 );
 
 const largestChangePercent = computed(() => {
-    if (!changedRows.value.length) return 0;
+    if (!changedRows.value.length) {
+return 0;
+}
 
     return Math.max(
         ...changedRows.value.map((row) =>
@@ -169,6 +170,7 @@ const averageCatalogCost = computed(() => {
     if (rows.value.length === 0) {
         return 0;
     }
+
     const sum = rows.value.reduce((acc, r) => acc + (Number(r.average_cost) || 0), 0);
 
     return sum / rows.value.length;
@@ -266,6 +268,7 @@ const submitPrices = async () => {
         } else {
             rows.value = JSON.parse(JSON.stringify(initialRows));
         }
+
         showSubmitDialog.value = false;
         changeReason.value = '';
         await router.reload({ preserveScroll: true });

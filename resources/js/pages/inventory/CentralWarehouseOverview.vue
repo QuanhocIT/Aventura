@@ -23,6 +23,7 @@ import {
 } from 'lucide-vue-next';
 import { computed } from 'vue';
 
+import NegativeInventoryCases from '@/components/NegativeInventoryCases.vue';
 import {
     Card,
     CardContent,
@@ -31,7 +32,6 @@ import {
     CardTitle,
 } from '@/components/ui/card';
 import AppLayout from '@/layouts/AppLayout.vue';
-import NegativeInventoryCases from '@/components/NegativeInventoryCases.vue';
 import centralWarehouseRoutes from '@/routes/inventory/central-warehouse';
 
 defineOptions({ layout: AppLayout });

@@ -174,9 +174,12 @@ const fetchOvertime = async () => {
 };
 
 const submitOvertime = async () => {
-    if (isSubmittingOvertime.value) return;
+    if (isSubmittingOvertime.value) {
+return;
+}
 
     isSubmittingOvertime.value = true;
+
     try {
         const response = await axios.post('/employee-portal/overtime', overtimeForm.value);
 

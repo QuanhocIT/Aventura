@@ -119,7 +119,9 @@ const filteredSessions = computed(() => {
     const query = search.value.trim().toLowerCase();
 
     return props.sessions.filter((session) => {
-        if (!query) return true;
+        if (!query) {
+return true;
+}
 
         return (
             `#${session.id}`.includes(query) ||
@@ -142,7 +144,10 @@ function taskFor(sessionId: number) {
 
 const canEditSelectedCounts = computed(() => {
     const session = selectedSession.value;
-    if (!session || session.status !== 'in_progress') return false;
+
+    if (!session || session.status !== 'in_progress') {
+return false;
+}
 
     return props.canManage || Number(session.second_counted_by) === Number(props.authUserId);
 });
@@ -155,10 +160,6 @@ function formatCurrency(value: number | string | null | undefined) {
     return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(Number(value || 0));
 }
 
-function formatDate(value?: string | null) {
-    if (!value) return '—';
-    return new Date(value).toLocaleString('vi-VN', { dateStyle: 'short', timeStyle: 'short' });
-}
 
 function statusLabel(status: string) {
     return {
@@ -171,19 +172,41 @@ function statusLabel(status: string) {
 }
 
 function statusClass(status: string) {
-    if (status === 'approved') return 'border-emerald-500/30 bg-emerald-500/10 text-emerald-400';
-    if (status === 'pending_approval') return 'border-sky-500/30 bg-sky-500/10 text-sky-400';
-    if (status === 'in_progress') return 'border-amber-500/30 bg-amber-500/10 text-amber-400';
-    if (status === 'rejected') return 'border-rose-500/30 bg-rose-500/10 text-rose-400';
+    if (status === 'approved') {
+return 'border-emerald-500/30 bg-emerald-500/10 text-emerald-400';
+}
+
+    if (status === 'pending_approval') {
+return 'border-sky-500/30 bg-sky-500/10 text-sky-400';
+}
+
+    if (status === 'in_progress') {
+return 'border-amber-500/30 bg-amber-500/10 text-amber-400';
+}
+
+    if (status === 'rejected') {
+return 'border-rose-500/30 bg-rose-500/10 text-rose-400';
+}
 
     return 'border-slate-500/30 bg-slate-500/10 text-slate-400';
 }
 
 function varianceLabel(item: ClosingItem) {
-    if (item.reconciliation_status === 'pending') return 'Cần đếm lại';
-    if (item.final_quantity === null) return 'Chưa đếm';
-    if (Number(item.variance_quantity) < -0.0005) return 'Thiếu';
-    if (Number(item.variance_quantity) > 0.0005) return 'Thừa';
+    if (item.reconciliation_status === 'pending') {
+return 'Cần đếm lại';
+}
+
+    if (item.final_quantity === null) {
+return 'Chưa đếm';
+}
+
+    if (Number(item.variance_quantity) < -0.0005) {
+return 'Thiếu';
+}
+
+    if (Number(item.variance_quantity) > 0.0005) {
+return 'Thừa';
+}
 
     return 'Khớp';
 }
@@ -192,7 +215,10 @@ function varianceClass(item: ClosingItem) {
     if (item.reconciliation_status === 'pending' || Number(item.variance_quantity) < -0.0005) {
         return 'text-rose-400';
     }
-    if (Number(item.variance_quantity) > 0.0005) return 'text-amber-400';
+
+    if (Number(item.variance_quantity) > 0.0005) {
+return 'text-amber-400';
+}
 
     return 'text-emerald-400';
 }
@@ -216,19 +242,25 @@ function openSession(session: ClosingSession) {
 
 function openFromQuery() {
     const id = Number(new URLSearchParams(window.location.search).get('session'));
+
     if (id) {
         const session = props.sessions.find((item) => item.id === id);
-        if (session) openSession(session);
+
+        if (session) {
+openSession(session);
+}
     }
 }
 
 async function createClosing() {
     if (!periodForm.value.from_date || !periodForm.value.to_date) {
         toast.error('Vui lòng chọn đủ ngày bắt đầu và ngày kết thúc.');
+
         return;
     }
 
     isSubmitting.value = true;
+
     try {
         const response = await axios.post('/api/inventory/central-warehouse/material-closing', {
             branch_id: props.centralBranch.id,
@@ -258,10 +290,12 @@ function openAssign(session: ClosingSession) {
 async function assignCounter() {
     if (!selectedSession.value || !assignForm.value.assigned_to) {
         toast.error('Vui lòng chọn nhân viên đối chiếu.');
+
         return;
     }
 
     isSubmitting.value = true;
+
     try {
         const response = await axios.post(
             `/api/inventory/central-warehouse/material-closing/${selectedSession.value.id}/assign`,
@@ -278,14 +312,20 @@ async function assignCounter() {
 }
 
 async function submitCounts() {
-    if (!selectedSession.value) return;
+    if (!selectedSession.value) {
+return;
+}
+
     const invalid = countRows.value.some((row) => row.counted_quantity === '' || Number(row.counted_quantity) < 0);
+
     if (invalid) {
         toast.error('Vui lòng nhập số lượng thực tế cho tất cả nguyên liệu.');
+
         return;
     }
 
     isSubmitting.value = true;
+
     try {
         const response = await axios.post(
             `/api/inventory/central-warehouse/material-closing/${selectedSession.value.id}/counts`,
@@ -307,8 +347,12 @@ async function submitCounts() {
 }
 
 async function submitForApproval() {
-    if (!selectedSession.value) return;
+    if (!selectedSession.value) {
+return;
+}
+
     isSubmitting.value = true;
+
     try {
         const response = await axios.post(`/api/inventory/count-sessions/${selectedSession.value.id}/submit-approval`, {
             notes: 'Kết quả chốt nguyên liệu đã được đối chiếu trên hệ thống.',
@@ -323,8 +367,12 @@ async function submitForApproval() {
 }
 
 async function approveSession() {
-    if (!selectedSession.value || !window.confirm('Phê duyệt sẽ ghi điều chỉnh thiếu/thừa vào tồn kho. Tiếp tục?')) return;
+    if (!selectedSession.value || !window.confirm('Phê duyệt sẽ ghi điều chỉnh thiếu/thừa vào tồn kho. Tiếp tục?')) {
+return;
+}
+
     isSubmitting.value = true;
+
     try {
         const response = await axios.post(`/api/inventory/count-sessions/${selectedSession.value.id}/approve`);
         toast.success(response.data.message || 'Đã phê duyệt và cập nhật tồn kho.');
@@ -337,10 +385,18 @@ async function approveSession() {
 }
 
 async function cancelSession() {
-    if (!selectedSession.value) return;
+    if (!selectedSession.value) {
+return;
+}
+
     const reason = window.prompt('Nhập lý do hủy kỳ chốt:', 'Tạo nhầm kỳ hoặc cần mở lại kỳ khác');
-    if (reason === null || !reason.trim()) return;
+
+    if (reason === null || !reason.trim()) {
+return;
+}
+
     isSubmitting.value = true;
+
     try {
         await axios.post(`/api/inventory/count-sessions/${selectedSession.value.id}/cancel`, { reason });
         toast.success('Đã hủy kỳ chốt.');
@@ -353,14 +409,24 @@ async function cancelSession() {
 }
 
 async function reconcileItem(item: ClosingItem) {
-    if (!selectedSession.value || item.reconciliation_status !== 'pending') return;
+    if (!selectedSession.value || item.reconciliation_status !== 'pending') {
+return;
+}
+
     const finalQuantity = window.prompt(
         `Nhập số lượng cuối cùng cho ${item.ingredient?.name || 'nguyên liệu'}:`,
         String(item.counted_quantity_2 ?? item.counted_quantity_1 ?? ''),
     );
-    if (finalQuantity === null) return;
+
+    if (finalQuantity === null) {
+return;
+}
+
     const notes = window.prompt('Ghi chú bắt buộc cho việc đồng đếm:', 'Đã kiểm tra lại thực tế tại Kho Tổng');
-    if (notes === null || !notes.trim()) return;
+
+    if (notes === null || !notes.trim()) {
+return;
+}
 
     try {
         await axios.post(

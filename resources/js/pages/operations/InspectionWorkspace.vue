@@ -3,7 +3,6 @@ import { Head, router } from '@inertiajs/vue3';
 import axios from 'axios';
 import {
     AlertTriangle,
-    CalendarClock,
     Check,
     CheckCircle2,
     ClipboardCheck,
@@ -15,7 +14,6 @@ import {
     RefreshCw,
     ShieldCheck,
     Upload,
-    UserRound,
     X,
 } from 'lucide-vue-next';
 import { computed, ref } from 'vue';
@@ -73,11 +71,16 @@ const caseLinkForm = ref({ link_type: 'incident', link_id: '' as string | number
 const selectedInspection = computed(() => props.inspections.find((inspection) => inspection.id === selectedId.value) ?? null);
 const branchEmployees = computed(() => {
     const branchId = Number(selectedInspection.value?.branch?.id ?? inspectionForm.value.branch_id);
+
     return props.employees.filter((employee) => !branchId || Number(employee.branch_id) === branchId);
 });
 const selectedChecklist = computed(() => {
     const inspection = selectedInspection.value;
-    if (!inspection) return [];
+
+    if (!inspection) {
+return [];
+}
+
     return props.templates.flatMap((template) => template.items.map((item: any) => ({ ...item, template_name: template.name })));
 });
 
@@ -94,7 +97,9 @@ const statusLabels: Record<string, string> = {
     rejected: 'Cần làm lại',
 };
 
-function statusLabel(status: string) { return statusLabels[status] ?? status; }
+function statusLabel(status: string) {
+ return statusLabels[status] ?? status; 
+}
 function statusClass(status: string) {
     return {
         draft: 'bg-slate-500/10 text-slate-600 dark:text-slate-300',
@@ -110,32 +115,59 @@ function statusClass(status: string) {
         rejected: 'bg-rose-500/10 text-rose-700 dark:text-rose-300',
     }[status] ?? 'bg-muted text-muted-foreground';
 }
-function notifyError(error: any) { toast.error(error?.response?.data?.message ?? 'Không thể thực hiện thao tác.'); }
-function reload() { router.reload({ only: ['inspections'] }); }
+function notifyError(error: any) {
+ toast.error(error?.response?.data?.message ?? 'Không thể thực hiện thao tác.'); 
+}
+function reload() {
+ router.reload({ only: ['inspections'] }); 
+}
 
 async function createInspection() {
     isSaving.value = true;
+
     try {
         const response = await axios.post('/api/operational-audit/inspections', inspectionForm.value);
         toast.success(response.data.message);
         isCreating.value = false;
         selectedId.value = response.data.data.id;
         reload();
-    } catch (error) { notifyError(error); } finally { isSaving.value = false; }
+    } catch (error) {
+ notifyError(error); 
+} finally {
+ isSaving.value = false; 
+}
 }
 async function startInspection() {
-    if (!selectedInspection.value) return;
-    try { const response = await axios.post(`/api/operational-audit/inspections/${selectedInspection.value.id}/start`); toast.success(response.data.message); reload(); }
-    catch (error) { notifyError(error); }
+    if (!selectedInspection.value) {
+return;
+}
+
+    try {
+ const response = await axios.post(`/api/operational-audit/inspections/${selectedInspection.value.id}/start`); toast.success(response.data.message); reload(); 
+} catch (error) {
+ notifyError(error); 
+}
 }
 async function completeInspection() {
-    if (!selectedInspection.value) return;
+    if (!selectedInspection.value) {
+return;
+}
+
     isSaving.value = true;
-    try { const response = await axios.post(`/api/operational-audit/inspections/${selectedInspection.value.id}/complete`, completeForm.value); toast.success(response.data.message); reload(); }
-    catch (error) { notifyError(error); } finally { isSaving.value = false; }
+
+    try {
+ const response = await axios.post(`/api/operational-audit/inspections/${selectedInspection.value.id}/complete`, completeForm.value); toast.success(response.data.message); reload(); 
+} catch (error) {
+ notifyError(error); 
+} finally {
+ isSaving.value = false; 
+}
 }
 async function saveChecklist(item: any, result: 'pass' | 'fail' | 'na') {
-    if (!selectedInspection.value) return;
+    if (!selectedInspection.value) {
+return;
+}
+
     try {
         const response = await axios.post(`/api/operational-audit/inspections/${selectedInspection.value.id}/checklist`, {
             item_id: item.id,
@@ -146,45 +178,78 @@ async function saveChecklist(item: any, result: 'pass' | 'fail' | 'na') {
         });
         toast.success(response.data.message);
         reload();
-    } catch (error) { notifyError(error); }
+    } catch (error) {
+ notifyError(error); 
+}
 }
 function setChecklistPhoto(itemId: number, event: Event) {
     const file = (event.target as HTMLInputElement).files?.[0];
-    if (!file) return;
+
+    if (!file) {
+return;
+}
+
     const reader = new FileReader();
-    reader.onload = () => { checklistPhotos.value[itemId] = String(reader.result ?? ''); };
+    reader.onload = () => {
+ checklistPhotos.value[itemId] = String(reader.result ?? ''); 
+};
     reader.readAsDataURL(file);
 }
 async function createAction() {
-    if (!selectedInspection.value) return;
+    if (!selectedInspection.value) {
+return;
+}
+
     isSaving.value = true;
+
     try {
         const response = await axios.post(`/api/operational-audit/inspections/${selectedInspection.value.id}/actions`, actionForm.value);
         toast.success(response.data.message);
         actionForm.value = { title: '', description: '', root_cause: '', corrective_action: '', preventive_action: '', assigned_to: '', priority: 'normal', due_date: '' };
         reload();
-    } catch (error) { notifyError(error); } finally { isSaving.value = false; }
+    } catch (error) {
+ notifyError(error); 
+} finally {
+ isSaving.value = false; 
+}
 }
 async function uploadEvidence(event: Event) {
-    if (!selectedInspection.value) return;
+    if (!selectedInspection.value) {
+return;
+}
+
     const file = (event.target as HTMLInputElement).files?.[0];
-    if (!file) return;
+
+    if (!file) {
+return;
+}
+
     const payload = new FormData();
     payload.append('file', file);
     payload.append('collection', 'inspection');
     payload.append('operational_inspection_id', String(selectedInspection.value.id));
+
     try {
         const response = await axios.post('/api/operational-audit/evidence', payload, { headers: { 'Content-Type': 'multipart/form-data' } });
         toast.success(response.data.message);
-    } catch (error) { notifyError(error); }
+    } catch (error) {
+ notifyError(error); 
+}
+
     (event.target as HTMLInputElement).value = '';
 }
 async function updateAction(action: any, status: string) {
-    try { const response = await axios.patch(`/api/operational-audit/actions/${action.id}`, { status, submission_notes: status === 'submitted' ? 'Đã hoàn tất hành động và gửi xác minh.' : undefined, verification_notes: status === 'verified' ? 'Đã kiểm tra kết quả tại hiện trường.' : undefined }); toast.success(response.data.message); reload(); }
-    catch (error) { notifyError(error); }
+    try {
+ const response = await axios.patch(`/api/operational-audit/actions/${action.id}`, { status, submission_notes: status === 'submitted' ? 'Đã hoàn tất hành động và gửi xác minh.' : undefined, verification_notes: status === 'verified' ? 'Đã kiểm tra kết quả tại hiện trường.' : undefined }); toast.success(response.data.message); reload(); 
+} catch (error) {
+ notifyError(error); 
+}
 }
 async function linkCase() {
-    if (!selectedInspection.value || !caseLinkForm.value.link_id) return;
+    if (!selectedInspection.value || !caseLinkForm.value.link_id) {
+return;
+}
+
     try {
         const response = await axios.post('/api/operational-audit/links', {
             operational_inspection_id: selectedInspection.value.id,
@@ -194,7 +259,9 @@ async function linkCase() {
         toast.success(response.data.message);
         caseLinkForm.value.link_id = '';
         reload();
-    } catch (error) { notifyError(error); }
+    } catch (error) {
+ notifyError(error); 
+}
 }
 </script>
 

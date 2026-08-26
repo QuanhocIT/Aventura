@@ -47,6 +47,7 @@ function handleBack() {
         const pathSegments = window.location.pathname
             .split('/')
             .filter(Boolean);
+
         if (pathSegments.length > 1) {
             pathSegments.pop();
             router.visit('/' + pathSegments.join('/'));

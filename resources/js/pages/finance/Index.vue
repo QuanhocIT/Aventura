@@ -2,9 +2,9 @@
 import { Head, router } from '@inertiajs/vue3';
 import { BookOpen, LockKeyhole, Plus } from 'lucide-vue-next';
 import { computed, ref } from 'vue';
+import FinancePageHeader from '@/components/finance/FinancePageHeader.vue';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import FinancePageHeader from '@/components/finance/FinancePageHeader.vue';
 import AppLayout from '@/layouts/AppLayout.vue';
 
 defineOptions({ layout: AppLayout });
@@ -73,15 +73,30 @@ function saveAccount() {
 }
 
 function closePeriod() {
-    if (props.period.status === 'closed') return;
-    if (! window.confirm(`Khóa kỳ ${props.period.period}? Mọi chỉnh sửa sau đó phải dùng bút toán đảo.`)) return;
+    if (props.period.status === 'closed') {
+return;
+}
+
+    if (! window.confirm(`Khóa kỳ ${props.period.period}? Mọi chỉnh sửa sau đó phải dùng bút toán đảo.`)) {
+return;
+}
+
     router.patch(`/finance/periods/${props.period.id}/close`, {}, { preserveScroll: true });
 }
 function reverseSelectedEntry() {
-    if (!selectedEntry.value || selectedEntry.value.reversal_of_id !== null) return;
+    if (!selectedEntry.value || selectedEntry.value.reversal_of_id !== null) {
+return;
+}
+
     const reason = window.prompt('Lý do đảo bút toán:');
-    if (!reason?.trim()) return;
-    router.post('/finance/entries/' + selectedEntry.value.id + '/reverse', { reason }, { preserveScroll: true, onSuccess: () => { selectedEntry.value = null; } });
+
+    if (!reason?.trim()) {
+return;
+}
+
+    router.post('/finance/entries/' + selectedEntry.value.id + '/reverse', { reason }, { preserveScroll: true, onSuccess: () => {
+ selectedEntry.value = null; 
+} });
 }
 </script>
 
