@@ -306,6 +306,8 @@ class OperationalAuditTest extends TestCase
     {
         $restaurant = Restaurant::factory()->create();
         $branch = RestaurantBranch::factory()->create(['restaurant_id' => $restaurant->id]);
+        $owner = User::factory()->create(['restaurant_id' => $restaurant->id, 'branch_id' => null]);
+        $owner->assignRole('owner');
         $inspector = User::factory()->create(['restaurant_id' => $restaurant->id, 'branch_id' => null]);
         $inspector->assignRole('operations_inspector');
         $staff = User::factory()->create(['restaurant_id' => $restaurant->id, 'branch_id' => $branch->id]);
@@ -351,7 +353,15 @@ class OperationalAuditTest extends TestCase
         ]);
 
         $inspection = OperationalInspection::findOrFail($inspectionId);
-        $actionResponse = $this->actingAs($inspector)->postJson("/api/operational-audit/inspections/{$inspectionId}/actions", [
+        $this->actingAs($inspector)->postJson("/api/operational-audit/inspections/{$inspectionId}/actions", [
+            'title' => 'Bổ sung tem kiểm tra định kỳ',
+            'description' => 'Bổ sung tem và người ký xác nhận trên tủ mát.',
+            'assigned_to' => $staff->id,
+            'priority' => 'normal',
+            'due_date' => now()->addDays(3)->toDateString(),
+        ])->assertForbidden();
+
+        $actionResponse = $this->actingAs($owner)->postJson("/api/operational-audit/inspections/{$inspectionId}/actions", [
             'title' => 'Bổ sung tem kiểm tra định kỳ',
             'description' => 'Bổ sung tem và người ký xác nhận trên tủ mát.',
             'assigned_to' => $staff->id,

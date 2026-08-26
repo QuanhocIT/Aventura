@@ -25,9 +25,7 @@ class IncidentController extends Controller
     {
         return $user->isSuperAdmin()
             || $user->isOwner()
-            || $user->isBranchManager()
-            || $user->can('operational_audit.manage')
-            || $user->hasAnyRole(['operations_inspector', 'compliance_auditor']);
+            || $user->isBranchManager();
     }
 
     public function index(Request $request): Response
@@ -40,7 +38,9 @@ class IncidentController extends Controller
             ->with(['reportedBy', 'escalatedTo', 'acknowledgedBy', 'resolvedBy', 'branch']);
 
         // Nhân viên thường: chỉ thấy sự cố mình báo hoặc ở chi nhánh của mình.
-        if (! $this->canManageIncidents($user)) {
+        if ($tenantContext->isBranchScoped()) {
+            $query->where('branch_id', $tenantContext->activeBranchId());
+        } elseif (! $user->canViewAllBranches()) {
             $myBranch = $user->assignedBranchId();
             $query->where(function ($q) use ($user, $myBranch) {
                 $q->where('reported_by', $user->id);
@@ -48,8 +48,6 @@ class IncidentController extends Controller
                     $q->orWhere('branch_id', $myBranch);
                 }
             });
-        } elseif ($tenantContext->isBranchScoped()) {
-            $query->where('branch_id', $tenantContext->activeBranchId());
         }
 
         $incidentModels = $query->latest('occurred_at')->limit(200)->get();
@@ -133,7 +131,9 @@ class IncidentController extends Controller
 
         $tenantContext = app(TenantContext::class);
         $branchId = $tenantContext->activeBranchId() ?? $user->assignedBranchId();
+        abort_unless($branchId !== null, 422, 'HÃ£y chá»n chi nhÃ¡nh Ä‘á»ƒ ghi nháº­n sá»± cá»‘.');
 
+        $tenantContext->assertWriteBranch((int) $branchId);
         $photoPath = null;
         if ($request->hasFile('photo')) {
             $photoPath = $request->file('photo')->store('incidents', 'local');

@@ -8,6 +8,7 @@ use App\Models\RestaurantBranch;
 use App\Models\User;
 use App\Services\FinancialPostingService;
 use App\Services\FixedAssetCustodyService;
+use App\Support\Tenant\TenantContext;
 use App\Support\TenantRule;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -30,6 +31,7 @@ class FixedAssetController extends Controller
         $this->authorizeView($request);
 
         $canViewAll = $this->canViewAll($user);
+        $tenantContext = app(TenantContext::class);
         $assetQuery = FixedAsset::query()
             ->with([
                 'branch:id,name',
@@ -42,7 +44,16 @@ class FixedAssetController extends Controller
             ])
             ->latest('id');
 
-        if (! $canViewAll) {
+        if ($tenantContext->isBranchScoped()) {
+            $branchId = $tenantContext->activeBranchId();
+            $assetQuery->where(function ($query) use ($branchId, $user): void {
+                $query->where('branch_id', $branchId)
+                    ->orWhereHas('handovers', fn ($handover) => $handover
+                        ->where('branch_id', $branchId)
+                        ->where('to_user_id', $user->id)
+                        ->where('status', FixedAssetHandover::STATUS_PENDING));
+            });
+        } elseif (! $canViewAll) {
             $branchId = $user->assignedBranchId();
             $assetQuery->where(function ($query) use ($branchId, $user): void {
                 $query->where('branch_id', $branchId ?: -1)
@@ -71,7 +82,14 @@ class FixedAssetController extends Controller
             ->where('restaurant_id', $user->restaurant_id)
             ->where('status', 'active')
             ->with('manager:id,name,email')
-            ->when(! $canViewAll, fn ($query) => $query->whereKey($user->assignedBranchId() ?: -1))
+            ->when(
+                $tenantContext->isBranchScoped(),
+                fn ($query) => $query->whereKey($tenantContext->activeBranchId()),
+            )
+            ->when(
+                ! $canViewAll && ! $tenantContext->isBranchScoped(),
+                fn ($query) => $query->whereKey($user->assignedBranchId() ?: -1),
+            )
             ->orderBy('name')
             ->get()
             ->map(fn (RestaurantBranch $branch): array => [
@@ -150,6 +168,7 @@ class FixedAssetController extends Controller
             'specifications' => ['nullable', 'string', 'max:5000'],
             'notes' => ['nullable', 'string', 'max:2000'],
         ]);
+        app(TenantContext::class)->assertWriteBranch((int) $data['branch_id']);
         $data['quantity'] = (int) ($data['quantity'] ?? 1);
         $data['unit'] = $data['unit'] ?: 'cái';
         $data['unit_cost'] = $data['unit_cost'] ?? round((float) $data['cost'] / $data['quantity'], 2);
@@ -216,7 +235,6 @@ class FixedAssetController extends Controller
         $this->authorizeManage($request);
 
         abort_if($asset->restaurant_id !== $user->restaurant_id, 403);
-
         $data = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'category' => ['nullable', 'string', 'max:100'],
@@ -259,6 +277,7 @@ class FixedAssetController extends Controller
             'notes' => ['nullable', 'string', 'max:2000'],
             'evidence' => ['nullable', 'image', 'max:5120'],
         ]);
+        app(TenantContext::class)->assertWriteBranch((int) $data['branch_id']);
 
         $data['evidence_path'] = $request->file('evidence')?->store("fixed-assets/handovers/{$user->restaurant_id}", 'public');
         $this->custodyService->createHandover($asset, $user, $data);
@@ -270,6 +289,7 @@ class FixedAssetController extends Controller
     {
         $user = $request->user();
         $this->authorizeAccept($request);
+        app(TenantContext::class)->assertWriteBranch((int) $handover->branch_id);
         $data = $request->validate(['notes' => ['nullable', 'string', 'max:1000']]);
 
         $this->custodyService->acceptHandover($handover, $user, $data['notes'] ?? null);
@@ -281,6 +301,7 @@ class FixedAssetController extends Controller
     {
         $user = $request->user();
         $this->authorizeAccept($request);
+        app(TenantContext::class)->assertWriteBranch((int) $handover->branch_id);
         $data = $request->validate(['reason' => ['required', 'string', 'min:5', 'max:2000']]);
 
         $this->custodyService->rejectHandover($handover, $user, $data['reason']);
@@ -294,6 +315,7 @@ class FixedAssetController extends Controller
         $this->authorizeInspect($request);
 
         abort_if($asset->restaurant_id !== $user->restaurant_id, 403);
+        app(TenantContext::class)->assertWriteBranch((int) $asset->branch_id);
 
         $data = $request->validate([
             'fixed_asset_handover_id' => ['nullable', TenantRule::exists('fixed_asset_handovers')],

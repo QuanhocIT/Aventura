@@ -32,13 +32,14 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { useOfflineMutationQueue } from '@/composables/useOfflineMutationQueue';
 import AppLayout from '@/layouts/AppLayout.vue';
 
 defineOptions({ layout: AppLayout });
 
 const props = defineProps<{
     templates: any[];
-    completions: Record<number, any>;
+    completions: Record<string, any>;
     stats: Record<
         number,
         { total: number; completed: number; expected?: number; percent: number }
@@ -46,6 +47,16 @@ const props = defineProps<{
     date: string;
     canComplete?: boolean;
     branchContext?: { scope: string; active_branch_id: number | null };
+    branchStats?: Record<
+        number,
+        Array<{
+            branch_id: number;
+            branch_name: string;
+            completed: number;
+            total: number;
+            percent: number;
+        }>
+    >;
     branches?: Array<{ id: number; name: string }>;
     canManageTemplates: boolean;
 }>();
@@ -64,8 +75,24 @@ watch(
     },
 );
 
-const completions = ref<Record<number, any>>({ ...props.completions });
+const completions = ref<Record<string, any>>({ ...props.completions });
 const completing = ref<number | null>(null);
+const { enqueue, pendingCount, failedCount, retryFailed } = useOfflineMutationQueue();
+
+// Inertia keeps this page instance alive when the header scope changes. Reset
+// the local optimistic map whenever the server sends a new branch/date.
+watch(
+    () => [
+        props.completions,
+        props.branchContext?.scope,
+        props.branchContext?.active_branch_id,
+        props.date,
+    ],
+    () => {
+        completions.value = { ...props.completions };
+    },
+    { deep: true },
+);
 
 // Type labels
 const typeLabel: Record<string, string> = {
@@ -116,8 +143,13 @@ function capturePhoto() {
     }
 
     const ctx = canvasRef.value.getContext('2d');
-    canvasRef.value.width = videoRef.value.videoWidth;
-    canvasRef.value.height = videoRef.value.videoHeight;
+    const maxDimension = 1280;
+    const scale = Math.min(
+        1,
+        maxDimension / Math.max(videoRef.value.videoWidth, videoRef.value.videoHeight),
+    );
+    canvasRef.value.width = Math.round(videoRef.value.videoWidth * scale);
+    canvasRef.value.height = Math.round(videoRef.value.videoHeight * scale);
     ctx?.drawImage(videoRef.value, 0, 0);
     photoRef.value = canvasRef.value.toDataURL('image/jpeg', 0.85);
     stream?.getTracks().forEach((t) => t.stop());
@@ -148,19 +180,27 @@ async function completeItem(itemId: number, photo: string | null = null) {
 
     completing.value = itemId;
 
-    try {
-        const { data } = await axios.post('/operations-checklist/complete', {
+    const payload = {
             item_id: itemId,
             photo,
             date: props.date,
             notes: null,
-        });
+        };
+
+    try {
+        const { data } = await axios.post('/operations-checklist/complete', payload);
 
         if (data.success) {
             completions.value[itemId] = data.completion;
             toast.success('Đã hoàn thành!');
         }
     } catch (e: any) {
+        if (!e.response || (typeof navigator !== 'undefined' && !navigator.onLine)) {
+            enqueue('/operations-checklist/complete', payload);
+            completions.value[itemId] = { pending_sync: true };
+            toast.info('Đã lưu checklist, sẽ tự đồng bộ khi có mạng.');
+            return;
+        }
         toast.error(e.response?.data?.message ?? 'Có lỗi xảy ra.');
     } finally {
         completing.value = null;
@@ -188,6 +228,10 @@ async function uncompleteItem(itemId: number) {
 
 function isCompleted(itemId: number): boolean {
     return !!completions.value[itemId];
+}
+
+function branchProgress(templateId: number) {
+    return props.branchStats?.[templateId] ?? [];
 }
 
 function completedPercent(templateId: number): number {
@@ -398,6 +442,14 @@ const overallPercent = computed(() => {
                 >
                     Đang xem toàn chuỗi — chọn chi nhánh để cập nhật
                 </p>
+                <button
+                    v-if="pendingCount"
+                    type="button"
+                    class="rounded-lg bg-indigo-50 px-3 py-2 text-xs font-semibold text-indigo-700 dark:bg-indigo-950/30 dark:text-indigo-300"
+                    @click="retryFailed"
+                >
+                    {{ pendingCount }} mục chờ đồng bộ<span v-if="failedCount"> · {{ failedCount }} lỗi</span>
+                </button>
                 <Button
                     v-if="props.canManageTemplates"
                     @click="openCreateDialog"
@@ -579,6 +631,27 @@ const overallPercent = computed(() => {
                             </span>
                         </div>
                     </div>
+                    <div
+                        v-if="props.branchContext?.scope === 'all'"
+                        class="mt-4 overflow-x-auto rounded-xl border border-border/60 bg-muted/10"
+                    >
+                        <div
+                            class="grid min-w-[420px] grid-cols-[minmax(0,1fr)_100px_90px] gap-3 border-b border-border/60 px-3 py-2 text-[10px] font-bold tracking-wide text-muted-foreground uppercase"
+                        >
+                            <span>Chi nhánh</span>
+                            <span class="text-center">Tiến độ</span>
+                            <span class="text-right">Tỷ lệ</span>
+                        </div>
+                        <div
+                            v-for="branch in branchProgress(template.id)"
+                            :key="`${template.id}-${branch.branch_id}`"
+                            class="grid min-w-[420px] grid-cols-[minmax(0,1fr)_100px_90px] items-center gap-3 px-3 py-2 text-xs"
+                        >
+                            <span class="truncate font-semibold text-foreground">{{ branch.branch_name }}</span>
+                            <span class="text-center text-muted-foreground">{{ branch.completed }}/{{ branch.total }}</span>
+                            <span class="text-right font-bold text-indigo-400">{{ branch.percent }}%</span>
+                        </div>
+                    </div>
                     <CardContent class="divide-y divide-border/60 p-0 pt-2">
                         <div
                             v-for="item in template.items"
@@ -587,7 +660,7 @@ const overallPercent = computed(() => {
                         >
                             <!-- Checkbox -->
                             <button
-                                v-if="!isCompleted(item.id)"
+                                v-if="props.branchContext?.scope !== 'all' && !isCompleted(item.id)"
                                 @click="
                                     item.requires_photo
                                         ? openCamera(item.id)
@@ -609,13 +682,20 @@ const overallPercent = computed(() => {
                                 />
                             </button>
                             <button
-                                v-else
+                                v-else-if="props.branchContext?.scope !== 'all'"
                                 @click="uncompleteItem(item.id)"
                                 :disabled="props.canComplete === false"
                                 class="shrink-0 focus:outline-none"
                             >
                                 <CheckCircle2 class="size-5 text-indigo-500" />
                             </button>
+                            <span
+                                v-else
+                                class="flex size-5 shrink-0 items-center justify-center rounded-full border border-slate-500/40 text-[10px] text-slate-400"
+                                title="Chế độ toàn chuỗi chỉ xem"
+                            >
+                                •
+                            </span>
 
                             <!-- Title -->
                             <div class="min-w-0 flex-1">

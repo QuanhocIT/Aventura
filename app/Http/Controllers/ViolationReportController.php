@@ -9,6 +9,7 @@ use App\Models\SalaryAdjustment;
 use App\Models\ViolationReport;
 use App\Services\QuotaService;
 use App\Services\SalaryService;
+use App\Support\Tenant\TenantContext;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -43,7 +44,9 @@ class ViolationReportController extends Controller
         $restaurantId = $user->restaurant_id;
 
         // 1. Lấy danh sách vé tố cáo, map ẩn danh để bảo vệ người tố giác
+        $tenantContext = app(TenantContext::class);
         $query = ViolationReport::where('restaurant_id', $restaurantId);
+        $tenantContext->applyBranchScope($query);
 
         // Nhân viên thường chỉ thấy: đơn MÌNH tố cáo + biên bản lập với CHÍNH MÌNH
         // (để có thể kháng cáo/tự bảo vệ).
@@ -102,6 +105,10 @@ class ViolationReportController extends Controller
         // 2. Lấy danh sách nhân sự đang làm việc tại nhà hàng để Owner/Manager hoặc Nhân viên tố cáo chọn
         $employees = Employee::where('restaurant_id', $restaurantId)
             ->where('status', 'active')
+            ->when(
+                $tenantContext->isBranchScoped(),
+                fn ($query) => $query->where('branch_id', $tenantContext->activeBranchId()),
+            )
             ->get()
             ->map(fn ($e) => [
                 'id' => $e->id,
@@ -136,7 +143,7 @@ class ViolationReportController extends Controller
         abort_unless($user->can('report_violations'), 403, 'Bạn không có quyền lập biên bản vi phạm.');
 
         $restaurantId = $user->restaurant_id;
-        $branchId = $user->branch_id;
+        $tenantContext = app(TenantContext::class);
 
         $data = $request->validate([
             'employee_id' => ['required', "exists:employees,id,restaurant_id,{$restaurantId}"],
@@ -151,6 +158,10 @@ class ViolationReportController extends Controller
         $target = Employee::where('restaurant_id', $restaurantId)
             ->whereKey($data['employee_id'])
             ->first();
+
+        abort_unless($target?->branch_id !== null, 422, 'NhÃ¢n sá»± vi pháº¡m pháº£i thuá»™c má»™t chi nhÃ¡nh Ä‘á»ƒ láº­p biÃªn báº£n.');
+        $tenantContext->assertWriteBranch((int) $target->branch_id);
+        $branchId = (int) $target->branch_id;
 
         abort_if(
             $target !== null && (int) $target->user_id === (int) $user->id && ! $user->can('manage_violations'),

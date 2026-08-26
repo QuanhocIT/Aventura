@@ -42,7 +42,8 @@ class OperationalAuditWorkflowTest extends TestCase
             'restaurant_id' => $restaurant->id,
             'branch_id' => $branch->id,
         ]);
-        $assignee->assignRole('kitchen');
+        $assignee->assignRole('manager');
+        $branch->update(['manager_user_id' => $assignee->id]);
 
         $this->actingAs($inspector)
             ->postJson(route('operational-audit.reports.store'), [
@@ -65,7 +66,15 @@ class OperationalAuditWorkflowTest extends TestCase
         $this->assertDatabaseHas('operational_infringement_reports', [
             'id' => $report->id,
             'status' => 'remediation_in_progress',
+            'assigned_to' => $assignee->id,
+            'assignment_status' => 'assigned',
         ]);
+
+        $this->actingAs($owner)
+            ->postJson(route('operational-audit.reports.remediation', $report->id), [
+                'remediation_notes' => 'Chá»§ doanh nghiá»‡p khÃ´ng trá»±c tiáº¿p ná»™p kháº¯c phá»¥c.',
+            ])
+            ->assertForbidden();
 
         $this->actingAs($inspector)
             ->postJson(route('operational-audit.reports.assign', $report->id), [
@@ -73,6 +82,10 @@ class OperationalAuditWorkflowTest extends TestCase
                 'remediation_deadline' => now()->addDays(2)->toDateString(),
                 'remediation_plan' => 'Làm lại vệ sinh, chụp ảnh trước/sau và ký checklist ca.',
             ])
+            ->assertForbidden();
+
+        $this->actingAs($assignee)
+            ->postJson(route('operational-audit.reports.assignment.accept', $report->id))
             ->assertOk();
 
         $this->actingAs($assignee)

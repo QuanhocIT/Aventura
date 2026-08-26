@@ -7,6 +7,8 @@ use App\Models\ChecklistCompletion;
 use App\Models\ChecklistItem;
 use App\Models\ChecklistTemplate;
 use App\Models\CompanyPolicy;
+use App\Models\FixedAsset;
+use App\Models\Incident;
 use App\Models\OperationalCaseLink;
 use App\Models\OperationalCorrectiveAction;
 use App\Models\OperationalEvidence;
@@ -15,6 +17,8 @@ use App\Models\OperationalInspection;
 use App\Models\OperationalInspectionPlan;
 use App\Models\RestaurantBranch;
 use App\Models\User;
+use App\Models\ViolationReport;
+use App\Support\Tenant\TenantContext;
 use App\Support\TenantRule;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -40,8 +44,11 @@ class OperationalAuditController extends Controller
         $user = $request->user();
         $restaurantId = (int) $user->restaurant_id;
         $today = now()->startOfDay();
+        $tenantContext = app(TenantContext::class);
 
-        $reports = OperationalInfringementReport::where('restaurant_id', $restaurantId)
+        $reportsQuery = OperationalInfringementReport::where('restaurant_id', $restaurantId);
+        $tenantContext->applyBranchScope($reportsQuery);
+        $reports = $reportsQuery
             ->with([
                 'branch:id,name',
                 'inspector:id,name,email',
@@ -57,21 +64,26 @@ class OperationalAuditController extends Controller
             ->orderByDesc('id')
             ->get();
 
-        $plans = OperationalInspectionPlan::where('restaurant_id', $restaurantId)
+        $plansQuery = OperationalInspectionPlan::where('restaurant_id', $restaurantId);
+        $this->applyPlanBranchScope($plansQuery, $tenantContext);
+        $planReportScope = fn ($query) => $this->applyRelatedBranchScope($query, $tenantContext);
+        $plans = $plansQuery
             ->with([
                 'branch:id,name',
                 'leadInspector:id,name,email',
             ])
             ->withCount([
-                'reports',
-                'reports as open_reports_count' => fn ($query) => $query->whereNotIn('status', ['closed', 'rejected']),
+                'reports' => $planReportScope,
+                'reports as open_reports_count' => fn ($query) => $planReportScope($query)->whereNotIn('status', ['closed', 'rejected']),
             ])
             ->orderByRaw("CASE status WHEN 'in_progress' THEN 1 WHEN 'planned' THEN 2 ELSE 3 END")
             ->orderBy('scheduled_date')
             ->orderByDesc('id')
             ->get();
 
-        $inspections = OperationalInspection::where('restaurant_id', $restaurantId)
+        $inspectionsQuery = OperationalInspection::where('restaurant_id', $restaurantId);
+        $tenantContext->applyBranchScope($inspectionsQuery);
+        $inspections = $inspectionsQuery
             ->with(['branch:id,name', 'leadInspector:id,name'])
             ->withCount([
                 'reports',
@@ -115,11 +127,15 @@ class OperationalAuditController extends Controller
         $branchPlans = $plans->groupBy('branch_id');
         $branches = RestaurantBranch::where('restaurant_id', $restaurantId)
             ->where('status', 'active')
+            ->when($tenantContext->isBranchScoped(), fn ($query) => $query->whereKey($tenantContext->activeBranchId()))
             ->select('id', 'name')
             ->orderBy('name')
             ->get();
 
-        $branchInsights = $branches->map(function (RestaurantBranch $branch) use ($branchReports, $branchPlans, $today): array {
+        $insightBranches = $tenantContext->isBranchScoped()
+            ? $branches->where('id', $tenantContext->activeBranchId())->values()
+            : $branches;
+        $branchInsights = $insightBranches->map(function (RestaurantBranch $branch) use ($branchReports, $branchPlans, $today): array {
             $branchRows = $branchReports->get($branch->id, collect());
             $open = $branchRows->whereNotIn('status', ['closed', 'rejected']);
             $overdue = $open->filter(fn (OperationalInfringementReport $report) => $report->remediation_deadline?->lt($today) === true)->count();
@@ -239,7 +255,10 @@ class OperationalAuditController extends Controller
             || $user->can('operational_audit.reinspect')
             || $user->canCloseInspection();
 
-        $reports = OperationalInfringementReport::where('restaurant_id', $restaurantId)
+        $tenantContext = app(TenantContext::class);
+        $reportsQuery = OperationalInfringementReport::where('restaurant_id', $restaurantId);
+        $tenantContext->applyBranchScope($reportsQuery);
+        $reports = $reportsQuery
             ->with([
                 'branch:id,name',
                 'inspector:id,name,email',
@@ -298,7 +317,10 @@ class OperationalAuditController extends Controller
                 ->sum(fn (OperationalInfringementReport $report) => (float) $report->penalty_amount),
         ];
 
-        $plans = OperationalInspectionPlan::where('restaurant_id', $restaurantId)
+        $plansQuery = OperationalInspectionPlan::where('restaurant_id', $restaurantId);
+        $this->applyPlanBranchScope($plansQuery, $tenantContext);
+        $planReportScope = fn ($query) => $this->applyRelatedBranchScope($query, $tenantContext);
+        $plans = $plansQuery
             ->with([
                 'branch:id,name',
                 'leadInspector:id,name,email',
@@ -306,9 +328,9 @@ class OperationalAuditController extends Controller
                 'completer:id,name',
             ])
             ->withCount([
-                'reports',
-                'reports as open_reports_count' => fn ($query) => $query->whereNotIn('status', ['closed', 'rejected']),
-                'reports as pending_reports_count' => fn ($query) => $query->where('status', 'pending_owner_approval'),
+                'reports' => $planReportScope,
+                'reports as open_reports_count' => fn ($query) => $planReportScope($query)->whereNotIn('status', ['closed', 'rejected']),
+                'reports as pending_reports_count' => fn ($query) => $planReportScope($query)->where('status', 'pending_owner_approval'),
                 'inspections',
                 'inspections as completed_inspections_count' => fn ($query) => $query->where('status', 'completed'),
             ])
@@ -350,21 +372,28 @@ class OperationalAuditController extends Controller
             )->count(),
         ];
 
-        $policies = CompanyPolicy::where('restaurant_id', $restaurantId)
-            ->where('status', 'published')
+        $policiesQuery = CompanyPolicy::where('restaurant_id', $restaurantId)
+            ->where('status', 'published');
+        $this->applyPolicyBranchScope($policiesQuery, $tenantContext);
+        $policies = $policiesQuery
             ->orderBy('category')
             ->orderBy('title')
             ->get();
 
         $branches = RestaurantBranch::where('restaurant_id', $restaurantId)
             ->where('status', 'active')
+            ->when($tenantContext->isBranchScoped(), fn ($query) => $query->whereKey($tenantContext->activeBranchId()))
+            ->when($tenantContext->isUnassigned(), fn ($query) => $query->whereRaw('1 = 0'))
             ->select('id', 'name')
             ->orderBy('name')
             ->get();
 
         $branchReports = $reports->groupBy('branch_id');
         $branchPlans = $plans->groupBy('branch_id');
-        $branchInsights = $branches->map(function (RestaurantBranch $branch) use ($branchReports, $branchPlans, $today): array {
+        $insightBranches = $tenantContext->isBranchScoped()
+            ? $branches->where('id', $tenantContext->activeBranchId())->values()
+            : $branches;
+        $branchInsights = $insightBranches->map(function (RestaurantBranch $branch) use ($branchReports, $branchPlans, $today): array {
             $branchRows = $branchReports->get($branch->id, collect());
             $open = $branchRows->whereNotIn('status', ['closed', 'rejected']);
             $overdue = $open->filter(fn (OperationalInfringementReport $report) => $report->remediation_deadline?->lt($today) === true)->count();
@@ -405,6 +434,14 @@ class OperationalAuditController extends Controller
             ->get();
 
         $employees = User::where('restaurant_id', $restaurantId)
+            ->with('employee:id,user_id,branch_id')
+            ->when($tenantContext->isBranchScoped(), function ($query) use ($tenantContext): void {
+                $branchId = $tenantContext->activeBranchId();
+                $query->where(function ($userQuery) use ($branchId): void {
+                    $userQuery->where('branch_id', $branchId)
+                        ->orWhereHas('employee', fn ($employeeQuery) => $employeeQuery->where('branch_id', $branchId));
+                });
+            })
             ->select('id', 'name', 'email', 'branch_id')
             ->whereDoesntHave('roles', fn ($q) => $q->whereIn('name', [
                 'supplier',
@@ -414,7 +451,14 @@ class OperationalAuditController extends Controller
                 'compliance_auditor',
             ]))
             ->orderBy('name')
-            ->get();
+            ->get()
+            ->map(fn (User $employee): array => [
+                'id' => $employee->id,
+                'name' => $employee->name,
+                'email' => $employee->email,
+                'branch_id' => $employee->assignedBranchId(),
+            ])
+            ->values();
 
         return Inertia::render('operations/OperationalAudit', [
             'isOverview' => $request->routeIs('operations.audit.overview'),
@@ -424,6 +468,10 @@ class OperationalAuditController extends Controller
             'policies' => $policies,
             'branches' => $branches,
             'employees' => $employees,
+            'branchContext' => [
+                'scope' => $tenantContext->scope(),
+                'active_branch_id' => $tenantContext->activeBranchId(),
+            ],
             'currentUserId' => $user->id,
             'isOwner' => $isOwnerOrSuperAdmin,
             'isInspector' => $isOwnerOrSuperAdmin || $user->can('operational_audit.report'),
@@ -465,6 +513,7 @@ class OperationalAuditController extends Controller
         ]);
 
         $user = $request->user();
+        app(TenantContext::class)->assertWriteBranch((int) $data['branch_id']);
         $severityLevel = $data['severity_level'] ?? 'moderate';
         if ($severityLevel === 'critical' && blank($data['remediation_plan'] ?? null)) {
             throw ValidationException::withMessages([
@@ -480,8 +529,7 @@ class OperationalAuditController extends Controller
 
         $inspectionPlan = null;
         if (! empty($data['inspection_plan_id'])) {
-            $inspectionPlan = OperationalInspectionPlan::where('restaurant_id', $user->restaurant_id)
-                ->findOrFail($data['inspection_plan_id']);
+            $inspectionPlan = $this->planForTenant($user, (int) $data['inspection_plan_id']);
 
             if ($inspectionPlan->status === 'cancelled' || $inspectionPlan->status === 'completed') {
                 throw ValidationException::withMessages([
@@ -636,6 +684,14 @@ class OperationalAuditController extends Controller
             'scope' => 'required|string|min:10|max:4000',
         ]);
 
+        if ($data['branch_id'] ?? null) {
+            app(TenantContext::class)->assertWriteBranch((int) $data['branch_id']);
+        } elseif (! ($user->isOwner() || $user->isSuperAdmin())) {
+            throw ValidationException::withMessages([
+                'branch_id' => 'GiÃ¡m sÃ¡t viÃªn pháº£i chá»n chi nhÃ¡nh cá»¥ thá»ƒ cho káº¿ hoáº¡ch.',
+            ]);
+        }
+
         $leadInspector = null;
         if (! empty($data['lead_inspector_id'])) {
             $leadInspector = User::where('restaurant_id', $user->restaurant_id)
@@ -678,6 +734,7 @@ class OperationalAuditController extends Controller
         $user = $request->user();
         abort_unless($this->canManagePlans($user), 403);
         $plan = $this->planForTenant($user, $id);
+        $this->assertPlanMutationScope($plan, $user);
 
         if ($plan->status !== 'planned') {
             throw ValidationException::withMessages(['status' => 'Chỉ kế hoạch đang chờ thực hiện mới có thể bắt đầu.']);
@@ -696,6 +753,7 @@ class OperationalAuditController extends Controller
         abort_unless($this->canManagePlans($user), 403);
         $data = $request->validate(['notes' => 'required|string|min:10|max:3000']);
         $plan = $this->planForTenant($user, $id);
+        $this->assertPlanMutationScope($plan, $user);
 
         if (! in_array($plan->status, ['planned', 'in_progress'], true)) {
             throw ValidationException::withMessages(['status' => 'Kế hoạch đã được xử lý trước đó.']);
@@ -730,6 +788,7 @@ class OperationalAuditController extends Controller
         abort_unless($this->canManagePlans($user), 403);
         $data = $request->validate(['reason' => 'required|string|min:10|max:2000']);
         $plan = $this->planForTenant($user, $id);
+        $this->assertPlanMutationScope($plan, $user);
 
         if (! in_array($plan->status, ['planned', 'in_progress'], true)) {
             throw ValidationException::withMessages(['status' => 'Chỉ kế hoạch chưa hoàn tất mới có thể hủy.']);
@@ -753,18 +812,15 @@ class OperationalAuditController extends Controller
     {
         $user = $request->user();
         $restaurantId = (int) $user->restaurant_id;
+        $tenantContext = app(TenantContext::class);
 
-        $inspections = OperationalInspection::where('restaurant_id', $restaurantId)
+        $inspectionsQuery = OperationalInspection::where('restaurant_id', $restaurantId);
+        $tenantContext->applyBranchScope($inspectionsQuery);
+        $inspections = $inspectionsQuery
             ->with([
                 'branch:id,name',
                 'plan:id,plan_code,title',
                 'leadInspector:id,name,email',
-                'creator:id,name',
-                'reports:id,operational_inspection_id,report_code,status,severity_level,description,assigned_to,remediation_deadline',
-                'reports.assignee:id,name,email',
-                'correctiveActions:id,operational_inspection_id,operational_report_id,title,status,priority,assigned_to,due_date',
-                'correctiveActions.assignee:id,name,email',
-                'evidence:id,operational_inspection_id,operational_report_id,corrective_action_id,uploaded_by,collection,original_name,mime_type,file_size,sha256,captured_at,latitude,longitude,notes,created_at',
             ])
             ->withCount([
                 'reports',
@@ -774,14 +830,29 @@ class OperationalAuditController extends Controller
                 'correctiveActions',
                 'correctiveActions as open_actions_count' => fn ($query) => $query->whereNotIn('status', ['verified', 'cancelled']),
             ])
+            ->when($request->filled('search'), function ($query) use ($request): void {
+                $search = trim((string) $request->input('search'));
+                $query->where(function ($inspectionQuery) use ($search): void {
+                    $inspectionQuery->where('title', 'like', '%'.$search.'%')
+                        ->orWhere('inspection_code', 'like', '%'.$search.'%')
+                        ->orWhereHas('branch', fn ($branchQuery) => $branchQuery->where('name', 'like', '%'.$search.'%'));
+                });
+            })
+            ->when(
+                in_array($request->input('status'), ['draft', 'planned', 'in_progress', 'completed', 'cancelled'], true),
+                fn ($query) => $query->where('status', $request->input('status')),
+            )
             ->orderByRaw("CASE status WHEN 'in_progress' THEN 1 WHEN 'draft' THEN 2 WHEN 'planned' THEN 3 ELSE 4 END")
             ->orderByDesc('scheduled_at')
             ->orderByDesc('id')
-            ->get();
+            ->paginate(min(50, max(10, (int) $request->input('per_page', 20))))
+            ->withQueryString();
 
         $templates = ChecklistTemplate::where('restaurant_id', $restaurantId)
             ->where('is_active', true)
-            ->with(['items:id,template_id,title,description,requires_photo,sort_order'])
+            ->when($tenantContext->isBranchScoped(), fn ($query) => $query->forBranch((int) $tenantContext->activeBranchId()))
+            ->when($tenantContext->isUnassigned(), fn ($query) => $query->whereRaw('1 = 0'))
+            ->with(['items:id,template_id,title,description,requires_photo,sort_order', 'branches:id,name'])
             ->orderBy('sort_order')
             ->orderBy('name')
             ->get(['id', 'name', 'type', 'sort_order'])
@@ -789,6 +860,8 @@ class OperationalAuditController extends Controller
                 'id' => $template->id,
                 'name' => $template->name,
                 'type' => $template->type,
+                'branch_ids' => $template->branches->pluck('id')->map(fn ($id) => (int) $id)->values()->all(),
+                'applies_to_all_branches' => $template->branches->isEmpty(),
                 'items' => $template->items->map(fn (ChecklistItem $item): array => [
                     'id' => $item->id,
                     'title' => $item->title,
@@ -820,43 +893,17 @@ class OperationalAuditController extends Controller
             'failed_checklist_count' => (int) $inspection->failed_checklist_count,
             'corrective_actions_count' => (int) $inspection->corrective_actions_count,
             'open_actions_count' => (int) $inspection->open_actions_count,
-            'reports' => $inspection->reports->map(fn (OperationalInfringementReport $report): array => [
-                'id' => $report->id,
-                'report_code' => $report->report_code,
-                'status' => $report->status,
-                'severity_level' => $report->severity_level,
-                'description' => $report->description,
-                'assigned_to' => $report->assigned_to,
-                'assignee' => $report->assignee ? ['id' => $report->assignee->id, 'name' => $report->assignee->name] : null,
-                'remediation_deadline' => $report->remediation_deadline?->toDateString(),
-            ])->values()->all(),
-            'corrective_actions' => $inspection->correctiveActions->map(fn (OperationalCorrectiveAction $action): array => [
-                'id' => $action->id,
-                'title' => $action->title,
-                'status' => $action->status,
-                'priority' => $action->priority,
-                'due_date' => $action->due_date?->toDateString(),
-                'assigned_to' => $action->assigned_to,
-                'assignee' => $action->assignee ? ['id' => $action->assignee->id, 'name' => $action->assignee->name] : null,
-                'operational_report_id' => $action->operational_report_id,
-            ])->values()->all(),
-            'evidence' => $inspection->evidence->map(fn (OperationalEvidence $evidence): array => [
-                'id' => $evidence->id,
-                'collection' => $evidence->collection,
-                'original_name' => $evidence->original_name,
-                'mime_type' => $evidence->mime_type,
-                'file_size' => $evidence->file_size,
-                'sha256' => $evidence->sha256,
-                'captured_at' => $evidence->captured_at?->format('d/m/Y H:i'),
-                'latitude' => $evidence->latitude,
-                'longitude' => $evidence->longitude,
-                'notes' => $evidence->notes,
-                'url' => route('operational-audit.evidence.download', ['id' => $evidence->id]),
-            ])->values()->all(),
+            // Chi tiết chỉ được tải ở endpoint khi người dùng chọn một phiên.
+            'checklist_results' => [],
+            'reports' => [],
+            'corrective_actions' => [],
+            'evidence' => [],
         ];
 
         $branches = RestaurantBranch::where('restaurant_id', $restaurantId)
             ->where('status', 'active')
+            ->when($tenantContext->isBranchScoped(), fn ($query) => $query->whereKey($tenantContext->activeBranchId()))
+            ->when($tenantContext->isUnassigned(), fn ($query) => $query->whereRaw('1 = 0'))
             ->orderBy('name')
             ->get(['id', 'name']);
         $inspectors = User::where('restaurant_id', $restaurantId)
@@ -864,21 +911,52 @@ class OperationalAuditController extends Controller
             ->orderBy('name')
             ->get(['id', 'name', 'email']);
         $employees = User::where('restaurant_id', $restaurantId)
+            ->with('employee:id,user_id,branch_id')
+            ->when($tenantContext->isBranchScoped(), function ($query) use ($tenantContext): void {
+                $branchId = $tenantContext->activeBranchId();
+                $query->where(function ($userQuery) use ($branchId): void {
+                    $userQuery->where('branch_id', $branchId)
+                        ->orWhereHas('employee', fn ($employeeQuery) => $employeeQuery->where('branch_id', $branchId));
+                });
+            })
             ->whereNotIn('status', ['inactive', 'suspended'])
             ->orderBy('name')
-            ->get(['id', 'name', 'email', 'branch_id']);
-        $plans = OperationalInspectionPlan::where('restaurant_id', $restaurantId)
-            ->whereIn('status', ['planned', 'in_progress'])
+            ->get(['id', 'name', 'email', 'branch_id'])
+            ->map(fn (User $employee): array => [
+                'id' => $employee->id,
+                'name' => $employee->name,
+                'email' => $employee->email,
+                'branch_id' => $employee->assignedBranchId(),
+            ])
+            ->values();
+        $plansQuery = OperationalInspectionPlan::where('restaurant_id', $restaurantId)
+            ->whereIn('status', ['planned', 'in_progress']);
+        $this->applyPlanBranchScope($plansQuery, $tenantContext);
+        $plans = $plansQuery
             ->orderBy('scheduled_date')
             ->get(['id', 'plan_code', 'title', 'branch_id', 'scheduled_date']);
 
         return Inertia::render('operations/InspectionWorkspace', [
-            'inspections' => $inspections->map($serializeInspection)->values()->all(),
+            'inspections' => $inspections->getCollection()->map($serializeInspection)->values()->all(),
+            'pagination' => [
+                'current_page' => $inspections->currentPage(),
+                'last_page' => $inspections->lastPage(),
+                'per_page' => $inspections->perPage(),
+                'total' => $inspections->total(),
+            ],
+            'filters' => [
+                'search' => (string) $request->input('search', ''),
+                'status' => (string) $request->input('status', 'all'),
+            ],
             'templates' => $templates,
             'branches' => $branches,
             'inspectors' => $inspectors,
             'employees' => $employees,
             'plans' => $plans,
+            'branchContext' => [
+                'scope' => $tenantContext->scope(),
+                'active_branch_id' => $tenantContext->activeBranchId(),
+            ],
             'currentUserId' => $user->id,
             'capabilities' => [
                 'create' => $this->canCreateInspection($user),
@@ -888,6 +966,34 @@ class OperationalAuditController extends Controller
                 'create_report' => $user->isOwner() || $user->isSuperAdmin() || $user->can('operational_audit.report'),
             ],
         ]);
+    }
+
+    /** Tải chi tiết một phiên sau khi người dùng chọn, tránh nạp toàn bộ bằng chứng cho danh sách. */
+    public function inspectionDetails(Request $request, int $id): JsonResponse
+    {
+        $inspection = $this->inspectionForTenant($request->user(), $id);
+        $inspection->load([
+            'branch:id,name',
+            'plan:id,plan_code,title',
+            'leadInspector:id,name,email',
+            'reports:id,operational_inspection_id,report_code,status,severity_level,description,assigned_to,remediation_deadline',
+            'reports.assignee:id,name,email',
+            'correctiveActions:id,operational_inspection_id,operational_report_id,title,status,priority,assigned_to,due_date',
+            'correctiveActions.assignee:id,name,email',
+            'evidence:id,operational_inspection_id,operational_report_id,corrective_action_id,uploaded_by,collection,original_name,mime_type,file_size,sha256,captured_at,latitude,longitude,notes,created_at',
+            'checklistCompletions:id,operational_inspection_id,item_id,completed_by,completed_at,result,notes,finding_notes,photo_path',
+            'checklistCompletions.item:id,title',
+            'checklistCompletions.completedBy:id,name',
+        ])->loadCount([
+            'reports',
+            'reports as open_reports_count' => fn ($query) => $query->whereNotIn('status', ['closed', 'rejected']),
+            'checklistCompletions',
+            'checklistCompletions as failed_checklist_count' => fn ($query) => $query->where('result', 'fail'),
+            'correctiveActions',
+            'correctiveActions as open_actions_count' => fn ($query) => $query->whereNotIn('status', ['verified', 'cancelled']),
+        ]);
+
+        return response()->json(['data' => $this->serializeInspectionDetails($inspection)]);
     }
 
     /** Tạo hồ sơ phiên kiểm tra trước khi thanh tra viên xuống hiện trường. */
@@ -908,6 +1014,8 @@ class OperationalAuditController extends Controller
             'scope' => 'required|string|min:5|max:4000',
             'location_note' => 'nullable|string|max:1000',
         ]);
+
+        app(TenantContext::class)->assertWriteBranch((int) $data['branch_id']);
 
         $branch = RestaurantBranch::where('restaurant_id', $user->restaurant_id)->findOrFail($data['branch_id']);
         $plan = null;
@@ -999,7 +1107,10 @@ class OperationalAuditController extends Controller
 
         // Không khóa phiên khi chưa có bất kỳ dấu vết kiểm tra nào. Nếu nhà
         // hàng chưa cấu hình checklist thì vẫn cho phép kết luận thủ công.
-        if (ChecklistTemplate::where('restaurant_id', $user->restaurant_id)->where('is_active', true)->exists()
+        if (ChecklistTemplate::where('restaurant_id', $user->restaurant_id)
+            ->where('is_active', true)
+            ->forBranch((int) $inspection->branch_id)
+            ->exists()
             && ! $inspection->checklistCompletions()->exists()) {
             throw ValidationException::withMessages(['status' => 'Cần ghi ít nhất một mục checklist trước khi khóa phiên kiểm tra.']);
         }
@@ -1032,7 +1143,7 @@ class OperationalAuditController extends Controller
         $data = $request->validate([
             'item_id' => ['required', 'exists:checklist_items,id'],
             'result' => 'required|in:pass,fail,na',
-            'photo' => 'nullable|string',
+            'photo' => 'nullable|string|max:7000000',
             'notes' => 'nullable|string|max:1000',
             'finding_notes' => 'nullable|string|max:3000',
         ]);
@@ -1040,6 +1151,15 @@ class OperationalAuditController extends Controller
         abort_unless($inspection->status === 'in_progress' && $this->canWorkOnInspection($inspection, $user), 403);
         $item = ChecklistItem::with('template')->findOrFail($data['item_id']);
         abort_unless($item->template && $item->template->restaurant_id === $user->restaurant_id, 403);
+        abort_unless(
+            ChecklistTemplate::whereKey($item->template_id)
+                ->where('restaurant_id', $user->restaurant_id)
+                ->where('is_active', true)
+                ->forBranch((int) $inspection->branch_id)
+                ->exists(),
+            422,
+            'Checklist nÃ y khÃ´ng Ã¡p dá»¥ng cho chi nhÃ¡nh cá»§a phiÃªn kiá»ƒm tra.',
+        );
         if ($item->requires_photo && empty($data['photo']) && $data['result'] === 'fail') {
             throw ValidationException::withMessages(['photo' => 'Mục không đạt yêu cầu phải có ảnh hiện trường.']);
         }
@@ -1057,6 +1177,9 @@ class OperationalAuditController extends Controller
             $imageData = base64_decode(substr($data['photo'], strpos($data['photo'], ',') + 1), true);
             if ($imageData === false) {
                 throw ValidationException::withMessages(['photo' => 'Ảnh hiện trường không hợp lệ.']);
+            }
+            if (strlen($imageData) > 5 * 1024 * 1024) {
+                throw ValidationException::withMessages(['photo' => 'Ảnh hiện trường không được vượt quá 5MB.']);
             }
             $photoPath = 'checklists/'.'inspection_'.$inspection->id.'_'.$item->id.'_'.Str::random(8).'.'.$type;
             Storage::disk('public')->put($photoPath, $imageData);
@@ -1107,6 +1230,7 @@ class OperationalAuditController extends Controller
         $user = $request->user();
         $query = OperationalInfringementReport::where('restaurant_id', $user->restaurant_id)
             ->with(['branch:id,name', 'policy:id,title', 'inspector:id,name', 'assignee:id,name', 'inspectionPlan:id,plan_code,title']);
+        app(TenantContext::class)->applyBranchScope($query);
 
         $query->when($request->filled('status'), fn ($q) => $q->where('status', $request->string('status')))
             ->when($request->filled('severity'), fn ($q) => $q->where('severity_level', $request->string('severity')))
@@ -1157,7 +1281,17 @@ class OperationalAuditController extends Controller
         }
 
         $oldValues = ['status' => $report->status];
-        $nextStatus = $report->remediation_plan || $report->remediation_deadline
+        $hasRemediation = $report->remediation_plan
+            || $report->remediation_deadline
+            || $report->corrective_action
+            || $report->preventive_action
+            || $report->correctiveActions()->exists();
+        $branchManager = $this->branchManagerForReport($report);
+        // Mỗi biên bản được duyệt đều phải đi qua một danh sách khắc phục nếu
+        // chi nhánh đã có Quản lý; không phụ thuộc việc thanh tra viên có điền
+        // sẵn kế hoạch hay không.
+        $shouldStartRemediation = $hasRemediation || $branchManager !== null;
+        $nextStatus = $shouldStartRemediation
             ? 'remediation_in_progress'
             : 'approved';
 
@@ -1166,7 +1300,41 @@ class OperationalAuditController extends Controller
             'owner_notes' => $request->input('owner_notes'),
             'approved_by' => $user->id,
             'approved_at' => now(),
+            'assigned_to' => $branchManager?->id,
+            'assignment_status' => $branchManager ? 'assigned' : 'unassigned',
+            'assigned_at' => $branchManager ? now() : null,
         ]);
+
+        if ($shouldStartRemediation && $branchManager) {
+            $actions = $report->correctiveActions()->get();
+            if ($actions->isEmpty()) {
+                OperationalCorrectiveAction::create([
+                    'restaurant_id' => $report->restaurant_id,
+                    'operational_report_id' => $report->id,
+                    'operational_inspection_id' => $report->operational_inspection_id,
+                    'title' => 'Kháº¯c phá»¥c phÃ¡t hiá»‡n '.$report->report_code,
+                    'description' => $report->remediation_plan ?: $report->description,
+                    'root_cause' => $report->root_cause,
+                    'corrective_action' => $report->corrective_action,
+                    'preventive_action' => $report->preventive_action,
+                    'assigned_to' => $branchManager->id,
+                    'priority' => in_array($report->severity_level, ['severe', 'critical'], true) ? 'high' : 'normal',
+                    'due_date' => $report->remediation_deadline,
+                ]);
+            } else {
+                $actions->each(fn (OperationalCorrectiveAction $action) => $action->update([
+                    'assigned_to' => $branchManager->id,
+                    'due_date' => $report->remediation_deadline ?: $action->due_date,
+                ]));
+            }
+
+            $this->notifyAuditUser(
+                $branchManager,
+                'remediation_assigned_to_branch_manager',
+                "BiÃªn báº£n {$report->report_code} Ä‘Ã£ Ä‘Æ°á»£c duyá»‡t. Vui lÃ²ng xem danh sÃ¡ch kháº¯c phá»¥c cá»§a chi nhÃ¡nh vÃ  gá»­i káº¿t quáº£.",
+                '/operations/audit',
+            );
+        }
 
         AuditLog::log('operational_audit_report_approved', 'updated', $report, $oldValues, [
             'status' => $nextStatus,
@@ -1179,7 +1347,7 @@ class OperationalAuditController extends Controller
             'message' => $nextStatus === 'remediation_in_progress'
                 ? 'Đã duyệt biên bản và chuyển sang theo dõi khắc phục.'
                 : 'Đã phê duyệt biên bản vi phạm và ghi nhận mức phạt tài chính.',
-            'data' => $report->fresh(['branch', 'policy', 'offender', 'approver']),
+            'data' => $report->fresh(['branch', 'policy', 'offender', 'approver', 'assignee', 'correctiveActions']),
         ]);
     }
 
@@ -1222,7 +1390,7 @@ class OperationalAuditController extends Controller
     public function assignReport(Request $request, int $id): JsonResponse
     {
         $user = $request->user();
-        abort_unless($this->canManageRemediation($user), 403);
+        abort_unless($user->isOwner() || $user->isSuperAdmin(), 403, 'Chá»‰ Chá»§ doanh nghiá»‡p má»›i Ä‘Æ°á»£c phÃ¢n cÃ´ng láº¡i danh sÃ¡ch kháº¯c phá»¥c.');
 
         $data = $request->validate([
             'assigned_to' => 'nullable|integer',
@@ -1240,7 +1408,7 @@ class OperationalAuditController extends Controller
         $assignee = null;
         if (! empty($data['assigned_to'])) {
             $assignee = User::where('restaurant_id', $user->restaurant_id)->findOrFail($data['assigned_to']);
-            if ($assignee->assignedBranchId() !== (int) $report->branch_id) {
+            if (! $assignee->isBranchManager() || $assignee->assignedBranchId() !== (int) $report->branch_id) {
                 throw ValidationException::withMessages([
                     'assigned_to' => 'Người phụ trách phải thuộc đúng chi nhánh của hồ sơ.',
                 ]);
@@ -1314,7 +1482,7 @@ class OperationalAuditController extends Controller
         ]);
         $report = $this->reportForTenant($user, $id);
 
-        $canSubmit = $this->canManageRemediation($user) || (int) $report->assigned_to === (int) $user->id;
+        $canSubmit = $this->canSubmitRemediation($user, $report);
         abort_unless($canSubmit, 403, 'Bạn không phải người được giao xử lý hồ sơ này.');
 
         if (! in_array($report->status, ['approved', 'remediation_in_progress'], true)) {
@@ -1372,6 +1540,7 @@ class OperationalAuditController extends Controller
             'status' => 'reinspection_pending',
             'submitted_by' => $user->id,
         ]);
+        $this->notifyAuditUser($report->inspector, 'remediation_submitted', "Chi nhánh đã gửi kết quả khắc phục cho biên bản {$report->report_code}; vui lòng lập kế hoạch tái thanh tra.", '/operations/audit');
 
         return response()->json([
             'success' => true,
@@ -1464,7 +1633,7 @@ class OperationalAuditController extends Controller
     {
         $user = $request->user();
         $report = $this->reportForTenant($user, $id);
-        abort_unless((int) $report->assigned_to === (int) $user->id || $this->canManageCapa($user), 403);
+        abort_unless($this->canSubmitRemediation($user, $report), 403);
 
         if ($report->assignment_status !== 'assigned') {
             throw ValidationException::withMessages(['assignment_status' => 'Hồ sơ không ở trạng thái chờ nhận việc.']);
@@ -1485,7 +1654,7 @@ class OperationalAuditController extends Controller
         $user = $request->user();
         $data = $request->validate(['reason' => 'required|string|min:5|max:2000']);
         $report = $this->reportForTenant($user, $id);
-        abort_unless((int) $report->assigned_to === (int) $user->id, 403);
+        abort_unless($this->canSubmitRemediation($user, $report), 403);
 
         if ($report->assignment_status !== 'assigned') {
             throw ValidationException::withMessages(['assignment_status' => 'Hồ sơ không ở trạng thái chờ nhận việc.']);
@@ -1509,7 +1678,9 @@ class OperationalAuditController extends Controller
         $data = $request->validate(['response' => 'required|string|min:5|max:3000']);
         $report = $this->reportForTenant($user, $id);
         $isOwner = $user->isOwner() || $user->isSuperAdmin();
-        abort_unless($isOwner || $user->assignedBranchId() === (int) $report->branch_id, 403);
+        $isBranchManager = $user->isBranchManager()
+            && $user->assignedBranchId() === (int) $report->branch_id;
+        abort_unless($isOwner || $isBranchManager, 403, 'Chá»‰ Quáº£n lÃ½ Ä‘Ãºng chi nhÃ¡nh má»›i Ä‘Æ°á»£c xÃ¡c nháº­n Ä‘Ã£ nháº­n biÃªn báº£n.');
 
         if ($report->status === 'rejected') {
             throw ValidationException::withMessages(['status' => 'Biên bản đã bị từ chối và không cần xác nhận chi nhánh.']);
@@ -1717,6 +1888,10 @@ class OperationalAuditController extends Controller
             throw ValidationException::withMessages(['corrective_action_id' => 'Hành động khắc phục không thuộc biên bản đã chọn.']);
         }
 
+        if ($action && $inspection && (int) $action->operational_inspection_id !== (int) $inspection->id) {
+            throw ValidationException::withMessages(['corrective_action_id' => 'Hành động khắc phục không thuộc phiên đã chọn.']);
+        }
+
         $file = $request->file('file');
         $path = $file->store('operational-evidence', 'local');
         $evidence = OperationalEvidence::create([
@@ -1756,7 +1931,31 @@ class OperationalAuditController extends Controller
     public function downloadEvidence(Request $request, int $id): BinaryFileResponse
     {
         $user = $request->user();
-        $evidence = OperationalEvidence::where('restaurant_id', $user->restaurant_id)->findOrFail($id);
+        $tenantContext = app(TenantContext::class);
+        $query = OperationalEvidence::where('restaurant_id', $user->restaurant_id)
+            ->with([
+                'inspection:id,branch_id',
+                'report:id,branch_id',
+                'correctiveAction:id,operational_report_id,operational_inspection_id',
+                'correctiveAction.report:id,branch_id',
+                'correctiveAction.inspection:id,branch_id',
+            ]);
+        if ($tenantContext->isBranchScoped()) {
+            $branchId = $tenantContext->activeBranchId();
+            $query->where(function ($evidenceQuery) use ($branchId): void {
+                $evidenceQuery
+                    ->whereHas('inspection', fn ($inspectionQuery) => $inspectionQuery->where('branch_id', $branchId))
+                    ->orWhereHas('report', fn ($reportQuery) => $reportQuery->where('branch_id', $branchId))
+                    ->orWhereHas('correctiveAction', function ($actionQuery) use ($branchId): void {
+                        $actionQuery
+                            ->whereHas('inspection', fn ($inspectionQuery) => $inspectionQuery->where('branch_id', $branchId))
+                            ->orWhereHas('report', fn ($reportQuery) => $reportQuery->where('branch_id', $branchId));
+                    });
+            });
+        } elseif ($tenantContext->isUnassigned()) {
+            $query->whereRaw('1 = 0');
+        }
+        $evidence = $query->findOrFail($id);
         abort_unless($evidence->disk === 'local' && Storage::disk('local')->exists($evidence->path), 404, 'Không tìm thấy bằng chứng.');
 
         // audit_logs hiện chỉ cho phép created/updated/deleted; dùng updated
@@ -1796,7 +1995,15 @@ class OperationalAuditController extends Controller
             'violation_report' => 'violation_reports',
             'fixed_asset' => 'fixed_assets',
         };
+        $target = match ($data['link_type']) {
+            'incident' => Incident::where('restaurant_id', $user->restaurant_id)->findOrFail($data['link_id']),
+            'violation_report' => ViolationReport::where('restaurant_id', $user->restaurant_id)->findOrFail($data['link_id']),
+            'fixed_asset' => FixedAsset::where('restaurant_id', $user->restaurant_id)->findOrFail($data['link_id']),
+        };
         abort_unless(DB::table($targetTable)->where('restaurant_id', $user->restaurant_id)->where('id', $data['link_id'])->exists(), 422, 'Bản ghi được liên kết không thuộc nhà hàng.');
+
+        $sourceBranchId = $report?->branch_id ?? $inspection?->branch_id;
+        abort_unless($sourceBranchId !== null && (int) $target->branch_id === (int) $sourceBranchId, 422, 'Äá»‘i tÆ°á»£ng liÃªn káº¿t pháº£i cÃ¹ng chi nhÃ¡nh vá»›i há»“ sÆ¡ thanh tra.');
 
         $duplicate = OperationalCaseLink::where('restaurant_id', $user->restaurant_id)
             ->where('link_type', $data['link_type'])
@@ -1825,24 +2032,160 @@ class OperationalAuditController extends Controller
 
     private function inspectionForTenant(User $user, int $id): OperationalInspection
     {
-        return OperationalInspection::where('restaurant_id', $user->restaurant_id)->findOrFail($id);
+        $query = OperationalInspection::where('restaurant_id', $user->restaurant_id);
+        app(TenantContext::class)->applyBranchScope($query);
+
+        return $query->findOrFail($id);
     }
 
     private function actionForTenant(User $user, int $id): OperationalCorrectiveAction
     {
-        return OperationalCorrectiveAction::where('restaurant_id', $user->restaurant_id)
-            ->with(['report', 'inspection', 'assignee', 'verifier'])
-            ->findOrFail($id);
+        $query = OperationalCorrectiveAction::where('restaurant_id', $user->restaurant_id)
+            ->with(['report', 'inspection', 'assignee', 'verifier']);
+        $tenantContext = app(TenantContext::class);
+        if ($tenantContext->isBranchScoped()) {
+            $query->where(function ($actionQuery) use ($tenantContext): void {
+                $actionQuery->whereHas('report', fn ($reportQuery) => $reportQuery->where('branch_id', $tenantContext->activeBranchId()))
+                    ->orWhereHas('inspection', fn ($inspectionQuery) => $inspectionQuery->where('branch_id', $tenantContext->activeBranchId()));
+            });
+        } elseif ($tenantContext->isUnassigned()) {
+            $query->whereRaw('1 = 0');
+        }
+
+        return $query->findOrFail($id);
     }
 
     private function reportForTenant(User $user, int $id): OperationalInfringementReport
     {
-        return OperationalInfringementReport::where('restaurant_id', $user->restaurant_id)->findOrFail($id);
+        $query = OperationalInfringementReport::where('restaurant_id', $user->restaurant_id);
+        app(TenantContext::class)->applyBranchScope($query);
+
+        return $query->findOrFail($id);
     }
 
     private function planForTenant(User $user, int $id): OperationalInspectionPlan
     {
-        return OperationalInspectionPlan::where('restaurant_id', $user->restaurant_id)->findOrFail($id);
+        $query = OperationalInspectionPlan::where('restaurant_id', $user->restaurant_id);
+        $this->applyPlanBranchScope($query, app(TenantContext::class));
+
+        return $query->findOrFail($id);
+    }
+
+    private function applyPlanBranchScope($query, TenantContext $tenantContext): void
+    {
+        if ($tenantContext->isBranchScoped()) {
+            $query->where(function ($planQuery) use ($tenantContext): void {
+                $planQuery->where('branch_id', $tenantContext->activeBranchId())
+                    ->orWhereNull('branch_id');
+            });
+        } elseif ($tenantContext->isUnassigned()) {
+            $query->whereRaw('1 = 0');
+        }
+    }
+
+    private function assertPlanMutationScope(OperationalInspectionPlan $plan, User $user): void
+    {
+        if ($plan->branch_id === null && ! ($user->isOwner() || $user->isSuperAdmin())) {
+            abort(403, 'GiÃ¡m sÃ¡t viÃªn chá»‰ Ä‘Æ°á»£c thao tÃ¡c káº¿ hoáº¡ch theo tá»«ng chi nhÃ¡nh.');
+        }
+
+        if ($plan->branch_id !== null) {
+            app(TenantContext::class)->assertWriteBranch((int) $plan->branch_id);
+        }
+    }
+
+    private function applyRelatedBranchScope($query, TenantContext $tenantContext)
+    {
+        if ($tenantContext->isBranchScoped()) {
+            $query->where('branch_id', $tenantContext->activeBranchId());
+        } elseif ($tenantContext->isUnassigned()) {
+            $query->whereRaw('1 = 0');
+        }
+
+        return $query;
+    }
+
+    private function applyPolicyBranchScope($query, TenantContext $tenantContext): void
+    {
+        if ($tenantContext->isBranchScoped()) {
+            $branchId = $tenantContext->activeBranchId();
+            $query->where(function ($policyQuery) use ($branchId): void {
+                $policyQuery->where('applies_to_all_branches', true)
+                    ->orWhereJsonContains('applicable_branch_ids', (int) $branchId);
+            });
+        } elseif ($tenantContext->isUnassigned()) {
+            $query->whereRaw('1 = 0');
+        }
+    }
+
+    private function serializeInspectionDetails(OperationalInspection $inspection): array
+    {
+        return [
+            'id' => $inspection->id,
+            'inspection_code' => $inspection->inspection_code,
+            'title' => $inspection->title,
+            'inspection_type' => $inspection->inspection_type,
+            'status' => $inspection->status,
+            'scheduled_at' => $inspection->scheduled_at?->format('Y-m-d H:i'),
+            'started_at' => $inspection->started_at?->format('Y-m-d H:i'),
+            'completed_at' => $inspection->completed_at?->format('Y-m-d H:i'),
+            'scope' => $inspection->scope,
+            'conclusion' => $inspection->conclusion,
+            'score' => $inspection->score,
+            'risk_level' => $inspection->risk_level,
+            'location_note' => $inspection->location_note,
+            'branch' => $inspection->branch ? ['id' => $inspection->branch->id, 'name' => $inspection->branch->name] : null,
+            'plan' => $inspection->plan ? ['id' => $inspection->plan->id, 'plan_code' => $inspection->plan->plan_code, 'title' => $inspection->plan->title] : null,
+            'lead_inspector' => $inspection->leadInspector ? ['id' => $inspection->leadInspector->id, 'name' => $inspection->leadInspector->name] : null,
+            'reports_count' => (int) $inspection->reports_count,
+            'open_reports_count' => (int) $inspection->open_reports_count,
+            'checklist_count' => (int) $inspection->checklist_completions_count,
+            'failed_checklist_count' => (int) $inspection->failed_checklist_count,
+            'corrective_actions_count' => (int) $inspection->corrective_actions_count,
+            'open_actions_count' => (int) $inspection->open_actions_count,
+            'checklist_results' => $inspection->checklistCompletions->map(fn (ChecklistCompletion $completion): array => [
+                'item_id' => $completion->item_id,
+                'result' => $completion->result,
+                'notes' => $completion->notes,
+                'finding_notes' => $completion->finding_notes,
+                'completed_at' => $completion->completed_at?->format('d/m/Y H:i'),
+                'completed_by' => $completion->completedBy?->name,
+                'item_title' => $completion->item?->title,
+            ])->values()->all(),
+            'reports' => $inspection->reports->map(fn (OperationalInfringementReport $report): array => [
+                'id' => $report->id,
+                'report_code' => $report->report_code,
+                'status' => $report->status,
+                'severity_level' => $report->severity_level,
+                'description' => $report->description,
+                'assigned_to' => $report->assigned_to,
+                'assignee' => $report->assignee ? ['id' => $report->assignee->id, 'name' => $report->assignee->name] : null,
+                'remediation_deadline' => $report->remediation_deadline?->toDateString(),
+            ])->values()->all(),
+            'corrective_actions' => $inspection->correctiveActions->map(fn (OperationalCorrectiveAction $action): array => [
+                'id' => $action->id,
+                'title' => $action->title,
+                'status' => $action->status,
+                'priority' => $action->priority,
+                'due_date' => $action->due_date?->toDateString(),
+                'assigned_to' => $action->assigned_to,
+                'assignee' => $action->assignee ? ['id' => $action->assignee->id, 'name' => $action->assignee->name] : null,
+                'operational_report_id' => $action->operational_report_id,
+            ])->values()->all(),
+            'evidence' => $inspection->evidence->map(fn (OperationalEvidence $evidence): array => [
+                'id' => $evidence->id,
+                'collection' => $evidence->collection,
+                'original_name' => $evidence->original_name,
+                'mime_type' => $evidence->mime_type,
+                'file_size' => $evidence->file_size,
+                'sha256' => $evidence->sha256,
+                'captured_at' => $evidence->captured_at?->format('d/m/Y H:i'),
+                'latitude' => $evidence->latitude,
+                'longitude' => $evidence->longitude,
+                'notes' => $evidence->notes,
+                'url' => route('operational-audit.evidence.download', ['id' => $evidence->id]),
+            ])->values()->all(),
+        ];
     }
 
     private function canManagePlans(User $user): bool
@@ -1880,18 +2223,13 @@ class OperationalAuditController extends Controller
 
     private function canManageInspection(User $user): bool
     {
-        return $user->isOwner()
-            || $user->isSuperAdmin()
-            || $user->can('operational_inspection.manage')
-            || $user->can('operational_audit.manage');
+        return $user->isOwner() || $user->isSuperAdmin();
     }
 
     private function canManageCapa(User $user): bool
     {
         return $user->isOwner()
-            || $user->isSuperAdmin()
-            || $user->can('operational_audit.capa.manage')
-            || $user->can('operational_audit.manage');
+            || $user->isSuperAdmin();
     }
 
     private function canVerifyCapa(User $user): bool
@@ -1922,7 +2260,7 @@ class OperationalAuditController extends Controller
         }
 
         $assignee = User::where('restaurant_id', $user->restaurant_id)->findOrFail($id);
-        if ($assignee->assignedBranchId() !== (int) $report->branch_id) {
+        if (! $assignee->isBranchManager() || $assignee->assignedBranchId() !== (int) $report->branch_id) {
             throw ValidationException::withMessages(['assigned_to' => 'Người phụ trách phải thuộc đúng chi nhánh của hồ sơ.']);
         }
 
@@ -1959,12 +2297,8 @@ class OperationalAuditController extends Controller
         $activeActions = $actions->whereNotIn('status', ['cancelled']);
         if ($activeActions->isNotEmpty() && $activeActions->every(fn (OperationalCorrectiveAction $row) => in_array($row->status, ['verified', 'cancelled'], true))) {
             $report->update([
-                'status' => 'closed',
-                'closed_by' => $actor->id,
-                'closed_at' => now(),
-                'reinspection_result' => 'pass',
-                'reinspected_by' => $actor->id,
-                'reinspected_at' => now(),
+                'status' => 'reinspection_pending',
+                'remediation_submitted_at' => $report->remediation_submitted_at ?? now(),
             ]);
         } elseif ($activeActions->isNotEmpty() && $activeActions->every(fn (OperationalCorrectiveAction $row) => in_array($row->status, ['submitted', 'verified'], true))) {
             $report->update([
@@ -1988,6 +2322,26 @@ class OperationalAuditController extends Controller
         }
     }
 
+    private function branchManagerForReport(OperationalInfringementReport $report): ?User
+    {
+        $branch = RestaurantBranch::where('restaurant_id', $report->restaurant_id)
+            ->whereKey($report->branch_id)
+            ->with('manager')
+            ->first();
+        $manager = $branch?->manager;
+
+        if ($manager && $manager->status === 'active' && $manager->isBranchManager()) {
+            return $manager;
+        }
+
+        return User::where('restaurant_id', $report->restaurant_id)
+            ->where('status', 'active')
+            ->with('roles:id,name')
+            ->get()
+            ->first(fn (User $candidate): bool => $candidate->isBranchManager()
+                && $candidate->assignedBranchId() === (int) $report->branch_id);
+    }
+
     private function nextPlanCode(int $restaurantId, string $scheduledDate): string
     {
         $prefix = 'INS-'.Carbon::parse($scheduledDate)->format('Ymd').'-';
@@ -2006,9 +2360,14 @@ class OperationalAuditController extends Controller
     private function canManageRemediation(User $user): bool
     {
         return $user->isOwner()
-            || $user->isSuperAdmin()
-            || $user->can('operational_audit.manage')
-            || $user->can('operational_audit.report');
+            || $user->isSuperAdmin();
+    }
+
+    private function canSubmitRemediation(User $user, OperationalInfringementReport $report): bool
+    {
+        return $user->isBranchManager()
+            && (int) $report->assigned_to === (int) $user->id
+            && $user->assignedBranchId() === (int) $report->branch_id;
     }
 
     private function canReinspect(User $user): bool
@@ -2091,8 +2450,7 @@ class OperationalAuditController extends Controller
                 'verified_at' => $action->verified_at?->format('d/m/Y H:i'),
             ])->values()->all(),
             'is_overdue' => (bool) $isOverdue,
-            'can_submit_remediation' => $this->canManageRemediation($viewer)
-                || (int) $report->assigned_to === (int) $viewer->id,
+            'can_submit_remediation' => $this->canSubmitRemediation($viewer, $report),
         ];
     }
 }

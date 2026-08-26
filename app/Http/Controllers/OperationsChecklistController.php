@@ -25,38 +25,76 @@ class OperationsChecklistController extends Controller
         $restaurantId = $request->user()->restaurant_id;
         $branchId = $tenantContext->activeBranchId();
         $date = $request->date ?? now()->toDateString();
+        $activeBranches = $request->user()->restaurant?->branches()
+            ->where('status', 'active')
+            ->when($tenantContext->isBranchScoped(), fn ($query) => $query->whereKey($branchId))
+            ->when($tenantContext->isUnassigned(), fn ($query) => $query->whereRaw('1 = 0'))
+            ->orderBy('name')
+            ->get(['id', 'name']) ?? collect();
 
         $templates = ChecklistTemplate::where('restaurant_id', $restaurantId)
             ->where('is_active', true)
+            ->when($branchId !== null, fn ($query) => $query->forBranch((int) $branchId))
+            ->when($tenantContext->isUnassigned(), fn ($query) => $query->whereRaw('1 = 0'))
             ->with(['items', 'branches:id,name'])
             ->orderBy('sort_order')
             ->get();
 
-        $completionRows = ChecklistCompletion::where('restaurant_id', $restaurantId)
-            ->where('checked_date', $date)
-            ->when($branchId !== null, fn ($query) => $query->where('branch_id', $branchId))
-            ->with('completedBy:id,name')
-            ->get();
-        // The page needs an item lookup for the selected branch, while chain
-        // mode must keep every branch row so its completion count is accurate.
-        $completions = $completionRows->keyBy('item_id');
+        $completionQuery = ChecklistCompletion::where('restaurant_id', $restaurantId)
+            ->where('checked_date', $date);
+        $tenantContext->applyBranchScope($completionQuery);
+        $completionRows = $completionQuery->with('completedBy:id,name')->get();
+        // Keep each branch's row distinct in chain-wide mode. Otherwise the
+        // same checklist item from one branch overwrites another branch.
+        $completions = $branchId !== null
+            ? $completionRows->where('branch_id', $branchId)->keyBy('item_id')
+            : $completionRows->keyBy(fn (ChecklistCompletion $completion): string => (int) $completion->branch_id.':'.(int) $completion->item_id);
 
         $stats = [];
+        $branchStats = [];
         foreach ($templates as $template) {
             $totalItems = $template->items->count();
-            $completedItems = $template->items->filter(fn ($item) => $completions->has($item->id))->count();
-            $branchCount = $branchId === null
-                ? max(1, $request->user()->restaurant->branches()->where('status', 'active')->count())
-                : 1;
-            $completedCount = $branchId === null
-                ? $completionRows->where('template_id', $template->id)->count()
-                : $completedItems;
-            $expectedCount = $totalItems * $branchCount;
+            $applicableBranches = $activeBranches->filter(
+                fn ($branch): bool => $template->branches->isEmpty()
+                    || $template->branches->contains(fn ($assigned) => (int) $assigned->id === (int) $branch->id),
+            )->values();
+
+            if ($branchId !== null) {
+                $completedItems = $template->items->filter(fn ($item) => $completions->has($item->id))->count();
+                $completedCount = $completedItems;
+                $expectedCount = $totalItems;
+            } else {
+                $applicableBranchIds = $applicableBranches->pluck('id')->map(fn ($id) => (int) $id);
+                $completedCount = $completionRows
+                    ->where('template_id', $template->id)
+                    ->filter(fn (ChecklistCompletion $completion): bool => $applicableBranchIds->contains((int) $completion->branch_id))
+                    ->unique(fn (ChecklistCompletion $completion): string => (int) $completion->branch_id.':'.(int) $completion->item_id)
+                    ->count();
+                $expectedCount = $totalItems * $applicableBranches->count();
+            }
+
+            $branchStats[$template->id] = $applicableBranches->map(function ($branch) use ($template, $completionRows): array {
+                $completed = $completionRows
+                    ->where('template_id', $template->id)
+                    ->where('branch_id', $branch->id)
+                    ->unique('item_id')
+                    ->count();
+                $total = $template->items->count();
+
+                return [
+                    'branch_id' => (int) $branch->id,
+                    'branch_name' => $branch->name,
+                    'completed' => $completed,
+                    'total' => $total,
+                    'percent' => $total > 0 ? min(100, round(($completed / $total) * 100)) : 0,
+                ];
+            })->values()->all();
+
             $stats[$template->id] = [
                 'total' => $totalItems,
                 'completed' => $completedCount,
                 'expected' => $expectedCount,
-                'percent' => $expectedCount > 0 ? round(($completedCount / $expectedCount) * 100) : 0,
+                'percent' => $expectedCount > 0 ? min(100, round(($completedCount / $expectedCount) * 100)) : 0,
             ];
         }
 
@@ -64,6 +102,7 @@ class OperationsChecklistController extends Controller
             'templates' => $templates,
             'completions' => $completions,
             'stats' => $stats,
+            'branchStats' => $branchStats,
             'date' => $date,
             'canComplete' => $branchId !== null,
             'branchContext' => [
@@ -71,9 +110,7 @@ class OperationsChecklistController extends Controller
                 'active_branch_id' => $branchId,
             ],
             // Danh sách chi nhánh để Chủ gán mẫu checklist (bỏ trống = toàn chuỗi).
-            'branches' => $request->user()->restaurant
-                ? $request->user()->restaurant->branches()->where('status', 'active')->get(['id', 'name'])
-                : [],
+            'branches' => $activeBranches,
             'canManageTemplates' => $this->canManageTemplates($request->user()),
         ]);
     }
@@ -82,7 +119,7 @@ class OperationsChecklistController extends Controller
     {
         $data = $request->validate([
             'item_id' => ['required', 'exists:checklist_items,id'],
-            'photo' => ['nullable', 'string'],
+            'photo' => ['nullable', 'string', 'max:7000000'],
             'notes' => ['nullable', 'string', 'max:500'],
             'finding_notes' => ['nullable', 'string', 'max:3000'],
             'result' => ['nullable', 'in:pass,fail,na'],
@@ -91,20 +128,36 @@ class OperationsChecklistController extends Controller
         ]);
 
         $user = $request->user();
+        $tenantContext = app(TenantContext::class);
         $inspection = null;
         if (! empty($data['operational_inspection_id'])) {
-            $inspection = OperationalInspection::where('restaurant_id', $user->restaurant_id)->findOrFail($data['operational_inspection_id']);
+            $inspectionQuery = OperationalInspection::where('restaurant_id', $user->restaurant_id);
+            $tenantContext->applyBranchScope($inspectionQuery);
+            $inspection = $inspectionQuery->findOrFail($data['operational_inspection_id']);
             abort_unless($inspection->status === 'in_progress', 422, 'Chỉ phiên đang kiểm tra mới nhận checklist.');
         }
-        $branchId = $inspection?->branch_id ?? app(TenantContext::class)->activeBranchId();
+        if ($inspection) {
+            abort_unless($this->canWorkOnInspection($inspection, $user), 403, 'Báº¡n khÃ´ng tham gia phiÃªn kiá»ƒm tra nÃ y.');
+        }
+        $branchId = $inspection?->branch_id ?? $tenantContext->activeBranchId();
         if ($branchId === null) {
             throw ValidationException::withMessages([
                 'branch_id' => 'Hãy chọn một chi nhánh cụ thể trước khi hoàn thành checklist.',
             ]);
         }
+        $tenantContext->assertWriteBranch((int) $branchId);
         $item = ChecklistItem::with('template')->findOrFail($data['item_id']);
 
         abort_unless($item->template && $item->template->restaurant_id === $user->restaurant_id, 403);
+        abort_unless(
+            ChecklistTemplate::whereKey($item->template_id)
+                ->where('restaurant_id', $user->restaurant_id)
+                ->where('is_active', true)
+                ->forBranch((int) $branchId)
+                ->exists(),
+            422,
+            'Checklist nÃ y khÃ´ng Ã¡p dá»¥ng cho chi nhÃ¡nh Ä‘ang chá»n.',
+        );
 
         if ($item->requires_photo && empty($data['photo'])) {
             return response()->json(['message' => 'Mục này yêu cầu chụp ảnh xác nhận.'], 422);
@@ -126,7 +179,10 @@ class OperationsChecklistController extends Controller
             if (! in_array($type, ['jpg', 'jpeg', 'png', 'gif', 'webp'])) {
                 return response()->json(['message' => 'Định dạng ảnh không được hỗ trợ.'], 422);
             }
-            $imageData = base64_decode(substr($data['photo'], strpos($data['photo'], ',') + 1));
+            $imageData = base64_decode(substr($data['photo'], strpos($data['photo'], ',') + 1), true);
+            if ($imageData === false || strlen($imageData) > 5 * 1024 * 1024) {
+                return response()->json(['message' => 'Ảnh checklist không được vượt quá 5MB.'], 422);
+            }
             $filename = 'checklist_'.$item->id.'_'.time().'_'.Str::random(5).'.'.$type;
             $photoPath = 'checklists/'.$filename;
             Storage::disk('public')->put($photoPath, $imageData);
@@ -171,6 +227,15 @@ class OperationsChecklistController extends Controller
 
         $item = ChecklistItem::with('template')->findOrFail($data['item_id']);
         abort_unless($item->template && $item->template->restaurant_id === $request->user()->restaurant_id, 403);
+        abort_unless(
+            ChecklistTemplate::whereKey($item->template_id)
+                ->where('restaurant_id', $request->user()->restaurant_id)
+                ->where('is_active', true)
+                ->forBranch((int) $branchId)
+                ->exists(),
+            422,
+            'Checklist nÃ y khÃ´ng Ã¡p dá»¥ng cho chi nhÃ¡nh Ä‘ang chá»n.',
+        );
 
         ChecklistCompletion::where('item_id', $item->id)
             ->where('checked_date', $data['date'])
@@ -185,6 +250,7 @@ class OperationsChecklistController extends Controller
     public function storeTemplate(Request $request): RedirectResponse
     {
         $this->authorizeTemplateManagement($request);
+        abort_unless(! app(TenantContext::class)->isUnassigned(), 403, 'TÃ i khoáº£n chÆ°a Ä‘Æ°á»£c gÃ¡n chi nhÃ¡nh.');
 
         $restaurantId = (int) $request->user()->restaurant_id;
 
@@ -202,6 +268,10 @@ class OperationsChecklistController extends Controller
                 Rule::exists('restaurant_branches', 'id')->where('restaurant_id', $restaurantId),
             ],
         ]);
+        $tenantContext = app(TenantContext::class);
+        if ($tenantContext->isBranchScoped()) {
+            $data['branch_ids'] = [(int) $tenantContext->activeBranchId()];
+        }
 
         $template = ChecklistTemplate::create([
             'restaurant_id' => $request->user()->restaurant_id,
@@ -231,6 +301,7 @@ class OperationsChecklistController extends Controller
     {
         $this->authorizeTemplateManagement(request());
         abort_unless($template->restaurant_id === request()->user()->restaurant_id, 403);
+        $this->assertTemplateMutationScope($template);
 
         $template->delete();
 
@@ -241,6 +312,7 @@ class OperationsChecklistController extends Controller
     {
         $this->authorizeTemplateManagement($request);
         abort_unless($template->restaurant_id === $request->user()->restaurant_id, 403);
+        $this->assertTemplateMutationScope($template);
 
         $restaurantId = (int) $request->user()->restaurant_id;
         $data = $request->validate([
@@ -256,6 +328,10 @@ class OperationsChecklistController extends Controller
                 Rule::exists('restaurant_branches', 'id')->where('restaurant_id', $restaurantId),
             ],
         ]);
+        $tenantContext = app(TenantContext::class);
+        if ($tenantContext->isBranchScoped()) {
+            $data['branch_ids'] = [(int) $tenantContext->activeBranchId()];
+        }
 
         DB::transaction(function () use ($template, $data): void {
             $existingItems = $template->items()->get()->keyBy('id');
@@ -308,31 +384,53 @@ class OperationsChecklistController extends Controller
     public function weeklyReport(Request $request): JsonResponse
     {
         $restaurantId = $request->user()->restaurant_id;
-        $branchId = app(TenantContext::class)->activeBranchId();
+        $tenantContext = app(TenantContext::class);
+        $branchId = $tenantContext->activeBranchId();
         $startDate = now()->startOfWeek();
         $endDate = now()->endOfWeek();
 
         $templates = ChecklistTemplate::where('restaurant_id', $restaurantId)
             ->where('is_active', true)
+            ->when($branchId !== null, fn ($query) => $query->forBranch((int) $branchId))
+            ->when($tenantContext->isUnassigned(), fn ($query) => $query->whereRaw('1 = 0'))
             ->withCount('items')
             ->get();
+
+        $activeBranchIds = $request->user()->restaurant?->branches()
+            ->where('status', 'active')
+            ->when($tenantContext->isBranchScoped(), fn ($query) => $query->whereKey($branchId))
+            ->when($tenantContext->isUnassigned(), fn ($query) => $query->whereRaw('1 = 0'))
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->all() ?? [];
+        $completionQuery = ChecklistCompletion::where('restaurant_id', $restaurantId)
+            ->whereBetween('checked_date', [$startDate->toDateString(), $endDate->toDateString()]);
+        $tenantContext->applyBranchScope($completionQuery);
+        $weekCompletions = $completionQuery->get(['template_id', 'item_id', 'branch_id', 'checked_date']);
 
         $report = [];
         foreach ($templates as $template) {
             $days = [];
             for ($d = $startDate->copy(); $d <= $endDate; $d->addDay()) {
-                $completed = ChecklistCompletion::where('restaurant_id', $restaurantId)
+                $applicableBranchIds = $branchId !== null
+                    ? [(int) $branchId]
+                    : ($template->branches()->exists()
+                        ? $template->branches()->whereIn('restaurant_branches.id', $activeBranchIds)->pluck('restaurant_branches.id')->map(fn ($id) => (int) $id)->all()
+                        : $activeBranchIds);
+                $completed = $weekCompletions
                     ->where('template_id', $template->id)
                     ->where('checked_date', $d->toDateString())
-                    ->when($branchId !== null, fn ($query) => $query->where('branch_id', $branchId))
+                    ->filter(fn (ChecklistCompletion $completion): bool => in_array((int) $completion->branch_id, $applicableBranchIds, true))
+                    ->unique(fn (ChecklistCompletion $completion): string => (int) $completion->branch_id.':'.(int) $completion->item_id)
                     ->count();
+                $total = $template->items_count * count($applicableBranchIds);
 
                 $days[] = [
                     'date' => $d->toDateString(),
                     'day' => $d->locale('vi')->dayName,
                     'completed' => $completed,
-                    'total' => $template->items_count,
-                    'percent' => $template->items_count > 0 ? round(($completed / $template->items_count) * 100) : 0,
+                    'total' => $total,
+                    'percent' => $total > 0 ? min(100, round(($completed / $total) * 100)) : 0,
                 ];
             }
 
@@ -356,5 +454,29 @@ class OperationsChecklistController extends Controller
     private function canManageTemplates($user): bool
     {
         return $user->isSuperAdmin() || $user->hasAnyRole(['owner', 'manager']);
+    }
+
+    private function assertTemplateMutationScope(ChecklistTemplate $template): void
+    {
+        $tenantContext = app(TenantContext::class);
+        if ($tenantContext->isUnassigned()) {
+            abort(403, 'TÃ i khoáº£n chÆ°a Ä‘Æ°á»£c gÃ¡n chi nhÃ¡nh.');
+        }
+
+        if ($tenantContext->isBranchScoped()) {
+            abort_unless(
+                $template->branches()->whereKey($tenantContext->activeBranchId())->exists(),
+                403,
+                'Chá»‰ Ä‘Æ°á»£c chá»‰nh sá»­a checklist cá»§a chi nhÃ¡nh Ä‘ang chá»n.',
+            );
+        }
+    }
+
+    private function canWorkOnInspection(OperationalInspection $inspection, $user): bool
+    {
+        return $user->isOwner()
+            || $user->isSuperAdmin()
+            || (int) $inspection->lead_inspector_id === (int) $user->id
+            || in_array((int) $user->id, array_map('intval', $inspection->participants ?? []), true);
     }
 }

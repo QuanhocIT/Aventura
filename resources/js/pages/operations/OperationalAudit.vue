@@ -30,7 +30,6 @@ import {
 } from 'lucide-vue-next';
 import { computed, onMounted, ref } from 'vue';
 import { toast } from 'vue-sonner';
-import BackButton from '@/components/BackButton.vue';
 import { Button } from '@/components/ui/button';
 import {
     Card,
@@ -62,10 +61,12 @@ const props = defineProps<{
     trend: Array<any>;
     inspectors: Array<any>;
     canManagePlans: boolean;
+    branchContext?: { scope: string; active_branch_id: number | null };
     isOverview?: boolean;
 }>();
 
 const isOverview = computed(() => Boolean(props.isOverview));
+const isBranchScoped = computed(() => props.branchContext?.scope === 'branch');
 
 const isCreateModalOpen = ref(false);
 const isDetailModalOpen = ref(false);
@@ -78,7 +79,7 @@ const severityFilter = ref('all');
 const branchFilter = ref('all');
 const isPlanModalOpen = ref(false);
 const planForm = ref({
-    branch_id: null as number | null,
+    branch_id: (props.branchContext?.active_branch_id ?? null) as number | null,
     title: '',
     inspection_type: 'routine',
     scheduled_date: new Date().toISOString().split('T')[0],
@@ -104,7 +105,7 @@ const initialBranchId = Number(initialQuery?.get('branch_id') || 0) || null;
 const initialPlanId = Number(initialQuery?.get('inspection_plan_id') || 0) || null;
 
 const reportForm = ref({
-    branch_id: initialBranchId || props.branches[0]?.id || null,
+    branch_id: initialBranchId || props.branchContext?.active_branch_id || props.branches[0]?.id || null,
     policy_id: null as number | null,
     offender_user_id: null as number | null,
     infringement_date: new Date().toISOString().split('T')[0],
@@ -142,7 +143,7 @@ const onPolicySelect = () => {
 
 const openCreateModal = () => {
     reportForm.value = {
-        branch_id: initialBranchId || props.branches[0]?.id || null,
+        branch_id: initialBranchId || props.branchContext?.active_branch_id || props.branches[0]?.id || null,
         policy_id: null,
         offender_user_id: null,
         infringement_date: new Date().toISOString().split('T')[0],
@@ -292,7 +293,7 @@ const onProofPhotoChange = (event: Event) => {
 
 const openPlanModal = () => {
     planForm.value = {
-        branch_id: null,
+        branch_id: props.branchContext?.active_branch_id ?? null,
         title: '',
         inspection_type: 'routine',
         scheduled_date: new Date().toISOString().split('T')[0],
@@ -774,7 +775,6 @@ const formatDate = (dt: string) => {
                 class="relative flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between"
             >
                 <div class="flex items-start gap-4">
-                    <BackButton fallback-href="/operations/audit/overview" label="Trang chủ" />
                     <div
                         class="flex size-12 shrink-0 items-center justify-center rounded-2xl bg-rose-600 text-white shadow-lg shadow-rose-600/20"
                     >
@@ -1184,7 +1184,7 @@ const formatDate = (dt: string) => {
                 <div class="flex items-center justify-between border-b border-border bg-muted/30 p-5"><div class="flex items-center gap-2"><div class="flex size-9 items-center justify-center rounded-xl bg-indigo-500/10 text-indigo-600 dark:text-indigo-300"><CalendarPlus class="size-5" /></div><div><h3 class="text-sm font-bold">Lập kế hoạch kiểm tra</h3><p class="mt-0.5 text-[11px] text-muted-foreground">Xác định rõ phạm vi, thời hạn và người chịu trách nhiệm.</p></div></div><button @click="isPlanModalOpen = false" class="rounded-lg p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"><X class="size-5" /></button></div>
                 <div class="space-y-4 overflow-y-auto p-6 text-xs">
                     <div><label class="mb-1.5 block font-semibold text-foreground">Tên kế hoạch (*)</label><Input v-model="planForm.title" placeholder="Ví dụ: Kiểm tra an toàn thực phẩm tháng 9" class="text-xs" /></div>
-                    <div class="grid gap-4 sm:grid-cols-2"><div><label class="mb-1.5 block font-semibold text-foreground">Loại kiểm tra</label><select v-model="planForm.inspection_type" class="w-full rounded-xl border border-input bg-background p-2.5 text-foreground"><option value="routine">Định kỳ</option><option value="thematic">Theo chuyên đề</option><option value="surprise">Đột xuất</option><option value="follow_up">Tái kiểm</option></select></div><div><label class="mb-1.5 block font-semibold text-foreground">Chi nhánh</label><select v-model="planForm.branch_id" class="w-full rounded-xl border border-input bg-background p-2.5 text-foreground"><option :value="null">Toàn chuỗi</option><option v-for="branch in branches" :key="branch.id" :value="branch.id">{{ branch.name }}</option></select></div></div>
+                    <div class="grid gap-4 sm:grid-cols-2"><div><label class="mb-1.5 block font-semibold text-foreground">Loại kiểm tra</label><select v-model="planForm.inspection_type" class="w-full rounded-xl border border-input bg-background p-2.5 text-foreground"><option value="routine">Định kỳ</option><option value="thematic">Theo chuyên đề</option><option value="surprise">Đột xuất</option><option value="follow_up">Tái kiểm</option></select></div><div><label class="mb-1.5 block font-semibold text-foreground">Chi nhánh</label><select v-model="planForm.branch_id" class="w-full rounded-xl border border-input bg-background p-2.5 text-foreground"><option v-if="!isBranchScoped" :value="null">Toàn chuỗi</option><option v-for="branch in branches" :key="branch.id" :value="branch.id">{{ branch.name }}</option></select></div></div>
                     <div class="grid gap-4 sm:grid-cols-2"><div><label class="mb-1.5 block font-semibold text-foreground">Ngày dự kiến</label><Input v-model="planForm.scheduled_date" type="date" class="text-xs" /></div><div><label class="mb-1.5 block font-semibold text-foreground">Hạn hoàn tất</label><Input v-model="planForm.due_date" type="date" class="text-xs" /></div></div>
                     <div><label class="mb-1.5 block font-semibold text-foreground">Đầu mối thanh tra</label><select v-model="planForm.lead_inspector_id" class="w-full rounded-xl border border-input bg-background p-2.5 text-foreground"><option v-for="inspector in inspectors" :key="inspector.id" :value="inspector.id">{{ inspector.name }} · {{ inspector.email }}</option></select></div>
                     <div><label class="mb-1.5 block font-semibold text-foreground">Phạm vi & tiêu chí kiểm tra (*)</label><textarea v-model="planForm.scope" rows="5" placeholder="Nêu khu vực, ca làm, quy trình cần đối chiếu, hồ sơ cần thu thập và tiêu chí kết luận..." class="min-h-28 w-full rounded-xl border border-input bg-background p-3 text-xs text-foreground outline-none placeholder:text-muted-foreground focus:ring-2 focus:ring-indigo-500/30"></textarea></div>

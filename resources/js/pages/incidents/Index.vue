@@ -485,8 +485,8 @@ const slaClass = (state: SlaState) =>
     state === 'overdue' || state === 'breached'
         ? 'border-rose-900/60 bg-rose-950/50 text-rose-300'
         : state === 'met' || state === 'acknowledged'
-          ? 'border-emerald-900/60 bg-emerald-950/40 text-emerald-300'
-          : 'border-sky-900/60 bg-sky-950/40 text-sky-300';
+          ? 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900/60 dark:bg-emerald-950/40 dark:text-emerald-300'
+          : 'border-sky-200 bg-sky-50 text-sky-700 dark:border-sky-900/60 dark:bg-sky-950/40 dark:text-sky-300';
 const actionSummary = (incident: Incident) =>
     incident.status === 'open'
         ? 'Cần quản lý tiếp nhận'
@@ -504,7 +504,7 @@ const actionSummary = (incident: Incident) =>
         class="mx-auto flex w-full max-w-[1600px] flex-col gap-5 p-4 sm:p-6 lg:p-8"
     >
         <section
-            class="relative overflow-hidden rounded-[28px] border border-rose-900/50 bg-gradient-to-br from-rose-950 via-slate-950 to-slate-950 p-5 shadow-2xl shadow-rose-950/10 sm:p-7"
+            class="relative overflow-hidden rounded-[28px] border border-rose-200/80 bg-gradient-to-br from-slate-900 via-rose-950 to-slate-900 p-5 text-white shadow-xl sm:p-7 dark:border-rose-900/50 dark:from-rose-950 dark:via-slate-950 dark:to-slate-950"
         >
             <div
                 class="pointer-events-none absolute -top-24 right-0 size-64 rounded-full bg-rose-500/10 blur-3xl"
@@ -524,7 +524,7 @@ const actionSummary = (incident: Incident) =>
                                 class="rounded-full border border-rose-800/70 bg-rose-950/60 px-2.5 py-1 text-[10px] font-bold tracking-[0.16em] text-rose-300 uppercase"
                                 >Safety Operations</span
                             ><span
-                                class="flex items-center gap-1.5 text-[11px] text-slate-400"
+                                class="flex items-center gap-1.5 text-[11px] text-slate-300 dark:text-slate-400"
                                 ><MapPin class="size-3.5 text-rose-400" />{{
                                     props.activeBranchName || 'Toàn nhà hàng'
                                 }}</span
@@ -585,7 +585,7 @@ const actionSummary = (incident: Incident) =>
                         >
                             {{ kpi.value }}
                         </div>
-                        <div class="mt-1 text-xs font-bold text-slate-200">
+                        <div class="mt-1 text-xs font-bold text-slate-700 dark:text-slate-200">
                             {{ kpi.label }}
                         </div>
                         <div
@@ -606,19 +606,19 @@ const actionSummary = (incident: Incident) =>
 
         <section
             v-if="props.stats.critical > 0 || props.stats.overdue > 0"
-            class="flex flex-col gap-3 rounded-2xl border border-rose-900/60 bg-rose-950/25 p-4 sm:flex-row sm:items-center sm:justify-between"
+            class="flex flex-col gap-3 rounded-2xl border border-rose-200 bg-rose-50/70 p-4 sm:flex-row sm:items-center sm:justify-between dark:border-rose-900/60 dark:bg-rose-950/25"
         >
             <div class="flex items-start gap-3">
                 <div
-                    class="flex size-9 shrink-0 items-center justify-center rounded-xl bg-rose-500/15 text-rose-300"
+                    class="flex size-9 shrink-0 items-center justify-center rounded-xl bg-rose-500/15 text-rose-600 dark:text-rose-300"
                 >
                     <Zap class="size-4" />
                 </div>
                 <div>
-                    <div class="text-sm font-bold text-rose-200">
+                    <div class="text-sm font-bold text-rose-900 dark:text-rose-200">
                         Hàng đợi cần ưu tiên
                     </div>
-                    <p class="mt-1 text-xs leading-relaxed text-rose-200/70">
+                    <p class="mt-1 text-xs leading-relaxed text-rose-700 dark:text-rose-200/70">
                         Có sự cố nghiêm trọng hoặc chưa được phản hồi đúng SLA.
                         Hãy tiếp nhận trước khi xử lý tác vụ thường ngày.
                     </p>
@@ -626,7 +626,7 @@ const actionSummary = (incident: Incident) =>
             </div>
             <button
                 type="button"
-                class="rounded-lg border border-rose-800/70 px-3 py-2 text-xs font-bold text-rose-200 transition hover:bg-rose-500/10"
+                class="rounded-lg border border-rose-300 px-3 py-2 text-xs font-bold text-rose-700 transition hover:bg-rose-500/10 dark:border-rose-800/70 dark:text-rose-200"
                 @click="
                     activeFilter = 'active';
                     sortMode = 'priority';
@@ -638,16 +638,16 @@ const actionSummary = (incident: Incident) =>
 
         <section
             v-if="showReportForm"
-            class="rounded-3xl border border-rose-900/50 bg-slate-950 p-5 shadow-2xl shadow-black/20 sm:p-6"
+            class="rounded-3xl border border-rose-200 bg-white p-5 shadow-xl dark:border-rose-900/50 dark:bg-slate-950 sm:p-6"
         >
             <div
-                class="mb-5 flex flex-col gap-2 border-b border-white/10 pb-4 sm:flex-row sm:items-center sm:justify-between"
+                class="mb-5 flex flex-col gap-2 border-b border-slate-200 pb-4 dark:border-white/10 sm:flex-row sm:items-center sm:justify-between"
             >
                 <div>
                     <div
-                        class="flex items-center gap-2 text-sm font-bold text-white"
+                        class="flex items-center gap-2 text-sm font-bold text-slate-900 dark:text-white"
                     >
-                        <Plus class="size-4 text-rose-400" /> Ghi nhận sự cố mới
+                        <Plus class="size-4 text-rose-500 dark:text-rose-400" /> Ghi nhận sự cố mới
                     </div>
                     <p class="mt-1 text-xs text-slate-500">
                         Ghi nhận ngay cả khi chưa đủ thông tin; quản lý sẽ bổ
@@ -655,18 +655,18 @@ const actionSummary = (incident: Incident) =>
                     </p>
                 </div>
                 <span
-                    class="text-[10px] font-bold tracking-wider text-rose-300 uppercase"
+                    class="text-[10px] font-bold tracking-wider text-rose-600 uppercase dark:text-rose-300"
                     >Bước 1 · Tiếp nhận</span
                 >
             </div>
             <form @submit.prevent="submitReport" class="flex flex-col gap-5">
                 <div class="grid gap-4 lg:grid-cols-4">
                     <div class="flex flex-col gap-1.5">
-                        <Label class="text-xs font-bold text-slate-300"
+                        <Label class="text-xs font-bold text-slate-700 dark:text-slate-300"
                             >Loại sự cố</Label
                         ><select
                             v-model="reportForm.type"
-                            class="h-10 rounded-xl border border-white/10 bg-slate-900 px-3 text-sm text-slate-100 outline-none focus:border-rose-500"
+                            class="h-10 rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm text-slate-900 outline-none focus:border-rose-500 dark:border-white/10 dark:bg-slate-900 dark:text-slate-100"
                         >
                             <option value="accident">Tai nạn</option>
                             <option value="food_poisoning">
@@ -682,11 +682,11 @@ const actionSummary = (incident: Incident) =>
                         </select>
                     </div>
                     <div class="flex flex-col gap-1.5">
-                        <Label class="text-xs font-bold text-slate-300"
+                        <Label class="text-xs font-bold text-slate-700 dark:text-slate-300"
                             >Mức độ rủi ro</Label
                         ><select
                             v-model="reportForm.severity"
-                            class="h-10 rounded-xl border border-white/10 bg-slate-900 px-3 text-sm text-slate-100 outline-none focus:border-rose-500"
+                            class="h-10 rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm text-slate-900 outline-none focus:border-rose-500 dark:border-white/10 dark:bg-slate-900 dark:text-slate-100"
                         >
                             <option value="low">Thấp · SLA 8 giờ</option>
                             <option value="medium">
@@ -699,58 +699,58 @@ const actionSummary = (incident: Incident) =>
                         </select>
                     </div>
                     <div class="flex flex-col gap-1.5">
-                        <Label class="text-xs font-bold text-slate-300"
+                        <Label class="text-xs font-bold text-slate-700 dark:text-slate-300"
                             >Thời điểm xảy ra</Label
                         ><Input
                             v-model="reportForm.occurred_at"
                             type="datetime-local"
-                            class="h-10 border-white/10 bg-slate-900 text-slate-100"
+                            class="h-10 border-slate-200 bg-slate-50 text-slate-900 dark:border-white/10 dark:bg-slate-900 dark:text-slate-100"
                         />
                     </div>
                     <div class="flex flex-col gap-1.5">
-                        <Label class="text-xs font-bold text-slate-300"
+                        <Label class="text-xs font-bold text-slate-700 dark:text-slate-300"
                             >Vị trí</Label
                         ><Input
                             v-model="reportForm.location"
                             placeholder="Bếp, sảnh, kho..."
-                            class="h-10 border-white/10 bg-slate-900 text-slate-100 placeholder:text-slate-600"
+                            class="h-10 border-slate-200 bg-slate-50 text-slate-900 placeholder:text-slate-400 dark:border-white/10 dark:bg-slate-900 dark:text-slate-100 dark:placeholder:text-slate-600"
                         />
                     </div>
                 </div>
                 <div class="grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
                     <div class="flex flex-col gap-4">
                         <div class="flex flex-col gap-1.5">
-                            <Label class="text-xs font-bold text-slate-300"
+                            <Label class="text-xs font-bold text-slate-700 dark:text-slate-300"
                                 >Tiêu đề
-                                <span class="text-rose-400">*</span></Label
+                                <span class="text-rose-500 dark:text-rose-400">*</span></Label
                             ><Input
                                 v-model="reportForm.title"
                                 required
                                 placeholder="Ví dụ: Khách trượt ngã tại khu vực lễ tân"
-                                class="h-10 border-white/10 bg-slate-900 text-slate-100 placeholder:text-slate-600"
+                                class="h-10 border-slate-200 bg-slate-50 text-slate-900 placeholder:text-slate-400 dark:border-white/10 dark:bg-slate-900 dark:text-slate-100 dark:placeholder:text-slate-600"
                             />
                             <p
                                 v-if="reportForm.errors.title"
-                                class="text-[11px] font-semibold text-rose-400"
+                                class="text-[11px] font-semibold text-rose-500 dark:text-rose-400"
                             >
                                 {{ reportForm.errors.title }}
                             </p>
                         </div>
                         <div class="flex flex-col gap-1.5">
-                            <Label class="text-xs font-bold text-slate-300"
+                            <Label class="text-xs font-bold text-slate-700 dark:text-slate-300"
                                 >Mô tả diễn biến
-                                <span class="text-rose-400">*</span></Label
+                                <span class="text-rose-500 dark:text-rose-400">*</span></Label
                             ><textarea
                                 v-model="reportForm.description"
                                 rows="4"
                                 required
                                 minlength="10"
                                 placeholder="Điều gì đã xảy ra? Ai bị ảnh hưởng? Khu vực nào cần cô lập?"
-                                class="w-full resize-none rounded-xl border border-white/10 bg-slate-900 px-3 py-2.5 text-sm text-slate-100 outline-none placeholder:text-slate-600 focus:border-rose-500"
+                                class="w-full resize-none rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-900 outline-none placeholder:text-slate-400 focus:border-rose-500 dark:border-white/10 dark:bg-slate-900 dark:text-slate-100 dark:placeholder:text-slate-600"
                             ></textarea>
                             <p
                                 v-if="reportForm.errors.description"
-                                class="text-[11px] font-semibold text-rose-400"
+                                class="text-[11px] font-semibold text-rose-500 dark:text-rose-400"
                             >
                                 {{ reportForm.errors.description }}
                             </p>
@@ -758,19 +758,19 @@ const actionSummary = (incident: Incident) =>
                     </div>
                     <div class="flex flex-col gap-4">
                         <div
-                            class="rounded-2xl border border-sky-900/60 bg-sky-950/30 p-4"
+                            class="rounded-2xl border border-sky-200 bg-sky-50/70 p-4 dark:border-sky-900/60 dark:bg-sky-950/30"
                         >
                             <div class="flex items-start gap-3">
                                 <component
                                     :is="activeGuidance.icon"
-                                    class="mt-0.5 size-5 shrink-0 text-sky-300"
+                                    class="mt-0.5 size-5 shrink-0 text-sky-600 dark:text-sky-300"
                                 />
                                 <div>
-                                    <div class="text-xs font-bold text-sky-200">
+                                    <div class="text-xs font-bold text-sky-900 dark:text-sky-200">
                                         {{ activeGuidance.title }}
                                     </div>
                                     <p
-                                        class="mt-1 text-[11px] leading-relaxed text-sky-200/70"
+                                        class="mt-1 text-[11px] leading-relaxed text-sky-700 dark:text-sky-200/70"
                                     >
                                         {{ activeGuidance.text }}
                                     </p>
@@ -779,21 +779,21 @@ const actionSummary = (incident: Incident) =>
                         </div>
                         <div class="grid grid-cols-2 gap-3">
                             <div class="flex flex-col gap-1.5">
-                                <Label class="text-xs font-bold text-slate-300"
+                                <Label class="text-xs font-bold text-slate-700 dark:text-slate-300"
                                     >Người bị thương</Label
                                 ><Input
                                     v-model="reportForm.injured_count"
                                     type="number"
                                     min="0"
-                                    class="h-10 border-white/10 bg-slate-900 text-slate-100"
+                                    class="h-10 border-slate-200 bg-slate-50 text-slate-900 dark:border-white/10 dark:bg-slate-900 dark:text-slate-100"
                                 />
                             </div>
                             <label
-                                class="flex cursor-pointer items-end gap-2 pb-2 text-xs font-semibold text-slate-300"
+                                class="flex cursor-pointer items-end gap-2 pb-2 text-xs font-semibold text-slate-700 dark:text-slate-300"
                                 ><input
                                     v-model="reportForm.needs_shift_cover"
                                     type="checkbox"
-                                    class="size-4 rounded border-white/20 bg-slate-900 text-rose-500"
+                                    class="size-4 rounded border-slate-300 bg-slate-50 text-rose-500 dark:border-white/20 dark:bg-slate-900"
                                 />
                                 Cần thay ca gấp</label
                             >
@@ -802,20 +802,20 @@ const actionSummary = (incident: Incident) =>
                 </div>
                 <div class="grid gap-4 lg:grid-cols-[1fr_1fr_0.8fr]">
                     <div class="flex flex-col gap-1.5">
-                        <Label class="text-xs font-bold text-slate-300"
+                        <Label class="text-xs font-bold text-slate-700 dark:text-slate-300"
                             >Xử lý ngay tại chỗ</Label
                         ><textarea
                             v-model="reportForm.immediate_action"
                             rows="3"
                             placeholder="Đã sơ cứu, ngắt điện, gọi 115/114, cô lập khu vực..."
-                            class="w-full resize-none rounded-xl border border-white/10 bg-slate-900 px-3 py-2.5 text-sm text-slate-100 outline-none placeholder:text-slate-600 focus:border-rose-500"
+                            class="w-full resize-none rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-900 outline-none placeholder:text-slate-400 focus:border-rose-500 dark:border-white/10 dark:bg-slate-900 dark:text-slate-100 dark:placeholder:text-slate-600"
                         ></textarea>
                     </div>
                     <div class="flex flex-col gap-1.5">
-                        <Label class="text-xs font-bold text-slate-300"
+                        <Label class="text-xs font-bold text-slate-700 dark:text-slate-300"
                             >Ảnh hiện trường</Label
                         ><label
-                            class="flex min-h-[82px] cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed border-white/15 bg-slate-900 px-3 text-xs text-slate-400 transition hover:border-rose-500 hover:text-rose-300"
+                            class="flex min-h-[82px] cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed border-slate-300 bg-slate-50 px-3 text-xs text-slate-600 transition hover:border-rose-500 hover:text-rose-600 dark:border-white/15 dark:bg-slate-900 dark:text-slate-400 dark:hover:text-rose-300"
                             ><Camera class="size-4" /><span>{{
                                 reportForm.photo?.name || 'Chọn ảnh bằng chứng'
                             }}</span
@@ -837,7 +837,7 @@ const actionSummary = (incident: Incident) =>
                             type="button"
                             variant="outline"
                             @click="showReportForm = false"
-                            class="h-10 rounded-xl border-white/10 bg-transparent text-slate-300 hover:bg-white/5 hover:text-white"
+                            class="h-10 rounded-xl border-slate-200 text-slate-700 hover:bg-slate-100 dark:border-white/10 dark:bg-transparent dark:text-slate-300 dark:hover:bg-white/5 dark:hover:text-white"
                             >Hủy</Button
                         ><Button
                             type="submit"
@@ -848,9 +848,9 @@ const actionSummary = (incident: Incident) =>
                     </div>
                 </div>
                 <div
-                    class="flex items-start gap-2 rounded-xl border border-amber-900/50 bg-amber-950/20 p-3 text-[11px] leading-relaxed text-amber-200/80"
+                    class="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-[11px] leading-relaxed text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/20 dark:text-amber-200/80"
                 >
-                    <Info class="mt-0.5 size-4 shrink-0 text-amber-300" />Cháy
+                    <Info class="mt-0.5 size-4 shrink-0 text-amber-600 dark:text-amber-300" />Cháy
                     nổ, ngộ độc, tai nạn, mức Cao/Nghiêm trọng hoặc có người bị
                     thương sẽ tự động báo Chủ nhà hàng.
                 </div>
@@ -861,18 +861,18 @@ const actionSummary = (incident: Incident) =>
             class="grid items-start gap-5 xl:grid-cols-[minmax(0,1.45fr)_360px]"
         >
             <section
-                class="min-w-0 rounded-3xl border border-white/10 bg-slate-950 p-4 shadow-xl shadow-black/10 sm:p-5"
+                class="min-w-0 rounded-3xl border border-slate-200/80 bg-white p-4 shadow-sm sm:p-5 dark:border-white/10 dark:bg-slate-950 dark:shadow-xl"
             >
-                <div class="flex flex-col gap-4 border-b border-white/10 pb-4">
+                <div class="flex flex-col gap-4 border-b border-slate-200 pb-4 dark:border-white/10">
                     <div
                         class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between"
                     >
                         <div>
                             <div
-                                class="flex items-center gap-2 text-base font-bold text-white"
+                                class="flex items-center gap-2 text-base font-bold text-slate-900 dark:text-white"
                             >
                                 <ClipboardCheck
-                                    class="size-5 text-rose-400"
+                                    class="size-5 text-rose-500 dark:text-rose-400"
                                 />Sổ điều phối sự cố
                             </div>
                             <p class="mt-1 text-xs text-slate-500">
@@ -881,7 +881,7 @@ const actionSummary = (incident: Incident) =>
                             </p>
                         </div>
                         <div
-                            class="flex rounded-xl border border-white/10 bg-slate-900 p-1"
+                            class="flex rounded-xl border border-slate-200 bg-slate-100 p-1 dark:border-white/10 dark:bg-slate-900"
                         >
                             <button
                                 v-for="tab in [
@@ -894,8 +894,8 @@ const actionSummary = (incident: Incident) =>
                                 class="rounded-lg px-3 py-1.5 text-[11px] font-bold transition"
                                 :class="
                                     activeFilter === tab.key
-                                        ? 'bg-slate-700 text-white shadow-sm'
-                                        : 'text-slate-500 hover:text-slate-300'
+                                        ? 'bg-white text-slate-900 shadow-xs dark:bg-slate-700 dark:text-white'
+                                        : 'text-slate-500 hover:text-slate-900 dark:hover:text-slate-300'
                                 "
                                 @click="
                                     activeFilter = tab.key as

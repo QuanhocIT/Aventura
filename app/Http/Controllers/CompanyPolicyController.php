@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\CompanyPolicy;
 use App\Models\CompanyPolicyCategory;
 use App\Models\RestaurantBranch;
+use App\Support\Tenant\TenantContext;
 use App\Support\TenantRule;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -33,22 +34,19 @@ class CompanyPolicyController extends Controller
     {
         $user = $request->user();
         $canManage = $user->isOwner() || $user->isSuperAdmin() || $user->can('company_policies.manage');
+        $tenantContext = app(TenantContext::class);
         $categories = $this->categoriesForRestaurant($user->restaurant_id);
         $policyQuery = CompanyPolicy::where('restaurant_id', $user->restaurant_id);
         if (! $canManage) {
             $policyQuery->where('status', 'published');
-            $branchId = $user->canViewAllBranches() ? null : $user->assignedBranchId();
-            if ($branchId) {
-                $policyQuery->where(function ($query) use ($branchId): void {
-                    $query->where('applies_to_all_branches', true)
-                        ->orWhereJsonContains('applicable_branch_ids', (int) $branchId);
-                });
-            }
         }
+        $this->applyBranchVisibility($policyQuery, $tenantContext);
         $policies = $policyQuery->orderByDesc('id')->get();
 
         $branches = RestaurantBranch::where('restaurant_id', $user->restaurant_id)
             ->where('status', 'active')
+            ->when($tenantContext->isBranchScoped(), fn ($query) => $query->whereKey($tenantContext->activeBranchId()))
+            ->when($tenantContext->isUnassigned(), fn ($query) => $query->whereRaw('1 = 0'))
             ->select('id', 'name')
             ->get();
 
@@ -67,16 +65,22 @@ class CompanyPolicyController extends Controller
     {
         $user = $request->user();
         $categories = $this->categoriesForRestaurant($user->restaurant_id);
-        $branchId = $request->input('branch_id', $user->canViewAllBranches() ? null : $user->assignedBranchId());
+        $tenantContext = app(TenantContext::class);
+        $branchId = $tenantContext->activeBranchId();
+        if (! $tenantContext->isBranchScoped() && $request->has('branch_id')) {
+            $branchId = $request->input('branch_id');
+        }
 
         $query = CompanyPolicy::where('restaurant_id', $user->restaurant_id)
             ->where('status', 'published');
 
-        if ($branchId) {
+        if ($branchId !== null && $branchId !== '' && $branchId !== 'all') {
             $query->where(function ($q) use ($branchId) {
                 $q->where('applies_to_all_branches', true)
                     ->orWhereJsonContains('applicable_branch_ids', (int) $branchId);
             });
+        } elseif ($tenantContext->isUnassigned()) {
+            $query->whereRaw('1 = 0');
         }
 
         $policies = $query->orderBy('category')->orderBy('title')->get();
@@ -89,6 +93,24 @@ class CompanyPolicyController extends Controller
     }
 
     /**
+     * Policies with no branch restriction are visible in every branch scope;
+     * branch-specific policies are visible only when the active branch is
+     * included in their applicability list.
+     */
+    private function applyBranchVisibility($query, TenantContext $tenantContext): void
+    {
+        if ($tenantContext->isBranchScoped()) {
+            $branchId = $tenantContext->activeBranchId();
+            $query->where(function ($policyQuery) use ($branchId): void {
+                $policyQuery->where('applies_to_all_branches', true)
+                    ->orWhereJsonContains('applicable_branch_ids', (int) $branchId);
+            });
+        } elseif ($tenantContext->isUnassigned()) {
+            $query->whereRaw('1 = 0');
+        }
+    }
+
+    /**
      * API: Create Policy (Owner only)
      */
     public function store(Request $request): JsonResponse
@@ -96,7 +118,7 @@ class CompanyPolicyController extends Controller
         $user = $request->user();
         $this->ensureDefaultCategories($user->restaurant_id);
 
-        $request->validate([
+        $data = $request->validate([
             'title' => 'required|string|max:255',
             'category' => ['required', 'string', 'max:80', $this->categoryRule($user->restaurant_id)],
             'content' => 'required|string',
@@ -105,18 +127,23 @@ class CompanyPolicyController extends Controller
             'applicable_branch_ids' => 'nullable|array',
             'applicable_branch_ids.*' => [TenantRule::exists('restaurant_branches')],
         ]);
+        $tenantContext = app(TenantContext::class);
+        if ($tenantContext->isBranchScoped()) {
+            $data['applies_to_all_branches'] = false;
+            $data['applicable_branch_ids'] = [(int) $tenantContext->activeBranchId()];
+        }
 
         $policyCode = 'POL-'.Carbon::now()->format('Ymd').'-'.str_pad((string) (CompanyPolicy::where('restaurant_id', $user->restaurant_id)->count() + 1), 3, '0', STR_PAD_LEFT);
 
         $policy = CompanyPolicy::create([
             'restaurant_id' => $user->restaurant_id,
             'policy_code' => $policyCode,
-            'title' => $request->title,
-            'category' => $request->category,
-            'content' => $request->content,
-            'suggested_fine_amount' => $request->suggested_fine_amount ?? 0,
-            'applies_to_all_branches' => $request->applies_to_all_branches,
-            'applicable_branch_ids' => $request->applies_to_all_branches ? null : $request->applicable_branch_ids,
+            'title' => $data['title'],
+            'category' => $data['category'],
+            'content' => $data['content'],
+            'suggested_fine_amount' => $data['suggested_fine_amount'] ?? 0,
+            'applies_to_all_branches' => $data['applies_to_all_branches'],
+            'applicable_branch_ids' => $data['applies_to_all_branches'] ? null : $data['applicable_branch_ids'],
             'status' => 'published',
             'created_by' => $user->id,
         ]);
@@ -136,7 +163,7 @@ class CompanyPolicyController extends Controller
         $user = $request->user();
         $this->ensureDefaultCategories($user->restaurant_id);
 
-        $request->validate([
+        $data = $request->validate([
             'title' => 'required|string|max:255',
             'category' => ['required', 'string', 'max:80', $this->categoryRule($user->restaurant_id)],
             'content' => 'required|string',
@@ -146,17 +173,22 @@ class CompanyPolicyController extends Controller
             'applicable_branch_ids.*' => [TenantRule::exists('restaurant_branches')],
             'status' => 'required|string|in:published,draft,archived',
         ]);
+        $tenantContext = app(TenantContext::class);
+        if ($tenantContext->isBranchScoped()) {
+            $data['applies_to_all_branches'] = false;
+            $data['applicable_branch_ids'] = [(int) $tenantContext->activeBranchId()];
+        }
 
         $policy = CompanyPolicy::where('restaurant_id', $user->restaurant_id)->findOrFail($id);
 
         $policy->update([
-            'title' => $request->title,
-            'category' => $request->category,
-            'content' => $request->content,
-            'suggested_fine_amount' => $request->suggested_fine_amount ?? 0,
-            'applies_to_all_branches' => $request->applies_to_all_branches,
-            'applicable_branch_ids' => $request->applies_to_all_branches ? null : $request->applicable_branch_ids,
-            'status' => $request->status,
+            'title' => $data['title'],
+            'category' => $data['category'],
+            'content' => $data['content'],
+            'suggested_fine_amount' => $data['suggested_fine_amount'] ?? 0,
+            'applies_to_all_branches' => $data['applies_to_all_branches'],
+            'applicable_branch_ids' => $data['applies_to_all_branches'] ? null : $data['applicable_branch_ids'],
+            'status' => $data['status'],
         ]);
 
         return response()->json([
