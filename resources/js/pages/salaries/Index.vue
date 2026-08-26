@@ -74,6 +74,7 @@ type SalaryRow = {
     branch_id: number | null;
     base_salary: number;
     bonus_amount: number;
+    overtime_amount: number;
     deduction_amount: number;
     net_salary: number;
     status: 'draft' | 'approved' | 'paid';
@@ -2231,6 +2232,13 @@ const compact = (v: number) =>
                                         vnd(payStubTarget.bonus_amount)
                                     }}</span
                                 >
+                            </div>
+                            <div
+                                v-if="payStubTarget.overtime_amount > 0"
+                                class="flex justify-between border-b border-dashed py-1 text-indigo-600"
+                            >
+                                <span>{{ payStubTarget.breakdown?.compensation_type === 'hourly' ? 'Tiền tăng ca được duyệt (đã nằm trong lương gốc)' : 'Tiền tăng ca được duyệt (+)' }}</span>
+                                <span class="font-mono font-bold">{{ payStubTarget.breakdown?.compensation_type === 'hourly' ? '' : '+' }}{{ vnd(payStubTarget.overtime_amount) }}</span>
                             </div>
                             <div
                                 v-if="payStubTarget.deduction_amount > 0"

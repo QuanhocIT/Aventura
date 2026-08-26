@@ -27,7 +27,7 @@ defineOptions({ layout: AppLayout });
 const page = usePage();
 const employeeInfo = computed(() => page.props.employee as any);
 
-// Tabs: 'home' | 'schedule' | 'leave' | 'swap' | 'salary'
+// Tabs: 'home' | 'schedule' | 'leave' | 'swap' | 'overtime' | 'salary'
 const activeTab = ref('home');
 
 // Core data states
@@ -47,6 +47,17 @@ const notifications = ref<any[]>([]);
 const salaries = ref<any[]>([]);
 const leaves = ref<any[]>([]);
 const swaps = ref<any>(null);
+const overtimeRequests = ref<any[]>([]);
+const overtimeLoading = ref(false);
+const isSubmittingOvertime = ref(false);
+const overtimeForm = ref({
+    scheduled_date: new Date().toISOString().slice(0, 10),
+    hours_requested: 2,
+    start_time: '18:00',
+    end_time: '20:00',
+    overtime_type: 'normal',
+    reason: '',
+});
 
 // Forms states
 const leaveForm = ref({
@@ -143,6 +154,55 @@ const fetchSwaps = async () => {
         toast.error(
             apiErrorMessage(error, 'Không tải được danh sách yêu cầu đổi ca.'),
         );
+    }
+};
+
+const fetchOvertime = async () => {
+    overtimeLoading.value = true;
+
+    try {
+        const response = await axios.get('/employee-portal/overtime');
+
+        if (response.data.success) {
+            overtimeRequests.value = response.data.requests;
+        }
+    } catch (error) {
+        toast.error(apiErrorMessage(error, 'Không tải được danh sách tăng ca.'));
+    } finally {
+        overtimeLoading.value = false;
+    }
+};
+
+const submitOvertime = async () => {
+    if (isSubmittingOvertime.value) return;
+
+    isSubmittingOvertime.value = true;
+    try {
+        const response = await axios.post('/employee-portal/overtime', overtimeForm.value);
+
+        if (response.data.success) {
+            toast.success(response.data.message);
+            overtimeForm.value.reason = '';
+            fetchOvertime();
+        }
+    } catch (error) {
+        toast.error(apiErrorMessage(error, 'Không gửi được đơn xin tăng ca.'));
+    } finally {
+        isSubmittingOvertime.value = false;
+    }
+};
+
+const respondOvertime = async (overtimeId: number, action: 'accept' | 'decline') => {
+    try {
+        const response = await axios.post(`/employee-portal/overtime/${overtimeId}/respond`, { action });
+
+        if (response.data.success) {
+            toast.success(response.data.message);
+            fetchOvertime();
+            fetchData();
+        }
+    } catch (error) {
+        toast.error(apiErrorMessage(error, 'Không thể phản hồi yêu cầu tăng ca.'));
     }
 };
 
@@ -289,6 +349,10 @@ const changeTab = (tab: string) => {
     if (tab === 'swap') {
         fetchSwaps();
     }
+
+    if (tab === 'overtime') {
+        fetchOvertime();
+    }
 };
 
 const formatCurrency = (val: number) => {
@@ -410,6 +474,15 @@ const getLeaveTypeText = (type: string) => {
                     </div>
                 </div>
 
+                <button
+                    type="button"
+                    @click="changeTab('overtime')"
+                    class="inline-flex items-center justify-center gap-2 rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-2.5 text-xs font-semibold text-indigo-700 transition hover:bg-indigo-100"
+                >
+                    <Clock class="size-4" />
+                    Tăng ca
+                </button>
+
                 <a
                     href="/dashboard"
                     class="inline-flex items-center justify-center gap-2 rounded-xl border border-border bg-background px-4 py-2.5 text-xs font-semibold text-muted-foreground transition hover:border-primary/40 hover:text-foreground"
@@ -428,6 +501,7 @@ const getLeaveTypeText = (type: string) => {
                         { key: 'schedule', label: 'Lịch ca', icon: Calendar },
                         { key: 'leave', label: 'Nghỉ phép', icon: FileText },
                         { key: 'swap', label: 'Đổi ca', icon: RefreshCw },
+                        { key: 'overtime', label: 'Tăng ca', icon: Clock },
                         { key: 'salary', label: 'Lương', icon: Coins },
                     ]"
                     :key="t.key"
@@ -1405,7 +1479,40 @@ const getLeaveTypeText = (type: string) => {
                         </div>
                     </div>
 
-                    <!-- TAB 5: SALARY (LƯƠNG & PHIẾU LƯƠNG) -->
+                    <!-- TAB 5: OVERTIME -->
+                    <div
+                        v-if="activeTab === 'overtime'"
+                        class="animate-fadeIn space-y-4"
+                    >
+                        <div class="flex flex-col justify-between gap-3 sm:flex-row sm:items-end">
+                            <div>
+                                <h3 class="text-base font-semibold text-foreground">Đăng ký tăng ca</h3>
+                                <p class="mt-1 text-xs text-muted-foreground">Hệ thống tính theo đơn giá và hệ số OT; chỉ giờ được duyệt và chấm công mới vào lương.</p>
+                            </div>
+                            <span class="rounded-full bg-indigo-500/10 px-3 py-1 text-[11px] font-semibold text-indigo-600">Tăng ca được duyệt sẽ cộng vào kỳ lương</span>
+                        </div>
+
+                        <form class="grid gap-3 rounded-2xl border border-indigo-500/20 bg-indigo-500/5 p-4 md:grid-cols-4" @submit.prevent="submitOvertime">
+                            <label class="space-y-1 text-xs font-semibold">Ngày tăng ca<input v-model="overtimeForm.scheduled_date" type="date" required class="h-10 w-full rounded-xl border border-border bg-background px-3 text-sm font-normal" /></label>
+                            <label class="space-y-1 text-xs font-semibold">Số giờ<input v-model.number="overtimeForm.hours_requested" type="number" min="0.25" max="12" step="0.25" required class="h-10 w-full rounded-xl border border-border bg-background px-3 text-sm font-normal" /></label>
+                            <label class="space-y-1 text-xs font-semibold">Bắt đầu<input v-model="overtimeForm.start_time" type="time" required class="h-10 w-full rounded-xl border border-border bg-background px-3 text-sm font-normal" /></label>
+                            <label class="space-y-1 text-xs font-semibold">Kết thúc<input v-model="overtimeForm.end_time" type="time" required class="h-10 w-full rounded-xl border border-border bg-background px-3 text-sm font-normal" /></label>
+                            <label class="space-y-1 text-xs font-semibold md:col-span-2">Loại tăng ca<select v-model="overtimeForm.overtime_type" class="h-10 w-full rounded-xl border border-border bg-background px-3 text-sm font-normal"><option value="normal">Ngày thường</option><option value="night">Ban đêm</option><option value="rest_day">Ngày nghỉ</option><option value="holiday">Ngày lễ</option></select></label>
+                            <label class="space-y-1 text-xs font-semibold md:col-span-2">Lý do<textarea v-model="overtimeForm.reason" rows="1" maxlength="500" class="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm font-normal" placeholder="Mô tả công việc cần hoàn thành..." /></label>
+                            <button type="submit" :disabled="isSubmittingOvertime" class="md:col-span-4 inline-flex h-10 items-center justify-center rounded-xl bg-indigo-600 px-4 text-xs font-bold text-white transition hover:bg-indigo-500 disabled:opacity-50">{{ isSubmittingOvertime ? 'Đang gửi...' : 'Gửi đơn xin tăng ca' }}</button>
+                        </form>
+
+                        <div v-if="overtimeLoading" class="rounded-2xl border border-border py-10 text-center text-sm text-muted-foreground">Đang tải đơn tăng ca...</div>
+                        <div v-else-if="overtimeRequests.length === 0" class="rounded-2xl border border-dashed border-border py-10 text-center text-sm text-muted-foreground">Chưa có yêu cầu tăng ca.</div>
+                        <div v-else class="space-y-3">
+                            <div v-for="item in overtimeRequests" :key="item.id" class="flex flex-col justify-between gap-3 rounded-2xl border border-border bg-card p-4 sm:flex-row sm:items-center">
+                                <div class="space-y-1"><div class="flex flex-wrap items-center gap-2"><span class="text-sm font-bold text-foreground">{{ formatDate(item.scheduled_date) }}</span><span class="rounded-full px-2 py-0.5 text-[10px] font-semibold" :class="getStatusBadge(item.status)">{{ getStatusText(item.status) }}</span><span class="text-[11px] text-muted-foreground">{{ item.overtime_type_label }} · {{ item.hours_requested }} giờ · {{ item.overtime_multiplier }}x</span></div><p class="text-xs text-muted-foreground">{{ item.scheduled_start_at || '--:--' }} - {{ item.scheduled_end_at || '--:--' }} · Dự kiến: <b class="text-indigo-600">{{ formatCurrency(item.estimated_amount) }}</b></p><p v-if="item.reason" class="text-xs text-muted-foreground">{{ item.reason }}</p><p v-if="item.rejection_reason" class="text-xs text-rose-500">{{ item.rejection_reason }}</p></div>
+                                <div v-if="item.request_source === 'management' && item.employee_response === 'pending' && item.status === 'pending'" class="flex shrink-0 gap-2"><button type="button" class="rounded-xl bg-emerald-600 px-3 py-2 text-[11px] font-bold text-white hover:bg-emerald-500" @click="respondOvertime(item.id, 'accept')">Đồng ý</button><button type="button" class="rounded-xl border border-rose-300 px-3 py-2 text-[11px] font-bold text-rose-600 hover:bg-rose-50" @click="respondOvertime(item.id, 'decline')">Từ chối</button></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- TAB 6: SALARY (LƯƠNG & PHIẾU LƯƠNG) -->
                     <div
                         v-if="activeTab === 'salary'"
                         class="animate-fadeIn space-y-4"
@@ -1445,6 +1552,14 @@ const getLeaveTypeText = (type: string) => {
                                             }}</span
                                         >
                                     </div>
+                                    <p
+                                        v-if="sal.overtime_amount > 0"
+                                        class="text-[11px] text-emerald-400"
+                                    >
+                                        OT: {{ formatCurrency(sal.overtime_amount) }}
+                                        <span v-if="sal.compensation_type === 'hourly'">(đã tính trong lương theo giờ)</span>
+                                        <span v-else>(cộng thêm theo hệ số)</span>
+                                    </p>
                                     <p
                                         v-if="sal.paid_at"
                                         class="text-[10px] text-slate-500"
@@ -1548,6 +1663,16 @@ const getLeaveTypeText = (type: string) => {
                                 <span class="font-bold text-slate-200">{{
                                     formatCurrency(selectedSalary.base_salary)
                                 }}</span>
+                            </div>
+
+                            <div
+                                v-if="selectedSalary.overtime_amount > 0"
+                                class="flex justify-between py-2.5"
+                            >
+                                <span class="text-slate-400">Tiền tăng ca:</span>
+                                <span class="font-bold text-emerald-400">
+                                    {{ formatCurrency(selectedSalary.overtime_amount) }}
+                                </span>
                             </div>
 
                             <!-- Adjustments details -->

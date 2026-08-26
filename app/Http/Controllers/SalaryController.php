@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\ApprovalRequest;
 use App\Models\Employee;
+use App\Models\OvertimeRequest;
 use App\Models\RestaurantBranch;
 use App\Models\Salary;
 use App\Models\SalaryAdjustment;
@@ -95,6 +96,7 @@ class SalaryController extends Controller
                     'branch_id' => $s->employee?->branch_id,
                     'base_salary' => (float) $s->base_salary,
                     'bonus_amount' => (float) $s->bonus_amount,
+                    'overtime_amount' => (float) ($s->overtime_amount ?? 0),
                     'deduction_amount' => (float) $s->deduction_amount,
                     'net_salary' => (float) $s->net_salary,
                     'status' => $s->status,
@@ -314,6 +316,15 @@ class SalaryController extends Controller
             );
 
             $lockedSalary->update(['status' => 'paid', 'paid_at' => now()]);
+            OvertimeRequest::withoutGlobalScopes()
+                ->where('salary_id', $lockedSalary->id)
+                ->where('workflow_status', 'included')
+                ->update([
+                    'workflow_status' => 'paid',
+                    'payroll_status' => 'paid',
+                    'last_action_at' => now(),
+                    'last_action_by' => $request->user()->id,
+                ]);
         });
         $salary->refresh();
 

@@ -22,6 +22,7 @@ class Salary extends Model
             'paid_at' => 'datetime',
             'base_salary' => 'decimal:2',
             'bonus_amount' => 'decimal:2',
+            'overtime_amount' => 'decimal:2',
             'deduction_amount' => 'decimal:2',
             'net_salary' => 'decimal:2',
         ];

@@ -180,6 +180,80 @@ class EmployeeUpgradesTest extends TestCase
         $this->assertEquals(70000.0, $wages2);
     }
 
+    public function test_approved_off_day_overtime_uses_actual_hours_and_snapshotted_rate(): void
+    {
+        $employee = Employee::create([
+            'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
+            'employee_code' => 'EMP-OT-OFFDAY',
+            'full_name' => 'Off Day Worker',
+            'status' => 'active',
+            'compensation_type' => 'hourly',
+            'pay_rate' => 10000,
+        ]);
+
+        OvertimeRequest::create([
+            'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
+            'employee_id' => $employee->id,
+            'scheduled_date' => '2026-06-30',
+            'hours_requested' => 3,
+            'hours_approved' => 3,
+            'status' => 'approved',
+            'overtime_type' => 'rest_day',
+            'hourly_rate' => 10000,
+            'overtime_multiplier' => 2,
+            'check_in_at' => '2026-06-30 18:00:00',
+            'check_out_at' => '2026-06-30 20:00:00',
+            'worked_hours' => 2,
+            'actual_amount' => 40000,
+            'payroll_status' => 'ready',
+        ]);
+
+        $wages = app(SalaryService::class)->calculateDynamicBaseSalary($employee, '2026-06-01', '2026-06-30');
+
+        $this->assertEquals(40000.0, $wages);
+    }
+
+    public function test_employee_can_register_overtime_and_system_snapshots_pay_quote(): void
+    {
+        $user = User::factory()->create([
+            'restaurant_id' => $this->restaurant->id,
+            'status' => 'active',
+        ]);
+        $user->assignRole('waiter');
+
+        $employee = Employee::create([
+            'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
+            'user_id' => $user->id,
+            'employee_code' => 'EMP-OT-REGISTER',
+            'full_name' => 'Register OT Worker',
+            'status' => 'active',
+            'compensation_type' => 'fixed',
+            'base_salary' => 6240000,
+        ]);
+        $date = now()->addDay()->toDateString();
+
+        $response = $this->actingAs($user)->from('/employee-portal')->post('/overtime-requests', [
+            'scheduled_date' => $date,
+            'hours_requested' => 2,
+            'start_time' => '18:00',
+            'end_time' => '20:00',
+            'overtime_type' => 'normal',
+            'reason' => 'Đơn hàng tăng đột biến',
+        ]);
+
+        $response->assertRedirect('/employee-portal');
+        $this->assertDatabaseHas('overtime_requests', [
+            'employee_id' => $employee->id,
+            'status' => 'pending',
+            'overtime_type' => 'normal',
+            'overtime_multiplier' => 1.5,
+            'estimated_amount' => 90000,
+        ]);
+    }
+
     /**
      * Test 2B: Department-specific inventory loss allocation.
      */

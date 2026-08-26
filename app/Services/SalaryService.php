@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Employee;
+use App\Models\EmployeeBonus;
 use App\Models\EmployeeKpi;
 use App\Models\Ingredient;
 use App\Models\InventoryTransaction;
@@ -40,6 +41,7 @@ class SalaryService
                 'branch_id' => $employee->branch_id,
                 'base_salary' => $this->calculateDynamicBaseSalary($employee, $periodStart, $periodEnd),
                 'bonus_amount' => 0,
+                'overtime_amount' => 0,
                 'deduction_amount' => 0,
                 'net_salary' => 0, // recalculate will handle it
                 'status' => 'draft',
@@ -76,8 +78,8 @@ class SalaryService
         return (float) ($employee->base_salary ?? 0);
     }
 
-    /** @return array{total_wages: float, regular_hours: float, ot_hours: float, unapproved_ot_hours: float, actual_work_days: int, completed_shifts_count: int} */
-    private function hourlyCalculation(Employee $employee, string $start, string $end, ?array $context = null): array
+    /** @return array{total_wages: float, regular_hours: float, ot_hours: float, ot_amount: float, unapproved_ot_hours: float, actual_work_days: int, completed_shifts_count: int} */
+    private function hourlyCalculation(Employee $employee, string $start, string $end, ?array $context = null, ?float $overridePayRate = null): array
     {
         $context ??= [];
         $assignments = $this->periodAssignments($employee, $start, $end, $context, true);
@@ -86,15 +88,18 @@ class SalaryService
         $restaurant = $context['restaurant'] ?? Restaurant::find($employee->restaurant_id);
         $graceMinutes = $restaurant?->grace_period_minutes ?? 10;
         $otMultiplier = (float) ($restaurant?->ot_multiplier ?? 1.50);
-        $payRate = (float) ($employee->pay_rate ?? 0);
+        $payRate = $overridePayRate ?? (float) ($employee->pay_rate ?? 0);
         $regularSeconds = 0.0;
         $paidOtSeconds = 0.0;
+        $otAmount = 0.0;
         $unapprovedOtSeconds = 0.0;
         $workDates = [];
+        $assignmentDates = [];
 
         foreach ($assignments as $assignment) {
             $dateStr = Carbon::parse($assignment->scheduled_date)->toDateString();
             $workDates[$dateStr] = true;
+            $assignmentDates[$dateStr] = true;
             $shift = $assignment->shift;
 
             if (! $shift) {
@@ -142,20 +147,52 @@ class SalaryService
                 }
             }
 
-            $approvedOtHours = (float) ($otRequests->get($dateStr)?->sum('hours_approved') ?? 0);
+            $requestsForDate = $otRequests->get($dateStr, collect());
+            $approvedOtHours = (float) $requestsForDate->sum('hours_approved');
             $approvedOtSeconds = max(0.0, $approvedOtHours * 3600);
-            $paidOtSeconds += min($otDuration, $approvedOtSeconds);
+            $request = $requestsForDate->first();
+            $paidSecondsForAssignment = $request?->worked_hours > 0 && $request?->check_in_at && $request?->check_out_at
+                ? min((float) $request->worked_hours * 3600, $approvedOtSeconds)
+                : min($otDuration, $approvedOtSeconds);
+            $paidOtSeconds += $paidSecondsForAssignment;
+            $requestRate = (float) ($request?->hourly_rate ?: $payRate);
+            $requestMultiplier = (float) ($request?->overtime_multiplier ?: $otMultiplier);
+            $otAmount += ($paidSecondsForAssignment / 3600) * $requestRate * $requestMultiplier;
             $unapprovedOtSeconds += max(0.0, $otDuration - $approvedOtSeconds);
             $regularSeconds += $regularDuration;
+        }
+
+        // Ngày nghỉ/không có ca vẫn có thể phát sinh OT. Trường hợp này dùng
+        // phiên check-in/check-out OT trên overtime_requests thay vì đợi một
+        // schedule assignment có shift.
+        foreach ($otRequests as $requestsForDate) {
+            foreach ($requestsForDate as $request) {
+                $dateStr = Carbon::parse($request->scheduled_date)->toDateString();
+                if (isset($assignmentDates[$dateStr]) || ! $request->check_in_at || ! $request->check_out_at) {
+                    continue;
+                }
+
+                $workedHours = min((float) $request->hours_approved, (float) ($request->worked_hours ?? 0));
+                if ($workedHours <= 0) {
+                    continue;
+                }
+
+                $workDates[$dateStr] = true;
+                $paidOtSeconds += $workedHours * 3600;
+                $requestRate = (float) ($request->hourly_rate ?: $payRate);
+                $requestMultiplier = (float) ($request->overtime_multiplier ?: $otMultiplier);
+                $otAmount += $workedHours * $requestRate * $requestMultiplier;
+            }
         }
 
         $regularHours = $regularSeconds / 3600;
         $otHours = $paidOtSeconds / 3600;
 
         return [
-            'total_wages' => round(($regularHours * $payRate) + ($otHours * $payRate * $otMultiplier), 2),
+            'total_wages' => round(($regularHours * $payRate) + $otAmount, 2),
             'regular_hours' => round($regularHours, 2),
             'ot_hours' => round($otHours, 2),
+            'ot_amount' => round($otAmount, 2),
             'unapproved_ot_hours' => round($unapprovedOtSeconds / 3600, 2),
             'actual_work_days' => count($workDates),
             'completed_shifts_count' => $assignments->count(),
@@ -206,14 +243,63 @@ class SalaryService
             return $context['ot_requests']
                 ->where('employee_id', $employee->id)
                 ->where('status', 'approved')
+                ->filter(fn ($request) => $this->isPayrollEligibleOvertime($request))
                 ->filter(fn ($request) => ($date = Carbon::parse($request->scheduled_date)->toDateString()) >= $start && $date <= $end);
         }
 
         return OvertimeRequest::withoutGlobalScopes()
             ->where('employee_id', $employee->id)
-            ->whereBetween('scheduled_date', [$start, $end])
+            ->whereDate('scheduled_date', '>=', $start)
+            ->whereDate('scheduled_date', '<=', $end)
             ->where('status', 'approved')
+            ->where(function ($query): void {
+                $query->whereIn('payroll_status', ['ready', 'included'])
+                    ->orWhere(function ($legacy): void {
+                        $legacy->where('workflow_status', 'submitted')
+                            ->whereNull('scheduled_start_at');
+                    });
+            })
             ->get();
+    }
+
+    private function isPayrollEligibleOvertime($request): bool
+    {
+        return in_array($request->payroll_status ?? null, ['ready', 'included'], true)
+            || (($request->workflow_status ?? null) === 'submitted' && empty($request->scheduled_start_at));
+    }
+
+    /**
+     * Approved overtime is paid on top of the contract salary for fixed/shift
+     * employees as well. The amount stays separate from bonuses on the pay
+     * stub so payroll remains auditable.
+     *
+     * @return array{amount: float, hours: float, unapproved_hours: float, hourly_rate: float}
+     */
+    private function overtimeCalculation(Employee $employee, string $start, string $end, ?array $context = null): array
+    {
+        $hourlyRate = $this->overtimeHourlyRate($employee);
+        $calculation = $this->hourlyCalculation($employee, $start, $end, $context, $hourlyRate);
+
+        return [
+            'amount' => round((float) ($calculation['ot_amount'] ?? 0), 2),
+            'hours' => (float) $calculation['ot_hours'],
+            'unapproved_hours' => (float) $calculation['unapproved_ot_hours'],
+            'hourly_rate' => $hourlyRate,
+        ];
+    }
+
+    private function overtimeHourlyRate(Employee $employee): float
+    {
+        if (($employee->compensation_type ?? 'fixed') === 'hourly') {
+            return (float) ($employee->pay_rate ?? 0);
+        }
+
+        if (($employee->compensation_type ?? 'fixed') === 'shift') {
+            return round((float) ($employee->pay_rate ?? 0) / 8, 2);
+        }
+
+        // Payroll convention: 26 standard days and 8 hours/day for fixed pay.
+        return round((float) ($employee->base_salary ?? 0) / 26 / 8, 2);
     }
 
     /** @return array{paid: int, unpaid: int} */
@@ -337,17 +423,49 @@ class SalaryService
             ->filter(fn (SalaryAdjustment $adjustment) => in_array($adjustment->status, ['applied', null], true))
             ->sum('amount');
 
+        $employee = $salary->employee;
+        $overtimeAmount = $employee
+            ? $this->overtimeCalculation(
+                $employee,
+                Carbon::parse($salary->pay_period_start)->toDateString(),
+                Carbon::parse($salary->pay_period_end)->toDateString(),
+            )['amount']
+            : 0.0;
+
         // Chỉ tính khấu trừ từ các adjustments có trạng thái 'applied'
         $deductions = (float) $adjustments
             ->whereIn('type', ['penalty', 'cash_shortage', 'inventory_loss', 'violation', 'advance'])
             ->where('status', 'applied')
             ->sum('amount');
 
+        // Hourly base salary already includes approved overtime in calculateDynamicBaseSalary().
+        // Other compensation types add overtime separately to avoid double payment.
+        $overtimeAddedToNet = $employee?->compensation_type === 'hourly'
+            ? 0.0
+            : $overtimeAmount;
+
         $salary->update([
             'bonus_amount' => $bonuses,
+            'overtime_amount' => $overtimeAmount,
             'deduction_amount' => $deductions,
-            'net_salary' => max(0, (float) $salary->base_salary + $bonuses - $deductions),
+            'net_salary' => max(0, (float) $salary->base_salary + $bonuses + $overtimeAddedToNet - $deductions),
         ]);
+
+        if ($salary->status === 'draft') {
+            OvertimeRequest::withoutGlobalScopes()
+                ->where('employee_id', $salary->employee_id)
+                ->where('status', 'approved')
+                ->whereIn('workflow_status', ['ready_for_payroll', 'included'])
+                ->where('payroll_status', 'ready')
+                ->whereDate('scheduled_date', '>=', Carbon::parse($salary->pay_period_start)->toDateString())
+                ->whereDate('scheduled_date', '<=', Carbon::parse($salary->pay_period_end)->toDateString())
+                ->update([
+                    'salary_id' => $salary->id,
+                    'workflow_status' => 'included',
+                    'payroll_status' => 'included',
+                    'payroll_included_at' => now(),
+                ]);
+        }
     }
 
     /**
@@ -403,6 +521,15 @@ class SalaryService
             ->whereIn('employee_id', $employeeIds)
             ->whereBetween('scheduled_date', [$periodStart, $periodEnd])
             ->where('status', 'approved')
+            ->get();
+
+        // Manual rewards are independent of salary drafts. sweepAdjustments()
+        // converts them to auditable salary adjustments idempotently.
+        $context['employee_bonuses'] = EmployeeBonus::withoutGlobalScopes()
+            ->where('restaurant_id', $restaurantId)
+            ->whereIn('employee_id', $employeeIds)
+            ->whereBetween('awarded_at', [$periodStart, $periodEnd])
+            ->where('status', 'active')
             ->get();
 
         // 6. Shift shortages
@@ -506,6 +633,7 @@ class SalaryService
                     'pay_period_end' => $periodEnd,
                     'base_salary' => $baseSalary,
                     'bonus_amount' => 0,
+                    'overtime_amount' => 0,
                     'deduction_amount' => 0,
                     'net_salary' => $baseSalary,
                     'status' => 'draft',
@@ -545,6 +673,8 @@ class SalaryService
         $restaurantId = $salary->restaurant_id;
         $start = $salary->pay_period_start->toDateString();
         $end = $salary->pay_period_end->toDateString();
+
+        $this->applyEmployeeBonuses($salary, $employee, $restaurantId, $start, $end, $context);
 
         // 1. Quy trách nhiệm ca: âm trừ lương, dương cộng lương.
         if ($employee->user_id) {
@@ -873,8 +1003,58 @@ class SalaryService
         $this->recalculate($salary);
     }
 
+    private function applyEmployeeBonuses(
+        Salary $salary,
+        Employee $employee,
+        int $restaurantId,
+        string $start,
+        string $end,
+        ?array $context = null,
+    ): void {
+        $context ??= [];
+        $bonuses = isset($context['employee_bonuses'])
+            ? $context['employee_bonuses']->where('employee_id', $employee->id)->filter(function ($bonus) use ($start, $end) {
+                $date = Carbon::parse($bonus->awarded_at)->toDateString();
+
+                return $date >= $start && $date <= $end && $bonus->status === 'active';
+            })
+            : EmployeeBonus::withoutGlobalScopes()
+                ->where('restaurant_id', $restaurantId)
+                ->where('employee_id', $employee->id)
+                ->whereBetween('awarded_at', [$start, $end])
+                ->where('status', 'active')
+                ->get();
+
+        foreach ($bonuses as $bonus) {
+            $exists = isset($context['adjustments_map'])
+                ? isset($context['adjustments_map'][EmployeeBonus::class.'_'.$bonus->id.'_'.$employee->id])
+                : SalaryAdjustment::withoutGlobalScopes()
+                    ->where('salary_id', $salary->id)
+                    ->where('employee_id', $employee->id)
+                    ->where('reference_id', $bonus->id)
+                    ->where('reference_type', EmployeeBonus::class)
+                    ->exists();
+
+            if ($exists) {
+                continue;
+            }
+
+            SalaryAdjustment::create([
+                'salary_id' => $salary->id,
+                'restaurant_id' => $restaurantId,
+                'employee_id' => $employee->id,
+                'type' => 'bonus',
+                'amount' => (float) $bonus->amount,
+                'reason' => 'Thưởng: '.$bonus->reason,
+                'reference_id' => $bonus->id,
+                'reference_type' => EmployeeBonus::class,
+                'status' => 'applied',
+            ]);
+        }
+    }
+
     /**
-     * Lấy giải trình chi tiết công thức tính lương cho phiếu lương (Pay Stub Breakdown).
+     * Get a detailed explanation of the salary calculation for the pay stub.
      */
     public function getSalaryCalculationDetails(Salary $salary): array
     {
@@ -902,6 +1082,7 @@ class SalaryService
         $calculation = $compType === 'hourly'
             ? $this->hourlyCalculation($employee, $start, $end)
             : $this->shiftCalculation($employee, $start, $end);
+        $overtimeCalculation = $this->overtimeCalculation($employee, $start, $end);
         $leaveDays = $this->leaveDayCounts($employee, $start, $end);
         $actualWorkDays = (int) ($calculation['actual_work_days'] ?? 0);
         $completedShiftsCount = (int) ($calculation['completed_shifts_count'] ?? 0);
@@ -909,12 +1090,12 @@ class SalaryService
         $unpaidLeaveDays = $leaveDays['unpaid'];
         $totalPaidDays = $actualWorkDays + $paidLeaveDays;
         $regularHours = (float) ($calculation['regular_hours'] ?? 0);
-        $otHours = (float) ($calculation['ot_hours'] ?? 0);
-        $unapprovedOtHours = (float) ($calculation['unapproved_ot_hours'] ?? 0);
+        $otHours = (float) $overtimeCalculation['hours'];
+        $unapprovedOtHours = (float) $overtimeCalculation['unapproved_hours'];
         $restaurant = Restaurant::find($employee->restaurant_id);
         $otMultiplier = (float) ($restaurant?->ot_multiplier ?? 1.50);
         $regularAmount = round($regularHours * $payRate, 2);
-        $overtimeAmount = round($otHours * $payRate * $otMultiplier, 2);
+        $overtimeAmount = (float) $overtimeCalculation['amount'];
 
         $dailyRate = $standardDays > 0 ? round($contractSalary / $standardDays, 0) : 0;
 
@@ -954,6 +1135,7 @@ class SalaryService
             'ot_multiplier' => $otMultiplier,
             'regular_amount' => $regularAmount,
             'overtime_amount' => $overtimeAmount,
+            'overtime_hourly_rate' => (float) $overtimeCalculation['hourly_rate'],
             'policy_note' => $compType === 'fixed'
                 ? 'Lương tháng cố định không tự giảm vì thiếu log chấm công; các ngày vắng/đi muộn cần điều chỉnh được duyệt.'
                 : 'Chỉ ca hoàn thành và OT được duyệt mới được dùng để tính lương.',

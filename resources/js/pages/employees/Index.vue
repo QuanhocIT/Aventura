@@ -231,7 +231,21 @@ const employeeForm = useForm({
     hire_date: new Date().toISOString().split('T')[0],
     branch_id: props.branches[0]?.id ?? '',
     wage_tier_id: '' as number | '',
+    fixed_shift_id: props.shifts[0]?.id ?? '',
+    fixed_weekdays: [1, 2, 3, 4, 5, 6] as number[],
+    fixed_schedule_from: new Date().toISOString().split('T')[0],
+    fixed_schedule_until: '',
 });
+
+const fixedWeekdays = [
+    { value: 1, label: 'T2' },
+    { value: 2, label: 'T3' },
+    { value: 3, label: 'T4' },
+    { value: 4, label: 'T5' },
+    { value: 5, label: 'T6' },
+    { value: 6, label: 'T7' },
+    { value: 7, label: 'CN' },
+];
 
 const isWarehouseRole = (role: string) =>
     role === 'warehouse_manager' || role === 'warehouse_staff' || role === 'logistics_driver' || role === 'assistant_warehouse_keeper';
@@ -1858,6 +1872,48 @@ const submitSwapReject = () => {
                                     readonly
                                     class="h-9 font-mono text-xs font-bold text-indigo-600 dark:text-indigo-400 bg-slate-100 dark:bg-slate-900 cursor-not-allowed"
                                 />
+                            </div>
+                        </div>
+
+                        <div
+                            v-if="employeeForm.compensation_type === 'fixed'"
+                            class="space-y-3 rounded-xl border border-amber-200 bg-amber-50/50 p-3.5 dark:border-amber-950/40 dark:bg-amber-950/20"
+                        >
+                            <div>
+                                <Label class="text-xs font-bold text-amber-700 dark:text-amber-300">
+                                    Lịch làm cố định (tự động đưa vào bảng xếp ca)
+                                </Label>
+                                <p class="mt-1 text-[11px] text-amber-700/80 dark:text-amber-300/80">
+                                    Khi tạo nhân viên lương tháng cố định, hệ thống sẽ tạo lịch lặp lại và sinh ca trong 90 ngày đầu.
+                                </p>
+                            </div>
+                            <div class="grid grid-cols-2 gap-3">
+                                <div class="grid gap-1.5">
+                                    <Label class="text-xs">Ca cố định</Label>
+                                    <select
+                                        v-model="employeeForm.fixed_shift_id"
+                                        class="w-full rounded-md border border-slate-200 bg-background px-3 py-2 text-sm"
+                                    >
+                                        <option v-for="shift in props.shifts" :key="shift.id" :value="shift.id">
+                                            {{ shift.name }} ({{ shift.start }} - {{ shift.end }})
+                                        </option>
+                                    </select>
+                                </div>
+                                <div class="grid gap-1.5">
+                                    <Label class="text-xs">Bắt đầu áp dụng</Label>
+                                    <Input v-model="employeeForm.fixed_schedule_from" type="date" />
+                                </div>
+                            </div>
+                            <div class="flex flex-wrap gap-1.5">
+                                <label
+                                    v-for="day in fixedWeekdays"
+                                    :key="day.value"
+                                    class="flex cursor-pointer items-center gap-1 rounded-md border px-2 py-1 text-xs"
+                                    :class="employeeForm.fixed_weekdays.includes(day.value) ? 'border-amber-500 bg-amber-100 text-amber-800' : 'border-slate-200 bg-background text-slate-500'"
+                                >
+                                    <input v-model="employeeForm.fixed_weekdays" type="checkbox" :value="day.value" class="accent-amber-600" />
+                                    {{ day.label }}
+                                </label>
                             </div>
                         </div>
 
@@ -4273,7 +4329,6 @@ const submitSwapReject = () => {
         </div>
         
 
-        <!-- MODAL: THAY CA KHẨN CẤP -->
         <Teleport to="body">
         <div
             v-if="showEmergencyReplace"

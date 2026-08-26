@@ -260,6 +260,16 @@ class Employee extends Model
         return $this->hasMany(OvertimeRequest::class);
     }
 
+    public function fixedSchedules(): HasMany
+    {
+        return $this->hasMany(EmployeeFixedSchedule::class);
+    }
+
+    public function bonuses(): HasMany
+    {
+        return $this->hasMany(EmployeeBonus::class);
+    }
+
     protected static function newFactory(): Factory
     {
         return EmployeeFactory::new();

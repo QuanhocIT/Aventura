@@ -6,7 +6,9 @@ use App\Concerns\PasswordValidationRules;
 use App\Mail\EmployeeInvitationMail;
 use App\Models\BranchPayrollBudget;
 use App\Models\Employee;
+use App\Models\EmployeeBonus;
 use App\Models\LeaveRequest;
+use App\Models\Salary;
 use App\Models\ScheduleAssignment;
 use App\Models\ScheduleRegistration;
 use App\Models\ShiftSwap;
@@ -14,6 +16,7 @@ use App\Models\User;
 use App\Models\WageTier;
 use App\Models\WorkShift;
 use App\Services\CentralWarehouseService;
+use App\Services\FixedScheduleService;
 use App\Services\PayrollBudgetService;
 use App\Services\QuotaService;
 use App\Services\ScheduleAssignmentService;
@@ -111,7 +114,7 @@ class EmployeeManagementController extends Controller
         }
 
         $employees = Employee::where('restaurant_id', $user->restaurant_id)
-            ->when($tenantContext->isBranchScoped() && ! $isWarehouseManager, fn ($q) => $q->where('branch_id', $branchId))
+            ->when($tenantContext->isBranchScoped() && $branchId, fn ($q) => $q->where('branch_id', $branchId))
             ->when($isWarehouseManager && $payrollBranchId, fn ($q) => $q->where(function ($scope) use ($payrollBranchId) {
                 $scope->where('branch_id', $payrollBranchId)
                     ->orWhereExists(function ($userQuery) use ($payrollBranchId) {
@@ -207,6 +210,22 @@ class EmployeeManagementController extends Controller
 
         // Clean up un-checked-in past shifts automatically
         app(ScheduleAssignmentService::class)->cleanupUncheckedInPastShifts($user->restaurant_id, $branchId);
+
+        // Materialize recurring fixed schedules into the roster whenever the
+        // page is opened, so the pattern remains effective beyond the initial
+        // 90-day horizon created with the employee.
+        $fixedScheduleService = app(FixedScheduleService::class);
+        Employee::where('restaurant_id', $user->restaurant_id)
+            ->where('status', 'active')
+            ->where('compensation_type', 'fixed')
+            ->when($tenantContext->isBranchScoped() && ! $isWarehouseManager, fn ($q) => $q->where('branch_id', $branchId))
+            ->whereHas('fixedSchedules', fn ($q) => $q->where('is_active', true))
+            ->get()
+            ->each(fn (Employee $fixedEmployee) => $fixedScheduleService->syncAssignments(
+                $fixedEmployee,
+                Carbon::today(),
+                Carbon::today()->addDays(90),
+            ));
 
         $assignmentsQuery = ScheduleAssignment::where('restaurant_id', $user->restaurant_id)
             ->when($tenantContext->isBranchScoped(), fn ($q) => $q->where('branch_id', $branchId))
@@ -509,6 +528,14 @@ class EmployeeManagementController extends Controller
                 'nullable', 'integer',
                 Rule::exists('wage_tiers', 'id')->where('restaurant_id', $user->restaurant_id),
             ],
+            'fixed_shift_id' => [
+                'nullable', 'integer',
+                Rule::exists('work_shifts', 'id')->where('restaurant_id', $user->restaurant_id),
+            ],
+            'fixed_weekdays' => ['nullable', 'array'],
+            'fixed_weekdays.*' => ['integer', 'between:1,7'],
+            'fixed_schedule_from' => ['nullable', 'date'],
+            'fixed_schedule_until' => ['nullable', 'date', 'after_or_equal:fixed_schedule_from'],
         ]);
 
         $this->assertRoleAssignmentAllowed($user, $data['role']);
@@ -719,6 +746,20 @@ class EmployeeManagementController extends Controller
             }
 
             throw $e;
+        }
+
+        // Nhân viên lương tháng cố định luôn có lịch lặp lại và được đẩy ngay
+        // vào bảng xếp ca. Các trường lịch là tùy chọn để giữ tương thích với
+        // các form/đối tác cũ; service sẽ dùng Ca đầu tiên và thứ Hai-Thứ Bảy
+        // làm mặc định khi người tạo không truyền cấu hình.
+        if (($newEmployee->compensation_type ?? 'fixed') === 'fixed') {
+            app(FixedScheduleService::class)->createForEmployee(
+                $newEmployee,
+                isset($data['fixed_shift_id']) ? (int) $data['fixed_shift_id'] : null,
+                $data['fixed_weekdays'] ?? null,
+                $data['fixed_schedule_from'] ?? null,
+                $data['fixed_schedule_until'] ?? null,
+            );
         }
 
         // Tạo signed URL hạn dùng 3 ngày để xác nhận lời mời nhận việc
@@ -1302,6 +1343,14 @@ class EmployeeManagementController extends Controller
                 'sometimes', 'nullable', 'integer',
                 Rule::exists('restaurant_branches', 'id')->where('restaurant_id', $user->restaurant_id),
             ],
+            'fixed_shift_id' => [
+                'nullable', 'integer',
+                Rule::exists('work_shifts', 'id')->where('restaurant_id', $user->restaurant_id),
+            ],
+            'fixed_weekdays' => ['nullable', 'array'],
+            'fixed_weekdays.*' => ['integer', 'between:1,7'],
+            'fixed_schedule_from' => ['nullable', 'date'],
+            'fixed_schedule_until' => ['nullable', 'date', 'after_or_equal:fixed_schedule_from'],
         ]);
 
         if (isset($data['role'])) {
@@ -1410,6 +1459,10 @@ class EmployeeManagementController extends Controller
         unset($employeeData['role']);
         unset($employeeData['citizen_id_front']);
         unset($employeeData['citizen_id_back']);
+        unset($employeeData['fixed_shift_id']);
+        unset($employeeData['fixed_weekdays']);
+        unset($employeeData['fixed_schedule_from']);
+        unset($employeeData['fixed_schedule_until']);
         if (array_key_exists('branch_id', $data)) {
             $employeeData['branch_id'] = $newBranchId;
         }
@@ -1475,6 +1528,18 @@ class EmployeeManagementController extends Controller
         $employee->update($employeeData);
         $employee->save();
 
+        if ($newType === 'fixed' && ($salaryChanged || $branchChanged || $employee->fixedSchedules()->where('is_active', true)->doesntExist())) {
+            app(FixedScheduleService::class)->createForEmployee(
+                $employee->fresh(),
+                isset($data['fixed_shift_id']) ? (int) $data['fixed_shift_id'] : null,
+                $data['fixed_weekdays'] ?? null,
+                $data['fixed_schedule_from'] ?? null,
+                $data['fixed_schedule_until'] ?? null,
+            );
+        } elseif ($newType !== 'fixed' && $salaryChanged) {
+            app(FixedScheduleService::class)->deactivateForEmployee($employee);
+        }
+
         if (array_key_exists('status', $data) && $employee->user) {
             $employee->user->update(['status' => $data['status']]);
             $employee->user->increment('security_session_version');
@@ -1498,6 +1563,57 @@ class EmployeeManagementController extends Controller
         }
 
         return back()->with('success', 'Đã cập nhật thông tin nhân viên.');
+    }
+
+    /** Ghi nhận một khoản thưởng độc lập với bản nháp lương. */
+    public function storeBonus(Request $request): RedirectResponse
+    {
+        $user = $request->user();
+        abort_unless($user->hasAnyRole(['owner', 'manager', 'warehouse_manager', 'super_admin']), 403);
+
+        $data = $request->validate([
+            'employee_id' => ['required', 'integer'],
+            'amount' => ['required', 'numeric', 'min:0.01'],
+            'reason' => ['required', 'string', 'max:500'],
+            'awarded_at' => ['required', 'date'],
+        ]);
+
+        $employee = Employee::withoutGlobalScopes()
+            ->where('restaurant_id', $user->restaurant_id)
+            ->findOrFail($data['employee_id']);
+        abort_unless($user->canAccessBranch($employee->branch_id), 403);
+
+        $awardedAt = Carbon::parse($data['awarded_at'])->toDateString();
+        abort_if(
+            Salary::isPeriodLocked((int) $employee->restaurant_id, $employee->id, $awardedAt),
+            422,
+            'Kỳ lương của ngày thưởng đã được chốt, không thể thêm thưởng vào kỳ đã khóa.',
+        );
+
+        $bonus = EmployeeBonus::create([
+            'restaurant_id' => $employee->restaurant_id,
+            'branch_id' => $employee->branch_id,
+            'employee_id' => $employee->id,
+            'awarded_by' => $user->id,
+            'amount' => $data['amount'],
+            'reason' => $data['reason'],
+            'awarded_at' => $awardedAt,
+            'status' => 'active',
+        ]);
+
+        // Nếu bản nháp tháng đã tồn tại, đưa khoản thưởng vào ngay để màn
+        // hình chốt lương phản ánh tức thời; nếu chưa có, sweep khi generate.
+        $salary = Salary::withoutGlobalScopes()
+            ->where('employee_id', $employee->id)
+            ->whereDate('pay_period_start', '<=', $awardedAt)
+            ->whereDate('pay_period_end', '>=', $awardedAt)
+            ->where('status', 'draft')
+            ->first();
+        if ($salary) {
+            app(\App\Services\SalaryService::class)->sweepAdjustments($salary, $employee);
+        }
+
+        return back()->with('success', 'Đã ghi nhận thưởng. Khoản thưởng sẽ được cộng khi chốt lương kỳ tương ứng.');
     }
 
     /**
