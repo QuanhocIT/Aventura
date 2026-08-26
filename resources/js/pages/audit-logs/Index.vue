@@ -184,45 +184,20 @@ const eventConfig: Record<string, { label: string; cls: string; icon: any }> = {
     },
 };
 
+import { useAuditLogFormatter } from '@/composables/useAuditLogFormatter';
+
+const { formatAction, formatSubjectType, formatFieldLabel, formatFieldValue } =
+    useAuditLogFormatter();
+
 const roleLabel: Record<string, string> = {
-    owner: 'Chủ',
-    manager: 'QL',
-    cashier: 'Thu ngân',
-    kitchen: 'Bếp',
-    inventory_staff: 'Kho',
-};
-
-function actionLabel(action: string): string {
-    const map: Record<string, string> = {
-        order_created: 'Tạo đơn hàng',
-        order_updated: 'Cập nhật đơn',
-        order_cancelled: 'Huỷ đơn hàng',
-        order_split: 'Tách đơn hàng',
-        order_split_override: 'Xác nhận tách đơn',
-        price_modified: 'Sửa đơn giá',
-        discount_applied: 'Áp dụng giảm giá',
-        violation_reported: 'Báo cáo vi phạm',
-        violation_resolved: 'Xử lý vi phạm',
-        test_data_seeded: 'Seed dữ liệu test',
-        seed_demo_order: 'Seed đơn demo',
-        kitchen_menu_unavailable: 'Tạm ngưng món bếp',
-    };
-
-    return map[action] ?? action;
-}
-
-const fieldLabels: Record<string, string> = {
-    status: 'Trạng thái',
-    total_amount: 'Tổng tiền',
-    subtotal_amount: 'Tiền trước thuế',
-    discount_amount: 'Tiền giảm giá',
-    price: 'Giá món',
-    quantity: 'Số lượng',
-    notes: 'Ghi chú',
-    split_from_order_id: 'Tách từ đơn hàng #',
-    out_of_stock_until: 'Hết phục vụ đến',
-    out_of_stock_reason: 'Lý do tạm ngưng',
-    branch_id: 'Chi nhánh',
+    owner: 'Chủ nhà hàng',
+    manager: 'Quản lý chi nhánh',
+    cashier: 'Nhân viên Thu ngân',
+    kitchen: 'Nhân viên Bếp',
+    inventory_staff: 'Thủ kho',
+    warehouse_manager: 'Trưởng kho tổng',
+    warehouse_staff: 'Nhân viên kho tổng',
+    operations_inspector: 'Giám sát / Thanh tra',
 };
 
 function getDiff(
@@ -243,9 +218,11 @@ function getDiff(
 
             return {
                 key,
-                label: fieldLabels[key] ?? key,
+                label: formatFieldLabel(key),
                 oldVal: oVal,
                 newVal: nVal,
+                oldFormatted: formatFieldValue(oVal, key),
+                newFormatted: formatFieldValue(nVal, key),
                 isChanged,
             };
         })
@@ -578,14 +555,14 @@ function getDiff(
                                 <span
                                     class="text-sm leading-snug font-bold text-foreground"
                                 >
-                                    {{ actionLabel(log.action) }}
+                                    {{ formatAction(log.action) }}
                                 </span>
 
                                 <span
                                     v-if="log.subject_type"
                                     class="rounded border border-border/60 bg-muted px-2 py-0.5 text-[10px] font-bold text-muted-foreground"
                                 >
-                                    {{ log.subject_type }}
+                                    {{ formatSubjectType(log.subject_type) }}
                                     <span
                                         v-if="log.subject_id"
                                         class="font-mono font-extrabold"
@@ -756,18 +733,9 @@ function getDiff(
                                             </td>
                                             <!-- Old value column -->
                                             <td
-                                                class="bg-rose-500/5 px-4 py-3 font-mono text-rose-500 line-through dark:bg-rose-950/10 dark:text-rose-400"
+                                                class="bg-rose-500/5 px-4 py-3 font-medium text-rose-600 line-through dark:bg-rose-950/10 dark:text-rose-400"
                                             >
-                                                {{
-                                                    item.oldVal !== undefined
-                                                        ? typeof item.oldVal ===
-                                                          'object'
-                                                            ? JSON.stringify(
-                                                                  item.oldVal,
-                                                              )
-                                                            : item.oldVal
-                                                        : '—'
-                                                }}
+                                                {{ item.oldFormatted }}
                                             </td>
                                             <!-- Visual Direction Arrow -->
                                             <td
@@ -777,18 +745,9 @@ function getDiff(
                                             </td>
                                             <!-- New value column -->
                                             <td
-                                                class="bg-emerald-500/5 px-4 py-3 font-mono font-extrabold text-emerald-500 dark:bg-emerald-950/10 dark:text-emerald-400"
+                                                class="bg-emerald-500/5 px-4 py-3 font-bold text-emerald-600 dark:bg-emerald-950/10 dark:text-emerald-400"
                                             >
-                                                {{
-                                                    item.newVal !== undefined
-                                                        ? typeof item.newVal ===
-                                                          'object'
-                                                            ? JSON.stringify(
-                                                                  item.newVal,
-                                                              )
-                                                            : item.newVal
-                                                        : '—'
-                                                }}
+                                                {{ item.newFormatted }}
                                             </td>
                                         </tr>
                                         <tr

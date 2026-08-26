@@ -37,6 +37,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select';
+import { useAuditLogFormatter } from '@/composables/useAuditLogFormatter';
 import AppLayout from '@/layouts/AppLayout.vue';
 
 defineOptions({ layout: AppLayout });
@@ -165,32 +166,42 @@ function toggleExpand(id: number) {
     expandedRow.value = expandedRow.value === id ? null : id;
 }
 
+const { formatAction, formatSubjectType, formatFieldLabel, formatFieldValue } =
+    useAuditLogFormatter();
+
 const eventLabel: Record<string, string> = {
     created: 'Tạo mới',
     updated: 'Cập nhật',
     deleted: 'Xóa',
 };
 
-const actionLabel: Record<string, string> = {
-    reset_password: 'Đặt lại mật khẩu',
-    disable_2fa: 'Tắt 2FA',
-    toggle_account_status: 'Đổi trạng thái TK',
-    seed_demo_order: 'Tạo đơn mẫu',
-    price_modified: 'Cập nhật giá',
-    impersonate_start: 'Bắt đầu mạo danh',
-    order_created: 'Tạo đơn hàng',
-    order_split: 'Tách đơn hàng',
-    create_admin_account: 'Tạo tài khoản quản trị',
-    update_admin_role: 'Cập nhật vai trò quản trị',
-    'update_admin_role.before': 'Kiểm tra thay đổi vai trò quản trị',
-    'update_admin_role.after': 'Cập nhật vai trò quản trị',
-    export_audit_logs: 'Xuất nhật ký kiểm toán',
-    audit_retention_update: 'Cập nhật thời hạn lưu nhật ký',
-    audit_retention_prune: 'Xóa nhật ký quá hạn lưu trữ',
-};
+function getDiff(
+    oldVal: Record<string, any> | null,
+    newVal: Record<string, any> | null,
+) {
+    const oldV = oldVal || {};
+    const newV = newVal || {};
+    const allKeys = Array.from(
+        new Set([...Object.keys(oldV), ...Object.keys(newV)]),
+    );
 
-function formatAction(action: string): string {
-    return actionLabel[action] ?? action.replace(/_/g, ' ');
+    return allKeys
+        .map((key) => {
+            const oVal = oldV[key];
+            const nVal = newV[key];
+            const isChanged = JSON.stringify(oVal) !== JSON.stringify(nVal);
+
+            return {
+                key,
+                label: formatFieldLabel(key),
+                oldVal: oVal,
+                newVal: nVal,
+                oldFormatted: formatFieldValue(oVal, key),
+                newFormatted: formatFieldValue(nVal, key),
+                isChanged,
+            };
+        })
+        .filter((item) => item.isChanged);
 }
 
 const hasActiveFilter = () =>
@@ -874,7 +885,7 @@ const securityInsights = computed(() => {
                                         class="px-4 py-3.5 text-xs font-semibold text-muted-foreground"
                                     >
                                         <span v-if="log.subject_type">
-                                            {{ log.subject_type }}
+                                            {{ formatSubjectType(log.subject_type) }}
                                             <span
                                                 v-if="log.subject_id"
                                                 class="font-mono text-[10px] text-slate-400"
@@ -936,9 +947,74 @@ const securityInsights = computed(() => {
                                                 </div>
                                             </div>
 
-                                            <!-- Render Side-by-side or Single View based on data presence -->
+                                            <!-- Render Structured Diff Table if diffs exist -->
                                             <div
                                                 v-if="
+                                                    getDiff(
+                                                        log.old_values,
+                                                        log.new_values,
+                                                    ).length > 0
+                                                "
+                                                class="overflow-hidden rounded-xl border border-slate-800 bg-slate-900/60"
+                                            >
+                                                <table
+                                                    class="w-full text-left font-mono text-[11px]"
+                                                >
+                                                    <thead
+                                                        class="border-b border-slate-800 bg-slate-900/80 text-slate-400"
+                                                    >
+                                                        <tr>
+                                                            <th
+                                                                class="px-3.5 py-2 font-bold"
+                                                            >
+                                                                Thuộc tính
+                                                            </th>
+                                                            <th
+                                                                class="px-3.5 py-2 font-bold"
+                                                            >
+                                                                Giá trị cũ
+                                                            </th>
+                                                            <th
+                                                                class="px-3.5 py-2 font-bold text-emerald-400"
+                                                            >
+                                                                Giá trị mới
+                                                            </th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody
+                                                        class="divide-y divide-slate-800/60"
+                                                    >
+                                                        <tr
+                                                            v-for="item in getDiff(
+                                                                log.old_values,
+                                                                log.new_values,
+                                                            )"
+                                                            :key="item.key"
+                                                            class="hover:bg-slate-800/40"
+                                                        >
+                                                            <td
+                                                                class="px-3.5 py-2 font-bold text-slate-200"
+                                                            >
+                                                                {{ item.label }}
+                                                            </td>
+                                                            <td
+                                                                class="px-3.5 py-2 text-rose-400 line-through"
+                                                            >
+                                                                {{ item.oldFormatted }}
+                                                            </td>
+                                                            <td
+                                                                class="px-3.5 py-2 font-bold text-emerald-400"
+                                                            >
+                                                                {{ item.newFormatted }}
+                                                            </td>
+                                                        </tr>
+                                                    </tbody>
+                                                </table>
+                                            </div>
+
+                                            <!-- Render Side-by-side or Single View based on data presence -->
+                                            <div
+                                                v-else-if="
                                                     log.old_values &&
                                                     log.new_values
                                                 "
