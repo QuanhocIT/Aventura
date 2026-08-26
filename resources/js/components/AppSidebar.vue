@@ -611,6 +611,18 @@ const ownerNav = computed<NavItem[]>(() => {
             icon: Wallet,
             feature: 'hr_full',
         },
+        {
+            title: 'Thưởng nhân viên',
+            href: '/bonuses',
+            icon: Gift,
+            feature: 'hr_full',
+        },
+        {
+            title: 'Tăng ca',
+            href: '/overtime-requests',
+            icon: CalendarDays,
+            feature: 'hr_timekeeping',
+        },
         { title: 'Khách hàng', href: '/customers', icon: Users },
         {
             title: 'Khách hàng thân thiết',
@@ -819,6 +831,8 @@ const ownerNav = computed<NavItem[]>(() => {
         '/fixed-assets': 'finance',
         '/billing/history': 'finance',
         '/employees': 'people',
+        '/bonuses': 'people',
+        '/overtime-requests': 'people',
         '/schedules': 'people',
         '/salaries': 'people',
         '/payroll-budget': 'people',
@@ -942,6 +956,18 @@ const managerNav = computed<NavItem[]>(() => {
             icon: Wallet,
             permission: 'manage_salary',
             feature: 'hr_full',
+        },
+        {
+            title: 'Thưởng nhân viên',
+            href: '/bonuses',
+            icon: Gift,
+            feature: 'hr_full',
+        },
+        {
+            title: 'Tăng ca',
+            href: '/overtime-requests',
+            icon: CalendarDays,
+            feature: 'hr_timekeeping',
         },
         { title: 'Khách hàng', href: '/customers', icon: Users },
         {
@@ -1121,6 +1147,12 @@ const cashierNav = computed<NavItem[]>(() => {
             icon: CalendarDays,
             feature: 'hr_timekeeping',
         },
+        {
+            title: 'Tăng ca',
+            href: '/overtime-requests',
+            icon: CalendarDays,
+            feature: 'hr_timekeeping',
+        },
         { title: 'Tố cáo ẩn danh', href: '/violations', icon: ShieldAlert },
         { title: 'Sự cố khẩn cấp', href: '/incidents', icon: Siren },
         {
@@ -1153,6 +1185,12 @@ const waiterNav = computed<NavItem[]>(() => {
             icon: CalendarDays,
             feature: 'hr_timekeeping',
         },
+        {
+            title: 'Tăng ca',
+            href: '/overtime-requests',
+            icon: CalendarDays,
+            feature: 'hr_timekeeping',
+        },
         { title: 'Tố cáo ẩn danh', href: '/violations', icon: ShieldAlert },
         { title: 'Sự cố khẩn cấp', href: '/incidents', icon: Siren },
         {
@@ -1180,6 +1218,12 @@ const kitchenNav = computed<NavItem[]>(() => {
         {
             title: 'Lịch làm việc',
             href: '/schedules',
+            icon: CalendarDays,
+            feature: 'hr_timekeeping',
+        },
+        {
+            title: 'Tăng ca',
+            href: '/overtime-requests',
             icon: CalendarDays,
             feature: 'hr_timekeeping',
         },
@@ -1253,11 +1297,20 @@ const inventoryNav = computed<NavItem[]>(() => {
 
 // ─── OPERATIONS INSPECTOR / COMPLIANCE MENU ──────────────────────────────────
 const operationsInspectorNav: NavItem[] = [
-    { title: 'Tổng quan thanh tra', href: '/dashboard', icon: LayoutGrid },
     {
-        title: 'Thanh tra & Biên bản Phạt',
+        title: 'Tổng quan thanh tra',
+        href: '/operations/audit/overview',
+        icon: LayoutGrid,
+    },
+    {
+        title: 'Kế hoạch & Biên bản thanh tra',
         href: '/operations/audit',
         icon: ShieldAlert,
+    },
+    {
+        title: 'Phiên kiểm tra hiện trường',
+        href: '/operations/inspection-workspace',
+        icon: ClipboardCheck,
     },
     {
         title: 'Bộ Quy định & Tiêu chuẩn',
@@ -1274,11 +1327,6 @@ const operationsInspectorNav: NavItem[] = [
         href: '/fixed-assets',
         icon: Boxes,
         section: 'finance',
-    },
-    {
-        title: 'Bàn giao ca',
-        href: '/shift-handovers',
-        icon: ArrowLeftRight,
     },
     {
         title: 'Sự cố vận hành',
@@ -1355,6 +1403,18 @@ const warehouseManagerNav = computed<NavItem[]>(() => {
             title: 'Nhân sự & Lịch biểu',
             href: '/employees',
             icon: UserCheck,
+            feature: 'hr_timekeeping',
+        },
+        {
+            title: 'Thưởng nhân viên',
+            href: '/bonuses',
+            icon: Gift,
+            feature: 'hr_timekeeping',
+        },
+        {
+            title: 'Tăng ca',
+            href: '/overtime-requests',
+            icon: CalendarDays,
             feature: 'hr_timekeeping',
         },
         {
@@ -1456,6 +1516,12 @@ const warehouseStaffNav = computed<NavItem[]>(() => {
             href: '/inventory/central-warehouse/stock',
             icon: Package,
             feature: 'inventory_basic',
+        },
+        {
+            title: 'Tăng ca',
+            href: '/overtime-requests',
+            icon: CalendarDays,
+            feature: 'hr_timekeeping',
         },
         { title: 'Liên hệ & Hỗ trợ', href: '/support', icon: Headset },
     ];

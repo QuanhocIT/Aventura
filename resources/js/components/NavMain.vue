@@ -167,6 +167,8 @@ const groupDefinitions: {
                 'lịch làm việc',
                 'bảng lương',
                 'lương',
+                'tăng ca',
+                'thưởng',
                 'đào tạo',
                 'kpi',
             ].some((p) => title.toLowerCase().includes(p.toLowerCase())),
