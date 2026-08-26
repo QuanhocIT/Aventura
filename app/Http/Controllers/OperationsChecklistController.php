@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\ChecklistCompletion;
 use App\Models\ChecklistItem;
 use App\Models\ChecklistTemplate;
+use App\Models\OperationalInspection;
 use App\Support\Tenant\TenantContext;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -83,11 +84,19 @@ class OperationsChecklistController extends Controller
             'item_id' => ['required', 'exists:checklist_items,id'],
             'photo' => ['nullable', 'string'],
             'notes' => ['nullable', 'string', 'max:500'],
+            'finding_notes' => ['nullable', 'string', 'max:3000'],
+            'result' => ['nullable', 'in:pass,fail,na'],
+            'operational_inspection_id' => ['nullable', 'integer', 'exists:operational_inspections,id'],
             'date' => ['required', 'date'],
         ]);
 
         $user = $request->user();
-        $branchId = app(TenantContext::class)->activeBranchId();
+        $inspection = null;
+        if (! empty($data['operational_inspection_id'])) {
+            $inspection = OperationalInspection::where('restaurant_id', $user->restaurant_id)->findOrFail($data['operational_inspection_id']);
+            abort_unless($inspection->status === 'in_progress', 422, 'Chỉ phiên đang kiểm tra mới nhận checklist.');
+        }
+        $branchId = $inspection?->branch_id ?? app(TenantContext::class)->activeBranchId();
         if ($branchId === null) {
             throw ValidationException::withMessages([
                 'branch_id' => 'Hãy chọn một chi nhánh cụ thể trước khi hoàn thành checklist.',
@@ -133,6 +142,9 @@ class OperationsChecklistController extends Controller
             'photo_path' => $photoPath,
             'notes' => $data['notes'] ?? null,
             'checked_date' => $data['date'],
+            'operational_inspection_id' => $inspection?->id,
+            'result' => $data['result'] ?? 'pass',
+            'finding_notes' => $data['finding_notes'] ?? null,
         ]);
 
         return response()->json([

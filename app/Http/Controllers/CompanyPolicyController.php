@@ -34,9 +34,18 @@ class CompanyPolicyController extends Controller
         $user = $request->user();
         $canManage = $user->isOwner() || $user->isSuperAdmin() || $user->can('company_policies.manage');
         $categories = $this->categoriesForRestaurant($user->restaurant_id);
-        $policies = CompanyPolicy::where('restaurant_id', $user->restaurant_id)
-            ->orderByDesc('id')
-            ->get();
+        $policyQuery = CompanyPolicy::where('restaurant_id', $user->restaurant_id);
+        if (! $canManage) {
+            $policyQuery->where('status', 'published');
+            $branchId = $user->canViewAllBranches() ? null : $user->assignedBranchId();
+            if ($branchId) {
+                $policyQuery->where(function ($query) use ($branchId): void {
+                    $query->where('applies_to_all_branches', true)
+                        ->orWhereJsonContains('applicable_branch_ids', (int) $branchId);
+                });
+            }
+        }
+        $policies = $policyQuery->orderByDesc('id')->get();
 
         $branches = RestaurantBranch::where('restaurant_id', $user->restaurant_id)
             ->where('status', 'active')

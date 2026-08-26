@@ -32,6 +32,12 @@ class OperationalAuditWorkflowTest extends TestCase
         ]);
         $inspector->assignRole('operations_inspector');
 
+        $auditor = User::factory()->create([
+            'restaurant_id' => $restaurant->id,
+            'branch_id' => null,
+        ]);
+        $auditor->assignRole('compliance_auditor');
+
         $assignee = User::factory()->create([
             'restaurant_id' => $restaurant->id,
             'branch_id' => $branch->id,
@@ -82,7 +88,14 @@ class OperationalAuditWorkflowTest extends TestCase
             'assigned_to' => $assignee->id,
         ]);
 
-        $this->actingAs($inspector)
+        $this->actingAs($assignee)
+            ->postJson(route('operational-audit.reports.reinspect', $report->id), [
+                'result' => 'pass',
+                'reinspection_notes' => 'Không được tự xác minh CAPA do mình nộp.',
+            ])
+            ->assertForbidden();
+
+        $this->actingAs($auditor)
             ->postJson(route('operational-audit.reports.reinspect', $report->id), [
                 'result' => 'pass',
                 'reinspection_notes' => 'Đối chiếu checklist và ảnh hiện trường: đạt yêu cầu.',
@@ -93,7 +106,7 @@ class OperationalAuditWorkflowTest extends TestCase
             'id' => $report->id,
             'status' => 'closed',
             'reinspection_result' => 'pass',
-            'closed_by' => $inspector->id,
+            'closed_by' => $auditor->id,
         ]);
 
         $this->assertGreaterThanOrEqual(4, AuditLog::where('subject_type', OperationalInfringementReport::class)

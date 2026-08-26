@@ -34,4 +34,9 @@ class ChecklistCompletion extends Model
     {
         return $this->belongsTo(User::class, 'completed_by');
     }
+
+    public function inspection(): BelongsTo
+    {
+        return $this->belongsTo(OperationalInspection::class, 'operational_inspection_id');
+    }
 }

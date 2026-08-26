@@ -10,6 +10,7 @@ import {
     CheckCheck,
     CheckCircle2,
     ClipboardCheck,
+    ClipboardList,
     Clock,
     DollarSign,
     Download,
@@ -27,7 +28,7 @@ import {
     X,
     XCircle,
 } from 'lucide-vue-next';
-import { computed, ref } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import { toast } from 'vue-sonner';
 import BackButton from '@/components/BackButton.vue';
 import { Button } from '@/components/ui/button';
@@ -54,13 +55,17 @@ const props = defineProps<{
     isInspector: boolean;
     canManageRemediation: boolean;
     canReinspect: boolean;
+    canAcknowledge: boolean;
     inspectionPlans: Array<any>;
     planStats: Record<string, any>;
     branchInsights: Array<any>;
     trend: Array<any>;
     inspectors: Array<any>;
     canManagePlans: boolean;
+    isOverview?: boolean;
 }>();
+
+const isOverview = computed(() => Boolean(props.isOverview));
 
 const isCreateModalOpen = ref(false);
 const isDetailModalOpen = ref(false);
@@ -93,9 +98,13 @@ const reinspectionResult = ref<'pass' | 'fail'>('pass');
 const reinspectionNotes = ref('');
 const reinspectionProof = ref<File | null>(null);
 const reinspectionFileName = ref('');
+const initialQuery = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
+const initialInspectionId = Number(initialQuery?.get('inspection_id') || 0) || null;
+const initialBranchId = Number(initialQuery?.get('branch_id') || 0) || null;
+const initialPlanId = Number(initialQuery?.get('inspection_plan_id') || 0) || null;
 
 const reportForm = ref({
-    branch_id: props.branches[0]?.id || null,
+    branch_id: initialBranchId || props.branches[0]?.id || null,
     policy_id: null as number | null,
     offender_user_id: null as number | null,
     infringement_date: new Date().toISOString().split('T')[0],
@@ -106,7 +115,14 @@ const reportForm = ref({
     penalty_amount: 0,
     remediation_deadline: '',
     remediation_plan: '',
-    inspection_plan_id: null as number | null,
+    inspection_plan_id: initialPlanId as number | null,
+    operational_inspection_id: initialInspectionId,
+    finding_category: '',
+    requirement_reference: '',
+    observed_condition: '',
+    root_cause: '',
+    corrective_action: '',
+    preventive_action: '',
 });
 const proofFileName = ref('');
 
@@ -126,7 +142,7 @@ const onPolicySelect = () => {
 
 const openCreateModal = () => {
     reportForm.value = {
-        branch_id: props.branches[0]?.id || null,
+        branch_id: initialBranchId || props.branches[0]?.id || null,
         policy_id: null,
         offender_user_id: null,
         infringement_date: new Date().toISOString().split('T')[0],
@@ -137,7 +153,14 @@ const openCreateModal = () => {
         penalty_amount: 0,
         remediation_deadline: '',
         remediation_plan: '',
-        inspection_plan_id: null,
+        inspection_plan_id: initialPlanId,
+        operational_inspection_id: initialInspectionId,
+        finding_category: '',
+        requirement_reference: '',
+        observed_condition: '',
+        root_cause: '',
+        corrective_action: '',
+        preventive_action: '',
     };
     proofFileName.value = '';
     isCreateModalOpen.value = true;
@@ -186,6 +209,9 @@ const submitReport = async () => {
         if (reportForm.value.inspection_plan_id) {
             payload.append('inspection_plan_id', String(reportForm.value.inspection_plan_id));
         }
+        if (reportForm.value.operational_inspection_id) {
+            payload.append('operational_inspection_id', String(reportForm.value.operational_inspection_id));
+        }
 
         if (reportForm.value.policy_id) {
             payload.append('policy_id', String(reportForm.value.policy_id));
@@ -216,6 +242,9 @@ const submitReport = async () => {
         if (reportForm.value.remediation_plan.trim()) {
             payload.append('remediation_plan', reportForm.value.remediation_plan);
         }
+        for (const field of ['finding_category', 'requirement_reference', 'observed_condition', 'root_cause', 'corrective_action', 'preventive_action'] as const) {
+            if (reportForm.value[field].trim()) payload.append(field, reportForm.value[field]);
+        }
 
         const res = await axios.post(
             '/api/operational-audit/reports',
@@ -242,6 +271,10 @@ const submitReport = async () => {
         isProcessing.value = false;
     }
 };
+
+onMounted(() => {
+    if (initialInspectionId) isCreateModalOpen.value = true;
+});
 
 const onProofPhotoChange = (event: Event) => {
     const input = event.target as HTMLInputElement;
@@ -413,6 +446,43 @@ const submitAssignment = async () => {
         toast.error(e.response?.data?.message || 'Không thể giao xử lý hồ sơ.');
     } finally {
         isProcessing.value = false;
+    }
+};
+
+const acceptAssignment = async () => {
+    if (!selectedReport.value) return;
+    try {
+        const res = await axios.post(`/api/operational-audit/reports/${selectedReport.value.id}/assignment/accept`);
+        toast.success(res.data.message || 'Đã nhận việc.');
+        router.reload();
+    } catch (e: any) {
+        toast.error(e.response?.data?.message || 'Không thể xác nhận nhận việc.');
+    }
+};
+
+const rejectAssignment = async () => {
+    if (!selectedReport.value) return;
+    const reason = window.prompt('Lý do từ chối nhận việc (bắt buộc):', 'Không thuộc phạm vi phụ trách hoặc thiếu nguồn lực.');
+    if (!reason?.trim()) return;
+    try {
+        const res = await axios.post(`/api/operational-audit/reports/${selectedReport.value.id}/assignment/reject`, { reason });
+        toast.success(res.data.message || 'Đã gửi lý do từ chối.');
+        router.reload();
+    } catch (e: any) {
+        toast.error(e.response?.data?.message || 'Không thể từ chối nhận việc.');
+    }
+};
+
+const acknowledgeReport = async () => {
+    if (!selectedReport.value) return;
+    const responseText = window.prompt('Phản hồi của chi nhánh và cam kết xử lý:', 'Đã tiếp nhận, sẽ xử lý theo hạn SLA và cập nhật bằng chứng.');
+    if (!responseText?.trim()) return;
+    try {
+        const res = await axios.post(`/api/operational-audit/reports/${selectedReport.value.id}/acknowledge`, { response: responseText });
+        toast.success(res.data.message || 'Đã xác nhận hồ sơ.');
+        router.reload();
+    } catch (e: any) {
+        toast.error(e.response?.data?.message || 'Không thể xác nhận hồ sơ.');
     }
 };
 
@@ -645,7 +715,7 @@ const formatDate = (dt: string) => {
 </script>
 
 <template>
-    <Head title="Giám Sát Vận Hành & Biên Bản Phạt" />
+    <Head :title="isOverview ? 'Tổng quan thanh tra' : 'Giám sát vận hành & Biên bản phạt'" />
 
     <div class="mx-auto flex w-full max-w-7xl flex-col gap-6 p-4 md:p-6">
         <section
@@ -658,7 +728,7 @@ const formatDate = (dt: string) => {
                 class="relative flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between"
             >
                 <div class="flex items-start gap-4">
-                    <BackButton fallback-href="/dashboard" label="Trang chủ" />
+                    <BackButton fallback-href="/operations/audit/overview" label="Trang chủ" />
                     <div
                         class="flex size-12 shrink-0 items-center justify-center rounded-2xl bg-rose-600 text-white shadow-lg shadow-rose-600/20"
                     >
@@ -673,13 +743,18 @@ const formatDate = (dt: string) => {
                         <h1
                             class="text-2xl font-black tracking-tight text-foreground md:text-3xl"
                         >
-                            Giám Sát Vận Hành & Biên Bản Phạt
+                            {{ isOverview ? 'Tổng quan thanh tra' : 'Giám Sát Vận Hành & Biên Bản Phạt' }}
                         </h1>
                         <p
                             class="mt-1 max-w-2xl text-sm leading-6 text-muted-foreground"
                         >
-                            Theo dõi vi phạm, SLA khắc phục, bằng chứng và kết quả tái kiểm
-                            tại toàn bộ chi nhánh.
+                            <template v-if="isOverview">
+                                Tổng hợp rủi ro, xu hướng vi phạm và tiến độ kiểm tra tại toàn bộ chi nhánh.
+                            </template>
+                            <template v-else>
+                                Theo dõi vi phạm, SLA khắc phục, bằng chứng và kết quả tái kiểm
+                                tại toàn bộ chi nhánh.
+                            </template>
                         </p>
                     </div>
                 </div>
@@ -1148,6 +1223,10 @@ const formatDate = (dt: string) => {
                         </div>
                     </div>
 
+                    <div v-if="reportForm.operational_inspection_id" class="rounded-xl border border-indigo-200/70 bg-indigo-500/5 p-3 text-[11px] text-indigo-700 dark:border-indigo-500/30 dark:text-indigo-300">
+                        Biên bản này được lập từ phiên kiểm tra hiện trường <span class="font-mono font-bold">#{{ reportForm.operational_inspection_id }}</span>; hệ thống sẽ liên kết hai hồ sơ để truy nguyên.
+                    </div>
+
                     <div>
                         <label
                             class="mb-1.5 block font-semibold text-foreground"
@@ -1216,6 +1295,15 @@ const formatDate = (dt: string) => {
                             placeholder="Mô tả cụ thể diễn biến vi phạm, hình ảnh ghi nhận và các yếu tố liên quan..."
                             class="min-h-28 w-full rounded-xl border border-input bg-background p-3 text-xs text-foreground outline-none placeholder:text-muted-foreground focus:ring-2 focus:ring-rose-500/30"
                         ></textarea>
+                    </div>
+
+                    <div class="grid gap-4 sm:grid-cols-2">
+                        <div><label class="mb-1.5 block font-semibold text-foreground">Nhóm phát hiện</label><Input v-model="reportForm.finding_category" placeholder="ATTP, PCCC, tài sản, quy trình..." class="text-xs" /></div>
+                        <div><label class="mb-1.5 block font-semibold text-foreground">Điều khoản tham chiếu</label><Input v-model="reportForm.requirement_reference" placeholder="Mã quy định / mục checklist..." class="text-xs" /></div>
+                        <div class="sm:col-span-2"><label class="mb-1.5 block font-semibold text-foreground">Hiện trạng quan sát</label><textarea v-model="reportForm.observed_condition" rows="2" placeholder="Ghi nhận khách quan tại hiện trường..." class="w-full rounded-xl border border-input bg-background p-3 text-xs text-foreground outline-none placeholder:text-muted-foreground focus:ring-2 focus:ring-rose-500/30"></textarea></div>
+                        <div><label class="mb-1.5 block font-semibold text-foreground">Nguyên nhân gốc</label><textarea v-model="reportForm.root_cause" rows="2" placeholder="Vì sao sai lệch xảy ra?" class="w-full rounded-xl border border-input bg-background p-3 text-xs text-foreground outline-none placeholder:text-muted-foreground focus:ring-2 focus:ring-rose-500/30"></textarea></div>
+                        <div><label class="mb-1.5 block font-semibold text-foreground">Hành động khắc phục</label><textarea v-model="reportForm.corrective_action" rows="2" placeholder="Việc cần làm để sửa lỗi..." class="w-full rounded-xl border border-input bg-background p-3 text-xs text-foreground outline-none placeholder:text-muted-foreground focus:ring-2 focus:ring-rose-500/30"></textarea></div>
+                        <div class="sm:col-span-2"><label class="mb-1.5 block font-semibold text-foreground">Phòng ngừa tái diễn</label><textarea v-model="reportForm.preventive_action" rows="2" placeholder="Cập nhật quy trình, đào tạo, kiểm soát..." class="w-full rounded-xl border border-input bg-background p-3 text-xs text-foreground outline-none placeholder:text-muted-foreground focus:ring-2 focus:ring-rose-500/30"></textarea></div>
                     </div>
 
                     <div class="grid grid-cols-2 gap-4">
@@ -1389,6 +1477,7 @@ const formatDate = (dt: string) => {
                         <div v-if="selectedReport.assignee || selectedReport.remediation_deadline">
                             <strong>Kiểm soát khắc phục:</strong>
                             {{ selectedReport.assignee?.name || 'Chưa giao người phụ trách' }}
+                            <span v-if="selectedReport.assignment_status" class="ml-1 rounded-full bg-indigo-500/10 px-2 py-0.5 text-[10px] font-bold text-indigo-700 dark:text-indigo-300">{{ selectedReport.assignment_status }}</span>
                             <span v-if="selectedReport.remediation_deadline" :class="selectedReport.is_overdue ? 'font-bold text-rose-600 dark:text-rose-300' : ''">
                                 · Hạn {{ formatDate(selectedReport.remediation_deadline) }}{{ selectedReport.is_overdue ? ' · Quá SLA' : '' }}
                             </span>
@@ -1420,6 +1509,17 @@ const formatDate = (dt: string) => {
                         >
                             Xem ảnh bằng chứng
                         </a>
+                    </div>
+
+                    <div v-if="selectedReport.assignment_status === 'assigned' && selectedReport.assignee?.id === currentUserId" class="flex flex-wrap items-center gap-2 rounded-2xl border border-amber-200/70 bg-amber-500/5 p-4 dark:border-amber-500/20">
+                        <div class="mr-auto text-xs text-amber-800 dark:text-amber-200">Hồ sơ đang chờ bạn xác nhận nhận việc.</div>
+                        <Button size="sm" class="bg-emerald-600 text-xs text-white hover:bg-emerald-700" @click="acceptAssignment">Xác nhận nhận việc</Button>
+                        <Button size="sm" variant="outline" class="text-xs text-rose-600" @click="rejectAssignment">Từ chối có lý do</Button>
+                    </div>
+
+                    <div v-if="canAcknowledge && !selectedReport.branch_acknowledged_at && selectedReport.status !== 'rejected'" class="flex flex-wrap items-center gap-3 rounded-2xl border border-amber-200/70 bg-amber-500/5 p-4 dark:border-amber-500/20">
+                        <div class="mr-auto text-xs text-amber-800 dark:text-amber-200">Chi nhánh cần xác nhận đã tiếp nhận phát hiện và nêu cam kết xử lý.</div>
+                        <Button size="sm" class="bg-amber-600 text-xs text-white hover:bg-amber-700" @click="acknowledgeReport">Xác nhận tiếp nhận</Button>
                     </div>
 
                     <div v-if="selectedReport.remediation_plan" class="rounded-2xl border border-indigo-200/70 bg-indigo-500/5 p-4 dark:border-indigo-500/20">
@@ -1502,6 +1602,11 @@ const formatDate = (dt: string) => {
                         <p class="mt-2 whitespace-pre-line leading-relaxed text-foreground">{{ selectedReport.reinspection_notes }}</p>
                         <a v-if="selectedReport.reinspection_proof_url" :href="selectedReport.reinspection_proof_url" target="_blank" rel="noopener" class="mt-2 inline-flex text-[11px] font-bold text-sky-700 hover:underline dark:text-sky-300">Xem bằng chứng tái kiểm</a>
                         <p v-if="selectedReport.reinspected_at" class="mt-1 text-[10px] text-muted-foreground">Thực hiện lúc {{ selectedReport.reinspected_at }} · {{ selectedReport.reinspector?.name }}</p>
+                    </div>
+
+                    <div v-if="selectedReport.actions?.length" class="space-y-2 rounded-2xl border border-violet-200/70 bg-violet-500/5 p-4 dark:border-violet-500/20">
+                        <div class="flex items-center gap-2 font-semibold text-violet-700 dark:text-violet-300"><ClipboardList class="size-4" /> CAPA liên quan</div>
+                        <div v-for="action in selectedReport.actions" :key="action.id" class="rounded-xl border border-border/70 bg-background/60 p-3 text-xs"><div class="flex flex-wrap items-center justify-between gap-2"><span class="font-bold text-foreground">{{ action.title }}</span><span class="rounded-full bg-muted px-2 py-1 text-[10px] font-bold">{{ action.status }}</span></div><p class="mt-1 text-muted-foreground">{{ action.assignee?.name || 'Chưa phân công' }} · Hạn {{ action.due_date || 'Chưa đặt' }}</p></div>
                     </div>
 
                     <div

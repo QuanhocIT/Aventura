@@ -3,12 +3,16 @@
 namespace Tests\Feature;
 
 use App\Models\CompanyPolicy;
+use App\Models\ChecklistItem;
+use App\Models\ChecklistTemplate;
 use App\Models\OperationalInfringementReport;
+use App\Models\OperationalInspection;
 use App\Models\Restaurant;
 use App\Models\RestaurantBranch;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Storage;
 use Spatie\Permission\Models\Role;
 use Spatie\Permission\PermissionRegistrar;
@@ -277,5 +281,217 @@ class OperationalAuditTest extends TestCase
         $this->assertNotNull($inspector);
         $this->assertTrue($inspector->hasRole('operations_inspector'));
         $this->assertTrue($inspector->canViewAllBranches());
+    }
+
+    public function test_operations_inspector_has_a_separate_audit_overview_workspace(): void
+    {
+        $restaurant = Restaurant::factory()->create();
+        $inspector = User::factory()->create([
+            'restaurant_id' => $restaurant->id,
+            'branch_id' => null,
+        ]);
+        $inspector->assignRole('operations_inspector');
+
+        $this->actingAs($inspector)
+            ->get('/operations/audit/overview')
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->component('operations/AuditOverview')
+                ->where('roleLabel', 'Giám sát viên vận hành')
+                ->where('reportStats.open', 0)
+                ->where('capabilities.create_report', true));
+    }
+
+    public function test_field_inspection_can_close_without_violation_and_run_capa_workflow(): void
+    {
+        $restaurant = Restaurant::factory()->create();
+        $branch = RestaurantBranch::factory()->create(['restaurant_id' => $restaurant->id]);
+        $inspector = User::factory()->create(['restaurant_id' => $restaurant->id, 'branch_id' => null]);
+        $inspector->assignRole('operations_inspector');
+        $staff = User::factory()->create(['restaurant_id' => $restaurant->id, 'branch_id' => $branch->id]);
+        $staff->assignRole('kitchen');
+        $auditor = User::factory()->create(['restaurant_id' => $restaurant->id, 'branch_id' => null]);
+        $auditor->assignRole('compliance_auditor');
+
+        $template = ChecklistTemplate::create([
+            'restaurant_id' => $restaurant->id,
+            'name' => 'Checklist ATTP',
+            'type' => 'attp',
+            'is_active' => true,
+        ]);
+        $item = ChecklistItem::create([
+            'template_id' => $template->id,
+            'title' => 'Nhiệt độ tủ mát trong giới hạn',
+        ]);
+
+        $inspectionResponse = $this->actingAs($inspector)->postJson('/api/operational-audit/inspections', [
+            'branch_id' => $branch->id,
+            'title' => 'Kiểm tra ATTP ca sáng',
+            'inspection_type' => 'routine',
+            'scope' => 'Kiểm tra khu bếp, kho mát và hồ sơ nhiệt độ.',
+        ])->assertOk();
+        $inspectionId = $inspectionResponse->json('data.id');
+
+        $this->actingAs($inspector)->postJson("/api/operational-audit/inspections/{$inspectionId}/start")
+            ->assertOk();
+        $this->actingAs($inspector)->postJson("/api/operational-audit/inspections/{$inspectionId}/checklist", [
+            'item_id' => $item->id,
+            'result' => 'pass',
+            'notes' => 'Đã đối chiếu nhiệt kế tại thời điểm kiểm tra.',
+        ])->assertOk();
+        $this->actingAs($inspector)->postJson("/api/operational-audit/inspections/{$inspectionId}/complete", [
+            'conclusion' => 'Khu vực đạt yêu cầu, không phát sinh biên bản vi phạm.',
+            'score' => 96,
+        ])->assertOk();
+
+        $this->assertDatabaseHas('operational_inspections', [
+            'id' => $inspectionId,
+            'status' => 'completed',
+            'score' => 96,
+        ]);
+
+        $inspection = OperationalInspection::findOrFail($inspectionId);
+        $actionResponse = $this->actingAs($inspector)->postJson("/api/operational-audit/inspections/{$inspectionId}/actions", [
+            'title' => 'Bổ sung tem kiểm tra định kỳ',
+            'description' => 'Bổ sung tem và người ký xác nhận trên tủ mát.',
+            'assigned_to' => $staff->id,
+            'priority' => 'normal',
+            'due_date' => now()->addDays(3)->toDateString(),
+        ])->assertOk();
+        $actionId = $actionResponse->json('data.id');
+
+        $this->actingAs($staff)->patchJson("/api/operational-audit/actions/{$actionId}", ['status' => 'accepted'])->assertOk();
+        $this->actingAs($staff)->patchJson("/api/operational-audit/actions/{$actionId}", ['status' => 'in_progress'])->assertOk();
+        $this->actingAs($staff)->patchJson("/api/operational-audit/actions/{$actionId}", [
+            'status' => 'submitted',
+            'submission_notes' => 'Đã dán tem mới và bàn giao sổ theo dõi cho ca trưởng.',
+        ])->assertOk();
+        $this->actingAs($inspector)->patchJson("/api/operational-audit/actions/{$actionId}", [
+            'status' => 'verified',
+            'verification_notes' => 'Không được tự xác minh kết quả do chính mình lập.',
+        ])->assertForbidden();
+        $this->actingAs($auditor)->patchJson("/api/operational-audit/actions/{$actionId}", [
+            'status' => 'verified',
+            'verification_notes' => 'Đã kiểm tra lại tại hiện trường.',
+        ])->assertOk();
+
+        $this->assertDatabaseHas('operational_corrective_actions', [
+            'id' => $actionId,
+            'status' => 'verified',
+            'verified_by' => $auditor->id,
+        ]);
+    }
+
+    public function test_inspection_requires_traceability_and_evidence_is_tenant_scoped(): void
+    {
+        Storage::fake('local');
+
+        $restaurant = Restaurant::factory()->create();
+        $branch = RestaurantBranch::factory()->create(['restaurant_id' => $restaurant->id]);
+        $inspector = User::factory()->create(['restaurant_id' => $restaurant->id, 'branch_id' => null]);
+        $inspector->assignRole('operations_inspector');
+        $otherRestaurant = Restaurant::factory()->create();
+        $otherUser = User::factory()->create(['restaurant_id' => $otherRestaurant->id]);
+        $otherUser->assignRole('operations_inspector');
+
+        $template = ChecklistTemplate::create([
+            'restaurant_id' => $restaurant->id,
+            'name' => 'Checklist bắt buộc ảnh',
+            'type' => 'custom',
+            'is_active' => true,
+        ]);
+        $item = ChecklistItem::create([
+            'template_id' => $template->id,
+            'title' => 'Kiểm tra niêm phong tủ mát',
+            'requires_photo' => true,
+        ]);
+
+        $inspectionId = $this->actingAs($inspector)->postJson('/api/operational-audit/inspections', [
+            'branch_id' => $branch->id,
+            'title' => 'Kiểm tra truy nguyên hồ sơ hiện trường',
+            'inspection_type' => 'routine',
+            'scope' => 'Đối chiếu niêm phong, nhiệt độ và bằng chứng tại khu vực kho.',
+        ])->assertOk()->json('data.id');
+
+        $this->actingAs($inspector)->postJson("/api/operational-audit/inspections/{$inspectionId}/start")->assertOk();
+        $this->actingAs($inspector)->postJson("/api/operational-audit/inspections/{$inspectionId}/complete", [
+            'conclusion' => 'Không được khóa khi chưa ghi checklist.',
+            'score' => 80,
+        ])->assertStatus(422);
+
+        $this->actingAs($inspector)->postJson("/api/operational-audit/inspections/{$inspectionId}/checklist", [
+            'item_id' => $item->id,
+            'result' => 'fail',
+        ])->assertStatus(422);
+
+        $this->actingAs($inspector)->postJson("/api/operational-audit/inspections/{$inspectionId}/checklist", [
+            'item_id' => $item->id,
+            'result' => 'fail',
+            'finding_notes' => 'Tem niêm phong bị rách, cần thay mới và ghi nhận nguyên nhân.',
+            'photo' => 'data:image/png;base64,'.base64_encode('fake-image'),
+        ])->assertOk();
+
+        $secondInspectionId = $this->actingAs($inspector)->postJson('/api/operational-audit/inspections', [
+            'branch_id' => $branch->id,
+            'title' => 'Phiên kiểm tra lặp trong cùng ngày',
+            'inspection_type' => 'follow_up',
+            'scope' => 'Đối chiếu lại mục niêm phong sau khi có phát hiện đầu tiên.',
+        ])->assertOk()->json('data.id');
+        $this->actingAs($inspector)->postJson("/api/operational-audit/inspections/{$secondInspectionId}/start")->assertOk();
+        $this->actingAs($inspector)->postJson("/api/operational-audit/inspections/{$secondInspectionId}/checklist", [
+            'item_id' => $item->id,
+            'result' => 'pass',
+            'notes' => 'Đã kiểm tra lại trong phiên độc lập.',
+        ])->assertOk();
+        $this->assertDatabaseCount('checklist_completions', 2);
+
+        $evidenceId = $this->actingAs($inspector)->post('/api/operational-audit/evidence', [
+            'file' => UploadedFile::fake()->image('hien-truong.png'),
+            'collection' => 'inspection',
+            'operational_inspection_id' => $inspectionId,
+            'notes' => 'Ảnh hiện trường lúc lập phiên.',
+        ])->assertOk()->json('data.id');
+
+        $this->assertDatabaseHas('operational_evidence', [
+            'id' => $evidenceId,
+            'restaurant_id' => $restaurant->id,
+            'original_name' => 'hien-truong.png',
+        ]);
+        $this->actingAs($inspector)
+            ->get("/api/operational-audit/evidence/{$evidenceId}")
+            ->assertOk();
+        $this->actingAs($otherUser)
+            ->get("/api/operational-audit/evidence/{$evidenceId}")
+            ->assertNotFound();
+    }
+
+    public function test_operational_audit_reminders_are_idempotent(): void
+    {
+        $restaurant = Restaurant::factory()->create();
+        $branch = RestaurantBranch::factory()->create(['restaurant_id' => $restaurant->id]);
+        $inspector = User::factory()->create(['restaurant_id' => $restaurant->id, 'branch_id' => null]);
+        $inspector->assignRole('operations_inspector');
+
+        OperationalInspection::create([
+            'restaurant_id' => $restaurant->id,
+            'branch_id' => $branch->id,
+            'inspection_code' => 'CHK-REMINDER-0001',
+            'title' => 'Phiên kiểm tra cần nhắc lịch',
+            'inspection_type' => 'routine',
+            'status' => 'planned',
+            'lead_inspector_id' => $inspector->id,
+            'created_by' => $inspector->id,
+            'scheduled_at' => now()->addHours(2),
+            'scope' => 'Kiểm tra định kỳ các khu vực vận hành trọng yếu.',
+        ]);
+
+        Artisan::call('operational-audit:send-reminders');
+        Artisan::call('operational-audit:send-reminders');
+
+        $this->assertSame(1, $inspector->notifications()->where('type', \App\Notifications\OperationalAuditNotification::class)->count());
+        $this->assertDatabaseHas('notifications', [
+            'notifiable_id' => $inspector->id,
+            'type' => \App\Notifications\OperationalAuditNotification::class,
+        ]);
     }
 }
