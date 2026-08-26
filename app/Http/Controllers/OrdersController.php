@@ -1026,9 +1026,13 @@ class OrdersController extends Controller
         abort_unless(in_array($order->payment_status, ['paid', 'partial_refund'], true), 422, 'Chỉ có thể hoàn tiền đơn đã thanh toán.');
 
         $data = $request->validate([
-            'reason' => ['required', 'string', 'min:10', 'max:500'],
+            'reason' => ['required', 'string', 'min:5', 'max:500'],
+            'refund_category' => ['required', 'in:compensation,mistake'],
             'refund_amount' => ['required', 'numeric', 'min:1000', "max:{$order->total_amount}"],
             'refund_type' => ['required', 'in:full,partial'],
+            'items' => ['nullable', 'array'],
+            'items.*.order_item_id' => ['required_with:items', 'integer'],
+            'items.*.quantity' => ['required_with:items', 'numeric', 'min:1'],
         ]);
 
         $alreadyRefunded = (float) ($order->refund_amount ?? 0);
@@ -1057,23 +1061,31 @@ class OrdersController extends Controller
             return back()->withErrors(['refund' => 'Đơn hàng này đã có yêu cầu hoàn tiền đang chờ chủ doanh nghiệp phê duyệt.']);
         }
 
+        $categoryLabel = $data['refund_category'] === 'mistake' ? 'Nhầm lẫn (Không trừ tồn)' : 'Bồi thường (Trừ tồn)';
+
         $approval = app(ApprovalService::class)->submitRequest('order_refund', [
             'order_id' => $order->id,
             'order_number' => $order->order_number,
             'table_name' => $order->table?->name,
             'refund_type' => $data['refund_type'],
+            'refund_category' => $data['refund_category'],
             'refund_amount' => (float) $data['refund_amount'],
-            'refund_reason' => $data['reason'],
-            'reason' => $data['reason'],
+            'refund_reason' => "[Phân loại: {$categoryLabel}] {$data['reason']}",
+            'reason' => "[Phân loại: {$categoryLabel}] {$data['reason']}",
+            'items' => $data['items'] ?? [],
         ], $user);
 
         AuditLog::log('refund_requested', 'updated', $order, null, [
             'approval_id' => $approval->id,
             'refund_amount' => (float) $data['refund_amount'],
             'refund_type' => $data['refund_type'],
+            'refund_category' => $data['refund_category'],
             'refund_reason' => $data['reason'],
             'requested_by_user_id' => $user->id,
             'requested_by_user_name' => $user->name,
+            'is_sensitive' => true,
+            'alert_level' => 'warning',
+            'warning_message' => "Quản lý {$user->name} vừa gửi yêu cầu hoàn tiền nhạy cảm ({$categoryLabel}) cho đơn #{$order->order_number} số tiền ".number_format((float) $data['refund_amount'], 0, ',', '.')." ₫.",
         ]);
 
         return back()->with('success', 'Đã gửi yêu cầu hoàn tiền đến chủ doanh nghiệp để phê duyệt.');

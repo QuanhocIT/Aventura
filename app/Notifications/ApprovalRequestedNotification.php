@@ -34,7 +34,8 @@ class ApprovalRequestedNotification extends Notification
 
         if ($this->approval->operation_type === 'order_refund' && ! empty($operationData['order_number'])) {
             $amount = number_format((float) ($operationData['refund_amount'] ?? 0), 0, ',', '.');
-            $message = "{$this->requester->name} yêu cầu hoàn {$amount}đ cho đơn {$operationData['order_number']} — cần phê duyệt.";
+            $reason = ! empty($operationData['refund_reason']) ? " (Lý do: {$operationData['refund_reason']})" : '';
+            $message = "⚠️ CẢNH BÁO THAO TÁC NHẠY CẢM: Quản lý {$this->requester->name} vừa thực hiện yêu cầu hoàn {$amount} ₫ cho đơn #{$operationData['order_number']}{$reason} — cần Chủ doanh nghiệp kiểm tra & phê duyệt.";
         }
 
         return [
