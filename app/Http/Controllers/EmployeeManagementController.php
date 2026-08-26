@@ -516,42 +516,59 @@ class EmployeeManagementController extends Controller
         $isWarehouseRole = in_array($data['role'], ['warehouse_staff', 'warehouse_manager', 'logistics_driver', 'assistant_warehouse_keeper'], true);
         $isInspectorRole = in_array($data['role'], ['operations_inspector', 'compliance_auditor'], true);
 
+        $tenantContext = app(TenantContext::class);
+        $activeBranchId = $tenantContext->activeBranchId();
+        $centralBranch = app(CentralWarehouseService::class)->getCentralWarehouse((int) $user->restaurant_id);
+
         if ($isInspectorRole) {
+            if ($tenantContext->isBranchScoped() && $activeBranchId !== null && $activeBranchId !== 0) {
+                throw ValidationException::withMessages([
+                    'role' => 'Vai trò Giám sát viên Vận hành / Thanh tra không thể tạo ở cụ thể 1 chi nhánh nào mà phải được tạo khi ở phạm vi toàn chuỗi.',
+                ]);
+            }
             $branchId = null;
             $data['branch_id'] = null;
         } else {
-            // $user->branch_id (owner/manager) chỉ có giá trị nếu đã từng bấm nút
-            // chuyển chi nhánh trong phiên hiện tại (session active_branch_id) —
-            // nếu chưa, rơi về chi nhánh đầu tiên của nhà hàng làm mặc định hợp lý.
-            $tenantContext = app(TenantContext::class);
-            $branchId = (int) ($data['branch_id'] ?? $tenantContext->activeBranchId() ?? $user->assignedBranchId() ?? 0);
+            $branchId = (int) ($data['branch_id'] ?? $activeBranchId ?? $user->assignedBranchId() ?? 0);
             $data['branch_id'] = $branchId;
-            if (! $user->canAccessBranch($branchId)) {
-                throw ValidationException::withMessages(['branch_id' => 'Bạn không có quyền gán nhân viên vào chi nhánh này.']);
-            }
 
-            if ($tenantContext->isBranchScoped()
-                && $branchId !== $tenantContext->activeBranchId()
-                && ! $isWarehouseRole) {
-                throw ValidationException::withMessages(['branch_id' => 'Chi nhánh nhân viên phải trùng chi nhánh hiện tại.']);
+            if ($centralBranch && $branchId === (int) $centralBranch->id && ! $isWarehouseRole) {
+                throw ValidationException::withMessages([
+                    'role' => 'Khi tạo nhân sự ở chi nhánh Kho Tổng, chỉ có thể tạo nhân viên với vai trò: Trưởng kho Tổng, Thủ kho phụ, Nhân viên kho tổng, Tài xế.',
+                ]);
             }
 
             if ($isWarehouseRole) {
-                $centralBranch = app(CentralWarehouseService::class)->getCentralWarehouse((int) $user->restaurant_id);
                 if (! $centralBranch) {
                     throw ValidationException::withMessages(['branch_id' => 'Chưa thiết lập chi nhánh Kho Tổng cho nhà hàng.']);
                 }
 
+                if ($tenantContext->isBranchScoped() && $activeBranchId !== null && $activeBranchId !== 0 && $activeBranchId !== (int) $centralBranch->id) {
+                    throw ValidationException::withMessages([
+                        'role' => 'Khi chọn tạo nhân sự ở chi nhánh kinh doanh thì không thể tạo nhân viên với vai trò: Trưởng kho Tổng, Thủ kho phụ, Nhân viên kho tổng, Tài xế. Vui lòng chuyển sang Phạm vi toàn chuỗi hoặc Kho Tổng.',
+                    ]);
+                }
+
                 if ($branchId !== 0 && $branchId !== (int) $centralBranch->id) {
                     throw ValidationException::withMessages([
-                        'branch_id' => 'Trưởng kho Tổng và Nhân viên Kho Tổng chỉ được phép xếp làm việc tại chi nhánh Tổng kho, không được xếp vào chi nhánh kinh doanh.',
+                        'branch_id' => 'Trưởng kho Tổng, Thủ kho phụ, Nhân viên Kho Tổng và Tài xế chỉ được phép xếp làm việc tại chi nhánh Tổng kho, không được xếp vào chi nhánh kinh doanh.',
                     ]);
                 }
 
                 // Nhân sự Kho Tổng luôn thuộc ngân sách và phạm vi của Kho Tổng
                 $branchId = (int) $centralBranch->id;
                 $data['branch_id'] = $branchId;
+            } else {
+                if (! $user->canAccessBranch($branchId)) {
+                    throw ValidationException::withMessages(['branch_id' => 'Bạn không có quyền gán nhân viên vào chi nhánh này.']);
+                }
+
+                if ($tenantContext->isBranchScoped()
+                    && $branchId !== $activeBranchId) {
+                    throw ValidationException::withMessages(['branch_id' => 'Chi nhánh nhân viên phải trùng chi nhánh hiện tại.']);
+                }
             }
+
             if ($data['role'] === 'manager') {
                 $this->assertManagerSlotAvailable($user->restaurant_id, $branchId);
             }
@@ -1296,32 +1313,45 @@ class EmployeeManagementController extends Controller
         $targetRole = $data['role'] ?? $oldRole;
         $isTargetWarehouseRole = in_array($targetRole, ['warehouse_staff', 'warehouse_manager', 'logistics_driver', 'assistant_warehouse_keeper'], true);
         $isTargetInspectorRole = in_array($targetRole, ['operations_inspector', 'compliance_auditor'], true);
+        $centralBranch = app(CentralWarehouseService::class)->getCentralWarehouse((int) $user->restaurant_id);
 
         if ($isTargetInspectorRole) {
+            if ($tenantContext->isBranchScoped() && $tenantContext->activeBranchId() !== null && $tenantContext->activeBranchId() !== 0) {
+                throw ValidationException::withMessages([
+                    'role' => 'Vai trò Giám sát viên Vận hành / Thanh tra không thể tạo hoặc gán ở cụ thể 1 chi nhánh nào mà phải được tạo khi ở phạm vi toàn chuỗi.',
+                ]);
+            }
             $newBranchId = null;
             $data['branch_id'] = null;
+        } elseif ($isTargetWarehouseRole) {
+            if (! $centralBranch) {
+                throw ValidationException::withMessages(['branch_id' => 'Chưa thiết lập chi nhánh Kho Tổng cho nhà hàng.']);
+            }
+            if ($tenantContext->isBranchScoped() && $tenantContext->activeBranchId() !== null && $tenantContext->activeBranchId() !== 0 && $tenantContext->activeBranchId() !== (int) $centralBranch->id) {
+                throw ValidationException::withMessages([
+                    'role' => 'Khi ở chi nhánh kinh doanh không thể gán nhân viên với vai trò: Trưởng kho Tổng, Thủ kho phụ, Nhân viên kho tổng, Tài xế.',
+                ]);
+            }
+            if (array_key_exists('branch_id', $data) && $newBranchId !== null && $newBranchId !== (int) $centralBranch->id) {
+                throw ValidationException::withMessages([
+                    'branch_id' => 'Trưởng kho Tổng, Thủ kho phụ, Nhân viên Kho Tổng và Tài xế chỉ được phép xếp làm việc tại chi nhánh Tổng kho, không được xếp vào chi nhánh kinh doanh.',
+                ]);
+            }
+            $newBranchId = (int) $centralBranch->id;
+            $data['branch_id'] = $newBranchId;
         } elseif (array_key_exists('branch_id', $data)) {
             $newBranchId = $data['branch_id'] !== null ? (int) $data['branch_id'] : null;
             if ($newBranchId === null || ! $user->canAccessBranch($newBranchId)) {
                 throw ValidationException::withMessages(['branch_id' => 'Bạn không có quyền gán nhân viên vào chi nhánh này.']);
             }
-            if ($tenantContext->isBranchScoped() && $newBranchId !== $tenantContext->activeBranchId() && ! $isTargetWarehouseRole) {
-                throw ValidationException::withMessages(['branch_id' => 'Chi nhánh nhân viên phải trùng chi nhánh hiện tại.']);
-            }
-        }
-
-        if ($isTargetWarehouseRole) {
-            $centralBranch = app(CentralWarehouseService::class)->getCentralWarehouse((int) $user->restaurant_id);
-            if (! $centralBranch) {
-                throw ValidationException::withMessages(['branch_id' => 'Chưa thiết lập chi nhánh Kho Tổng cho nhà hàng.']);
-            }
-            if (array_key_exists('branch_id', $data) && $newBranchId !== null && $newBranchId !== (int) $centralBranch->id) {
+            if ($centralBranch && $newBranchId === (int) $centralBranch->id && ! $isTargetWarehouseRole) {
                 throw ValidationException::withMessages([
-                    'branch_id' => 'Trưởng kho Tổng và Nhân viên Kho Tổng chỉ được phép xếp làm việc tại chi nhánh Tổng kho, không được xếp vào chi nhánh kinh doanh.',
+                    'role' => 'Khi gán nhân viên làm việc tại chi nhánh Kho Tổng, chỉ được phép chọn vai trò thuộc Kho Tổng (Trưởng kho Tổng, Thủ kho phụ, Nhân viên kho tổng, Tài xế).',
                 ]);
             }
-            $newBranchId = (int) $centralBranch->id;
-            $data['branch_id'] = $newBranchId;
+            if ($tenantContext->isBranchScoped() && $newBranchId !== $tenantContext->activeBranchId()) {
+                throw ValidationException::withMessages(['branch_id' => 'Chi nhánh nhân viên phải trùng chi nhánh hiện tại.']);
+            }
         }
 
         if (array_key_exists('wage_tier_id', $data) && ! empty($data['wage_tier_id'])) {

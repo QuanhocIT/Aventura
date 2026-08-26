@@ -251,6 +251,22 @@ const centralBranch = computed(() => {
     return props.branches.find((b) => isCentralBranch(b)) ?? null;
 });
 
+const isAllChainScope = computed(() => {
+    return !props.activeBranchId || props.branchScope === 'all';
+});
+
+const isActiveCentralBranch = computed(() => {
+    if (!centralBranch.value || !props.activeBranchId) {
+        return false;
+    }
+
+    return Number(props.activeBranchId) === Number(centralBranch.value.id);
+});
+
+const isActiveBusinessBranch = computed(() => {
+    return !isAllChainScope.value && !isActiveCentralBranch.value;
+});
+
 const availableCreateBranches = computed(() => {
     if (isInspectorRole(employeeForm.role)) {
         return [];
@@ -513,17 +529,23 @@ const allRoleOptions: RoleOption[] = [
 ];
 
 const createRoleOptions = computed(() => {
+    let roles = allRoleOptions;
+
     if (props.isWarehouseManager) {
-        return allRoleOptions.filter((option) =>
+        roles = roles.filter((option) =>
             ['warehouse_staff', 'logistics_driver', 'assistant_warehouse_keeper'].includes(option.value),
         );
+    } else if (props.isBranchManager) {
+        roles = roles.filter((option) => managerAllowedRoles.includes(option.value));
+    } else if (isActiveBusinessBranch.value) {
+        // Chi nhánh kinh doanh: Không thể tạo Trưởng kho Tổng, Thủ kho phụ, Nhân viên kho tổng, Tài xế, Giám sát viên Vận hành / Thanh tra
+        roles = roles.filter((option) => !isWarehouseRole(option.value) && !isInspectorRole(option.value));
+    } else if (isActiveCentralBranch.value) {
+        // Chi nhánh Kho Tổng: Chỉ có thể tạo nhân viên với vai trò Trưởng kho Tổng, Thủ kho phụ, Nhân viên kho tổng, Tài xế Logistics
+        roles = roles.filter((option) => isWarehouseRole(option.value));
     }
 
-    if (props.isBranchManager) {
-        return allRoleOptions.filter((option) => managerAllowedRoles.includes(option.value));
-    }
-
-    return allRoleOptions;
+    return roles;
 });
 
 const editRoleOptions = computed(() => {
@@ -599,9 +621,25 @@ watch(
 );
 
 watch(showAddEmployee, (val) => {
-    if (val && props.isWarehouseManager) {
-        employeeForm.role = 'warehouse_staff';
-        employeeForm.job_title = 'Nhân viên Kho Tổng';
+    if (val) {
+        if (props.isWarehouseManager) {
+            employeeForm.role = 'warehouse_staff';
+            employeeForm.job_title = 'Nhân viên Kho Tổng';
+        } else {
+            const availableValues = createRoleOptions.value.map((o) => o.value);
+            if (!availableValues.includes(employeeForm.role)) {
+                const firstRole = availableValues[0] || 'cashier';
+
+                employeeForm.role = firstRole;
+                if (firstRole === 'cashier') {
+                    employeeForm.job_title = 'Thu Ngân';
+                } else if (firstRole === 'kitchen') {
+                    employeeForm.job_title = 'Nhân Viên Bếp';
+                } else if (firstRole === 'warehouse_staff') {
+                    employeeForm.job_title = 'Nhân viên Kho Tổng';
+                }
+            }
+        }
     }
 });
 
@@ -1703,6 +1741,18 @@ const submitSwapReject = () => {
                                     class="text-xs text-amber-600 dark:text-amber-400"
                                 >
                                     Quản lý chỉ được tạo Thu ngân, Order hoặc Bếp.
+                                </p>
+                                <p
+                                    v-else-if="isActiveBusinessBranch"
+                                    class="text-xs font-medium text-amber-700 dark:text-amber-400 bg-amber-50/80 dark:bg-amber-950/40 p-2 rounded border border-amber-200/60 dark:border-amber-900/50"
+                                >
+                                    ⚠️ Đang thao tác tại Chi nhánh Kinh doanh: Không thể tạo vai trò Kho Tổng (Trưởng kho, Thủ kho phụ, Nhân viên kho tổng, Tài xế) hoặc Giám sát viên Vận hành. Vui lòng chuyển sang Phạm vi toàn chuỗi nếu muốn tạo các vai trò trên.
+                                </p>
+                                <p
+                                    v-else-if="isActiveCentralBranch"
+                                    class="text-xs font-medium text-purple-700 dark:text-purple-400 bg-purple-50/80 dark:bg-purple-950/40 p-2 rounded border border-purple-200/60 dark:border-purple-900/50"
+                                >
+                                    🔒 Đang thao tác tại Chi nhánh Kho Tổng: Chỉ được phép tạo nhân viên với vai trò Kho Tổng (Trưởng kho Tổng, Thủ kho phụ, Nhân viên kho tổng, Tài xế Logistics).
                                 </p>
                                 <select
                                     id="emp-role"

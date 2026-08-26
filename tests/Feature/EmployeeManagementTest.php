@@ -363,4 +363,108 @@ class EmployeeManagementTest extends TestCase
         $this->actingAs($staff)->get('/settings/integrations')->assertForbidden();
         $this->actingAs($staff)->get('/operation-policies')->assertForbidden();
     }
+
+    public function test_cannot_create_warehouse_roles_or_inspector_roles_in_business_branch(): void
+    {
+        RestaurantBranch::factory()->create([
+            'restaurant_id' => $this->restaurant->id,
+            'is_central_warehouse' => true,
+            'warehouse_type' => 'central',
+        ]);
+        $businessBranch = RestaurantBranch::factory()->create([
+            'restaurant_id' => $this->restaurant->id,
+            'is_central_warehouse' => false,
+            'warehouse_type' => 'branch',
+        ]);
+
+        // Creating warehouse_manager in business branch scope should fail
+        $response1 = $this->actingAs($this->owner)
+            ->withSession(['active_branch_id' => $businessBranch->id])
+            ->post('/employees', $this->validEmployeePayload([
+                'email' => 'wm-business@example.com',
+                'role' => 'warehouse_manager',
+                'branch_id' => $businessBranch->id,
+            ]));
+
+        $response1->assertSessionHasErrors('role');
+
+        // Creating assistant_warehouse_keeper in business branch scope should fail
+        $response2 = $this->actingAs($this->owner)
+            ->withSession(['active_branch_id' => $businessBranch->id])
+            ->post('/employees', $this->validEmployeePayload([
+                'email' => 'awk-business@example.com',
+                'role' => 'assistant_warehouse_keeper',
+                'branch_id' => $businessBranch->id,
+            ]));
+
+        $response2->assertSessionHasErrors('role');
+
+        // Creating operations_inspector in business branch scope should fail
+        $response3 = $this->actingAs($this->owner)
+            ->withSession(['active_branch_id' => $businessBranch->id])
+            ->post('/employees', $this->validEmployeePayload([
+                'email' => 'inspector-business@example.com',
+                'role' => 'operations_inspector',
+                'branch_id' => $businessBranch->id,
+            ]));
+
+        $response3->assertSessionHasErrors('role');
+    }
+
+    public function test_operations_inspector_role_can_only_be_created_in_all_chain_scope(): void
+    {
+        Role::firstOrCreate(['name' => 'operations_inspector', 'guard_name' => 'web']);
+
+        // In all-chain scope (active_branch_id = null), operations_inspector creation succeeds
+        $response = $this->actingAs($this->owner)
+            ->withSession(['active_branch_id' => null])
+            ->post('/employees', $this->validEmployeePayload([
+                'email' => 'inspector-allchain@example.com',
+                'role' => 'operations_inspector',
+                'job_title' => 'Giám sát viên Vận hành / Thanh tra',
+            ]));
+
+        $response->assertRedirect()->assertSessionHasNoErrors();
+
+        $employee = Employee::withoutGlobalScopes()
+            ->where('restaurant_id', $this->restaurant->id)
+            ->where('email', 'inspector-allchain@example.com')
+            ->first();
+
+        $this->assertNotNull($employee);
+        $this->assertNull($employee->branch_id);
+    }
+
+    public function test_central_warehouse_scope_only_allows_warehouse_roles(): void
+    {
+        $centralBranch = RestaurantBranch::factory()->create([
+            'restaurant_id' => $this->restaurant->id,
+            'is_central_warehouse' => true,
+            'warehouse_type' => 'central',
+        ]);
+        Role::firstOrCreate(['name' => 'warehouse_manager', 'guard_name' => 'web']);
+
+        // Creating cashier in central warehouse scope should fail
+        $response1 = $this->actingAs($this->owner)
+            ->withSession(['active_branch_id' => $centralBranch->id])
+            ->post('/employees', $this->validEmployeePayload([
+                'email' => 'cashier-cw@example.com',
+                'role' => 'cashier',
+                'branch_id' => $centralBranch->id,
+            ]));
+
+        $response1->assertSessionHasErrors('role');
+
+        // Creating warehouse_manager in central warehouse scope should succeed
+        $response2 = $this->actingAs($this->owner)
+            ->withSession(['active_branch_id' => $centralBranch->id])
+            ->post('/employees', $this->validEmployeePayload([
+                'email' => 'wm-cw@example.com',
+                'role' => 'warehouse_manager',
+                'branch_id' => $centralBranch->id,
+            ]));
+
+        $response2->assertRedirect()->assertSessionHasNoErrors();
+    }
 }
+
