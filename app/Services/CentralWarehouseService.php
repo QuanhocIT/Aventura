@@ -202,6 +202,10 @@ class CentralWarehouseService
             collect($items)->pluck('ingredient_id')
         );
 
+        if (collect($items)->pluck('ingredient_id')->duplicates()->isNotEmpty()) {
+            throw new InvalidArgumentException('Mỗi nguyên liệu chỉ được xuất hiện một lần trong một đơn cấp phát.');
+        }
+
         // ── Anti-Duplicate Check ───────────────────────────────────────────────
         $recentDuplicate = SupplyRequest::where('restaurant_id', $restaurantId)
             ->where('to_branch_id', $toBranchId)
@@ -323,13 +327,18 @@ class CentralWarehouseService
         );
 
         return DB::transaction(function () use ($request, $approver, $approvedItems, $notes) {
+            $request = SupplyRequest::query()->whereKey($request->id)->lockForUpdate()->firstOrFail();
+            if (! in_array($request->status, [SupplyRequest::STATUS_PENDING, 'draft'], true)) {
+                throw new InvalidArgumentException('Supply request is no longer pending approval.');
+            }
+            $request->load('items');
             $totalAmount = 0;
             $itemsToProcess = ! empty($approvedItems) ? $approvedItems : $request->items;
 
             foreach ($itemsToProcess as $itemApproval) {
                 $item = $itemApproval instanceof SupplyRequestItem
                     ? $itemApproval
-                    : SupplyRequestItem::where('supply_request_id', $request->id)->where('id', $itemApproval['id'])->first();
+                    : SupplyRequestItem::where('supply_request_id', $request->id)->where('id', $itemApproval['id'])->lockForUpdate()->first();
 
                 if (! $item) {
                     continue;
@@ -347,6 +356,7 @@ class CentralWarehouseService
                 $centralInventory = Inventory::where('restaurant_id', $request->restaurant_id)
                     ->where('branch_id', $request->from_branch_id)
                     ->where('ingredient_id', $item->ingredient_id)
+                    ->lockForUpdate()
                     ->first();
 
                 $available = $centralInventory ? $centralInventory->quantity_available : 0.0;
@@ -362,6 +372,16 @@ class CentralWarehouseService
                 $totalAmount += $lineCost;
 
                 // ── TẠO GIỮ CHỐ TỒN (Inventory Reservation) ────────────────────────
+                $existingReservation = InventoryReservation::where('restaurant_id', $request->restaurant_id)
+                    ->where('supply_request_id', $request->id)
+                    ->where('ingredient_id', $item->ingredient_id)
+                    ->whereNull('released_at')
+                    ->lockForUpdate()
+                    ->first();
+                if ($existingReservation) {
+                    throw new InvalidArgumentException('ÄÆ¡n cáº¥p phÃ¡t Ä‘Ã£ cÃ³ giá»¯ chá»— tá»“n kho, khÃ´ng thá»ƒ duyá»‡t láº¡i.');
+                }
+
                 InventoryReservation::create([
                     'restaurant_id' => $request->restaurant_id,
                     'branch_id' => $request->from_branch_id,
@@ -414,9 +434,15 @@ class CentralWarehouseService
         );
 
         return DB::transaction(function () use ($request, $picker, $pickedItems) {
+            $request = SupplyRequest::query()->whereKey($request->id)->lockForUpdate()->firstOrFail();
+            if (! in_array($request->status, [SupplyRequest::STATUS_APPROVED, SupplyRequest::STATUS_PREPARING], true)) {
+                throw new InvalidArgumentException('Supply request is no longer available for preparation.');
+            }
+            $request->load('items');
             foreach ($pickedItems as $picked) {
                 $item = SupplyRequestItem::where('supply_request_id', $request->id)
                     ->where('id', $picked['id'])
+                    ->lockForUpdate()
                     ->firstOrFail();
 
                 $actualQty = (float) ($picked['actual_dispatched_quantity'] ?? $item->approved_quantity);
@@ -494,8 +520,20 @@ class CentralWarehouseService
                     if ($batch->status === 'recalled' || $batch->status === 'locked') {
                         throw new InvalidArgumentException("Lô #{$batch->batch_code} đang bị khóa/thu hồi!");
                     }
-                    if ((float) $batch->quantity_remaining < $actualQty) {
-                        throw new InvalidArgumentException("Lô #{$batch->batch_code} chỉ còn {$batch->quantity_remaining}, không đủ để soạn {$actualQty}.");
+                    $inventoryOnHand = (float) (Inventory::query()
+                        ->where('restaurant_id', $request->restaurant_id)
+                        ->where('branch_id', $request->from_branch_id)
+                        ->where('ingredient_id', $item->ingredient_id)
+                        ->value('quantity_on_hand') ?? 0);
+                    $activeBatchQuantity = (float) InventoryBatch::query()
+                        ->where('restaurant_id', $request->restaurant_id)
+                        ->where('branch_id', $request->from_branch_id)
+                        ->where('ingredient_id', $item->ingredient_id)
+                        ->where('status', 'active')
+                        ->where('quantity_remaining', '>', 0)
+                        ->sum('quantity_remaining');
+                    if (max($inventoryOnHand, $activeBatchQuantity) + 0.0005 < $actualQty) {
+                        throw new InvalidArgumentException("Lo/ton kho khong du de soan {$actualQty}.");
                     }
 
                     // Kiểm tra FEFO
@@ -563,11 +601,18 @@ class CentralWarehouseService
             throw new InvalidArgumentException('Đơn hàng phải qua bước soạn hàng trước khi Trưởng kho duyệt xuất.');
         }
 
-        $request->update([
-            'status' => SupplyRequest::STATUS_DISPATCH_PENDING,
-            'dispatch_approved_by' => $manager->id,
-            'dispatch_approved_at' => now(),
-        ]);
+        $request = DB::transaction(function () use ($request, $manager): SupplyRequest {
+            $lockedRequest = SupplyRequest::query()->whereKey($request->id)->lockForUpdate()->firstOrFail();
+            if (! in_array($lockedRequest->status, [SupplyRequest::STATUS_PREPARING, SupplyRequest::STATUS_PREPARED], true)) {
+                throw new InvalidArgumentException('Supply request is no longer awaiting dispatch approval.');
+            }
+            $lockedRequest->update([
+                'status' => SupplyRequest::STATUS_DISPATCH_PENDING,
+                'dispatch_approved_by' => $manager->id,
+                'dispatch_approved_at' => now(),
+            ]);
+            return $lockedRequest->fresh();
+        });
 
         $this->notifyStakeholders($request, 'dispatch_approved');
 
@@ -609,7 +654,24 @@ class CentralWarehouseService
         }
 
         return DB::transaction(function () use ($request, $handoverPerson, $sealCode) {
-            foreach ($request->items as $item) {
+            $lockedRequest = SupplyRequest::query()
+                ->where('restaurant_id', $handoverPerson->restaurant_id)
+                ->whereKey($request->id)
+                ->lockForUpdate()
+                ->firstOrFail();
+            if ($lockedRequest->status !== SupplyRequest::STATUS_DISPATCH_PENDING) {
+                throw new InvalidArgumentException('Đơn cấp phát đã được xuất hoặc không còn ở trạng thái chờ xuất.');
+            }
+            if (InventoryTransaction::query()
+                ->where('restaurant_id', $handoverPerson->restaurant_id)
+                ->where('source_type', 'supply_request')
+                ->where('source_id', $lockedRequest->id)
+                ->where('direction', 'out')
+                ->exists()) {
+                throw new InvalidArgumentException('Đơn cấp phát đã có giao dịch xuất kho; cần đối soát trước khi thử lại.');
+            }
+            $lockedItems = $lockedRequest->items()->lockForUpdate()->get();
+            foreach ($lockedItems as $item) {
                 if ($item->actual_dispatched_quantity === null) {
                     throw new InvalidArgumentException('Đơn chưa có đủ số lượng thực soạn cho tất cả dòng hàng.');
                 }
@@ -637,17 +699,6 @@ class CentralWarehouseService
                     if ($autoBatch) {
                         $item->batch_id = $autoBatch->id;
                         $item->save();
-                    } else {
-                        $anyBatch = InventoryBatch::where('restaurant_id', $request->restaurant_id)
-                            ->where('branch_id', $request->from_branch_id)
-                            ->where('ingredient_id', $item->ingredient_id)
-                            ->orderByDesc('id')
-                            ->first();
-
-                        if ($anyBatch) {
-                            $item->batch_id = $anyBatch->id;
-                            $item->save();
-                        }
                     }
                 }
 
@@ -665,8 +716,8 @@ class CentralWarehouseService
                 }
 
                 if ($request->from_branch_id) {
-                    // Xuất kho là giao dịch thực tế. Nếu tồn hiện tại không đủ,
-                    // vẫn ghi nhận số xuất và để tồn âm đi qua workflow xử lý âm.
+                    // Xuất kho là giao dịch thực tế; không được phép xuất vượt
+                    // tồn khả dụng vì sẽ làm sai số dư Kho Tổng.
                     $centralInventory = Inventory::where('restaurant_id', $request->restaurant_id)
                         ->where('branch_id', $request->from_branch_id)
                         ->where('ingredient_id', $item->ingredient_id)
@@ -688,39 +739,80 @@ class CentralWarehouseService
                         ->lockForUpdate()
                         ->firstOrFail();
                     $centralBefore = (float) $centralInventory->quantity_on_hand;
-                    $centralAfter = $centralBefore - $qtyToDeduct;
+                    $centralAfter = round($centralBefore - $qtyToDeduct, 3);
                     $centralTheoreticalBefore = $centralInventory->effectiveTheoreticalQuantity();
-                    $centralInventory->update([
-                        'quantity_on_hand' => $centralAfter,
-                        'theoretical_quantity' => $centralTheoreticalBefore - $qtyToDeduct,
-                    ]);
-                    $centralShortage = max(0, -$centralAfter);
-
-                    // Trừ tồn theo lô nếu có chọn lô
-                    if ($item->batch_id) {
-                        $batch = InventoryBatch::where('restaurant_id', $request->restaurant_id)
-                            ->where('branch_id', $request->from_branch_id)
-                            ->where('ingredient_id', $item->ingredient_id)
-                            ->where('id', $item->batch_id)
-                            ->lockForUpdate()
-                            ->first();
-
-                        if (! $batch) {
-                            throw new InvalidArgumentException('Lô xuất kho không còn tồn tại hoặc không thuộc Kho Tổng.');
-                        }
-                        if ($batch) {
-                            $batchAfter = (float) $batch->quantity_remaining - $qtyToDeduct;
-                            $batch->update([
-                                'quantity_remaining' => $batchAfter,
-                                'status' => $batchAfter <= 0 ? 'depleted' : $batch->status,
-                            ]);
-                            if ((float) $batch->quantity_remaining <= 0) {
-                                $batch->update(['status' => 'depleted']);
-                            }
-                        }
+                    $currentReservationQuantity = (float) InventoryReservation::where('restaurant_id', $request->restaurant_id)
+                        ->where('supply_request_id', $request->id)
+                        ->where('ingredient_id', $item->ingredient_id)
+                        ->whereNull('released_at')
+                        ->sum('quantity');
+                    if ((float) $centralInventory->quantity_available + $currentReservationQuantity + 0.0005 < $qtyToDeduct) {
+                        throw new InvalidArgumentException('Tồn khả dụng Kho Tổng đã thay đổi, không đủ để xuất đơn này. Vui lòng đối chiếu và soạn lại.');
                     }
-
+                    // Trừ tồn theo lô nếu có chọn lô
                     // Giải phóng Reservation giữ chỗ tương ứng
+                    $batches = InventoryBatch::where('restaurant_id', $request->restaurant_id)
+                        ->where('branch_id', $request->from_branch_id)
+                        ->where('ingredient_id', $item->ingredient_id)
+                        ->where('status', 'active')
+                        ->where(function ($query): void {
+                            $query->whereNull('expiry_date')->orWhereDate('expiry_date', '>=', today());
+                        })
+                        ->where('quantity_remaining', '>', 0)
+                        ->orderByRaw('expiry_date IS NULL')
+                        ->orderBy('expiry_date')
+                        ->orderBy('id')
+                        ->lockForUpdate()
+                        ->get();
+                    $availableBatchQuantity = (float) $batches->sum('quantity_remaining');
+                    $trackedBatchQuantity = (float) InventoryBatch::where('restaurant_id', $request->restaurant_id)
+                        ->where('branch_id', $request->from_branch_id)
+                        ->where('ingredient_id', $item->ingredient_id)
+                        ->whereIn('status', ['active', 'expired'])
+                        ->sum('quantity_remaining');
+                    $unallocatedOpeningQuantity = max(0, $centralBefore - $trackedBatchQuantity);
+                    if ($unallocatedOpeningQuantity > 0.0005) {
+                        $batches->push(InventoryBatch::create([
+                            'restaurant_id' => $request->restaurant_id,
+                            'branch_id' => $request->from_branch_id,
+                            'ingredient_id' => $item->ingredient_id,
+                            'batch_number' => 'LEGACY-CENTRAL-'.$request->from_branch_id.'-'.$item->ingredient_id.'-'.now()->format('YmdHis'),
+                            'quantity_remaining' => $unallocatedOpeningQuantity,
+                            'unit_cost' => (float) ($item->unit_cost ?: $centralInventory->last_cost ?: $ingredient->average_cost),
+                            'purchased_at' => now()->toDateString(),
+                            'status' => 'active',
+                        ]));
+                        $availableBatchQuantity += $unallocatedOpeningQuantity;
+                    }
+                    $remainingToAllocate = $qtyToDeduct;
+                    $batchAllocations = [];
+                    foreach ($batches as $batch) {
+                        if ($remainingToAllocate <= 0.0005) {
+                            break;
+                        }
+                        $allocated = min($remainingToAllocate, (float) $batch->quantity_remaining);
+                        if ($allocated <= 0) {
+                            continue;
+                        }
+                        $batchAllocations[] = [
+                            'batch' => $batch,
+                            'quantity' => round($allocated, 3),
+                            'unit_cost' => (float) ($batch->unit_cost ?: $item->unit_cost),
+                        ];
+                        $remainingToAllocate = round($remainingToAllocate - $allocated, 3);
+                    }
+                    if ($remainingToAllocate > 0.0005) {
+                        throw new InvalidArgumentException('Lô còn hạn tại Kho Tổng không đủ số lượng để xuất; lô hết hạn không được phép cấp phát.');
+                    }
+                    $allocatedCost = array_sum(array_map(
+                        fn (array $allocation): float => $allocation['quantity'] * $allocation['unit_cost'],
+                        $batchAllocations,
+                    ));
+                    $fallbackUnitCost = (float) ($item->unit_cost ?: $centralInventory->last_cost ?: $ingredient->average_cost);
+                    $unallocatedQuantity = max(0, $qtyToDeduct - array_sum(array_column($batchAllocations, 'quantity')));
+                    $totalCost = $allocatedCost + ($unallocatedQuantity * $fallbackUnitCost);
+                    $weightedUnitCost = $qtyToDeduct > 0 ? $totalCost / $qtyToDeduct : $fallbackUnitCost;
+
                     InventoryReservation::where('supply_request_id', $request->id)
                         ->where('ingredient_id', $item->ingredient_id)
                         ->whereNull('released_at')
@@ -736,45 +828,60 @@ class CentralWarehouseService
                         'type' => 'transfer',
                         'direction' => 'out',
                         'quantity' => $qtyToDeduct,
-                        'unit_cost' => $item->unit_cost,
-                        'total_cost' => round($item->unit_cost * $qtyToDeduct, 2),
+                        'unit_cost' => $weightedUnitCost,
+                        'total_cost' => round($totalCost, 2),
                         'source_type' => 'supply_request',
                         'source_id' => $request->id,
                         'idempotency_key' => "dispatch_sr_{$request->id}_item_{$item->id}",
-                        'notes' => "Xuất kho cấp phát cho chi nhánh {$request->toBranch?->name} theo đơn {$request->request_code}"
-                            .($centralShortage > 0 ? " | Tồn âm sau xuất: {$centralShortage}" : ''),
+                        'notes' => "Xuất kho cấp phát cho chi nhánh {$request->toBranch?->name} theo đơn {$request->request_code}",
                         'quantity_before' => $centralBefore,
                         'quantity_after' => $centralAfter,
                         'occurred_at' => now(),
                     ]);
+                    $centralInventory->update([
+                        'quantity_on_hand' => $centralAfter,
+                        'theoretical_quantity' => $centralTheoreticalBefore - $qtyToDeduct,
+                    ]);
+                    // If stock was consumed elsewhere after preparation, keep
+                    // the physical dispatch auditable and open a controlled
+                    // negative-stock case. Batches themselves are never driven
+                    // below zero; only the inventory balance records the gap.
                     app(NegativeInventoryService::class)->sync($centralInventory, $transaction);
 
-                    if ($item->batch_id) {
+                    foreach ($batchAllocations as $allocation) {
+                        /** @var InventoryBatch $batch */
+                        $batch = $allocation['batch'];
+                        $allocated = $allocation['quantity'];
+                        $batchAfter = round((float) $batch->quantity_remaining - $allocated, 3);
+                        $batch->update([
+                            'quantity_remaining' => $batchAfter,
+                            'status' => $batchAfter <= 0.0005 ? 'depleted' : 'active',
+                        ]);
                         InventoryBatchAllocation::create([
                             'restaurant_id' => $request->restaurant_id,
                             'branch_id' => $request->from_branch_id,
-                            'inventory_batch_id' => $item->batch_id,
+                            'inventory_batch_id' => $batch->id,
                             'inventory_transaction_id' => $transaction->id,
                             'direction' => 'out',
-                            'quantity' => $qtyToDeduct,
-                            'unit_cost' => $item->unit_cost,
+                            'quantity' => $allocated,
+                            'unit_cost' => $allocation['unit_cost'],
                         ]);
                     }
                 }
             }
 
-            $request->update([
+            $lockedRequest->update([
                 'status' => SupplyRequest::STATUS_DISPATCHED,
-                'seal_code' => $sealCode ?: $request->seal_code,
+                'seal_code' => $sealCode ?: $lockedRequest->seal_code,
                 'dispatched_by' => $handoverPerson->id,
                 'dispatched_at' => now(),
                 'handover_by' => $handoverPerson->id,
                 'handover_at' => now(),
             ]);
 
-            $this->notifyStakeholders($request, 'dispatched');
+            $this->notifyStakeholders($lockedRequest, 'dispatched');
 
-            return $request->fresh(['items.ingredient', 'fromBranch', 'toBranch', 'dispatcher']);
+            return $lockedRequest->fresh(['items.ingredient', 'fromBranch', 'toBranch', 'dispatcher']);
         });
     }
 
@@ -846,10 +953,12 @@ class CentralWarehouseService
                 foreach ($receivedItems as $recItem) {
                     if ((int) ($recItem['id'] ?? 0) === (int) $item->id && isset($recItem['received_quantity'])) {
                         $targetTotalRecQty = (float) $recItem['received_quantity'];
-                        $targetGoodQty = (float) ($recItem['received_good_quantity'] ?? $targetTotalRecQty);
                         $targetDamagedQty = (float) ($recItem['received_damaged_quantity'] ?? 0);
                         $targetExpiredQty = (float) ($recItem['received_expired_quantity'] ?? 0);
                         $targetWrongItemQty = (float) ($recItem['received_wrong_item_quantity'] ?? 0);
+                        $targetGoodQty = array_key_exists('received_good_quantity', $recItem)
+                            ? (float) $recItem['received_good_quantity']
+                            : max(0, $targetTotalRecQty - $targetDamagedQty - $targetExpiredQty - $targetWrongItemQty);
                         $targetCondition = $recItem['received_condition'] ?? null;
                         $targetNote = $recItem['received_note'] ?? null;
                         $targetTemperatureMin = $recItem['received_temperature_min_c'] ?? null;
@@ -860,6 +969,16 @@ class CentralWarehouseService
 
                 if ($targetTotalRecQty === null || $targetTotalRecQty < 0) {
                     throw new InvalidArgumentException('Thiếu hoặc sai số lượng nhận của một dòng hàng.');
+                }
+
+                foreach ([$targetGoodQty, $targetDamagedQty, $targetExpiredQty, $targetWrongItemQty] as $component) {
+                    if ($component < 0) {
+                        throw new InvalidArgumentException('Sá»‘ lÆ°á»£ng theo tÃ¬nh tráº¡ng khÃ´ng Ä‘Æ°á»£c Ã¢m.');
+                    }
+                }
+                $componentTotal = round($targetGoodQty + $targetDamagedQty + $targetExpiredQty + $targetWrongItemQty, 3);
+                if (abs($componentTotal - $targetTotalRecQty) > 0.0005) {
+                    throw new InvalidArgumentException('Tá»•ng sá»‘ lÆ°á»£ng tá»‘t/há»ng/háº¿t háº¡n/sai hÃ ng pháº£i báº±ng sá»‘ lÆ°á»£ng nháº­n.');
                 }
 
                 if ($targetTotalRecQty > $dispatchedQty) {
@@ -1019,7 +1138,12 @@ class CentralWarehouseService
                 throw new InvalidArgumentException('Bắt buộc đính kèm ảnh thực tế và chữ ký người nhận khi giao nhận thiếu hoặc hỏng.');
             }
 
-            $finalStatus = ($hasShortage || $hasDamage) ? SupplyRequest::STATUS_DISPUTED : SupplyRequest::STATUS_COMPLETED;
+            // Keep an incomplete delivery receivable for the next shipment.
+            // A discrepancy is terminal only after the dispatched quantity is
+            // fully accounted for; damaged quantities remain quarantined.
+            $finalStatus = $hasShortage
+                ? SupplyRequest::STATUS_PARTIAL_RECEIVED
+                : ($hasDamage ? SupplyRequest::STATUS_DISPUTED : SupplyRequest::STATUS_COMPLETED);
 
             $request->update([
                 'status' => $finalStatus,
@@ -1032,6 +1156,7 @@ class CentralWarehouseService
                 'received_notes' => $notes ?: $request->received_notes,
                 'discrepancy_flag' => $hasShortage || $hasDamage,
             ]);
+            $lockedRequest = $request->fresh(['items', 'fromBranch', 'toBranch', 'receiver']);
 
             $reverseLogistics->recordShipmentEvent(
                 (int) $request->restaurant_id,
@@ -1161,14 +1286,14 @@ class CentralWarehouseService
 
         if (SupplyRequest::where('restaurant_id', $branch->restaurant_id)
             ->where(fn ($query) => $query->where('from_branch_id', $branchId)->orWhere('to_branch_id', $branchId))
-            ->whereNotIn('status', [SupplyRequest::STATUS_COMPLETED, SupplyRequest::STATUS_REJECTED, SupplyRequest::STATUS_CANCELLED])
+            ->whereNotIn('status', SupplyRequest::terminalStatuses())
             ->exists()) {
             throw new InvalidArgumentException("Không thể {$action} khi chi nhánh còn đơn cấp phát đang xử lý.");
         }
 
         if (StockTransferRequest::where('restaurant_id', $branch->restaurant_id)
             ->where(fn ($query) => $query->where('from_branch_id', $branchId)->orWhere('to_branch_id', $branchId))
-            ->whereNotIn('status', ['completed', 'cancelled', 'rejected'])
+            ->whereNotIn('status', ['received', 'returned', 'destroyed', 'cancelled', 'rejected'])
             ->exists()) {
             throw new InvalidArgumentException("Không thể {$action} khi chi nhánh còn đơn luân chuyển đang mở.");
         }
@@ -1452,6 +1577,7 @@ class CentralWarehouseService
         $totalRequests = SupplyRequest::where('restaurant_id', $restaurantId)
             ->when($central, fn ($query) => $query->where('from_branch_id', $central->id), fn ($query) => $query->whereRaw('1 = 0'))
             ->where('created_at', '>=', $startOfMonth)
+            ->whereNotIn('status', [SupplyRequest::STATUS_REJECTED, SupplyRequest::STATUS_CANCELLED])
             ->count();
 
         $completedRequests = SupplyRequest::where('restaurant_id', $restaurantId)

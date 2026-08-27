@@ -2,11 +2,9 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\AuditLog;
 use App\Models\InventoryQuarantine;
 use App\Models\InventoryReturn;
 use App\Models\RestaurantBranch;
-use App\Models\StockTransferRequest;
 use App\Models\Supplier;
 use App\Models\SupplierClaim;
 use App\Services\WarehouseReverseLogisticsService;
@@ -14,7 +12,6 @@ use App\Services\WarehouseStaffAccessService;
 use App\Support\TenantRule;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -133,56 +130,15 @@ class WarehouseReverseLogisticsController extends Controller
         $path = $request->file('evidence')->store('warehouse/quarantine-disposals/'.now()->format('Y/m'), 'local');
 
         try {
-            DB::transaction(function () use ($quarantine, $request, $data, $path): void {
-                $locked = InventoryQuarantine::where('restaurant_id', $request->user()->restaurant_id)->lockForUpdate()->findOrFail($quarantine->id);
-                if (! in_array($locked->status, ['open', 'return_requested'], true)) {
-                    throw new \InvalidArgumentException('Lô cách ly đã được xử lý.');
-                }
-                if ($locked->returnItems()->whereHas('returnOrder', fn ($query) => $query->whereIn('status', ['requested', 'in_transit']))->exists()) {
-                    throw new \InvalidArgumentException('Quarantine has an active return and cannot be destroyed at the same time.');
-                }
-                if ($locked->batch) {
-                    if ((int) $locked->batch->restaurant_id !== (int) $request->user()->restaurant_id
-                        || (int) $locked->batch->ingredient_id !== (int) $locked->ingredient_id
-                        || ($locked->branch_id !== null && (int) $locked->batch->branch_id !== (int) $locked->branch_id)) {
-                        throw new \InvalidArgumentException('Lô tồn kho không khớp với hồ sơ cách ly.');
-                    }
-                    $locked->batch->update(['quantity_remaining' => 0, 'status' => 'depleted']);
-                }
-                $locked->update([
-                    'status' => 'destroyed',
-                    'disposition' => 'destroyed',
-                    'disposition_reason' => $data['reason'],
-                    'evidence_paths' => array_values(array_filter(array_merge($locked->evidence_paths ?? [], [$path]))),
-                    'resolved_by' => $request->user()->id,
-                    'resolved_at' => now(),
-                ]);
-                if ($locked->source_type === 'stock_transfer' && $locked->source_id) {
-                    StockTransferRequest::where('restaurant_id', $request->user()->restaurant_id)
-                        ->whereKey($locked->source_id)
-                        ->update(['status' => 'destroyed', 'disposition' => 'destroyed', 'disposition_notes' => $data['reason'], 'disposition_evidence_path' => $path, 'disposition_by' => $request->user()->id, 'disposition_at' => now()]);
-                }
-                AuditLog::create([
-                    'restaurant_id' => $request->user()->restaurant_id,
-                    'branch_id' => $locked->branch_id,
-                    'user_id' => $request->user()->id,
-                    'user_role' => $request->user()->roles()->pluck('name')->first() ?? 'staff',
-                    'event' => 'updated',
-                    'action' => 'warehouse.reverse_logistics.quarantine_destroyed',
-                    'subject_type' => get_class($locked),
-                    'subject_id' => $locked->id,
-                    'new_values' => ['reason' => $data['reason'], 'evidence_path' => $path],
-                    'ip_address' => $request->ip(),
-                    'user_agent' => $request->userAgent(),
-                ]);
-            });
+            $this->service->destroyQuarantine($quarantine, $request->user(), $data['reason'], [$path]);
+
+            return response()->json(['message' => 'Đã ghi nhận tiêu hủy lô cách ly.']);
         } catch (\Throwable $e) {
             Storage::disk('local')->delete($path);
 
             return response()->json(['message' => $e->getMessage()], 422);
         }
 
-        return response()->json(['message' => 'Đã ghi nhận tiêu hủy lô cách ly.']);
     }
 
     public function approveReturn(Request $request, int $id): JsonResponse
@@ -204,7 +160,7 @@ class WarehouseReverseLogisticsController extends Controller
     {
         $this->assertOperate($request);
         $data = $request->validate([
-            'disposition' => ['required', 'in:central_quarantine,destroyed,supplier_confirmed'],
+            'disposition' => ['required', 'in:central_quarantine,sender_quarantine,destroyed,supplier_confirmed'],
             'notes' => ['nullable', 'string', 'max:1000'],
             'evidence' => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp,pdf', 'max:10240'],
         ]);

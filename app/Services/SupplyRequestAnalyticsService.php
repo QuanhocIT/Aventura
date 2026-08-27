@@ -334,7 +334,7 @@ class SupplyRequestAnalyticsService
         $historyStart = $now->copy()->subDays(27)->startOfDay();
         $last7Start = $now->copy()->subDays(6)->startOfDay();
         $previous7Start = $now->copy()->subDays(13)->startOfDay();
-        $validStatuses = [
+        $validStatuses = array_merge([
             SupplyRequest::STATUS_PENDING,
             SupplyRequest::STATUS_APPROVED,
             SupplyRequest::STATUS_PREPARING,
@@ -343,7 +343,7 @@ class SupplyRequestAnalyticsService
             SupplyRequest::STATUS_PARTIAL_RECEIVED,
             SupplyRequest::STATUS_DISPUTED,
             SupplyRequest::STATUS_COMPLETED,
-        ];
+        ], [SupplyRequest::STATUS_RETURNED, SupplyRequest::STATUS_DESTROYED]);
         $openStatuses = [
             SupplyRequest::STATUS_PENDING,
             SupplyRequest::STATUS_APPROVED,
@@ -593,19 +593,11 @@ class SupplyRequestAnalyticsService
             'created_at' => $request->created_at?->toISOString(),
         ])->values()->all();
 
-        $terminalStatuses = [
-            SupplyRequest::STATUS_COMPLETED,
-            SupplyRequest::STATUS_REJECTED,
-            SupplyRequest::STATUS_CANCELLED,
-        ];
+        $terminalStatuses = SupplyRequest::terminalStatuses();
         $operationalOpen = $requests->filter(fn ($request) => ! in_array($request->status, $terminalStatuses, true));
         $overdueRequests = $operationalOpen->filter(fn ($request) => $request->requested_delivery_date && $request->requested_delivery_date->isPast());
         $dueTodayRequests = $operationalOpen->filter(fn ($request) => $request->requested_delivery_date && $request->requested_delivery_date->isToday());
-        $receivingRequests = $requests->filter(fn ($request) => in_array($request->status, [
-            SupplyRequest::STATUS_DISPATCHED,
-            SupplyRequest::STATUS_PARTIAL_RECEIVED,
-            SupplyRequest::STATUS_DISPUTED,
-        ], true));
+        $receivingRequests = $requests->filter(fn ($request) => in_array($request->status, SupplyRequest::receivingStatuses(), true));
         $dispatchedQuantity = (float) $receivingRequests->sum(fn ($request) => $request->items->sum(fn ($item) => $item->effective_dispatched_quantity));
         $receivedQuantity = (float) $receivingRequests->sum(fn ($request) => $request->items->sum(fn ($item) => (float) ($item->received_quantity ?? 0)));
 

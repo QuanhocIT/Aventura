@@ -58,7 +58,11 @@ class WarehouseReportService
 
         // Tồn đang vận chuyển (Dispatched nhưng chưa Completed/Disputed)
         $inTransitQuery = SupplyRequest::where('restaurant_id', $restaurantId)
-            ->whereIn('status', [SupplyRequest::STATUS_DISPATCHED, SupplyRequest::STATUS_PARTIAL_RECEIVED]);
+            ->whereIn('status', [
+                SupplyRequest::STATUS_DISPATCHED,
+                SupplyRequest::STATUS_PARTIAL_RECEIVED,
+                SupplyRequest::STATUS_DISPUTED,
+            ]);
 
         if ($branchId) {
             $inTransitQuery->where('to_branch_id', $branchId);

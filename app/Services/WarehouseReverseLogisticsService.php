@@ -166,6 +166,101 @@ class WarehouseReverseLogisticsService
         ]);
     }
 
+    public function destroyQuarantine(
+        InventoryQuarantine $quarantine,
+        User $actor,
+        string $reason,
+        array $evidencePaths = [],
+    ): InventoryQuarantine {
+        return DB::transaction(function () use ($quarantine, $actor, $reason, $evidencePaths): InventoryQuarantine {
+            $locked = InventoryQuarantine::query()
+                ->where('restaurant_id', $actor->restaurant_id)
+                ->whereKey($quarantine->id)
+                ->lockForUpdate()
+                ->firstOrFail();
+            $this->assertQuarantineIntegrity($locked, (int) $actor->restaurant_id);
+            if (! in_array($locked->status, ['open', 'return_requested'], true)) {
+                throw new InvalidArgumentException('Quarantine da duoc xu ly.');
+            }
+            if ($locked->returnItems()->whereHas('returnOrder', fn ($query) => $query->whereIn('status', ['requested', 'in_transit']))->exists()) {
+                throw new InvalidArgumentException('Quarantine dang co phieu hoan tra chua chot.');
+            }
+
+            $settledQuantity = (float) $locked->returnItems()
+                ->whereHas('returnOrder', fn ($query) => $query->whereIn('status', ['received', 'destroyed']))
+                ->sum('quantity');
+            $remainingQuantity = max(0, (float) $locked->quantity - $settledQuantity);
+            if ($remainingQuantity <= 0.0005) {
+                throw new InvalidArgumentException('Quarantine khong con so luong de tieu huy.');
+            }
+
+            $batch = $locked->inventory_batch_id
+                ? InventoryBatch::query()
+                    ->where('restaurant_id', $actor->restaurant_id)
+                    ->whereKey($locked->inventory_batch_id)
+                    ->lockForUpdate()
+                    ->first()
+                : null;
+            if ($locked->inventory_batch_id && ! $batch) {
+                throw new InvalidArgumentException('Lo ton kho gan voi quarantine khong con ton tai.');
+            }
+            if ($batch && (float) $batch->quantity_remaining + 0.0005 < $remainingQuantity) {
+                throw new InvalidArgumentException('So luong lo khong khop so luong quarantine con lai.');
+            }
+            if ($batch) {
+                $batchAfter = round((float) $batch->quantity_remaining - $remainingQuantity, 3);
+                $batch->update([
+                    'quantity_remaining' => $batchAfter,
+                    'status' => $batchAfter <= 0.0005 ? 'depleted' : 'locked',
+                ]);
+            }
+
+            $evidence = array_values(array_filter(array_merge($locked->evidence_paths ?? [], $evidencePaths)));
+            $locked->update([
+                'status' => 'destroyed',
+                'disposition' => 'destroyed',
+                'disposition_reason' => $reason,
+                'evidence_paths' => $evidence,
+                'resolved_by' => $actor->id,
+                'resolved_at' => now(),
+            ]);
+
+            if ($locked->source_type === 'stock_transfer' && $locked->source_id) {
+                StockTransferRequest::query()
+                    ->where('restaurant_id', $actor->restaurant_id)
+                    ->whereKey($locked->source_id)
+                    ->update([
+                        'status' => 'destroyed',
+                        'disposition' => 'destroyed',
+                        'disposition_notes' => $reason,
+                        'disposition_evidence_path' => $evidence[0] ?? null,
+                        'disposition_by' => $actor->id,
+                        'disposition_at' => now(),
+                    ]);
+            }
+            if ($locked->source_type === 'supply_request' && $locked->source_id) {
+                $hasOpenQuarantine = InventoryQuarantine::query()
+                    ->where('restaurant_id', $actor->restaurant_id)
+                    ->where('source_type', 'supply_request')
+                    ->where('source_id', $locked->source_id)
+                    ->whereIn('status', ['open', 'return_requested'])
+                    ->exists();
+                SupplyRequest::query()
+                    ->where('restaurant_id', $actor->restaurant_id)
+                    ->whereKey($locked->source_id)
+                    ->update(['status' => $hasOpenQuarantine ? SupplyRequest::STATUS_DISPUTED : SupplyRequest::STATUS_DESTROYED]);
+            }
+
+            $this->audit($actor, 'warehouse.reverse_logistics.quarantine_destroyed', $locked, null, [
+                'reason' => $reason,
+                'remaining_quantity' => $remainingQuantity,
+                'evidence_paths' => $evidence,
+            ]);
+
+            return $locked->fresh();
+        });
+    }
+
     public function createReturnFromQuarantine(
         InventoryQuarantine $quarantine,
         User $actor,
@@ -207,7 +302,25 @@ class WarehouseReverseLogisticsService
                 throw new InvalidArgumentException('Không tìm thấy lô tồn kho gốc của hồ sơ cách ly.');
             }
 
-            $toBranchId = $data['to_branch_id'] ?? null;
+            $expectedSenderBranchId = match ($lockedQuarantine->source_type) {
+                'stock_transfer' => StockTransferRequest::query()
+                    ->where('restaurant_id', $actor->restaurant_id)
+                    ->whereKey($lockedQuarantine->source_id)
+                    ->value('from_branch_id'),
+                'supply_request' => SupplyRequest::query()
+                    ->where('restaurant_id', $actor->restaurant_id)
+                    ->whereKey($lockedQuarantine->source_id)
+                    ->value('from_branch_id'),
+                default => null,
+            };
+            if (in_array($lockedQuarantine->source_type, ['stock_transfer', 'supply_request'], true) && ! $expectedSenderBranchId) {
+                throw new InvalidArgumentException('Khong xac dinh duoc kho gui de hoan tra.');
+            }
+
+            $toBranchId = $data['to_branch_id'] ?? $expectedSenderBranchId;
+            if ($expectedSenderBranchId && $toBranchId !== null && (int) $toBranchId !== (int) $expectedSenderBranchId) {
+                throw new InvalidArgumentException('Phieu hoan phai quay ve dung kho gui ban dau.');
+            }
             if ($toBranchId !== null) {
                 $this->assertBranchBelongsToRestaurant((int) $toBranchId, (int) $actor->restaurant_id);
                 if ((int) $toBranchId === (int) $lockedQuarantine->branch_id) {
@@ -363,11 +476,38 @@ class WarehouseReverseLogisticsService
             }
 
             $this->assertMakerChecker($returnOrder, $actor, 'chốt');
-            if ($disposition === 'supplier_confirmed' && ! $returnOrder->supplier_id && $returnOrder->source_type !== 'stock_transfer') {
+            if ($disposition === 'supplier_confirmed' && ! $returnOrder->supplier_id) {
                 throw new InvalidArgumentException('Hoàn trả cho nhà cung cấp phải xác định nhà cung cấp nhận hàng.');
             }
             if ($disposition === 'central_quarantine' && ! $returnOrder->to_branch_id) {
                 throw new InvalidArgumentException('Chuyển cách ly Kho Tổng phải xác định kho đích.');
+            }
+            if ($disposition === 'sender_quarantine' && ! $returnOrder->to_branch_id) {
+                throw new InvalidArgumentException('Hoan vao cach ly kho gui phai xac dinh kho dich.');
+            }
+            if ($returnOrder->source_type === 'supply_request' && $disposition === 'supplier_confirmed') {
+                throw new InvalidArgumentException('Hang hong tu Kho Tong phai hoan vao cach ly Kho Tong.');
+            }
+            if ($returnOrder->source_type === 'stock_transfer' && ! in_array($disposition, ['sender_quarantine', 'destroyed'], true)) {
+                throw new InvalidArgumentException('Hang hong tu dieu chuyen phai quay vao cach ly kho gui hoac duoc tieu huy co chung tu.');
+            }
+            if ($returnOrder->source_type === 'supply_request' && ! in_array($disposition, ['central_quarantine', 'destroyed'], true)) {
+                throw new InvalidArgumentException('Hang hong tu Kho Tong phai quay vao cach ly Kho Tong hoac duoc tieu huy co chung tu.');
+            }
+            if ($returnOrder->source_type === 'stock_transfer' && $disposition === 'sender_quarantine') {
+                $senderBranchId = StockTransferRequest::query()
+                    ->where('restaurant_id', $actor->restaurant_id)
+                    ->whereKey($returnOrder->source_id)
+                    ->value('from_branch_id');
+                if (! $senderBranchId || (int) $returnOrder->to_branch_id !== (int) $senderBranchId) {
+                    throw new InvalidArgumentException('Phieu hoan phai quay vao cach ly dung kho gui.');
+                }
+            }
+            if ($returnOrder->source_type === 'supply_request' && $disposition === 'central_quarantine') {
+                $centralBranchId = app(CentralWarehouseService::class)->getCentralWarehouse((int) $actor->restaurant_id)?->id;
+                if (! $centralBranchId || (int) $returnOrder->to_branch_id !== (int) $centralBranchId) {
+                    throw new InvalidArgumentException('Phieu hoan hang Kho Tong phai quay vao cach ly Kho Tong.');
+                }
             }
             if ($disposition === 'destroyed' && $evidencePaths === [] && ($returnOrder->evidence_paths ?? []) === []) {
                 throw new InvalidArgumentException('Tiêu hủy hàng hoàn trả bắt buộc có ảnh hoặc biên bản.');
@@ -390,7 +530,7 @@ class WarehouseReverseLogisticsService
                         'status' => max(0, $remainingInBatch - (float) $item->quantity) <= 0.0005 ? 'depleted' : 'locked',
                     ]);
 
-                    if ($disposition === 'central_quarantine') {
+                    if (in_array($disposition, ['central_quarantine', 'sender_quarantine'], true)) {
                         $destinationBatch = $this->createDestinationBatch(
                             (int) $actor->restaurant_id,
                             (int) $returnOrder->to_branch_id,
@@ -470,6 +610,23 @@ class WarehouseReverseLogisticsService
                         'disposition_notes' => $notes,
                         'disposition_by' => $actor->id,
                         'disposition_at' => now(),
+                    ]);
+            }
+
+            if ($returnOrder->source_type === 'supply_request' && $returnOrder->source_id) {
+                $hasOpenQuarantine = InventoryQuarantine::query()
+                    ->where('restaurant_id', $actor->restaurant_id)
+                    ->where('source_type', 'supply_request')
+                    ->where('source_id', $returnOrder->source_id)
+                    ->whereIn('status', ['open', 'return_requested'])
+                    ->exists();
+                SupplyRequest::query()
+                    ->where('restaurant_id', $actor->restaurant_id)
+                    ->whereKey($returnOrder->source_id)
+                    ->update([
+                        'status' => $hasOpenQuarantine
+                            ? SupplyRequest::STATUS_DISPUTED
+                            : ($disposition === 'destroyed' ? SupplyRequest::STATUS_DESTROYED : SupplyRequest::STATUS_RETURNED),
                     ]);
             }
 

@@ -4,7 +4,10 @@ namespace App\Http\Controllers;
 
 use App\Concerns\PasswordValidationRules;
 use App\Mail\EmployeeInvitationMail;
+use App\Models\ApprovalRequest;
+use App\Models\AuditLog;
 use App\Models\BranchPayrollBudget;
+use App\Services\ApprovalService;
 use App\Models\Employee;
 use App\Models\EmployeeBonus;
 use App\Models\LeaveRequest;
@@ -81,7 +84,7 @@ class EmployeeManagementController extends Controller
 
         $canViewSensitivePii = $user->hasAnyRole(['owner', 'manager']) || $user->hasRole('super_admin');
 
-        // Tự động đồng bộ tài khoản User chưa có hồ sơ Employee (ví dụ: Tài xế Logistics, Thủ kho phụ...)
+        // Tự động đồng bộ tài khoản User chưa có hồ sơ Employee.
         $usersWithoutEmployee = User::where('restaurant_id', $user->restaurant_id)
             ->whereDoesntHave('employee')
             ->whereHas('roles', fn ($q) => $q->whereNotIn('name', ['owner', 'super_admin']))
@@ -126,7 +129,7 @@ class EmployeeManagementController extends Controller
                                     ->orWhere('users.branch_id', $payrollBranchId);
                             });
                     });
-            })->whereHas('user.roles', fn ($rq) => $rq->whereIn('name', ['warehouse_staff', 'warehouse_manager', 'logistics_driver', 'assistant_warehouse_keeper'])))
+            })->whereHas('user.roles', fn ($rq) => $rq->whereIn('name', ['warehouse_staff', 'warehouse_manager'])))
             ->when($restaurant?->owner_user_id, fn ($q, $ownerUserId) => $q->where(function ($ownerQuery) use ($ownerUserId) {
                 $ownerQuery->whereNull('user_id')->orWhere('user_id', '!=', $ownerUserId);
             }))
@@ -512,7 +515,7 @@ class EmployeeManagementController extends Controller
             'compensation_type' => ['sometimes', 'string', 'in:fixed,hourly,shift'],
             'pay_rate' => ['nullable', 'numeric', 'min:0'],
             'base_salary' => ['required', 'numeric', 'min:0'],
-            'role' => ['required', 'string', 'in:cashier,kitchen,manager,waiter,shipper,inventory_staff,warehouse_staff,warehouse_manager,logistics_driver,assistant_warehouse_keeper,operations_inspector,compliance_auditor'],
+            'role' => ['required', 'string', 'in:cashier,kitchen,manager,waiter,shipper,inventory_staff,warehouse_staff,warehouse_manager,operations_inspector,compliance_auditor'],
             'job_title' => ['required', 'string', 'max:100'],
             // TRƯỚC ĐÂY KHÔNG CÓ — employees.branch_id/users.branch_id không
             // bao giờ được ghi, khiến việc gán nhân viên theo chi nhánh không
@@ -540,7 +543,7 @@ class EmployeeManagementController extends Controller
 
         $this->assertRoleAssignmentAllowed($user, $data['role']);
 
-        $isWarehouseRole = in_array($data['role'], ['warehouse_staff', 'warehouse_manager', 'logistics_driver', 'assistant_warehouse_keeper'], true);
+        $isWarehouseRole = in_array($data['role'], ['warehouse_staff', 'warehouse_manager'], true);
         $isInspectorRole = in_array($data['role'], ['operations_inspector', 'compliance_auditor'], true);
 
         $tenantContext = app(TenantContext::class);
@@ -561,7 +564,7 @@ class EmployeeManagementController extends Controller
 
             if ($centralBranch && $branchId === (int) $centralBranch->id && ! $isWarehouseRole) {
                 throw ValidationException::withMessages([
-                    'role' => 'Khi tạo nhân sự ở chi nhánh Kho Tổng, chỉ có thể tạo nhân viên với vai trò: Trưởng kho Tổng, Thủ kho phụ, Nhân viên kho tổng, Tài xế.',
+                    'role' => 'Khi tạo nhân sự ở chi nhánh Kho Tổng, chỉ có thể tạo Trưởng kho Tổng hoặc Nhân viên Kho Tổng.',
                 ]);
             }
 
@@ -572,13 +575,13 @@ class EmployeeManagementController extends Controller
 
                 if ($tenantContext->isBranchScoped() && $activeBranchId !== null && $activeBranchId !== 0 && $activeBranchId !== (int) $centralBranch->id) {
                     throw ValidationException::withMessages([
-                        'role' => 'Khi chọn tạo nhân sự ở chi nhánh kinh doanh thì không thể tạo nhân viên với vai trò: Trưởng kho Tổng, Thủ kho phụ, Nhân viên kho tổng, Tài xế. Vui lòng chuyển sang Phạm vi toàn chuỗi hoặc Kho Tổng.',
+                        'role' => 'Khi chọn tạo nhân sự ở chi nhánh kinh doanh thì không thể tạo nhân viên Kho Tổng. Vui lòng chuyển sang Phạm vi toàn chuỗi hoặc Kho Tổng.',
                     ]);
                 }
 
                 if ($branchId !== 0 && $branchId !== (int) $centralBranch->id) {
                     throw ValidationException::withMessages([
-                        'branch_id' => 'Trưởng kho Tổng, Thủ kho phụ, Nhân viên Kho Tổng và Tài xế chỉ được phép xếp làm việc tại chi nhánh Tổng kho, không được xếp vào chi nhánh kinh doanh.',
+                        'branch_id' => 'Nhân viên Kho Tổng chỉ được phép xếp làm việc tại chi nhánh Tổng kho, không được xếp vào chi nhánh kinh doanh.',
                     ]);
                 }
 
@@ -1326,7 +1329,7 @@ class EmployeeManagementController extends Controller
             'full_name' => ['sometimes', 'string', 'max:255'],
             'phone' => ['sometimes', 'nullable', 'string', 'max:20'],
             'job_title' => ['sometimes', 'string', 'max:100'],
-            'role' => ['sometimes', 'string', 'in:cashier,kitchen,manager,waiter,shipper,inventory_staff,warehouse_staff,warehouse_manager,logistics_driver,assistant_warehouse_keeper,operations_inspector,compliance_auditor'],
+            'role' => ['sometimes', 'string', 'in:cashier,kitchen,manager,waiter,shipper,inventory_staff,warehouse_staff,warehouse_manager,operations_inspector,compliance_auditor'],
             'compensation_type' => ['sometimes', 'string', 'in:fixed,hourly,shift'],
             'pay_rate' => ['sometimes', 'numeric', 'min:0'],
             'base_salary' => ['sometimes', 'numeric', 'min:0'],
@@ -1360,7 +1363,7 @@ class EmployeeManagementController extends Controller
         // Xác định branch_id mới TRƯỚC khi validate wage_tier (cần $newBranchId để check branch scope)
         $newBranchId = $oldBranchId;
         $targetRole = $data['role'] ?? $oldRole;
-        $isTargetWarehouseRole = in_array($targetRole, ['warehouse_staff', 'warehouse_manager', 'logistics_driver', 'assistant_warehouse_keeper'], true);
+        $isTargetWarehouseRole = in_array($targetRole, ['warehouse_staff', 'warehouse_manager'], true);
         $isTargetInspectorRole = in_array($targetRole, ['operations_inspector', 'compliance_auditor'], true);
         $centralBranch = app(CentralWarehouseService::class)->getCentralWarehouse((int) $user->restaurant_id);
 
@@ -1378,12 +1381,12 @@ class EmployeeManagementController extends Controller
             }
             if ($tenantContext->isBranchScoped() && $tenantContext->activeBranchId() !== null && $tenantContext->activeBranchId() !== 0 && $tenantContext->activeBranchId() !== (int) $centralBranch->id) {
                 throw ValidationException::withMessages([
-                    'role' => 'Khi ở chi nhánh kinh doanh không thể gán nhân viên với vai trò: Trưởng kho Tổng, Thủ kho phụ, Nhân viên kho tổng, Tài xế.',
+                    'role' => 'Khi ở chi nhánh kinh doanh không thể gán nhân viên Kho Tổng.',
                 ]);
             }
             if (array_key_exists('branch_id', $data) && $newBranchId !== null && $newBranchId !== (int) $centralBranch->id) {
                 throw ValidationException::withMessages([
-                    'branch_id' => 'Trưởng kho Tổng, Thủ kho phụ, Nhân viên Kho Tổng và Tài xế chỉ được phép xếp làm việc tại chi nhánh Tổng kho, không được xếp vào chi nhánh kinh doanh.',
+                    'branch_id' => 'Nhân viên Kho Tổng chỉ được phép xếp làm việc tại chi nhánh Tổng kho, không được xếp vào chi nhánh kinh doanh.',
                 ]);
             }
             $newBranchId = (int) $centralBranch->id;
@@ -1395,7 +1398,7 @@ class EmployeeManagementController extends Controller
             }
             if ($centralBranch && $newBranchId === (int) $centralBranch->id && ! $isTargetWarehouseRole) {
                 throw ValidationException::withMessages([
-                    'role' => 'Khi gán nhân viên làm việc tại chi nhánh Kho Tổng, chỉ được phép chọn vai trò thuộc Kho Tổng (Trưởng kho Tổng, Thủ kho phụ, Nhân viên kho tổng, Tài xế).',
+                    'role' => 'Khi gán nhân viên làm việc tại chi nhánh Kho Tổng, chỉ được phép chọn Trưởng kho Tổng hoặc Nhân viên Kho Tổng.',
                 ]);
             }
             if ($tenantContext->isBranchScoped() && $newBranchId !== $tenantContext->activeBranchId()) {
@@ -1590,30 +1593,72 @@ class EmployeeManagementController extends Controller
             'Kỳ lương của ngày thưởng đã được chốt, không thể thêm thưởng vào kỳ đã khóa.',
         );
 
-        $bonus = EmployeeBonus::create([
-            'restaurant_id' => $employee->restaurant_id,
-            'branch_id' => $employee->branch_id,
-            'employee_id' => $employee->id,
-            'awarded_by' => $user->id,
-            'amount' => $data['amount'],
-            'reason' => $data['reason'],
-            'awarded_at' => $awardedAt,
-            'status' => 'active',
-        ]);
+        // Nếu là Chủ doanh nghiệp hoặc Super Admin: Thưởng trực tiếp
+        if ($user->hasRole('owner') || $user->hasRole('super_admin')) {
+            $bonus = EmployeeBonus::create([
+                'restaurant_id' => $employee->restaurant_id,
+                'branch_id' => $employee->branch_id,
+                'employee_id' => $employee->id,
+                'awarded_by' => $user->id,
+                'amount' => $data['amount'],
+                'reason' => $data['reason'],
+                'awarded_at' => $awardedAt,
+                'status' => 'active',
+            ]);
 
-        // Nếu bản nháp tháng đã tồn tại, đưa khoản thưởng vào ngay để màn
-        // hình chốt lương phản ánh tức thời; nếu chưa có, sweep khi generate.
-        $salary = Salary::withoutGlobalScopes()
-            ->where('employee_id', $employee->id)
-            ->whereDate('pay_period_start', '<=', $awardedAt)
-            ->whereDate('pay_period_end', '>=', $awardedAt)
-            ->where('status', 'draft')
-            ->first();
-        if ($salary) {
-            app(\App\Services\SalaryService::class)->sweepAdjustments($salary, $employee);
+            $salary = Salary::withoutGlobalScopes()
+                ->where('employee_id', $employee->id)
+                ->whereDate('pay_period_start', '<=', $awardedAt)
+                ->whereDate('pay_period_end', '>=', $awardedAt)
+                ->where('status', 'draft')
+                ->first();
+            if ($salary) {
+                app(\App\Services\SalaryService::class)->sweepAdjustments($salary, $employee);
+            }
+
+            return back()->with('success', 'Đã ghi nhận thưởng. Khoản thưởng sẽ được cộng khi chốt lương kỳ tương ứng.');
         }
 
-        return back()->with('success', 'Đã ghi nhận thưởng. Khoản thưởng sẽ được cộng khi chốt lương kỳ tương ứng.');
+        // Nếu là Quản lý hoặc nhân sự khác: Yêu cầu Chủ doanh nghiệp phê duyệt
+        $hasPendingRequest = ApprovalRequest::forRestaurant((int) $employee->restaurant_id)
+            ->where('operation_type', 'employee_bonus')
+            ->where('status', 'pending')
+            ->get()
+            ->contains(function (ApprovalRequest $approval) use ($employee, $data) {
+                $opData = $approval->operation_data ?? [];
+
+                return (int) ($opData['employee_id'] ?? 0) === (int) $employee->id
+                    && abs((float) ($opData['amount'] ?? 0) - (float) $data['amount']) < 0.01;
+            });
+
+        if ($hasPendingRequest) {
+            return back()->withErrors(['amount' => 'Nhân viên này đã có đề xuất thưởng đang chờ Chủ doanh nghiệp phê duyệt.']);
+        }
+
+        $approval = app(ApprovalService::class)->submitRequest('employee_bonus', [
+            'employee_id' => $employee->id,
+            'employee_name' => $employee->full_name,
+            'employee_code' => $employee->employee_code,
+            'branch_id' => $employee->branch_id,
+            'amount' => (float) $data['amount'],
+            'reason' => $data['reason'],
+            'awarded_at' => $awardedAt,
+        ], $user);
+
+        AuditLog::log('bonus_requested', 'updated', $employee, null, [
+            'approval_id' => $approval->id,
+            'employee_id' => $employee->id,
+            'employee_name' => $employee->full_name,
+            'amount' => (float) $data['amount'],
+            'reason' => $data['reason'],
+            'requested_by_user_id' => $user->id,
+            'requested_by_user_name' => $user->name,
+            'is_sensitive' => true,
+            'alert_level' => 'warning',
+            'warning_message' => "Quản lý {$user->name} vừa gửi đề xuất thưởng ".number_format((float) $data['amount'], 0, ',', '.')." ₫ cho nhân viên {$employee->full_name} ({$employee->employee_code}) — Cần Chủ doanh nghiệp phê duyệt.",
+        ]);
+
+        return back()->with('success', 'Đã gửi đề xuất thưởng nhân viên đến Chủ doanh nghiệp để phê duyệt.');
     }
 
     /**
@@ -1755,10 +1800,10 @@ class EmployeeManagementController extends Controller
 
         if (! $isOwnerOrAdmin) {
             if ($user->hasRole('warehouse_manager')) {
-                $allowedWarehouseRoles = ['warehouse_staff', 'logistics_driver', 'assistant_warehouse_keeper'];
+                $allowedWarehouseRoles = ['warehouse_staff'];
                 if (! in_array($role, $allowedWarehouseRoles, true) && $role !== $existingRole) {
                     throw ValidationException::withMessages([
-                        'role' => 'Tài khoản Trưởng kho tổng chỉ được phép tạo hoặc quản lý nhân sự thuộc Đội ngũ Kho (Nhân viên Kho Tổng, Tài Xế Logistics, Thủ Kho Phụ). Không được phép tạo tài khoản Quản lý hoặc nhân viên chi nhánh khác.',
+                        'role' => 'Tài khoản Trưởng kho tổng chỉ được phép tạo hoặc quản lý Nhân viên Kho Tổng. Không được phép tạo tài khoản Quản lý hoặc nhân viên chi nhánh khác.',
                     ]);
                 }
             } elseif ($user->isBranchManager()) {

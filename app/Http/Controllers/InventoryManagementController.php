@@ -826,7 +826,8 @@ class InventoryManagementController extends Controller
      */
     public function storePurchase(Request $request): RedirectResponse
     {
-        abort_unless($request->user()->hasAnyRole(['owner', 'manager', 'inventory_staff', 'warehouse_manager', 'warehouse_staff']), 403);
+        $user = $request->user();
+        abort_unless($user->hasAnyRole(['owner', 'manager', 'inventory_staff', 'warehouse_manager', 'warehouse_staff']), 403);
 
         $branchId = $this->requireInventoryOperationBranch($request);
         $maxSize = SystemSetting::get('upload_invoice_image_max', 4096);
@@ -839,9 +840,11 @@ class InventoryManagementController extends Controller
                 'items.*.batch_number' => ['nullable', 'string', 'max:50'],
                 'items.*.quantity' => ['required', 'numeric', 'min:0.001'],
                 'items.*.unit_cost' => ['required', 'numeric', 'min:0'],
+                'items.*.supplier_id' => ['nullable', TenantRule::exists('suppliers')],
                 'items.*.expiry_date' => ['nullable', 'date'],
                 'items.*.notes' => ['nullable', 'string', 'max:500'],
                 'notes' => ['nullable', 'string', 'max:500'],
+                'idempotency_key' => ['nullable', 'string', 'max:80'],
                 'occurred_at' => ['nullable', 'date'],
                 'invoice_file' => ['required', 'file', 'image', 'mimes:jpeg,png,jpg,gif,pdf', 'max:'.$maxSize],
             ]);
@@ -853,6 +856,7 @@ class InventoryManagementController extends Controller
             }
 
             unset($data['invoice_file']);
+            $data['idempotency_key'] = $data['idempotency_key'] ?? $request->header('Idempotency-Key');
             $user = $request->user();
 
             if (! $user->isOwner() && ! $user->isSuperAdmin()) {
@@ -864,6 +868,23 @@ class InventoryManagementController extends Controller
                 return back()->with('success', 'Yêu cầu nhập kho lô hàng đã được gửi Chủ nhà hàng phê duyệt.');
             }
 
+            try {
+                app(InventoryService::class)->executePurchaseBatch(array_merge($data, [
+                    'branch_id' => $branchId,
+                    'invoice_file_url' => $invoiceFileUrl,
+                    'idempotency_key' => $data['idempotency_key'] ?? $request->header('Idempotency-Key'),
+                ]), (int) $user->restaurant_id, (int) $user->id);
+
+                return back()->with('success', 'ÄÃ£ ghi nháº­n nháº­p kho thÃ nh cÃ´ng cho '.count($data['items']).' nguyÃªn liá»‡u.');
+            } catch (\Exception $e) {
+                return back()->withErrors(['items' => $e->getMessage()]);
+            }
+
+            /*
+             * The historical inline implementation is retained below only as
+             * a migration reference; all live multi-line purchases return via
+             * executePurchaseBatch above.
+             */
             try {
                 DB::transaction(function () use ($user, $branchId, $data, $invoiceFileUrl) {
                     foreach ($data['items'] as $item) {
@@ -906,15 +927,20 @@ class InventoryManagementController extends Controller
                         $itemNotes = $item['notes'] ?? $data['notes'] ?? null;
                         if (! empty($item['expiry_date'])) {
                             $expiry = Carbon::parse($item['expiry_date']);
+                            $occurred = ! empty($data['occurred_at']) ? Carbon::parse($data['occurred_at']) : now();
+                            if ($expiry->diffInDays($occurred, false) > -3) {
+                                throw new \InvalidArgumentException('Expiry date must be at least 3 days after receiving date.');
+                            }
                             $expiryStr = '[HSD: '.$expiry->format('d/m/Y').']';
                             $itemNotes = empty($itemNotes) ? $expiryStr : $itemNotes.' '.$expiryStr;
                         }
 
-                        InventoryTransaction::create([
+                        $transaction = InventoryTransaction::create([
                             'restaurant_id' => $user->restaurant_id,
                             'branch_id' => $branchId,
                             'ingredient_id' => $ingredient->id,
                             'inventory_id' => $inventory->id,
+                            'supplier_id' => $item['supplier_id'] ?? null,
                             'performed_by' => $user->id,
                             'type' => 'purchase',
                             'direction' => 'in',
@@ -934,7 +960,7 @@ class InventoryManagementController extends Controller
 
                         $ingredient->update(['average_cost' => round($newAvg, 2)]);
 
-                        InventoryBatch::create([
+                        $batch = InventoryBatch::create([
                             'restaurant_id' => $user->restaurant_id,
                             'branch_id' => $branchId,
                             'ingredient_id' => $ingredient->id,
@@ -943,7 +969,17 @@ class InventoryManagementController extends Controller
                             'unit_cost' => $newCost,
                             'purchased_at' => $data['occurred_at'] ?? now(),
                             'expiry_date' => $item['expiry_date'] ?? null,
+                            'supplier_id' => $item['supplier_id'] ?? null,
                             'status' => 'active',
+                        ]);
+                        InventoryBatchAllocation::create([
+                            'restaurant_id' => $user->restaurant_id,
+                            'branch_id' => $branchId,
+                            'inventory_batch_id' => $batch->id,
+                            'inventory_transaction_id' => $transaction->id,
+                            'direction' => 'in',
+                            'quantity' => $newQty,
+                            'unit_cost' => $newCost,
                         ]);
                     }
                 });
@@ -961,14 +997,22 @@ class InventoryManagementController extends Controller
             'unit_cost' => ['required', 'numeric', 'min:0'],
             'supplier_id' => ['nullable', TenantRule::exists('suppliers')],
             'notes' => ['nullable', 'string', 'max:500'],
+            'idempotency_key' => ['nullable', 'string', 'max:80'],
             'occurred_at' => ['nullable', 'date'],
             'invoice_file' => ['required', 'file', 'image', 'mimes:jpeg,png,jpg,gif,pdf', 'max:'.$maxSize],
             'expiry_date' => ['nullable', 'date'],
         ]);
+        $data['idempotency_key'] = $data['idempotency_key'] ?? $request->header('Idempotency-Key');
 
         $ingredientId = $data['ingredient_id'];
         $unitCost = (float) $data['unit_cost'];
         $data['branch_id'] = $branchId;
+        $data['idempotency_key'] = $data['idempotency_key'] ?? $request->header('Idempotency-Key');
+
+        if (! empty($data['idempotency_key']) && InventoryTransaction::where('restaurant_id', $request->user()->restaurant_id)
+            ->where('idempotency_key', $data['idempotency_key'])->exists()) {
+            return back()->with('success', 'Giao dá»‹ch nháº­p kho Ä‘Ã£ Ä‘Æ°á»£c ghi nháº­n trÆ°á»›c Ä‘Ã³.');
+        }
 
         // 1. Profit Margin Validation
         $recipes = ProductRecipe::where('ingredient_id', $ingredientId)
@@ -1020,6 +1064,18 @@ class InventoryManagementController extends Controller
             return back()->with('success', 'Yêu cầu nhập hàng đã gửi Chủ nhà hàng để phê duyệt.');
         }
 
+        try {
+            DB::transaction(function () use ($data, $branchId, $user): void {
+                app(InventoryService::class)->executePurchase(array_merge($data, [
+                    'branch_id' => $branchId,
+                ]), (int) $user->restaurant_id, (int) $user->id);
+            });
+
+            return back()->with('success', 'Đã ghi nhận nhập kho thành công.');
+        } catch (\Throwable $e) {
+            return back()->withErrors(['ingredient_id' => $e->getMessage()]);
+        }
+
         $ingredientId = $data['ingredient_id'];
         $newQty = (float) $data['quantity'];
         $newCost = (float) $data['unit_cost'];
@@ -1063,7 +1119,7 @@ class InventoryManagementController extends Controller
                     ? (($oldQty * $oldAvg) + ($newQty * $newCost)) / ($oldQty + $newQty)
                     : $newCost;
 
-                $transaction = InventoryTransaction::create([
+                $transaction = InventoryTransaction::createWithIdempotency([
                     'restaurant_id' => $user->restaurant_id,
                     // TRƯỚC ĐÂY KHÔNG GHI branch_id — cùng bug class với Salary,
                     // khiến lọc lịch sử nhập/xuất kho theo chi nhánh luôn rỗng.
@@ -1080,6 +1136,7 @@ class InventoryManagementController extends Controller
                     'invoice_file_url' => $data['invoice_file_url'] ?? null,
                     'notes' => $data['notes'] ?? null,
                     'occurred_at' => $data['occurred_at'] ?? now(),
+                    'idempotency_key' => $data['idempotency_key'] ?? null,
                 ]);
 
                 $inventory->update([

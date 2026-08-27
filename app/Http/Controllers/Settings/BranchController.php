@@ -196,14 +196,14 @@ class BranchController extends Controller
 
         // Chặn xóa nếu có đơn cấp phát kho tổng chưa hoàn tất
         if (SupplyRequest::where(fn ($q) => $q->where('from_branch_id', $branch->id)->orWhere('to_branch_id', $branch->id))
-            ->whereNotIn('status', [SupplyRequest::STATUS_COMPLETED, SupplyRequest::STATUS_REJECTED, SupplyRequest::STATUS_CANCELLED])
+            ->whereNotIn('status', SupplyRequest::terminalStatuses())
             ->exists()) {
             return back()->withErrors(['branch' => 'Chi nhánh đang có đơn yêu cầu cấp phát chưa hoàn tất hoặc đang xử lý.']);
         }
 
         // Chặn xóa nếu có đơn luân chuyển kho chưa đóng
         if (StockTransferRequest::where(fn ($q) => $q->where('from_branch_id', $branch->id)->orWhere('to_branch_id', $branch->id))
-            ->whereNotIn('status', ['completed', 'cancelled', 'rejected'])
+            ->whereNotIn('status', ['received', 'returned', 'destroyed', 'cancelled', 'rejected'])
             ->exists()) {
             return back()->withErrors(['branch' => 'Chi nhánh đang có đơn luân chuyển kho chưa hoàn tất.']);
         }

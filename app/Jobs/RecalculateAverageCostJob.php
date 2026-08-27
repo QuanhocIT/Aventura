@@ -24,7 +24,9 @@ class RecalculateAverageCostJob implements ShouldQueue
 
     public function handle(): void
     {
-        $ingredient = Ingredient::withoutGlobalScopes()->find($this->ingredientId);
+        $ingredient = Ingredient::withoutGlobalScopes()
+            ->where('restaurant_id', $this->restaurantId)
+            ->find($this->ingredientId);
 
         if (! $ingredient) {
             Log::warning('RecalculateAverageCostJob: Ingredient not found', ['ingredient_id' => $this->ingredientId]);

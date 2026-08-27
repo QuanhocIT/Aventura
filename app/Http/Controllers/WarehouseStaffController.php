@@ -700,7 +700,9 @@ class WarehouseStaffController extends Controller
         $document = $voucher->documents()->findOrFail($document);
 
         if (Storage::disk('local')->exists($document->storage_path)) {
-            return Storage::disk('local')->response($document->storage_path, $document->original_name);
+            return response()->file(Storage::disk('local')->path($document->storage_path), [
+                'Content-Disposition' => 'inline; filename="'.addslashes($document->original_name).'"',
+            ]);
         }
 
         abort_unless(Storage::disk('public')->exists($document->storage_path), 404, 'Không tìm thấy chứng từ.');
@@ -725,7 +727,7 @@ class WarehouseStaffController extends Controller
         abort_unless(is_string($path) && $path !== '', 404, 'Không tìm thấy chứng từ.');
 
         if (Storage::disk('local')->exists($path)) {
-            return Storage::disk('local')->response($path);
+            return response()->file(Storage::disk('local')->path($path));
         }
 
         abort_unless(Storage::disk('public')->exists($path), 404, 'Không tìm thấy chứng từ.');
@@ -1164,14 +1166,71 @@ class WarehouseStaffController extends Controller
             return response()->json(['message' => 'Tiêu hủy hàng bắt buộc có ảnh/biên bản làm bằng chứng.'], 422);
         }
 
-        $voucher->update([
-            'status' => $data['disposition'] === 'destroy' ? 'destroyed' : 'returned',
-            'disposition' => $data['disposition'],
-            'disposition_reason' => $data['reason'],
-            'disposed_by' => $user->id,
-            'disposed_at' => now(),
-            'disposition_evidence_paths' => $evidencePaths,
-        ]);
+        $voucher = DB::transaction(function () use ($id, $user, $centralBranch, $data, $evidencePaths): WarehouseReceivingVoucher {
+            $lockedVoucher = WarehouseReceivingVoucher::where('restaurant_id', $user->restaurant_id)
+                ->where('branch_id', $centralBranch->id)
+                ->where('status', 'pending_disposition')
+                ->lockForUpdate()
+                ->with('items')
+                ->findOrFail($id);
+
+            $reverseLogistics = app(WarehouseReverseLogisticsService::class);
+            foreach ($lockedVoucher->items as $voucherItem) {
+                $quantity = (float) $voucherItem->actual_qty;
+                if ($quantity <= 0) {
+                    continue;
+                }
+
+                $quarantine = $reverseLogistics->createQuarantine(
+                    (int) $user->restaurant_id,
+                    (int) $lockedVoucher->branch_id,
+                    (int) $voucherItem->ingredient_id,
+                    $quantity,
+                    'failed_receiving',
+                    $data['reason'],
+                    $user,
+                    null,
+                    'warehouse_receiving_voucher',
+                    (int) $lockedVoucher->id,
+                    (int) $voucherItem->id,
+                    $evidencePaths,
+                    $data['reason'],
+                );
+
+                if ($data['disposition'] === 'return_supplier') {
+                    $reverseLogistics->createReturnFromQuarantine($quarantine, $user, [
+                        'supplier_id' => $lockedVoucher->supplier_id,
+                        'reason' => $data['reason'],
+                        'notes' => 'HoÃ n hÃ ng khÃ´ng Ä‘áº¡t tá»« GRN '.$lockedVoucher->voucher_code,
+                        'evidence_paths' => $evidencePaths,
+                    ]);
+                } else {
+                    $reverseLogistics->destroyQuarantine($quarantine, $user, $data['reason'], $evidencePaths);
+                }
+            }
+
+            if ($data['disposition'] === 'return_supplier' && $lockedVoucher->supplier_id) {
+                app(WarehouseReverseLogisticsService::class)->createClaim($user, [
+                    'supplier_id' => $lockedVoucher->supplier_id,
+                    'source_type' => 'warehouse_receiving_voucher',
+                    'source_id' => $lockedVoucher->id,
+                    'reason' => $data['reason'],
+                    'loss_amount' => (float) $lockedVoucher->invoice_total_amount,
+                    'requested_action' => 'return_or_replace',
+                ], $evidencePaths);
+            }
+
+            $lockedVoucher->update([
+                'status' => $data['disposition'] === 'destroy' ? 'destroyed' : 'returned',
+                'disposition' => $data['disposition'],
+                'disposition_reason' => $data['reason'],
+                'disposed_by' => $user->id,
+                'disposed_at' => now(),
+                'disposition_evidence_paths' => $evidencePaths,
+            ]);
+
+            return $lockedVoucher->fresh();
+        });
 
         $this->logAudit($user, 'warehouse.receiving.disposed', $voucher, [
             'voucher_code' => $voucher->voucher_code,
@@ -1766,7 +1825,7 @@ class WarehouseStaffController extends Controller
         $path = $task->evidence_paths[$index] ?? null;
         abort_unless($path && Storage::disk('local')->exists($path), 404);
 
-        return Storage::disk('local')->response($path);
+        return response()->file(Storage::disk('local')->path($path));
     }
 
     // ── 7. Quét Mã ───────────────────────────────────────────────────────────

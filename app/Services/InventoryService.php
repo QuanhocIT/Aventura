@@ -219,9 +219,22 @@ class InventoryService
      */
     public function executePurchase(array $data, int $restaurantId, int $performedBy): void
     {
-        $ingredient = Ingredient::withoutGlobalScopes()->findOrFail($data['ingredient_id']);
+        if (! empty($data['idempotency_key']) && InventoryTransaction::withoutGlobalScopes()
+            ->where('restaurant_id', $restaurantId)
+            ->where('idempotency_key', $data['idempotency_key'])
+            ->exists()) {
+            return;
+        }
+
+        $ingredient = Ingredient::withoutGlobalScopes()
+            ->where('restaurant_id', $restaurantId)
+            ->when(array_key_exists('branch_id', $data) && $data['branch_id'] !== null, function ($query) use ($data): void {
+                $branchId = $data['branch_id'] ?? null;
+                $query->where(fn ($scope) => $scope->whereNull('branch_id')->orWhere('branch_id', (int) $branchId));
+            })
+            ->findOrFail($data['ingredient_id']);
         $branchId = isset($data['branch_id']) ? (int) $data['branch_id'] : (int) $ingredient->branch_id;
-        if (! $branchId || (int) $ingredient->branch_id !== $branchId) {
+        if (! $branchId || ($ingredient->branch_id !== null && (int) $ingredient->branch_id !== $branchId)) {
             throw new \RuntimeException('Nguyên liệu không thuộc chi nhánh nghiệp vụ hiện tại.');
         }
 
@@ -248,8 +261,15 @@ class InventoryService
         $newCost = (float) $data['unit_cost'];
         $oldQty = (float) $inventory->quantity_on_hand;
         $this->ensureLegacyBatchForInventory($inventory);
+        if (! empty($data['expiry_date'])) {
+            $expiry = \Carbon\Carbon::parse($data['expiry_date']);
+            $occurredAt = ! empty($data['occurred_at']) ? \Carbon\Carbon::parse($data['occurred_at']) : now();
+            if ($expiry->diffInDays($occurredAt, false) > -3) {
+                throw new \InvalidArgumentException('Expiry date must be at least 3 days after receiving date.');
+            }
+        }
 
-        $transaction = InventoryTransaction::create([
+        $transactionData = [
             'restaurant_id' => $restaurantId,
             'branch_id' => $branchId,
             'ingredient_id' => $ingredient->id,
@@ -264,7 +284,11 @@ class InventoryService
             'invoice_file_url' => $data['invoice_file_url'] ?? null,
             'notes' => $data['notes'] ?? null,
             'occurred_at' => $data['occurred_at'] ?? now(),
-        ]);
+            'idempotency_key' => $data['idempotency_key'] ?? null,
+        ];
+        $transaction = ! empty($data['idempotency_key'])
+            ? InventoryTransaction::createWithIdempotency($transactionData)
+            : InventoryTransaction::create($transactionData);
 
         $inventory->update([
             'quantity_on_hand' => $oldQty + $newQty,
@@ -291,7 +315,7 @@ class InventoryService
         ]], 'in');
 
         // Đẩy tác vụ tính toán lại average_cost sang Queue ngầm để tối ưu hiệu năng
-        dispatch(new RecalculateAverageCostJob($restaurantId, $ingredient->id, $oldQty, $newQty, $newCost));
+        dispatch(new RecalculateAverageCostJob($restaurantId, $ingredient->id, $oldQty, $newQty, $newCost))->afterCommit();
         $this->broadcastStockUpdatedSafely($restaurantId);
         app(InventoryAvailabilityService::class)->refreshBranch($restaurantId, $branchId);
     }
@@ -299,11 +323,66 @@ class InventoryService
     /**
      * Thực hiện cập nhật kho khi ghi nhận hao hụt (Waste), áp dụng khóa bi quan.
      */
+    /**
+     * Record all lines of a multi-ingredient purchase atomically.
+     * Both the direct entry form and the approval executor use this method so
+     * every line gets the same inventory, batch and allocation guarantees.
+     */
+    public function executePurchaseBatch(array $data, int $restaurantId, int $performedBy): void
+    {
+        $items = array_values($data['items'] ?? []);
+        if ($items === []) {
+            throw new \InvalidArgumentException('Purchase must contain at least one ingredient.');
+        }
+
+        DB::transaction(function () use ($data, $items, $restaurantId, $performedBy): void {
+            foreach ($items as $lineIndex => $item) {
+                $line = array_merge($data, $item, [
+                    'branch_id' => $data['branch_id'] ?? null,
+                    'notes' => $item['notes'] ?? $data['notes'] ?? null,
+                    'idempotency_key' => ! empty($data['idempotency_key'])
+                        ? trim((string) $data['idempotency_key']).':line:'.$lineIndex
+                        : null,
+                ]);
+                unset($line['items']);
+
+                if (($line['branch_id'] ?? null) === null) {
+                    throw new \InvalidArgumentException('Purchase branch is required.');
+                }
+
+                $this->executePurchase($line, $restaurantId, $performedBy);
+            }
+        });
+    }
+
+    /**
+     * Allocate transfer quantity across locked FEFO batches.
+     * This is intentionally public so every transfer workflow uses the same
+     * expired-lot and multi-batch rules as sales and waste.
+     *
+     * @return array{allocations: array<int, array{batch_id:int, quantity:float, unit_cost:float}>, total_cost:float, shortage_quantity:float}
+     */
+    public function allocateBatchesForTransfer(
+        int $restaurantId,
+        int $branchId,
+        int $ingredientId,
+        float $quantity,
+        ?string $ingredientName = null,
+    ): array {
+        return $this->consumeBatches($restaurantId, $branchId, $ingredientId, $quantity, false, $ingredientName);
+    }
+
     public function executeWaste(array $data, int $restaurantId, int $performedBy): ?InventoryTransaction
     {
-        $ingredient = Ingredient::withoutGlobalScopes()->findOrFail($data['ingredient_id']);
+        $ingredient = Ingredient::withoutGlobalScopes()
+            ->where('restaurant_id', $restaurantId)
+            ->when(array_key_exists('branch_id', $data) && $data['branch_id'] !== null, function ($query) use ($data): void {
+                $branchId = $data['branch_id'] ?? null;
+                $query->where(fn ($scope) => $scope->whereNull('branch_id')->orWhere('branch_id', (int) $branchId));
+            })
+            ->findOrFail($data['ingredient_id']);
         $branchId = isset($data['branch_id']) ? (int) $data['branch_id'] : (int) $ingredient->branch_id;
-        if (! $branchId || (int) $ingredient->branch_id !== $branchId) {
+        if (! $branchId || ($ingredient->branch_id !== null && (int) $ingredient->branch_id !== $branchId)) {
             throw new \RuntimeException('Nguyên liệu không thuộc chi nhánh nghiệp vụ hiện tại.');
         }
 

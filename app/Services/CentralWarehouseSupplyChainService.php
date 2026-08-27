@@ -138,6 +138,12 @@ class CentralWarehouseSupplyChainService
             $batchQty = (float) InventoryBatch::where('restaurant_id', $restaurantId)
                 ->where('branch_id', $central->id)
                 ->where('ingredient_id', $inventory->ingredient_id)
+                ->where('status', 'active')
+                ->sum('quantity_remaining');
+            $quarantineQty = (float) InventoryBatch::where('restaurant_id', $restaurantId)
+                ->where('branch_id', $central->id)
+                ->where('ingredient_id', $inventory->ingredient_id)
+                ->whereIn('status', ['locked', 'expired'])
                 ->sum('quantity_remaining');
             $ledgerIn = (float) InventoryTransaction::where('restaurant_id', $restaurantId)
                 ->where('branch_id', $central->id)
@@ -159,6 +165,7 @@ class CentralWarehouseSupplyChainService
                 'sku' => $inventory->ingredient?->sku,
                 'on_hand' => round($onHand, 3),
                 'batch_quantity' => round($batchQty, 3),
+                'quarantine_quantity' => round($quarantineQty, 3),
                 'ledger_balance' => $ledgerBalance,
                 'batch_variance' => $variance,
                 'ledger_variance' => round($onHand - $ledgerBalance, 3),

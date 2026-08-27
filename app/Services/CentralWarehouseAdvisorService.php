@@ -96,7 +96,7 @@ class CentralWarehouseAdvisorService
     private function handleOverview(): array
     {
         $open = $this->requestQuery()
-            ->whereNotIn('status', ['completed', 'rejected', 'cancelled'])
+            ->whereNotIn('status', SupplyRequest::terminalStatuses())
             ->get(['id', 'status', 'requested_delivery_date']);
         $overdue = $open->filter(fn (SupplyRequest $request) => $request->requested_delivery_date && $request->requested_delivery_date->isPast()
         )->count();
@@ -129,7 +129,7 @@ class CentralWarehouseAdvisorService
     private function handleSupplyRequests(): array
     {
         $requests = $this->requestQuery()
-            ->whereNotIn('status', ['completed', 'rejected', 'cancelled'])
+            ->whereNotIn('status', SupplyRequest::terminalStatuses())
             ->with('toBranch:id,name')
             ->orderByRaw('CASE WHEN requested_delivery_date IS NOT NULL AND requested_delivery_date < ? THEN 0 ELSE 1 END', [now()])
             ->orderBy('requested_delivery_date')
@@ -193,7 +193,12 @@ class CentralWarehouseAdvisorService
     {
         $requests = $this->requestQuery()
             ->where('created_at', '>=', now()->subDays(30))
-            ->whereNotIn('status', ['rejected', 'cancelled'])
+            ->whereNotIn('status', [
+                SupplyRequest::STATUS_REJECTED,
+                SupplyRequest::STATUS_CANCELLED,
+                SupplyRequest::STATUS_RETURNED,
+                SupplyRequest::STATUS_DESTROYED,
+            ])
             ->with('items')
             ->get();
 
