@@ -38,6 +38,12 @@ class ApprovalRequestedNotification extends Notification
             $message = "⚠️ CẢNH BÁO THAO TÁC NHẠY CẢM: Quản lý {$this->requester->name} vừa thực hiện yêu cầu hoàn {$amount} ₫ cho đơn #{$operationData['order_number']}{$reason} — cần Chủ doanh nghiệp kiểm tra & phê duyệt.";
         }
 
+        if ($this->approval->operation_type === 'employee_bonus' && ! empty($operationData['employee_name'])) {
+            $amount = number_format((float) ($operationData['amount'] ?? 0), 0, ',', '.');
+            $reason = ! empty($operationData['reason']) ? " (Lý do: {$operationData['reason']})" : '';
+            $message = "🎁 ĐỀ XUẤT THƯỞNG: Quản lý {$this->requester->name} vừa đề xuất thưởng {$amount} ₫ cho nhân viên {$operationData['employee_name']}{$reason} — cần Chủ doanh nghiệp phê duyệt.";
+        }
+
         return [
             'approval_id' => $this->approval->id,
             'operation_type' => $this->approval->operation_type,

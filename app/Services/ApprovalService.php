@@ -7,6 +7,7 @@ use App\Models\ApprovalDecision;
 use App\Models\ApprovalPolicy;
 use App\Models\ApprovalRequest;
 use App\Models\Employee;
+use App\Models\EmployeeBonus;
 use App\Models\Ingredient;
 use App\Models\IngredientPriceHistory;
 use App\Models\IngredientSupplier;
@@ -427,6 +428,7 @@ class ApprovalService
             'inventory_delete' => $this->executeInventoryDelete($data, $approval->restaurant_id),
             'inventory_adjustment' => $this->executeInventoryAdjustment($data, $approval->restaurant_id, $approval->requester_id),
             'inventory_purchase' => $this->executePurchase($data, $approval->restaurant_id, $approval->requester_id),
+            'inventory_purchase_batch' => $this->executePurchaseBatch($data, $approval->restaurant_id, $approval->requester_id),
             'inventory_waste' => $this->executeWaste($data, $approval->restaurant_id, $approval->requester_id),
             'inventory_stocktake' => $this->executeStocktake($data, $approval->restaurant_id, $approval->requester_id),
             'inventory_recipe_save' => $this->executeRecipeSave($data, $approval->restaurant_id),
@@ -439,9 +441,12 @@ class ApprovalService
             'salary_adjustment' => $this->executeSalaryAdjustment($data, $approval->restaurant_id),
             'shift_checkin' => $this->executeShiftCheckin($data, $approval->restaurant_id),
             'shift_checkout' => $this->executeShiftCheckout($data, $approval->restaurant_id),
+            'employee_bonus' => $this->executeEmployeeBonus($data, $approval->restaurant_id, $approval->requester_id),
             'order_refund' => $this->executeOrderRefund($data, $approval->restaurant_id, $reviewerId),
             'order_item_cancel' => $this->executeOrderItemCancellation($data, $approval->restaurant_id, $reviewerId),
-            default => null,
+            default => throw ValidationException::withMessages([
+                'operation_type' => 'Approval operation has no executable handler and was not applied.',
+            ]),
         };
     }
 
@@ -562,6 +567,37 @@ class ApprovalService
         ], $reviewer);
     }
 
+    private function executeEmployeeBonus(array $data, int $restaurantId, int $requesterId): void
+    {
+        $employee = Employee::withoutGlobalScopes()
+            ->where('restaurant_id', $restaurantId)
+            ->findOrFail($data['employee_id']);
+
+        $awardedAt = \Carbon\Carbon::parse($data['awarded_at'])->toDateString();
+
+        EmployeeBonus::create([
+            'restaurant_id' => $restaurantId,
+            'branch_id' => $employee->branch_id,
+            'employee_id' => $employee->id,
+            'awarded_by' => $requesterId,
+            'amount' => $data['amount'],
+            'reason' => $data['reason'],
+            'awarded_at' => $awardedAt,
+            'status' => 'active',
+        ]);
+
+        $salary = Salary::withoutGlobalScopes()
+            ->where('employee_id', $employee->id)
+            ->whereDate('pay_period_start', '<=', $awardedAt)
+            ->whereDate('pay_period_end', '>=', $awardedAt)
+            ->where('status', 'draft')
+            ->first();
+
+        if ($salary) {
+            $this->salaryService->sweepAdjustments($salary, $employee);
+        }
+    }
+
     private function executeShiftCheckin(array $data, int $restaurantId): void
     {
         $assignment = ScheduleAssignment::withoutGlobalScopes()
@@ -601,13 +637,20 @@ class ApprovalService
         $this->inventoryService->executePurchase($data, $restaurantId, $performedBy);
     }
 
+    private function executePurchaseBatch(array $data, int $restaurantId, int $performedBy): void
+    {
+        $this->inventoryService->executePurchaseBatch($data, $restaurantId, $performedBy);
+    }
+
     private function executeWaste(array $data, int $restaurantId, int $performedBy): void
     {
         $transaction = $this->inventoryService->executeWaste($data, $restaurantId, $performedBy);
 
         $ingredientQuery = Ingredient::withoutGlobalScopes()
             ->where('restaurant_id', $restaurantId)
-            ->when(! empty($data['branch_id']), fn ($q) => $q->where('branch_id', $data['branch_id']));
+            ->when(! empty($data['branch_id']), fn ($q) => $q->where(function ($scope) use ($data): void {
+                $scope->whereNull('branch_id')->orWhere('branch_id', $data['branch_id']);
+            }));
         $ingredient = $ingredientQuery->findOrFail($data['ingredient_id']);
         $wasteQty = (float) $data['quantity'];
         // Khớp khoản khấu trừ (nếu có) với giá vốn thực tế của lô đã trừ.
@@ -687,12 +730,27 @@ class ApprovalService
         DB::transaction(function () use ($data, $restaurantId, $performedBy): void {
             foreach ($data['reconcile_items'] as $item) {
                 $ingredient = Ingredient::withoutGlobalScopes()->where('restaurant_id', $restaurantId)
-                    ->where('branch_id', $data['branch_id'])->findOrFail($item['ingredient_id']);
-                $inventory = Inventory::withoutGlobalScopes()->firstOrCreate([
+                    ->where(function ($query) use ($data): void {
+                        $query->whereNull('branch_id')->orWhere('branch_id', $data['branch_id']);
+                    })
+                    ->lockForUpdate()
+                    ->findOrFail($item['ingredient_id']);
+                $inventory = Inventory::withoutGlobalScopes()->where([
                     'restaurant_id' => $restaurantId,
                     'branch_id' => $data['branch_id'],
                     'ingredient_id' => $ingredient->id,
-                ], ['quantity_on_hand' => 0, 'theoretical_quantity' => 0, 'last_cost' => 0]);
+                ])->lockForUpdate()->first();
+                if (! $inventory) {
+                    $inventory = Inventory::create([
+                        'restaurant_id' => $restaurantId,
+                        'branch_id' => $data['branch_id'],
+                        'ingredient_id' => $ingredient->id,
+                        'quantity_on_hand' => 0,
+                        'theoretical_quantity' => 0,
+                        'last_cost' => 0,
+                    ]);
+                    $inventory = Inventory::withoutGlobalScopes()->whereKey($inventory->id)->lockForUpdate()->firstOrFail();
+                }
                 $current = (float) $inventory->quantity_on_hand;
                 $physical = (float) $item['physical_qty'];
                 $delta = $physical - $current;

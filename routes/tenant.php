@@ -462,12 +462,14 @@ Route::middleware(['auth', 'verified', 'tenant.subscription', 'tenant.ratelimit'
     // Promotion Triggers
     Route::get('promotions/triggers', [PromotionTriggerController::class, 'index'])->name('promotions.triggers.index');
     Route::post('promotions/triggers', [PromotionTriggerController::class, 'store'])->name('promotions.triggers.store');
+    Route::post('promotions/triggers/{trigger}/test-fire', [PromotionTriggerController::class, 'testFire'])->name('promotions.triggers.test-fire');
     Route::put('promotions/triggers/{trigger}', [PromotionTriggerController::class, 'update'])->name('promotions.triggers.update');
     Route::delete('promotions/triggers/{trigger}', [PromotionTriggerController::class, 'destroy'])->name('promotions.triggers.destroy');
     Route::patch('promotions/triggers/{trigger}/toggle', [PromotionTriggerController::class, 'toggleActive'])->name('promotions.triggers.toggle');
 
     // Promotion Analytics
     Route::get('promotions/analytics', [PromotionAnalyticsController::class, 'index'])->name('promotions.analytics.index');
+    Route::post('promotions/analytics/recalculate', [PromotionAnalyticsController::class, 'recalculate'])->name('promotions.analytics.recalculate');
 
     // Tables management
     Route::get('tables', [TablesController::class, 'index'])->name('tables.index');
@@ -724,12 +726,17 @@ Route::middleware(['auth', 'verified', 'tenant.subscription', 'tenant.ratelimit'
     Route::middleware('role_or_permission:owner|super_admin|manager|warehouse_manager')->group(function () {
         Route::get('inventory/transfers', [StockTransferRequestController::class, 'index'])->name('inventory.transfers');
         Route::post('inventory/transfers', [StockTransferRequestController::class, 'store'])->name('inventory.transfers.store');
-        Route::post('inventory/transfers/{transfer}/route', [StockTransferRequestController::class, 'route'])->name('inventory.transfers.route');
-        Route::post('inventory/transfers/{transfer}/dispatch', [StockTransferRequestController::class, 'dispatch'])->name('inventory.transfers.dispatch');
-        Route::post('inventory/transfers/{transfer}/receive', [StockTransferRequestController::class, 'receive'])->name('inventory.transfers.receive');
-        Route::post('inventory/transfers/{transfer}/resolve-discrepancy', [StockTransferRequestController::class, 'resolveDiscrepancy'])->name('inventory.transfers.resolve-discrepancy');
         Route::post('inventory/transfers/{transfer}/cancel', [StockTransferRequestController::class, 'cancel'])->name('inventory.transfers.cancel');
-        Route::post('inventory/transfers/{transfer}/reject', [StockTransferRequestController::class, 'reject'])->name('inventory.transfers.reject');
+
+        // Các bước phê duyệt, điều phối và ghi nhận tồn kho không dành cho
+        // Quản lý chi nhánh (tài khoản này chỉ tạo/theo dõi yêu cầu).
+        Route::middleware('role_or_permission:owner|super_admin|warehouse_manager')->group(function () {
+            Route::post('inventory/transfers/{transfer}/route', [StockTransferRequestController::class, 'route'])->name('inventory.transfers.route');
+            Route::post('inventory/transfers/{transfer}/dispatch', [StockTransferRequestController::class, 'dispatch'])->name('inventory.transfers.dispatch');
+            Route::post('inventory/transfers/{transfer}/receive', [StockTransferRequestController::class, 'receive'])->name('inventory.transfers.receive');
+            Route::post('inventory/transfers/{transfer}/resolve-discrepancy', [StockTransferRequestController::class, 'resolveDiscrepancy'])->name('inventory.transfers.resolve-discrepancy');
+            Route::post('inventory/transfers/{transfer}/reject', [StockTransferRequestController::class, 'reject'])->name('inventory.transfers.reject');
+        });
     });
 
     // Quản lý Tổng Kho & Yêu cầu cấp phát hàng hóa

@@ -12,6 +12,7 @@ final class ApprovalOperations
 {
     /** Nhãn tiếng Việt hiển thị cho người dùng. */
     public const LABELS = [
+        'inventory_purchase_batch' => 'Nhập nhiều nguyên liệu kho',
         // Kho & nguyên liệu
         'inventory_create' => 'Thêm nguyên liệu mới',
         'inventory_update' => 'Cập nhật thông tin nguyên liệu',
@@ -33,6 +34,7 @@ final class ApprovalOperations
 
         // Nhân sự
         'salary_adjustment' => 'Điều chỉnh lương nhân sự',
+        'employee_bonus' => 'Đề xuất thưởng nhân viên',
         'shift_checkin' => 'Xác nhận vào ca',
         'shift_checkout' => 'Xác nhận hết ca',
         'employee_create' => 'Tạo nhân viên mới',
@@ -83,6 +85,7 @@ final class ApprovalOperations
      * Dùng để đối chiếu hạn mức của Quản lý.
      */
     private const AMOUNT_KEYS = [
+        'inventory_purchase_batch' => ['total_cost', 'estimated_cost'],
         'order_refund' => ['refund_amount'],
         'order_item_cancel' => ['refund_amount', 'line_total'],
         'salary_adjustment' => ['amount'],
@@ -120,6 +123,16 @@ final class ApprovalOperations
      */
     public static function amountFor(string $operationType, array $data): ?float
     {
+        if ($operationType === 'inventory_purchase_batch' && ! empty($data['items'])) {
+            $total = 0.0;
+            foreach ($data['items'] as $item) {
+                if (is_numeric($item['quantity'] ?? null) && is_numeric($item['unit_cost'] ?? null)) {
+                    $total += (float) $item['quantity'] * (float) $item['unit_cost'];
+                }
+            }
+            return round(abs($total), 2);
+        }
+
         foreach (self::AMOUNT_KEYS[$operationType] ?? [] as $key) {
             if (isset($data[$key]) && is_numeric($data[$key])) {
                 return round(abs((float) $data[$key]), 2);

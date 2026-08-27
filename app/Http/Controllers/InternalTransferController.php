@@ -2,13 +2,20 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\AuditLog;
 use App\Models\Ingredient;
 use App\Models\InternalTransfer;
 use App\Models\Inventory;
+use App\Models\InventoryBatch;
+use App\Models\InventoryBatchAllocation;
 use App\Models\InventoryTransaction;
 use App\Models\RestaurantBranch;
+use App\Models\StockTransferRequest;
+use App\Models\User;
+use App\Notifications\StockTransferStageNotification;
 use App\Services\AnalyticsServiceClient;
 use App\Services\CircuitBreaker;
+use App\Services\WarehouseReverseLogisticsService;
 use App\Support\TenantRule;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -202,15 +209,92 @@ class InternalTransferController extends Controller
             'ingredient_id' => ['required', TenantRule::exists('ingredients')],
             'quantity' => ['required', 'numeric', 'min:0.001'],
             'notes' => ['nullable', 'string', 'max:500'],
+            'idempotency_key' => ['nullable', 'string', 'max:100'],
         ]);
 
         $fromBranchId = (int) $request->input('from_branch_id');
         $toBranchId = (int) $request->input('to_branch_id');
         $ingId = (int) $request->input('ingredient_id');
         $quantity = (float) $request->input('quantity');
+        $idempotencyKey = trim((string) ($request->input('idempotency_key') ?: $request->header('Idempotency-Key', '')));
+
+        // The former endpoint performed a one-shot stock move and could not
+        // record receiving discrepancies or return damaged goods. Keep the
+        // URL for compatibility, but create the canonical controlled request
+        // instead; stock changes now happen only in route/dispatch/receive.
+        $openRequest = StockTransferRequest::query()
+            ->where('restaurant_id', $user->restaurant_id)
+            ->where('from_branch_id', $fromBranchId)
+            ->where('to_branch_id', $toBranchId)
+            ->where('ingredient_id', $ingId)
+            ->where('quantity_requested', $quantity)
+            ->whereIn('status', ['requested', 'routed', 'dispatched', 'discrepancy', 'quarantined', 'return_requested'])
+            ->first();
+        if ($openRequest) {
+            return back()->with('success', 'Chi nhÃ¡nh nháº­n Ä‘Ã£ cÃ³ yÃªu cáº§u Ä‘iá»u chuyá»ƒn Ä‘ang xá»­ lÃ½.');
+        }
+        if ($idempotencyKey !== '') {
+            $existingRequest = StockTransferRequest::query()
+                ->where('restaurant_id', $user->restaurant_id)
+                ->where('idempotency_key', $idempotencyKey)
+                ->first();
+            if ($existingRequest) {
+                return back()->with('success', 'YÃªu cáº§u Ä‘iá»u chuyá»ƒn Ä‘Ã£ Ä‘Æ°á»£c ghi nháº­n trÆ°á»›c Ä‘Ã³.');
+            }
+        }
+
+        $sourceBranch = RestaurantBranch::query()
+            ->where('restaurant_id', $user->restaurant_id)
+            ->where('status', 'active')
+            ->findOrFail($fromBranchId);
+        $destinationBranch = RestaurantBranch::query()
+            ->where('restaurant_id', $user->restaurant_id)
+            ->where('status', 'active')
+            ->findOrFail($toBranchId);
+        $reason = $request->input('notes') ?: 'YÃªu cáº§u luÃ¢n chuyá»ƒn kho ná»™i bá»™.';
+        $controlledRequest = StockTransferRequest::create([
+            'restaurant_id' => $user->restaurant_id,
+            'from_branch_id' => $sourceBranch->id,
+            'to_branch_id' => $destinationBranch->id,
+            'ingredient_id' => $ingId,
+            'quantity_requested' => $quantity,
+            'priority' => 'normal',
+            'reason' => $reason,
+            'idempotency_key' => $idempotencyKey !== '' ? $idempotencyKey : null,
+            'status' => 'requested',
+            'requested_by' => $user->id,
+        ]);
+        User::query()
+            ->where('restaurant_id', $user->restaurant_id)
+            ->where('id', '!=', $user->id)
+            ->whereHas('roles', fn ($query) => $query->whereIn('name', ['owner', 'warehouse_manager']))
+            ->get()
+            ->each(fn (User $recipient) => $recipient->notify(new StockTransferStageNotification($controlledRequest, 'requested', $user->name)));
+        AuditLog::log('stock_transfer_requested_from_legacy_endpoint', 'created', $controlledRequest, null, [
+            'source' => 'inventory.internal-transfers',
+            'by' => $user->name,
+        ]);
+
+        return back()->with('success', 'ÄÃ£ chuyá»ƒn yÃªu cáº§u sang quy trÃ¬nh Ä‘iá»u chuyá»ƒn cÃ³ kiá»ƒm Ä‘áº¿m. Kho nguá»“n cáº§n Ä‘á»‹nh tuyáº¿n vÃ  xuáº¥t hÃ ng.');
+
+        if ($idempotencyKey !== '' && InventoryTransaction::where('restaurant_id', $user->restaurant_id)
+            ->where('idempotency_key', $idempotencyKey.':out')->exists()) {
+            return back()->with('success', 'Lá»‡nh luÃ¢n chuyá»ƒn Ä‘Ã£ Ä‘Æ°á»£c ghi nháº­n trÆ°á»›c Ä‘Ã³.');
+        }
+
+        $recentDuplicate = InternalTransfer::where('restaurant_id', $user->restaurant_id)
+            ->where('from_branch_id', $fromBranchId)
+            ->where('to_branch_id', $toBranchId)
+            ->where('ingredient_id', $ingId)
+            ->where('quantity', $quantity)
+            ->where('created_at', '>=', now()->subSeconds(30))
+            ->first();
+        if ($recentDuplicate) {
+            return back()->with('success', 'Lá»‡nh luÃ¢n chuyá»ƒn vá»«a Ä‘Æ°á»£c ghi nháº­n, khÃ´ng táº¡o trÃ¹ng.');
+        }
 
         try {
-            DB::transaction(function () use ($user, $fromBranchId, $toBranchId, $ingId, $quantity, $request) {
+            DB::transaction(function () use ($user, $fromBranchId, $toBranchId, $ingId, $quantity, $request, $idempotencyKey) {
                 // 1. Pessimistic lock on from_branch inventory
                 $invFrom = Inventory::where('restaurant_id', $user->restaurant_id)
                     ->where('branch_id', $fromBranchId)
@@ -218,9 +302,72 @@ class InternalTransferController extends Controller
                     ->lockForUpdate()
                     ->first();
 
-                if (! $invFrom || (float) $invFrom->quantity_on_hand < $quantity) {
+                if (! $invFrom || (float) $invFrom->quantity_available + 0.0005 < $quantity) {
                     throw new \Exception('Chi nhánh xuất không đủ tồn kho thực tế để chuyển.');
                 }
+
+                $sourceBefore = (float) $invFrom->quantity_on_hand;
+                $sourceAfter = round($sourceBefore - $quantity, 3);
+                $sourceTheoreticalBefore = $invFrom->effectiveTheoreticalQuantity();
+
+                $sourceBatches = InventoryBatch::where('restaurant_id', $user->restaurant_id)
+                    ->where('branch_id', $fromBranchId)
+                    ->where('ingredient_id', $ingId)
+                    ->where('status', 'active')
+                    ->where(function ($query): void {
+                        $query->whereNull('expiry_date')->orWhereDate('expiry_date', '>=', today());
+                    })
+                    ->where('quantity_remaining', '>', 0)
+                    ->orderByRaw('expiry_date IS NULL')
+                    ->orderBy('expiry_date')
+                    ->orderBy('id')
+                    ->lockForUpdate()
+                    ->get();
+                $activeBatchQuantity = (float) $sourceBatches->sum('quantity_remaining');
+                $unallocatedOpeningQuantity = max(0, $sourceBefore - $activeBatchQuantity);
+                if ($unallocatedOpeningQuantity > 0.0005) {
+                    $sourceBatches->push(InventoryBatch::create([
+                        'restaurant_id' => $user->restaurant_id,
+                        'branch_id' => $fromBranchId,
+                        'ingredient_id' => $ingId,
+                        'batch_number' => 'LEGACY-TRANSFER-'.$fromBranchId.'-'.$ingId.'-'.now()->format('YmdHis'),
+                        'quantity_remaining' => $unallocatedOpeningQuantity,
+                        'unit_cost' => (float) $invFrom->last_cost,
+                        'purchased_at' => now()->toDateString(),
+                        'status' => 'active',
+                    ]));
+                    $activeBatchQuantity += $unallocatedOpeningQuantity;
+                }
+                if ($activeBatchQuantity + 0.0005 < $quantity) {
+                    throw new \Exception('Tồn theo lô không đủ để chuyển. Hãy kiểm tra lại số dư và batch trước khi thực hiện.');
+                }
+
+                $remainingToAllocate = $quantity;
+                $sourceAllocations = [];
+                foreach ($sourceBatches as $sourceBatch) {
+                    if ($remainingToAllocate <= 0.0005) {
+                        break;
+                    }
+                    $allocated = min($remainingToAllocate, (float) $sourceBatch->quantity_remaining);
+                    if ($allocated <= 0) {
+                        continue;
+                    }
+                    $sourceAllocations[] = [
+                        'batch' => $sourceBatch,
+                        'quantity' => round($allocated, 3),
+                        'unit_cost' => (float) $sourceBatch->unit_cost,
+                    ];
+                    $remainingToAllocate = round($remainingToAllocate - $allocated, 3);
+                }
+                if ($remainingToAllocate > 0.0005) {
+                    throw new \Exception('Không thể phân bổ đủ batch cho lệnh chuyển.');
+                }
+
+                $sourceTotalCost = array_sum(array_map(
+                    fn (array $allocation): float => $allocation['quantity'] * $allocation['unit_cost'],
+                    $sourceAllocations,
+                ));
+                $transferUnitCost = $quantity > 0 ? $sourceTotalCost / $quantity : (float) $invFrom->last_cost;
 
                 // 2. Pessimistic lock / create on to_branch inventory
                 $invTo = Inventory::where('restaurant_id', $user->restaurant_id)
@@ -240,12 +387,9 @@ class InternalTransferController extends Controller
                     ]);
                 }
 
-                // 3. Update stock levels
-                $invFrom->decrement('quantity_on_hand', $quantity);
-                $invFrom->decrement('theoretical_quantity', $quantity);
-
-                $invTo->increment('quantity_on_hand', $quantity);
-                $invTo->increment('theoretical_quantity', $quantity);
+                $destinationBefore = (float) $invTo->quantity_on_hand;
+                $destinationAfter = round($destinationBefore + $quantity, 3);
+                $destinationTheoreticalBefore = $invTo->effectiveTheoreticalQuantity();
 
                 // Create the transfer document first so both ledger entries
                 // can point to an immutable business source. This prevents
@@ -265,7 +409,7 @@ class InternalTransferController extends Controller
                 ]);
 
                 // 4. Create out transaction for from_branch
-                InventoryTransaction::create([
+                $outTransaction = InventoryTransaction::create([
                     'restaurant_id' => $user->restaurant_id,
                     'branch_id' => $fromBranchId,
                     'ingredient_id' => $ingId,
@@ -274,16 +418,19 @@ class InternalTransferController extends Controller
                     'type' => 'adjustment',
                     'direction' => 'out',
                     'quantity' => $quantity,
-                    'unit_cost' => $invFrom->last_cost,
-                    'total_cost' => $quantity * $invFrom->last_cost,
+                    'unit_cost' => $transferUnitCost,
+                    'total_cost' => $sourceTotalCost,
+                    'idempotency_key' => $idempotencyKey !== '' ? $idempotencyKey.':out' : null,
                     'source_type' => 'internal_transfer',
                     'source_id' => $internalTransfer->id,
                     'notes' => 'Điều phối kho nội bộ: Xuất chuyển sang chi nhánh #'.$toBranchId,
+                    'quantity_before' => $sourceBefore,
+                    'quantity_after' => $sourceAfter,
                     'occurred_at' => now(),
                 ]);
 
                 // 5. Create in transaction for to_branch
-                InventoryTransaction::create([
+                $inTransaction = InventoryTransaction::create([
                     'restaurant_id' => $user->restaurant_id,
                     'branch_id' => $toBranchId,
                     'ingredient_id' => $ingId,
@@ -292,13 +439,68 @@ class InternalTransferController extends Controller
                     'type' => 'adjustment',
                     'direction' => 'in',
                     'quantity' => $quantity,
-                    'unit_cost' => $invFrom->last_cost,
-                    'total_cost' => $quantity * $invFrom->last_cost,
+                    'unit_cost' => $transferUnitCost,
+                    'total_cost' => $sourceTotalCost,
+                    'idempotency_key' => $idempotencyKey !== '' ? $idempotencyKey.':in' : null,
                     'source_type' => 'internal_transfer',
                     'source_id' => $internalTransfer->id,
                     'notes' => 'Điều phối kho nội bộ: Nhận hàng luân chuyển từ chi nhánh #'.$fromBranchId,
+                    'quantity_before' => $destinationBefore,
+                    'quantity_after' => $destinationAfter,
                     'occurred_at' => now(),
                 ]);
+
+                $invFrom->update([
+                    'quantity_on_hand' => $sourceAfter,
+                    'theoretical_quantity' => $sourceTheoreticalBefore - $quantity,
+                    'updated_by' => $user->id,
+                ]);
+                $invTo->update([
+                    'quantity_on_hand' => $destinationAfter,
+                    'theoretical_quantity' => $destinationTheoreticalBefore + $quantity,
+                    'last_cost' => $transferUnitCost,
+                    'updated_by' => $user->id,
+                ]);
+
+                $batchService = app(WarehouseReverseLogisticsService::class);
+                foreach ($sourceAllocations as $allocation) {
+                    /** @var InventoryBatch $sourceBatch */
+                    $sourceBatch = $allocation['batch'];
+                    $allocated = $allocation['quantity'];
+                    $sourceBatchAfter = round((float) $sourceBatch->quantity_remaining - $allocated, 3);
+                    $sourceBatch->update([
+                        'quantity_remaining' => $sourceBatchAfter,
+                        'status' => $sourceBatchAfter <= 0.0005 ? 'depleted' : 'active',
+                    ]);
+                    InventoryBatchAllocation::create([
+                        'restaurant_id' => $user->restaurant_id,
+                        'branch_id' => $fromBranchId,
+                        'inventory_batch_id' => $sourceBatch->id,
+                        'inventory_transaction_id' => $outTransaction->id,
+                        'direction' => 'out',
+                        'quantity' => $allocated,
+                        'unit_cost' => $allocation['unit_cost'],
+                    ]);
+
+                    $destinationBatch = $batchService->createDestinationBatch(
+                        (int) $user->restaurant_id,
+                        $toBranchId,
+                        $ingId,
+                        $allocated,
+                        $allocation['unit_cost'],
+                        $user,
+                        $sourceBatch,
+                    );
+                    InventoryBatchAllocation::create([
+                        'restaurant_id' => $user->restaurant_id,
+                        'branch_id' => $toBranchId,
+                        'inventory_batch_id' => $destinationBatch->id,
+                        'inventory_transaction_id' => $inTransaction->id,
+                        'direction' => 'in',
+                        'quantity' => $allocated,
+                        'unit_cost' => $allocation['unit_cost'],
+                    ]);
+                }
             });
         } catch (\Throwable $e) {
             return back()->with('error', $e->getMessage());
@@ -320,6 +522,33 @@ class InternalTransferController extends Controller
             ->latest()
             ->get();
 
-        return response()->json(['transfers' => $transfers]);
+        $controlledTransfers = StockTransferRequest::query()
+            ->where('restaurant_id', $user->restaurant_id)
+            ->with(['fromBranch', 'toBranch', 'ingredient.unit', 'requestedBy'])
+            ->latest()
+            ->get()
+            ->map(fn (StockTransferRequest $transfer): array => [
+                'id' => 'request-'.$transfer->id,
+                'ingredient' => [
+                    'name' => $transfer->ingredient?->name,
+                    'unit' => ['symbol' => $transfer->ingredient?->unit?->symbol],
+                ],
+                'quantity' => (float) $transfer->quantity_requested,
+                'from_branch' => ['name' => $transfer->fromBranch?->name],
+                'to_branch' => ['name' => $transfer->toBranch?->name],
+                'creator' => ['name' => $transfer->requestedBy?->name],
+                'status' => $transfer->status,
+                'notes' => $transfer->reason,
+                'completed_at' => $transfer->received_at,
+                'created_at' => $transfer->created_at,
+                'transfer_kind' => 'controlled',
+            ]);
+
+        return response()->json([
+            'transfers' => $transfers
+                ->concat($controlledTransfers)
+                ->sortByDesc('created_at')
+                ->values(),
+        ]);
     }
 }

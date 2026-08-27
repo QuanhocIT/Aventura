@@ -17,6 +17,7 @@ use App\Support\TenantRule;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Inertia\Inertia;
@@ -32,6 +33,11 @@ use Inertia\Response;
  */
 class StockTransferRequestController extends Controller
 {
+    private function isRequestOnly(User $user): bool
+    {
+        return $user->isBranchManager();
+    }
+
     private function assertManager(User $user): void
     {
         abort_unless(
@@ -50,6 +56,19 @@ class StockTransferRequestController extends Controller
         );
     }
 
+    /**
+     * Quản lý chi nhánh chỉ tạo và theo dõi yêu cầu. Việc xuất/nhận làm thay
+     * đổi tồn kho phải do Chủ hoặc người được phân công ở Kho Tổng thực hiện.
+     */
+    private function assertCanExecute(User $user): void
+    {
+        abort_unless(
+            $user->isSuperAdmin() || $user->hasAnyRole(['owner', 'warehouse_manager']),
+            403,
+            'Quản lý chi nhánh chỉ được gửi yêu cầu; không được trực tiếp xuất hoặc nhập kho điều chuyển.',
+        );
+    }
+
     private function assertTenantTransfer(User $user, StockTransferRequest $transfer): void
     {
         abort_if((int) $transfer->restaurant_id !== (int) $user->restaurant_id, 403);
@@ -60,9 +79,12 @@ class StockTransferRequestController extends Controller
         $user = $request->user();
         $this->assertManager($user);
         $canViewAllBranches = $user->isSuperAdmin() || $user->hasAnyRole(['owner', 'warehouse_manager']);
+        $requestOnly = $this->isRequestOnly($user);
+        $assignedBranchId = $user->assignedBranchId();
 
         $transfers = StockTransferRequest::query()
             ->where('restaurant_id', $user->restaurant_id)
+            ->when($requestOnly, fn ($query) => $query->where('requested_by', $user->id))
             ->when(! $canViewAllBranches, function ($query) use ($user): void {
                 $query->where(function ($branchQuery) use ($user): void {
                     $branchQuery->where('to_branch_id', $user->assignedBranchId())
@@ -80,6 +102,10 @@ class StockTransferRequestController extends Controller
                 'receivedBy:id,name',
                 'discrepancyResolvedBy:id,name',
             ])
+            ->when(
+                Schema::hasColumn('stock_transfer_requests', 'priority'),
+                fn ($query) => $query->orderByRaw("CASE WHEN priority = 'urgent' THEN 0 ELSE 1 END"),
+            )
             ->latest('id')
             ->limit(300)
             ->get();
@@ -90,31 +116,49 @@ class StockTransferRequestController extends Controller
             ->keyBy(fn (Inventory $inventory): string => $inventory->branch_id.':'.$inventory->ingredient_id);
 
         $canRoute = $user->isSuperAdmin() || $user->hasAnyRole(['owner', 'warehouse_manager']);
-        $transfers = $transfers->map(function (StockTransferRequest $transfer) use ($user, $stocks, $canRoute): array {
+        $canExecute = $user->isSuperAdmin() || $user->hasAnyRole(['owner', 'warehouse_manager']);
+        $transfers = $transfers->map(function (StockTransferRequest $transfer) use ($user, $stocks, $canRoute, $canExecute, $requestOnly): array {
             $stock = $transfer->from_branch_id
                 ? $stocks->get($transfer->from_branch_id.':'.$transfer->ingredient_id)
                 : null;
             $isRequester = (int) $transfer->requested_by === (int) $user->id;
 
-            return [
+            $requestData = [
                 'id' => $transfer->id,
                 'status' => $transfer->status,
+                'priority' => $transfer->priority ?? 'normal',
                 'ingredient_id' => $transfer->ingredient_id,
                 'ingredient' => $transfer->ingredient?->name,
                 'unit' => $transfer->ingredient?->unit?->symbol ?? 'đơn vị',
                 'to_branch_id' => $transfer->to_branch_id,
                 'to_branch' => $transfer->toBranch?->name,
-                'from_branch_id' => $transfer->from_branch_id,
-                'from_branch' => $transfer->fromBranch?->name,
                 'quantity_requested' => (float) $transfer->quantity_requested,
                 'quantity_dispatched' => $transfer->quantity_dispatched !== null ? (float) $transfer->quantity_dispatched : null,
                 'quantity_received' => $transfer->quantity_received !== null ? (float) $transfer->quantity_received : null,
+                'reason' => $transfer->reason,
+                'owner_note' => $transfer->owner_note,
+                'reject_reason' => $transfer->reject_reason,
+                'cancel_reason' => $transfer->cancel_reason,
+                'created_at' => $transfer->created_at?->format('d/m/Y H:i'),
+                'routed_at' => $transfer->routed_at?->format('d/m/Y H:i'),
+                'dispatched_at' => $transfer->dispatched_at?->format('d/m/Y H:i'),
+                'received_at' => $transfer->received_at?->format('d/m/Y H:i'),
+                'requested_by' => $transfer->requestedBy?->name,
+                'can_cancel' => in_array($transfer->status, ['requested', 'routed'], true)
+                    && ($canRoute || ($requestOnly && $isRequester && $transfer->status === 'requested')),
+            ];
+
+            if ($requestOnly) {
+                return $requestData;
+            }
+
+            return $requestData + [
+                'from_branch_id' => $transfer->from_branch_id,
+                'from_branch' => $transfer->fromBranch?->name,
                 'quantity_remaining' => max(0, (float) $transfer->quantity_requested - (float) ($transfer->quantity_received ?? 0)),
                 'discrepancy_quantity' => (float) ($transfer->discrepancy_quantity ?? 0),
                 'source_available_quantity' => $stock ? (float) $stock->quantity_on_hand : 0,
                 'source_unit_cost' => $stock ? (float) $stock->last_cost : 0,
-                'reason' => $transfer->reason,
-                'owner_note' => $transfer->owner_note,
                 'dispatch_note' => $transfer->dispatch_note,
                 'received_condition' => $transfer->received_condition,
                 'quantity_received_good' => $transfer->quantity_received_good !== null ? (float) $transfer->quantity_received_good : null,
@@ -132,41 +176,50 @@ class StockTransferRequestController extends Controller
                 'discrepancy_reason' => $transfer->discrepancy_reason,
                 'discrepancy_resolution' => $transfer->discrepancy_resolution,
                 'handover_code' => $transfer->handover_code,
-                'requested_by' => $transfer->requestedBy?->name,
                 'routed_by' => $transfer->routedBy?->name,
                 'dispatched_by' => $transfer->dispatchedBy?->name,
                 'received_by' => $transfer->receivedBy?->name,
                 'discrepancy_resolved_by' => $transfer->discrepancyResolvedBy?->name,
-                'reject_reason' => $transfer->reject_reason,
-                'cancel_reason' => $transfer->cancel_reason,
-                'created_at' => $transfer->created_at?->format('d/m/Y H:i'),
-                'routed_at' => $transfer->routed_at?->format('d/m/Y H:i'),
-                'dispatched_at' => $transfer->dispatched_at?->format('d/m/Y H:i'),
-                'received_at' => $transfer->received_at?->format('d/m/Y H:i'),
                 'can_route' => $canRoute && $transfer->status === 'requested',
-                'can_dispatch' => $transfer->status === 'routed'
+                'can_dispatch' => $canExecute
+                    && $transfer->status === 'routed'
                     && $transfer->from_branch_id
                     && $user->canAccessBranch((int) $transfer->from_branch_id),
-                'can_receive' => $transfer->status === 'dispatched'
+                'can_receive' => $canExecute
+                    && $transfer->status === 'dispatched'
                     && $transfer->to_branch_id
                     && $user->canAccessBranch((int) $transfer->to_branch_id)
                     && (int) $transfer->dispatched_by !== (int) $user->id,
                 'can_resolve' => $canRoute && $transfer->status === 'discrepancy',
-                'can_cancel' => in_array($transfer->status, ['requested', 'routed'], true)
-                    && ($isRequester || $canRoute),
             ];
         });
 
         $branches = RestaurantBranch::query()
             ->where('restaurant_id', $user->restaurant_id)
             ->where('status', 'active')
-            ->when(! $canViewAllBranches, fn ($query) => $query->where('id', $user->assignedBranchId()))
+            ->when(! $canViewAllBranches, fn ($query) => $query->where('id', $assignedBranchId))
             ->orderBy('name')
             ->get(['id', 'name']);
+
+        $branchStock = $requestOnly
+            ? []
+            : $stocks->groupBy('branch_id')
+                ->map(fn ($branchItems): array => $branchItems
+                    ->mapWithKeys(fn (Inventory $inventory): array => [
+                        (string) $inventory->ingredient_id => (float) $inventory->quantity_on_hand,
+                    ])
+                    ->all())
+                ->all();
 
         $ingredients = Ingredient::query()
             ->where('restaurant_id', $user->restaurant_id)
             ->where('status', 'active')
+            ->when($requestOnly, function ($query) use ($assignedBranchId): void {
+                $query->where(function ($branchQuery) use ($assignedBranchId): void {
+                    $branchQuery->whereNull('branch_id')
+                        ->orWhere('branch_id', $assignedBranchId);
+                });
+            })
             ->with('unit:id,symbol')
             ->orderBy('name')
             ->get(['id', 'name', 'branch_id', 'unit_id'])
@@ -175,15 +228,23 @@ class StockTransferRequestController extends Controller
                 'name' => $ingredient->name,
                 'branch_id' => $ingredient->branch_id,
                 'unit' => $ingredient->unit?->symbol ?? 'đơn vị',
+                'available_quantity' => $requestOnly && $assignedBranchId
+                    ? (float) ($stocks->get($assignedBranchId.':'.$ingredient->id)?->quantity_on_hand ?? 0)
+                    : null,
             ]);
 
-        return Inertia::render('inventory/Transfers', [
+        $page = $requestOnly ? 'inventory/TransferRequests' : 'inventory/Transfers';
+
+        return Inertia::render($page, [
             'transfers' => $transfers->values(),
             'branches' => $branches,
+            'branch_stock' => $branchStock,
             'ingredients' => $ingredients->values(),
             'permissions' => [
                 'can_route' => $canRoute,
+                'can_execute' => $canExecute,
                 'can_create' => true,
+                'request_only' => $requestOnly,
             ],
             'summary' => [
                 'requested' => $transfers->where('status', 'requested')->count(),
@@ -200,19 +261,39 @@ class StockTransferRequestController extends Controller
     {
         $user = $request->user();
         $this->assertManager($user);
+        $requestOnly = $this->isRequestOnly($user);
+        $assignedBranchId = $user->assignedBranchId();
 
         $data = $request->validate([
             'to_branch_id' => ['required', TenantRule::exists('restaurant_branches')],
             'ingredient_id' => ['required', TenantRule::exists('ingredients')],
             'quantity_requested' => ['required', 'numeric', 'min:0.001'],
+            'priority' => ['sometimes', 'required', 'string', 'in:normal,urgent'],
             'reason' => ['required', 'string', 'min:5', 'max:500'],
+            'idempotency_key' => ['nullable', 'string', 'max:100'],
         ]);
+        $data['idempotency_key'] = $data['idempotency_key'] ?? $request->header('Idempotency-Key');
 
         $toBranch = RestaurantBranch::query()
             ->where('restaurant_id', $user->restaurant_id)
             ->where('status', 'active')
             ->findOrFail((int) $data['to_branch_id']);
         abort_unless($user->canAccessBranch($toBranch->id), 403, 'Bạn chỉ được yêu cầu cho chi nhánh thuộc phạm vi của mình.');
+        abort_unless(
+            ! $requestOnly || ($assignedBranchId !== null && (int) $toBranch->id === (int) $assignedBranchId),
+            403,
+            'Yêu cầu phải được lập cho đúng chi nhánh đang được phân công.',
+        );
+
+        if (! empty($data['idempotency_key'])) {
+            $existing = StockTransferRequest::query()
+                ->where('restaurant_id', $user->restaurant_id)
+                ->where('idempotency_key', $data['idempotency_key'])
+                ->first();
+            if ($existing) {
+                return back()->with('success', 'YÃªu cáº§u Ä‘iá»u chuyá»ƒn Ä‘Ã£ Ä‘Æ°á»£c ghi nháº­n trÆ°á»›c Ä‘Ã³.');
+            }
+        }
 
         $ingredient = Ingredient::query()
             ->where('restaurant_id', $user->restaurant_id)
@@ -226,7 +307,7 @@ class StockTransferRequestController extends Controller
             ->where('restaurant_id', $user->restaurant_id)
             ->where('to_branch_id', $toBranch->id)
             ->where('ingredient_id', $ingredient->id)
-            ->whereIn('status', ['requested', 'routed', 'dispatched', 'discrepancy'])
+            ->whereIn('status', ['requested', 'routed', 'dispatched', 'discrepancy', 'quarantined', 'return_requested'])
             ->exists();
         if ($hasOpenRequest) {
             return back()->withErrors(['ingredient_id' => 'Chi nhánh này đã có yêu cầu cùng nguyên liệu đang xử lý. Hãy theo dõi yêu cầu hiện tại hoặc ghi rõ nhu cầu bổ sung.']);
@@ -237,7 +318,9 @@ class StockTransferRequestController extends Controller
             'to_branch_id' => $toBranch->id,
             'ingredient_id' => $ingredient->id,
             'quantity_requested' => $data['quantity_requested'],
+            'priority' => $data['priority'] ?? ($requestOnly ? 'urgent' : 'normal'),
             'reason' => trim($data['reason']),
+            'idempotency_key' => $data['idempotency_key'] ?? null,
             'status' => 'requested',
             'requested_by' => $user->id,
         ]);
@@ -275,6 +358,37 @@ class StockTransferRequestController extends Controller
                     throw new \InvalidArgumentException('Chi nhánh cấp phải khác chi nhánh nhận.');
                 }
 
+                $sourceInventory = Inventory::query()
+                    ->where('restaurant_id', $lockedTransfer->restaurant_id)
+                    ->where('branch_id', $fromBranch->id)
+                    ->where('ingredient_id', $lockedTransfer->ingredient_id)
+                    ->lockForUpdate()
+                    ->first();
+                if (! $sourceInventory || (float) $sourceInventory->quantity_available + 0.0005 < (float) $lockedTransfer->quantity_requested) {
+                    throw new \RuntimeException('Kho nguồn không đủ tồn thực tế cho số lượng yêu cầu. Hãy chọn kho khác hoặc yêu cầu lại số lượng.');
+                }
+
+                $activeBatchQuantity = (float) InventoryBatch::query()
+                    ->where('restaurant_id', $lockedTransfer->restaurant_id)
+                    ->where('branch_id', $fromBranch->id)
+                    ->where('ingredient_id', $lockedTransfer->ingredient_id)
+                    ->where('status', 'active')
+                    ->where(function ($query): void {
+                        $query->whereNull('expiry_date')->orWhereDate('expiry_date', '>=', today());
+                    })
+                    ->sum('quantity_remaining');
+                $trackedBatchQuantity = (float) InventoryBatch::query()
+                    ->where('restaurant_id', $lockedTransfer->restaurant_id)
+                    ->where('branch_id', $fromBranch->id)
+                    ->where('ingredient_id', $lockedTransfer->ingredient_id)
+                    ->whereIn('status', ['active', 'expired'])
+                    ->sum('quantity_remaining');
+                $unallocatedQuantity = max(0, (float) $sourceInventory->quantity_on_hand - $trackedBatchQuantity);
+                $allocatableBatchQuantity = $activeBatchQuantity + $unallocatedQuantity;
+                if ($allocatableBatchQuantity + 0.0005 < (float) $lockedTransfer->quantity_requested) {
+                    throw new \RuntimeException('Các lô khả dụng tại kho nguồn không đủ số lượng yêu cầu. Hãy chọn kho khác hoặc kiểm tra lại tồn theo lô.');
+                }
+
                 $lockedTransfer->update([
                     'from_branch_id' => $fromBranch->id,
                     'owner_note' => isset($data['owner_note']) ? trim((string) $data['owner_note']) : null,
@@ -300,7 +414,7 @@ class StockTransferRequestController extends Controller
     public function dispatch(Request $request, StockTransferRequest $transfer): RedirectResponse
     {
         $user = $request->user();
-        $this->assertManager($user);
+        $this->assertCanExecute($user);
         $this->assertTenantTransfer($user, $transfer);
 
         $data = $request->validate([
@@ -329,26 +443,35 @@ class StockTransferRequestController extends Controller
                     ->where('ingredient_id', $lockedTransfer->ingredient_id)
                     ->lockForUpdate()
                     ->first();
-                if (! $inventory || (float) $inventory->quantity_on_hand + 0.0005 < $qty) {
+                if (! $inventory || (float) $inventory->quantity_available + 0.0005 < $qty) {
                     throw new \RuntimeException('Chi nhánh cấp không đủ tồn thực tế để xuất hàng.');
                 }
 
-                $unitCost = (float) $inventory->last_cost;
-                $sourceBatch = InventoryBatch::query()
+                $inventoryService = app(\App\Services\InventoryService::class);
+                $inventoryService->ensureLegacyBatchForInventory($inventory);
+                $ingredient = Ingredient::withoutGlobalScopes()
                     ->where('restaurant_id', $lockedTransfer->restaurant_id)
-                    ->where('branch_id', $lockedTransfer->from_branch_id)
-                    ->where('ingredient_id', $lockedTransfer->ingredient_id)
-                    ->where('status', 'active')
-                    ->where('quantity_remaining', '>', 0)
-                    ->orderByRaw('expiry_date IS NULL')
-                    ->orderBy('expiry_date')
-                    ->orderBy('id')
-                    ->lockForUpdate()
-                    ->first();
-                if (! $sourceBatch || (float) $sourceBatch->quantity_remaining + 0.0005 < $qty) {
+                    ->findOrFail($lockedTransfer->ingredient_id);
+                $batchConsumption = $inventoryService->allocateBatchesForTransfer(
+                    (int) $lockedTransfer->restaurant_id,
+                    (int) $lockedTransfer->from_branch_id,
+                    (int) $lockedTransfer->ingredient_id,
+                    $qty,
+                    $ingredient->name,
+                );
+                if ((float) $batchConsumption['shortage_quantity'] > 0.0005) {
+                    throw new \RuntimeException('FEFO batches do not contain enough transferable stock.');
+                }
+                $unitCost = $qty > 0 && (float) $batchConsumption['total_cost'] > 0
+                    ? (float) $batchConsumption['total_cost'] / $qty
+                    : (float) $inventory->last_cost;
+                $sourceBatch = ! empty($batchConsumption['allocations'])
+                    ? InventoryBatch::withoutGlobalScopes()->find($batchConsumption['allocations'][0]['batch_id'])
+                    : null;
+                if (! $sourceBatch) {
                     // Legacy inventory may not have a batch. Create a traceable
                     // opening batch for the exact quantity being transferred.
-                    if (! $sourceBatch) {
+                    if (empty($batchConsumption['allocations'])) {
                         $legacyCode = 'LEGACY-TR-'.$lockedTransfer->id;
                         $sourceBatch = InventoryBatch::create([
                             'restaurant_id' => $lockedTransfer->restaurant_id,
@@ -366,7 +489,7 @@ class StockTransferRequestController extends Controller
                 }
                 $before = (float) $inventory->quantity_on_hand;
                 $after = round($before - $qty, 3);
-                InventoryTransaction::create([
+                $outTransaction = InventoryTransaction::createWithIdempotency([
                     'restaurant_id' => $lockedTransfer->restaurant_id,
                     'branch_id' => $lockedTransfer->from_branch_id,
                     'ingredient_id' => $lockedTransfer->ingredient_id,
@@ -392,20 +515,15 @@ class StockTransferRequestController extends Controller
                     'theoretical_quantity' => max(0, (float) $inventory->theoretical_quantity - $qty),
                     'updated_by' => $user->id,
                 ]);
-                $sourceBatch->decrement('quantity_remaining', $qty);
-                if ((float) $sourceBatch->quantity_remaining <= 0) {
-                    $sourceBatch->update(['status' => 'depleted']);
-                }
-                $outTransaction = InventoryTransaction::where('reference_code', 'TR-'.$lockedTransfer->id.'-OUT')->latest('id')->first();
-                if ($outTransaction) {
+                foreach ($batchConsumption['allocations'] as $allocation) {
                     InventoryBatchAllocation::create([
                         'restaurant_id' => $lockedTransfer->restaurant_id,
                         'branch_id' => $lockedTransfer->from_branch_id,
-                        'inventory_batch_id' => $sourceBatch->id,
+                        'inventory_batch_id' => $allocation['batch_id'],
                         'inventory_transaction_id' => $outTransaction->id,
                         'direction' => 'out',
-                        'quantity' => $qty,
-                        'unit_cost' => $unitCost,
+                        'quantity' => $allocation['quantity'],
+                        'unit_cost' => $allocation['unit_cost'],
                     ]);
                 }
                 $lockedTransfer->update([
@@ -415,7 +533,7 @@ class StockTransferRequestController extends Controller
                     'dispatched_by' => $user->id,
                     'dispatched_at' => now(),
                     'dispatch_note' => isset($data['dispatch_note']) ? trim((string) $data['dispatch_note']) : null,
-                    'source_batch_id' => $sourceBatch->id,
+                    'source_batch_id' => $sourceBatch?->id,
                 ]);
 
                 return $lockedTransfer->fresh();
@@ -442,7 +560,7 @@ class StockTransferRequestController extends Controller
     public function receive(Request $request, StockTransferRequest $transfer): RedirectResponse
     {
         $user = $request->user();
-        $this->assertManager($user);
+        $this->assertCanExecute($user);
         $this->assertTenantTransfer($user, $transfer);
 
         $data = $request->validate([
@@ -752,21 +870,35 @@ class StockTransferRequestController extends Controller
         $this->assertTenantTransfer($user, $transfer);
         $data = $request->validate(['cancel_reason' => ['required', 'string', 'min:5', 'max:500']]);
 
+        $isRequestOnly = $this->isRequestOnly($user);
         $canCancel = $user->isSuperAdmin()
             || $user->hasAnyRole(['owner', 'warehouse_manager'])
-            || (int) $transfer->requested_by === (int) $user->id;
+            || ($isRequestOnly
+                && (int) $transfer->requested_by === (int) $user->id
+                && $transfer->status === 'requested');
         abort_unless($canCancel, 403, 'Bạn không có quyền hủy yêu cầu này.');
         if (! in_array($transfer->status, ['requested', 'routed'], true)) {
             return back()->with('error', 'Chỉ được hủy yêu cầu trước khi xuất hàng.');
         }
 
-        $transfer->update([
-            'status' => 'cancelled',
-            'cancel_reason' => trim($data['cancel_reason']),
-            'cancelled_by' => $user->id,
-            'cancelled_at' => now(),
-        ]);
-        $this->notifyTransferParties($user, $transfer->fresh(), 'cancelled');
+        try {
+            $transfer = DB::transaction(function () use ($transfer, $data, $user): StockTransferRequest {
+                $lockedTransfer = StockTransferRequest::query()->whereKey($transfer->id)->lockForUpdate()->firstOrFail();
+                if (! in_array($lockedTransfer->status, ['requested', 'routed'], true)) {
+                    throw new \RuntimeException('Transfer can only be cancelled before dispatch.');
+                }
+                $lockedTransfer->update([
+                    'status' => 'cancelled',
+                    'cancel_reason' => trim($data['cancel_reason']),
+                    'cancelled_by' => $user->id,
+                    'cancelled_at' => now(),
+                ]);
+                return $lockedTransfer->fresh();
+            });
+        } catch (\Throwable $e) {
+            return back()->with('error', $e->getMessage());
+        }
+        $this->notifyTransferParties($user, $transfer, 'cancelled');
         AuditLog::log('stock_transfer_cancelled', 'updated', $transfer, null, ['by' => $user->name]);
 
         return back()->with('success', 'Đã hủy yêu cầu điều chuyển.');
@@ -783,8 +915,19 @@ class StockTransferRequestController extends Controller
         if (! in_array($transfer->status, ['requested', 'routed'], true)) {
             return back()->with('error', 'Chỉ từ chối được yêu cầu chưa xuất hàng.');
         }
-        $transfer->update(['status' => 'rejected', 'reject_reason' => trim($data['reject_reason'])]);
-        $this->notifyTransferParties($user, $transfer->fresh(), 'rejected');
+        try {
+            $transfer = DB::transaction(function () use ($transfer, $data): StockTransferRequest {
+                $lockedTransfer = StockTransferRequest::query()->whereKey($transfer->id)->lockForUpdate()->firstOrFail();
+                if (! in_array($lockedTransfer->status, ['requested', 'routed'], true)) {
+                    throw new \RuntimeException('Transfer can only be rejected before dispatch.');
+                }
+                $lockedTransfer->update(['status' => 'rejected', 'reject_reason' => trim($data['reject_reason'])]);
+                return $lockedTransfer->fresh();
+            });
+        } catch (\Throwable $e) {
+            return back()->with('error', $e->getMessage());
+        }
+        $this->notifyTransferParties($user, $transfer, 'rejected');
         AuditLog::log('stock_transfer_rejected', 'updated', $transfer, null, ['by' => $user->name]);
 
         return back()->with('success', 'Đã từ chối yêu cầu điều chuyển.');
