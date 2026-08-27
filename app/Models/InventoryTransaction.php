@@ -45,20 +45,21 @@ class InventoryTransaction extends Model
             }
 
             // Ghi quantity_before từ tồn hiện tại
-            if (! isset($model->quantity_before) || $model->quantity_before === 0) {
+            if (! array_key_exists('quantity_before', $model->attributes) || $model->quantity_before === null) {
                 $inventory = Inventory::where('restaurant_id', $model->restaurant_id)
                     ->where('branch_id', $model->branch_id)
                     ->where('ingredient_id', $model->ingredient_id)
                     ->first();
 
                 $model->quantity_before = $inventory ? (float) $inventory->quantity_on_hand : 0.0;
+            }
 
-                // Tính quantity_after từ direction
+            if (! array_key_exists('quantity_after', $model->attributes) || $model->quantity_after === null) {
                 $qty = (float) $model->quantity;
                 $model->quantity_after = match ($model->direction ?? 'in') {
-                    'in' => $model->quantity_before + $qty,
-                    'out' => $model->quantity_before - $qty,
-                    default => $model->quantity_before,
+                    'in' => (float) $model->quantity_before + $qty,
+                    'out' => (float) $model->quantity_before - $qty,
+                    default => (float) $model->quantity_before,
                 };
             }
         });
@@ -126,13 +127,35 @@ class InventoryTransaction extends Model
         $key = $data['idempotency_key'] ?? null;
 
         if ($key) {
-            $existing = static::where('idempotency_key', $key)->first();
+            $existingQuery = static::where('idempotency_key', $key);
+            if (array_key_exists('restaurant_id', $data)) {
+                $existingQuery->where('restaurant_id', $data['restaurant_id']);
+            }
+            $existing = $existingQuery->first();
             if ($existing) {
                 return $existing;
             }
         }
 
-        return static::create($data);
+        try {
+            return static::create($data);
+        } catch (\Illuminate\Database\QueryException $exception) {
+            // Two retries can pass the read-before-write check concurrently.
+            // Resolve only a real idempotency collision; all other database
+            // errors must still bubble up and roll back the inventory change.
+            if ($key && (string) $exception->getCode() === '23000') {
+                $duplicateQuery = static::where('idempotency_key', $key);
+                if (array_key_exists('restaurant_id', $data)) {
+                    $duplicateQuery->where('restaurant_id', $data['restaurant_id']);
+                }
+                $duplicate = $duplicateQuery->first();
+                if ($duplicate) {
+                    return $duplicate;
+                }
+            }
+
+            throw $exception;
+        }
     }
 
     /**

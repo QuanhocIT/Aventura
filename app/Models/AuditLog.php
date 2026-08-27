@@ -6,6 +6,7 @@ use App\Support\Tenant\TenantContext;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Facades\Auth;
 
 class AuditLog extends Model
 {
@@ -58,7 +59,11 @@ class AuditLog extends Model
                     ?? ($model->new_values['branch_id'] ?? null)
                     ?? ($model->old_values['branch_id'] ?? null)
                     ?? app(TenantContext::class)->activeBranchId()
-                    ?? auth()->user()?->branch_id;
+                    ?? (static function (): ?int {
+                        /** @var \App\Models\User|null $u */
+                        $u = Auth::user();
+                        return $u?->branch_id;
+                    })();
             }
         });
     }
@@ -68,7 +73,8 @@ class AuditLog extends Model
      */
     public static function log(string $action, string $event, $subject, ?array $oldValues = null, ?array $newValues = null): self
     {
-        $user = auth()->user();
+        /** @var \App\Models\User|null $user */
+        $user = Auth::user();
 
         $branchId = self::resolveBranchId($subject)
             ?? ($newValues['branch_id'] ?? null)

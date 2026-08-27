@@ -48,8 +48,12 @@ class Inventory extends Model
     public function activeReservations(): HasMany
     {
         return $this->hasMany(InventoryReservation::class, 'ingredient_id', 'ingredient_id')
+            ->where('restaurant_id', $this->restaurant_id)
             ->where('branch_id', $this->branch_id)
-            ->whereNull('released_at');
+            ->whereNull('released_at')
+            ->where(function ($query): void {
+                $query->whereNull('expires_at')->orWhere('expires_at', '>', now());
+            });
     }
 
     /**
@@ -58,6 +62,7 @@ class Inventory extends Model
     public function getQuantityReservedAttribute(): float
     {
         return (float) InventoryReservation::where('ingredient_id', $this->ingredient_id)
+            ->where('restaurant_id', $this->restaurant_id)
             ->where('branch_id', $this->branch_id)
             ->whereNull('released_at')
             ->where(function ($q) {

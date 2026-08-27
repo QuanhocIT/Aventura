@@ -37,6 +37,10 @@ class SupplyRequest extends Model
 
     const STATUS_COMPLETED = 'completed';
 
+    const STATUS_RETURNED = 'returned';
+
+    const STATUS_DESTROYED = 'destroyed';
+
     const STATUS_REJECTED = 'rejected';
 
     const STATUS_CANCELLED = 'cancelled';
@@ -159,6 +163,21 @@ class SupplyRequest extends Model
     public function isDispatched(): bool
     {
         return in_array($this->status, [self::STATUS_DISPATCHED, self::STATUS_PARTIAL_RECEIVED, self::STATUS_DISPUTED]);
+    }
+
+    public static function terminalStatuses(): array
+    {
+        return [self::STATUS_COMPLETED, self::STATUS_RETURNED, self::STATUS_DESTROYED, self::STATUS_REJECTED, self::STATUS_CANCELLED];
+    }
+
+    public static function receivingStatuses(): array
+    {
+        return [self::STATUS_DISPATCHED, self::STATUS_PARTIAL_RECEIVED, self::STATUS_DISPUTED];
+    }
+
+    public function isTerminal(): bool
+    {
+        return in_array($this->status, self::terminalStatuses(), true);
     }
 
     public function canBeCancelled(): bool
