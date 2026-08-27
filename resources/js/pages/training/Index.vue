@@ -104,7 +104,9 @@ const filteredEmployees = computed(() => {
     if (!employeeSearchQuery.value.trim()) {
         return props.employees;
     }
+
     const q = employeeSearchQuery.value.toLowerCase().trim();
+
     return props.employees.filter(
         (e) =>
             e.full_name?.toLowerCase().includes(q) ||
@@ -124,6 +126,7 @@ function toggleAllEmployees() {
 function submitAssignment() {
     if (!assignmentCourseId.value || assignmentForm.employee_ids.length === 0) {
         toast.error('Vui lòng chọn ít nhất một nhân viên.');
+
         return;
     }
 
@@ -265,6 +268,7 @@ const courseForm = useForm({
 
 function toggleTargetRole(roleKey: string) {
     const idx = courseForm.target_roles.indexOf(roleKey);
+
     if (idx >= 0) {
         courseForm.target_roles.splice(idx, 1);
     } else {
@@ -274,6 +278,7 @@ function toggleTargetRole(roleKey: string) {
 
 function toggleTargetBranch(branchId: number) {
     const idx = courseForm.target_branch_ids.indexOf(branchId);
+
     if (idx >= 0) {
         courseForm.target_branch_ids.splice(idx, 1);
     } else {
@@ -284,6 +289,7 @@ function toggleTargetBranch(branchId: number) {
 function submitCourse() {
     if (!courseForm.title.trim()) {
         toast.error('Vui lòng nhập tên khóa học.');
+
         return;
     }
 
@@ -325,7 +331,9 @@ function openLessonDialog(courseId: number) {
 }
 
 function submitLesson() {
-    if (!lessonCourseId.value) return;
+    if (!lessonCourseId.value) {
+        return;
+    }
 
     lessonForm.post(`/training/courses/${lessonCourseId.value}/lessons`, {
         onSuccess: () => {
@@ -377,7 +385,9 @@ function removeOption(qIdx: number, oIdx: number) {
 }
 
 function submitQuiz() {
-    if (!quizCourseId.value) return;
+    if (!quizCourseId.value) {
+        return;
+    }
 
     quizForm.post(`/training/courses/${quizCourseId.value}/quizzes`, {
         onSuccess: () => {
@@ -1284,26 +1294,26 @@ const statusColor: Record<string, string> = {
                         class="space-y-2 rounded-xl border border-slate-200 bg-slate-50/70 p-3.5 dark:border-slate-800 dark:bg-slate-900/50"
                     >
                         <div class="flex items-center justify-between">
-                            <span class="text-xs font-bold text-indigo-600 dark:text-indigo-400">Câu {{ qIdx + 1 }}</span>
-                            <button v-if="quizForm.questions.length > 1" type="button" @click="removeQuestion(qIdx)" class="text-[11px] font-semibold text-rose-500 hover:underline">
+                            <span class="text-xs font-bold text-indigo-600 dark:text-indigo-400">Câu {{ Number(qIdx) + 1 }}</span>
+                            <button v-if="quizForm.questions.length > 1" type="button" @click="removeQuestion(Number(qIdx))" class="text-[11px] font-semibold text-rose-500 hover:underline">
                                 Xóa câu hỏi
                             </button>
                         </div>
 
-                        <Input v-model="q.question" :placeholder="`Nội dung câu hỏi ${qIdx + 1}...`" class="text-xs font-semibold" required />
+                        <Input v-model="q.question" :placeholder="`Nội dung câu hỏi ${Number(qIdx) + 1}...`" class="text-xs font-semibold" required />
 
                         <div class="space-y-1.5 pt-1">
                             <p class="text-[10px] font-bold text-slate-500 uppercase">Các đáp án (Tích chọn đáp án đúng):</p>
                             <div v-for="(opt, oIdx) in q.options" :key="oIdx" class="flex items-center gap-2">
                                 <input type="radio" :name="`q_${qIdx}`" :value="oIdx" v-model="q.correct" class="size-4 text-indigo-600" />
-                                <Input v-model="q.options[oIdx]" :placeholder="`Đáp án ${oIdx + 1}`" class="h-8 flex-1 text-xs" required />
-                                <button v-if="q.options.length > 2" type="button" @click="removeOption(qIdx, oIdx)" class="text-slate-400 hover:text-rose-500">
+                                <Input v-model="q.options[Number(oIdx)]" :placeholder="`Đáp án ${Number(oIdx) + 1}`" class="h-8 flex-1 text-xs" required />
+                                <button v-if="q.options.length > 2" type="button" @click="removeOption(Number(qIdx), Number(oIdx))" class="text-slate-400 hover:text-rose-500">
                                     <X class="size-3.5" />
                                 </button>
                             </div>
                         </div>
 
-                        <button type="button" @click="addOption(qIdx)" class="text-[11px] font-bold text-indigo-600 hover:underline dark:text-indigo-400">
+                        <button type="button" @click="addOption(Number(qIdx))" class="text-[11px] font-bold text-indigo-600 hover:underline dark:text-indigo-400">
                             + Thêm đáp án lựa chọn
                         </button>
                     </div>

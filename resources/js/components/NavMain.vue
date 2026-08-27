@@ -2,6 +2,7 @@
 import { Link } from '@inertiajs/vue3';
 import {
     BarChart3,
+    CheckSquare,
     ChevronDown,
     ClipboardCheck,
     Gift,
@@ -60,6 +61,15 @@ const groupDefinitions: {
     icon: LucideIcon;
     matches: (title: string, href: string) => boolean;
 }[] = [
+    {
+        key: 'my_work',
+        label: 'Công việc của tôi',
+        icon: CheckSquare,
+        matches: (title) =>
+            ['cổng tác vụ', 'công việc của tôi'].some((p) =>
+                title.toLowerCase().includes(p.toLowerCase()),
+            ),
+    },
     {
         key: 'overview',
         label: 'Tổng quan & Phân tích',

@@ -21,6 +21,7 @@ import {
     LogIn,
     LogOut,
     Lock,
+    Gift,
 } from 'lucide-vue-next';
 import { computed, ref } from 'vue';
 import { toast } from 'vue-sonner';
@@ -288,6 +289,11 @@ const operationConfig: Record<
         icon: Trash2,
         color: 'text-orange-600 dark:text-orange-400',
         bg: 'bg-orange-50 dark:bg-orange-950/40 border border-orange-100 dark:border-orange-900/20',
+    },
+    employee_bonus: {
+        icon: Gift,
+        color: 'text-emerald-600 dark:text-emerald-400',
+        bg: 'bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-100 dark:border-emerald-900/20',
     },
     shift_checkin: {
         icon: LogIn,

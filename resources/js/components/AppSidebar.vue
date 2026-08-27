@@ -128,7 +128,7 @@ const isOperationsInspector = computed(() =>
 const isWarehouseManager = computed(() => hasRole('warehouse_manager'));
 const isWarehouseStaff = computed(() => hasRole('warehouse_staff'));
 const usesManagementSidebar = computed(
-    () => isOwner.value || isManager.value || isWarehouseManager.value || isOperationsInspector.value,
+    () => isOwner.value || isManager.value || isWarehouseManager.value || isOperationsInspector.value || isWarehouseStaff.value,
 );
 const isSupplier = computed(() => hasRole('supplier'));
 const supplierPortalEnabled = computed(() =>
@@ -903,7 +903,7 @@ const managerNav = computed<NavItem[]>(() => {
             feature: 'inventory_basic',
         },
         {
-            title: 'Điều chuyển kho',
+            title: 'Xin điều chuyển kho',
             href: '/inventory/transfers',
             icon: ArrowLeftRight,
             feature: 'inventory_basic',
@@ -1459,54 +1459,87 @@ const warehouseManagerNav = computed<NavItem[]>(() => {
 
 const warehouseStaffNav = computed<NavItem[]>(() => {
     const nav = [
+        // ─── Tổng quan ────────────────────────────────────────────────────────
         {
             title: 'Cổng tác vụ của tôi',
             href: '/inventory/staff-portal',
             icon: CheckSquare,
             feature: 'inventory_basic',
+            section: 'my_work',
         },
-        {
-            title: 'Nhận hàng & GRN Kho Tổng',
-            href: '/inventory/central-warehouse/receiving',
-            icon: PackageCheck,
-            feature: 'inventory_basic',
-        },
+        // ─── Kho & Cung ứng ───────────────────────────────────────────────────
         {
             title: 'Điều phối Kho Tổng',
             href: '/inventory/central-warehouse',
             icon: Truck,
             feature: 'inventory_basic',
+            section: 'supply',
         },
         {
-            title: 'Central Kitchen Sơ chế',
-            href: '/inventory/central-kitchen',
-            icon: Boxes,
+            title: 'Nhận hàng & GRN',
+            href: '/inventory/central-warehouse/receiving',
+            icon: PackageCheck,
             feature: 'inventory_basic',
-        },
-        {
-            title: 'Chuyến xe Logistics',
-            href: '/inventory/delivery-manifests',
-            icon: Route,
-            feature: 'inventory_basic',
+            section: 'supply',
         },
         {
             title: 'Tồn kho Kho Tổng',
             href: '/inventory/central-warehouse/stock',
             icon: Package,
             feature: 'inventory_basic',
+            section: 'supply',
         },
+        {
+            title: 'Kiểm kê & Điều chỉnh',
+            href: '/inventory/count-sessions',
+            icon: ClipboardCheck,
+            feature: 'inventory_basic',
+            section: 'supply',
+        },
+        {
+            title: 'Chuyến xe Logistics',
+            href: '/inventory/delivery-manifests',
+            icon: Route,
+            feature: 'inventory_basic',
+            section: 'supply',
+        },
+        {
+            title: 'Central Kitchen Sơ chế',
+            href: '/inventory/central-kitchen',
+            icon: Boxes,
+            feature: 'inventory_basic',
+            section: 'supply',
+        },
+        // ─── Nhân sự & Hiệu suất ──────────────────────────────────────────────
         {
             title: 'Tăng ca',
             href: '/overtime-requests',
             icon: CalendarDays,
             feature: 'hr_timekeeping',
+            section: 'people',
         },
-        { title: 'Liên hệ & Hỗ trợ', href: '/support', icon: Headset },
+        // ─── Hỗ trợ ───────────────────────────────────────────────────────────
+        { title: 'Liên hệ & Hỗ trợ', href: '/support', icon: Headset, section: 'settings' },
     ];
 
-    return nav.filter(
-        (item) => !item.feature || canFeature(item.feature as any),
-    );
+    const sectionByHref: Record<string, string> = {
+        '/inventory/staff-portal': 'my_work',
+        '/inventory/central-warehouse': 'supply',
+        '/inventory/central-warehouse/receiving': 'supply',
+        '/inventory/central-warehouse/stock': 'supply',
+        '/inventory/count-sessions': 'supply',
+        '/inventory/delivery-manifests': 'supply',
+        '/inventory/central-kitchen': 'supply',
+        '/overtime-requests': 'people',
+        '/support': 'settings',
+    };
+
+    return nav
+        .filter((item) => !item.feature || canFeature(item.feature as any))
+        .map((item) => ({
+            ...item,
+            section: sectionByHref[String(item.href)] ?? item.section,
+        }));
 });
 
 const shipperNav: NavItem[] = [

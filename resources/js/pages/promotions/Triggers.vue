@@ -1,11 +1,11 @@
 <script setup lang="ts">
 import { Head, router, useForm } from '@inertiajs/vue3';
-import { Bell, Pencil, Plus, Power, Trash2 } from 'lucide-vue-next';
+import { Gift, PartyPopper, Pencil, Play, Plus, Power, Send, Sparkles, Ticket, Trash2 } from 'lucide-vue-next';
 import { ref } from 'vue';
 import { toast } from 'vue-sonner';
 import BackButton from '@/components/BackButton.vue';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import {
     Dialog,
@@ -45,15 +45,47 @@ type Trigger = {
     created_at: string;
 };
 
-defineProps<{
+type RecentCoupon = {
+    id: number;
+    code: string;
+    customer_name: string;
+    customer_phone: string;
+    trigger_name: string;
+    event_type: string;
+    discount_type: string;
+    discount_value: number;
+    status: 'available' | 'used' | 'expired';
+    expires_at: string;
+    created_at: string;
+};
+
+type CustomerOption = {
+    id: number;
+    name: string;
+    phone: string | null;
+};
+
+const props = defineProps<{
     triggers: Trigger[];
+    recentCoupons?: RecentCoupon[];
+    customers?: CustomerOption[];
+    summary?: {
+        total_triggers: number;
+        active_triggers: number;
+        total_coupons: number;
+        used_coupons: number;
+        conversion_rate: number;
+    };
     eventTypes: Record<string, string>;
     canManageDiscounts: boolean;
 }>();
 
+const activeTab = ref<'triggers' | 'logs'>('triggers');
 const showCreate = ref(false);
 const showEdit = ref(false);
+const showTestFire = ref(false);
 const editing = ref<Trigger | null>(null);
+const selectedTestTrigger = ref<Trigger | null>(null);
 
 const blankTrigger = () => ({
     name: '',
@@ -69,8 +101,10 @@ const blankTrigger = () => ({
 
 const form = useForm(blankTrigger());
 const editForm = useForm(blankTrigger());
+const testFireForm = useForm({
+    customer_id: '' as number | '',
+});
 
-/** Ép chuỗi rỗng của <input type="number"> về null cho rule `nullable`. */
 const nullableNumber = (val: unknown): number | null => {
     if (val === '' || val === null || val === undefined) {
         return null;
@@ -106,12 +140,11 @@ function submit() {
         onSuccess: () => {
             showCreate.value = false;
             form.reset();
+            toast.success('Đã tạo trigger tự động thành công.');
         },
     });
 }
 
-// Ba route dưới đây đã tồn tại từ đầu nhưng không có nút nào gọi tới:
-// promotions.triggers.update / .destroy / .toggle
 function openEdit(trigger: Trigger) {
     editing.value = trigger;
     editForm.clearErrors();
@@ -152,6 +185,26 @@ function toggleTrigger(trigger: Trigger) {
     );
 }
 
+function openTestFire(trigger: Trigger) {
+    selectedTestTrigger.value = trigger;
+    testFireForm.customer_id = props.customers?.[0]?.id ?? '';
+    showTestFire.value = true;
+}
+
+function submitTestFire() {
+    if (!selectedTestTrigger.value || !testFireForm.customer_id) {
+        return;
+    }
+
+    testFireForm.post(`/promotions/triggers/${selectedTestTrigger.value.id}/test-fire`, {
+        preserveScroll: true,
+        onSuccess: () => {
+            showTestFire.value = false;
+            toast.success('Đã phát mã thử nghiệm thành công.');
+        },
+    });
+}
+
 async function removeTrigger(trigger: Trigger) {
     const generated =
         trigger.coupons_generated > 0
@@ -180,190 +233,291 @@ const eventEmojis: Record<string, string> = {
     loyalty_tier_upgrade: '⭐',
     order_milestone: '🏆',
 };
+
+const vnd = (val: number) => `${Math.round(val).toLocaleString('vi-VN')}₫`;
 </script>
 
 <template>
     <Head title="Trigger Khuyến mãi tự động" />
 
-    <div class="flex flex-col gap-5 px-6 py-5">
-        <div class="flex items-center justify-between gap-4">
+    <div class="flex flex-col gap-6 px-6 py-5">
+        <!-- Header -->
+        <div class="flex flex-col gap-4 border-b border-border/70 pb-5 sm:flex-row sm:items-center sm:justify-between">
             <div class="flex items-center gap-3">
                 <BackButton fallback-href="/promotions" label="Khuyến mãi" />
                 <div>
-                    <h1 class="text-2xl font-bold tracking-tight">
+                    <h1 class="text-2xl font-bold tracking-tight text-foreground">
                         Trigger Khuyến mãi Tự động
                     </h1>
                     <p class="text-sm text-muted-foreground">
-                        Tự động tạo & gửi mã giảm giá khi có sự kiện: đơn đầu,
-                        sinh nhật, lên VIP...
+                        Tự động tạo & gửi mã giảm giá khi có sự kiện: đơn đầu, sinh nhật, 30 ngày không mua, lên VIP...
                     </p>
                 </div>
             </div>
             <Button
                 v-if="canManageDiscounts"
                 @click="openCreate"
-                class="gap-1.5"
-                ><Plus class="size-4" /> Tạo trigger</Button
+                class="gap-1.5 font-bold shadow-sm"
             >
+                <Plus class="size-4" /> Tạo trigger mới
+            </Button>
         </div>
 
-        <div
-            v-if="triggers.length"
-            class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3"
-        >
-            <Card
-                v-for="t in triggers"
-                :key="t.id"
-                class="transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg"
-            >
-                <CardContent class="p-5">
-                    <div class="flex items-start justify-between">
-                        <div class="flex items-center gap-2">
-                            <span class="text-2xl">{{
-                                eventEmojis[t.event_type] ?? '⚡'
-                            }}</span>
-                            <div>
-                                <h3 class="text-sm font-bold">{{ t.name }}</h3>
-                                <p class="text-[11px] text-muted-foreground">
-                                    {{ eventTypes[t.event_type]
-                                    }}{{
-                                        t.milestone_count
-                                            ? ` (${t.milestone_count} đơn)`
-                                            : ''
-                                    }}
-                                </p>
-                            </div>
-                        </div>
-                        <span
-                            :class="[
-                                'rounded-md px-2 py-0.5 text-[10px] font-bold',
-                                t.is_active
-                                    ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300'
-                                    : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400',
-                            ]"
-                        >
-                            {{ t.is_active ? 'Active' : 'Tắt' }}
-                        </span>
+        <!-- KPI Summary Cards -->
+        <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <Card>
+                <CardContent class="flex items-center gap-4 p-4">
+                    <div class="rounded-xl bg-primary/10 p-2.5 text-primary">
+                        <Sparkles class="size-5" />
                     </div>
-
-                    <div class="mt-3 flex flex-wrap gap-2 text-xs">
-                        <span
-                            class="rounded-md bg-primary/10 px-2 py-1 font-bold text-primary"
-                        >
-                            {{
-                                t.discount_type === 'percent'
-                                    ? `${t.discount_value}%`
-                                    : `${t.discount_value}₫`
-                            }}
-                        </span>
-                        <span
-                            class="rounded-md bg-muted px-2 py-1 text-muted-foreground"
-                            >{{ t.validity_days }} ngày</span
-                        >
-                        <span
-                            v-if="t.send_email"
-                            class="rounded-md bg-sky-100 px-2 py-1 text-sky-700 dark:bg-sky-950/40 dark:text-sky-300"
-                            >📧 Email</span
-                        >
+                    <div>
+                        <p class="text-[10px] font-bold tracking-wider text-muted-foreground uppercase">Trigger đang bật</p>
+                        <p class="text-xl font-bold text-foreground">
+                            {{ summary?.active_triggers ?? 0 }} <span class="text-xs font-normal text-muted-foreground">/ {{ summary?.total_triggers ?? 0 }} quy tắc</span>
+                        </p>
                     </div>
+                </CardContent>
+            </Card>
 
-                    <div
-                        class="mt-3 flex items-center justify-between border-t pt-3 text-[10px] text-muted-foreground"
-                    >
-                        <span>{{ t.coupons_generated }} mã đã tạo</span>
-                        <span>{{ t.created_at }}</span>
+            <Card>
+                <CardContent class="flex items-center gap-4 p-4">
+                    <div class="rounded-xl bg-sky-500/10 p-2.5 text-sky-600">
+                        <Ticket class="size-5" />
                     </div>
+                    <div>
+                        <p class="text-[10px] font-bold tracking-wider text-muted-foreground uppercase">Mã đã tạo tự động</p>
+                        <p class="text-xl font-bold text-sky-600">
+                            {{ summary?.total_coupons ?? 0 }} <span class="text-xs font-normal text-muted-foreground">mã</span>
+                        </p>
+                    </div>
+                </CardContent>
+            </Card>
 
-                    <!-- Trước đây card chỉ hiển thị badge Active/Tắt: 3 route
-                         update/destroy/toggle tồn tại mà không có nút nào gọi. -->
-                    <div
-                        v-if="canManageDiscounts"
-                        class="mt-2 flex items-center gap-1.5 border-t pt-2"
-                    >
-                        <Button
-                            size="sm"
-                            variant="outline"
-                            class="h-7 flex-1 gap-1 text-[10px]"
-                            @click="toggleTrigger(t)"
-                        >
-                            <Power class="size-3" />
-                            {{ t.is_active ? 'Tạm dừng' : 'Kích hoạt' }}
-                        </Button>
-                        <Button
-                            size="sm"
-                            variant="outline"
-                            class="h-7 gap-1 text-[10px]"
-                            @click="openEdit(t)"
-                        >
-                            <Pencil class="size-3" /> Sửa
-                        </Button>
-                        <Button
-                            size="sm"
-                            variant="outline"
-                            class="h-7 px-2 text-rose-600 hover:bg-rose-50 hover:text-rose-700 dark:hover:bg-rose-950/30"
-                            title="Xóa trigger"
-                            @click="removeTrigger(t)"
-                        >
-                            <Trash2 class="size-3" />
-                        </Button>
+            <Card>
+                <CardContent class="flex items-center gap-4 p-4">
+                    <div class="rounded-xl bg-emerald-500/10 p-2.5 text-emerald-600">
+                        <Gift class="size-5" />
+                    </div>
+                    <div>
+                        <p class="text-[10px] font-bold tracking-wider text-muted-foreground uppercase">Mã đã được dùng</p>
+                        <p class="text-xl font-bold text-emerald-600">
+                            {{ summary?.used_coupons ?? 0 }} <span class="text-xs font-normal text-muted-foreground">lượt</span>
+                        </p>
+                    </div>
+                </CardContent>
+            </Card>
+
+            <Card>
+                <CardContent class="flex items-center gap-4 p-4">
+                    <div class="rounded-xl bg-amber-500/10 p-2.5 text-amber-600">
+                        <PartyPopper class="size-5" />
+                    </div>
+                    <div>
+                        <p class="text-[10px] font-bold tracking-wider text-muted-foreground uppercase">Tỷ lệ đổi quà (Conversion)</p>
+                        <p class="text-xl font-bold text-amber-600">
+                            {{ summary?.conversion_rate ?? 0 }}%
+                        </p>
                     </div>
                 </CardContent>
             </Card>
         </div>
 
-        <div
-            v-else
-            class="flex flex-col items-center justify-center py-16 text-center"
-        >
-            <Bell class="mb-3 size-12 text-muted-foreground/40" />
-            <p class="font-semibold text-muted-foreground">
-                Chưa có trigger nào
-            </p>
-            <p class="mt-1 text-xs text-muted-foreground/70">
-                Tạo trigger để tự động gửi mã giảm giá cho khách hàng.
-            </p>
+        <!-- Navigation Tabs -->
+        <div class="flex items-center gap-2 border-b border-border/70 pb-3">
+            <button
+                type="button"
+                @click="activeTab = 'triggers'"
+                :class="[
+                    'flex items-center gap-2 rounded-lg px-3.5 py-2 text-xs font-bold transition-colors',
+                    activeTab === 'triggers'
+                        ? 'bg-primary text-primary-foreground shadow-sm'
+                        : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                ]"
+            >
+                <Sparkles class="size-4" /> Quy tắc Trigger tự động ({{ triggers.length }})
+            </button>
+            <button
+                type="button"
+                @click="activeTab = 'logs'"
+                :class="[
+                    'flex items-center gap-2 rounded-lg px-3.5 py-2 text-xs font-bold transition-colors',
+                    activeTab === 'logs'
+                        ? 'bg-primary text-primary-foreground shadow-sm'
+                        : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                ]"
+            >
+                <Ticket class="size-4" /> Nhật ký phát mã tự động ({{ recentCoupons?.length ?? 0 }})
+            </button>
+        </div>
+
+        <!-- Tab 1: Triggers Grid -->
+        <div v-if="activeTab === 'triggers'">
+            <div
+                v-if="triggers.length"
+                class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3"
+            >
+                <Card
+                    v-for="t in triggers"
+                    :key="t.id"
+                    class="transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md"
+                >
+                    <CardContent class="p-5">
+                        <div class="flex items-start justify-between">
+                            <div class="flex items-center gap-2">
+                                <span class="text-2xl">{{ eventEmojis[t.event_type] ?? '⚡' }}</span>
+                                <div>
+                                    <h3 class="text-sm font-bold text-foreground">{{ t.name }}</h3>
+                                    <p class="text-[11px] text-muted-foreground">
+                                        {{ eventTypes[t.event_type] }}{{ t.milestone_count ? ` (${t.milestone_count} đơn)` : '' }}
+                                    </p>
+                                </div>
+                            </div>
+                            <span
+                                :class="[
+                                    'rounded-md px-2 py-0.5 text-[10px] font-bold',
+                                    t.is_active
+                                        ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300'
+                                        : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400',
+                                ]"
+                            >
+                                {{ t.is_active ? 'Đang chạy' : 'Tạm dừng' }}
+                            </span>
+                        </div>
+
+                        <div class="mt-3 flex flex-wrap gap-2 text-xs">
+                            <span class="rounded-md bg-primary/10 px-2 py-1 font-bold text-primary">
+                                {{ t.discount_type === 'percent' ? `Giảm ${t.discount_value}%` : `Giảm ${vnd(t.discount_value)}` }}
+                            </span>
+                            <span class="rounded-md bg-muted px-2 py-1 text-muted-foreground">Hạn {{ t.validity_days }} ngày</span>
+                            <span v-if="t.send_email" class="rounded-md bg-sky-500/10 px-2 py-1 text-sky-600 dark:text-sky-400">📧 Gửi email</span>
+                        </div>
+
+                        <div class="mt-3 flex items-center justify-between border-t border-border/70 pt-3 text-[10px] text-muted-foreground">
+                            <span>{{ t.coupons_generated }} mã đã tạo tự động</span>
+                            <span>Tạo ngày {{ t.created_at }}</span>
+                        </div>
+
+                        <div v-if="canManageDiscounts" class="mt-3 flex items-center gap-1.5 border-t border-border/70 pt-2">
+                            <Button
+                                size="sm"
+                                variant="outline"
+                                class="h-7 flex-1 gap-1 text-[10px] font-medium"
+                                @click="openTestFire(t)"
+                                title="Phát mã thử nghiệm cho 1 khách hàng"
+                            >
+                                <Play class="size-3 text-emerald-600" /> Thử nghiệm
+                            </Button>
+                            <Button
+                                size="sm"
+                                variant="outline"
+                                class="h-7 gap-1 text-[10px] font-medium"
+                                @click="toggleTrigger(t)"
+                            >
+                                <Power class="size-3" /> {{ t.is_active ? 'Tắt' : 'Bật' }}
+                            </Button>
+                            <Button
+                                size="sm"
+                                variant="outline"
+                                class="h-7 gap-1 text-[10px] font-medium"
+                                @click="openEdit(t)"
+                            >
+                                <Pencil class="size-3" /> Sửa
+                            </Button>
+                            <Button
+                                size="sm"
+                                variant="ghost"
+                                class="h-7 text-rose-500 hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-950/40"
+                                @click="removeTrigger(t)"
+                            >
+                                <Trash2 class="size-3" />
+                            </Button>
+                        </div>
+                    </CardContent>
+                </Card>
+            </div>
+            <Card v-else class="p-12 text-center">
+                <Sparkles class="mx-auto size-10 text-muted-foreground/50" />
+                <h3 class="mt-3 font-bold text-foreground">Chưa có trigger nào</h3>
+                <p class="mt-1 text-xs text-muted-foreground">Bấm "Tạo trigger mới" để tự động gửi ưu đãi cho khách hàng.</p>
+            </Card>
+        </div>
+
+        <!-- Tab 2: Recent Coupon Issuance Logs -->
+        <div v-if="activeTab === 'logs'">
+            <Card>
+                <CardHeader class="pb-3">
+                    <CardTitle class="text-sm font-bold">Lịch sử phát mã & đổi quà từ Trigger</CardTitle>
+                </CardHeader>
+                <CardContent class="p-0">
+                    <div v-if="recentCoupons?.length" class="overflow-x-auto">
+                        <table class="w-full border-collapse text-left text-xs">
+                            <thead>
+                                <tr class="border-b bg-muted/40 text-[10px] font-bold tracking-wider text-muted-foreground uppercase">
+                                    <th class="p-3">Mã Coupon</th>
+                                    <th class="p-3">Khách hàng</th>
+                                    <th class="p-3">Quy tắc Trigger</th>
+                                    <th class="p-3 text-right">Ưu đãi</th>
+                                    <th class="p-3 text-center">Trạng thái</th>
+                                    <th class="p-3 text-right">Ngày phát hành</th>
+                                    <th class="p-3 text-right">Ngày hết hạn</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y border-border/70">
+                                <tr v-for="coupon in recentCoupons" :key="coupon.id" class="transition-colors hover:bg-muted/20">
+                                    <td class="p-3 font-mono font-bold text-primary">{{ coupon.code }}</td>
+                                    <td class="p-3">
+                                        <p class="font-bold text-foreground">{{ coupon.customer_name }}</p>
+                                        <p class="text-[10px] text-muted-foreground">{{ coupon.customer_phone }}</p>
+                                    </td>
+                                    <td class="p-3">
+                                        <p class="font-medium text-foreground">{{ coupon.trigger_name }}</p>
+                                        <p class="text-[10px] text-muted-foreground">{{ eventTypes[coupon.event_type] ?? coupon.event_type }}</p>
+                                    </td>
+                                    <td class="p-3 text-right font-mono font-bold text-emerald-600">
+                                        {{ coupon.discount_type === 'percent' ? `${coupon.discount_value}%` : `${vnd(coupon.discount_value)}` }}
+                                    </td>
+                                    <td class="p-3 text-center">
+                                        <span v-if="coupon.status === 'used'" class="rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-bold text-emerald-600 dark:text-emerald-400">Đã đổi quà</span>
+                                        <span v-else-if="coupon.status === 'available'" class="rounded-full bg-sky-500/10 px-2 py-0.5 text-[10px] font-bold text-sky-600 dark:text-sky-400">Chưa sử dụng</span>
+                                        <span v-else class="rounded-full bg-muted px-2 py-0.5 text-[10px] font-bold text-muted-foreground">Đã hết hạn</span>
+                                    </td>
+                                    <td class="p-3 text-right font-mono text-muted-foreground">{{ coupon.created_at }}</td>
+                                    <td class="p-3 text-right font-mono text-muted-foreground">{{ coupon.expires_at }}</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div v-else class="p-10 text-center text-xs text-muted-foreground">
+                        Chưa có lịch sử phát mã tự động nào.
+                    </div>
+                </CardContent>
+            </Card>
         </div>
     </div>
 
+    <!-- Create Dialog -->
     <Dialog v-model:open="showCreate">
-        <DialogContent class="max-w-md">
-            <DialogHeader
-                ><DialogTitle>Tạo trigger mới</DialogTitle></DialogHeader
-            >
-            <form @submit.prevent="submit" class="grid gap-4 py-2">
+        <DialogContent class="max-w-lg">
+            <DialogHeader>
+                <DialogTitle>Tạo Trigger Khuyến mãi Tự động</DialogTitle>
+            </DialogHeader>
+            <form class="space-y-4" @submit.prevent="submit">
                 <div class="grid gap-1.5">
-                    <Label>Tên *</Label>
-                    <Input
-                        v-model="form.name"
-                        placeholder="Chào mừng khách mới"
-                        required
-                    />
+                    <Label>Tên Trigger *</Label>
+                    <Input v-model="form.name" placeholder="Ví dụ: Chào mừng khách hàng mới" required />
                 </div>
                 <div class="grid gap-1.5">
                     <Label>Sự kiện kích hoạt *</Label>
                     <Select v-model="form.event_type">
                         <SelectTrigger><SelectValue /></SelectTrigger>
                         <SelectContent>
-                            <SelectItem
-                                v-for="(label, key) in eventTypes"
-                                :key="key"
-                                :value="key"
-                                >{{ label }}</SelectItem
-                            >
+                            <SelectItem v-for="(label, key) in eventTypes" :key="key" :value="key">{{ label }}</SelectItem>
                         </SelectContent>
                     </Select>
                 </div>
-                <div
-                    v-if="form.event_type === 'order_milestone'"
-                    class="grid gap-1.5"
-                >
+                <div v-if="form.event_type === 'order_milestone'" class="grid gap-1.5">
                     <Label>Cột mốc (số đơn)</Label>
-                    <Input
-                        v-model.number="form.milestone_count"
-                        type="number"
-                        min="1"
-                        placeholder="10"
-                    />
+                    <Input v-model.number="form.milestone_count" type="number" min="1" placeholder="10" />
                 </div>
                 <div class="grid grid-cols-2 gap-4">
                     <div class="grid gap-1.5">
@@ -371,39 +525,23 @@ const eventEmojis: Record<string, string> = {
                         <Select v-model="form.discount_type">
                             <SelectTrigger><SelectValue /></SelectTrigger>
                             <SelectContent>
-                                <SelectItem value="percent">%</SelectItem>
-                                <SelectItem value="fixed_amount">₫</SelectItem>
+                                <SelectItem value="percent">% Chiết khấu</SelectItem>
+                                <SelectItem value="fixed_amount">₫ Số tiền cố định</SelectItem>
                             </SelectContent>
                         </Select>
                     </div>
                     <div class="grid gap-1.5">
                         <Label>Giá trị</Label>
-                        <Input
-                            v-model.number="form.discount_value"
-                            type="number"
-                            min="0"
-                        />
+                        <Input v-model.number="form.discount_value" type="number" min="0" required />
                     </div>
                 </div>
                 <div class="grid gap-1.5">
                     <Label>Thời hạn mã (ngày)</Label>
-                    <Input
-                        v-model.number="form.validity_days"
-                        type="number"
-                        min="1"
-                    />
+                    <Input v-model.number="form.validity_days" type="number" min="1" required />
                 </div>
-                <div
-                    v-if="form.discount_type === 'percent'"
-                    class="grid gap-1.5"
-                >
+                <div v-if="form.discount_type === 'percent'" class="grid gap-1.5">
                     <Label>Giảm tối đa (₫)</Label>
-                    <Input
-                        v-model.number="form.max_discount_amount"
-                        type="number"
-                        min="0"
-                        placeholder="Để trống nếu không giới hạn"
-                    />
+                    <Input v-model.number="form.max_discount_amount" type="number" min="0" placeholder="Để trống nếu không giới hạn" />
                 </div>
                 <div class="grid gap-1.5">
                     <Label>Nội dung tin nhắn gửi khách</Label>
@@ -415,33 +553,24 @@ const eventEmojis: Record<string, string> = {
                     />
                 </div>
                 <div class="flex items-center gap-2">
-                    <Checkbox
-                        v-model:checked="form.send_email"
-                        id="send-email"
-                    />
-                    <Label for="send-email">Gửi email thông báo</Label>
+                    <Checkbox id="create-send-email" v-model:checked="form.send_email" />
+                    <Label for="create-send-email">Gửi email thông báo cho khách</Label>
                 </div>
                 <DialogFooter>
-                    <Button
-                        type="button"
-                        variant="outline"
-                        @click="showCreate = false"
-                        >Hủy</Button
-                    >
-                    <Button type="submit" :disabled="form.processing"
-                        >Tạo trigger</Button
-                    >
+                    <Button type="button" variant="outline" @click="showCreate = false">Hủy</Button>
+                    <Button type="submit" :disabled="form.processing" class="font-bold">Tạo Trigger</Button>
                 </DialogFooter>
             </form>
         </DialogContent>
     </Dialog>
 
+    <!-- Edit Dialog -->
     <Dialog v-model:open="showEdit">
-        <DialogContent class="max-w-md">
-            <DialogHeader
-                ><DialogTitle>Chỉnh sửa trigger</DialogTitle></DialogHeader
-            >
-            <form @submit.prevent="submitEdit" class="grid gap-4 py-2">
+        <DialogContent class="max-w-lg">
+            <DialogHeader>
+                <DialogTitle>Chỉnh sửa Trigger</DialogTitle>
+            </DialogHeader>
+            <form class="space-y-4" @submit.prevent="submitEdit">
                 <div class="grid gap-1.5">
                     <Label>Tên *</Label>
                     <Input v-model="editForm.name" required />
@@ -451,25 +580,13 @@ const eventEmojis: Record<string, string> = {
                     <Select v-model="editForm.event_type">
                         <SelectTrigger><SelectValue /></SelectTrigger>
                         <SelectContent>
-                            <SelectItem
-                                v-for="(label, key) in eventTypes"
-                                :key="key"
-                                :value="key"
-                                >{{ label }}</SelectItem
-                            >
+                            <SelectItem v-for="(label, key) in eventTypes" :key="key" :value="key">{{ label }}</SelectItem>
                         </SelectContent>
                     </Select>
                 </div>
-                <div
-                    v-if="editForm.event_type === 'order_milestone'"
-                    class="grid gap-1.5"
-                >
+                <div v-if="editForm.event_type === 'order_milestone'" class="grid gap-1.5">
                     <Label>Cột mốc (số đơn)</Label>
-                    <Input
-                        v-model.number="editForm.milestone_count"
-                        type="number"
-                        min="1"
-                    />
+                    <Input v-model.number="editForm.milestone_count" type="number" min="1" />
                 </div>
                 <div class="grid grid-cols-2 gap-4">
                     <div class="grid gap-1.5">
@@ -477,39 +594,23 @@ const eventEmojis: Record<string, string> = {
                         <Select v-model="editForm.discount_type">
                             <SelectTrigger><SelectValue /></SelectTrigger>
                             <SelectContent>
-                                <SelectItem value="percent">%</SelectItem>
-                                <SelectItem value="fixed_amount">₫</SelectItem>
+                                <SelectItem value="percent">% Chiết khấu</SelectItem>
+                                <SelectItem value="fixed_amount">₫ Số tiền cố định</SelectItem>
                             </SelectContent>
                         </Select>
                     </div>
                     <div class="grid gap-1.5">
                         <Label>Giá trị</Label>
-                        <Input
-                            v-model.number="editForm.discount_value"
-                            type="number"
-                            min="0"
-                        />
+                        <Input v-model.number="editForm.discount_value" type="number" min="0" />
                     </div>
                 </div>
                 <div class="grid gap-1.5">
                     <Label>Thời hạn mã (ngày)</Label>
-                    <Input
-                        v-model.number="editForm.validity_days"
-                        type="number"
-                        min="1"
-                    />
+                    <Input v-model.number="editForm.validity_days" type="number" min="1" />
                 </div>
-                <div
-                    v-if="editForm.discount_type === 'percent'"
-                    class="grid gap-1.5"
-                >
+                <div v-if="editForm.discount_type === 'percent'" class="grid gap-1.5">
                     <Label>Giảm tối đa (₫)</Label>
-                    <Input
-                        v-model.number="editForm.max_discount_amount"
-                        type="number"
-                        min="0"
-                        placeholder="Để trống nếu không giới hạn"
-                    />
+                    <Input v-model.number="editForm.max_discount_amount" type="number" min="0" placeholder="Để trống nếu không giới hạn" />
                 </div>
                 <div class="grid gap-1.5">
                     <Label>Nội dung tin nhắn gửi khách</Label>
@@ -521,22 +622,10 @@ const eventEmojis: Record<string, string> = {
                     />
                 </div>
                 <div class="flex items-center gap-2">
-                    <Checkbox
-                        v-model:checked="editForm.send_email"
-                        id="edit-send-email"
-                    />
+                    <Checkbox id="edit-send-email" v-model:checked="editForm.send_email" />
                     <Label for="edit-send-email">Gửi email thông báo</Label>
                 </div>
                 <DialogFooter>
-                    <Button
-                        type="button"
-                        variant="outline"
-                        @click="showEdit = false"
-                        >Hủy</Button
-                    >
-                    <Button type="submit" :disabled="editForm.processing"
-                        >Lưu thay đổi</Button
-                    >
                 </DialogFooter>
             </form>
         </DialogContent>

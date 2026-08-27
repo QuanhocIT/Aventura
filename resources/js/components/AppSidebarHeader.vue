@@ -41,6 +41,14 @@ const navItems = [
     { label: 'Hỗ trợ', href: '/support' },
 ];
 
+const warehouseStaffNavItems = [
+    { label: 'Tác vụ hôm nay', href: '/inventory/staff-portal' },
+    { label: 'Kho', href: '/inventory/central-warehouse' },
+    { label: 'Nhận hàng', href: '/inventory/central-warehouse/receiving' },
+    { label: 'Logistics', href: '/inventory/delivery-manifests' },
+    { label: 'Hỗ trợ', href: '/support' },
+];
+
 const isSuperAdminRoute = computed(() => page.url.startsWith('/super-admin'));
 
 const roles = computed(() => {
@@ -70,11 +78,12 @@ const isEmployee = computed(() =>
             'waiter',
             'kitchen',
             'inventory_staff',
-            'warehouse_staff',
             'shipper',
         ].includes(role),
     ),
 );
+const isWarehouseStaff = computed(() => roles.value.includes('warehouse_staff'));
+const isWarehouseManager = computed(() => roles.value.includes('warehouse_manager'));
 const { isAllBranches } = useBranchContext();
 
 const showFeedbackModal = ref(false);
@@ -98,11 +107,29 @@ const showPolicyModal = ref(false);
                 <Breadcrumbs :breadcrumbs="breadcrumbs" />
             </template>
             <nav
-                v-else-if="user && !isSuperAdminRoute && !isEmployee"
+                v-else-if="user && !isSuperAdminRoute && !isEmployee && !isWarehouseStaff && !isWarehouseManager"
                 class="hidden shrink-0 items-center gap-0.5 md:flex"
             >
                 <Link
                     v-for="item in navItems"
+                    :key="item.href"
+                    :href="item.href"
+                    class="shrink-0 rounded-md px-3 py-1.5 text-sm whitespace-nowrap transition-colors"
+                    :class="
+                        page.url.startsWith(item.href)
+                            ? 'bg-muted font-medium text-foreground'
+                            : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                    "
+                >
+                    {{ item.label }}
+                </Link>
+            </nav>
+            <nav
+                v-else-if="user && !isSuperAdminRoute && (isWarehouseStaff || isWarehouseManager)"
+                class="hidden shrink-0 items-center gap-0.5 md:flex"
+            >
+                <Link
+                    v-for="item in warehouseStaffNavItems"
                     :key="item.href"
                     :href="item.href"
                     class="shrink-0 rounded-md px-3 py-1.5 text-sm whitespace-nowrap transition-colors"

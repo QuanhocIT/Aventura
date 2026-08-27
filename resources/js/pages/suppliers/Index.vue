@@ -869,6 +869,23 @@ const inventories = ref<any[]>([]);
 const loadingTransfers = ref(false);
 const showManualTransferModal = ref(false);
 
+const transferStatusLabel = (status: string | undefined) => {
+    const labels: Record<string, string> = {
+        requested: 'Chờ định tuyến',
+        routed: 'Đã định tuyến',
+        dispatched: 'Đang vận chuyển',
+        received: 'Hoàn tất',
+        discrepancy: 'Có chênh lệch',
+        quarantined: 'Đang cách ly',
+        return_requested: 'Đang hoàn hàng',
+        returned: 'Đã hoàn hàng',
+        rejected: 'Đã từ chối',
+        cancelled: 'Đã hủy',
+    };
+
+    return labels[status || ''] || 'Đang xử lý';
+};
+
 const transferForm = useForm({
     from_branch_id: '',
     to_branch_id: '',
@@ -3693,7 +3710,11 @@ onUnmounted(() => {
                                         <span
                                             class="border-emerald-250 inline-flex items-center rounded border bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400"
                                         >
-                                            Hoàn tất
+                                            {{
+                                                log.transfer_kind === 'controlled'
+                                                    ? transferStatusLabel(log.status)
+                                                    : 'Hoàn tất'
+                                            }}
                                         </span>
                                     </td>
                                     <td

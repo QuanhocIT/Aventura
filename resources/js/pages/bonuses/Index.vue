@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Head, useForm } from '@inertiajs/vue3';
+import { Head, useForm, usePage } from '@inertiajs/vue3';
 import { Award, CalendarDays, Gift, Search, Users, X } from 'lucide-vue-next';
 import { computed, ref } from 'vue';
 import { Button } from '@/components/ui/button';
@@ -8,6 +8,10 @@ import { Label } from '@/components/ui/label';
 import AppLayout from '@/layouts/AppLayout.vue';
 
 defineOptions({ layout: AppLayout });
+
+const page = usePage();
+const userRoles = computed(() => (page.props.auth as any)?.user?.roles ?? []);
+const isOwner = computed(() => userRoles.value.includes('owner') || userRoles.value.includes('super_admin'));
 
 type Bonus = {
     id: number;
@@ -192,9 +196,11 @@ const submit = () => {
                     <div>
                         <div class="flex items-center gap-2 text-emerald-600">
                             <Award class="size-5" />
-                            <h2 class="font-bold">Ghi nhận khoản thưởng</h2>
+                            <h2 class="font-bold">{{ isOwner ? 'Ghi nhận khoản thưởng' : 'Đề xuất khoản thưởng nhân viên' }}</h2>
                         </div>
-                        <p class="mt-1 text-xs text-muted-foreground">Khoản thưởng sẽ tự động liên kết với kỳ lương theo ngày thưởng.</p>
+                        <p class="mt-1 text-xs text-muted-foreground">
+                            {{ isOwner ? 'Khoản thưởng sẽ tự động liên kết với kỳ lương theo ngày thưởng.' : 'Đề xuất thưởng sẽ được gửi tới Chủ doanh nghiệp phê duyệt trước khi cộng vào bảng lương.' }}
+                        </p>
                     </div>
                     <button type="button" class="rounded-md p-1 text-muted-foreground hover:bg-muted" @click="showForm = false">
                         <X class="size-4" />
@@ -224,7 +230,9 @@ const submit = () => {
                     </div>
                     <div class="flex justify-end gap-2 border-t border-border/70 pt-4">
                         <Button type="button" variant="outline" @click="showForm = false">Hủy</Button>
-                        <Button type="submit" :disabled="form.processing" class="bg-emerald-600 text-white hover:bg-emerald-700">Lưu khoản thưởng</Button>
+                        <Button type="submit" :disabled="form.processing" class="bg-emerald-600 text-white hover:bg-emerald-700">
+                            {{ isOwner ? 'Lưu khoản thưởng' : 'Gửi đề xuất phê duyệt' }}
+                        </Button>
                     </div>
                 </form>
             </div>
