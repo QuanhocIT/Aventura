@@ -108,25 +108,30 @@ const dispatchManifest = async (manifest: any) => {
     <Head title="Chuyến xe Logistics" />
     <div class="mx-auto w-full max-w-7xl space-y-6 p-4 sm:p-6">
         <div
-            class="flex flex-col justify-between gap-4 rounded-2xl bg-gradient-to-r from-violet-950 via-purple-950 to-slate-950 p-6 text-white shadow-xl md:flex-row md:items-center"
+            class="flex flex-col justify-between gap-4 rounded-2xl border border-indigo-100/90 bg-gradient-to-r from-purple-50/90 via-slate-50 to-indigo-50/60 p-4 text-slate-900 shadow-xs sm:p-5 dark:border-slate-800 dark:bg-black/80 dark:from-[#090610] dark:via-black dark:to-[#090610] dark:text-white backdrop-blur-md md:flex-row md:items-center"
         >
-            <div>
-                <p
-                    class="flex items-center gap-2 text-xs font-bold tracking-[0.18em] text-violet-300 uppercase"
-                >
-                    <Route class="h-4 w-4" /> Vận chuyển liên chi nhánh
-                </p>
-                <h1 class="mt-2 text-2xl font-bold">Chuyến xe Logistics</h1>
-                <p class="mt-1 text-sm text-violet-100/75">
-                    Gom đơn, kiểm soát niêm phong và bàn giao hàng từ Kho Tổng
-                    đến các chi nhánh.
-                </p>
+            <div class="flex items-center gap-3.5">
+                <div class="flex size-10 shrink-0 items-center justify-center rounded-xl bg-purple-600 text-white shadow-sm shadow-purple-600/20 dark:border dark:border-purple-500/30 dark:bg-purple-600/25 dark:text-purple-300 backdrop-blur-md">
+                    <Route class="size-5" />
+                </div>
+                <div>
+                    <span
+                        class="inline-flex items-center gap-1.5 rounded-full border border-purple-200 bg-purple-100/80 px-2.5 py-0.5 text-[9px] font-extrabold tracking-widest text-purple-700 uppercase dark:border-purple-500/30 dark:bg-purple-500/10 dark:text-purple-300"
+                    >
+                        Vận chuyển liên chi nhánh
+                    </span>
+                    <h1 class="mt-1 text-lg font-black tracking-tight text-slate-900 md:text-xl lg:text-2xl dark:text-white">Chuyến xe Logistics</h1>
+                    <p class="mt-0.5 text-xs leading-normal text-slate-600 dark:text-slate-400">
+                        Gom đơn, kiểm soát niêm phong và bàn giao hàng từ Kho Tổng
+                        đến các chi nhánh.
+                    </p>
+                </div>
             </div>
             <div
-                class="rounded-xl border border-white/15 bg-white/10 px-5 py-3 text-sm backdrop-blur"
+                class="rounded-xl border border-slate-200/80 bg-white/90 px-3.5 py-1.5 text-xs shadow-2xs backdrop-blur-sm dark:border-white/10 dark:bg-black/50 shrink-0"
             >
-                <div class="text-violet-200/70">Đơn chờ gom</div>
-                <div class="mt-1 text-2xl font-bold">{{ totalRequests }}</div>
+                <div class="text-[9px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Đơn chờ gom</div>
+                <div class="font-extrabold text-slate-900 dark:text-white text-base">{{ totalRequests }}</div>
             </div>
         </div>
 

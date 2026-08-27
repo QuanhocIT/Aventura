@@ -17,15 +17,14 @@ import {
     ShieldAlert,
     ShieldCheck,
     Sparkles,
-    TrendingDown,
     TrendingUp,
     Warehouse,
     Zap,
 } from 'lucide-vue-next';
 import { computed } from 'vue';
 
-import NegativeInventoryCases from '@/components/NegativeInventoryCases.vue';
 import DashboardShell from '@/components/dashboard/DashboardShell.vue';
+import NegativeInventoryCases from '@/components/NegativeInventoryCases.vue';
 import {
     Card,
     CardContent,
@@ -135,11 +134,15 @@ const formatPercent = (amount: number | undefined) =>
     `${(amount ?? 0).toFixed(1)}%`;
 
 const formatDateTime = (value: string | undefined) => {
-    if (!value) return 'Chưa cập nhật';
+    if (!value) {
+        return 'Chưa cập nhật';
+    }
 
     const date = new Date(value);
 
-    if (Number.isNaN(date.getTime())) return value;
+    if (Number.isNaN(date.getTime())) {
+        return value;
+    }
 
     return date.toLocaleString('vi-VN', {
         hour: '2-digit',
@@ -150,7 +153,9 @@ const formatDateTime = (value: string | undefined) => {
 };
 
 const barHeight = (value: number, max: number) => {
-    if (!max || max <= 0) return '0%';
+    if (!max || max <= 0) {
+        return '0%';
+    }
 
     const percentage = Math.min(100, Math.max(8, (value / max) * 100));
 
@@ -158,17 +163,25 @@ const barHeight = (value: number, max: number) => {
 };
 
 const metricStatus = (metric: any) => {
-    if (metric.value >= 90) return 'Tốt';
+    if (metric.value >= 90) {
+        return 'Tốt';
+    }
 
-    if (metric.value >= 75) return 'Khá';
+    if (metric.value >= 75) {
+        return 'Khá';
+    }
 
     return 'Cần cải thiện';
 };
 
 const metricStatusClass = (metric: any) => {
-    if (metric.value >= 90) return 'text-emerald-700 dark:text-emerald-400';
+    if (metric.value >= 90) {
+        return 'text-emerald-700 dark:text-emerald-400';
+    }
 
-    if (metric.value >= 75) return 'text-amber-700 dark:text-amber-400';
+    if (metric.value >= 75) {
+        return 'text-amber-700 dark:text-amber-400';
+    }
 
     return 'text-rose-700 dark:text-rose-400';
 };
@@ -254,15 +267,26 @@ const signalBadgeClass = (severity: string) =>
 // Compute a display score for the gauge (visual fallback to 68 if DB is 0)
 const displayAiScore = computed(() => {
     const rawScore = Number(aiAssessment.value.score);
-    if (!isNaN(rawScore) && rawScore > 0) return rawScore;
+
+    if (!isNaN(rawScore) && rawScore > 0) {
+        return rawScore;
+    }
+
     return 68; // Representative benchmark score
 });
 
 // Color of the gauge progress circle based on score
 const gaugeProgressColorClass = computed(() => {
     const score = displayAiScore.value;
-    if (score >= 80) return 'text-emerald-500';
-    if (score >= 60) return 'text-amber-500';
+
+    if (score >= 80) {
+        return 'text-emerald-500';
+    }
+
+    if (score >= 60) {
+        return 'text-amber-500';
+    }
+
     return 'text-rose-500';
 });
 </script>
@@ -271,149 +295,149 @@ const gaugeProgressColorClass = computed(() => {
     <Head title="Tổng quan Kho Tổng" />
 
     <DashboardShell :show-header="false" class="central-warehouse-shell max-w-[1650px] space-y-6 pt-3 pb-12">
-        <!-- ── 1. HERO HEADER BANNER (LIGHT & DARK ADAPTIVE) ────────────────── -->
+        <!-- ── 1. HERO HEADER BANNER (COMPACT & SLEEK) ────────────────── -->
         <section
-            class="relative overflow-hidden rounded-3xl border border-indigo-100/90 bg-gradient-to-r from-indigo-50/90 via-slate-50 to-purple-50/60 p-6 text-slate-900 shadow-sm sm:p-8 dark:border-indigo-500/20 dark:from-[#0b0f17] dark:via-[#121828] dark:to-[#0b0f17] dark:text-white dark:shadow-xl"
+            class="relative overflow-hidden rounded-2xl border border-indigo-100/90 bg-gradient-to-r from-indigo-50/90 via-slate-50 to-purple-50/60 p-4 text-slate-900 shadow-xs sm:p-5 dark:border-slate-800 dark:bg-black/80 dark:from-[#080b12] dark:via-black dark:to-[#080b12] dark:text-white dark:shadow-md backdrop-blur-md"
         >
-            <div class="pointer-events-none absolute -top-24 right-8 size-64 rounded-full bg-indigo-500/10 blur-3xl" />
-            <div class="pointer-events-none absolute -bottom-28 left-1/3 size-64 rounded-full bg-purple-500/10 blur-3xl" />
+            <div class="pointer-events-none absolute -top-24 right-8 size-48 rounded-full bg-indigo-500/10 blur-3xl" />
+            <div class="pointer-events-none absolute -bottom-28 left-1/3 size-48 rounded-full bg-purple-500/10 blur-3xl" />
 
-            <div class="relative flex flex-col justify-between gap-6 lg:flex-row lg:items-center">
-                <div class="flex items-start gap-4 md:gap-5">
-                    <div class="flex size-14 shrink-0 items-center justify-center rounded-2xl bg-indigo-600 text-white shadow-md shadow-indigo-600/20 dark:border dark:border-indigo-500/30 dark:bg-indigo-600/25 dark:text-indigo-400 dark:shadow-indigo-500/10 backdrop-blur-md">
-                        <Warehouse class="size-7" />
+            <div class="relative flex flex-col justify-between gap-4 lg:flex-row lg:items-center">
+                <div class="flex items-center gap-3.5">
+                    <div class="flex size-10 shrink-0 items-center justify-center rounded-xl bg-indigo-600 text-white shadow-sm shadow-indigo-600/20 dark:border dark:border-indigo-500/30 dark:bg-indigo-600/25 dark:text-indigo-400 backdrop-blur-md">
+                        <Warehouse class="size-5" />
                     </div>
                     <div>
                         <div class="flex flex-wrap items-center gap-2">
-                            <span class="inline-flex items-center gap-1.5 rounded-full border border-indigo-200 bg-indigo-100/80 px-3 py-0.5 text-[10px] font-extrabold tracking-widest text-indigo-700 uppercase dark:border-indigo-500/30 dark:bg-indigo-500/10 dark:text-indigo-300">
-                                <Sparkles class="size-3 text-indigo-600 dark:text-indigo-400" />
+                            <span class="inline-flex items-center gap-1.5 rounded-full border border-indigo-200 bg-indigo-100/80 px-2.5 py-0.5 text-[9px] font-extrabold tracking-widest text-indigo-700 uppercase dark:border-indigo-500/30 dark:bg-indigo-500/10 dark:text-indigo-300">
+                                <Sparkles class="size-2.5 text-indigo-600 dark:text-indigo-400" />
                                 Bảng điều hành Kho Tổng
                             </span>
-                            <span class="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-100/80 px-2.5 py-0.5 text-[10px] font-bold text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-400">
+                            <span class="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-100/80 px-2 py-0.5 text-[9px] font-bold text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-400">
                                 <span class="size-1.5 animate-pulse rounded-full bg-emerald-500" />
                                 Real-time Inventory
                             </span>
                         </div>
 
-                        <h1 class="mt-2.5 text-2xl font-black tracking-tight text-slate-900 dark:text-white md:text-3xl lg:text-4xl">
+                        <h1 class="mt-1 text-lg font-black tracking-tight text-slate-900 md:text-xl lg:text-2xl dark:text-white">
                             Tổng quan Điều hành Kho Tổng
                         </h1>
 
-                        <p class="mt-1.5 max-w-3xl text-sm leading-relaxed text-slate-600 dark:text-slate-300">
+                        <p class="mt-0.5 max-w-3xl text-xs leading-normal text-slate-600 dark:text-slate-400">
                             Góc nhìn quản trị về nhu cầu cấp phát, sức khỏe tồn kho, cảnh báo chuỗi cung ứng và dự báo nhập hàng toàn chuỗi.
                         </p>
                     </div>
                 </div>
 
-                <div class="flex shrink-0 flex-col items-stretch gap-3 sm:flex-row sm:items-center">
-                    <div class="rounded-2xl border border-slate-200/80 bg-white/90 px-4 py-2.5 text-sm shadow-xs backdrop-blur-sm dark:border-white/10 dark:bg-white/5">
-                        <p class="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Phạm vi dữ liệu</p>
+                <div class="flex shrink-0 flex-col items-stretch gap-2.5 sm:flex-row sm:items-center">
+                    <div class="rounded-xl border border-slate-200/80 bg-white/90 px-3.5 py-1.5 text-xs shadow-2xs backdrop-blur-sm dark:border-white/10 dark:bg-black/50">
+                        <p class="text-[9px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Phạm vi dữ liệu</p>
                         <p class="font-extrabold text-slate-900 dark:text-white">{{ centralBranch?.name || 'Kho Tổng Sài Gòn' }}</p>
-                        <p class="text-[11px] text-slate-500 dark:text-slate-400">Cập nhật {{ formatDateTime(analytics.generated_at) }}</p>
+                        <p class="text-[10px] text-slate-500 dark:text-slate-400">Cập nhật {{ formatDateTime(analytics.generated_at) }}</p>
                     </div>
 
                     <Link
                         href="/inventory/central-warehouse/receiving?create=1"
-                        class="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-orange-500 px-5 text-xs font-bold text-white shadow-md shadow-orange-500/20 transition hover:bg-orange-600 active:translate-y-0"
+                        class="inline-flex h-9 items-center justify-center gap-1.5 rounded-xl bg-orange-500 px-4 text-xs font-bold text-white shadow-xs transition hover:bg-orange-600 active:translate-y-0"
                     >
-                        <PackageCheck class="size-4" />
+                        <PackageCheck class="size-3.5" />
                         Nhập nguyên liệu
                     </Link>
 
                     <Link
                         href="/inventory/central-warehouse/material-closing"
-                        class="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-amber-300 bg-amber-50 px-4 text-xs font-bold text-amber-800 shadow-xs transition hover:bg-amber-100 dark:border-amber-400/30 dark:bg-amber-400/10 dark:text-amber-200 dark:hover:bg-amber-400/20"
+                        class="inline-flex h-9 items-center justify-center gap-1.5 rounded-xl border border-amber-300 bg-amber-50 px-3.5 text-xs font-bold text-amber-800 shadow-2xs transition hover:bg-amber-100 dark:border-amber-400/30 dark:bg-amber-400/10 dark:text-amber-200 dark:hover:bg-amber-400/20"
                     >
-                        <ClipboardCheck class="size-4" />
+                        <ClipboardCheck class="size-3.5" />
                         Chốt nguyên liệu
                     </Link>
                 </div>
             </div>
         </section>
 
-        <!-- ── 2. KPI METRICS GRID (DUAL LIGHT & DARK HIGH-CONTRAST) ─────────── -->
+        <!-- ── 2. KPI METRICS GRID (DUAL LIGHT & DARK HIGH-CONTRAST GLASSMORPHISM) ─────────── -->
         <section class="grid grid-cols-2 gap-3.5 sm:grid-cols-3 lg:grid-cols-6">
             <!-- Card 1: Cấp phát hôm nay -->
-            <Card class="border-indigo-200/80 bg-white shadow-xs dark:border-indigo-500/20 dark:bg-[#111625]/90">
+            <Card class="border-indigo-200/60 bg-white/40 shadow-xs backdrop-blur-md dark:border-indigo-500/20 dark:bg-[#111625]/40">
                 <CardContent class="p-4">
                     <div class="flex items-center justify-between gap-2">
                         <p class="text-[10px] font-extrabold uppercase tracking-wider text-indigo-700 dark:text-indigo-400">Cấp phát hôm nay</p>
-                        <div class="flex size-7 items-center justify-center rounded-lg bg-indigo-50 text-indigo-600 dark:bg-indigo-500/10 dark:text-indigo-400">
+                        <div class="flex size-7 items-center justify-center rounded-lg bg-indigo-50/80 text-indigo-600 dark:bg-indigo-500/10 dark:text-indigo-400">
                             <CalendarDays class="size-4" />
                         </div>
                     </div>
-                    <p class="mt-3 text-3xl font-black tracking-tight text-slate-900 dark:text-white">{{ summary.today_requests ?? 0 }}</p>
-                    <p class="mt-1 text-[11px] font-medium text-slate-500 dark:text-slate-400">{{ formatQuantity(summary.today_items) }} đơn vị nguyên liệu</p>
+                    <p class="mt-3 text-2xl font-black tracking-tight text-slate-900 lg:text-3xl dark:text-white">{{ summary.today_requests ?? 0 }}</p>
+                    <p class="mt-1 text-[11px] font-medium text-slate-500 truncate dark:text-slate-400">{{ formatQuantity(summary.today_items) }} đơn vị nguyên liệu</p>
                 </CardContent>
             </Card>
 
             <!-- Card 2: Nhu cầu 7 ngày -->
-            <Card class="border-purple-200/80 bg-white shadow-xs dark:border-purple-500/20 dark:bg-[#111625]/90">
+            <Card class="border-purple-200/60 bg-white/40 shadow-xs backdrop-blur-md dark:border-purple-500/20 dark:bg-[#111625]/40">
                 <CardContent class="p-4">
                     <div class="flex items-center justify-between gap-2">
                         <p class="text-[10px] font-extrabold uppercase tracking-wider text-purple-700 dark:text-purple-400">Nhu cầu 7 ngày</p>
-                        <div class="flex size-7 items-center justify-center rounded-lg bg-purple-50 text-purple-600 dark:bg-purple-500/10 dark:text-purple-400">
+                        <div class="flex size-7 items-center justify-center rounded-lg bg-purple-50/80 text-purple-600 dark:bg-purple-500/10 dark:text-purple-400">
                             <TrendingUp class="size-4" />
                         </div>
                     </div>
-                    <p class="mt-3 text-3xl font-black tracking-tight text-purple-700 dark:text-purple-300">{{ formatQuantity(summary.last7_items) }}</p>
-                    <p class="mt-1 text-[11px] font-medium text-slate-500 dark:text-slate-400">{{ summary.last7_requests ?? 0 }} đơn · {{ formatCurrency(summary.last7_value) }}</p>
+                    <p class="mt-3 text-2xl font-black tracking-tight text-purple-700 lg:text-3xl dark:text-purple-300">{{ formatQuantity(summary.last7_items) }}</p>
+                    <p class="mt-1 text-[11px] font-medium text-slate-500 truncate dark:text-slate-400" :title="`${summary.last7_requests ?? 0} đơn · ${formatCurrency(summary.last7_value)}`">{{ summary.last7_requests ?? 0 }} đơn · {{ formatCurrency(summary.last7_value) }}</p>
                 </CardContent>
             </Card>
 
             <!-- Card 3: Đơn đang mở -->
-            <Card class="border-amber-200/80 bg-white shadow-xs dark:border-amber-500/20 dark:bg-[#111625]/90">
+            <Card class="border-amber-200/60 bg-white/40 shadow-xs backdrop-blur-md dark:border-amber-500/20 dark:bg-[#111625]/40">
                 <CardContent class="p-4">
                     <div class="flex items-center justify-between gap-2">
                         <p class="text-[10px] font-extrabold uppercase tracking-wider text-amber-700 dark:text-amber-400">Đơn đang mở</p>
-                        <div class="flex size-7 items-center justify-center rounded-lg bg-amber-50 text-amber-600 dark:bg-amber-500/10 dark:text-amber-400">
+                        <div class="flex size-7 items-center justify-center rounded-lg bg-amber-50/80 text-amber-600 dark:bg-amber-500/10 dark:text-amber-400">
                             <Clock3 class="size-4" />
                         </div>
                     </div>
-                    <p class="mt-3 text-3xl font-black tracking-tight text-amber-700 dark:text-amber-400">{{ summary.open_requests ?? 0 }}</p>
-                    <p class="mt-1 text-[11px] font-medium text-slate-500 dark:text-slate-400">{{ summary.due_today_requests ?? 0 }} đơn đến hạn hôm nay</p>
+                    <p class="mt-3 text-2xl font-black tracking-tight text-amber-700 lg:text-3xl dark:text-amber-400">{{ summary.open_requests ?? 0 }}</p>
+                    <p class="mt-1 text-[11px] font-medium text-slate-500 truncate dark:text-slate-400">{{ summary.due_today_requests ?? 0 }} đơn đến hạn hôm nay</p>
                 </CardContent>
             </Card>
 
             <!-- Card 4: OTIF tháng này -->
-            <Card class="border-emerald-200/80 bg-white shadow-xs dark:border-emerald-500/20 dark:bg-[#111625]/90">
+            <Card class="border-emerald-200/60 bg-white/40 shadow-xs backdrop-blur-md dark:border-emerald-500/20 dark:bg-[#111625]/40">
                 <CardContent class="p-4">
                     <div class="flex items-center justify-between gap-2">
                         <p class="text-[10px] font-extrabold uppercase tracking-wider text-emerald-700 dark:text-emerald-400">OTIF tháng này</p>
-                        <div class="flex size-7 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-400">
+                        <div class="flex size-7 items-center justify-center rounded-lg bg-emerald-50/80 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-400">
                             <Gauge class="size-4" />
                         </div>
                     </div>
-                    <p class="mt-3 text-3xl font-black tracking-tight text-emerald-700 dark:text-emerald-400">{{ formatPercent(warehouseKpi.otif_percent ?? 100) }}</p>
-                    <p class="mt-1 text-[11px] font-medium text-slate-500 dark:text-slate-400">Đúng hạn và đủ lượng</p>
+                    <p class="mt-3 text-2xl font-black tracking-tight text-emerald-700 lg:text-3xl dark:text-emerald-400">{{ formatPercent(warehouseKpi.otif_percent ?? 100) }}</p>
+                    <p class="mt-1 text-[11px] font-medium text-slate-500 truncate dark:text-slate-400">Đúng hạn và đủ lượng</p>
                 </CardContent>
             </Card>
 
             <!-- Card 5: Giá trị tồn kho -->
-            <Card class="border-sky-200/80 bg-white shadow-xs dark:border-sky-500/20 dark:bg-[#111625]/90">
+            <Card class="border-sky-200/60 bg-white/40 shadow-xs backdrop-blur-md dark:border-sky-500/20 dark:bg-[#111625]/40">
                 <CardContent class="p-4">
                     <div class="flex items-center justify-between gap-2">
                         <p class="text-[10px] font-extrabold uppercase tracking-wider text-sky-700 dark:text-sky-400">Giá trị tồn kho</p>
-                        <div class="flex size-7 items-center justify-center rounded-lg bg-sky-50 text-sky-600 dark:bg-sky-500/10 dark:text-sky-400">
+                        <div class="flex size-7 items-center justify-center rounded-lg bg-sky-50/80 text-sky-600 dark:bg-sky-500/10 dark:text-sky-400">
                             <Boxes class="size-4" />
                         </div>
                     </div>
-                    <p class="mt-3 text-2xl font-black tracking-tight text-sky-700 dark:text-sky-400">{{ formatCurrency(inventory.on_hand_value) }}</p>
-                    <p class="mt-1 text-[11px] font-medium text-slate-500 dark:text-slate-400">{{ inventory.ingredient_count ?? 0 }} mặt hàng · {{ formatQuantity(inventory.on_hand_quantity) }} đơn vị</p>
+                    <p class="mt-3 text-lg font-black tracking-tighter text-sky-700 truncate sm:text-xl xl:text-2xl dark:text-sky-400" :title="formatCurrency(inventory.on_hand_value)">{{ formatCurrency(inventory.on_hand_value) }}</p>
+                    <p class="mt-1 text-[11px] font-medium text-slate-500 truncate dark:text-slate-400" :title="`${inventory.ingredient_count ?? 0} mặt hàng · ${formatQuantity(inventory.on_hand_quantity)} đơn vị`">{{ inventory.ingredient_count ?? 0 }} mặt hàng · {{ formatQuantity(inventory.on_hand_quantity) }} đơn vị</p>
                 </CardContent>
             </Card>
 
             <!-- Card 6: Cần nhập gấp -->
-            <Card class="border-rose-200/80 bg-white shadow-xs dark:border-rose-500/20 dark:bg-[#111625]/90">
+            <Card class="border-rose-200/60 bg-white/40 shadow-xs backdrop-blur-md dark:border-rose-500/20 dark:bg-[#111625]/40">
                 <CardContent class="p-4">
                     <div class="flex items-center justify-between gap-2">
                         <p class="text-[10px] font-extrabold uppercase tracking-wider text-rose-700 dark:text-rose-400">Cần nhập gấp</p>
-                        <div class="flex size-7 items-center justify-center rounded-lg bg-rose-50 text-rose-600 dark:bg-rose-500/10 dark:text-rose-400">
+                        <div class="flex size-7 items-center justify-center rounded-lg bg-rose-50/80 text-rose-600 dark:bg-rose-500/10 dark:text-rose-400">
                             <AlertTriangle class="size-4" />
                         </div>
                     </div>
-                    <p class="mt-3 text-3xl font-black tracking-tight text-rose-700 dark:text-rose-400">{{ summary.urgent_recommendations ?? 0 }}</p>
-                    <p class="mt-1 text-[11px] font-medium text-slate-500 dark:text-slate-400">Nguyên liệu rủi ro thiếu trong 7 ngày</p>
+                    <p class="mt-3 text-2xl font-black tracking-tight text-rose-700 lg:text-3xl dark:text-rose-400">{{ summary.urgent_recommendations ?? 0 }}</p>
+                    <p class="mt-1 text-[11px] font-medium text-slate-500 truncate dark:text-slate-400">Nguyên liệu rủi ro thiếu trong 7 ngày</p>
                 </CardContent>
             </Card>
         </section>
@@ -427,7 +451,7 @@ const gaugeProgressColorClass = computed(() => {
         <!-- ── 3. SUPPLY CHAIN ALERTS & RECONCILIATION ──────────────────────── -->
         <section class="grid grid-cols-1 gap-6 md:grid-cols-2">
             <!-- Cảnh báo chuỗi cung ứng -->
-            <Card class="overflow-hidden border border-amber-200 bg-white shadow-xs dark:border-amber-500/25 dark:bg-[#111625]/90">
+            <Card class="overflow-hidden border border-amber-200 bg-white shadow-xs dark:border-amber-500/25 dark:bg-black/80 backdrop-blur-md">
                 <CardHeader class="border-b border-amber-100 bg-amber-50/80 py-4 dark:border-amber-500/15 dark:bg-amber-500/10">
                     <div class="flex items-center justify-between gap-3">
                         <div>
@@ -448,7 +472,7 @@ const gaugeProgressColorClass = computed(() => {
                     <div v-if="!(supplyChainAlerts.items ?? []).length" class="rounded-xl border border-dashed border-slate-200 p-5 text-center text-xs text-slate-500 dark:border-slate-800 dark:text-slate-400">
                         Chưa có cảnh báo chuỗi cung ứng.
                     </div>
-                    <div v-for="item in (supplyChainAlerts.items ?? []).slice(0, 5)" :key="`${item.type}-${item.ingredient_id ?? item.purchase_order_id}`" class="flex items-start justify-between gap-3 rounded-xl border border-slate-200/70 bg-slate-50 p-3 dark:border-[#1e293b] dark:bg-[#161c2d]">
+                    <div v-for="item in (supplyChainAlerts.items ?? []).slice(0, 5)" :key="`${item.type}-${item.ingredient_id ?? item.purchase_order_id}`" class="flex items-start justify-between gap-3 rounded-xl border border-slate-200/70 bg-slate-50 p-3 dark:border-slate-800/80 dark:bg-black/60">
                         <div>
                             <p class="text-xs font-bold text-slate-900 dark:text-white">{{ item.ingredient_name || item.po_number || 'Cảnh báo kho' }}</p>
                             <p class="mt-1 text-[11px] text-slate-600 dark:text-slate-400">{{ item.message }}</p>
@@ -459,7 +483,7 @@ const gaugeProgressColorClass = computed(() => {
             </Card>
 
             <!-- Đối soát tồn kho -->
-            <Card class="overflow-hidden border border-sky-200 bg-white shadow-xs dark:border-sky-500/25 dark:bg-[#111625]/90">
+            <Card class="overflow-hidden border border-sky-200 bg-white shadow-xs dark:border-sky-500/25 dark:bg-black/80 backdrop-blur-md">
                 <CardHeader class="border-b border-sky-100 bg-sky-50/80 py-4 dark:border-sky-500/15 dark:bg-sky-500/10">
                     <CardTitle class="flex items-center gap-2 text-base font-bold text-slate-900 dark:text-white">
                         <ShieldCheck class="size-5 text-sky-600 dark:text-sky-400" />
@@ -490,7 +514,7 @@ const gaugeProgressColorClass = computed(() => {
         <!-- ── 4. AI ASSESSMENT RADAR & HIGH-IMPACT ACTION PRIORITIES (STUNNING REDESIGN) ─ -->
         <section class="grid grid-cols-1 gap-6 lg:grid-cols-12">
             <!-- LEFT RADAR CARD: AI SỨC KHỎE VẬN HÀNH KHO TỔNG (4 COLS) -->
-            <div class="relative overflow-hidden rounded-3xl border border-indigo-200/90 bg-gradient-to-b from-indigo-50/90 via-white to-slate-50/90 p-5 text-slate-900 shadow-sm dark:border-indigo-500/25 dark:from-[#111625] dark:via-[#141a2c] dark:to-[#0f1422] dark:text-white dark:shadow-xl lg:col-span-4 flex flex-col justify-between">
+            <div class="relative overflow-hidden rounded-3xl border border-indigo-200/90 bg-gradient-to-b from-indigo-50/90 via-white to-slate-50/90 p-5 text-slate-900 shadow-sm dark:border-indigo-500/25 dark:from-[#090c14] dark:via-[#0e121e] dark:to-black dark:text-white dark:shadow-xl lg:col-span-4 flex flex-col justify-between">
                 <!-- Background Accent Glows -->
                 <div class="pointer-events-none absolute -top-16 -right-16 size-44 rounded-full bg-indigo-500/15 blur-2xl" />
                 <div class="pointer-events-none absolute -bottom-16 -left-16 size-44 rounded-full bg-rose-500/10 blur-2xl" />
@@ -521,7 +545,7 @@ const gaugeProgressColorClass = computed(() => {
                         <svg class="size-full rotate-[-90deg]" viewBox="0 0 36 36">
                             <!-- Background Track -->
                             <path
-                                class="text-slate-200/70 dark:text-[#1a2234]"
+                                class="text-slate-200/70 dark:text-slate-800/80"
                                 stroke-width="3.8"
                                 stroke="currentColor"
                                 fill="none"
@@ -586,8 +610,8 @@ const gaugeProgressColorClass = computed(() => {
             </div>
 
             <!-- RIGHT ACTION PRIORITIES GRID: 4 ELEGANT ACTION TILES (8 COLS) -->
-            <Card class="overflow-hidden border border-slate-200/80 bg-white shadow-xs dark:border-[#1e2638] dark:bg-[#111625]/90 lg:col-span-8 flex flex-col justify-between">
-                <CardHeader class="border-b border-slate-100 bg-slate-50/80 py-4 dark:border-[#1e2638] dark:bg-[#161d30]/60">
+            <Card class="overflow-hidden border border-slate-200/80 bg-white shadow-xs dark:border-slate-800 dark:bg-black/80 backdrop-blur-md lg:col-span-8 flex flex-col justify-between">
+                <CardHeader class="border-b border-slate-100 bg-slate-50/80 py-4 dark:border-slate-800/80 dark:bg-black/60">
                     <div class="flex items-center justify-between gap-3">
                         <div class="flex items-center gap-2.5">
                             <div class="flex size-8 items-center justify-center rounded-xl bg-amber-500 text-white shadow-sm">
@@ -598,7 +622,7 @@ const gaugeProgressColorClass = computed(() => {
                                 <CardDescription class="text-[11px] text-slate-500 dark:text-slate-400">Các cảnh báo rủi ro & hướng xử lý đề xuất ngay cho Trưởng kho</CardDescription>
                             </div>
                         </div>
-                        <span class="rounded-full border border-slate-300 bg-slate-100 px-2.5 py-1 text-[10px] font-extrabold text-slate-700 dark:border-[#27324b] dark:bg-[#182032] dark:text-slate-300">
+                        <span class="rounded-full border border-slate-300 bg-slate-100 px-2.5 py-1 text-[10px] font-extrabold text-slate-700 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300">
                             {{ aiAssessment.signal_count ?? 6 }} tín hiệu cần xử lý
                         </span>
                     </div>
@@ -660,8 +684,8 @@ const gaugeProgressColorClass = computed(() => {
 
         <!-- ── 5. DEMAND RHYTHM CHART & WAREHOUSE HEALTH ───────────────────── -->
         <section class="grid grid-cols-1 gap-6 md:grid-cols-2">
-            <Card class="overflow-hidden border border-slate-200/80 bg-white shadow-xs dark:border-[#1e2638] dark:bg-[#111625]/90">
-                <CardHeader class="border-b border-slate-100 bg-slate-50/80 py-4 dark:border-[#1e2638] dark:bg-[#161d30]/60">
+            <Card class="overflow-hidden border border-slate-200/80 bg-white shadow-xs dark:border-slate-800 dark:bg-black/80 backdrop-blur-md">
+                <CardHeader class="border-b border-slate-100 bg-slate-50/80 py-4 dark:border-slate-800/80 dark:bg-black/60">
                     <div class="flex items-center justify-between gap-3">
                         <div>
                             <CardTitle class="flex items-center gap-2 text-base font-bold text-slate-900 dark:text-white">
@@ -690,19 +714,19 @@ const gaugeProgressColorClass = computed(() => {
                     </div>
                     <div v-else class="flex h-56 items-center justify-center text-sm text-slate-500 dark:text-slate-400">Chưa đủ dữ liệu để lập biểu đồ.</div>
                     <div class="mt-4 grid grid-cols-2 gap-3 text-xs sm:grid-cols-4">
-                        <div class="rounded-xl border border-slate-200/70 bg-slate-50 p-3 dark:border-[#1e293b] dark:bg-[#161c2d]">
+                        <div class="rounded-xl border border-slate-200/70 bg-slate-50 p-3 dark:border-slate-800/80 dark:bg-black/60">
                             <p class="text-slate-500 dark:text-slate-400">Trung bình/ngày</p>
                             <p class="mt-1 font-bold text-slate-900 dark:text-white">{{ formatQuantity(summary.average_daily_requests) }} đơn</p>
                         </div>
-                        <div class="rounded-xl border border-slate-200/70 bg-slate-50 p-3 dark:border-[#1e293b] dark:bg-[#161c2d]">
+                        <div class="rounded-xl border border-slate-200/70 bg-slate-50 p-3 dark:border-slate-800/80 dark:bg-black/60">
                             <p class="text-slate-500 dark:text-slate-400">Giá trị yêu cầu</p>
                             <p class="mt-1 font-bold text-slate-900 dark:text-white">{{ formatCurrency(summary.last7_value) }}</p>
                         </div>
-                        <div class="rounded-xl border border-slate-200/70 bg-slate-50 p-3 dark:border-[#1e293b] dark:bg-[#161c2d]">
+                        <div class="rounded-xl border border-slate-200/70 bg-slate-50 p-3 dark:border-slate-800/80 dark:bg-black/60">
                             <p class="text-slate-500 dark:text-slate-400">Đang tiếp nhận</p>
                             <p class="mt-1 font-bold text-slate-900 dark:text-white">{{ summary.receiving_requests ?? 0 }} đơn</p>
                         </div>
-                        <div class="rounded-xl border border-slate-200/70 bg-slate-50 p-3 dark:border-[#1e293b] dark:bg-[#161c2d]">
+                        <div class="rounded-xl border border-slate-200/70 bg-slate-50 p-3 dark:border-slate-800/80 dark:bg-black/60">
                             <p class="text-slate-500 dark:text-slate-400">Tranh chấp mở</p>
                             <p class="mt-1 font-bold text-slate-900 dark:text-white">{{ summary.disputed_requests ?? 0 }} đơn</p>
                         </div>
@@ -710,8 +734,8 @@ const gaugeProgressColorClass = computed(() => {
                 </CardContent>
             </Card>
 
-            <Card class="overflow-hidden border border-slate-200/80 bg-white shadow-xs dark:border-[#1e2638] dark:bg-[#111625]/90">
-                <CardHeader class="border-b border-slate-100 bg-slate-50/80 py-4 dark:border-[#1e2638] dark:bg-[#161d30]/60">
+            <Card class="overflow-hidden border border-slate-200/80 bg-white shadow-xs dark:border-slate-800 dark:bg-black/80 backdrop-blur-md">
+                <CardHeader class="border-b border-slate-100 bg-slate-50/80 py-4 dark:border-slate-800/80 dark:bg-black/60">
                     <CardTitle class="flex items-center gap-2 text-base font-bold text-slate-900 dark:text-white">
                         <ShieldCheck class="size-5 text-emerald-600 dark:text-emerald-400" /> Sức khỏe Kho Tổng
                     </CardTitle>
@@ -747,7 +771,7 @@ const gaugeProgressColorClass = computed(() => {
 
         <!-- ── 6. INSIGHTS & HIGH DEMAND INGREDIENTS ────────────────────────── -->
         <section class="grid grid-cols-1 gap-6 md:grid-cols-2">
-            <Card class="overflow-hidden border border-amber-200 bg-white shadow-xs dark:border-amber-500/20 dark:bg-[#111625]/90">
+            <Card class="overflow-hidden border border-amber-200 bg-white shadow-xs dark:border-amber-500/20 dark:bg-black/80 backdrop-blur-md">
                 <CardHeader class="border-b border-amber-100 bg-amber-50/80 py-4 dark:border-amber-500/15 dark:bg-amber-500/10">
                     <CardTitle class="flex items-center gap-2 text-base font-bold text-slate-900 dark:text-white">
                         <Lightbulb class="size-5 text-amber-600 dark:text-amber-400" /> Đánh giá & lời khuyên
@@ -770,8 +794,8 @@ const gaugeProgressColorClass = computed(() => {
                 </CardContent>
             </Card>
 
-            <Card class="overflow-hidden border border-slate-200/80 bg-white shadow-xs dark:border-[#1e2638] dark:bg-[#111625]/90">
-                <CardHeader class="border-b border-slate-100 bg-slate-50/80 py-4 dark:border-[#1e2638] dark:bg-[#161d30]/60">
+            <Card class="overflow-hidden border border-slate-200/80 bg-white shadow-xs dark:border-slate-800 dark:bg-black/80 backdrop-blur-md">
+                <CardHeader class="border-b border-slate-100 bg-slate-50/80 py-4 dark:border-slate-800/80 dark:bg-black/60">
                     <div class="flex items-center justify-between gap-3">
                         <div>
                             <CardTitle class="flex items-center gap-2 text-base font-bold text-slate-900 dark:text-white">
@@ -785,14 +809,14 @@ const gaugeProgressColorClass = computed(() => {
                 <CardContent class="space-y-3 p-4">
                     <div v-if="topIngredients.length === 0" class="rounded-xl border border-dashed border-slate-200 p-6 text-center text-xs text-slate-500 dark:border-slate-800 dark:text-slate-400">Chưa đủ dữ liệu để phân tích nhu cầu.</div>
                     <div v-for="(item, index) in topIngredients" :key="item.ingredient_id" class="flex items-center gap-3">
-                        <span class="flex size-7 shrink-0 items-center justify-center rounded-lg bg-purple-100 text-xs font-black text-purple-700 dark:bg-purple-500/10 dark:text-purple-400">{{ index + 1 }}</span>
+                        <span class="flex size-7 shrink-0 items-center justify-center rounded-lg bg-purple-100 text-xs font-black text-purple-700 dark:bg-purple-500/10 dark:text-purple-400">{{ Number(index) + 1 }}</span>
                         <div class="min-w-0 flex-1">
                             <div class="flex items-center justify-between gap-3 text-xs">
                                 <p class="truncate font-bold text-slate-900 dark:text-white">{{ item.name }}</p>
                                 <p class="shrink-0 font-bold text-slate-900 dark:text-white">{{ formatQuantity(item.total_quantity) }} {{ item.unit_symbol }}</p>
                             </div>
                             <div class="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
-                                <div class="h-full rounded-full bg-gradient-to-r from-purple-500 to-indigo-500" :style="{ width: barHeight(item.total_quantity, maxIngredientQuantity) }" />
+                                <div class="h-full rounded-full bg-gradient-to-r from-purple-500 to-indigo-500" :style="{ width: barHeight(Number(item.total_quantity), maxIngredientQuantity) }" />
                             </div>
                             <p class="mt-1 text-[10px] font-medium text-slate-500 dark:text-slate-400">{{ item.request_count }} đơn · {{ formatCurrency(item.total_value) }}</p>
                         </div>
@@ -802,8 +826,8 @@ const gaugeProgressColorClass = computed(() => {
         </section>
 
         <!-- ── 7. BRANCH DISTRIBUTION REPORT TABLE ──────────────────────────── -->
-        <Card class="overflow-hidden border border-slate-200/80 bg-white shadow-xs dark:border-[#1e2638] dark:bg-[#111625]/90">
-            <CardHeader class="border-b border-slate-100 bg-slate-50/80 py-4 dark:border-[#1e2638] dark:bg-[#161d30]/60">
+        <Card class="overflow-hidden border border-slate-200/80 bg-white shadow-xs dark:border-slate-800 dark:bg-black/80 backdrop-blur-md">
+            <CardHeader class="border-b border-slate-100 bg-slate-50/80 py-4 dark:border-slate-800/80 dark:bg-black/60">
                 <div class="flex flex-col justify-between gap-2 sm:flex-row sm:items-end">
                     <div>
                         <CardTitle class="flex items-center gap-2 text-base font-bold text-slate-900 dark:text-white">
@@ -818,7 +842,7 @@ const gaugeProgressColorClass = computed(() => {
                 <div v-if="branchReport.length === 0" class="p-8 text-center text-xs text-slate-500 dark:text-slate-400">Chưa có dữ liệu yêu cầu theo chi nhánh.</div>
                 <div v-else class="overflow-x-auto">
                     <table class="w-full min-w-[680px] text-left text-xs">
-                        <thead class="border-b border-slate-200 bg-slate-100/80 text-slate-700 dark:border-[#1e2638] dark:bg-[#161c2d] dark:text-slate-300">
+                        <thead class="border-b border-slate-200 bg-slate-100/80 text-slate-700 dark:border-slate-800 dark:bg-black/60 dark:text-slate-300">
                             <tr>
                                 <th class="p-4 pl-5 font-bold">Chi nhánh</th>
                                 <th class="p-4 font-bold">Tỷ trọng</th>
@@ -827,13 +851,13 @@ const gaugeProgressColorClass = computed(() => {
                                 <th class="p-4 text-right font-bold">Giá trị yêu cầu</th>
                             </tr>
                         </thead>
-                        <tbody class="divide-y divide-slate-100 dark:divide-[#1e2638]">
-                            <tr v-for="branch in branchReport" :key="branch.id" class="transition hover:bg-slate-50/80 dark:hover:bg-[#161c2e]/50">
+                        <tbody class="divide-y divide-slate-100 dark:divide-slate-800/80">
+                            <tr v-for="branch in branchReport" :key="branch.id" class="transition hover:bg-slate-50/80 dark:hover:bg-slate-900/60">
                                 <td class="p-4 pl-5 font-bold text-slate-900 dark:text-white">{{ branch.name }}</td>
                                 <td class="w-[34%] p-4">
                                     <div class="flex items-center gap-3">
                                         <div class="h-2 flex-1 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
-                                            <div class="h-full rounded-full bg-sky-500" :style="{ width: barHeight(branch.requests, maxBranchRequests) }" />
+                                            <div class="h-full rounded-full bg-sky-500" :style="{ width: barHeight(Number(branch.requests), maxBranchRequests) }" />
                                         </div>
                                         <span class="w-12 text-right font-bold text-sky-700 dark:text-sky-400">{{ formatPercent(branch.share) }}</span>
                                     </div>
@@ -849,7 +873,7 @@ const gaugeProgressColorClass = computed(() => {
         </Card>
 
         <!-- ── 8. 7-DAY INVENTORY RECOMMENDATIONS TABLE ─────────────────────── -->
-        <Card class="overflow-hidden border border-rose-200 bg-white shadow-xs dark:border-rose-500/20 dark:bg-[#111625]/90">
+        <Card class="overflow-hidden border border-rose-200 bg-white shadow-xs dark:border-rose-500/20 dark:bg-black/80 backdrop-blur-md">
             <CardHeader class="border-b border-rose-100 bg-rose-50/80 py-4 dark:border-rose-500/15 dark:bg-rose-950/10">
                 <div class="flex flex-col justify-between gap-2 sm:flex-row sm:items-end">
                     <div>
@@ -865,7 +889,7 @@ const gaugeProgressColorClass = computed(() => {
                 <div v-if="recommendations.length === 0" class="p-8 text-center text-xs text-slate-500 dark:text-slate-400">Tồn kho hiện đáp ứng được nhu cầu dự kiến.</div>
                 <div v-else class="overflow-x-auto">
                     <table class="w-full min-w-[900px] text-left text-xs">
-                        <thead class="border-b border-slate-200 bg-slate-100/80 text-slate-700 dark:border-[#1e2638] dark:bg-[#161c2d] dark:text-slate-300">
+                        <thead class="border-b border-slate-200 bg-slate-100/80 text-slate-700 dark:border-slate-800 dark:bg-black/60 dark:text-slate-300">
                             <tr>
                                 <th class="p-4 pl-5 font-bold">Nguyên liệu</th>
                                 <th class="p-4 text-right font-bold">Tồn hiện tại</th>
@@ -875,8 +899,8 @@ const gaugeProgressColorClass = computed(() => {
                                 <th class="p-4 font-bold">Đánh giá</th>
                             </tr>
                         </thead>
-                        <tbody class="divide-y divide-slate-100 dark:divide-[#1e2638]">
-                            <tr v-for="item in recommendations" :key="item.ingredient_id" class="transition hover:bg-rose-50/50 dark:hover:bg-rose-950/10">
+                        <tbody class="divide-y divide-slate-100 dark:divide-slate-800/80">
+                            <tr v-for="item in recommendations" :key="item.ingredient_id" class="transition hover:bg-rose-50/50 dark:hover:bg-rose-950/20">
                                 <td class="p-4 pl-5">
                                     <p class="font-bold text-slate-900 dark:text-white">{{ item.name }}</p>
                                     <p class="mt-1 text-[10px] font-medium text-slate-500 dark:text-slate-400">{{ item.sku || 'Chưa có SKU' }} · {{ item.coverage_days === null ? 'Chưa đủ lịch sử' : `Đủ khoảng ${item.coverage_days} ngày` }}</p>
@@ -901,10 +925,10 @@ const gaugeProgressColorClass = computed(() => {
 
         <!-- ── 9. FOOTER KPI STATS ──────────────────────────────────────────── -->
         <section class="grid grid-cols-2 gap-3 md:grid-cols-4">
-            <Card class="border-slate-200/80 bg-white dark:border-[#1e2638] dark:bg-[#111625]/90"><CardContent class="p-4"><p class="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase">Vị trí hoạt động</p><p class="mt-1 text-2xl font-black text-slate-900 dark:text-white">{{ inventory.location_count ?? 0 }}</p></CardContent></Card>
-            <Card class="border-amber-200/80 bg-white dark:border-amber-500/20 dark:bg-[#111625]/90"><CardContent class="p-4"><p class="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase">Tồn dưới ngưỡng</p><p class="mt-1 text-2xl font-black text-amber-700 dark:text-amber-400">{{ inventory.low_stock_count ?? 0 }}</p></CardContent></Card>
-            <Card class="border-rose-200/80 bg-white dark:border-rose-500/20 dark:bg-[#111625]/90"><CardContent class="p-4"><p class="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase">Lô bị khóa / thu hồi</p><p class="mt-1 text-2xl font-black text-rose-700 dark:text-rose-400">{{ inventory.locked_batch_count ?? 0 }}</p></CardContent></Card>
-            <Card class="border-orange-200/80 bg-white dark:border-orange-500/20 dark:bg-[#111625]/90"><CardContent class="p-4"><p class="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase">Chênh lệch tiếp nhận</p><p class="mt-1 text-2xl font-black text-orange-700 dark:text-orange-400">{{ formatQuantity(receiving.discrepancy_quantity) }}</p></CardContent></Card>
+            <Card class="border-slate-200/80 bg-white dark:border-slate-800 dark:bg-black/80 backdrop-blur-md"><CardContent class="p-4"><p class="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase">Vị trí hoạt động</p><p class="mt-1 text-2xl font-black text-slate-900 dark:text-white">{{ inventory.location_count ?? 0 }}</p></CardContent></Card>
+            <Card class="border-amber-200/80 bg-white dark:border-amber-500/20 dark:bg-black/80 backdrop-blur-md"><CardContent class="p-4"><p class="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase">Tồn dưới ngưỡng</p><p class="mt-1 text-2xl font-black text-amber-700 dark:text-amber-400">{{ inventory.low_stock_count ?? 0 }}</p></CardContent></Card>
+            <Card class="border-rose-200/80 bg-white dark:border-rose-500/20 dark:bg-black/80 backdrop-blur-md"><CardContent class="p-4"><p class="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase">Lô bị khóa / thu hồi</p><p class="mt-1 text-2xl font-black text-rose-700 dark:text-rose-400">{{ inventory.locked_batch_count ?? 0 }}</p></CardContent></Card>
+            <Card class="border-orange-200/80 bg-white dark:border-orange-500/20 dark:bg-black/80 backdrop-blur-md"><CardContent class="p-4"><p class="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase">Chênh lệch tiếp nhận</p><p class="mt-1 text-2xl font-black text-orange-700 dark:text-orange-400">{{ formatQuantity(receiving.discrepancy_quantity) }}</p></CardContent></Card>
         </section>
 
         <p class="flex items-center justify-center gap-2 text-center text-[11px] font-medium text-slate-500 dark:text-slate-400">

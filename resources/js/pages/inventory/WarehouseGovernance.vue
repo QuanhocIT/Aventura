@@ -211,28 +211,28 @@ const getResponsibleLabel = (type: string) => {
     <div class="mx-auto w-full max-w-7xl space-y-6 p-4 sm:p-6">
         <!-- Header -->
         <div
-            class="flex flex-col gap-4 rounded-2xl bg-gradient-to-r from-rose-950 via-slate-900 to-slate-950 p-6 text-white shadow-xl md:flex-row md:items-center md:justify-between"
+            class="flex flex-col gap-4 rounded-2xl border border-rose-100/90 bg-gradient-to-r from-rose-50/90 via-slate-50 to-amber-50/60 p-4 text-slate-900 shadow-xs sm:p-5 dark:border-slate-800 dark:bg-black/80 dark:from-[#100606] dark:via-black dark:to-[#100606] dark:text-white backdrop-blur-md md:flex-row md:items-center md:justify-between"
         >
-            <div class="flex items-center gap-3">
+            <div class="flex items-center gap-3.5">
                 <div
-                    class="rounded-xl border border-rose-400/30 bg-rose-500/20 p-3"
+                    class="flex size-10 shrink-0 items-center justify-center rounded-xl bg-rose-600 text-white shadow-sm shadow-rose-600/20 dark:border dark:border-rose-500/30 dark:bg-rose-600/25 dark:text-rose-300 backdrop-blur-md"
                 >
-                    <ShieldAlert class="h-8 w-8 text-rose-400" />
+                    <ShieldAlert class="size-5" />
                 </div>
                 <div>
-                    <h1 class="text-2xl font-bold tracking-tight">
+                    <h1 class="text-lg font-black tracking-tight text-slate-900 md:text-xl lg:text-2xl dark:text-white">
                         Quản Trị Siết Chặt Kho & Quy Trách Nhiệm
                     </h1>
-                    <p class="text-sm text-rose-200/80">
+                    <p class="mt-0.5 text-xs leading-normal text-slate-600 dark:text-slate-400">
                         Bộ quy tắc siết chặt tài chính, xử lý bất đồng giao nhận
                         & bồi thường thất thoát
                     </p>
                 </div>
             </div>
 
-            <div class="flex items-center gap-2">
+            <div class="flex items-center gap-2 shrink-0">
                 <span
-                    class="flex items-center gap-1.5 rounded-full border border-rose-400/30 bg-rose-500/20 px-3 py-1 text-xs font-semibold text-rose-300"
+                    class="flex items-center gap-1.5 rounded-full border border-rose-200 bg-rose-100/80 px-2.5 py-0.5 text-[9px] font-extrabold text-rose-700 dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-300"
                 >
                     <Lock class="h-3.5 w-3.5" /> Chế độ Trưởng Kho
                 </span>

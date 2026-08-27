@@ -51,6 +51,7 @@ type TransferStatus =
 interface Transfer {
     id: number;
     status: TransferStatus;
+    priority: 'normal' | 'urgent';
     ingredient_id: number;
     ingredient: string | null;
     unit: string;
@@ -107,6 +108,8 @@ interface Branch {
     name: string;
 }
 
+type BranchStock = Record<string, Record<string, number>>;
+
 interface IngredientOption {
     id: number;
     name: string;
@@ -117,8 +120,14 @@ interface IngredientOption {
 const props = defineProps<{
     transfers: Transfer[];
     branches: Branch[];
+    branch_stock: BranchStock;
     ingredients: IngredientOption[];
-    permissions: { can_route: boolean; can_create: boolean };
+    permissions: {
+        can_route: boolean;
+        can_create: boolean;
+        can_execute: boolean;
+        request_only: boolean;
+    };
     summary: {
         requested: number;
         routed: number;
@@ -127,6 +136,8 @@ const props = defineProps<{
         completed: number;
     };
 }>();
+
+const requestOnly = computed(() => props.permissions.request_only === true);
 
 const showRequest = ref(false);
 const routing = ref<Transfer | null>(null);
@@ -145,6 +156,7 @@ const requestForm = useForm({
     to_branch_id: props.branches[0]?.id ?? ('' as number | ''),
     ingredient_id: '' as number | '',
     quantity_requested: 0,
+    priority: requestOnly.value ? 'urgent' : 'normal',
     reason: '',
 });
 
@@ -191,6 +203,24 @@ const availableIngredients = computed(() =>
             Number(ingredient.branch_id) === Number(requestForm.to_branch_id),
     ),
 );
+
+const routeBranchOptions = computed(() => {
+    const transfer = routing.value;
+
+    if (!transfer) {
+        return [];
+    }
+
+    return props.branches
+        .filter((branch) => branch.id !== transfer.to_branch_id)
+        .map((branch) => ({
+            ...branch,
+            available_quantity:
+                props.branch_stock[String(branch.id)]?.[
+                    String(transfer.ingredient_id)
+                ] ?? 0,
+        }));
+});
 
 const parseDate = (value: string | null): Date | null => {
     if (!value) {
@@ -265,7 +295,18 @@ const needsAction = (transfer: Transfer) =>
     transfer.can_receive ||
     transfer.can_resolve;
 
+const shouldShowInQueue = (transfer: Transfer) =>
+    needsAction(transfer) ||
+    (requestOnly.value &&
+        ['requested', 'routed', 'dispatched', 'discrepancy'].includes(
+            transfer.status,
+        ));
+
 const nextAction = (transfer: Transfer) => {
+    if (requestOnly.value && transfer.status === 'requested') {
+        return 'Chờ Chủ doanh nghiệp xem xét';
+    }
+
     if (transfer.can_route) {
 return 'Định tuyến nguồn cấp';
 }
@@ -336,7 +377,7 @@ const operationalStats = computed(() => {
 
 const workQueue = computed(() =>
     props.transfers
-        .filter(needsAction)
+        .filter(shouldShowInQueue)
         .sort((a, b) => {
             const overdueDiff = Number(isOverdue(b)) - Number(isOverdue(a));
 
@@ -383,7 +424,7 @@ const filteredTransfers = computed(() => {
             branchFilter.value === 'all' ||
             transfer.from_branch_id === branchFilter.value ||
             transfer.to_branch_id === branchFilter.value;
-        const matchesQueue = !workQueueOnly.value || needsAction(transfer);
+        const matchesQueue = !workQueueOnly.value || shouldShowInQueue(transfer);
         const haystack = [
             transfer.ingredient,
             transfer.from_branch,
@@ -465,6 +506,11 @@ const statusConfig: Record<
     },
 };
 
+const statusLabel = (status: TransferStatus) =>
+    requestOnly.value && status === 'requested'
+        ? 'Chờ Chủ doanh nghiệp xem xét'
+        : statusConfig[status].label;
+
 const openRoute = (transfer: Transfer) => {
     detailTransfer.value = null;
     routing.value = transfer;
@@ -516,6 +562,7 @@ const openReject = (transfer: Transfer) => {
 
 const openCreateRequest = () => {
     requestForm.reset();
+    requestForm.priority = requestOnly.value ? 'urgent' : 'normal';
 
     if (props.branches.length > 0 && !requestForm.to_branch_id) {
         requestForm.to_branch_id = props.branches[0].id;
@@ -689,7 +736,7 @@ return `${Math.round(hours)} giờ`;
 </script>
 
 <template>
-    <Head title="Điều chuyển liên chi nhánh" />
+    <Head :title="requestOnly ? 'Xin điều chuyển kho' : 'Điều chuyển kho'" />
 
     <div class="mx-auto flex w-full max-w-7xl flex-col gap-5 p-4 sm:p-6">
         <section
@@ -710,13 +757,18 @@ return `${Math.round(hours)} giờ`;
                     <h1
                         class="mt-1 text-xl font-black tracking-tight text-slate-900 sm:text-2xl dark:text-white"
                     >
-                        Điều chuyển liên chi nhánh
+                        {{ requestOnly ? 'Xin điều chuyển kho' : 'Điều chuyển kho' }}
                     </h1>
                     <p
                         class="mt-1 max-w-2xl text-xs leading-5 text-slate-600 dark:text-teal-100/70"
                     >
-                        Theo dõi đủ chu trình yêu cầu, định tuyến nguồn, xuất
-                        kho, bàn giao, nhận thực tế và xử lý chênh lệch.
+                        <template v-if="requestOnly">
+                            Gửi yêu cầu bổ sung nguyên liệu đột xuất để Chủ doanh nghiệp xem xét và điều phối. Bạn chỉ theo dõi tiến độ yêu cầu.
+                        </template>
+                        <template v-else>
+                            Theo dõi đủ chu trình yêu cầu, định tuyến nguồn, xuất
+                            kho, bàn giao, nhận thực tế và xử lý chênh lệch.
+                        </template>
                     </p>
                 </div>
             </div>
@@ -738,13 +790,13 @@ return `${Math.round(hours)} giờ`;
                 <p
                     class="text-[10px] font-bold tracking-wider text-blue-300 uppercase"
                 >
-                    Chờ định tuyến
+                    {{ requestOnly ? 'Chờ Chủ doanh nghiệp xem xét' : 'Chờ định tuyến' }}
                 </p>
                 <p class="mt-2 text-2xl font-black text-white">
                     {{ props.summary.requested }}
                 </p>
                 <p class="mt-1 text-[11px] text-muted-foreground">
-                    Cần chọn kho cấp
+                    {{ requestOnly ? 'Chưa được điều phối' : 'Cần chọn kho cấp' }}
                 </p>
             </button>
             <button
@@ -826,10 +878,10 @@ return `${Math.round(hours)} giờ`;
                     <div>
                         <div class="flex items-center gap-2">
                             <ListTodo class="size-4 text-teal-400" />
-                            <h2 class="font-black text-foreground">Việc cần xử lý</h2>
+                            <h2 class="font-black text-foreground">{{ requestOnly ? 'Yêu cầu đang theo dõi' : 'Việc cần xử lý' }}</h2>
                         </div>
                         <p class="mt-1 text-xs text-muted-foreground">
-                            Ưu tiên các phiếu đang chờ người dùng hiện tại thao tác.
+                            {{ requestOnly ? 'Theo dõi yêu cầu bổ sung và phản hồi điều phối từ Chủ doanh nghiệp.' : 'Ưu tiên các phiếu đang chờ người dùng hiện tại thao tác.' }}
                         </p>
                     </div>
                     <button
@@ -837,7 +889,7 @@ return `${Math.round(hours)} giờ`;
                         class="inline-flex items-center gap-1.5 rounded-lg border border-teal-400/20 px-2.5 py-1.5 text-xs font-bold text-teal-300 transition hover:bg-teal-400/10"
                         @click="setWorkQueue"
                     >
-                        <Filter class="size-3.5" /> Xem toàn bộ hàng đợi
+                        <Filter class="size-3.5" /> {{ requestOnly ? 'Xem toàn bộ yêu cầu' : 'Xem toàn bộ hàng đợi' }}
                     </button>
                 </div>
 
@@ -856,6 +908,12 @@ return `${Math.round(hours)} giờ`;
                                 <span class="font-mono text-[10px] font-bold text-muted-foreground">TR-{{ String(transfer.id).padStart(5, '0') }}</span>
                                 <span class="truncate text-sm font-bold text-foreground">{{ transfer.ingredient }}</span>
                                 <span
+                                    v-if="transfer.priority === 'urgent'"
+                                    class="inline-flex items-center gap-1 rounded-full border border-orange-400/30 bg-orange-500/10 px-2 py-0.5 text-[10px] font-bold text-orange-300"
+                                >
+                                    <AlertTriangle class="size-3" /> Khẩn cấp
+                                </span>
+                                <span
                                     v-if="isOverdue(transfer)"
                                     class="inline-flex items-center gap-1 rounded-full border border-rose-400/30 bg-rose-500/10 px-2 py-0.5 text-[10px] font-bold text-rose-300"
                                 >
@@ -869,7 +927,7 @@ return `${Math.round(hours)} giờ`;
                         <div class="flex shrink-0 items-center gap-2">
                             <span class="text-xs font-semibold text-muted-foreground">{{ formatNumber(transfer.quantity_requested) }} {{ transfer.unit }}</span>
                             <Button size="sm" class="gap-1.5 bg-teal-600 font-bold text-white hover:bg-teal-500" @click="openDetails(transfer)">
-                                Xử lý <Activity class="size-3.5" />
+                                {{ requestOnly ? 'Xem tiến độ' : 'Xử lý' }} <Activity class="size-3.5" />
                             </Button>
                         </div>
                     </div>
@@ -924,11 +982,10 @@ return `${Math.round(hours)} giờ`;
             <div class="mb-4 flex items-center justify-between gap-3">
                 <div>
                     <h2 class="font-black text-foreground">
-                        Tạo yêu cầu điều chuyển
+                        {{ requestOnly ? 'Gửi yêu cầu bổ sung' : 'Tạo yêu cầu điều chuyển' }}
                     </h2>
                     <p class="mt-1 text-xs text-muted-foreground">
-                        Yêu cầu sẽ nằm ở trạng thái chờ định tuyến cho đến khi
-                        kho cấp được chọn.
+                        {{ requestOnly ? 'Yêu cầu sẽ được gửi tới Chủ doanh nghiệp để xem xét và điều phối. Tạo yêu cầu không làm thay đổi tồn kho.' : 'Yêu cầu sẽ nằm ở trạng thái chờ định tuyến cho đến khi kho cấp được chọn.' }}
                     </p>
                 </div>
                 <Button variant="ghost" size="icon" @click="showRequest = false"
@@ -1010,6 +1067,20 @@ return `${Math.round(hours)} giờ`;
                     </p>
                 </div>
                 <div class="flex flex-col gap-1.5">
+                    <Label>Mức độ yêu cầu</Label>
+                    <select
+                        v-model="requestForm.priority"
+                        required
+                        class="h-10 rounded-md border border-input bg-background px-3 text-sm text-foreground"
+                    >
+                        <option value="urgent">Khẩn cấp — cần bổ sung sớm</option>
+                        <option value="normal">Thông thường</option>
+                    </select>
+                    <p class="text-[11px] text-muted-foreground">
+                        Chủ doanh nghiệp sẽ ưu tiên xem xét yêu cầu khẩn cấp.
+                    </p>
+                </div>
+                <div class="flex flex-col gap-1.5">
                     <Label>Lý do / nhu cầu vận hành</Label>
                     <Input
                         v-model="requestForm.reason"
@@ -1058,7 +1129,7 @@ return `${Math.round(hours)} giờ`;
                 class="h-10 rounded-md border border-input bg-background px-3 text-sm text-foreground sm:w-56"
             >
                 <option value="all">Tất cả trạng thái</option>
-                <option value="requested">Chờ định tuyến</option>
+                <option value="requested">{{ requestOnly ? 'Chờ Chủ doanh nghiệp xem xét' : 'Chờ định tuyến' }}</option>
                 <option value="routed">Chờ xuất kho</option>
                 <option value="dispatched">Đang vận chuyển</option>
                 <option value="discrepancy">Chờ xử lý chênh lệch</option>
@@ -1124,13 +1195,19 @@ return `${Math.round(hours)} giờ`;
                                 transfer.ingredient
                             }}</span>
                             <span
+                                v-if="transfer.priority === 'urgent'"
+                                class="inline-flex items-center gap-1 rounded-full border border-orange-400/30 bg-orange-500/10 px-2 py-1 text-[10px] font-bold text-orange-300"
+                            >
+                                <AlertTriangle class="size-3" /> Khẩn cấp
+                            </span>
+                            <span
                                 class="rounded-full border px-2 py-1 text-[10px] font-bold"
                                 :class="statusConfig[transfer.status].className"
                             >
                                 <component
                                     :is="statusConfig[transfer.status].icon"
                                     class="mr-1 inline size-3"
-                                />{{ statusConfig[transfer.status].label }}
+                                />{{ statusLabel(transfer.status) }}
                             </span>
                             <span
                                 v-if="isOverdue(transfer)"
@@ -1435,7 +1512,7 @@ return `${Math.round(hours)} giờ`;
                     <div>
                         <p class="text-[10px] font-bold tracking-wider text-teal-400 uppercase">Khởi tạo điều chuyển</p>
                         <h2 class="mt-1 text-xl font-black">Tạo yêu cầu điều chuyển</h2>
-                        <p class="mt-1 text-xs text-muted-foreground">Yêu cầu sẽ nằm ở trạng thái chờ định tuyến cho đến khi kho cấp được chọn.</p>
+                        <p class="mt-1 text-xs text-muted-foreground">{{ requestOnly ? 'Yêu cầu được gửi tới Chủ doanh nghiệp để xem xét và điều phối; chưa thay đổi tồn kho.' : 'Yêu cầu sẽ nằm ở trạng thái chờ định tuyến cho đến khi kho cấp được chọn.' }}</p>
                     </div>
                     <Button variant="ghost" size="icon" @click="closeModals"><X class="size-4" /></Button>
                 </div>
@@ -1467,6 +1544,14 @@ return `${Math.round(hours)} giờ`;
                         <p v-if="requestForm.errors.quantity_requested" class="text-xs text-rose-500">{{ requestForm.errors.quantity_requested }}</p>
                     </div>
                     <div class="flex flex-col gap-1.5">
+                        <Label>Mức độ yêu cầu</Label>
+                        <select v-model="requestForm.priority" required class="h-10 rounded-md border border-input bg-background px-3 text-sm text-foreground">
+                            <option value="urgent">Khẩn cấp — cần bổ sung sớm</option>
+                            <option value="normal">Thông thường</option>
+                        </select>
+                        <p class="text-[11px] text-muted-foreground">Chủ doanh nghiệp sẽ ưu tiên xem xét yêu cầu khẩn cấp.</p>
+                    </div>
+                    <div class="flex flex-col gap-1.5">
                         <Label>Lý do / nhu cầu vận hành</Label>
                         <Input v-model="requestForm.reason" required placeholder="VD: Thiếu hàng phục vụ ca tối, mượn tạm..." />
                         <p v-if="requestForm.errors.reason" class="text-xs text-rose-500">{{ requestForm.errors.reason }}</p>
@@ -1487,7 +1572,7 @@ return `${Math.round(hours)} giờ`;
                                 class="rounded-full border px-2 py-1 text-[10px] font-bold"
                                 :class="statusConfig[detailTransfer.status].className"
                             >
-                                {{ statusConfig[detailTransfer.status].label }}
+                                {{ statusLabel(detailTransfer.status) }}
                             </span>
                             <span v-if="isOverdue(detailTransfer)" class="rounded-full bg-rose-500/10 px-2 py-1 text-[10px] font-bold text-rose-300">Quá SLA {{ overdueHours(detailTransfer) }}h</span>
                         </div>
@@ -1592,14 +1677,12 @@ return `${Math.round(hours)} giờ`;
                                 — Chọn nguồn có tồn —
                             </option>
                             <option
-                                v-for="branch in props.branches.filter(
-                                    (branch) =>
-                                        branch.id !== routing?.to_branch_id,
-                                )"
+                                v-for="branch in routeBranchOptions"
                                 :key="branch.id"
                                 :value="branch.id"
+                                :disabled="branch.available_quantity < routing.quantity_requested"
                             >
-                                {{ branch.name }}
+                                {{ branch.name }} · tồn {{ formatNumber(branch.available_quantity) }} {{ routing.unit }}
                             </option>
                         </select>
                         <p

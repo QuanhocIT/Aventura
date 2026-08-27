@@ -106,25 +106,30 @@ return;
     <Head title="Thu hồi Lô Khẩn cấp" />
     <div class="mx-auto w-full max-w-7xl space-y-6 p-4 sm:p-6">
         <div
-            class="flex flex-col justify-between gap-4 rounded-2xl bg-gradient-to-r from-rose-950 via-red-950 to-slate-950 p-6 text-white shadow-xl md:flex-row md:items-center"
+            class="flex flex-col justify-between gap-4 rounded-2xl border border-rose-100/90 bg-gradient-to-r from-rose-50/90 via-slate-50 to-red-50/60 p-4 text-slate-900 shadow-xs sm:p-5 dark:border-slate-800 dark:bg-black/80 dark:from-[#100606] dark:via-black dark:to-[#100606] dark:text-white backdrop-blur-md md:flex-row md:items-center"
         >
-            <div>
-                <p
-                    class="flex items-center gap-2 text-xs font-bold tracking-[0.18em] text-rose-300 uppercase"
-                >
-                    <ShieldAlert class="h-4 w-4" /> An toàn nguyên vật liệu
-                </p>
-                <h1 class="mt-2 text-2xl font-bold">Thu hồi Lô Khẩn cấp</h1>
-                <p class="mt-1 text-sm text-rose-100/75">
-                    Khóa lô lỗi, truy vết ảnh hưởng và ghi nhận xử lý trên toàn
-                    chuỗi nhà hàng.
-                </p>
+            <div class="flex items-center gap-3.5">
+                <div class="flex size-10 shrink-0 items-center justify-center rounded-xl bg-rose-600 text-white shadow-sm shadow-rose-600/20 dark:border dark:border-rose-500/30 dark:bg-rose-600/25 dark:text-rose-300 backdrop-blur-md">
+                    <ShieldAlert class="size-5" />
+                </div>
+                <div>
+                    <span
+                        class="inline-flex items-center gap-1.5 rounded-full border border-rose-200 bg-rose-100/80 px-2.5 py-0.5 text-[9px] font-extrabold tracking-widest text-rose-700 uppercase dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-300"
+                    >
+                        An toàn nguyên vật liệu
+                    </span>
+                    <h1 class="mt-1 text-lg font-black tracking-tight text-slate-900 md:text-xl lg:text-2xl dark:text-white">Thu hồi Lô Khẩn cấp</h1>
+                    <p class="mt-0.5 text-xs leading-normal text-slate-600 dark:text-slate-400">
+                        Khóa lô lỗi, truy vết ảnh hưởng và ghi nhận xử lý trên toàn
+                        chuỗi nhà hàng.
+                    </p>
+                </div>
             </div>
             <div
-                class="rounded-xl border border-white/15 bg-white/10 px-5 py-3 text-sm backdrop-blur"
+                class="rounded-xl border border-slate-200/80 bg-white/90 px-3.5 py-1.5 text-xs shadow-2xs backdrop-blur-sm dark:border-white/10 dark:bg-black/50 shrink-0"
             >
-                <div class="text-rose-200/70">Lệnh thu hồi</div>
-                <div class="mt-1 text-2xl font-bold">
+                <div class="text-[9px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Lệnh thu hồi</div>
+                <div class="font-extrabold text-slate-900 dark:text-white text-base">
                     {{ recallOrders.length }}
                 </div>
             </div>

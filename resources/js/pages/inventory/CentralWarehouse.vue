@@ -1244,20 +1244,20 @@ const submitRecall = async () => {
         </div>
         <!-- Header Section -->
         <div
-            class="flex flex-col gap-4 rounded-2xl border border-indigo-200/80 bg-gradient-to-r from-indigo-50/70 via-slate-50 to-indigo-100/40 p-6 text-slate-900 shadow-sm md:flex-row md:items-center md:justify-between dark:border-indigo-400/20 dark:bg-gradient-to-r dark:from-slate-900 dark:via-indigo-950 dark:to-slate-900 dark:text-white dark:shadow-xl"
+            class="flex flex-col gap-4 rounded-2xl border border-indigo-100/90 bg-gradient-to-r from-indigo-50/90 via-slate-50 to-purple-50/60 p-4 text-slate-900 shadow-xs md:flex-row md:items-center md:justify-between dark:border-slate-800 dark:bg-black/80 dark:from-[#080b12] dark:via-black dark:to-[#080b12] dark:text-white backdrop-blur-md"
         >
             <div class="space-y-1">
                 <div class="flex items-center gap-3">
                     <div
-                        class="rounded-xl border border-indigo-200 bg-indigo-500/10 p-3 text-indigo-600 dark:border-indigo-400/30 dark:bg-indigo-500/20 dark:text-indigo-300"
+                        class="flex size-10 shrink-0 items-center justify-center rounded-xl bg-indigo-600 text-white shadow-sm shadow-indigo-600/20 dark:border dark:border-indigo-500/30 dark:bg-indigo-600/25 dark:text-indigo-400 backdrop-blur-md"
                     >
-                        <Warehouse class="h-8 w-8" />
+                        <Warehouse class="size-5" />
                     </div>
                     <div>
-                        <h1 class="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
+                        <h1 class="text-lg font-black tracking-tight text-slate-900 md:text-xl lg:text-2xl dark:text-white">
                             Trung tâm Điều phối Kho Tổng
                         </h1>
-                        <p class="text-sm text-slate-600 dark:text-indigo-200/80">
+                        <p class="text-xs text-slate-600 dark:text-slate-400">
                             Quản lý cấp phát nguyên liệu đồng bộ cho toàn bộ
                             chuỗi nhà hàng
                         </p>
@@ -1267,13 +1267,13 @@ const submitRecall = async () => {
 
             <!-- Kho Tổng là kho độc lập, không phải một chi nhánh -->
             <div
-                class="flex items-center gap-3 rounded-xl border border-white/20 bg-white/10 p-3 backdrop-blur-md"
+                class="flex items-center gap-3 rounded-xl border border-slate-200/80 bg-white/90 px-3.5 py-2 text-xs shadow-2xs backdrop-blur-sm dark:border-white/10 dark:bg-black/50"
             >
-                <Building2 class="h-5 w-5 text-indigo-300" />
+                <Building2 class="size-4 text-indigo-500 dark:text-indigo-400" />
                 <div class="text-xs">
-                    <div class="text-indigo-200">Kho xuất hàng</div>
-                    <div class="font-semibold text-white">Kho Tổng độc lập</div>
-                    <div class="mt-0.5 text-[10px] text-indigo-200/70">
+                    <div class="text-[9px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Kho xuất hàng</div>
+                    <div class="font-extrabold text-slate-900 dark:text-white">Kho Tổng độc lập</div>
+                    <div class="text-[10px] text-slate-500 dark:text-slate-400">
                         Điều phối riêng, không thuộc chi nhánh
                     </div>
                 </div>

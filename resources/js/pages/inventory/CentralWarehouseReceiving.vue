@@ -962,30 +962,30 @@ const documentTypeLabel = (type: string) =>
     <Head title="Nhập nguyên liệu vào Kho Tổng" />
     <div class="mx-auto w-full max-w-[1500px] space-y-5 p-4 sm:p-6">
         <section
-            class="rounded-3xl border border-orange-200/80 bg-gradient-to-br from-orange-50/70 via-slate-50 to-orange-100/40 p-6 text-slate-900 shadow-sm sm:p-8 dark:border-orange-500/20 dark:bg-gradient-to-br dark:from-slate-950 dark:via-orange-950/80 dark:to-slate-900 dark:text-white dark:shadow-xl"
+            class="rounded-2xl border border-orange-100/90 bg-gradient-to-r from-orange-50/90 via-slate-50 to-amber-50/60 p-4 text-slate-900 shadow-xs sm:p-5 dark:border-slate-800 dark:bg-black/80 dark:from-[#0b0804] dark:via-black dark:to-[#0b0804] dark:text-white backdrop-blur-md"
         >
             <div
-                class="flex flex-col justify-between gap-5 lg:flex-row lg:items-center"
+                class="flex flex-col justify-between gap-4 lg:flex-row lg:items-center"
             >
                 <div>
                     <Link
                         href="/inventory/central-warehouse"
-                        class="mb-3 inline-flex items-center gap-1 text-xs text-orange-700 hover:text-orange-900 dark:text-orange-200 dark:hover:text-white"
+                        class="mb-2 inline-flex items-center gap-1 text-xs text-orange-600 hover:text-orange-700 dark:text-orange-400 dark:hover:text-orange-300"
                         ><ArrowLeft class="size-3.5" /> Tổng quan Kho Tổng</Link
                     >
                     <div class="flex items-center gap-3">
                         <div
-                            class="flex size-12 items-center justify-center rounded-2xl bg-orange-500/10 text-orange-600 dark:bg-orange-500/20 dark:text-orange-200"
+                            class="flex size-10 shrink-0 items-center justify-center rounded-xl bg-orange-500 text-white shadow-sm shadow-orange-500/20 dark:border dark:border-orange-500/30 dark:bg-orange-500/25 dark:text-orange-300 backdrop-blur-md"
                         >
-                            <ClipboardCheck class="size-7" />
+                            <ClipboardCheck class="size-5" />
                         </div>
                         <div>
                             <h1
-                                class="text-2xl font-black tracking-tight text-slate-900 sm:text-3xl dark:text-white"
+                                class="text-lg font-black tracking-tight text-slate-900 md:text-xl lg:text-2xl dark:text-white"
                             >
                                 Nhận hàng & GRN
                             </h1>
-                            <p class="mt-1 text-sm text-orange-100/75">
+                            <p class="mt-0.5 text-xs leading-normal text-slate-600 dark:text-slate-400">
                                 Kiểm soát chứng từ, số lượng thực nhận, lô, HSD
                                 và vị trí trước khi nhập Kho Tổng.
                             </p>
@@ -995,21 +995,21 @@ const documentTypeLabel = (type: string) =>
                 <div class="flex flex-wrap gap-2">
                     <Button
                         v-if="canCreateReceiving"
-                        class="gap-2 bg-orange-600 text-white hover:bg-orange-700"
+                        class="h-9 gap-1.5 rounded-xl bg-orange-500 px-4 text-xs font-bold text-white hover:bg-orange-600 active:translate-y-0 shadow-xs"
                         @click="showGrnForm = true"
-                        ><Plus class="size-4" /> Nhập nguyên liệu vào Kho Tổng</Button
+                        ><Plus class="size-3.5" /> Nhập nguyên liệu vào Kho Tổng</Button
                     ><Link href="/inventory/staff-portal"
                         ><Button
                             variant="outline"
-                            class="gap-2 border-white/25 bg-white/10 text-white hover:bg-white/20 hover:text-white"
-                            ><PackageCheck class="size-4" /> Cổng nhân
+                            class="h-9 gap-1.5 rounded-xl border-slate-200 bg-white/90 px-3.5 text-xs font-bold text-slate-800 shadow-2xs hover:bg-slate-100 dark:border-white/10 dark:bg-black/50 dark:text-slate-200 dark:hover:bg-white/10"
+                            ><PackageCheck class="size-3.5" /> Cổng nhân
                             viên</Button
                         ></Link
                     ><Button
                         variant="outline"
-                        class="gap-2 border-white/25 bg-white/10 text-white hover:bg-white/20 hover:text-white"
+                        class="h-9 gap-1.5 rounded-xl border-slate-200 bg-white/90 px-3.5 text-xs font-bold text-slate-800 shadow-2xs hover:bg-slate-100 dark:border-white/10 dark:bg-black/50 dark:text-slate-200 dark:hover:bg-white/10"
                         @click="reload"
-                        ><RefreshCw class="size-4" /> Làm mới</Button
+                        ><RefreshCw class="size-3.5" /> Làm mới</Button
                     >
                 </div>
             </div>

@@ -766,41 +766,41 @@ const handleReconcile = async () => {
     <div class="mx-auto w-full max-w-7xl space-y-6 p-4 sm:p-6">
         <!-- Hero Header -->
         <div
-            class="relative flex flex-col justify-between gap-4 overflow-hidden rounded-3xl border border-emerald-200/80 bg-gradient-to-r from-emerald-50/70 via-slate-50 to-emerald-100/40 p-6 text-slate-900 shadow-sm sm:p-8 dark:border-white/10 dark:bg-gradient-to-r dark:from-slate-950 dark:via-slate-900 dark:to-emerald-950 dark:text-white dark:shadow-2xl"
+            class="relative flex flex-col justify-between gap-4 overflow-hidden rounded-2xl border border-emerald-100/90 bg-gradient-to-r from-emerald-50/90 via-slate-50 to-teal-50/60 p-4 text-slate-900 shadow-xs sm:p-5 dark:border-slate-800 dark:bg-black/80 dark:from-[#040b07] dark:via-black dark:to-[#040b07] dark:text-white backdrop-blur-md"
         >
             <div
                 class="pointer-events-none absolute -right-10 -bottom-10 opacity-10"
             >
-                <FileSpreadsheet class="h-72 w-72 text-emerald-600 dark:text-emerald-400" />
+                <FileSpreadsheet class="h-48 w-48 text-emerald-600 dark:text-emerald-400" />
             </div>
 
             <div class="relative z-10">
-                <div class="mb-3 flex items-center gap-2">
+                <div class="mb-2 flex items-center gap-2">
                     <Link
                         href="/inventory/central-warehouse"
-                        class="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-500/10 px-3 py-1 text-xs font-medium text-emerald-700 transition-colors hover:bg-emerald-500/20 dark:border-white/10 dark:bg-white/5 dark:text-emerald-300 dark:hover:bg-white/10 dark:hover:text-white"
+                        class="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-500/10 px-2.5 py-0.5 text-[10px] font-medium text-emerald-700 transition-colors hover:bg-emerald-500/20 dark:border-white/10 dark:bg-white/5 dark:text-emerald-300 dark:hover:bg-white/10 dark:hover:text-white"
                     >
-                        <ArrowLeft class="h-3.5 w-3.5" /> Tổng quan Kho
+                        <ArrowLeft class="size-3" /> Tổng quan Kho
                     </Link>
                     <span class="text-xs text-muted-foreground/60">•</span>
-                    <span class="font-mono text-xs text-emerald-700 dark:text-emerald-200/80"
+                    <span class="font-mono text-[10px] text-emerald-700 dark:text-emerald-200/80"
                         >WMS Inventory Control</span
                     >
                 </div>
 
                 <div class="flex items-center gap-3.5">
                     <div
-                        class="rounded-2xl border border-emerald-200 bg-emerald-500/10 p-3 text-emerald-600 shadow-xs dark:border-emerald-500/30 dark:bg-emerald-500/20 dark:text-emerald-300 dark:shadow-inner"
+                        class="flex size-10 shrink-0 items-center justify-center rounded-xl bg-emerald-600 text-white shadow-sm shadow-emerald-600/20 dark:border dark:border-emerald-500/30 dark:bg-emerald-600/25 dark:text-emerald-300 backdrop-blur-md"
                     >
-                        <FileSpreadsheet class="h-7 w-7" />
+                        <FileSpreadsheet class="size-5" />
                     </div>
                     <div>
                         <h1
-                            class="text-2xl font-extrabold tracking-tight text-slate-900 sm:text-3xl dark:text-white"
+                            class="text-lg font-black tracking-tight text-slate-900 md:text-xl lg:text-2xl dark:text-white"
                         >
                             Kiểm kê & Điều chỉnh Tồn kho
                         </h1>
-                        <p class="mt-1 max-w-2xl text-sm text-slate-600 dark:text-slate-300">
+                        <p class="mt-0.5 max-w-2xl text-xs leading-normal text-slate-600 dark:text-slate-400">
                             Khởi tạo phiên kiểm đếm thực tế (định kỳ, đột xuất,
                             blind count), tính toán sai lệch và đối soát điều
                             chỉnh vào sổ cái bất biến.

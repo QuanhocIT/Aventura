@@ -132,29 +132,41 @@ return;
 
     <div class="mx-auto w-full max-w-7xl space-y-6 p-4 sm:p-6">
         <div
-            class="flex flex-col justify-between gap-4 rounded-2xl bg-gradient-to-r from-amber-950 via-orange-950 to-slate-950 p-6 text-white shadow-xl md:flex-row md:items-center"
+            class="flex flex-col justify-between gap-4 rounded-2xl border border-amber-100/90 bg-gradient-to-r from-amber-50/90 via-slate-50 to-orange-50/60 p-4 text-slate-900 shadow-xs sm:p-5 dark:border-slate-800 dark:bg-black/80 dark:from-[#0b0804] dark:via-black dark:to-[#0b0804] dark:text-white backdrop-blur-md md:flex-row md:items-center"
         >
-            <div>
-                <p
-                    class="flex items-center gap-2 text-xs font-bold tracking-[0.18em] text-amber-300 uppercase"
-                >
-                    <Factory class="h-4 w-4" /> Sản xuất trung tâm
-                </p>
-                <h1 class="mt-2 text-2xl font-bold">Central Kitchen Sơ chế</h1>
-                <p class="mt-1 text-sm text-amber-100/75">
-                    Lập lệnh sơ chế, theo dõi sản lượng và nhập lô thành phẩm
-                    vào Kho Tổng.
-                </p>
+            <div class="flex items-center gap-3.5">
+                <div class="flex size-10 shrink-0 items-center justify-center rounded-xl bg-amber-600 text-white shadow-sm shadow-amber-600/20 dark:border dark:border-amber-500/30 dark:bg-amber-600/25 dark:text-amber-300 backdrop-blur-md">
+                    <Factory class="size-5" />
+                </div>
+                <div>
+                    <span
+                        class="inline-flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-100/80 px-2.5 py-0.5 text-[9px] font-extrabold tracking-widest text-amber-700 uppercase dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-300"
+                    >
+                        Sản xuất trung tâm
+                    </span>
+                    <h1 class="mt-1 text-lg font-black tracking-tight text-slate-900 md:text-xl lg:text-2xl dark:text-white">Central Kitchen Sơ chế</h1>
+                    <p class="mt-0.5 text-xs leading-normal text-slate-600 dark:text-slate-400">
+                        Lập lệnh sơ chế, theo dõi sản lượng và nhập lô thành phẩm
+                        vào Kho Tổng.
+                    </p>
+                </div>
             </div>
             <div
-                class="rounded-xl border border-white/15 bg-white/10 px-5 py-3 text-sm backdrop-blur"
+                class="rounded-xl border border-slate-200/80 bg-white/90 px-3.5 py-1.5 text-xs shadow-2xs backdrop-blur-sm dark:border-white/10 dark:bg-black/50 shrink-0"
             >
-                <div class="text-amber-200/70">Lệnh đang mở</div>
-                <div class="mt-1 text-2xl font-bold">{{ activeOrders }}</div>
+                <div class="text-[9px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Lệnh đang mở</div>
+                <div class="font-extrabold text-slate-900 dark:text-white text-base">{{ activeOrders }}</div>
             </div>
         </div>
 
-        <div class="grid gap-4 lg:grid-cols-[360px_1fr]">
+        <div
+            class="grid gap-4"
+            :class="
+                canManageWarehouse
+                    ? 'lg:grid-cols-[360px_1fr]'
+                    : 'lg:grid-cols-1'
+            "
+        >
             <Card v-if="canManageWarehouse" class="border-amber-500/20">
                 <CardHeader
                     class="border-b border-amber-500/10 bg-amber-950/10"
