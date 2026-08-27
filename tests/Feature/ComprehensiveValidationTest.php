@@ -949,7 +949,11 @@ class ComprehensiveValidationTest extends TestCase
             'notes' => 'Test over-transfer',
         ]);
 
-        $response->assertSessionHas('error');
+        $response->assertRedirect();
+        $transfer = \App\Models\StockTransferRequest::latest('id')->firstOrFail();
+        $this->actingAs($this->owner)->post("/inventory/transfers/{$transfer->id}/route", [
+            'from_branch_id' => $branch1->id,
+        ])->assertRedirect()->assertSessionHasErrors(['from_branch_id']);
 
         // Verify stock was NOT changed
         $this->assertDatabaseHas('inventories', [

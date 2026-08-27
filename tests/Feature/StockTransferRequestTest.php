@@ -4,6 +4,9 @@ namespace Tests\Feature;
 
 use App\Models\Ingredient;
 use App\Models\Inventory;
+use App\Models\InventoryBatch;
+use App\Models\InventoryBatchAllocation;
+use App\Models\InventoryTransaction;
 use App\Models\Restaurant;
 use App\Models\RestaurantBranch;
 use App\Models\StockTransferRequest;
@@ -14,6 +17,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Storage;
+use Inertia\Testing\AssertableInertia as Assert;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
@@ -32,6 +36,8 @@ class StockTransferRequestTest extends TestCase
 
     private User $managerB;   // chi nhánh THỪA
 
+    private User $warehouseManager;
+
     private Restaurant $restaurant;
 
     private RestaurantBranch $branchA;
@@ -46,6 +52,7 @@ class StockTransferRequestTest extends TestCase
 
         $ownerRole = Role::firstOrCreate(['name' => 'owner', 'guard_name' => 'web']);
         Role::firstOrCreate(['name' => 'manager', 'guard_name' => 'web']);
+        Role::firstOrCreate(['name' => 'warehouse_manager', 'guard_name' => 'web']);
 
         $this->restaurant = Restaurant::factory()->create();
         $this->owner = User::factory()->create(['restaurant_id' => $this->restaurant->id, 'status' => 'active']);
@@ -59,6 +66,8 @@ class StockTransferRequestTest extends TestCase
         $this->managerA->assignRole('manager');
         $this->managerB = User::factory()->create(['restaurant_id' => $this->restaurant->id, 'branch_id' => $this->branchB->id, 'status' => 'active']);
         $this->managerB->assignRole('manager');
+        $this->warehouseManager = User::factory()->create(['restaurant_id' => $this->restaurant->id, 'status' => 'active']);
+        $this->warehouseManager->assignRole('warehouse_manager');
 
         $unit = Unit::create(['restaurant_id' => $this->restaurant->id, 'name' => 'Kg', 'symbol' => 'kg', 'type' => 'weight']);
         $this->ingredient = Ingredient::create([
@@ -93,6 +102,8 @@ class StockTransferRequestTest extends TestCase
         // 1. Yêu cầu → báo Chủ.
         $t = $this->makeRequest();
         $this->assertEquals('requested', $t->status);
+        $this->assertSame('urgent', $t->priority);
+        $this->assertDatabaseCount('inventory_transactions', 0);
         Notification::assertSentTo($this->owner, StockTransferStageNotification::class);
 
         // 2. Chủ định tuyến chi nhánh THỪA → sinh mã.
@@ -106,17 +117,17 @@ class StockTransferRequestTest extends TestCase
         $this->assertNotEmpty($t->handover_code);
 
         // 3. Chi nhánh THỪA xuất → trừ kho B.
-        $this->actingAs($this->managerB)->post("/inventory/transfers/{$t->id}/dispatch", [
+        $this->actingAs($this->warehouseManager)->post("/inventory/transfers/{$t->id}/dispatch", [
             'quantity_dispatched' => 30,
         ])->assertRedirect()->assertSessionHasNoErrors();
         $t->refresh();
         $this->assertEquals('dispatched', $t->status);
-        $this->assertEquals($this->managerB->id, $t->dispatched_by);
+        $this->assertEquals($this->warehouseManager->id, $t->dispatched_by);
         $invB = Inventory::where('branch_id', $this->branchB->id)->where('ingredient_id', $this->ingredient->id)->first();
         $this->assertEqualsWithDelta(70, (float) $invB->quantity_on_hand, 0.001);
 
         // 4. Chi nhánh THIẾU nhận bằng mã → cộng kho A.
-        $this->actingAs($this->managerA)->post("/inventory/transfers/{$t->id}/receive", [
+        $this->actingAs($this->owner)->post("/inventory/transfers/{$t->id}/receive", [
             'handover_code' => $t->handover_code,
         ])->assertRedirect()->assertSessionHasNoErrors();
         $t->refresh();
@@ -125,13 +136,61 @@ class StockTransferRequestTest extends TestCase
         $this->assertEqualsWithDelta(30, (float) $invA->quantity_on_hand, 0.001);
     }
 
+    public function test_dispatch_consumes_multiple_fefo_batches(): void
+    {
+        InventoryBatch::create([
+            'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branchB->id,
+            'ingredient_id' => $this->ingredient->id,
+            'batch_number' => 'LOT-EARLY',
+            'quantity_remaining' => 40,
+            'unit_cost' => 18000,
+            'purchased_at' => now()->subDays(2),
+            'expiry_date' => now()->addDays(2)->toDateString(),
+            'status' => 'active',
+        ]);
+        InventoryBatch::create([
+            'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branchB->id,
+            'ingredient_id' => $this->ingredient->id,
+            'batch_number' => 'LOT-LATE',
+            'quantity_remaining' => 60,
+            'unit_cost' => 22000,
+            'purchased_at' => now()->subDay(),
+            'expiry_date' => now()->addDays(10)->toDateString(),
+            'status' => 'active',
+        ]);
+
+        $this->actingAs($this->managerA)->post('/inventory/transfers', [
+            'to_branch_id' => $this->branchA->id,
+            'ingredient_id' => $this->ingredient->id,
+            'quantity_requested' => 80,
+            'reason' => 'Kiá»ƒm tra xuáº¥t nhiá»u lÃ´',
+        ])->assertRedirect()->assertSessionHasNoErrors();
+        $transfer = StockTransferRequest::latest('id')->firstOrFail();
+
+        $this->actingAs($this->owner)->post("/inventory/transfers/{$transfer->id}/route", [
+            'from_branch_id' => $this->branchB->id,
+        ])->assertRedirect()->assertSessionHasNoErrors();
+        $this->actingAs($this->warehouseManager)->post("/inventory/transfers/{$transfer->id}/dispatch", [
+            'quantity_dispatched' => 80,
+        ])->assertRedirect()->assertSessionHasNoErrors();
+
+        $out = InventoryTransaction::where('source_type', 'stock_transfer')
+            ->where('source_id', $transfer->id)->where('direction', 'out')->firstOrFail();
+        $allocations = InventoryBatchAllocation::where('inventory_transaction_id', $out->id)->orderBy('id')->get();
+        $this->assertCount(2, $allocations);
+        $this->assertEqualsWithDelta(40, (float) $allocations[0]->quantity, 0.001);
+        $this->assertEqualsWithDelta(40, (float) $allocations[1]->quantity, 0.001);
+    }
+
     public function test_receive_requires_correct_code(): void
     {
         $t = $this->makeRequest();
         $this->actingAs($this->owner)->post("/inventory/transfers/{$t->id}/route", ['from_branch_id' => $this->branchB->id])->assertRedirect();
-        $this->actingAs($this->managerB)->post("/inventory/transfers/{$t->id}/dispatch", ['quantity_dispatched' => 30])->assertRedirect();
+        $this->actingAs($this->warehouseManager)->post("/inventory/transfers/{$t->id}/dispatch", ['quantity_dispatched' => 30])->assertRedirect();
 
-        $this->actingAs($this->managerA)->from('/inventory/transfers')
+        $this->actingAs($this->owner)->from('/inventory/transfers')
             ->post("/inventory/transfers/{$t->id}/receive", ['handover_code' => 'WRONG1'])
             ->assertSessionHasErrors(['handover_code']);
         $this->assertEquals('dispatched', $t->refresh()->status);
@@ -159,12 +218,84 @@ class StockTransferRequestTest extends TestCase
             ->assertSessionHasErrors(['from_branch_id']);
     }
 
+    public function test_route_rejects_source_without_enough_inventory(): void
+    {
+        $this->actingAs($this->managerA)->post('/inventory/transfers', [
+            'to_branch_id' => $this->branchA->id,
+            'ingredient_id' => $this->ingredient->id,
+            'quantity_requested' => 101,
+            'reason' => 'Cần bổ sung vượt quá tồn hiện tại.',
+        ])->assertRedirect()->assertSessionHasNoErrors();
+
+        $transfer = StockTransferRequest::latest('id')->firstOrFail();
+
+        $this->actingAs($this->owner)
+            ->from('/inventory/transfers')
+            ->post("/inventory/transfers/{$transfer->id}/route", ['from_branch_id' => $this->branchB->id])
+            ->assertSessionHasErrors(['from_branch_id']);
+
+        $this->assertEquals('requested', $transfer->refresh()->status);
+    }
+
     public function test_manager_cannot_route(): void
     {
         $t = $this->makeRequest();
         $this->actingAs($this->managerB)->post("/inventory/transfers/{$t->id}/route", [
             'from_branch_id' => $this->branchB->id,
         ])->assertForbidden();
+    }
+
+    public function test_manager_cannot_execute_stock_movement(): void
+    {
+        $t = $this->makeRequest();
+        $this->actingAs($this->owner)->post("/inventory/transfers/{$t->id}/route", [
+            'from_branch_id' => $this->branchB->id,
+        ])->assertRedirect();
+
+        $this->actingAs($this->managerB)
+            ->post("/inventory/transfers/{$t->id}/dispatch", ['quantity_dispatched' => 30])
+            ->assertForbidden();
+
+        $this->actingAs($this->owner)
+            ->post("/inventory/transfers/{$t->id}/dispatch", ['quantity_dispatched' => 30])
+            ->assertRedirect();
+
+        $this->actingAs($this->managerA)
+            ->post("/inventory/transfers/{$t->id}/receive", [
+                'handover_code' => $t->refresh()->handover_code,
+            ])
+            ->assertForbidden();
+    }
+
+    public function test_manager_uses_request_workspace_and_receives_no_source_workflow_data(): void
+    {
+        $transfer = $this->makeRequest();
+
+        $this->actingAs($this->managerA)
+            ->get('/inventory/transfers')
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('inventory/TransferRequests')
+                ->where('permissions.request_only', true)
+                ->has('transfers', 1)
+                ->where('transfers.0.id', $transfer->id)
+                ->missing('transfers.0.from_branch')
+                ->missing('transfers.0.handover_code')
+            );
+    }
+
+    public function test_manager_request_is_locked_to_assigned_branch_on_server(): void
+    {
+        $this->actingAs($this->managerA)
+            ->from('/inventory/transfers')
+            ->post('/inventory/transfers', [
+                'to_branch_id' => $this->branchB->id,
+                'ingredient_id' => $this->ingredient->id,
+                'quantity_requested' => 10,
+                'reason' => 'Cần bổ sung cho chi nhánh khác.',
+            ])
+            ->assertForbidden();
+
+        $this->assertDatabaseCount('stock_transfer_requests', 0);
     }
 
     public function test_partial_dispatch_is_rejected_to_prevent_false_completion(): void
@@ -174,7 +305,7 @@ class StockTransferRequestTest extends TestCase
             'from_branch_id' => $this->branchB->id,
         ])->assertRedirect();
 
-        $this->actingAs($this->managerB)
+        $this->actingAs($this->warehouseManager)
             ->post("/inventory/transfers/{$t->id}/dispatch", ['quantity_dispatched' => 20])
             ->assertRedirect()
             ->assertSessionHas('error');
@@ -190,11 +321,11 @@ class StockTransferRequestTest extends TestCase
         $this->actingAs($this->owner)->post("/inventory/transfers/{$t->id}/route", [
             'from_branch_id' => $this->branchB->id,
         ])->assertRedirect();
-        $this->actingAs($this->managerB)->post("/inventory/transfers/{$t->id}/dispatch", [
+        $this->actingAs($this->warehouseManager)->post("/inventory/transfers/{$t->id}/dispatch", [
             'quantity_dispatched' => 30,
         ])->assertRedirect();
 
-        $this->actingAs($this->managerA)->post("/inventory/transfers/{$t->id}/receive", [
+        $this->actingAs($this->owner)->post("/inventory/transfers/{$t->id}/receive", [
             'handover_code' => $t->refresh()->handover_code,
             'quantity_received' => 28,
             'received_condition' => 'shortage',

@@ -10,6 +10,7 @@ use App\Models\User;
 use Illuminate\Filesystem\FilesystemAdapter;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
@@ -388,12 +389,12 @@ class EmployeeManagementTest extends TestCase
 
         $response1->assertSessionHasErrors('role');
 
-        // Creating assistant_warehouse_keeper in business branch scope should fail
+        // Creating a central warehouse staff member in business branch scope should fail
         $response2 = $this->actingAs($this->owner)
             ->withSession(['active_branch_id' => $businessBranch->id])
             ->post('/employees', $this->validEmployeePayload([
                 'email' => 'awk-business@example.com',
-                'role' => 'assistant_warehouse_keeper',
+                'role' => 'warehouse_staff',
                 'branch_id' => $businessBranch->id,
             ]));
 
@@ -466,5 +467,51 @@ class EmployeeManagementTest extends TestCase
 
         $response2->assertRedirect()->assertSessionHasNoErrors();
     }
-}
 
+    public function test_legacy_central_warehouse_roles_are_consolidated_into_warehouse_staff(): void
+    {
+        $canonicalRole = Role::firstOrCreate(['name' => 'warehouse_staff', 'guard_name' => 'web']);
+        $legacyRoles = [
+            Role::firstOrCreate(['name' => 'logistics_driver', 'guard_name' => 'web']),
+            Role::firstOrCreate(['name' => 'assistant_warehouse_keeper', 'guard_name' => 'web']),
+        ];
+
+        $legacyUsers = collect($legacyRoles)->map(function (Role $role, int $index): User {
+            $legacyUser = User::factory()->create([
+                'restaurant_id' => $this->restaurant->id,
+                'email' => "legacy-warehouse-{$index}@example.com",
+            ]);
+            $legacyUser->assignRole($role);
+            Employee::factory()->create([
+                'restaurant_id' => $this->restaurant->id,
+                'user_id' => $legacyUser->id,
+                'role_id' => $role->id,
+            ]);
+
+            return $legacyUser;
+        });
+
+        $migration = require database_path('migrations/2026_08_27_000004_merge_central_warehouse_staff_roles.php');
+        $migration->up();
+
+        foreach ($legacyUsers as $legacyUser) {
+            $freshUser = $legacyUser->fresh();
+
+            $this->assertTrue($freshUser->hasRole($canonicalRole));
+            $this->assertDatabaseHas('model_has_roles', [
+                'role_id' => $canonicalRole->id,
+                'model_type' => User::class,
+                'model_id' => $legacyUser->id,
+            ]);
+            $this->assertSame(
+                $canonicalRole->id,
+                Employee::withoutGlobalScopes()->where('user_id', $legacyUser->id)->value('role_id'),
+            );
+        }
+
+        $this->assertSame(0, DB::table('roles')->whereIn('name', [
+            'logistics_driver',
+            'assistant_warehouse_keeper',
+        ])->count());
+    }
+}

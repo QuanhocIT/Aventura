@@ -274,6 +274,50 @@ class InventoryPurchaseWorkflowTest extends TestCase
         $this->assertStringStartsWith('/storage/invoices/', $transaction->invoice_file_url);
     }
 
+    public function test_multi_line_purchase_approval_updates_every_line_and_records_allocations(): void
+    {
+        $secondIngredient = Ingredient::create([
+            'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
+            'unit_id' => $this->unit->id,
+            'name' => 'Thá»‹t GÃ ',
+            'sku' => 'CHICKEN-MULTI',
+            'average_cost' => 50000,
+            'status' => 'active',
+        ]);
+        Inventory::create([
+            'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
+            'ingredient_id' => $secondIngredient->id,
+            'quantity_on_hand' => 2,
+            'theoretical_quantity' => 2,
+            'last_cost' => 50000,
+        ]);
+
+        $response = $this->actingAs($this->staff)->post(route('inventory.purchases.store'), [
+            'items' => [
+                ['ingredient_id' => $this->ingredient->id, 'quantity' => 5, 'unit_cost' => 120000, 'batch_number' => 'BEEF-01'],
+                ['ingredient_id' => $secondIngredient->id, 'quantity' => 3, 'unit_cost' => 60000, 'batch_number' => 'CHICKEN-01'],
+            ],
+            'invoice_file' => UploadedFile::fake()->image('multi-line.jpg'),
+        ]);
+        $response->assertRedirect()->assertSessionHasNoErrors();
+
+        $approval = ApprovalRequest::where('restaurant_id', $this->restaurant->id)
+            ->where('operation_type', 'inventory_purchase_batch')
+            ->firstOrFail();
+        $this->assertSame(780000.0, (float) $approval->amount_involved);
+
+        $this->actingAs($this->owner)->patch(route('approvals.approve', $approval))
+            ->assertRedirect()->assertSessionHasNoErrors();
+
+        $this->assertEquals(15.0, (float) Inventory::where('ingredient_id', $this->ingredient->id)->value('quantity_on_hand'));
+        $this->assertEquals(5.0, (float) Inventory::where('ingredient_id', $secondIngredient->id)->value('quantity_on_hand'));
+        $transactions = InventoryTransaction::where('restaurant_id', $this->restaurant->id)->where('type', 'purchase')->get();
+        $this->assertCount(2, $transactions);
+        $this->assertDatabaseCount('inventory_batch_allocations', 2);
+    }
+
     public function test_ai_forecast_endpoint_returns_valid_projections(): void
     {
         Http::fake([

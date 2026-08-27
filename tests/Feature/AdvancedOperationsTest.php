@@ -6,6 +6,9 @@ use App\Jobs\RecalculateAverageCostJob;
 use App\Models\Employee;
 use App\Models\Ingredient;
 use App\Models\Inventory;
+use App\Models\InventoryBatch;
+use App\Models\InventoryBatchAllocation;
+use App\Models\InventoryTransaction;
 use App\Models\Order;
 use App\Models\Product;
 use App\Models\ProductRecipe;
@@ -13,6 +16,7 @@ use App\Models\RequestForProposal;
 use App\Models\Restaurant;
 use App\Models\RestaurantBranch;
 use App\Models\RfpBid;
+use App\Models\StockTransferRequest;
 use App\Models\Supplier;
 use App\Models\Unit;
 use App\Models\User;
@@ -152,12 +156,51 @@ class AdvancedOperationsTest extends TestCase
 
         $postResponse->assertStatus(302); // Redirect back
 
-        // Verify inventory levels
+        // Legacy URL now creates the canonical controlled request; no stock
+        // changes are allowed before route/dispatch/receive.
+        $transfer = StockTransferRequest::latest('id')->firstOrFail();
+        $this->assertEquals('requested', $transfer->status);
+        $this->assertEquals(50.0, (float) Inventory::where('branch_id', $this->branchA->id)->where('ingredient_id', $this->ingredient->id)->value('quantity_on_hand'));
+        $this->assertEquals(500.0, (float) Inventory::where('branch_id', $this->branchB->id)->where('ingredient_id', $this->ingredient->id)->value('quantity_on_hand'));
+
+        $this->actingAs($this->owner)->post("/inventory/transfers/{$transfer->id}/route", [
+            'from_branch_id' => $this->branchB->id,
+        ])->assertRedirect()->assertSessionHasNoErrors();
+        $this->actingAs($this->owner)->post("/inventory/transfers/{$transfer->id}/dispatch", [
+            'quantity_dispatched' => 50,
+        ])->assertRedirect()->assertSessionHasNoErrors();
+
+        $warehouseManager = User::factory()->create(['restaurant_id' => $this->restaurant->id, 'status' => 'active']);
+        $warehouseManager->assignRole(Role::firstOrCreate(['name' => 'warehouse_manager', 'guard_name' => 'web']));
+        $this->actingAs($warehouseManager)->post("/inventory/transfers/{$transfer->id}/receive", [
+            'handover_code' => $transfer->fresh()->handover_code,
+        ])->assertRedirect()->assertSessionHasNoErrors();
+
+        // Verify inventory levels after the controlled receipt.
         $invA = Inventory::where('branch_id', $this->branchA->id)->where('ingredient_id', $this->ingredient->id)->first();
         $invB = Inventory::where('branch_id', $this->branchB->id)->where('ingredient_id', $this->ingredient->id)->first();
 
         $this->assertEquals(100.0, (float) $invA->quantity_on_hand); // 50 + 50
         $this->assertEquals(450.0, (float) $invB->quantity_on_hand); // 500 - 50
+
+        $this->assertEqualsWithDelta(450, (float) InventoryBatch::where('branch_id', $this->branchB->id)
+            ->where('ingredient_id', $this->ingredient->id)
+            ->where('status', 'active')
+            ->sum('quantity_remaining'), 0.001);
+        $this->assertEqualsWithDelta(50, (float) InventoryBatch::where('branch_id', $this->branchA->id)
+            ->where('ingredient_id', $this->ingredient->id)
+            ->where('status', 'active')
+            ->sum('quantity_remaining'), 0.001);
+
+        $transactions = InventoryTransaction::where('source_type', 'stock_transfer')->latest('id')->limit(2)->get();
+        $this->assertCount(2, $transactions);
+        $out = $transactions->firstWhere('direction', 'out');
+        $in = $transactions->firstWhere('direction', 'in');
+        $this->assertEqualsWithDelta(500, (float) $out->quantity_before, 0.001);
+        $this->assertEqualsWithDelta(450, (float) $out->quantity_after, 0.001);
+        $this->assertEqualsWithDelta(50, (float) $in->quantity_before, 0.001);
+        $this->assertEqualsWithDelta(100, (float) $in->quantity_after, 0.001);
+        $this->assertSame(2, InventoryBatchAllocation::whereIn('inventory_transaction_id', $transactions->pluck('id'))->count());
     }
 
     /**

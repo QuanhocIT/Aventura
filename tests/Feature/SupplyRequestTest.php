@@ -4,7 +4,10 @@ namespace Tests\Feature;
 
 use App\Models\Ingredient;
 use App\Models\Inventory;
+use App\Models\InventoryBatch;
+use App\Models\InventoryBatchAllocation;
 use App\Models\InventoryReservation;
+use App\Models\InventoryTransaction;
 use App\Models\Restaurant;
 use App\Models\RestaurantBranch;
 use App\Models\SupplyRequest;
@@ -190,7 +193,7 @@ class SupplyRequestTest extends TestCase
         $reservation = InventoryReservation::where('supply_request_id', $supplyRequest->id)->first();
         $this->assertNotNull($reservation->released_at);
 
-        // 7. Receive with shortage (Branch receives only 55kg out of 60kg) -> Status becomes 'disputed'
+        // 7. Receive with shortage (Branch receives only 55kg out of 60kg) -> Keep request open for a top-up
         $receivedRequest = $service->receiveSupplyRequest(
             $dispatchedRequest,
             $manager,
@@ -202,7 +205,7 @@ class SupplyRequestTest extends TestCase
             'Nhận thiếu 5kg do vỡ bao bì'
         );
 
-        $this->assertEquals(SupplyRequest::STATUS_DISPUTED, $receivedRequest->status);
+        $this->assertEquals(SupplyRequest::STATUS_PARTIAL_RECEIVED, $receivedRequest->status);
         $this->assertTrue($receivedRequest->discrepancy_flag);
 
         // Branch inventory increased by 55
@@ -214,6 +217,85 @@ class SupplyRequestTest extends TestCase
             'supply_request_id' => $supplyRequest->id,
             'discrepancy_quantity' => 5,
         ]);
+    }
+
+    public function test_dispatch_consumes_multiple_batches_and_rejects_duplicate_dispatch(): void
+    {
+        $restaurant = Restaurant::factory()->create();
+        $central = RestaurantBranch::factory()->create([
+            'restaurant_id' => $restaurant->id,
+            'is_central_warehouse' => true,
+            'warehouse_type' => 'central',
+        ]);
+        $branch = RestaurantBranch::factory()->create(['restaurant_id' => $restaurant->id]);
+        $unit = Unit::create(['restaurant_id' => $restaurant->id, 'name' => 'Kg', 'symbol' => 'kg', 'type' => 'mass']);
+        $ingredient = Ingredient::create([
+            'restaurant_id' => $restaurant->id,
+            'unit_id' => $unit->id,
+            'name' => 'Nguyen lieu nhieu lo',
+            'sku' => 'MULTI-BATCH',
+            'average_cost' => 100,
+            'status' => 'active',
+        ]);
+        Inventory::create([
+            'restaurant_id' => $restaurant->id,
+            'branch_id' => $central->id,
+            'ingredient_id' => $ingredient->id,
+            'quantity_on_hand' => 12,
+            'theoretical_quantity' => 12,
+            'last_cost' => 100,
+        ]);
+        $firstBatch = InventoryBatch::create([
+            'restaurant_id' => $restaurant->id,
+            'branch_id' => $central->id,
+            'ingredient_id' => $ingredient->id,
+            'batch_number' => 'MULTI-01',
+            'quantity_remaining' => 5,
+            'unit_cost' => 90,
+            'purchased_at' => now()->subDay()->toDateString(),
+            'expiry_date' => now()->addDay()->toDateString(),
+            'status' => 'active',
+        ]);
+        $secondBatch = InventoryBatch::create([
+            'restaurant_id' => $restaurant->id,
+            'branch_id' => $central->id,
+            'ingredient_id' => $ingredient->id,
+            'batch_number' => 'MULTI-02',
+            'quantity_remaining' => 7,
+            'unit_cost' => 110,
+            'purchased_at' => now()->toDateString(),
+            'expiry_date' => now()->addDays(10)->toDateString(),
+            'status' => 'active',
+        ]);
+        $manager = User::factory()->create(['restaurant_id' => $restaurant->id, 'branch_id' => $branch->id]);
+        $manager->assignRole('manager');
+        $warehouseManager = User::factory()->create(['restaurant_id' => $restaurant->id, 'branch_id' => $central->id]);
+        $warehouseManager->assignRole('warehouse_manager');
+        $warehouseStaff = User::factory()->create(['restaurant_id' => $restaurant->id, 'branch_id' => $central->id]);
+        $warehouseStaff->assignRole('warehouse_staff');
+
+        $service = app(CentralWarehouseService::class);
+        $request = $service->createSupplyRequest($restaurant->id, $branch->id, $manager, [
+            ['ingredient_id' => $ingredient->id, 'quantity' => 12],
+        ]);
+        $approved = $service->approveSupplyRequest($request, $warehouseManager);
+        $prepared = $service->prepareDispatch($approved, $warehouseStaff, [[
+            'id' => $approved->items->first()->id,
+            'actual_dispatched_quantity' => 12,
+        ]]);
+        $dispatchApproved = $service->approveDispatch($prepared, $warehouseManager);
+        $dispatched = $service->dispatchSupplyRequest($dispatchApproved, $warehouseStaff, 'MULTI-SEAL');
+
+        $this->assertSame(SupplyRequest::STATUS_DISPATCHED, $dispatched->status);
+        $this->assertEqualsWithDelta(0, (float) $firstBatch->refresh()->quantity_remaining, 0.001);
+        $this->assertEqualsWithDelta(0, (float) $secondBatch->refresh()->quantity_remaining, 0.001);
+        $this->assertSame(2, InventoryBatchAllocation::where('direction', 'out')->count());
+        $transaction = InventoryTransaction::where('source_type', 'supply_request')->where('direction', 'out')->firstOrFail();
+        $this->assertEqualsWithDelta(12, (float) $transaction->quantity_before, 0.001);
+        $this->assertEqualsWithDelta(0, (float) $transaction->quantity_after, 0.001);
+
+        $this->expectException(\InvalidArgumentException::class);
+        $service->dispatchSupplyRequest($dispatched, $warehouseStaff, 'MULTI-SEAL');
     }
 
     public function test_prevent_self_approval_middleware_blocks_self_approval()
