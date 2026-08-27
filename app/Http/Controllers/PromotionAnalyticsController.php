@@ -47,4 +47,17 @@ class PromotionAnalyticsController extends Controller
             'filters' => ['start_date' => $startDate, 'end_date' => $endDate],
         ]);
     }
+
+    public function recalculate(Request $request)
+    {
+        $user = $request->user();
+        abort_unless($user->can('view_report') || $user->can('manage_orders'), 403);
+
+        $startDate = $request->input('start_date', now()->subDays(30)->toDateString());
+        $endDate = $request->input('end_date', now()->toDateString());
+
+        $this->analytics->generateSnapshotsForPeriod($user->restaurant_id, $startDate, $endDate);
+
+        return back()->with('success', 'Đã cập nhật & tính toán lại toàn bộ dữ liệu phân tích khuyến mãi.');
+    }
 }

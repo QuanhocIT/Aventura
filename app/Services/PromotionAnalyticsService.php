@@ -77,17 +77,56 @@ class PromotionAnalyticsService
             ->orderBy('snapshot_date')
             ->get();
 
-        $totalDiscount = $snapshots->sum('total_discount_given');
-        $totalRevenue = $snapshots->sum('total_revenue_with_promo');
-        $totalUses = $snapshots->sum('total_uses');
+        // Nếu chưa có snapshot nào (do chưa chạy cron job), tính toán trực tiếp từ bảng orders & promotion_usages
+        if ($snapshots->isEmpty()) {
+            $this->generateSnapshotsForPeriod($restaurantId, $startDate, $endDate);
+
+            $snapshots = PromotionAnalyticsSnapshot::withoutGlobalScopes()
+                ->where('restaurant_id', $restaurantId)
+                ->whereNull('promotion_id')
+                ->whereBetween('snapshot_date', [$startDate, $endDate])
+                ->orderBy('snapshot_date')
+                ->get();
+        }
+
+        $totalDiscount = (float) $snapshots->sum('total_discount_given');
+        $totalRevenue = (float) $snapshots->sum('total_revenue_with_promo');
+        $totalUses = (int) $snapshots->sum('total_uses');
         $roi = $totalDiscount > 0 ? round(($totalRevenue / $totalDiscount) * 100, 1) : 0;
-        $totalNewCustomers = $snapshots->sum('new_customers_acquired');
-        // Trung bình có trọng số theo unique_customers từng ngày, không phải trung bình cộng đơn thuần
-        // giữa các ngày (ngày 100 khách và ngày 2 khách không nên có trọng số bằng nhau).
-        $totalUniqueCustomers = $snapshots->sum('unique_customers');
+        $totalNewCustomers = (int) $snapshots->sum('new_customers_acquired');
+        $totalUniqueCustomers = (int) $snapshots->sum('unique_customers');
         $avgRepeatRate = $totalUniqueCustomers > 0
             ? round((($totalUniqueCustomers - $totalNewCustomers) / $totalUniqueCustomers) * 100, 1)
             : 0.0;
+
+        // Tính AOV Đơn có KM vs Đơn không KM
+        $promoOrders = Order::withoutGlobalScopes()
+            ->where('restaurant_id', $restaurantId)
+            ->whereBetween('created_at', [$startDate.' 00:00:00', $endDate.' 23:59:59'])
+            ->where('status', 'completed')
+            ->where('discount_amount', '>', 0);
+
+        $regularOrders = Order::withoutGlobalScopes()
+            ->where('restaurant_id', $restaurantId)
+            ->whereBetween('created_at', [$startDate.' 00:00:00', $endDate.' 23:59:59'])
+            ->where('status', 'completed')
+            ->where('discount_amount', '<=', 0);
+
+        $promoOrderCount = (clone $promoOrders)->count();
+        $promoOrderSum = (float) (clone $promoOrders)->sum('total_amount');
+        $aovWithPromo = $promoOrderCount > 0 ? round($promoOrderSum / $promoOrderCount, 0) : 0.0;
+
+        $regularOrderCount = (clone $regularOrders)->count();
+        $regularOrderSum = (float) (clone $regularOrders)->sum('total_amount');
+        $aovWithoutPromo = $regularOrderCount > 0 ? round($regularOrderSum / $regularOrderCount, 0) : 0.0;
+
+        $basketLift = $aovWithoutPromo > 0 && $aovWithPromo > 0
+            ? round((($aovWithPromo - $aovWithoutPromo) / $aovWithoutPromo) * 100, 1)
+            : 0.0;
+
+        $perPromotion = $this->getPerPromotionBreakdown($restaurantId, $startDate, $endDate);
+
+        $insights = $this->generateInsights($totalDiscount, $totalRevenue, $roi, $basketLift, $perPromotion);
 
         return [
             'total_discount' => $totalDiscount,
@@ -96,16 +135,77 @@ class PromotionAnalyticsService
             'roi_percent' => $roi,
             'new_customers_acquired' => $totalNewCustomers,
             'repeat_rate' => $avgRepeatRate,
+            'aov_with_promo' => $aovWithPromo,
+            'aov_without_promo' => $aovWithoutPromo,
+            'basket_lift_percent' => $basketLift,
+            'insights' => $insights,
             'daily' => $snapshots->map(fn ($s) => [
                 'date' => $s->snapshot_date->format('d/m'),
                 'discount' => (float) $s->total_discount_given,
                 'revenue' => (float) $s->total_revenue_with_promo,
-                'uses' => $s->total_uses,
-                'new_customers' => $s->new_customers_acquired,
+                'uses' => (int) $s->total_uses,
+                'new_customers' => (int) $s->new_customers_acquired,
                 'repeat_rate' => (float) $s->repeat_rate,
             ]),
-            'per_promotion' => $this->getPerPromotionBreakdown($restaurantId, $startDate, $endDate),
+            'per_promotion' => $perPromotion,
         ];
+    }
+
+    public function generateSnapshotsForPeriod(int $restaurantId, string $startDate, string $endDate): void
+    {
+        $start = \Carbon\Carbon::parse($startDate);
+        $end = \Carbon\Carbon::parse($endDate);
+
+        while ($start->lte($end)) {
+            $this->calculateDailySnapshot($restaurantId, $start->toDateString());
+            $start->addDay();
+        }
+    }
+
+    private function generateInsights(float $totalDiscount, float $totalRevenue, float $roi, float $basketLift, array $perPromotion): array
+    {
+        $insights = [];
+
+        if ($roi >= 300) {
+            $insights[] = [
+                'type' => 'success',
+                'title' => 'Chỉ số ROI rất ấn tượng',
+                'message' => "Mỗi 1đ chiết khấu mang lại {$roi}% doanh thu tác động. Chương trình khuyến mãi đang mang lại lợi nhuận cao.",
+            ];
+        } elseif ($roi > 0 && $roi < 150) {
+            $insights[] = [
+                'type' => 'warning',
+                'title' => 'Cần tối ưu chi phí khuyến mãi',
+                'message' => "Chỉ số ROI hiện tại ({$roi}%) tương đối thấp. Bạn nên xem xét điều chỉnh giá trị chiết khấu hoặc đặt ngưỡng đơn tối thiểu cao hơn.",
+            ];
+        }
+
+        if ($basketLift > 10) {
+            $insights[] = [
+                'type' => 'success',
+                'title' => 'Tăng trưởng giá trị giỏ hàng (Basket Lift)',
+                'message' => "Khách hàng sử dụng khuyến mãi mua đơn hàng có giá trị cao hơn {$basketLift}% so với đơn thường.",
+            ];
+        }
+
+        if (! empty($perPromotion)) {
+            $topPromo = $perPromotion[0];
+            $insights[] = [
+                'type' => 'info',
+                'title' => "Chương trình hiệu quả nhất: {$topPromo['name']}",
+                'message' => "Đã được sử dụng {$topPromo['uses']} lần, tạo ra ".number_format($topPromo['revenue_influenced'], 0, ',', '.').' ₫ doanh thu.',
+            ];
+        }
+
+        if (empty($insights)) {
+            $insights[] = [
+                'type' => 'info',
+                'title' => 'Theo dõi hiệu quả chiến dịch',
+                'message' => 'Tích cực tạo thêm mã ưu đãi và trigger tự động để thu hút khách quay lại.',
+            ];
+        }
+
+        return $insights;
     }
 
     /**
