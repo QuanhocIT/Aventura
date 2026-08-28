@@ -177,6 +177,98 @@ class InventoryWasteWorkflowTest extends TestCase
         );
     }
 
+    public function test_waste_dashboard_uses_period_and_selected_branch_scope(): void
+    {
+        $otherBranch = RestaurantBranch::factory()->create([
+            'restaurant_id' => $this->restaurant->id,
+        ]);
+
+        $createWaste = function (int $branchId, $occurredAt, float $cost): void {
+            InventoryTransaction::create([
+                'restaurant_id' => $this->restaurant->id,
+                'branch_id' => $branchId,
+                'ingredient_id' => $this->ingredient->id,
+                'performed_by' => $this->owner->id,
+                'type' => 'waste',
+                'direction' => 'out',
+                'quantity' => 1,
+                'unit_cost' => $cost,
+                'total_cost' => $cost,
+                'occurred_at' => $occurredAt,
+            ]);
+        };
+
+        $createWaste($this->branch->id, now()->subDays(2), 30000);
+        $createWaste($this->branch->id, now()->subDays(40), 50000);
+        $createWaste($otherBranch->id, now()->subDays(3), 70000);
+
+        $branchResponse = $this->actingAs($this->owner)
+            ->withSession([
+                'active_branch_id' => $this->branch->id,
+                'active_branch_scope' => 'branch',
+            ])
+            ->get(route('waste.index', ['days' => 30]));
+
+        $branchResponse->assertInertia(fn (Assert $page) => $page
+            ->component('waste-management/Index')
+            ->where('days', 30)
+            ->where('scopeLabel', $this->branch->name)
+            ->where('dashboard.total_waste_cost', 30000)
+            ->where('dashboard.waste_count', 1)
+            ->has('recentWastes', 1)
+            ->where('historySummary.approved', 1)
+        );
+
+        $chainResponse = $this->actingAs($this->owner)
+            ->withSession([
+                'active_branch_id' => null,
+                'active_branch_scope' => 'all',
+            ])
+            ->get(route('waste.index', ['days' => 30]));
+
+        $chainResponse->assertInertia(fn (Assert $page) => $page
+            ->where('scopeLabel', 'Toàn chuỗi')
+            ->where('dashboard.total_waste_cost', 100000)
+            ->where('dashboard.waste_count', 2)
+            ->has('recentWastes', 2)
+        );
+    }
+
+    public function test_pending_waste_is_visible_in_history_but_not_dashboard_kpis(): void
+    {
+        ApprovalRequest::create([
+            'restaurant_id' => $this->restaurant->id,
+            'branch_id' => $this->branch->id,
+            'requester_id' => $this->manager->id,
+            'operation_type' => 'inventory_waste',
+            'operation_data' => [
+                'ingredient_id' => $this->ingredient->id,
+                'ingredient_name' => $this->ingredient->name,
+                'unit_symbol' => $this->unit->symbol,
+                'quantity' => 1,
+                'estimated_cost' => 15000,
+                'waste_category' => 'expired',
+            ],
+            'status' => 'pending',
+        ]);
+
+        $response = $this->actingAs($this->owner)
+            ->withSession([
+                'active_branch_id' => $this->branch->id,
+                'active_branch_scope' => 'branch',
+            ])
+            ->get(route('waste.index', ['days' => 30]));
+
+        $response->assertInertia(fn (Assert $page) => $page
+            ->where('dashboard.total_waste_cost', 0)
+            ->where('dashboard.waste_count', 0)
+            ->where('historySummary.pending', 1)
+            ->has('recentWastes', 1)
+            ->where('recentWastes.0.status', 'pending')
+            ->where('recentWastes.0.waste_category', 'expired')
+        );
+    }
+
     public function test_kitchen_waste_report_waits_for_owner_confirmation_before_changing_stock(): void
     {
         $kitchenRole = Role::firstOrCreate(['name' => 'kitchen', 'guard_name' => 'web']);

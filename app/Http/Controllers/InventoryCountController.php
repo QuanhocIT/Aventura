@@ -62,7 +62,7 @@ class InventoryCountController extends Controller
 
         $sessions = InventoryCountSession::where('restaurant_id', $restaurantId)
             ->when($activeBranchId, fn ($q) => $q->where('branch_id', $activeBranchId))
-            ->where('type', '!=', 'material_closing')
+            ->whereNotIn('type', ['material_closing', 'branch_closing'])
             ->with(['items.ingredient.unit', 'items.reconciledBy', 'branch', 'countedBy', 'secondCountedBy', 'approver', 'rejectedBy', 'cancelledBy'])
             ->orderByDesc('id')
             ->get();

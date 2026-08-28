@@ -560,7 +560,7 @@ class InventoryCountService
 
     private function unitCostForItem(InventoryCountSession $session, InventoryCountItem $item): float
     {
-        if ($session->type === 'material_closing' && $item->unit_cost !== null) {
+        if (in_array($session->type, ['material_closing', 'branch_closing'], true) && $item->unit_cost !== null) {
             return (float) $item->unit_cost;
         }
 

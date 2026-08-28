@@ -7,6 +7,7 @@ use App\Models\Employee;
 use App\Models\Ingredient;
 use App\Models\Inventory;
 use App\Models\InventoryTransaction;
+use App\Models\RestaurantBranch;
 use App\Models\SalaryAdjustment;
 use App\Services\QuotaService;
 use App\Services\WasteAnalyticsService;
@@ -39,10 +40,15 @@ class WasteManagementController extends Controller
         $restaurantId = $request->user()->restaurant_id;
         $days = max(1, min(365, (int) ($request->days ?? 30)));
         $branchId = $tenantContext->activeBranchId();
+        $periodEnd = now();
+        $periodStart = $periodEnd->copy()->subDays($days);
+        $scopeLabel = $branchId
+            ? (RestaurantBranch::where('restaurant_id', $restaurantId)->whereKey($branchId)->value('name') ?? 'Chi nhánh đang chọn')
+            : 'Toàn chuỗi';
 
         $dashboard = $this->analytics->getDashboard($restaurantId, $days, $branchId);
         $trend = $this->analytics->getTrendData($restaurantId, 6, $branchId);
-        $suggestions = $this->analytics->getAiSuggestions($restaurantId, $branchId);
+        $suggestions = $this->analytics->getAiSuggestions($restaurantId, $branchId, $days);
         $expiring = $this->analytics->getExpiringItems($restaurantId, 3, $branchId);
 
         $stockMap = Inventory::where('restaurant_id', $restaurantId)
@@ -74,19 +80,39 @@ class WasteManagementController extends Controller
 
         $recentWasteTransactions = InventoryTransaction::where('restaurant_id', $restaurantId)
             ->where('type', 'waste')
+            ->whereBetween('occurred_at', [$periodStart, $periodEnd])
             ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
             ->with(['ingredient:id,name,unit_id', 'ingredient.unit', 'performedBy:id,name'])
             ->latest('occurred_at')
-            ->take(15)
+            ->take(50)
             ->get();
 
         $recentWasteApprovals = ApprovalRequest::where('restaurant_id', $restaurantId)
             ->where('operation_type', 'inventory_waste')
             ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
+            ->where(function ($query) use ($periodStart, $periodEnd): void {
+                $query->whereIn('status', ['pending', 'escalated'])
+                    ->orWhere(fn ($rejected) => $rejected
+                        ->where('status', 'rejected')
+                        ->whereBetween('created_at', [$periodStart, $periodEnd]));
+            })
             ->with(['requester:id,name'])
             ->latest('created_at')
-            ->take(15)
+            ->take(50)
             ->get();
+
+        $pendingApprovalCount = ApprovalRequest::where('restaurant_id', $restaurantId)
+            ->where('operation_type', 'inventory_waste')
+            ->whereIn('status', ['pending', 'escalated'])
+            ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
+            ->count();
+
+        $rejectedCount = ApprovalRequest::where('restaurant_id', $restaurantId)
+            ->where('operation_type', 'inventory_waste')
+            ->where('status', 'rejected')
+            ->whereBetween('created_at', [$periodStart, $periodEnd])
+            ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
+            ->count();
 
         $recentWastes = collect();
 
@@ -110,6 +136,7 @@ class WasteManagementController extends Controller
                 'notes' => $t->notes,
                 'performed_by' => $t->performedBy?->name ?? 'Hệ thống',
                 'employee_name' => $salaryAdjustment?->employee?->full_name ?? 'Không khấu trừ',
+                'waste_category' => $t->waste_category,
                 'timestamp' => $t->occurred_at->timestamp,
                 'occurred_at' => $t->occurred_at->format('d/m/Y H:i'),
                 'status' => 'approved',
@@ -139,6 +166,7 @@ class WasteManagementController extends Controller
                 'notes' => $opData['notes'] ?? null,
                 'performed_by' => $r->requester?->name ?? 'Nhân viên',
                 'employee_name' => $emp ? $emp->full_name : 'Không khấu trừ',
+                'waste_category' => $opData['waste_category'] ?? null,
                 'timestamp' => $r->created_at->timestamp,
                 'occurred_at' => $r->created_at->format('d/m/Y H:i'),
                 'status' => $r->status,
@@ -146,7 +174,7 @@ class WasteManagementController extends Controller
             ]);
         }
 
-        $recentWastes = $recentWastes->sortByDesc('timestamp')->values()->take(15);
+        $recentWastes = $recentWastes->sortByDesc('timestamp')->values()->take(50);
 
         return Inertia::render('waste-management/Index', [
             'dashboard' => $dashboard,
@@ -157,6 +185,17 @@ class WasteManagementController extends Controller
             'employees' => $employees,
             'recentWastes' => $recentWastes,
             'days' => $days,
+            'currentDate' => now()->format('d/m/Y'),
+            'period' => [
+                'from' => $periodStart->format('d/m/Y H:i'),
+                'to' => $periodEnd->format('d/m/Y H:i'),
+            ],
+            'scopeLabel' => $scopeLabel,
+            'historySummary' => [
+                'pending' => $pendingApprovalCount,
+                'approved' => (int) ($dashboard['waste_count'] ?? 0),
+                'rejected' => $rejectedCount,
+            ],
             'branchContext' => [
                 'scope' => $tenantContext->scope(),
                 'active_branch_id' => $branchId,
@@ -184,8 +223,10 @@ class WasteManagementController extends Controller
 
     public function apiSuggestions(Request $request): JsonResponse
     {
+        $days = max(1, min(365, (int) ($request->days ?? 30)));
+
         return response()->json(
-            $this->analytics->getAiSuggestions($request->user()->restaurant_id, app(TenantContext::class)->activeBranchId())
+            $this->analytics->getAiSuggestions($request->user()->restaurant_id, app(TenantContext::class)->activeBranchId(), $days)
         );
     }
 

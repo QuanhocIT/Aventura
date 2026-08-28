@@ -14,6 +14,7 @@ use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\RequestForProposal;
 use App\Models\User;
+use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
@@ -262,8 +263,8 @@ class InventoryService
         $oldQty = (float) $inventory->quantity_on_hand;
         $this->ensureLegacyBatchForInventory($inventory);
         if (! empty($data['expiry_date'])) {
-            $expiry = \Carbon\Carbon::parse($data['expiry_date']);
-            $occurredAt = ! empty($data['occurred_at']) ? \Carbon\Carbon::parse($data['occurred_at']) : now();
+            $expiry = Carbon::parse($data['expiry_date']);
+            $occurredAt = ! empty($data['occurred_at']) ? Carbon::parse($data['occurred_at']) : now();
             if ($expiry->diffInDays($occurredAt, false) > -3) {
                 throw new \InvalidArgumentException('Expiry date must be at least 3 days after receiving date.');
             }
@@ -448,6 +449,8 @@ class InventoryService
             'theoretical_quantity' => max(0, (float) $inventory->theoretical_quantity - $wasteQty),
         ]);
 
+        // Do not leave the waste dashboard showing the pre-approval snapshot.
+        app(WasteAnalyticsService::class)->forgetDashboardCaches($restaurantId, $branchId);
         $this->broadcastStockUpdatedSafely($restaurantId);
         app(InventoryAvailabilityService::class)->refreshBranch($restaurantId, $branchId);
 

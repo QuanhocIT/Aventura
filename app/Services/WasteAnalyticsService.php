@@ -13,10 +13,13 @@ class WasteAnalyticsService
     public function getDashboard(int $restaurantId, int $days = 30, ?int $branchId = null): array
     {
         return Cache::remember($this->cacheKey('waste_dashboard', $restaurantId, $days, $branchId), 300, function () use ($restaurantId, $days, $branchId) {
+            $periodEnd = now();
+            $periodStart = $periodEnd->copy()->subDays($days);
+
             $totalWasteCost = (float) InventoryTransaction::withoutGlobalScopes()
                 ->where('restaurant_id', $restaurantId)
                 ->where('type', 'waste')
-                ->where('occurred_at', '>=', now()->subDays($days))
+                ->whereBetween('occurred_at', [$periodStart, $periodEnd])
                 ->when($branchId !== null, fn ($query) => $query->where('branch_id', $branchId))
                 ->sum('total_cost');
 
@@ -24,13 +27,13 @@ class WasteAnalyticsService
                 ->where('restaurant_id', $restaurantId)
                 ->where('status', 'completed')
                 ->whereNull('deleted_at')
-                ->where('completed_at', '>=', now()->subDays($days))
+                ->whereBetween('completed_at', [$periodStart, $periodEnd])
                 ->when($branchId !== null, fn ($query) => $query->where('branch_id', $branchId))
                 ->sum('total_amount') +
                 (float) DB::table('orders_archive')
                     ->where('restaurant_id', $restaurantId)
                     ->where('status', 'completed')
-                    ->where('completed_at', '>=', now()->subDays($days))
+                    ->whereBetween('completed_at', [$periodStart, $periodEnd])
                     ->when($branchId !== null, fn ($query) => $query->where('branch_id', $branchId))
                     ->sum('total_amount');
 
@@ -40,7 +43,7 @@ class WasteAnalyticsService
             $wasteCount = InventoryTransaction::withoutGlobalScopes()
                 ->where('restaurant_id', $restaurantId)
                 ->where('type', 'waste')
-                ->where('occurred_at', '>=', now()->subDays($days))
+                ->whereBetween('occurred_at', [$periodStart, $periodEnd])
                 ->when($branchId !== null, fn ($query) => $query->where('branch_id', $branchId))
                 ->count();
 
@@ -66,7 +69,7 @@ class WasteAnalyticsService
         return InventoryTransaction::withoutGlobalScopes()
             ->where('restaurant_id', $restaurantId)
             ->where('type', 'waste')
-            ->where('occurred_at', '>=', now()->subDays($days))
+            ->whereBetween('occurred_at', [now()->subDays($days), now()])
             ->when($branchId !== null, fn ($query) => $query->where('branch_id', $branchId))
             ->select(
                 DB::raw("COALESCE(waste_category, 'other') as category"),
@@ -92,7 +95,7 @@ class WasteAnalyticsService
             ->join('ingredients', 'inventory_transactions.ingredient_id', '=', 'ingredients.id')
             ->where('inventory_transactions.restaurant_id', $restaurantId)
             ->where('inventory_transactions.type', 'waste')
-            ->where('inventory_transactions.occurred_at', '>=', now()->subDays($days))
+            ->whereBetween('inventory_transactions.occurred_at', [now()->subDays($days), now()])
             ->when($branchId !== null, fn ($query) => $query->where('inventory_transactions.branch_id', $branchId))
             ->select(
                 'ingredients.id',
@@ -124,7 +127,7 @@ class WasteAnalyticsService
         return DB::table('inventory_transactions')
             ->where('restaurant_id', $restaurantId)
             ->where('type', 'waste')
-            ->where('occurred_at', '>=', now()->subMonths($months))
+            ->whereBetween('occurred_at', [now()->subMonths($months), now()])
             ->when($branchId !== null, fn ($query) => $query->where('branch_id', $branchId))
             ->select(
                 DB::raw("{$monthExpression} as month"),
@@ -142,10 +145,11 @@ class WasteAnalyticsService
             ->all();
     }
 
-    public function getAiSuggestions(int $restaurantId, ?int $branchId = null): array
+    public function getAiSuggestions(int $restaurantId, ?int $branchId = null, int $days = 30): array
     {
-        $topWaste = $this->getTopWasteIngredients($restaurantId, 30, $branchId);
-        $byCategory = $this->getWasteByCategory($restaurantId, 30, $branchId);
+        $days = max(1, min(365, $days));
+        $topWaste = $this->getTopWasteIngredients($restaurantId, $days, $branchId);
+        $byCategory = $this->getWasteByCategory($restaurantId, $days, $branchId);
         $suggestions = [];
 
         foreach (array_slice($topWaste, 0, 3) as $item) {
@@ -153,7 +157,7 @@ class WasteAnalyticsService
                 'type' => 'reduce_order',
                 'icon' => '📦',
                 'title' => "Giảm lượng đặt hàng {$item['name']}",
-                'description' => "Nguyên liệu này hao hụt {$item['waste_count']} lần ({$item['total_cost']}đ) trong 30 ngày. Đề xuất giảm 15-20% lượng nhập mỗi đợt.",
+                'description' => "Nguyên liệu này hao hụt {$item['waste_count']} lần ({$item['total_cost']}đ) trong {$days} ngày. Đề xuất giảm 15-20% lượng nhập mỗi đợt.",
                 'ingredient_id' => $item['ingredient_id'],
             ];
         }
@@ -188,6 +192,21 @@ class WasteAnalyticsService
         }
 
         return $suggestions;
+    }
+
+    /**
+     * Dashboard data is cached by period and branch. A newly approved waste
+     * must invalidate both its branch view and the chain-wide view immediately.
+     */
+    public function forgetDashboardCaches(int $restaurantId, ?int $branchId = null): void
+    {
+        $branchIds = array_values(array_unique([$branchId, null]));
+
+        foreach ($branchIds as $scopeBranchId) {
+            for ($days = 1; $days <= 365; $days++) {
+                Cache::forget($this->cacheKey('waste_dashboard', $restaurantId, $days, $scopeBranchId));
+            }
+        }
     }
 
     public function getExpiringItems(int $restaurantId, int $days = 3, ?int $branchId = null): array
