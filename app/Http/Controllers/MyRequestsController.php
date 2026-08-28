@@ -44,8 +44,8 @@ class MyRequestsController extends Controller
             'reviewer_role' => $a->decided_by_role,
             'rejection_reason' => $a->rejection_reason,
             'escalation_reason' => $a->escalation_reason,
-            'reviewed_at' => $a->reviewed_at?->format('H:i d/m/Y'),
-            'created_at' => $a->created_at->format('H:i d/m/Y'),
+            'reviewed_at' => $a->reviewed_at?->toIso8601String(),
+            'created_at' => $a->created_at->toIso8601String(),
         ]);
 
         $counts = ApprovalRequest::where('restaurant_id', $user->restaurant_id)

@@ -94,30 +94,69 @@ function toggleExpand(id: number) {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
+function parseDate(dateStr: string | null | undefined): Date | null {
+    if (!dateStr) {
+        return null;
+    }
+
+    const matchTimeDate = dateStr.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?\s+(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+    if (matchTimeDate) {
+        const [, h, m, s, day, month, year] = matchTimeDate;
+        return new Date(Number(year), Number(month) - 1, Number(day), Number(h), Number(m), Number(s || 0));
+    }
+
+    const matchDateTime = dateStr.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})(?:\s+(\d{1,2}):(\d{2})(?::(\d{2}))?)?$/);
+    if (matchDateTime) {
+        const [, day, month, year, h, m, s] = matchDateTime;
+        return new Date(Number(year), Number(month) - 1, Number(day), Number(h || 0), Number(m || 0), Number(s || 0));
+    }
+
+    const parsed = new Date(dateStr);
+    return isNaN(parsed.getTime()) ? null : parsed;
+}
+
 function timeAgo(dateStr: string): string {
-    const diffMs = Date.now() - new Date(dateStr).getTime();
-    const diffH = Math.floor(diffMs / 3_600_000);
-    const diffD = Math.floor(diffH / 24);
-
-    if (diffD >= 2) {
-        return `${diffD} ngày trước`;
+    const d = parseDate(dateStr);
+    if (!d) {
+        return 'Vừa xong';
     }
 
-    if (diffD === 1) {
-        return '1 ngày trước';
-    }
+    const diffMs = Date.now() - d.getTime();
 
-    if (diffH >= 1) {
-        return `${diffH} giờ trước`;
+    if (diffMs < 0) {
+        const futureH = Math.floor(Math.abs(diffMs) / 3_600_000);
+        const futureD = Math.floor(futureH / 24);
+        if (futureD >= 2) return `${futureD} ngày tới`;
+        if (futureD === 1) return 'Ngày mai';
+        if (futureH >= 1) return `${futureH} giờ tới`;
+        return 'Sắp tới';
     }
 
     const diffM = Math.floor(diffMs / 60_000);
-
-    if (diffM >= 1) {
+    if (diffM < 1) {
+        return 'Vừa xong';
+    }
+    if (diffM < 60) {
         return `${diffM} phút trước`;
     }
 
-    return 'Vừa xong';
+    const diffH = Math.floor(diffMs / 3_600_000);
+    if (diffH < 24) {
+        return `${diffH} giờ trước`;
+    }
+
+    const diffD = Math.floor(diffMs / 86_400_000);
+    if (diffD === 1) {
+        return '1 ngày trước';
+    }
+    if (diffD < 30) {
+        return `${diffD} ngày trước`;
+    }
+    const diffMonth = Math.floor(diffD / 30);
+    if (diffMonth < 12) {
+        return `${diffMonth} tháng trước`;
+    }
+    return `${Math.floor(diffD / 365)} năm trước`;
 }
 
 function formatExactDateTime(dateStr: string | null | undefined): string {
@@ -125,9 +164,8 @@ function formatExactDateTime(dateStr: string | null | undefined): string {
         return '';
     }
 
-    const d = new Date(dateStr);
-
-    if (isNaN(d.getTime())) {
+    const d = parseDate(dateStr);
+    if (!d) {
         return dateStr;
     }
 
@@ -141,7 +179,12 @@ function formatExactDateTime(dateStr: string | null | undefined): string {
 }
 
 function pendingHours(dateStr: string): number {
-    return (Date.now() - new Date(dateStr).getTime()) / 3_600_000;
+    const d = parseDate(dateStr);
+    if (!d) {
+        return 0;
+    }
+
+    return Math.max(0, (Date.now() - d.getTime()) / 3_600_000);
 }
 
 function isOpen(status: ApprovalStatus): boolean {
