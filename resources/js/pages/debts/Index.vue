@@ -61,7 +61,7 @@ type AccountPayable = {
     amount: number;
     paid_amount: number;
     due_date: string;
-    status: 'unpaid' | 'partially_paid' | 'paid';
+    status: 'unpaid' | 'partially_paid' | 'paid' | 'written_off';
     notes: string | null;
     supplier?: Supplier;
     purchase_order?: PurchaseOrder;
@@ -75,7 +75,7 @@ type AccountReceivable = {
     amount: number;
     received_amount: number;
     due_date: string;
-    status: 'unpaid' | 'partially_paid' | 'paid';
+    status: 'unpaid' | 'partially_paid' | 'paid' | 'written_off';
     notes: string | null;
     customer?: Customer;
     order?: Order;
@@ -234,6 +234,18 @@ function openCollectModal(r: AccountReceivable) {
     collectForm.payment_method = 'cash';
     collectForm.notes = '';
     showCollectModal.value = true;
+}
+
+function writeOffPayable(p: AccountPayable) {
+    const reason = window.prompt('Lý do xóa nợ phải trả:');
+    if (!reason?.trim()) return;
+    router.post(`/debts/payables/${p.id}/write-off`, { reason }, { preserveScroll: true });
+}
+
+function writeOffReceivable(r: AccountReceivable) {
+    const reason = window.prompt('Lý do xóa nợ phải thu:');
+    if (!reason?.trim()) return;
+    router.post(`/debts/receivables/${r.id}/write-off`, { reason }, { preserveScroll: true });
 }
 
 function submitCollect() {
@@ -758,20 +770,29 @@ function getPercentage(value: number, total: number) {
                                         v-else
                                         class="rounded-full bg-rose-50 px-2.5 py-0.5 text-[9px] font-bold tracking-wider text-rose-600 uppercase dark:bg-rose-950/30"
                                     >
-                                        Chưa thanh toán
+                                        {{ p.status === 'written_off' ? 'Đã xóa nợ' : 'Chưa thanh toán' }}
                                     </span>
                                 </td>
                                 <td class="p-3 text-center">
                                     <Button
-                                        v-if="canManageDebt && p.status !== 'paid'"
+                                        v-if="canManageDebt && !['paid', 'written_off'].includes(p.status)"
                                         @click="openPayModal(p)"
                                         size="sm"
                                         class="h-7 rounded-md bg-indigo-600 px-2.5 text-[10px] font-bold text-white hover:bg-indigo-700"
                                     >
                                         Trả nợ
                                     </Button>
+                                    <Button
+                                        v-if="canManageDebt && !['paid', 'written_off'].includes(p.status)"
+                                        @click="writeOffPayable(p)"
+                                        size="sm"
+                                        variant="outline"
+                                        class="ml-1 h-7 rounded-md px-2.5 text-[10px] font-bold text-rose-600 hover:bg-rose-50"
+                                    >
+                                        Xóa nợ
+                                    </Button>
                                     <span
-                                        v-else
+                                        v-if="!canManageDebt || ['paid', 'written_off'].includes(p.status)"
                                         class="font-bold text-slate-400"
                                         >—</span
                                     >
@@ -934,20 +955,29 @@ function getPercentage(value: number, total: number) {
                                         v-else
                                         class="rounded-full bg-rose-50 px-2.5 py-0.5 text-[9px] font-bold tracking-wider text-rose-600 uppercase dark:bg-rose-950/30"
                                     >
-                                        Chưa thu hồi
+                                        {{ r.status === 'written_off' ? 'Đã xóa nợ' : 'Chưa thu hồi' }}
                                     </span>
                                 </td>
                                 <td class="p-3 text-center">
                                     <Button
-                                        v-if="canManageDebt && r.status !== 'paid'"
+                                        v-if="canManageDebt && !['paid', 'written_off'].includes(r.status)"
                                         @click="openCollectModal(r)"
                                         size="sm"
                                         class="h-7 rounded-md bg-emerald-600 px-2.5 text-[10px] font-bold text-white hover:bg-emerald-700"
                                     >
                                         Thu nợ
                                     </Button>
+                                    <Button
+                                        v-if="canManageDebt && !['paid', 'written_off'].includes(r.status)"
+                                        @click="writeOffReceivable(r)"
+                                        size="sm"
+                                        variant="outline"
+                                        class="ml-1 h-7 rounded-md px-2.5 text-[10px] font-bold text-rose-600 hover:bg-rose-50"
+                                    >
+                                        Xóa nợ
+                                    </Button>
                                     <span
-                                        v-else
+                                        v-if="!canManageDebt || ['paid', 'written_off'].includes(r.status)"
                                         class="font-bold text-slate-400"
                                         >—</span
                                     >

@@ -21,6 +21,7 @@ class AccountReceivable extends Model
             'amount' => 'decimal:2',
             'received_amount' => 'decimal:2',
             'due_date' => 'date',
+            'written_off_at' => 'datetime',
         ];
     }
 

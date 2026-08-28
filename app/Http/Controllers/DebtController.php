@@ -58,13 +58,13 @@ class DebtController extends Controller
         // Statistics
         $totalReceivable = (float) AccountReceivable::where('restaurant_id', $restaurantId)
             ->when($branchId !== null, fn ($q) => $q->where('branch_id', $branchId))
-            ->where('status', '!=', 'paid')
+            ->whereNotIn('status', ['paid', 'written_off'])
             ->selectRaw('SUM(amount - received_amount) as total')
             ->value('total') ?? 0.0;
 
         $totalPayable = (float) AccountPayable::where('restaurant_id', $restaurantId)
             ->when($branchId !== null, fn ($q) => $q->where('branch_id', $branchId))
-            ->where('status', '!=', 'paid')
+            ->whereNotIn('status', ['paid', 'written_off'])
             ->selectRaw('SUM(amount - paid_amount) as total')
             ->value('total') ?? 0.0;
 
@@ -72,14 +72,14 @@ class DebtController extends Controller
 
         $overdueReceivable = (float) AccountReceivable::where('restaurant_id', $restaurantId)
             ->when($branchId !== null, fn ($q) => $q->where('branch_id', $branchId))
-            ->where('status', '!=', 'paid')
+            ->whereNotIn('status', ['paid', 'written_off'])
             ->where('due_date', '<', $today)
             ->selectRaw('SUM(amount - received_amount) as total')
             ->value('total') ?? 0.0;
 
         $overduePayable = (float) AccountPayable::where('restaurant_id', $restaurantId)
             ->when($branchId !== null, fn ($q) => $q->where('branch_id', $branchId))
-            ->where('status', '!=', 'paid')
+            ->whereNotIn('status', ['paid', 'written_off'])
             ->where('due_date', '<', $today)
             ->selectRaw('SUM(amount - paid_amount) as total')
             ->value('total') ?? 0.0;
@@ -87,7 +87,7 @@ class DebtController extends Controller
         // Receivables Aging Analysis
         $receivables = AccountReceivable::where('restaurant_id', $restaurantId)
             ->when($branchId !== null, fn ($q) => $q->where('branch_id', $branchId))
-            ->where('status', '!=', 'paid')
+            ->whereNotIn('status', ['paid', 'written_off'])
             ->get();
 
         $receivablesAging = [
@@ -123,7 +123,7 @@ class DebtController extends Controller
         // Payables Aging Analysis
         $payables = AccountPayable::where('restaurant_id', $restaurantId)
             ->when($branchId !== null, fn ($q) => $q->where('branch_id', $branchId))
-            ->where('status', '!=', 'paid')
+            ->whereNotIn('status', ['paid', 'written_off'])
             ->get();
 
         $payablesAging = [
@@ -217,7 +217,8 @@ class DebtController extends Controller
         abort_unless($user->isOwner() || $user->isSuperAdmin(), 403);
         abort_if($payable->restaurant_id !== $user->restaurant_id, 403);
         $branchId = $this->resolveOperationalBranch($user);
-        abort_if($payable->purchaseOrder?->branch_id !== null && (int) $payable->purchaseOrder->branch_id !== $branchId, 403);
+        $payableBranchId = $payable->branch_id ?? $payable->purchaseOrder?->branch_id ?? $payable->fixedAsset?->branch_id;
+        abort_if($payableBranchId !== null && (int) $payableBranchId !== $branchId, 403);
 
         $remaining = (float) $payable->amount - (float) $payable->paid_amount;
         $request->validate([
@@ -331,13 +332,54 @@ class DebtController extends Controller
     /**
      * Collect customer receivable.
      */
+    public function writeOffPayable(Request $request, AccountPayable $payable): RedirectResponse
+    {
+        $user = $request->user();
+        abort_unless($user->isOwner() || $user->isSuperAdmin(), 403);
+        abort_if($payable->restaurant_id !== $user->restaurant_id, 403);
+        $branchId = $this->resolveOperationalBranch($user);
+        $payableBranchId = $payable->branch_id ?? $payable->purchaseOrder?->branch_id ?? $payable->fixedAsset?->branch_id;
+        abort_if($payableBranchId !== null && (int) $payableBranchId !== $branchId, 403);
+        $data = $request->validate(['reason' => ['required', 'string', 'min:5', 'max:1000']]);
+
+        DB::transaction(function () use ($payable, $data, $user, $branchId): void {
+            $locked = AccountPayable::withoutGlobalScopes()->lockForUpdate()->findOrFail($payable->id);
+            $remaining = round((float) $locked->amount - (float) $locked->paid_amount, 2);
+            abort_unless($remaining > 0, 422, 'Công nợ này không còn số dư để xóa nợ.');
+            $this->financialPostingService->post([
+                'restaurant_id' => $locked->restaurant_id,
+                'branch_id' => $branchId,
+                'entry_date' => today(),
+                'source_type' => AccountPayable::class,
+                'source_id' => $locked->id,
+                'idempotency_key' => 'payable-writeoff:'.$locked->id,
+                'description' => 'Xóa nợ phải trả #'.$locked->id,
+                'created_by' => $user->id,
+                'posted_by' => $user->id,
+                'lines' => [
+                    ['account' => '3311', 'debit' => $remaining, 'credit' => 0],
+                    ['account' => '7111', 'debit' => 0, 'credit' => $remaining],
+                ],
+            ]);
+            $locked->update([
+                'status' => 'written_off',
+                'written_off_at' => now(),
+                'written_off_by' => $user->id,
+                'writeoff_reason' => $data['reason'],
+            ]);
+        });
+
+        return back()->with('success', 'Đã ghi nhận xóa công nợ phải trả.');
+    }
+
     public function collectCustomer(Request $request, AccountReceivable $receivable): RedirectResponse
     {
         $user = $request->user();
         abort_unless($user->isOwner() || $user->isSuperAdmin(), 403);
         abort_if($receivable->restaurant_id !== $user->restaurant_id, 403);
         $branchId = $this->resolveOperationalBranch($user);
-        abort_if($receivable->order?->branch_id !== null && (int) $receivable->order->branch_id !== $branchId, 403);
+        $receivableBranchId = $receivable->branch_id ?? $receivable->order?->branch_id;
+        abort_if($receivableBranchId !== null && (int) $receivableBranchId !== $branchId, 403);
 
         $remaining = (float) $receivable->amount - (float) $receivable->received_amount;
         $request->validate([
@@ -451,6 +493,50 @@ class DebtController extends Controller
         }
 
         return back()->with('success', 'Đã ghi nhận thu hồi nợ của khách hàng thành công.');
+    }
+
+    public function writeOffReceivable(Request $request, AccountReceivable $receivable): RedirectResponse
+    {
+        $user = $request->user();
+        abort_unless($user->isOwner() || $user->isSuperAdmin(), 403);
+        abort_if($receivable->restaurant_id !== $user->restaurant_id, 403);
+        $branchId = $this->resolveOperationalBranch($user);
+        $receivableBranchId = $receivable->branch_id ?? $receivable->order?->branch_id;
+        abort_if($receivableBranchId !== null && (int) $receivableBranchId !== $branchId, 403);
+        $data = $request->validate(['reason' => ['required', 'string', 'min:5', 'max:1000']]);
+
+        DB::transaction(function () use ($receivable, $data, $user, $branchId): void {
+            $locked = AccountReceivable::withoutGlobalScopes()->lockForUpdate()->findOrFail($receivable->id);
+            $remaining = round((float) $locked->amount - (float) $locked->received_amount, 2);
+            abort_unless($remaining > 0, 422, 'Công nợ này không còn số dư để xóa nợ.');
+            $this->financialPostingService->post([
+                'restaurant_id' => $locked->restaurant_id,
+                'branch_id' => $branchId,
+                'entry_date' => today(),
+                'source_type' => AccountReceivable::class,
+                'source_id' => $locked->id,
+                'idempotency_key' => 'receivable-writeoff:'.$locked->id,
+                'description' => 'Xóa nợ phải thu #'.$locked->id,
+                'created_by' => $user->id,
+                'posted_by' => $user->id,
+                'lines' => [
+                    ['account' => '8111', 'debit' => $remaining, 'credit' => 0],
+                    ['account' => '1311', 'debit' => 0, 'credit' => $remaining],
+                ],
+            ]);
+            $customer = Customer::withoutGlobalScopes()->lockForUpdate()->find($locked->customer_id);
+            if ($customer) {
+                $customer->update(['current_debt' => max(0, (float) $customer->current_debt - $remaining)]);
+            }
+            $locked->update([
+                'status' => 'written_off',
+                'written_off_at' => now(),
+                'written_off_by' => $user->id,
+                'writeoff_reason' => $data['reason'],
+            ]);
+        });
+
+        return back()->with('success', 'Đã ghi nhận xóa công nợ phải thu.');
     }
 
     /**
