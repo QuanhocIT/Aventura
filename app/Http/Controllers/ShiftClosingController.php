@@ -232,11 +232,12 @@ class ShiftClosingController extends Controller
         ]);
 
         $restaurantId = $request->user()->restaurant_id;
-        $branchId = $this->resolveOperationalBranch($request->user());
 
-        $shift = WorkShift::where('restaurant_id', $restaurantId)
-            ->where(fn ($q) => $q->where('branch_id', $branchId)->orWhereNull('branch_id'))
+        $shift = WorkShift::withoutGlobalScopes()
+            ->where('restaurant_id', $restaurantId)
             ->findOrFail($request->integer('shift_id'));
+
+        $branchId = $shift->branch_id ?? $this->resolveOperationalBranch($request->user());
 
         $closingDate = Carbon::parse($request->input('closing_date'));
 
@@ -471,7 +472,10 @@ class ShiftClosingController extends Controller
         ]);
 
         $restaurantId = $user->restaurant_id;
-        $branchId = $this->resolveOperationalBranch($user);
+        $shift = WorkShift::withoutGlobalScopes()
+            ->where('restaurant_id', $restaurantId)
+            ->findOrFail($data['shift_id']);
+        $branchId = $shift->branch_id ?? $this->resolveOperationalBranch($user);
         $areaName = $this->areaSelectionName($restaurantId, $branchId, $data['area_id'] ?? null);
         $closingDate = Carbon::parse($data['closing_date'])->toDateString();
 
@@ -670,7 +674,11 @@ class ShiftClosingController extends Controller
 
         $restaurantId = $user->restaurant_id;
 
-        $branchId = $this->resolveOperationalBranch($user);
+        $shift = WorkShift::withoutGlobalScopes()
+            ->where('restaurant_id', $restaurantId)
+            ->findOrFail($data['shift_id']);
+
+        $branchId = $shift->branch_id ?? $this->resolveOperationalBranch($user);
 
         $status = $request->boolean('submit') ? 'submitted' : 'draft';
         $notes = $data['notes'] ?? null;
@@ -1106,10 +1114,9 @@ class ShiftClosingController extends Controller
     {
         $shift = WorkShift::withoutGlobalScopes()
             ->where('restaurant_id', $restaurantId)
-            ->when($branchId, fn ($q) => $q->where(fn ($scope) => $scope
-                ->where('branch_id', $branchId)
-                ->orWhereNull('branch_id')))
             ->findOrFail($shiftId);
+
+        $branchId = $shift->branch_id ?? $branchId;
         $closingDate = Carbon::parse($date);
 
         [$startDt, $endDt] = $this->shiftTimeRange($shift, $closingDate, $closingAt);
@@ -1370,10 +1377,9 @@ class ShiftClosingController extends Controller
     {
         $shift = WorkShift::withoutGlobalScopes()
             ->where('restaurant_id', $restaurantId)
-            ->when($branchId, fn ($q) => $q->where(fn ($scope) => $scope
-                ->where('branch_id', $branchId)
-                ->orWhereNull('branch_id')))
             ->findOrFail($shiftId);
+
+        $branchId = $shift->branch_id ?? $branchId;
 
         $closingDate = Carbon::parse($date);
         [$startDt, $endDt] = $this->shiftTimeRange($shift, $closingDate, $closingAt);
