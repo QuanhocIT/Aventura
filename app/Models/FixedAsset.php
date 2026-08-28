@@ -26,6 +26,7 @@ class FixedAsset extends Model
             'accumulated_depreciation' => 'decimal:2',
             'warranty_until' => 'date',
             'last_inspected_at' => 'datetime',
+            'disposal_proceeds' => 'decimal:2',
         ];
     }
 
@@ -62,5 +63,10 @@ class FixedAsset extends Model
     public function latestInspection(): HasOne
     {
         return $this->hasOne(FixedAssetInspection::class, 'fixed_asset_id')->latestOfMany('inspected_at');
+    }
+
+    public function payable(): BelongsTo
+    {
+        return $this->belongsTo(AccountPayable::class, 'account_payable_id');
     }
 }

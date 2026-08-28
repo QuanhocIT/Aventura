@@ -36,6 +36,8 @@ type Handover = {
     id: number;
     handover_code: string;
     status: string;
+    account_payable_id: number | null;
+    disposed_at: string | null;
     handover_date: string;
     branch_name: string | null;
     handed_over_by: { id: number; name: string } | null;
@@ -115,7 +117,7 @@ const props = defineProps<{
 
 const showAssetForm = ref(false);
 const selectedAsset = ref<Asset | null>(null);
-const modal = ref<'details' | 'edit' | 'handover' | 'inspection' | null>(null);
+const modal = ref<'details' | 'edit' | 'handover' | 'inspection' | 'dispose' | null>(null);
 const today = new Date().toISOString().slice(0, 10);
 
 const assetForm = useForm({
@@ -174,6 +176,13 @@ const inspectionForm = useForm({
     findings: '',
     action_required: '',
     evidence: null as File | null,
+});
+
+const disposeForm = useForm({
+    disposed_at: today,
+    disposal_proceeds: 0,
+    reason: '',
+    payment_method: 'bank_transfer',
 });
 
 const managersForBranch = computed(() =>
@@ -325,6 +334,20 @@ return;
     );
 }
 
+function openDispose(asset: Asset) {
+    selectedAsset.value = asset;
+    modal.value = 'dispose';
+    disposeForm.reset();
+    disposeForm.disposed_at = today;
+    disposeForm.disposal_proceeds = 0;
+    disposeForm.payment_method = 'bank_transfer';
+}
+
+function submitDispose() {
+    if (!selectedAsset.value) return;
+    disposeForm.post(`/fixed-assets/${selectedAsset.value.id}/dispose`, { preserveScroll: true, onSuccess: closeModal });
+}
+
 function acceptHandover(asset: Asset) {
     const handover = asset.latest_handover;
 
@@ -452,9 +475,10 @@ watch(
 
         <div v-if="modal && selectedAsset" class="fixed inset-0 z-50 grid place-items-center bg-background/80 p-4 backdrop-blur-sm">
             <div class="max-h-[90vh] w-full max-w-4xl overflow-y-auto rounded-2xl border border-border/60 bg-card p-5 shadow-2xl sm:p-6">
-                <div class="flex items-start justify-between gap-3"><div><p class="text-xs font-semibold uppercase tracking-wide text-primary">{{ selectedAsset.asset_code }}</p><h2 class="mt-1 text-lg font-semibold">{{ modal === 'details' ? 'Chi tiết hồ sơ tài sản' : modal === 'edit' ? 'Cập nhật thông tin tài sản' : modal === 'handover' ? 'Lập biên bản bàn giao' : 'Kiểm tra & đánh giá tài sản' }}</h2><p class="mt-1 text-sm text-muted-foreground">{{ selectedAsset.name }}</p></div><Button variant="ghost" size="icon" aria-label="Đóng" @click="closeModal"><X class="size-4" /></Button></div>
+                <div class="flex items-start justify-between gap-3"><div><p class="text-xs font-semibold uppercase tracking-wide text-primary">{{ selectedAsset.asset_code }}</p><h2 class="mt-1 text-lg font-semibold">{{ modal === 'details' ? 'Chi tiết hồ sơ tài sản' : modal === 'edit' ? 'Cập nhật thông tin tài sản' : modal === 'handover' ? 'Lập biên bản bàn giao' : modal === 'dispose' ? 'Thanh lý tài sản' : 'Kiểm tra & đánh giá tài sản' }}</h2><p class="mt-1 text-sm text-muted-foreground">{{ selectedAsset.name }}</p></div><Button variant="ghost" size="icon" aria-label="Đóng" @click="closeModal"><X class="size-4" /></Button></div>
 
                 <div v-if="modal === 'details'" class="mt-5 space-y-5">
+                    <div v-if="permissions.canManageAssets && selectedAsset.status === 'active'" class="flex justify-end"><Button variant="outline" size="sm" class="text-rose-600" @click="openDispose(selectedAsset)">Thanh lý tài sản</Button></div>
                     <div v-if="permissions.canManageAssets" class="flex justify-end"><Button variant="outline" size="sm" @click="openEdit(selectedAsset)">Chỉnh sửa thông tin</Button></div>
                     <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                         <div class="rounded-xl border border-border/60 bg-muted/20 p-3"><p class="text-xs text-muted-foreground">Nhóm tài sản</p><p class="mt-1 font-medium">{{ selectedAsset.category || 'Chưa phân loại' }}</p></div>
@@ -530,6 +554,13 @@ watch(
                     <textarea v-model="assetDetailForm.specifications" rows="3" placeholder="Thông số kỹ thuật, cấu hình, phụ kiện đi kèm..." class="w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]" />
                     <textarea v-model="assetDetailForm.notes" rows="3" placeholder="Ghi chú hồ sơ, nguồn mua hoặc thông tin khác..." class="w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]" />
                     <div class="flex justify-end gap-2"><Button variant="outline" @click="openDetails(selectedAsset)">Hủy</Button><Button :disabled="assetDetailForm.processing" @click="submitAssetDetails">Lưu thay đổi</Button></div>
+                </div>
+
+                <div v-else-if="modal === 'dispose'" class="mt-5 space-y-4">
+                    <div class="rounded-xl border border-rose-500/20 bg-rose-500/5 p-3 text-xs text-muted-foreground">Thanh lý sẽ dừng khấu hao và ghi nhận xóa nguyên giá, hao mòn cùng lãi/lỗ thanh lý vào sổ tài chính.</div>
+                    <div class="grid gap-3 sm:grid-cols-2"><Input v-model="disposeForm.disposed_at" type="date" aria-label="Ngày thanh lý" /><input v-model.number="disposeForm.disposal_proceeds" type="number" min="0" placeholder="Tiền thu thanh lý" class="h-9 rounded-md border border-input bg-transparent px-3 py-1 text-sm" /><select v-model="disposeForm.payment_method" class="h-9 rounded-md border border-input bg-transparent px-3 py-1 text-sm"><option value="bank_transfer">Chuyển khoản</option><option value="cash">Tiền mặt</option></select></div>
+                    <textarea v-model="disposeForm.reason" rows="3" required minlength="5" placeholder="Lý do thanh lý, biên bản hoặc chứng từ liên quan..." class="w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm" />
+                    <div class="flex justify-end gap-2"><Button variant="outline" @click="closeModal">Hủy</Button><Button :disabled="disposeForm.processing" class="bg-rose-600 text-white hover:bg-rose-700" @click="submitDispose">Ghi nhận thanh lý</Button></div>
                 </div>
 
                 <div v-else-if="modal === 'handover'" class="mt-5 space-y-4">

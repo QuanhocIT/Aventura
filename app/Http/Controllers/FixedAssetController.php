@@ -2,14 +2,18 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\AccountPayable;
+use App\Models\CashRegister;
 use App\Models\FixedAsset;
 use App\Models\FixedAssetHandover;
 use App\Models\RestaurantBranch;
 use App\Models\User;
+use App\Services\CashPostingService;
 use App\Services\FinancialPostingService;
 use App\Services\FixedAssetCustodyService;
 use App\Support\Tenant\TenantContext;
 use App\Support\TenantRule;
+use Carbon\CarbonImmutable;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -22,6 +26,7 @@ class FixedAssetController extends Controller
 {
     public function __construct(
         private FinancialPostingService $financialPostingService,
+        private CashPostingService $cashPostingService,
         private FixedAssetCustodyService $custodyService,
     ) {}
 
@@ -161,7 +166,9 @@ class FixedAssetController extends Controller
             'cost' => ['required', 'numeric', 'min:0.01'],
             'unit_cost' => ['nullable', 'numeric', 'min:0.01'],
             'supplier' => ['nullable', 'string', 'max:150'],
+            'supplier_id' => ['nullable', TenantRule::exists('suppliers')],
             'invoice_number' => ['nullable', 'string', 'max:100'],
+            'due_date' => ['nullable', 'date', 'after_or_equal:purchase_date'],
             'warranty_until' => ['nullable', 'date', 'after_or_equal:purchase_date'],
             'useful_life_months' => ['nullable', 'integer', 'min:1', 'max:600'],
             'payment_method' => ['nullable', 'string', 'in:bank_transfer,cash,credit'],
@@ -170,7 +177,7 @@ class FixedAssetController extends Controller
         ]);
         app(TenantContext::class)->assertWriteBranch((int) $data['branch_id']);
         $data['quantity'] = (int) ($data['quantity'] ?? 1);
-        $data['unit'] = $data['unit'] ?: 'cái';
+        $data['unit'] = $data['unit'] ?? 'cái';
         $data['unit_cost'] = $data['unit_cost'] ?? round((float) $data['cost'] / $data['quantity'], 2);
         $data['useful_life_months'] = (int) ($data['useful_life_months'] ?? 36);
         $creditAccount = match ($data['payment_method'] ?? 'credit') {
@@ -196,6 +203,7 @@ class FixedAssetController extends Controller
                 'cost' => $data['cost'],
                 'unit_cost' => $data['unit_cost'],
                 'supplier' => $data['supplier'] ?? null,
+                'supplier_id' => $data['supplier_id'] ?? null,
                 'invoice_number' => $data['invoice_number'] ?? null,
                 'warranty_until' => $data['warranty_until'] ?? null,
                 'specifications' => $data['specifications'] ?? null,
@@ -223,10 +231,108 @@ class FixedAssetController extends Controller
                 ],
             ]);
 
+            if (($data['payment_method'] ?? 'credit') === 'credit') {
+                $payable = AccountPayable::create([
+                    'restaurant_id' => $asset->restaurant_id,
+                    'branch_id' => $asset->branch_id,
+                    'purchase_order_id' => null,
+                    'supplier_id' => $data['supplier_id'] ?? null,
+                    'fixed_asset_id' => $asset->id,
+                    'amount' => $asset->cost,
+                    'paid_amount' => 0,
+                    'due_date' => $data['due_date'] ?? CarbonImmutable::parse($asset->purchase_date)->addDays(30)->toDateString(),
+                    'status' => 'unpaid',
+                    'notes' => 'Công nợ mua tài sản '.$asset->asset_code,
+                ]);
+                $asset->update(['account_payable_id' => $payable->id]);
+            }
+
             return $asset;
         });
 
         return back()->with('success', "Đã tạo hồ sơ tài sản {$asset->asset_code}. Hãy lập biên bản bàn giao cho quản lý chi nhánh.");
+    }
+
+    public function dispose(Request $request, FixedAsset $asset): RedirectResponse
+    {
+        $this->authorizeManage($request);
+        $user = $request->user();
+        abort_if($asset->restaurant_id !== $user->restaurant_id, 403);
+        app(TenantContext::class)->assertWriteBranch((int) $asset->branch_id);
+        abort_unless($asset->status === 'active', 422, 'Chỉ tài sản đang hoạt động mới được thanh lý.');
+
+        $data = $request->validate([
+            'disposed_at' => ['required', 'date'],
+            'disposal_proceeds' => ['nullable', 'numeric', 'min:0'],
+            'reason' => ['required', 'string', 'min:5', 'max:2000'],
+            'payment_method' => ['nullable', 'in:cash,bank_transfer'],
+        ]);
+
+        DB::transaction(function () use ($asset, $data, $user): void {
+            $locked = FixedAsset::withoutGlobalScopes()->lockForUpdate()->findOrFail($asset->id);
+            abort_unless($locked->status === 'active', 422, 'Tài sản đã được xử lý trước đó.');
+
+            $cost = (float) $locked->cost;
+            $accumulated = (float) $locked->accumulated_depreciation;
+            $bookValue = max(0, $cost - $accumulated);
+            $proceeds = round((float) ($data['disposal_proceeds'] ?? 0), 2);
+            $lines = [];
+            if ($accumulated > 0) {
+                $lines[] = ['account' => '2141', 'debit' => $accumulated, 'credit' => 0];
+            }
+            $lines[] = ['account' => '2111', 'debit' => 0, 'credit' => $cost];
+            if ($proceeds > 0) {
+                $lines[] = ['account' => ($data['payment_method'] ?? 'bank_transfer') === 'cash' ? '1111' : '1121', 'debit' => $proceeds, 'credit' => 0];
+            }
+            if ($bookValue > $proceeds) {
+                $lines[] = ['account' => '8111', 'debit' => round($bookValue - $proceeds, 2), 'credit' => 0];
+            } elseif ($proceeds > $bookValue) {
+                $lines[] = ['account' => '7111', 'debit' => 0, 'credit' => round($proceeds - $bookValue, 2)];
+            }
+
+            $postingPayload = [
+                'restaurant_id' => $locked->restaurant_id,
+                'branch_id' => $locked->branch_id,
+                'entry_date' => $data['disposed_at'],
+                'source_type' => FixedAsset::class,
+                'source_id' => $locked->id,
+                'idempotency_key' => 'fixed-asset:disposal:'.$locked->id,
+                'description' => 'Thanh lý tài sản '.$locked->asset_code,
+                'created_by' => $user->id,
+                'posted_by' => $user->id,
+                'lines' => $lines,
+            ];
+            if ($proceeds > 0 && ($data['payment_method'] ?? 'bank_transfer') === 'cash') {
+                $transaction = $this->cashPostingService->record($postingPayload + [
+                    'cash_register_id' => CashRegister::where('restaurant_id', $locked->restaurant_id)
+                        ->where('branch_id', $locked->branch_id)
+                        ->where('status', 'open')
+                        ->value('id'),
+                    'type' => 'in',
+                    'source' => 'other',
+                    'reference_type' => FixedAsset::class,
+                    'reference_id' => $locked->id,
+                    'journal_source_type' => FixedAsset::class,
+                    'journal_source_id' => $locked->id,
+                    'notes' => 'Thu tiền thanh lý tài sản '.$locked->asset_code,
+                    'occurred_at' => $data['disposed_at'],
+                ]);
+                $entry = $transaction?->getRelation('journalEntry');
+            } else {
+                $entry = $this->financialPostingService->post($postingPayload);
+            }
+            abort_unless($entry !== null, 422, 'Không thể ghi nhận bút toán thanh lý.');
+
+            $locked->update([
+                'status' => 'disposed',
+                'disposed_at' => $data['disposed_at'],
+                'disposal_reason' => $data['reason'],
+                'disposal_proceeds' => $proceeds,
+                'disposal_journal_entry_id' => $entry->id,
+            ]);
+        });
+
+        return back()->with('success', 'Đã ghi nhận thanh lý tài sản và bút toán liên quan.');
     }
 
     public function update(Request $request, FixedAsset $asset): RedirectResponse
@@ -235,6 +341,7 @@ class FixedAssetController extends Controller
         $this->authorizeManage($request);
 
         abort_if($asset->restaurant_id !== $user->restaurant_id, 403);
+        app(TenantContext::class)->assertWriteBranch((int) $asset->branch_id);
         $data = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'category' => ['nullable', 'string', 'max:100'],
@@ -367,11 +474,14 @@ class FixedAssetController extends Controller
             'cost' => (float) $asset->cost,
             'unit_cost' => (float) ($asset->unit_cost ?: ((float) $asset->cost / max(1, (int) ($asset->quantity ?: 1)))),
             'supplier' => $asset->supplier,
+            'supplier_id' => $asset->supplier_id,
             'invoice_number' => $asset->invoice_number,
             'warranty_until' => $asset->warranty_until?->format('Y-m-d'),
             'specifications' => $asset->specifications,
             'notes' => $asset->notes,
             'status' => $asset->status,
+            'account_payable_id' => $asset->account_payable_id,
+            'disposed_at' => $asset->disposed_at?->format('Y-m-d'),
             'custody_status' => $asset->custody_status ?? 'unassigned',
             'condition_status' => $asset->condition_status ?? 'unassessed',
             'custody_location' => $asset->custody_location,
