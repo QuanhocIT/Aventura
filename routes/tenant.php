@@ -10,6 +10,7 @@ use App\Http\Controllers\BankReconciliationController;
 use App\Http\Controllers\BatchRecallController;
 use App\Http\Controllers\BestSellerController;
 use App\Http\Controllers\BIDashboardController;
+use App\Http\Controllers\BranchClosingController;
 use App\Http\Controllers\BranchSwitchController;
 use App\Http\Controllers\BusinessGoalController;
 use App\Http\Controllers\CashFlowController;
@@ -354,6 +355,7 @@ Route::middleware(['auth', 'verified', 'tenant.subscription', 'tenant.ratelimit'
     // Quản Lý Hao Hụt & Lãng Phí (Waste Management)
     Route::prefix('waste-management')->name('waste.')->group(function () {
         Route::get('/', [WasteManagementController::class, 'index'])->name('index');
+        Route::post('/record', [InventoryManagementController::class, 'storeWaste'])->name('record');
         Route::get('/api/dashboard', [WasteManagementController::class, 'apiDashboard'])->name('dashboard');
         Route::get('/api/trend', [WasteManagementController::class, 'apiTrend'])->name('trend');
         Route::get('/api/suggestions', [WasteManagementController::class, 'apiSuggestions'])->name('suggestions');
@@ -945,6 +947,10 @@ Route::middleware(['auth', 'verified', 'tenant.subscription', 'tenant.ratelimit'
     Route::post('api/warehouse-governance/disputes/{id}/respond', [WarehouseGovernanceController::class, 'respondDispute'])->middleware('role_or_permission:owner|super_admin|warehouse_manager|warehouse_staff|manager')->name('warehouse-governance.respond-dispute');
 
     // Kiểm kê tồn kho nâng cao (Periodic, Spot check, Blind count)
+    Route::get('inventory/branch-closing', [BranchClosingController::class, 'page'])->middleware('role_or_permission:owner|super_admin|manager|inventory.count')->name('inventory.branch-closing');
+    Route::post('api/inventory/branch-closing', [BranchClosingController::class, 'store'])->middleware('role_or_permission:owner|super_admin|manager|inventory.count')->name('inventory.branch-closing.store');
+    Route::post('api/inventory/branch-closing/{id}/assign', [BranchClosingController::class, 'assign'])->middleware('role_or_permission:owner|super_admin|manager|inventory.count')->name('inventory.branch-closing.assign');
+
     Route::get('inventory/central-warehouse/material-closing', [MaterialClosingController::class, 'page'])->middleware('role_or_permission:owner|super_admin|warehouse_manager|warehouse_staff|inventory.count|inventory.count.execute')->name('inventory.material-closing');
     Route::post('api/inventory/central-warehouse/material-closing', [MaterialClosingController::class, 'store'])->middleware('role_or_permission:owner|super_admin|warehouse_manager|inventory.count|inventory.count.execute')->name('inventory.material-closing.store');
     Route::post('api/inventory/central-warehouse/material-closing/{id}/assign', [MaterialClosingController::class, 'assign'])->middleware('role_or_permission:owner|super_admin|warehouse_manager|warehouse.manage')->name('inventory.material-closing.assign');

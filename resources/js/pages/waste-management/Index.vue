@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Head } from '@inertiajs/vue3';
+import { Head, useForm } from '@inertiajs/vue3';
 import {
     AlertTriangle,
     Banknote,
@@ -14,10 +14,15 @@ import {
     Calendar,
     Activity,
     Inbox,
+    Plus,
+    FileText,
 } from 'lucide-vue-next';
 import { ref, computed } from 'vue';
 import { Badge } from '@/components/ui/badge';
-import { Card, CardContent } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import AppLayout from '@/layouts/AppLayout.vue';
 
 defineOptions({ layout: AppLayout });
@@ -59,9 +64,72 @@ const props = defineProps<{
         expiry_date: string;
         days_left: number;
     }[];
+    ingredients?: {
+        id: number;
+        name: string;
+        average_cost: number;
+        unit?: { id: number; symbol: string } | null;
+        stock?: number;
+    }[];
+    employees?: {
+        id: number;
+        full_name: string;
+        job_title?: string;
+    }[];
+    recentWastes?: {
+        id: number;
+        is_approval: boolean;
+        ingredient_name: string;
+        quantity: number;
+        unit_symbol: string;
+        cost: number;
+        notes: string | null;
+        performed_by: string;
+        employee_name: string;
+        timestamp: number;
+        occurred_at: string;
+        status: string;
+        rejection_reason?: string | null;
+    }[];
     days: number;
     branchContext?: { scope: string; active_branch_id: number | null };
 }>();
+
+const activeTab = ref<'analytics' | 'record'>('analytics');
+
+const wasteForm = useForm({
+    ingredient_id: '',
+    quantity: '',
+    employee_id: '',
+    waste_category: 'spoilage',
+    notes: '',
+    photo: null as File | null,
+});
+
+const estimatedWasteCost = computed(() => {
+    const ing = props.ingredients?.find(
+        (i) => i.id === Number(wasteForm.ingredient_id),
+    );
+
+    if (!ing || !wasteForm.quantity) {
+        return 0;
+    }
+
+    return Number(wasteForm.quantity) * (ing.average_cost ?? 0);
+});
+
+function submitWaste() {
+    wasteForm.post('/waste-management/record', {
+        preserveScroll: true,
+        onSuccess: () => {
+            wasteForm.reset();
+        },
+    });
+}
+
+function vnd(amount: number | null | undefined): string {
+    return (amount ?? 0).toLocaleString('vi-VN') + 'đ';
+}
 
 const benchmarkColor: Record<string, string> = {
     excellent: 'text-emerald-500 dark:text-emerald-400',
@@ -311,15 +379,61 @@ const maxIngredientCost = computed(() => {
                         Quản lý Hao hụt & Lãng phí
                     </h1>
                     <p class="text-sm text-muted-foreground">
-                        Dashboard phân tích, benchmark ngành F&B, và AI gợi ý
-                        giảm lãng phí.
+                        Dashboard phân tích, benchmark ngành F&B, ghi nhận đổ vỡ và AI gợi ý giảm lãng phí.
                     </p>
                 </div>
             </div>
+
+            <!-- Tab Switcher & Quick Record button -->
+            <div class="flex flex-wrap items-center gap-2.5">
+                <div class="flex items-center rounded-xl bg-muted/60 p-1 border border-border">
+                    <button
+                        @click="activeTab = 'analytics'"
+                        class="flex cursor-pointer items-center gap-1.5 rounded-lg px-3.5 py-1.5 text-xs font-bold transition-all"
+                        :class="
+                            activeTab === 'analytics'
+                                ? 'bg-background text-foreground shadow-xs'
+                                : 'text-muted-foreground hover:text-foreground'
+                        "
+                    >
+                        <Activity class="size-3.5 text-rose-500" />
+                        Tổng quan & Phân tích
+                    </button>
+                    <button
+                        @click="activeTab = 'record'"
+                        class="flex cursor-pointer items-center gap-1.5 rounded-lg px-3.5 py-1.5 text-xs font-bold transition-all"
+                        :class="
+                            activeTab === 'record'
+                                ? 'bg-background text-foreground shadow-xs'
+                                : 'text-muted-foreground hover:text-foreground'
+                        "
+                    >
+                        <FileText class="size-3.5 text-rose-500" />
+                        Ghi nhận & Lịch sử
+                        <span
+                            v-if="props.recentWastes?.length"
+                            class="ml-1 rounded-full bg-rose-500/10 px-1.5 py-0.2 text-[10px] font-bold text-rose-600 dark:text-rose-400"
+                        >
+                            {{ props.recentWastes.length }}
+                        </span>
+                    </button>
+                </div>
+
+                <Button
+                    v-if="activeTab !== 'record'"
+                    @click="activeTab = 'record'"
+                    class="bg-rose-600 text-xs font-bold text-white hover:bg-rose-700 shadow-xs cursor-pointer"
+                >
+                    <Plus class="mr-1.5 size-4" />
+                    Ghi nhận hao hụt
+                </Button>
+            </div>
         </div>
 
-        <!-- KPI Cards -->
-        <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <!-- ══ TAB: TỔNG QUAN & PHÂN TÍCH ══════════════════════════════════════ -->
+        <template v-if="activeTab === 'analytics'">
+            <!-- KPI Cards -->
+            <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <!-- 1. Tổng hao hụt -->
             <Card
                 class="group border border-border bg-card text-card-foreground shadow-xs transition-all duration-300 hover:-translate-y-0.5 hover:shadow-md"
@@ -1225,5 +1339,283 @@ const maxIngredientCost = computed(() => {
                 </div>
             </CardContent>
         </Card>
+        </template>
+
+        <!-- ══ TAB: GHI NHẬN & LỊCH SỬ HAO HỤT ════════════════════════════════ -->
+        <template v-else-if="activeTab === 'record'">
+            <div class="grid gap-6 lg:grid-cols-5">
+                <!-- Form Ghi nhận hao hụt -->
+                <Card class="border border-border bg-card text-card-foreground shadow-sm lg:col-span-2">
+                    <CardHeader class="border-b border-border pb-3">
+                        <CardTitle class="flex items-center gap-2 text-sm font-bold">
+                            <Trash2 class="size-4 text-rose-500" />
+                            Ghi nhận đổ vỡ & hỏng hóc
+                        </CardTitle>
+                        <CardDescription class="text-[11px] leading-relaxed">
+                            Khai báo các sự cố mất mát thực tế ngoài ý muốn (sữa đổ, rau héo, cháy khét). Nguyên liệu bán hàng đã được hệ thống tự động trừ theo món.
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent class="pt-5">
+                        <form @submit.prevent="submitWaste" class="space-y-4">
+                            <!-- Nguyên liệu -->
+                            <div class="space-y-1.5">
+                                <Label class="text-xs">
+                                    Nguyên liệu <span class="text-rose-500">*</span>
+                                </Label>
+                                <select
+                                    v-model="wasteForm.ingredient_id"
+                                    required
+                                    class="w-full rounded-xl border border-border bg-background px-3 py-2.5 text-sm focus:border-rose-400 focus:ring-2 focus:ring-rose-500/20 focus:outline-none"
+                                >
+                                    <option value="" disabled>
+                                        Chọn nguyên liệu...
+                                    </option>
+                                    <option
+                                        v-for="ing in ingredients"
+                                        :key="ing.id"
+                                        :value="ing.id"
+                                    >
+                                        {{ ing.name }} (tồn:
+                                        {{ ing.stock?.toFixed(1) ?? '—' }}
+                                        {{ ing.unit?.symbol ?? '' }})
+                                    </option>
+                                </select>
+                            </div>
+
+                            <!-- Nguyên nhân hao hụt -->
+                            <div class="space-y-1.5">
+                                <Label class="text-xs">Nguyên nhân</Label>
+                                <select
+                                    v-model="wasteForm.waste_category"
+                                    class="w-full rounded-xl border border-border bg-background px-3 py-2.5 text-sm focus:border-rose-400 focus:ring-2 focus:ring-rose-500/20 focus:outline-none"
+                                >
+                                    <option value="spoilage">
+                                        Hư hỏng / xuống chất lượng
+                                    </option>
+                                    <option value="expired">
+                                        Hết hạn sử dụng
+                                    </option>
+                                    <option value="damaged">
+                                        Hư hỏng bao bì
+                                    </option>
+                                    <option value="cooking_loss">
+                                        Hao hụt chế biến
+                                    </option>
+                                    <option value="theft">Thất thoát</option>
+                                    <option value="other">Khác</option>
+                                </select>
+                                <p class="text-[10px] text-muted-foreground">
+                                    Chọn “Hết hạn” để hệ thống ưu tiên loại bỏ các lô đã quá HSD.
+                                </p>
+                            </div>
+
+                            <!-- Số lượng -->
+                            <div class="space-y-1.5">
+                                <Label class="text-xs">
+                                    Số lượng hao hụt <span class="text-rose-500">*</span>
+                                </Label>
+                                <Input
+                                    v-model="wasteForm.quantity"
+                                    type="number"
+                                    step="0.001"
+                                    min="0.001"
+                                    placeholder="0"
+                                    required
+                                />
+                            </div>
+
+                            <!-- Chi phí ước tính -->
+                            <div
+                                v-if="estimatedWasteCost > 0"
+                                class="flex items-center justify-between rounded-xl border border-rose-500/20 bg-rose-500/10 px-4 py-2.5 text-sm"
+                            >
+                                <span class="text-muted-foreground">Chi phí thiệt hại ước tính</span>
+                                <span class="font-bold text-rose-600 dark:text-rose-400">
+                                    {{ vnd(estimatedWasteCost) }}
+                                </span>
+                            </div>
+
+                            <!-- Nhân viên chịu trách nhiệm -->
+                            <div class="space-y-1.5">
+                                <Label class="text-xs">
+                                    Nhân viên chịu trách nhiệm (nếu có)
+                                </Label>
+                                <select
+                                    v-model="wasteForm.employee_id"
+                                    class="w-full rounded-xl border border-border bg-background px-3 py-2.5 text-sm focus:border-rose-400 focus:ring-2 focus:ring-rose-500/20 focus:outline-none"
+                                >
+                                    <option value="">
+                                        Không quy trách nhiệm
+                                    </option>
+                                    <option
+                                        v-for="emp in employees"
+                                        :key="emp.id"
+                                        :value="emp.id"
+                                    >
+                                        {{ emp.full_name }}{{ emp.job_title ? ' — ' + emp.job_title : '' }}
+                                    </option>
+                                </select>
+                                <p class="text-[11px] text-muted-foreground">
+                                    Nếu chọn nhân viên, hệ thống sẽ tự tạo khoản khấu trừ lương tháng này.
+                                </p>
+                            </div>
+
+                            <!-- Ghi chú -->
+                            <div class="space-y-1.5">
+                                <Label class="text-xs">Ghi chú / lý do</Label>
+                                <Input
+                                    v-model="wasteForm.notes"
+                                    placeholder="Ví dụ: Hư hỏng trong quá trình chế biến..."
+                                />
+                            </div>
+
+                            <!-- Ảnh hàng hủy (BẮT BUỘC — bằng chứng chống gian lận) -->
+                            <div class="space-y-1.5">
+                                <Label class="text-xs">
+                                    Ảnh hàng hủy <span class="text-rose-500">*</span>
+                                </Label>
+                                <input
+                                    type="file"
+                                    accept="image/*"
+                                    required
+                                    @input="
+                                        wasteForm.photo =
+                                            ($event.target as HTMLInputElement)
+                                                .files?.[0] ?? null
+                                    "
+                                    class="w-full text-xs file:mr-3 file:rounded-lg file:border-0 file:bg-rose-100 file:px-3 file:py-2 file:text-xs file:font-bold file:text-rose-700 dark:file:bg-rose-950/40 dark:file:text-rose-300"
+                                />
+                                <p
+                                    v-if="wasteForm.errors.photo"
+                                    class="text-[11px] font-semibold text-rose-500"
+                                >
+                                    {{ wasteForm.errors.photo }}
+                                </p>
+                                <p
+                                    v-else
+                                    class="text-[10px] text-muted-foreground"
+                                >
+                                    Chụp ảnh hàng thực tế bị hủy để chủ/quản lý đối chiếu khi duyệt.
+                                </p>
+                            </div>
+
+                            <Button
+                                type="submit"
+                                class="w-full bg-rose-600 text-white hover:bg-rose-700 cursor-pointer"
+                                :disabled="wasteForm.processing"
+                            >
+                                <Trash2 class="mr-2 size-4" />
+                                {{
+                                    wasteForm.processing
+                                        ? 'Đang lưu...'
+                                        : 'Xác nhận hao hụt'
+                                }}
+                            </Button>
+                        </form>
+                    </CardContent>
+                </Card>
+
+                <!-- Lịch sử hao hụt & trạng thái -->
+                <div class="space-y-4 lg:col-span-3">
+                    <Card class="border border-border bg-card text-card-foreground shadow-sm">
+                        <CardHeader class="border-b border-border pb-3">
+                            <CardTitle class="flex items-center justify-between text-sm font-bold">
+                                <span>Lịch sử hao hụt & Trạng thái duyệt</span>
+                                <span class="text-xs font-normal text-muted-foreground">
+                                    Tối đa 15 giao dịch gần đây
+                                </span>
+                            </CardTitle>
+                        </CardHeader>
+                        <CardContent class="p-0">
+                            <div
+                                v-if="!recentWastes || recentWastes.length === 0"
+                                class="flex flex-col items-center gap-2 py-16 text-sm text-muted-foreground"
+                            >
+                                <Info class="size-8 text-muted-foreground opacity-30" />
+                                <p>Chưa có dữ liệu hao hụt nào</p>
+                            </div>
+                            <div
+                                v-else
+                                class="max-h-[520px] divide-y divide-border overflow-y-auto"
+                            >
+                                <div
+                                    v-for="w in recentWastes"
+                                    :key="w.id + '-' + w.is_approval"
+                                    class="space-y-2 p-4 text-xs transition-colors hover:bg-muted/10"
+                                >
+                                    <div class="flex items-start justify-between gap-4">
+                                        <div class="min-w-0">
+                                            <div class="flex flex-wrap items-center gap-2">
+                                                <span class="text-sm font-bold text-slate-800 dark:text-slate-200">
+                                                    {{ w.ingredient_name }}
+                                                </span>
+                                                <span class="font-mono font-bold text-rose-600 dark:text-rose-400">
+                                                    -{{ w.quantity }} {{ w.unit_symbol }}
+                                                </span>
+                                            </div>
+                                            <p class="mt-1 text-[10px] text-muted-foreground">
+                                                <span>Thời gian: {{ w.occurred_at }}</span>
+                                                <span class="mx-1.5">·</span>
+                                                <span>Người yêu cầu: {{ w.performed_by }}</span>
+                                            </p>
+                                            <p class="text-[10px] text-muted-foreground">
+                                                <span>Khấu trừ lương: <strong>{{ w.employee_name }}</strong></span>
+                                                <span v-if="w.notes" class="italic">
+                                                    · Ghi chú: "{{ w.notes }}"
+                                                </span>
+                                            </p>
+                                            <p
+                                                v-if="w.rejection_reason && w.status === 'rejected'"
+                                                class="mt-1 text-[10px] font-semibold text-rose-600"
+                                            >
+                                                Lý do từ chối: "{{ w.rejection_reason }}"
+                                            </p>
+                                        </div>
+                                        <div class="flex shrink-0 flex-col items-end gap-1.5 text-right">
+                                            <span class="font-bold text-slate-800 dark:text-slate-200">
+                                                Thành tiền:
+                                                <span class="font-mono text-rose-600 dark:text-rose-400">
+                                                    {{ vnd(w.cost) }}
+                                                </span>
+                                            </span>
+                                            <!-- Trạng thái badge -->
+                                            <span
+                                                v-if="w.status === 'pending'"
+                                                class="rounded-full border border-amber-200 bg-amber-100 px-2 py-0.5 text-[9px] font-bold text-amber-800 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-300"
+                                            >
+                                                Chờ duyệt
+                                            </span>
+                                            <span
+                                                v-else-if="w.status === 'approved'"
+                                                class="rounded-full border border-emerald-200 bg-emerald-100 px-2 py-0.5 text-[9px] font-bold text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950 dark:text-emerald-300"
+                                            >
+                                                Đã duyệt
+                                            </span>
+                                            <span
+                                                v-else-if="w.status === 'rejected'"
+                                                class="rounded-full border border-rose-200 bg-rose-100 px-2 py-0.5 text-[9px] font-bold text-rose-800 dark:border-rose-900 dark:bg-rose-950 dark:text-rose-300"
+                                            >
+                                                Bị từ chối
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </CardContent>
+                    </Card>
+
+                    <!-- Auto deduct info card -->
+                    <div class="flex items-start gap-3 rounded-xl border border-border bg-muted/20 p-4 text-xs">
+                        <Sparkles class="size-4 shrink-0 text-amber-500 mt-0.5" />
+                        <div class="space-y-1 text-muted-foreground">
+                            <p class="font-semibold text-foreground">Tự động trừ kho khi bán hàng</p>
+                            <p class="text-[11px] leading-relaxed">
+                                Bạn <strong>KHÔNG CẦN</strong> nhập thủ công nguyên liệu đã bán tại đây. Khi mỗi đơn hàng hoàn thành, hệ thống sẽ tự động nhân số lượng bán với định lượng công thức từng món để <strong>tự động trừ sạch</strong> lượng sữa, cà phê... tiêu thụ trong kho.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </template>
     </div>
 </template>

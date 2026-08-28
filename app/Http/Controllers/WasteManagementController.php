@@ -2,6 +2,12 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\ApprovalRequest;
+use App\Models\Employee;
+use App\Models\Ingredient;
+use App\Models\Inventory;
+use App\Models\InventoryTransaction;
+use App\Models\SalaryAdjustment;
 use App\Services\QuotaService;
 use App\Services\WasteAnalyticsService;
 use App\Support\Tenant\TenantContext;
@@ -39,11 +45,117 @@ class WasteManagementController extends Controller
         $suggestions = $this->analytics->getAiSuggestions($restaurantId, $branchId);
         $expiring = $this->analytics->getExpiringItems($restaurantId, 3, $branchId);
 
+        $stockMap = Inventory::where('restaurant_id', $restaurantId)
+            ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
+            ->get()
+            ->groupBy('ingredient_id')
+            ->map(fn ($group) => (float) $group->sum('quantity_on_hand'));
+
+        $ingredients = Ingredient::where('restaurant_id', $restaurantId)
+            ->when($branchId, fn ($q) => $q->where(fn ($sub) => $sub->whereNull('branch_id')->orWhere('branch_id', $branchId)))
+            ->with('unit')
+            ->orderBy('name')
+            ->get()
+            ->map(function ($ing) use ($stockMap) {
+                return [
+                    'id' => $ing->id,
+                    'name' => $ing->name,
+                    'average_cost' => (float) $ing->average_cost,
+                    'unit' => $ing->unit ? ['id' => $ing->unit->id, 'symbol' => $ing->unit->symbol] : null,
+                    'stock' => (float) ($stockMap->get($ing->id) ?? 0.0),
+                ];
+            });
+
+        $employees = Employee::where('restaurant_id', $restaurantId)
+            ->where('status', 'active')
+            ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
+            ->orderBy('full_name')
+            ->get(['id', 'full_name', 'job_title']);
+
+        $recentWasteTransactions = InventoryTransaction::where('restaurant_id', $restaurantId)
+            ->where('type', 'waste')
+            ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
+            ->with(['ingredient:id,name,unit_id', 'ingredient.unit', 'performedBy:id,name'])
+            ->latest('occurred_at')
+            ->take(15)
+            ->get();
+
+        $recentWasteApprovals = ApprovalRequest::where('restaurant_id', $restaurantId)
+            ->where('operation_type', 'inventory_waste')
+            ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
+            ->with(['requester:id,name'])
+            ->latest('created_at')
+            ->take(15)
+            ->get();
+
+        $recentWastes = collect();
+
+        $wasteTransactionIds = $recentWasteTransactions->pluck('id');
+        $salaryAdjustmentMap = SalaryAdjustment::whereIn('reference_id', $wasteTransactionIds)
+            ->where('reference_type', InventoryTransaction::class)
+            ->with('employee:id,full_name')
+            ->get()
+            ->keyBy('reference_id');
+
+        foreach ($recentWasteTransactions as $t) {
+            $salaryAdjustment = $salaryAdjustmentMap->get($t->id);
+
+            $recentWastes->push([
+                'id' => $t->id,
+                'is_approval' => false,
+                'ingredient_name' => $t->ingredient?->name ?? '—',
+                'quantity' => (float) $t->quantity,
+                'unit_symbol' => $t->ingredient?->unit?->symbol ?? '—',
+                'cost' => (float) $t->total_cost,
+                'notes' => $t->notes,
+                'performed_by' => $t->performedBy?->name ?? 'Hệ thống',
+                'employee_name' => $salaryAdjustment?->employee?->full_name ?? 'Không khấu trừ',
+                'timestamp' => $t->occurred_at->timestamp,
+                'occurred_at' => $t->occurred_at->format('d/m/Y H:i'),
+                'status' => 'approved',
+                'rejection_reason' => null,
+            ]);
+        }
+
+        $pendingApprovals = $recentWasteApprovals->filter(fn ($r) => $r->status !== 'approved');
+        $approvalIngredientIds = $pendingApprovals->map(fn ($r) => $r->operation_data['ingredient_id'] ?? null)->filter()->unique()->values();
+        $approvalEmployeeIds = $pendingApprovals->map(fn ($r) => $r->operation_data['employee_id'] ?? null)->filter()->unique()->values();
+
+        $approvalIngredients = Ingredient::whereIn('id', $approvalIngredientIds)->with('unit')->get()->keyBy('id');
+        $approvalEmployees = Employee::whereIn('id', $approvalEmployeeIds)->get(['id', 'full_name'])->keyBy('id');
+
+        foreach ($pendingApprovals as $r) {
+            $opData = $r->operation_data;
+            $ing = $approvalIngredients->get($opData['ingredient_id'] ?? null);
+            $emp = ! empty($opData['employee_id']) ? $approvalEmployees->get($opData['employee_id']) : null;
+
+            $recentWastes->push([
+                'id' => $r->id,
+                'is_approval' => true,
+                'ingredient_name' => $opData['ingredient_name'] ?? ($ing?->name ?? '—'),
+                'quantity' => (float) ($opData['quantity'] ?? 0),
+                'unit_symbol' => $opData['unit_symbol'] ?? ($ing?->unit?->symbol ?? '—'),
+                'cost' => (float) ($opData['estimated_cost'] ?? 0),
+                'notes' => $opData['notes'] ?? null,
+                'performed_by' => $r->requester?->name ?? 'Nhân viên',
+                'employee_name' => $emp ? $emp->full_name : 'Không khấu trừ',
+                'timestamp' => $r->created_at->timestamp,
+                'occurred_at' => $r->created_at->format('d/m/Y H:i'),
+                'status' => $r->status,
+                'rejection_reason' => $r->rejection_reason,
+            ]);
+        }
+
+        $recentWastes = $recentWastes->sortByDesc('timestamp')->values()->take(15);
+
         return Inertia::render('waste-management/Index', [
             'dashboard' => $dashboard,
             'trend' => $trend,
             'suggestions' => $suggestions,
             'expiring' => $expiring,
+            'ingredients' => $ingredients,
+            'employees' => $employees,
+            'recentWastes' => $recentWastes,
             'days' => $days,
             'branchContext' => [
                 'scope' => $tenantContext->scope(),
