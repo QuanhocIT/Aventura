@@ -90,7 +90,10 @@ interface ClosingTask {
 }
 
 const props = defineProps<{
-    centralBranch: { id: number; name: string; code?: string };
+    mode: 'central' | 'branch';
+    branch: { id: number; name: string; code?: string };
+    branches?: Array<{ id: number; name: string; code?: string }>;
+    selectedBranchId?: number;
     sessions: ClosingSession[];
     tasks: ClosingTask[];
     counterCandidates: CounterCandidate[];
@@ -100,6 +103,18 @@ const props = defineProps<{
     isWarehouseStaff: boolean;
     scopeMessage: string;
 }>();
+
+const isBranchMode = computed(() => props.mode === 'branch');
+const closingTitle = computed(() => isBranchMode.value ? 'Chốt kho chi nhánh' : 'Chốt nguyên liệu Kho Tổng');
+const closingBaseUrl = computed(() => isBranchMode.value
+    ? '/api/inventory/branch-closing'
+    : '/api/inventory/central-warehouse/material-closing');
+const countsBaseUrl = computed(() => isBranchMode.value
+    ? '/api/inventory/count-sessions'
+    : closingBaseUrl.value);
+const backUrl = computed(() => isBranchMode.value ? '/inventory' : '/inventory/central-warehouse');
+const backLabel = computed(() => isBranchMode.value ? 'Kho nguyên liệu' : 'Tổng quan Kho Tổng');
+const branchLabel = computed(() => isBranchMode.value ? 'Chi nhánh' : 'Kho Tổng');
 
 const today = new Date().toISOString().slice(0, 10);
 const firstOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1)
@@ -114,6 +129,7 @@ const isSubmitting = ref(false);
 const search = ref('');
 const assignForm = ref({ assigned_to: '', priority: 'normal', due_at: '', notes: '' });
 const countRows = ref<Array<{ id: number; counted_quantity: string; notes: string }>>([]);
+const selectedBranchId = ref(props.selectedBranchId ?? props.branch.id);
 
 const filteredSessions = computed(() => {
     const query = search.value.trim().toLowerCase();
@@ -229,12 +245,13 @@ function sessionShortage(session: ClosingSession) {
 
 function openSession(session: ClosingSession) {
     selectedSession.value = session;
+    const isSecondCounter = Number(session.second_counted_by) === Number(props.authUserId);
     countRows.value = (session.items || []).map((item) => ({
         id: item.id,
         counted_quantity: item.final_quantity !== null
             ? String(item.final_quantity)
-            : (props.isWarehouseStaff && item.counted_quantity_2 !== null
-                ? String(item.counted_quantity_2)
+            : (isSecondCounter
+                ? (item.counted_quantity_2 !== null ? String(item.counted_quantity_2) : '')
                 : (item.counted_quantity_1 !== null ? String(item.counted_quantity_1) : '')),
         notes: item.notes || '',
     }));
@@ -262,8 +279,8 @@ async function createClosing() {
     isSubmitting.value = true;
 
     try {
-        const response = await axios.post('/api/inventory/central-warehouse/material-closing', {
-            branch_id: props.centralBranch.id,
+        const response = await axios.post(closingBaseUrl.value, {
+            branch_id: selectedBranchId.value,
             ...periodForm.value,
         });
         toast.success(response.data.message || 'Đã tạo kỳ chốt.');
@@ -298,7 +315,7 @@ async function assignCounter() {
 
     try {
         const response = await axios.post(
-            `/api/inventory/central-warehouse/material-closing/${selectedSession.value.id}/assign`,
+            `${closingBaseUrl.value}/${selectedSession.value.id}/assign`,
             assignForm.value,
         );
         toast.success(response.data.message || 'Đã giao việc đối chiếu.');
@@ -328,7 +345,7 @@ return;
 
     try {
         const response = await axios.post(
-            `/api/inventory/central-warehouse/material-closing/${selectedSession.value.id}/counts`,
+            `${countsBaseUrl.value}/${selectedSession.value.id}/counts`,
             {
                 items: countRows.value.map((row) => ({
                     id: row.id,
@@ -422,7 +439,7 @@ return;
 return;
 }
 
-    const notes = window.prompt('Ghi chú bắt buộc cho việc đồng đếm:', 'Đã kiểm tra lại thực tế tại Kho Tổng');
+    const notes = window.prompt('Ghi chú bắt buộc cho việc đồng đếm:', `Đã kiểm tra lại thực tế tại ${branchLabel.value}`);
 
     if (notes === null || !notes.trim()) {
 return;
@@ -444,30 +461,33 @@ onMounted(openFromQuery);
 </script>
 
 <template>
-    <Head title="Chốt nguyên liệu Kho Tổng" />
+    <Head :title="closingTitle" />
 
     <div class="min-h-screen bg-slate-950 px-4 py-6 text-slate-100 sm:px-6 lg:px-8">
         <div class="mx-auto flex max-w-[1500px] flex-col gap-6">
             <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                 <div>
-                    <Link href="/inventory/central-warehouse" class="mb-3 inline-flex items-center gap-2 text-sm text-slate-400 hover:text-white">
-                        <ArrowLeft class="size-4" /> Tổng quan Kho Tổng
+                    <Link :href="backUrl" class="mb-3 inline-flex items-center gap-2 text-sm text-slate-400 hover:text-white">
+                        <ArrowLeft class="size-4" /> {{ backLabel }}
                     </Link>
                     <div class="flex items-center gap-3">
                         <div class="rounded-2xl bg-amber-500/15 p-3 text-amber-300"><ClipboardCheck class="size-7" /></div>
                         <div>
-                            <p class="text-xs font-bold uppercase tracking-[0.2em] text-amber-300">Kho Tổng · Đối chiếu định kỳ</p>
-                            <h1 class="mt-1 text-3xl font-black tracking-tight">Chốt nguyên liệu</h1>
+                            <p class="text-xs font-bold uppercase tracking-[0.2em] text-amber-300">{{ branchLabel }} · Đối chiếu định kỳ</p>
+                            <h1 class="mt-1 text-3xl font-black tracking-tight">{{ isBranchMode ? 'Chốt kho chi nhánh' : 'Chốt nguyên liệu' }}</h1>
                         </div>
                     </div>
-                    <p class="mt-3 max-w-3xl text-sm leading-6 text-slate-400">Chọn kỳ từ ngày đến ngày. Hệ thống khóa snapshot: tồn đầu kỳ + nhập − xuất = tồn phải còn, sau đó nhân viên đối chiếu số thực tế để nhận diện thiếu/thừa.</p>
+                    <p class="mt-3 max-w-3xl text-sm leading-6 text-slate-400">Chọn kỳ từ ngày đến ngày. Hệ thống khóa snapshot {{ isBranchMode ? 'riêng cho chi nhánh' : 'Kho Tổng' }}: tồn đầu kỳ + nhập − xuất = tồn phải còn, sau đó nhân viên đối chiếu số thực tế để nhận diện thiếu/thừa.</p>
                 </div>
                 <div class="flex flex-wrap gap-2">
+                    <select v-if="isBranchMode && (props.branches?.length || 0) > 1" v-model="selectedBranchId" class="h-9 rounded-md border border-slate-700 bg-slate-900 px-3 text-sm text-slate-200" @change="router.get('/inventory/branch-closing', { branch_id: selectedBranchId }, { preserveState: false, replace: true })">
+                        <option v-for="candidate in props.branches" :key="candidate.id" :value="candidate.id">{{ candidate.name }}</option>
+                    </select>
                     <Button variant="outline" class="gap-2 border-slate-700 bg-slate-900 text-slate-200 hover:bg-slate-800" @click="router.reload()">
                         <RefreshCw class="size-4" /> Làm mới
                     </Button>
                     <Button v-if="canManage" class="gap-2 bg-amber-500 font-bold text-slate-950 hover:bg-amber-400" @click="showCreate = true">
-                        <ClipboardCheck class="size-4" /> Mở kỳ chốt mới
+                        <ClipboardCheck class="size-4" /> {{ isBranchMode ? 'Mở kỳ chốt kho' : 'Mở kỳ chốt mới' }}
                     </Button>
                 </div>
             </div>
@@ -485,11 +505,11 @@ onMounted(openFromQuery);
 
             <Card class="border-slate-800 bg-slate-900/80">
                 <CardHeader class="flex flex-col gap-3 border-b border-slate-800 sm:flex-row sm:items-center sm:justify-between">
-                    <div><CardTitle class="text-lg">Các kỳ chốt nguyên liệu</CardTitle><CardDescription class="text-slate-400">Mỗi kỳ lưu lại số liệu để truy vết và đối chiếu, không phụ thuộc nhà cung cấp.</CardDescription></div>
+                    <div><CardTitle class="text-lg">{{ isBranchMode ? 'Các kỳ chốt kho chi nhánh' : 'Các kỳ chốt nguyên liệu' }}</CardTitle><CardDescription class="text-slate-400">Mỗi kỳ lưu lại số liệu để truy vết và đối chiếu, không phụ thuộc nhà cung cấp.</CardDescription></div>
                     <Input v-model="search" placeholder="Tìm mã kỳ / ngày / trạng thái" class="h-9 w-full border-slate-700 bg-slate-950 sm:w-64" />
                 </CardHeader>
                 <CardContent class="p-0">
-                    <div v-if="filteredSessions.length === 0" class="p-12 text-center text-sm text-slate-500">Chưa có kỳ chốt nào trong phạm vi Kho Tổng.</div>
+                    <div v-if="filteredSessions.length === 0" class="p-12 text-center text-sm text-slate-500">Chưa có kỳ chốt nào trong phạm vi {{ branchLabel }}.</div>
                     <div v-else class="divide-y divide-slate-800">
                         <button v-for="session in filteredSessions" :key="session.id" class="flex w-full flex-col gap-4 p-5 text-left transition hover:bg-slate-800/50 lg:flex-row lg:items-center lg:justify-between" @click="openSession(session)">
                             <div class="min-w-0">
@@ -501,7 +521,7 @@ onMounted(openFromQuery);
                                 <div><p class="text-slate-500">Phải còn</p><p class="font-bold text-slate-200">{{ formatNumber(session.total_expected_quantity) }}</p></div>
                                 <div><p class="text-slate-500">Giá trị</p><p class="font-bold text-slate-200">{{ formatCurrency(session.total_expected_value) }}</p></div>
                                 <div><p class="text-slate-500">Thiếu</p><p class="font-bold text-rose-400">{{ formatCurrency(session.total_shortage_value) }}</p></div>
-                                <div><p class="text-slate-500">Task</p><p class="font-bold" :class="taskFor(session.id)?.status === 'completed' ? 'text-emerald-400' : 'text-amber-300'">{{ taskFor(session.id)?.status || 'Chưa giao' }}</p></div>
+                                <div v-if="!isBranchMode"><p class="text-slate-500">Task</p><p class="font-bold" :class="taskFor(session.id)?.status === 'completed' ? 'text-emerald-400' : 'text-amber-300'">{{ taskFor(session.id)?.status || 'Chưa giao' }}</p></div>
                             </div>
                         </button>
                     </div>
@@ -511,7 +531,7 @@ onMounted(openFromQuery);
             <Card v-if="selectedSession" class="border-amber-500/30 bg-slate-900/95 shadow-2xl shadow-amber-950/20">
                 <CardHeader class="border-b border-slate-800">
                     <div class="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-                        <div><div class="flex flex-wrap items-center gap-2"><CardTitle>Kỳ chốt #{{ selectedSession.id }}</CardTitle><Badge variant="outline" :class="statusClass(selectedSession.status)">{{ statusLabel(selectedSession.status) }}</Badge></div><CardDescription class="mt-1 text-slate-400">{{ selectedSession.period_start }} → {{ selectedSession.period_end }} · {{ centralBranch.name }}</CardDescription></div>
+                        <div><div class="flex flex-wrap items-center gap-2"><CardTitle>Kỳ chốt #{{ selectedSession.id }}</CardTitle><Badge variant="outline" :class="statusClass(selectedSession.status)">{{ statusLabel(selectedSession.status) }}</Badge></div><CardDescription class="mt-1 text-slate-400">{{ selectedSession.period_start }} → {{ selectedSession.period_end }} · {{ branch.name }}</CardDescription></div>
                         <div class="flex flex-wrap gap-2">
                             <Button v-if="canManage && selectedSession.status === 'in_progress'" variant="outline" class="gap-2 border-slate-700" @click="openAssign(selectedSession)"><UserPlus class="size-4" /> Giao đối chiếu</Button>
                             <Button v-if="canManage && selectedSession.status === 'in_progress'" variant="outline" class="border-rose-500/30 text-rose-300" @click="cancelSession">Hủy kỳ</Button>
@@ -566,16 +586,17 @@ onMounted(openFromQuery);
         </div>
 
         <div v-if="showCreate" class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" @click.self="showCreate = false">
-            <Card class="w-full max-w-lg border-slate-700 bg-slate-900 shadow-2xl"><CardHeader><CardTitle>Mở kỳ chốt nguyên liệu</CardTitle><CardDescription class="text-slate-400">Không dùng nhà cung cấp. Hệ thống đọc sổ giao dịch Kho Tổng theo khoảng ngày bạn chọn.</CardDescription></CardHeader><CardContent class="space-y-4">
+            <Card class="w-full max-w-lg border-slate-700 bg-slate-900 shadow-2xl"><CardHeader><CardTitle>{{ isBranchMode ? 'Mở kỳ chốt kho chi nhánh' : 'Mở kỳ chốt nguyên liệu' }}</CardTitle><CardDescription class="text-slate-400">Không dùng nhà cung cấp. Hệ thống đọc sổ giao dịch {{ branchLabel }} theo khoảng ngày bạn chọn.</CardDescription></CardHeader><CardContent class="space-y-4">
+                <div v-if="isBranchMode" class="space-y-2"><Label>Chi nhánh</Label><select v-model="selectedBranchId" class="h-10 w-full rounded-md border border-slate-700 bg-slate-950 px-3 text-sm text-slate-200"><option v-for="candidate in props.branches" :key="candidate.id" :value="candidate.id">{{ candidate.name }}</option></select></div>
                 <div class="grid gap-4 sm:grid-cols-2"><div class="space-y-2"><Label>Chốt từ ngày</Label><Input v-model="periodForm.from_date" type="date" class="border-slate-700 bg-slate-950" /></div><div class="space-y-2"><Label>Đến ngày</Label><Input v-model="periodForm.to_date" type="date" class="border-slate-700 bg-slate-950" /></div></div>
-                <div class="rounded-xl border border-sky-500/20 bg-sky-500/5 p-3 text-xs leading-5 text-sky-200">Sau khi mở kỳ, hệ thống sẽ hiển thị từng nguyên liệu: tồn đầu kỳ, tổng nhập, tổng xuất, tồn phải còn và giá trị quy đổi. Trưởng kho có thể giao nhân viên đối chiếu thực tế.</div>
+                <div class="rounded-xl border border-sky-500/20 bg-sky-500/5 p-3 text-xs leading-5 text-sky-200">Sau khi mở kỳ, hệ thống sẽ hiển thị từng nguyên liệu: tồn đầu kỳ, tổng nhập, tổng xuất, tồn phải còn và giá trị quy đổi. {{ isBranchMode ? 'Quản lý chi nhánh có thể giao nhân viên đối chiếu thực tế.' : 'Trưởng kho có thể giao nhân viên đối chiếu thực tế.' }}</div>
                 <div class="flex justify-end gap-2"><Button variant="outline" class="border-slate-700" @click="showCreate = false">Hủy</Button><Button :disabled="isSubmitting" class="bg-amber-500 font-bold text-slate-950" @click="createClosing">Tạo kỳ chốt</Button></div>
             </CardContent></Card>
         </div>
 
         <div v-if="showAssign && selectedSession" class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" @click.self="showAssign = false">
             <Card class="w-full max-w-lg border-slate-700 bg-slate-900 shadow-2xl"><CardHeader><CardTitle>Giao việc đối chiếu #{{ selectedSession.id }}</CardTitle><CardDescription class="text-slate-400">Nhân viên sẽ nhập số thực tế cho toàn bộ nguyên liệu và kết quả được ghi vào lịch sử kỳ chốt.</CardDescription></CardHeader><CardContent class="space-y-4">
-                <div class="space-y-2"><Label>Nhân viên Kho Tổng</Label><select v-model="assignForm.assigned_to" class="h-10 w-full rounded-md border border-slate-700 bg-slate-950 px-3 text-sm text-slate-200"><option value="">Chọn nhân viên</option><option v-for="candidate in counterCandidates" :key="candidate.id" :value="String(candidate.id)">{{ candidate.name }}{{ candidate.job_title ? ` · ${candidate.job_title}` : '' }}</option></select></div>
+                <div class="space-y-2"><Label>Nhân viên {{ branchLabel }}</Label><select v-model="assignForm.assigned_to" class="h-10 w-full rounded-md border border-slate-700 bg-slate-950 px-3 text-sm text-slate-200"><option value="">Chọn nhân viên</option><option v-for="candidate in counterCandidates" :key="candidate.id" :value="String(candidate.id)">{{ candidate.name }}{{ candidate.job_title ? ` · ${candidate.job_title}` : '' }}</option></select></div>
                 <div class="grid gap-4 sm:grid-cols-2"><div class="space-y-2"><Label>Ưu tiên</Label><select v-model="assignForm.priority" class="h-10 w-full rounded-md border border-slate-700 bg-slate-950 px-3 text-sm text-slate-200"><option value="normal">Bình thường</option><option value="high">Cao</option><option value="urgent">Khẩn</option></select></div><div class="space-y-2"><Label>Hạn hoàn thành</Label><Input v-model="assignForm.due_at" type="datetime-local" class="border-slate-700 bg-slate-950" /></div></div>
                 <div class="space-y-2"><Label>Hướng dẫn</Label><textarea v-model="assignForm.notes" rows="3" class="w-full rounded-md border border-slate-700 bg-slate-950 p-3 text-sm text-slate-200" /></div>
                 <div class="flex justify-end gap-2"><Button variant="outline" class="border-slate-700" @click="showAssign = false">Hủy</Button><Button :disabled="isSubmitting" class="gap-2 bg-amber-500 font-bold text-slate-950" @click="assignCounter"><UserPlus class="size-4" /> Giao việc</Button></div>

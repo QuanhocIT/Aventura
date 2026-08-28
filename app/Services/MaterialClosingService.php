@@ -35,7 +35,12 @@ class MaterialClosingService
         string $fromDate,
         string $toDate,
         ?array $ingredientIds = null,
+        string $sessionType = 'material_closing',
     ): InventoryCountSession {
+        if (! in_array($sessionType, ['material_closing', 'branch_closing'], true)) {
+            throw new InvalidArgumentException('Loại kỳ chốt kho không hợp lệ.');
+        }
+
         $periodStart = Carbon::parse($fromDate)->startOfDay();
         $periodEnd = Carbon::parse($toDate)->endOfDay();
 
@@ -47,7 +52,7 @@ class MaterialClosingService
             throw new InvalidArgumentException('Ngày kết thúc không được ở tương lai.');
         }
 
-        return DB::transaction(function () use ($restaurantId, $branchId, $creator, $periodStart, $periodEnd, $ingredientIds) {
+        return DB::transaction(function () use ($restaurantId, $branchId, $creator, $periodStart, $periodEnd, $ingredientIds, $sessionType) {
             if ((int) $creator->restaurant_id !== $restaurantId) {
                 throw new InvalidArgumentException('Tài khoản không thuộc nhà hàng của kỳ chốt này.');
             }
@@ -62,6 +67,26 @@ class MaterialClosingService
 
             if (! $branch) {
                 throw new InvalidArgumentException('Kho Tổng không tồn tại hoặc đã ngừng hoạt động.');
+            }
+
+            $isCentralBranch = (bool) ($branch->is_central_warehouse || $branch->warehouse_type === 'central');
+            if ($sessionType === 'material_closing' && ! $isCentralBranch) {
+                throw new InvalidArgumentException('Kỳ chốt nguyên liệu này chỉ dành cho Kho Tổng.');
+            }
+            if ($sessionType === 'branch_closing' && $isCentralBranch) {
+                throw new InvalidArgumentException('Kỳ chốt kho chi nhánh không áp dụng cho Kho Tổng.');
+            }
+
+            if (InventoryCountSession::where('restaurant_id', $restaurantId)
+                ->where('branch_id', $branchId)
+                ->where('type', $sessionType)
+                ->whereNotIn('status', ['cancelled', 'rejected'])
+                ->whereNotNull('period_start')
+                ->whereNotNull('period_end')
+                ->whereDate('period_start', '<=', $periodEnd->toDateString())
+                ->whereDate('period_end', '>=', $periodStart->toDateString())
+                ->exists()) {
+                throw new InvalidArgumentException('Kho này đã có kỳ chốt cùng hoặc giao với khoảng ngày đã chọn.');
             }
 
             if (InventoryCountSession::where('restaurant_id', $restaurantId)
@@ -113,14 +138,16 @@ class MaterialClosingService
             $session = InventoryCountSession::create([
                 'restaurant_id' => $restaurantId,
                 'branch_id' => $branchId,
-                'type' => 'material_closing',
+                'type' => $sessionType,
                 'period_start' => $periodStart->toDateString(),
                 'period_end' => $periodEnd->toDateString(),
                 'status' => 'in_progress',
                 'blind_count' => false,
                 'counted_by' => $creator->id,
                 'started_at' => now(),
-                'notes' => 'Snapshot kỳ chốt nguyên liệu được tính từ sổ giao dịch kho.',
+                'notes' => $sessionType === 'branch_closing'
+                    ? 'Snapshot kỳ chốt kho chi nhánh được tính từ sổ giao dịch của chi nhánh.'
+                    : 'Snapshot kỳ chốt nguyên liệu được tính từ sổ giao dịch Kho Tổng.',
             ]);
 
             $totalExpectedQuantity = 0.0;
@@ -186,7 +213,7 @@ class MaterialClosingService
      */
     public function refreshSummary(InventoryCountSession $session): void
     {
-        if ($session->type !== 'material_closing') {
+        if (! in_array($session->type, ['material_closing', 'branch_closing'], true)) {
             return;
         }
 

@@ -75,11 +75,14 @@ class MaterialClosingController extends Controller
             ->get();
 
         return Inertia::render('inventory/MaterialClosing', [
-            'centralBranch' => [
+            'mode' => 'central',
+            'branch' => [
                 'id' => (int) $centralBranch->id,
                 'name' => $centralBranch->name,
                 'code' => $centralBranch->code,
             ],
+            'branches' => [],
+            'selectedBranchId' => (int) $centralBranch->id,
             'sessions' => $sessions,
             'tasks' => $tasks,
             'counterCandidates' => $canManage ? $this->taskService->getWarehouseStaff($user->restaurant_id) : [],
