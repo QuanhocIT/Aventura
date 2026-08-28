@@ -25,7 +25,7 @@ final class CashControlSettings
     public const HANDOVER_REQUIRED = 'cash_handover_required';
 
     private const DEFAULTS = [
-        self::BLIND_COUNT => true,
+        self::BLIND_COUNT => false,
         self::VARIANCE_THRESHOLD => 20000,
         self::EVIDENCE_THRESHOLD => 200000,
         self::HANDOVER_REQUIRED => false,
