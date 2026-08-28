@@ -1218,12 +1218,13 @@ class ShiftClosingController extends Controller
             ? Carbon::parse($closingDate->copy()->addDay()->toDateString().' '.$shift->end_time)
             : Carbon::parse($closingDate->toDateString().' '.$shift->end_time);
 
-        // For a live close, the report ends exactly when the cashier presses
-        // close. Historical dates keep their scheduled shift boundary.
-        $isLiveClosing = $closingAt
-            && ($closingDate->isToday() || ($shift->is_overnight && $closingDate->isYesterday()))
-            && $closingAt->greaterThan($startDt);
-        $endDt = $isLiveClosing ? $closingAt->copy() : $scheduledEndDt;
+        $endDt = $scheduledEndDt->copy();
+
+        // Chỉ cắt mốc chốt ca tới thời điểm bấm chốt ($closingAt) NẾU ca làm việc đó ĐANG diễn ra.
+        // Nếu ca đã trôi qua (đã hết giờ ca), chốt đúng theo mốc giờ quy định của ca ($scheduledEndDt).
+        if ($closingAt && $closingAt->greaterThanOrEqualTo($startDt) && $closingAt->lessThan($scheduledEndDt)) {
+            $endDt = $closingAt->copy();
+        }
 
         return [$startDt, $endDt];
     }
