@@ -2656,7 +2656,7 @@ onUnmounted(() =>
                                             2. KHU VỰC
                                         </p>
                                         <p class="mt-1 text-xs font-bold text-slate-800 dark:text-slate-200">
-                                            Toàn bộ khu vực
+                                            {{ previewData.area_name }}
                                         </p>
                                     </div>
                                     <div class="bg-white p-3.5 dark:bg-slate-900">
