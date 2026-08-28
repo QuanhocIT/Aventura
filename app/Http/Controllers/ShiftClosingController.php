@@ -1004,9 +1004,13 @@ class ShiftClosingController extends Controller
      * Chỉ owner/manager được phép. Chỉ áp dụng cho status = 'draft'.
      * Phiếu sẽ bị xóa vĩnh viễn sau 7 ngày bởi scheduled command.
      */
-    public function trash(Request $request, ShiftClosing $closing): RedirectResponse
+    public function trash(Request $request, int $id): RedirectResponse
     {
         abort_unless($request->user()->hasAnyRole(['owner', 'manager']), 403);
+
+        $closing = ShiftClosing::where('restaurant_id', $request->user()->restaurant_id)
+            ->findOrFail($id);
+
         abort_unless($closing->status === 'draft', 422, 'Chỉ được chuyển phiếu nháp vào thùng rác.');
         $this->authorizeClosingBranch($request->user(), $closing);
 

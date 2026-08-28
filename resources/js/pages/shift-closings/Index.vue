@@ -1924,7 +1924,7 @@ onUnmounted(() =>
                                             </template>
                                             <span
                                                 v-if="
-                                                    closing.status === 'draft'
+                                                    closing.status === 'draft' && !isManagerRole
                                                 "
                                                 class="text-xs font-semibold text-slate-400 italic"
                                                 >Nhân viên chưa nộp phiếu</span
