@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\Area;
+use App\Models\ApprovalRequest;
 use App\Models\CashRegister;
 use App\Models\CashTransaction;
 use App\Models\Employee;
@@ -177,12 +178,20 @@ class CashFlowTest extends TestCase
         $response->assertRedirect(route('cash-flow.index'));
         $response->assertSessionHas('success');
 
+        $approval = ApprovalRequest::where('operation_type', 'cash_manual_transaction')->firstOrFail();
+        $this->assertDatabaseCount('cash_transactions', 0);
+
+        $this->actingAs($this->owner)
+            ->patch(route('approvals.approve', $approval))
+            ->assertRedirect();
+
         $this->assertDatabaseHas('cash_transactions', [
             'cash_register_id' => $register->id,
             'type' => 'out',
             'amount' => 75000,
             'source' => 'expense',
             'notes' => 'Chi tiền mua xà phòng',
+            'approval_request_id' => $approval->id,
         ]);
     }
 
@@ -353,7 +362,7 @@ class CashFlowTest extends TestCase
 
         // 1. Create a closed register with discrepancy > 2% of expected closing balance
         // Difference = -50,000, Expected = 1,000,000 -> Variance = 5% > 2%
-        CashRegister::create([
+        $register = CashRegister::create([
             'restaurant_id' => $this->restaurant->id,
             'branch_id' => $this->branch->id,
             'shift_id' => $this->shift->id,
@@ -730,7 +739,7 @@ class CashFlowTest extends TestCase
 
     public function test_repeating_a_cash_request_is_idempotent(): void
     {
-        CashRegister::create([
+        $register = CashRegister::create([
             'restaurant_id' => $this->restaurant->id,
             'branch_id' => $this->branch->id,
             'shift_id' => $this->shift->id,
@@ -755,6 +764,18 @@ class CashFlowTest extends TestCase
         $this->actingAs($this->cashier)->post(route('cash-flow.transactions.store'), $payload)
             ->assertRedirect();
 
+        $approval = ApprovalRequest::where('operation_type', 'cash_manual_transaction')->firstOrFail();
+        $this->assertDatabaseCount('approval_requests', 1);
+        $this->assertDatabaseCount('cash_transactions', 0);
+
+        $this->actingAs($this->owner)
+            ->patch(route('approvals.approve', $approval))
+            ->assertRedirect();
+
         $this->assertDatabaseCount('cash_transactions', 1);
+        $this->assertDatabaseHas('cash_transactions', [
+            'cash_register_id' => $register->id,
+            'approval_request_id' => $approval->id,
+        ]);
     }
 }

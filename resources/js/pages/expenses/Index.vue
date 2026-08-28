@@ -50,9 +50,15 @@ type UserCreator = {
     email: string;
 };
 
+type FinancialAccount = {
+    code: string;
+    name: string;
+};
+
 type OperatingExpense = {
     id: number;
     category_id: number | null;
+    financial_account_code: string | null;
     recurring_expense_id: number | null;
     amount: number;
     expense_date: string;
@@ -105,6 +111,7 @@ const props = defineProps<{
     expenses: PaginatedExpenses;
     recurringExpenses: RecurringExpense[];
     categories: Category[];
+    financialAccounts: FinancialAccount[];
     analytics: Analytics;
     filters: {
         start_date: string | null;
@@ -217,6 +224,7 @@ function resetFilters() {
 // --- EXPENSE FORM ---
 const expenseForm = useForm({
     category_id: '',
+    financial_account_code: '6271',
     amount: 0,
     expense_date: new Date().toISOString().substring(0, 10),
     description: '',
@@ -227,6 +235,7 @@ function openNewExpenseModal() {
     editingExpense.value = null;
     expenseForm.reset();
     expenseForm.category_id = props.categories[0]?.id.toString() || '';
+    expenseForm.financial_account_code = '6271';
     expenseForm.amount = 0;
     expenseForm.expense_date = new Date().toISOString().substring(0, 10);
     expenseForm.description = '';
@@ -237,6 +246,7 @@ function openNewExpenseModal() {
 function openEditExpenseModal(expense: OperatingExpense) {
     editingExpense.value = expense;
     expenseForm.category_id = expense.category_id?.toString() || '';
+    expenseForm.financial_account_code = expense.financial_account_code || '6271';
     expenseForm.amount = expense.amount;
     expenseForm.expense_date = expense.expense_date;
     expenseForm.description = expense.description || '';
@@ -270,6 +280,7 @@ function saveExpense() {
         const updateForm = useForm({
             _method: 'PATCH',
             category_id: expenseForm.category_id,
+            financial_account_code: expenseForm.financial_account_code,
             amount: expenseForm.amount,
             expense_date: expenseForm.expense_date,
             description: expenseForm.description,
@@ -1535,6 +1546,27 @@ const chartMaxVal = computed(() => {
                                     :value="c.id"
                                 >
                                     {{ c.name }}
+                                </option>
+                            </select>
+                        </div>
+
+                        <div class="space-y-1.5">
+                            <Label
+                                for="expense-account"
+                                class="text-xs font-bold text-slate-500"
+                                >Tài khoản chi phí:</Label
+                            >
+                            <select
+                                id="expense-account"
+                                v-model="expenseForm.financial_account_code"
+                                class="w-full rounded-lg border border-border bg-background px-3 py-2.5 text-xs font-semibold outline-hidden focus:ring-2 focus:ring-amber-500/25"
+                            >
+                                <option
+                                    v-for="account in financialAccounts"
+                                    :key="account.code"
+                                    :value="account.code"
+                                >
+                                    {{ account.code }} — {{ account.name }}
                                 </option>
                             </select>
                         </div>

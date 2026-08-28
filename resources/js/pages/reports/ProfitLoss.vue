@@ -44,6 +44,7 @@ type Monthly = {
     gross_margin: number;
     labor_cost: number;
     operating_expenses: { total: number; by_category: Record<string, number> };
+    depreciation: number;
     net_profit: number;
     net_margin: number;
 };
@@ -187,6 +188,11 @@ const lines = computed(() => [
     {
         label: 'Chi phí vận hành',
         value: -cur.value.operating_expenses.total,
+        kind: 'minus',
+    },
+    {
+        label: 'Chi phi khau hao TSCD',
+        value: -cur.value.depreciation,
         kind: 'minus',
     },
     {

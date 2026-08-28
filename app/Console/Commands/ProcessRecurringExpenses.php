@@ -57,11 +57,13 @@ class ProcessRecurringExpenses extends Command
                         'restaurant_id' => $recurring->restaurant_id,
                         'branch_id' => $recurring->branch_id,
                         'category_id' => $recurring->category_id,
+                        'financial_account_code' => '6271',
                         'recurring_expense_id' => $recurring->id,
                         'amount' => $recurring->amount,
                         'expense_date' => $nextTrigger->toDateString(),
                         'description' => "Tự động phát sinh từ chi phí định kỳ: {$recurring->name}",
                         'created_by' => null,
+                        'status' => 'draft',
                     ]);
                     $count++;
                 }

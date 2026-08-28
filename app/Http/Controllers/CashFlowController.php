@@ -6,6 +6,7 @@ use App\Models\Area;
 use App\Models\AuditLog;
 use App\Models\CashRegister;
 use App\Models\CashTransaction;
+use App\Models\ApprovalRequest;
 use App\Models\WorkShift;
 use App\Services\CashPostingService;
 use App\Services\QuotaService;
@@ -381,15 +382,53 @@ class CashFlowController extends Controller
                     ->sum('amount');
 
                 if ($existingOut + $data['amount'] > $budget) {
-                    if (! $user->isOwner() && ! $user->isSuperAdmin()) {
-                        return back()->withErrors([
-                            'amount' => 'Khoản chi vượt quá ngân sách ca (đã chi '.number_format($existingOut).'đ / tối đa '.number_format($budget).'đ). Yêu cầu Chủ nhà hàng phê duyệt trực tiếp.',
-                        ]);
+                    if ($user->isOwner() || $user->isSuperAdmin()) {
+                        $data['notes'] .= ' [Owner đã phê duyệt vượt ngân sách ca: '.number_format($existingOut + $data['amount'] - $budget).'đ]';
+                    } else {
+                        $data['notes'] .= ' [Khoản chi vượt ngân sách ca; chờ Chủ phê duyệt]';
                     }
-                    // Owner được phép override — ghi chú rõ ràng để audit trail
-                    $data['notes'] .= ' [Owner đã phê duyệt vượt ngân sách ca: '.number_format($existingOut + $data['amount'] - $budget).'đ]';
                 }
             }
+        }
+
+        // Cashier/manager submissions are recorded as approval requests. The
+        // actual cash movement and journal entry are created only by the
+        // ApprovalService after an owner decision.
+        if (! $user->isOwner() && ! $user->isSuperAdmin()) {
+            $currentCash = (float) $activeRegister->opening_balance
+                + (float) CashTransaction::where('cash_register_id', $activeRegister->id)->where('type', 'in')->sum('amount')
+                - (float) CashTransaction::where('cash_register_id', $activeRegister->id)->where('type', 'out')->sum('amount');
+            if ($data['type'] === 'out' && $currentCash + 0.01 < (float) $data['amount']) {
+                return back()->withErrors(['amount' => 'Số dư két hiện tại không đủ cho khoản chi này.']);
+            }
+
+            $existingApproval = ApprovalRequest::where('restaurant_id', $restaurantId)
+                ->where('operation_type', 'cash_manual_transaction')
+                ->open()
+                ->whereJsonContains('operation_data->idempotency_key', $idempotencyKey)
+                ->first();
+            if ($existingApproval) {
+                return redirect()->route('cash-flow.index')->with('success', 'Giao dịch này đã được gửi và đang chờ phê duyệt.');
+            }
+
+            app(\App\Services\ApprovalService::class)->submitRequest('cash_manual_transaction', [
+                'restaurant_id' => $restaurantId,
+                'branch_id' => $branchId,
+                'cash_register_id' => $activeRegister->id,
+                'area_id' => $areaId,
+                'type' => $data['type'],
+                'amount' => $data['amount'],
+                'source' => $data['source'],
+                'voucher_code' => $data['voucher_code'],
+                'idempotency_key' => $idempotencyKey,
+                'budget_limit' => (float) $activeRegister->expense_budget,
+                'notes' => $data['notes'],
+                'created_by' => $user->id,
+                'occurred_at' => now()->toDateTimeString(),
+                'allow_budget_overrun' => true,
+            ], $user);
+
+            return redirect()->route('cash-flow.index')->with('success', 'Đã gửi giao dịch tiền mặt chờ Chủ phê duyệt.');
         }
 
         $notes = $data['notes'];

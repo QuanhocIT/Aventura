@@ -10,6 +10,7 @@ use App\Services\FinancialPostingService;
 use App\Support\Tenant\TenantContext;
 use App\Support\TenantRule;
 use Carbon\CarbonImmutable;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -108,6 +109,26 @@ class FinancialController extends Controller
                 'balance' => round((float) $row->debit - (float) $row->credit, 2),
             ])->values();
 
+        // Balance-sheet and cash figures are point-in-time balances. Include
+        // all posted periods up to the selected period; the trial balance
+        // above remains the selected month's movement report.
+        $cumulativeBalance = FinancialJournalLine::withoutGlobalScopes()
+            ->join('financial_journal_entries as entries', 'entries.id', '=', 'financial_journal_lines.journal_entry_id')
+            ->join('financial_accounts as accounts', 'accounts.id', '=', 'financial_journal_lines.financial_account_id')
+            ->where('financial_journal_lines.restaurant_id', $restaurantId)
+            ->whereDate('entries.entry_date', '<=', $period->period_end->toDateString())
+            ->where('entries.status', 'posted')
+            ->when($branchId !== null, fn ($query) => $query->where('financial_journal_lines.branch_id', $branchId))
+            ->groupBy('accounts.type')
+            ->get([
+                'accounts.type',
+                DB::raw('SUM(financial_journal_lines.debit - financial_journal_lines.credit) as balance'),
+            ])
+            ->pluck('balance', 'type')
+            ->map(fn ($value): float => (float) $value);
+
+        $closeChecklist = $this->postingService->closeChecklist($period);
+
         $periods = AccountingPeriod::withoutGlobalScopes()
             ->where('restaurant_id', $restaurantId)
             ->latest('period_start')
@@ -138,6 +159,7 @@ class FinancialController extends Controller
         $revenueBalance = (float) ($balanceRows['revenue'] ?? 0);
         $expenseBalance = (float) ($balanceRows['expense'] ?? 0);
         $netProfit = round(-$revenueBalance - $expenseBalance, 2);
+        $cumulativeNetProfit = round(-((float) ($cumulativeBalance['revenue'] ?? 0)) - ((float) ($cumulativeBalance['expense'] ?? 0)), 2);
         $statements = [
             'income_statement' => [
                 'revenue' => round(abs($revenueBalance), 2),
@@ -145,14 +167,21 @@ class FinancialController extends Controller
                 'net_profit' => $netProfit,
             ],
             'balance_sheet' => [
-                'assets' => round(abs((float) ($balanceRows['asset'] ?? 0)), 2),
-                'liabilities' => round(abs((float) ($balanceRows['liability'] ?? 0)), 2),
-                // Current-period profit is not closed to retained earnings
-                // until year-end, so present it inside equity for a useful
-                // management balance sheet.
-                'equity' => round(abs((float) ($balanceRows['equity'] ?? 0)) + $netProfit, 2),
+                'assets' => round(abs((float) ($cumulativeBalance['asset'] ?? 0)), 2),
+                'liabilities' => round(abs((float) ($cumulativeBalance['liability'] ?? 0)), 2),
+                // Revenue/expense accounts are not closed to retained
+                // earnings until year-end, so include cumulative net result.
+                'equity' => round(abs((float) ($cumulativeBalance['equity'] ?? 0)) + $cumulativeNetProfit, 2),
             ],
-            'cash_position' => round(abs((float) $trialBalance->whereIn('code', ['1111', '1121', '1122', '1123'])->sum('balance')), 2),
+            'cash_position' => round(abs((float) FinancialJournalLine::withoutGlobalScopes()
+                ->join('financial_journal_entries as entries', 'entries.id', '=', 'financial_journal_lines.journal_entry_id')
+                ->join('financial_accounts as accounts', 'accounts.id', '=', 'financial_journal_lines.financial_account_id')
+                ->where('financial_journal_lines.restaurant_id', $restaurantId)
+                ->whereDate('entries.entry_date', '<=', $period->period_end->toDateString())
+                ->where('entries.status', 'posted')
+                ->whereIn('accounts.code', ['1111', '1121', '1122', '1123'])
+                ->when($branchId !== null, fn ($query) => $query->where('financial_journal_lines.branch_id', $branchId))
+                ->sum(DB::raw('financial_journal_lines.debit - financial_journal_lines.credit'))), 2),
         ];
 
         return Inertia::render('finance/Index', [
@@ -166,10 +195,13 @@ class FinancialController extends Controller
             'entries' => $entries,
             'trialBalance' => $trialBalance,
             'periods' => $periods,
+            'closeChecklist' => $closeChecklist,
             'accounts' => $accounts,
             'statements' => $statements,
             'canReverse' => $user->isOwner() || $user->isSuperAdmin() || $user->hasRole('accountant') || $user->hasPermissionTo('finance.manage'),
             'canManageAccounts' => $user->isOwner() || $user->isSuperAdmin() || $user->hasRole('accountant') || $user->hasPermissionTo('finance.manage'),
+            'canClose' => $user->isOwner() || $user->isSuperAdmin(),
+            'canReopen' => $user->isOwner() || $user->isSuperAdmin(),
             'summary' => [
                 'total_debit' => round((float) $trialBalance->sum('debit'), 2),
                 'total_credit' => round((float) $trialBalance->sum('credit'), 2),
@@ -188,6 +220,83 @@ class FinancialController extends Controller
         $this->postingService->closePeriod($period, $user, $data['notes'] ?? null);
 
         return back()->with('success', 'Đã khóa kỳ tài chính. Mọi điều chỉnh sau đó phải dùng bút toán đảo.');
+    }
+
+    public function closeChecklist(Request $request, AccountingPeriod $period): JsonResponse
+    {
+        $user = $request->user();
+        abort_unless(
+            $user->hasAnyRole(['owner', 'manager', 'accountant', 'super_admin'])
+                || $user->hasPermissionTo('finance.view'),
+            403,
+        );
+        abort_if($period->restaurant_id !== $user->restaurant_id, 403);
+
+        return response()->json([
+            'period' => $period->id,
+            'checklist' => $this->postingService->closeChecklist($period),
+        ]);
+    }
+
+    public function reopenPeriod(Request $request, AccountingPeriod $period): RedirectResponse
+    {
+        $user = $request->user();
+        abort_unless($user->isOwner() || $user->isSuperAdmin(), 403);
+        abort_if($period->restaurant_id !== $user->restaurant_id, 403);
+
+        $data = $request->validate(['reason' => ['required', 'string', 'min:5', 'max:1000']]);
+        $this->postingService->reopenPeriod($period, $user, $data['reason']);
+
+        return back()->with('success', 'Đã mở lại kỳ tài chính theo yêu cầu kiểm soát.');
+    }
+
+    public function storeEntry(Request $request): RedirectResponse
+    {
+        $user = $request->user();
+        abort_unless(
+            $user->isOwner()
+                || $user->isSuperAdmin()
+                || $user->hasRole('accountant')
+                || $user->hasPermissionTo('finance.manage'),
+            403,
+        );
+        $this->postingService->ensureDefaultChart((int) $user->restaurant_id);
+
+        $data = $request->validate([
+            'entry_date' => ['required', 'date'],
+            'branch_id' => ['nullable', TenantRule::exists('restaurant_branches')],
+            'description' => ['required', 'string', 'min:3', 'max:1000'],
+            'idempotency_key' => ['nullable', 'string', 'max:180'],
+            'lines' => ['required', 'array', 'min:2'],
+            'lines.*.account' => ['required', 'string', 'max:30'],
+            'lines.*.debit' => ['nullable', 'numeric', 'min:0'],
+            'lines.*.credit' => ['nullable', 'numeric', 'min:0'],
+            'lines.*.description' => ['nullable', 'string', 'max:500'],
+            'lines.*.cost_center' => ['nullable', 'string', 'max:100'],
+        ]);
+
+        if ($this->tenantContext->isBranchScoped()) {
+            $this->tenantContext->assertWriteBranch((int) ($data['branch_id'] ?? $this->tenantContext->activeBranchId()));
+        }
+
+        try {
+            $this->postingService->post([
+                'restaurant_id' => $user->restaurant_id,
+                'branch_id' => $data['branch_id'] ?? $this->tenantContext->activeBranchId(),
+                'entry_date' => $data['entry_date'],
+                'source_type' => 'manual_adjustment',
+                'idempotency_key' => $data['idempotency_key'] ?? null,
+                'description' => $data['description'],
+                'created_by' => $user->id,
+                'posted_by' => $user->id,
+                'metadata' => ['manual_adjustment' => true],
+                'lines' => $data['lines'],
+            ]);
+        } catch (\RuntimeException $exception) {
+            return back()->withInput()->withErrors(['lines' => $exception->getMessage()]);
+        }
+
+        return back()->with('success', 'Đã ghi nhận bút toán điều chỉnh.');
     }
 
     public function storeAccount(Request $request): RedirectResponse

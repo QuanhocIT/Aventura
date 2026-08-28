@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\BranchExpenseBudget;
 use App\Models\ExpenseCategory;
+use App\Models\FinancialAccount;
 use App\Models\OperatingExpense;
 use App\Models\RecurringExpense;
 use App\Services\CashPostingService;
@@ -18,6 +19,7 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
+use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -53,6 +55,13 @@ class ExpenseController extends Controller
         }
 
         $restaurantId = $user->restaurant_id;
+        $this->financialPostingService->ensureDefaultChart((int) $restaurantId);
+        $financialAccounts = FinancialAccount::withoutGlobalScopes()
+            ->where('restaurant_id', $restaurantId)
+            ->where('type', 'expense')
+            ->where('is_active', true)
+            ->orderBy('code')
+            ->get(['code', 'name']);
         $branchId = $this->tenantContext->activeBranchId();
 
         // 1. Fetch Categories (includes system-shared ones)
@@ -206,6 +215,7 @@ class ExpenseController extends Controller
             'expenses' => $expenses,
             'recurringExpenses' => $recurringExpenses,
             'categories' => $categories,
+            'financialAccounts' => $financialAccounts,
             'analytics' => $analytics,
             'filters' => [
                 'start_date' => $startDate,
@@ -273,6 +283,10 @@ class ExpenseController extends Controller
 
         $data = $request->validate([
             'category_id' => ['nullable', TenantRule::exists('expense_categories')],
+            'financial_account_code' => ['nullable', Rule::exists('financial_accounts', 'code')->where(fn ($query) => $query
+                ->where('restaurant_id', $request->user()->restaurant_id)
+                ->where('type', 'expense')
+                ->where('is_active', true))],
             'amount' => ['required', 'numeric', 'min:0'],
             'expense_date' => ['required', 'date'],
             'description' => ['nullable', 'string', 'max:1000'],
@@ -316,6 +330,7 @@ class ExpenseController extends Controller
             'restaurant_id' => $request->user()->restaurant_id,
             'branch_id' => $this->tenantContext->activeBranchId(),
             'category_id' => $data['category_id'] ?? null,
+            'financial_account_code' => $data['financial_account_code'] ?? '6271',
             'amount' => $data['amount'],
             'expense_date' => $data['expense_date'],
             'description' => $data['description'] ?? null,
@@ -342,6 +357,10 @@ class ExpenseController extends Controller
 
         $data = $request->validate([
             'category_id' => ['nullable', TenantRule::exists('expense_categories')],
+            'financial_account_code' => ['nullable', Rule::exists('financial_accounts', 'code')->where(fn ($query) => $query
+                ->where('restaurant_id', $request->user()->restaurant_id)
+                ->where('type', 'expense')
+                ->where('is_active', true))],
             'amount' => ['required', 'numeric', 'min:0'],
             'expense_date' => ['required', 'date'],
             'description' => ['nullable', 'string', 'max:1000'],
@@ -353,8 +372,8 @@ class ExpenseController extends Controller
                 $oldPath = str_replace('/storage/', '', $expense->invoice_path);
                 Storage::disk('public')->delete($oldPath);
             }
-            $path = $request->file('invoice')->store('invoices', 'local');
-            $data['invoice_path'] = $path;
+            $path = $request->file('invoice')->store('invoices', 'public');
+            $data['invoice_path'] = '/storage/'.$path;
         }
 
         unset($data['invoice']);
@@ -446,13 +465,14 @@ class ExpenseController extends Controller
 
             $taxAmount = (float) ($lockedExpense->tax_amount ?? 0);
             $netAmount = max(0.0, $amount - $taxAmount);
+            $expenseAccount = $lockedExpense->financial_account_code ?: '6271';
 
             $postingLines = $taxAmount > 0 && $netAmount > 0 ? [
-                ['account' => '6271', 'debit' => $netAmount, 'credit' => 0],
-                ['account' => '3331', 'debit' => $taxAmount, 'credit' => 0],
+                ['account' => $expenseAccount, 'debit' => $netAmount, 'credit' => 0],
+                ['account' => '1331', 'debit' => $taxAmount, 'credit' => 0],
                 ['account' => $data['payment_method'] === 'cash' ? '1111' : '1121', 'debit' => 0, 'credit' => $amount],
             ] : [
-                ['account' => '6271', 'debit' => $amount, 'credit' => 0],
+                ['account' => $expenseAccount, 'debit' => $amount, 'credit' => 0],
                 ['account' => $data['payment_method'] === 'cash' ? '1111' : '1121', 'debit' => 0, 'credit' => $amount],
             ];
 

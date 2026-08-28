@@ -19,6 +19,8 @@ class AccountingPeriod extends Model
             'period_start' => 'date',
             'period_end' => 'date',
             'closed_at' => 'datetime',
+            'close_checklist' => 'array',
+            'reopened_at' => 'datetime',
         ];
     }
 
@@ -35,5 +37,10 @@ class AccountingPeriod extends Model
     public function isClosed(): bool
     {
         return $this->status === 'closed';
+    }
+
+    public function reopenedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'reopened_by');
     }
 }

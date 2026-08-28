@@ -24,6 +24,7 @@ class BankStatementLine extends Model
             'fee_amount' => 'decimal:2',
             'raw_payload' => 'array',
             'imported_at' => 'datetime',
+            'matched_at' => 'datetime',
         ];
     }
 
@@ -35,5 +36,10 @@ class BankStatementLine extends Model
     public function matched(): MorphTo
     {
         return $this->morphTo('matched', 'matched_type', 'matched_id');
+    }
+
+    public function matchedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'matched_by');
     }
 }

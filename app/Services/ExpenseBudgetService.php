@@ -25,6 +25,8 @@ class ExpenseBudgetService
                 $month->copy()->startOfMonth()->toDateString(),
                 $month->copy()->endOfMonth()->toDateString(),
             ])
+            // Draft requests reserve budget; rejected requests must release it.
+            ->whereIn('status', ['draft', 'approved', 'paid'])
             ->sum('amount');
     }
 

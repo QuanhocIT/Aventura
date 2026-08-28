@@ -6,6 +6,7 @@ use App\Models\OperatingExpense;
 use App\Models\Order;
 use App\Models\RestaurantBranch;
 use App\Models\Salary;
+use App\Models\FixedAssetDepreciation;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
 
@@ -25,9 +26,10 @@ class ProfitLossService
         $cogs = $this->cogsForPeriod($restaurantId, $start, $end, $branchId);
         $labor = $this->laborCostForPeriod($restaurantId, $start, $end, $branchId);
         $opex = $this->operatingExpensesForPeriod($restaurantId, $start, $end, $branchId);
+        $depreciation = $this->depreciationForPeriod($restaurantId, $start, $end, $branchId);
 
         $grossProfit = $revenue['net_revenue'] - $cogs;
-        $netProfit = $grossProfit - $labor - $opex['total'];
+        $netProfit = $grossProfit - $labor - $opex['total'] - $depreciation;
 
         return [
             'period' => $start->format('m/Y'),
@@ -39,6 +41,7 @@ class ProfitLossService
             'gross_margin' => $revenue['net_revenue'] > 0 ? round($grossProfit / $revenue['net_revenue'] * 100, 1) : 0,
             'labor_cost' => round($labor),
             'operating_expenses' => $opex,
+            'depreciation' => round($depreciation),
             'net_profit' => round($netProfit),
             'net_margin' => $revenue['net_revenue'] > 0 ? round($netProfit / $revenue['net_revenue'] * 100, 1) : 0,
             'branch_id' => $branchId,
@@ -229,5 +232,16 @@ class ProfitLossService
             'total' => round((float) $expenses->sum('amount')),
             'by_category' => $byCategory->toArray(),
         ];
+    }
+
+    private function depreciationForPeriod(int $restaurantId, CarbonImmutable $start, CarbonImmutable $end, ?int $branchId = null): float
+    {
+        return (float) FixedAssetDepreciation::withoutGlobalScopes()
+            ->where('restaurant_id', $restaurantId)
+            ->whereBetween('period_month', [$start->toDateString(), $end->toDateString()])
+            ->whereHas('asset', function ($query) use ($branchId) {
+                $query->withoutGlobalScopes()->when($branchId !== null, fn ($assetQuery) => $assetQuery->where('branch_id', $branchId));
+            })
+            ->sum('amount');
     }
 }

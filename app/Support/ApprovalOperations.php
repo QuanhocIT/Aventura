@@ -12,6 +12,7 @@ final class ApprovalOperations
 {
     /** Nhãn tiếng Việt hiển thị cho người dùng. */
     public const LABELS = [
+        'cash_manual_transaction' => 'Giao dịch thu/chi tiền mặt thủ công',
         'inventory_purchase_batch' => 'Nhập nhiều nguyên liệu kho',
         // Kho & nguyên liệu
         'inventory_create' => 'Thêm nguyên liệu mới',
@@ -69,6 +70,7 @@ final class ApprovalOperations
 
         // Tiền lớn & cấu hình tài chính
         'withdrawal_request',
+        'cash_manual_transaction',
         'bank_account_update',
         'tax_config_update',
         'payment_gateway_update',
@@ -85,6 +87,7 @@ final class ApprovalOperations
      * Dùng để đối chiếu hạn mức của Quản lý.
      */
     private const AMOUNT_KEYS = [
+        'cash_manual_transaction' => ['amount'],
         'inventory_purchase_batch' => ['total_cost', 'estimated_cost'],
         'order_refund' => ['refund_amount'],
         'order_item_cancel' => ['refund_amount', 'line_total'],

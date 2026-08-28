@@ -61,4 +61,9 @@ class FinancialJournalEntry extends Model
     {
         return $this->belongsTo(self::class, 'reversal_of_id');
     }
+
+    public function approvalRequest(): BelongsTo
+    {
+        return $this->belongsTo(ApprovalRequest::class, 'approval_request_id');
+    }
 }

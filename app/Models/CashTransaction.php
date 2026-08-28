@@ -45,4 +45,9 @@ class CashTransaction extends Model
     {
         return $this->morphTo();
     }
+
+    public function approvalRequest(): BelongsTo
+    {
+        return $this->belongsTo(ApprovalRequest::class, 'approval_request_id');
+    }
 }

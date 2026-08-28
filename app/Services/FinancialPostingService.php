@@ -3,14 +3,19 @@
 namespace App\Services;
 
 use App\Models\AccountingPeriod;
+use App\Models\BankStatementLine;
+use App\Models\CashRegister;
 use App\Models\FinancialAccount;
 use App\Models\FinancialJournalEntry;
+use App\Models\FixedAsset;
+use App\Models\OperatingExpense;
 use App\Models\User;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use RuntimeException;
+use Illuminate\Validation\ValidationException;
 
 /**
  * Single entry point for tenant financial postings.
@@ -32,11 +37,13 @@ class FinancialPostingService
         '2111' => ['name' => 'Tài sản cố định', 'type' => 'asset', 'normal_balance' => 'debit', 'is_system' => true],
         '2141' => ['name' => 'Hao mòn tài sản cố định', 'type' => 'asset', 'normal_balance' => 'credit', 'is_system' => true],
         '3311' => ['name' => 'Phải trả nhà cung cấp', 'type' => 'liability', 'normal_balance' => 'credit', 'is_system' => true],
+        '1331' => ['name' => 'Thuế GTGT được khấu trừ', 'type' => 'asset', 'normal_balance' => 'debit', 'is_system' => true],
         '3331' => ['name' => 'Thuế phải nộp', 'type' => 'liability', 'normal_balance' => 'credit', 'is_system' => true],
         '3341' => ['name' => 'Phải trả người lao động', 'type' => 'liability', 'normal_balance' => 'credit', 'is_system' => true],
         '4111' => ['name' => 'Vốn chủ sở hữu', 'type' => 'equity', 'normal_balance' => 'credit', 'is_system' => true],
         '5111' => ['name' => 'Doanh thu bán hàng', 'type' => 'revenue', 'normal_balance' => 'credit', 'is_system' => true],
         '5112' => ['name' => 'Phí dịch vụ thu được', 'type' => 'revenue', 'normal_balance' => 'credit', 'is_system' => true],
+        '7111' => ['name' => 'Thu nhập khác', 'type' => 'revenue', 'normal_balance' => 'credit', 'is_system' => true],
         '5211' => ['name' => 'Hàng bán bị trả lại/hoàn tiền', 'type' => 'revenue', 'normal_balance' => 'debit', 'is_system' => true],
         '6211' => ['name' => 'Giá vốn nguyên vật liệu', 'type' => 'expense', 'normal_balance' => 'debit', 'is_system' => true],
         '6221' => ['name' => 'Chi phí nhân sự', 'type' => 'expense', 'normal_balance' => 'debit', 'is_system' => true],
@@ -99,6 +106,7 @@ class FinancialPostingService
                 'posted_by' => $payload['posted_by'] ?? ($payload['created_by'] ?? null),
                 'posted_at' => now(),
                 'reversal_of_id' => $payload['reversal_of_id'] ?? null,
+                'approval_request_id' => $payload['approval_request_id'] ?? null,
                 'metadata' => $payload['metadata'] ?? null,
             ]);
 
@@ -183,11 +191,135 @@ class FinancialPostingService
                 return $locked;
             }
 
+            $checklist = $this->closeChecklist($locked);
+            $blocking = collect($checklist)->filter(fn (array $item): bool => ($item['blocking'] ?? true) && ! ($item['ok'] ?? false));
+            if ($blocking->isNotEmpty()) {
+                throw ValidationException::withMessages([
+                    'close_checklist' => $blocking->map(fn (array $item): string => $item['message'])->values()->all(),
+                ]);
+            }
+
             $locked->update([
                 'status' => 'closed',
                 'closed_by' => $actor?->id,
                 'closed_at' => now(),
                 'notes' => $notes ?: $locked->notes,
+                'close_checklist' => $checklist,
+                'reopened_by' => null,
+                'reopened_at' => null,
+                'reopen_reason' => null,
+            ]);
+
+            return $locked->refresh();
+        });
+    }
+
+    /**
+     * Return the controls that must be green before a period can be locked.
+     * The result is intentionally serializable so it can be shown in the UI
+     * and stored alongside the close audit trail.
+     *
+     * @return array<string, array{ok: bool, blocking: bool, count: int, message: string}>
+     */
+    public function closeChecklist(AccountingPeriod $period): array
+    {
+        $restaurantId = (int) $period->restaurant_id;
+        $start = $period->period_start->toDateString();
+        $end = $period->period_end->toDateString();
+
+        $pendingExpenses = OperatingExpense::withoutGlobalScopes()
+            ->where('restaurant_id', $restaurantId)
+            ->whereBetween('expense_date', [$start, $end])
+            ->whereNotIn('status', ['approved', 'paid', 'rejected'])
+            ->count();
+
+        $unmatchedBankLines = BankStatementLine::withoutGlobalScopes()
+            ->where('restaurant_id', $restaurantId)
+            ->whereBetween('transaction_date', [$start, $end])
+            ->where('status', 'unmatched')
+            ->count();
+
+        $openRegisters = CashRegister::withoutGlobalScopes()
+            ->where('restaurant_id', $restaurantId)
+            ->where('status', 'open')
+            ->where(function ($query) use ($start, $end): void {
+                $query->whereBetween('closing_date', [$start, $end])
+                    ->orWhereNull('closing_date');
+            })
+            ->count();
+
+        $assetsInService = FixedAsset::withoutGlobalScopes()
+            ->where('restaurant_id', $restaurantId)
+            ->where('status', 'active')
+            ->whereDate('in_service_date', '<=', $period->period_end->toDateString())
+            ->count();
+        $assetsDepreciated = FixedAsset::withoutGlobalScopes()
+            ->where('fixed_assets.restaurant_id', $restaurantId)
+            ->where('fixed_assets.status', 'active')
+            ->whereDate('fixed_assets.in_service_date', '<=', $period->period_end->toDateString())
+            ->whereHas('depreciations', fn ($query) => $query->whereDate('period_month', $period->period_start->toDateString()))
+            ->count();
+        $pendingDepreciation = max(0, $assetsInService - $assetsDepreciated);
+
+        $unbalancedEntries = FinancialJournalEntry::withoutGlobalScopes()
+            ->where('restaurant_id', $restaurantId)
+            ->whereBetween('entry_date', [$start, $end])
+            ->get(['total_debit', 'total_credit'])
+            ->filter(fn (FinancialJournalEntry $entry): bool => abs((float) $entry->total_debit - (float) $entry->total_credit) > 0.01)
+            ->count();
+
+        return [
+            'journal_balance' => [
+                'ok' => $unbalancedEntries === 0,
+                'blocking' => true,
+                'count' => $unbalancedEntries,
+                'message' => $unbalancedEntries === 0 ? 'Tất cả bút toán đều cân bằng.' : "Có {$unbalancedEntries} bút toán mất cân bằng.",
+            ],
+            'pending_expenses' => [
+                'ok' => $pendingExpenses === 0,
+                'blocking' => true,
+                'count' => $pendingExpenses,
+                'message' => $pendingExpenses === 0 ? 'Không còn chứng từ chi phí chờ xử lý.' : "Còn {$pendingExpenses} chứng từ chi phí chưa duyệt/thanh toán.",
+            ],
+            'unmatched_bank_lines' => [
+                'ok' => $unmatchedBankLines === 0,
+                'blocking' => false,
+                'count' => $unmatchedBankLines,
+                'message' => $unmatchedBankLines === 0 ? 'Đã xử lý toàn bộ dòng sao kê.' : "Còn {$unmatchedBankLines} dòng sao kê chưa đối soát.",
+            ],
+            'open_cash_registers' => [
+                'ok' => $openRegisters === 0,
+                'blocking' => true,
+                'count' => $openRegisters,
+                'message' => $openRegisters === 0 ? 'Không còn két mở trong kỳ.' : "Còn {$openRegisters} két chưa chốt.",
+            ],
+            'depreciation' => [
+                'ok' => $pendingDepreciation === 0,
+                'blocking' => true,
+                'count' => $pendingDepreciation,
+                'message' => $pendingDepreciation === 0 ? 'Đã ghi nhận khấu hao cho tài sản đang hoạt động.' : "Còn {$pendingDepreciation} tài sản chưa khấu hao trong kỳ.",
+            ],
+        ];
+    }
+
+    public function reopenPeriod(AccountingPeriod $period, User $actor, string $reason): AccountingPeriod
+    {
+        $reason = trim($reason);
+        if ($reason === '') {
+            throw ValidationException::withMessages(['reason' => 'Bắt buộc nêu lý do mở lại kỳ.']);
+        }
+
+        return DB::transaction(function () use ($period, $actor, $reason): AccountingPeriod {
+            $locked = AccountingPeriod::withoutGlobalScopes()->lockForUpdate()->findOrFail($period->id);
+            if ($locked->status !== 'closed') {
+                throw ValidationException::withMessages(['period' => 'Kỳ kế toán chưa bị khóa.']);
+            }
+
+            $locked->update([
+                'status' => 'open',
+                'reopened_by' => $actor->id,
+                'reopened_at' => now(),
+                'reopen_reason' => $reason,
             ]);
 
             return $locked->refresh();

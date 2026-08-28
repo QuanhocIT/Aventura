@@ -8,6 +8,7 @@ use App\Models\FinancialJournalEntry;
 use App\Models\Payment;
 use App\Models\RestaurantBranch;
 use App\Services\SepayBankService;
+use App\Services\FinancialPostingService;
 use App\Support\Tenant\TenantContext;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -17,6 +18,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
+use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
 use Throwable;
@@ -26,6 +28,7 @@ class BankReconciliationController extends Controller
     public function __construct(
         private TenantContext $tenantContext,
         private SepayBankService $sepayBankService,
+        private FinancialPostingService $financialPostingService,
     ) {}
 
     public function index(Request $request): Response
@@ -55,7 +58,7 @@ class BankReconciliationController extends Controller
         ])
             ->where('restaurant_id', $user->restaurant_id)
             ->where('status', 'paid')
-            ->whereIn('payment_method', ['bank_transfer', 'vietqr', 'vnpay', 'momo', 'zalopay', 'card'])
+            ->whereIn('payment_method', ['bank_transfer', 'vietqr', 'vnpay', 'momo', 'zalopay', 'card', 'ewallet'])
             ->when($selectedBranchId !== null, fn ($q) => $q->where('branch_id', $selectedBranchId))
             ->whereBetween(DB::raw('DATE(COALESCE(paid_at, created_at))'), [$dateFrom, $dateTo]);
 
@@ -219,6 +222,8 @@ class BankReconciliationController extends Controller
 
         $updatedCount = Payment::where('restaurant_id', $request->user()->restaurant_id)
             ->whereIn('id', $data['payment_ids'])
+            ->whereIn('payment_method', ['bank_transfer', 'vietqr', 'vnpay', 'momo', 'zalopay', 'card', 'ewallet'])
+            ->where('status', 'paid')
             ->whereNull('reconciled_at')
             ->update([
                 'reconciled_at' => now(),
@@ -378,13 +383,18 @@ class BankReconciliationController extends Controller
         $this->authorizeManage($request);
         abort_if($line->restaurant_id !== $request->user()->restaurant_id, 403);
         abort_unless($line->status === 'unmatched', 422, 'Dòng sao kê này đã được đối soát.');
+        $line->load('bankAccount');
+        abort_if($line->bankAccount?->restaurant_id !== $line->restaurant_id, 403);
+        if ($line->bankAccount?->branch_id !== null) {
+            app(TenantContext::class)->assertWriteBranch((int) $line->bankAccount->branch_id);
+        }
         $data = $request->validate([
             'matched_type' => ['required', 'in:payment,financial_journal_entry'],
             'matched_id' => ['required', 'integer'],
         ]);
 
         $model = $data['matched_type'] === 'payment'
-            ? Payment::where('restaurant_id', $line->restaurant_id)->where('status', 'paid')->whereNull('reconciled_at')->findOrFail($data['matched_id'])
+            ? Payment::where('restaurant_id', $line->restaurant_id)->where('status', 'paid')->whereIn('payment_method', ['bank_transfer', 'vietqr', 'vnpay', 'momo', 'zalopay', 'card', 'ewallet'])->whereNull('reconciled_at')->findOrFail($data['matched_id'])
             : FinancialJournalEntry::withoutGlobalScopes()->where('restaurant_id', $line->restaurant_id)->findOrFail($data['matched_id']);
 
         if ($data['matched_type'] === 'payment' && (float) $line->amount_in <= 0) {
@@ -392,9 +402,19 @@ class BankReconciliationController extends Controller
         }
 
         $amount = $line->amount_in > 0 ? (float) $line->amount_in : (float) $line->amount_out;
-        $matchedAmount = $data['matched_type'] === 'payment'
-            ? (float) $model->amount
-            : (float) $model->total_debit;
+        if ($data['matched_type'] === 'financial_journal_entry') {
+            abort_unless($model->status === 'posted', 422, 'Chỉ bút toán đã ghi sổ mới được đối soát.');
+            $bankLine = $model->lines()
+                ->with('account')
+                ->whereHas('account', fn ($query) => $query->where('code', $line->bankAccount?->financial_account_code))
+                ->first();
+            if (! $bankLine) {
+                return back()->withErrors(['matched_id' => 'Bút toán không ghi nhận đúng tài khoản ngân hàng của dòng sao kê.']);
+            }
+            $matchedAmount = $line->amount_in > 0 ? (float) $bankLine->debit : (float) $bankLine->credit;
+        } else {
+            $matchedAmount = (float) $model->amount;
+        }
         if (abs($matchedAmount - $amount) > 0.01) {
             return back()->withErrors(['matched_id' => 'Số tiền sao kê không khớp với thanh toán đơn hàng.']);
         }
@@ -403,6 +423,9 @@ class BankReconciliationController extends Controller
             'status' => 'matched',
             'matched_type' => $model::class,
             'matched_id' => $model->id,
+            'matched_at' => now(),
+            'matched_by' => $request->user()->id,
+            'unmatched_reason' => null,
         ]);
 
         if ($data['matched_type'] === 'payment') {
@@ -424,6 +447,117 @@ class BankReconciliationController extends Controller
      *
      * @return list<array<string, mixed>>
      */
+    public function unmatch(Request $request, BankStatementLine $line): RedirectResponse|JsonResponse
+    {
+        $this->authorizeManage($request);
+        abort_if($line->restaurant_id !== $request->user()->restaurant_id, 403);
+        $line->load('bankAccount');
+        abort_if($line->bankAccount?->restaurant_id !== $line->restaurant_id, 403);
+        if ($line->bankAccount?->branch_id !== null) {
+            app(TenantContext::class)->assertWriteBranch((int) $line->bankAccount->branch_id);
+        }
+
+        DB::transaction(function () use ($line, $request): void {
+            $locked = BankStatementLine::withoutGlobalScopes()->lockForUpdate()->findOrFail($line->id);
+            if ($locked->status !== 'matched') {
+                throw ValidationException::withMessages(['line' => 'Dòng sao kê chưa ở trạng thái đã đối soát.']);
+            }
+
+            if ($locked->matched_type === Payment::class && $locked->matched_id) {
+                $stillMatched = BankStatementLine::withoutGlobalScopes()
+                    ->where('restaurant_id', $locked->restaurant_id)
+                    ->where('id', '!=', $locked->id)
+                    ->where('status', 'matched')
+                    ->where('matched_type', Payment::class)
+                    ->where('matched_id', $locked->matched_id)
+                    ->exists();
+                if (! $stillMatched) {
+                    Payment::withoutGlobalScopes()->where('restaurant_id', $locked->restaurant_id)->whereKey($locked->matched_id)->update([
+                        'reconciled_at' => null,
+                        'reconciled_by' => null,
+                        'reconciliation_note' => null,
+                    ]);
+                }
+            }
+
+            $locked->update([
+                'status' => 'unmatched',
+                'matched_type' => null,
+                'matched_id' => null,
+                'matched_at' => null,
+                'matched_by' => null,
+                'unmatched_reason' => $request->input('reason'),
+            ]);
+        });
+
+        if ($request->expectsJson()) return response()->json(['success' => true]);
+        return back()->with('success', 'Đã bỏ đối soát dòng sao kê.');
+    }
+
+    public function createAdjustment(Request $request, BankStatementLine $line): RedirectResponse|JsonResponse
+    {
+        $this->authorizeManage($request);
+        abort_if($line->restaurant_id !== $request->user()->restaurant_id, 403);
+        $line->load('bankAccount');
+        abort_if($line->bankAccount?->restaurant_id !== $line->restaurant_id, 403);
+        if ($line->bankAccount?->branch_id !== null) {
+            app(TenantContext::class)->assertWriteBranch((int) $line->bankAccount->branch_id);
+        }
+        $this->financialPostingService->ensureDefaultChart($line->restaurant_id);
+        abort_unless($line->status === 'unmatched', 422, 'Chỉ dòng sao kê chưa đối soát mới được tạo điều chỉnh.');
+
+        $data = $request->validate([
+            'offset_account' => [
+                'required',
+                'string',
+                'max:30',
+                Rule::exists('financial_accounts', 'code')->where(fn ($query) => $query
+                    ->where('restaurant_id', $line->restaurant_id)
+                    ->where('is_active', true)),
+            ],
+            'description' => ['required', 'string', 'min:3', 'max:500'],
+        ]);
+
+        $amountIn = (float) $line->amount_in;
+        $amountOut = (float) $line->amount_out;
+        abort_unless(($amountIn > 0) xor ($amountOut > 0), 422, 'Dòng sao kê phải có đúng một chiều tiền.');
+        $bankCode = (string) $line->bankAccount?->financial_account_code;
+        abort_unless($bankCode !== '', 422, 'Tài khoản ngân hàng chưa được liên kết với chart of accounts.');
+
+        $entry = DB::transaction(function () use ($line, $data, $amountIn, $amountOut, $bankCode, $request): \App\Models\FinancialJournalEntry {
+            $locked = BankStatementLine::withoutGlobalScopes()->lockForUpdate()->findOrFail($line->id);
+            abort_unless($locked->status === 'unmatched', 422, 'Dòng sao kê đã được xử lý đồng thời.');
+            $amount = $amountIn > 0 ? $amountIn : $amountOut;
+            $entry = $this->financialPostingService->post([
+                'restaurant_id' => $locked->restaurant_id,
+                'branch_id' => $locked->bankAccount?->branch_id,
+                'entry_date' => $locked->transaction_date,
+                'source_type' => BankStatementLine::class,
+                'source_id' => $locked->id,
+                'idempotency_key' => 'bank-statement:adjustment:'.$locked->id,
+                'description' => $data['description'],
+                'created_by' => $request->user()->id,
+                'posted_by' => $request->user()->id,
+                'metadata' => ['bank_statement_line_id' => $locked->id, 'manual_adjustment' => true],
+                'lines' => $amountIn > 0
+                    ? [['account' => $bankCode, 'debit' => $amount, 'credit' => 0], ['account' => $data['offset_account'], 'debit' => 0, 'credit' => $amount]]
+                    : [['account' => $data['offset_account'], 'debit' => $amount, 'credit' => 0], ['account' => $bankCode, 'debit' => 0, 'credit' => $amount]],
+            ]);
+            $locked->update([
+                'status' => 'matched',
+                'matched_type' => $entry::class,
+                'matched_id' => $entry->id,
+                'matched_at' => now(),
+                'matched_by' => $request->user()->id,
+                'unmatched_reason' => null,
+            ]);
+            return $entry;
+        });
+
+        if ($request->expectsJson()) return response()->json(['success' => true, 'entry_id' => $entry->id]);
+        return back()->with('success', 'Đã tạo bút toán điều chỉnh từ sao kê ngân hàng.');
+    }
+
     private function bankAccountsPayload(int $restaurantId): array
     {
         return FinancialBankAccount::where('restaurant_id', $restaurantId)

@@ -44,6 +44,7 @@ class ApprovalService
         private OrderItemCancellationService $orderItemCancellationService,
         private CentralWarehouseService $warehouseService,
         private ApprovalAuthorityService $authorityService,
+        private CashPostingService $cashPostingService,
     ) {}
 
     /**
@@ -444,10 +445,37 @@ class ApprovalService
             'employee_bonus' => $this->executeEmployeeBonus($data, $approval->restaurant_id, $approval->requester_id),
             'order_refund' => $this->executeOrderRefund($data, $approval->restaurant_id, $reviewerId),
             'order_item_cancel' => $this->executeOrderItemCancellation($data, $approval->restaurant_id, $reviewerId),
+            'cash_manual_transaction' => $this->executeCashManualTransaction($data, $approval->restaurant_id, $approval->requester_id, $approval->id),
             default => throw ValidationException::withMessages([
                 'operation_type' => 'Approval operation has no executable handler and was not applied.',
             ]),
         };
+    }
+
+    private function executeCashManualTransaction(array $data, int $restaurantId, int $requesterId, int $approvalId): void
+    {
+        $isExpense = ($data['type'] ?? null) === 'out' || ($data['source'] ?? null) === 'expense';
+
+        $this->cashPostingService->record([
+            'restaurant_id' => $restaurantId,
+            'branch_id' => $data['branch_id'] ?? null,
+            'cash_register_id' => $data['cash_register_id'] ?? null,
+            'area_id' => $data['area_id'] ?? null,
+            'type' => $data['type'],
+            'amount' => $data['amount'],
+            'source' => $data['source'],
+            'idempotency_key' => 'approved-cash:'.$approvalId,
+            'voucher_code' => $data['voucher_code'] ?? null,
+            'approval_request_id' => $approvalId,
+            'enforce_cash_balance' => true,
+            'budget_limit' => (float) ($data['budget_limit'] ?? 0),
+            'allow_budget_overrun' => (bool) ($data['allow_budget_overrun'] ?? false),
+            'debit_account' => $isExpense ? '6271' : '1111',
+            'credit_account' => $isExpense ? '1111' : '5112',
+            'notes' => $data['notes'] ?? null,
+            'created_by' => $requesterId,
+            'occurred_at' => $data['occurred_at'] ?? now(),
+        ]);
     }
 
     private function executeInventoryCreate(array $data, int $restaurantId): void
