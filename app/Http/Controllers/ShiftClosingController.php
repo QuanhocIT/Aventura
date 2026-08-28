@@ -1019,7 +1019,7 @@ class ShiftClosingController extends Controller
             'trashed_by' => $request->user()->id,
         ]);
 
-        AuditLog::record($closing, 'trashed', [], ['trashed_at' => now()->toDateTimeString()]);
+        AuditLog::log('shift_closing_trashed', 'deleted', $closing, [], ['trashed_at' => now()->toDateTimeString()]);
 
         return back()->with('success', 'Đã chuyển phiếu nháp vào thùng rác. Sẽ tự xóa sau 7 ngày.');
     }
@@ -1043,7 +1043,7 @@ class ShiftClosingController extends Controller
             'trashed_by' => null,
         ]);
 
-        AuditLog::record($closing, 'trash_restored', ['trashed_at' => $closing->getOriginal('trashed_at')], []);
+        AuditLog::log('shift_closing_restored', 'updated', $closing, ['trashed_at' => $closing->getOriginal('trashed_at')], ['trashed_at' => null]);
 
         return back()->with('success', 'Đã khôi phục phiếu chốt ca từ thùng rác.');
     }
