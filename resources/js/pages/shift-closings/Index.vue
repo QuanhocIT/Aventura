@@ -81,6 +81,8 @@ type ShiftClosing = {
     total_difference: number;
     responsibility_amount: number;
     responsibility_note: string | null;
+    responsible_user_id?: number | null;
+    responsible_user_name?: string | null;
     gross_revenue: number;
     other_expense: number;
     notes: string | null;
@@ -185,6 +187,7 @@ const props = defineProps<{
     viewingTrash?: boolean;
     shifts: Shift[];
     areas?: Array<{ id: number; name: string }>;
+    employees?: Array<{ id: number; user_id: number; name: string; code?: string }>;
     kpi: KPI;
     filters: { status: string; month: string };
     canConfirm: boolean;
@@ -344,6 +347,7 @@ const form = useForm({
     actual_transfer_amount: 0,
     responsibility_amount: 0,
     responsibility_note: '',
+    responsible_user_id: null as number | null,
     other_expense_amount: 0,
     notes: '',
 });
@@ -484,6 +488,7 @@ function openDialog() {
     form.actual_transfer_amount = 0;
     form.responsibility_amount = 0;
     form.responsibility_note = '';
+    form.responsible_user_id = null;
     form.other_expense_amount = 0;
     form.notes = '';
     responsibilityAuto.value = true;
@@ -1852,6 +1857,13 @@ onUnmounted(() =>
                                                     {{ closing.notes }}
                                                 </p>
                                             </div>
+                                            <div
+                                                v-if="closing.responsible_user_name"
+                                                class="mt-2 flex items-center gap-1.5 rounded-lg bg-amber-50 px-2.5 py-1 text-xs font-bold text-amber-700 dark:bg-amber-950/40 dark:text-amber-300"
+                                            >
+                                                <ShieldCheck class="size-3.5 shrink-0" />
+                                                <span>Giao trách nhiệm: <strong>{{ closing.responsible_user_name }}</strong></span>
+                                            </div>
                                         </div>
                                     </div>
 
@@ -2875,6 +2887,24 @@ onUnmounted(() =>
                                         Số âm sẽ trừ lương, số dương sẽ cộng
                                         lương. Mặc định theo tổng chênh lệch.
                                     </p>
+                                    <div class="mt-3 flex flex-col space-y-1.5 border-t border-amber-200/50 pt-2.5 dark:border-amber-900/50">
+                                        <Label class="text-[10px] font-bold tracking-wider text-amber-800 uppercase dark:text-amber-300">
+                                            Nhân viên chịu trách nhiệm (Cấn trừ / Thưởng)
+                                        </Label>
+                                        <select
+                                            v-model="form.responsible_user_id"
+                                            class="h-8.5 w-full rounded-lg border border-amber-300/80 bg-white px-2.5 text-xs font-semibold text-slate-900 shadow-2xs focus:ring-2 focus:ring-amber-500/30 dark:border-amber-800 dark:bg-slate-950 dark:text-slate-100"
+                                        >
+                                            <option :value="null">Mặc định (Thu ngân đứng ca / Người nộp)</option>
+                                            <option
+                                                v-for="emp in employees"
+                                                :key="emp.id"
+                                                :value="emp.user_id"
+                                            >
+                                                {{ emp.name }} {{ emp.code ? `(${emp.code})` : '' }}
+                                            </option>
+                                        </select>
+                                    </div>
                                     <div
                                         class="mt-3 space-y-1.5 border-t border-slate-200 pt-2.5 text-xs dark:border-slate-800"
                                     >

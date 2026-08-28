@@ -101,6 +101,11 @@ class ShiftClosing extends Model
         return $this->belongsTo(User::class, 'confirmed_by');
     }
 
+    public function responsibleUser(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'responsible_user_id');
+    }
+
     public function branch(): BelongsTo
     {
         return $this->belongsTo(RestaurantBranch::class, 'branch_id');

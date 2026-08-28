@@ -114,7 +114,7 @@ class ShiftClosingController extends Controller
         [$year, $month] = explode('-', $monthFilter);
 
         $query = ShiftClosing::where('restaurant_id', $restaurantId)
-            ->with(['shift', 'cashier', 'confirmedBy'])
+            ->with(['shift', 'cashier', 'confirmedBy', 'responsibleUser'])
             ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
             ->whereYear('closing_date', $year)
             ->whereMonth('closing_date', $month)
@@ -159,6 +159,8 @@ class ShiftClosingController extends Controller
                 ? (float) $c->cash_difference
                 : (float) $c->responsibility_amount,
             'responsibility_note' => $c->responsibility_note,
+            'responsible_user_id' => $c->responsible_user_id,
+            'responsible_user_name' => $c->responsibleUser?->name ?? null,
             'gross_revenue' => (float) ($c->gross_revenue_amount ?? ($c->actual_cash + $c->transfer_amount - ($c->refunded_total_amount ?? 0))),
             'other_expense' => (float) $c->other_expense_amount,
             'notes' => $c->notes,
@@ -206,12 +208,26 @@ class ShiftClosingController extends Controller
             ->when($branchId, fn ($q) => $q->where(fn ($sq) => $sq->where('branch_id', $branchId)->orWhereNull('branch_id')))
             ->get(['id', 'name']);
 
+        $employees = Employee::withoutGlobalScopes()
+            ->where('restaurant_id', $restaurantId)
+            ->when($branchId, fn ($q) => $q->where(fn ($sq) => $sq->where('branch_id', $branchId)->orWhereNull('branch_id')))
+            ->with('user:id,name')
+            ->get()
+            ->map(fn (Employee $e) => [
+                'id' => $e->id,
+                'user_id' => $e->user_id,
+                'name' => $e->full_name ?? ($e->user?->name ?? 'Nhân viên #' . $e->id),
+                'code' => $e->employee_code,
+            ])
+            ->values();
+
         $isManager = $user->hasAnyRole(['owner', 'manager', 'accountant', 'super_admin']) || $user->hasPermissionTo('manage_salary');
 
         return Inertia::render('shift-closings/Index', [
             'closings' => $closings->values(),
             'shifts' => $shifts,
             'areas' => $areas,
+            'employees' => $employees,
             'kpi' => $kpi,
             'filters' => ['status' => $statusFilter, 'month' => $monthFilter],
             'activeBranchId' => $branchId,
@@ -663,6 +679,7 @@ class ShiftClosingController extends Controller
             'actual_transfer_amount' => ['nullable', 'numeric', 'min:0'],
             'responsibility_amount' => ['nullable', 'numeric'],
             'responsibility_note' => ['nullable', 'string', 'max:1000'],
+            'responsible_user_id' => ['nullable', 'integer', 'exists:users,id'],
             'other_expense_amount' => ['nullable', 'numeric', 'min:0'],
             'notes' => ['nullable', 'string', 'max:1000'],
             'submit' => ['nullable', 'in:0,1'],
@@ -852,6 +869,7 @@ class ShiftClosingController extends Controller
                     'total_difference' => $totalDifference,
                     'responsibility_amount' => $responsibilityAmount,
                     'responsibility_note' => $data['responsibility_note'] ?? null,
+                    'responsible_user_id' => $data['responsible_user_id'] ?? null,
                     'other_expense_amount' => $data['other_expense_amount'] ?? 0,
                     'notes' => $notes,
                     'status' => $status,
@@ -951,11 +969,12 @@ class ShiftClosingController extends Controller
                 ? (float) $closing->cash_difference
                 : (float) $closing->responsibility_amount;
 
-            if ($responsibilityAmount !== 0.0 && $closing->cashier_user_id) {
+            $targetUserId = $closing->responsible_user_id ?? $closing->cashier_user_id;
+
+            if ($responsibilityAmount !== 0.0 && $targetUserId) {
                 $employee = Employee::withoutGlobalScopes()
                     ->where('restaurant_id', $restaurantId)
-                    ->where('branch_id', $closing->branch_id)
-                    ->where('user_id', $closing->cashier_user_id)
+                    ->where('user_id', $targetUserId)
                     ->first();
 
                 if ($employee) {
