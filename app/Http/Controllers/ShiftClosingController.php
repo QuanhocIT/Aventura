@@ -697,7 +697,15 @@ class ShiftClosingController extends Controller
 
         $branchId = $shift->branch_id ?? $this->resolveOperationalBranch($user);
 
-        $status = $request->boolean('submit') ? 'submitted' : 'draft';
+        $isOwnerUser = $user->isOwner() || $user->isSuperAdmin();
+        $isManagerUser = $user->hasRole('manager');
+
+        if ($request->boolean('submit')) {
+            $status = $isOwnerUser ? 'confirmed' : 'submitted';
+        } else {
+            $status = 'draft';
+        }
+
         $notes = $data['notes'] ?? null;
         $closingAt = now();
         $areaFilter = $data['area_id'] ?? null;
@@ -721,7 +729,7 @@ class ShiftClosingController extends Controller
         }
 
         try {
-            DB::transaction(function () use ($restaurantId, $branchId, $data, $user, $isLastShift, $autoPayEnabled, $status, $closingAt, $areaFilter, $areaName, $isAreaScoped, $areaId, &$notes) {
+            DB::transaction(function () use ($restaurantId, $branchId, $data, $user, $isOwnerUser, $isLastShift, $autoPayEnabled, $status, $closingAt, $areaFilter, $areaName, $isAreaScoped, $areaId, &$notes) {
                 // Kiểm tra lại trong transaction với lock để tránh race condition
                 $existsInLock = ShiftClosing::withoutGlobalScopes()
                     ->where('restaurant_id', $restaurantId)
@@ -770,6 +778,7 @@ class ShiftClosingController extends Controller
                     $closingAt,
                     $areaId,
                 );
+
                 $areasBreakdown = $this->getAreaBreakdownForShift(
                     $restaurantId,
                     $data['shift_id'],
@@ -781,31 +790,25 @@ class ShiftClosingController extends Controller
                     $areasBreakdown = $this->filterBreakdownForArea($areasBreakdown, $areaFilter);
                 }
                 $summary = $this->summarizeBreakdown($areasBreakdown, $areaName);
-                $expectedCashForSlip = $calculated['expected_cash'];
 
-                if ($status === 'submitted' && $calculated['register_id']) {
-                    $registerForClose = CashRegister::where('restaurant_id', $restaurantId)
-                        ->whereKey($calculated['register_id'])
-                        ->first();
-                    if ($registerForClose?->requires_opening_reconciliation) {
-                        throw ValidationException::withMessages([
-                            'area_id' => 'Két được tự mở vì nhân viên quên mở ca. Quản lý phải đối soát số dư đầu ca trước khi chốt.',
-                        ]);
-                    }
-                }
+                $expectedCashForSlip = $isAreaScoped
+                    ? $summary['cash_sales_amount']
+                    : $calculated['expected_cash'];
+
                 $transferAmountForSlip = $isAreaScoped
                     ? $summary['transfer_amount']
                     : $calculated['transfer_amount'];
-                $actualTransfer = (float) ($data['actual_transfer_amount'] ?? 0);
-                $cashDifference = (float) $data['actual_cash'] - $expectedCashForSlip;
+
+                $explanation = trim($data['variance_explanation'] ?? '');
+                $actualTransfer = (float) ($data['actual_transfer_amount'] ?? $transferAmountForSlip);
+
+                $cashDifference = $data['actual_cash'] - $expectedCashForSlip;
                 $transferDifference = $actualTransfer - $transferAmountForSlip;
                 $totalDifference = $cashDifference + $transferDifference;
-                $isFinancialAuthority = $user->isOwner() || $user->isSuperAdmin();
-                $responsibilityAmount = $isFinancialAuthority
-                    && array_key_exists('responsibility_amount', $data)
-                    && ! is_null($data['responsibility_amount'])
+
+                $responsibilityAmount = array_key_exists('responsibility_amount', $data) && ! is_null($data['responsibility_amount'])
                     ? (float) $data['responsibility_amount']
-                    : ($isFinancialAuthority ? $totalDifference : min(0.0, $totalDifference));
+                    : $totalDifference;
 
                 if (! $isAreaScoped && $calculated['split_penalty_total'] > 0) {
                     $notes = trim(($notes ?? '')."\n[Khấu trừ đơn tách] Phạt đơn tách chưa đối soát: -".number_format($calculated['split_penalty_total']).'đ');
@@ -826,7 +829,6 @@ class ShiftClosingController extends Controller
 
                 // Chênh lệch vượt ngưỡng thì bắt buộc giải trình ngay lúc chốt.
                 $threshold = CashControlSettings::varianceThreshold($restaurantId, $branchId);
-                $explanation = trim((string) ($data['variance_explanation'] ?? ''));
 
                 if (abs($cashDifference) > $threshold && $explanation === '') {
                     throw ValidationException::withMessages([
@@ -839,14 +841,18 @@ class ShiftClosingController extends Controller
                 }
 
                 // Một ca + khu vực chỉ có đúng một phiếu tổng.
-                $closing = ShiftClosing::create([
+                $closing = ShiftClosing::withoutGlobalScopes()->updateOrCreate([
                     'restaurant_id' => $restaurantId,
                     'branch_id' => $branchId,
                     'shift_id' => $data['shift_id'],
-                    'closing_date' => $data['closing_date'],
-                    'period_start_at' => $calculated['period_start_at'],
-                    'area_id' => is_numeric($areaFilter) ? (int) $areaFilter : null,
                     'area_name' => $areaName,
+                    'closing_date' => $data['closing_date'],
+                ], [
+                    'area_id' => $areaId,
+                    'period_start_at' => $calculated['period_start_at'],
+                    'period_end_at' => $calculated['period_end_at'],
+                    'cashier_user_id' => $user->id,
+                    'confirmed_by' => ($isOwnerUser && $status === 'confirmed') ? $user->id : null,
                     'order_count' => $summary['order_count'],
                     'total_order_count' => $summary['total_order_count'],
                     'cash_order_count' => $summary['cash_order_count'],
@@ -855,7 +861,6 @@ class ShiftClosingController extends Controller
                     'cancelled_total_amount' => $summary['cancelled_total_amount'],
                     'refunded_order_count' => $summary['refunded_order_count'],
                     'refunded_total_amount' => $summary['refunded_total_amount'],
-                    'cashier_user_id' => $user->id,
                     'expected_cash' => $expectedCashForSlip,
                     'cash_sales_amount' => $summary['cash_sales_amount'],
                     'actual_cash' => $data['actual_cash'],
@@ -878,12 +883,51 @@ class ShiftClosingController extends Controller
                     'cash_count_id' => $cashCount?->id,
                     'variance_explanation' => $explanation !== '' ? $explanation : null,
                     'variance_explained_at' => $explanation !== '' ? now() : null,
+                    'variance_confirmed_by' => ($isOwnerUser && $status === 'confirmed' && $explanation !== '') ? $user->id : null,
+                    'variance_confirmed_at' => ($isOwnerUser && $status === 'confirmed' && $explanation !== '') ? now() : null,
                 ]);
 
                 // Gắn phiếu đếm vào phiếu chốt để nó không bị dùng lại cho ca sau.
                 $cashCount?->update(['shift_closing_id' => $closing->id]);
 
-                if ($calculated['register_id'] && $status === 'submitted') {
+                // Nếu là Chủ chốt ca trực tiếp ('confirmed'), tự động quy trách nhiệm cấn trừ/thưởng lương
+                if ($status === 'confirmed') {
+                    $targetUserId = $closing->responsible_user_id ?? $closing->cashier_user_id;
+
+                    if ($responsibilityAmount !== 0.0 && $targetUserId) {
+                        $employee = Employee::withoutGlobalScopes()
+                            ->where('restaurant_id', $restaurantId)
+                            ->where('user_id', $targetUserId)
+                            ->first();
+
+                        if ($employee) {
+                            $alreadyExists = SalaryAdjustment::withoutGlobalScopes()
+                                ->where('reference_id', $closing->id)
+                                ->where('reference_type', ShiftClosing::class)
+                                ->exists();
+
+                            if (! $alreadyExists) {
+                                $dateStr = Carbon::parse($closing->closing_date)->toDateString();
+                                $shiftName = $closing->shift?->name ?? 'ca';
+                                $adjustmentType = $responsibilityAmount < 0 ? 'cash_shortage' : 'bonus';
+                                $adjustmentAmount = abs($responsibilityAmount);
+
+                                $salaryService = app(SalaryService::class);
+                                $salary = $salaryService->getOrCreateDraft($restaurantId, $employee, $dateStr);
+                                $salaryService->addAdjustment($salary, [
+                                    'employee_id' => $employee->id,
+                                    'type' => $adjustmentType,
+                                    'amount' => $adjustmentAmount,
+                                    'reason' => ($responsibilityAmount < 0 ? 'Trừ trách nhiệm' : 'Cộng trách nhiệm')." {$shiftName} ngày ".Carbon::parse($closing->closing_date)->format('d/m/Y').': '.number_format($adjustmentAmount).'đ',
+                                    'reference_id' => $closing->id,
+                                    'reference_type' => ShiftClosing::class,
+                                ]);
+                            }
+                        }
+                    }
+                }
+
+                if ($calculated['register_id'] && in_array($status, ['submitted', 'confirmed'])) {
                     $register = CashRegister::where('restaurant_id', $restaurantId)
                         ->where('branch_id', $branchId)
                         ->find($calculated['register_id']);
@@ -901,9 +945,6 @@ class ShiftClosingController extends Controller
                 }
             });
         } catch (ValidationException $e) {
-            // Lỗi kiểm tra dữ liệu đã có sẵn khóa trường của nó (cash_count_id,
-            // actual_cash, variance_explanation...). Nuốt vào 'shift_id' sẽ làm
-            // mất thông tin và giao diện không biết ô nào đang sai.
             throw $e;
         } catch (\Exception $e) {
             return back()->withErrors(['shift_id' => $e->getMessage()]);

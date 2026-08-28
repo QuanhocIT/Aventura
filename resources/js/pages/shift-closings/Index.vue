@@ -217,6 +217,16 @@ const isManagerRole = computed(() => {
     );
 });
 
+const isOwnerRole = computed(() => {
+    if (props.isOwner !== undefined) {
+        return props.isOwner;
+    }
+
+    const roles = (usePage().props.auth?.user as any)?.roles ?? [];
+
+    return (usePage().props.auth?.user as any)?.is_owner || roles.some((r: string) => ['owner', 'super_admin'].includes(r));
+});
+
 // ── Cấu hình kiểm soát tiền mặt (Chủ) ─────────────────────────────────────────
 const showCashControl = ref(false);
 const cashControlForm = useForm({
@@ -3893,7 +3903,15 @@ onUnmounted(() =>
                                         class="size-4 animate-spin"
                                     />
                                     <Check v-else class="size-4" />
-                                    Nộp chốt ca
+                                    <template v-if="isOwnerRole">
+                                        Chốt ca
+                                    </template>
+                                    <template v-else-if="isManagerRole">
+                                        Nộp cho Chủ doanh nghiệp
+                                    </template>
+                                    <template v-else>
+                                        Nộp chốt ca
+                                    </template>
                                 </Button>
                             </template>
                         </div>
