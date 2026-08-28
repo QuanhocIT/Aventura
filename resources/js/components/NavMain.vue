@@ -128,6 +128,7 @@ const groupDefinitions: {
                 'kho',
                 'tồn',
                 'nguyên vật liệu',
+                'âm nguyên liệu',
                 'nhập',
                 'hao hụt',
                 'lãng phí',

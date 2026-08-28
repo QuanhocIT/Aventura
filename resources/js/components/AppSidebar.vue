@@ -394,12 +394,6 @@ const ownerNav = computed<NavItem[]>(() => {
             feature: 'inventory_basic',
         },
         {
-            title: 'Xử lý âm nguyên liệu',
-            href: '/inventory/negative-stock',
-            icon: ShieldAlert,
-            feature: 'inventory_basic',
-        },
-        {
             title: 'Điều chuyển kho',
             href: '/inventory/transfers',
             icon: ArrowLeftRight,
@@ -478,6 +472,7 @@ const ownerNav = computed<NavItem[]>(() => {
             href: '/inventory/negative-stock',
             icon: ShieldAlert,
             feature: 'inventory_basic',
+            section: 'supply',
         },
         {
             title: 'Trợ lý AI Kho Tổng',
@@ -516,6 +511,13 @@ const ownerNav = computed<NavItem[]>(() => {
             title: 'Kiểm kê & Điều chỉnh',
             href: '/inventory/count-sessions',
             icon: ClipboardCheck,
+            feature: 'inventory_basic',
+        },
+        {
+            title: 'Chốt kho chi nhánh',
+            href: '/inventory/branch-closing',
+            icon: ClipboardCheck,
+            permission: 'inventory.count',
             feature: 'inventory_basic',
         },
         {
@@ -696,6 +698,12 @@ const ownerNav = computed<NavItem[]>(() => {
             title: 'Quản lý chi phí',
             href: '/expenses',
             icon: Receipt,
+            feature: 'inventory_basic',
+        },
+        {
+            title: 'Công nợ',
+            href: '/debts',
+            icon: BadgeDollarSign,
             feature: 'inventory_basic',
         },
         {
@@ -900,6 +908,13 @@ const managerNav = computed<NavItem[]>(() => {
             title: 'Xử lý âm nguyên liệu',
             href: '/inventory/negative-stock',
             icon: ShieldAlert,
+            feature: 'inventory_basic',
+        },
+        {
+            title: 'Chốt kho chi nhánh',
+            href: '/inventory/branch-closing',
+            icon: ClipboardCheck,
+            permission: 'inventory.count',
             feature: 'inventory_basic',
         },
         {

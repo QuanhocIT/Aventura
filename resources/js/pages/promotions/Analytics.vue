@@ -134,54 +134,74 @@ const maxRevenue = Math.max(
     <Head title="Phân tích Khuyến mãi" />
 
     <div class="flex flex-col gap-6 px-6 py-5">
-        <!-- Header & Filters -->
-        <div class="flex flex-col gap-4 border-b border-border/70 pb-5 lg:flex-row lg:items-center lg:justify-between">
-            <div class="flex items-center gap-3">
-                <BackButton fallback-href="/promotions" label="Khuyến mãi" />
-                <div>
-                    <h1 class="text-2xl font-bold tracking-tight text-foreground">
-                        Phân tích Hiệu quả Khuyến mãi
-                    </h1>
-                    <p class="text-sm text-muted-foreground">
-                        Đo lường ROI, giá trị giỏ hàng tăng trưởng (Basket Lift), chi phí chiết khấu & tỷ lệ đổi mã.
-                    </p>
+        <!-- Hero Header Banner -->
+        <section
+            class="relative overflow-hidden rounded-2xl border border-violet-100/90 bg-gradient-to-r from-violet-50/90 via-slate-50 to-purple-50/60 p-4 text-slate-900 shadow-xs sm:p-5 dark:border-slate-800 dark:bg-black/80 dark:from-[#0d0b14] dark:via-black dark:to-[#0b0d14] dark:text-white dark:shadow-md backdrop-blur-md"
+        >
+            <!-- Ambient glow blobs -->
+            <div class="pointer-events-none absolute -top-24 right-8 size-48 rounded-full bg-violet-500/10 blur-3xl" />
+            <div class="pointer-events-none absolute -bottom-28 left-1/3 size-48 rounded-full bg-purple-500/10 blur-3xl" />
+
+            <div class="relative flex flex-col justify-between gap-4 lg:flex-row lg:items-center">
+                <!-- Left: Title & breadcrumb -->
+                <div class="flex items-center gap-3.5">
+                    <BackButton fallback-href="/promotions" label="Khuyến mãi" />
+                    <div class="flex size-10 shrink-0 items-center justify-center rounded-xl bg-violet-600 text-white shadow-sm shadow-violet-600/20 dark:border dark:border-violet-500/30 dark:bg-violet-600/25 dark:text-violet-400 backdrop-blur-md">
+                        <BarChart3 class="size-5" />
+                    </div>
+                    <div>
+                        <div class="flex flex-wrap items-center gap-2">
+                            <span class="inline-flex items-center gap-1.5 rounded-full border border-violet-200 bg-violet-100/80 px-2.5 py-0.5 text-[9px] font-extrabold tracking-widest text-violet-700 uppercase dark:border-violet-500/30 dark:bg-violet-500/10 dark:text-violet-300">
+                                <TrendingUp class="size-2.5 text-violet-600 dark:text-violet-400" />
+                                Phân tích Khuyến mãi
+                            </span>
+                        </div>
+                        <h1 class="mt-1 text-lg font-black tracking-tight text-slate-900 md:text-xl lg:text-2xl dark:text-white">
+                            Hiệu quả Khuyến mãi
+                        </h1>
+                        <p class="mt-0.5 max-w-xl text-xs leading-normal text-slate-600 dark:text-slate-400">
+                            Đo lường ROI, Basket Lift, chi phí chiết khấu & tỷ lệ đổi mã.
+                        </p>
+                    </div>
+                </div>
+
+                <!-- Right: Filters & Actions -->
+                <div class="flex shrink-0 flex-col items-stretch gap-2 sm:flex-row sm:items-center">
+                    <div class="flex items-center gap-1 rounded-lg border border-slate-200/80 bg-white/90 p-1 shadow-2xs backdrop-blur-sm dark:border-white/10 dark:bg-black/50">
+                        <button
+                            type="button"
+                            @click="setQuickPreset(7)"
+                            class="rounded px-2.5 py-1 text-xs font-semibold text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-white/10 dark:hover:text-white"
+                        >
+                            7 ngày
+                        </button>
+                        <button
+                            type="button"
+                            @click="setQuickPreset(30)"
+                            class="rounded px-2.5 py-1 text-xs font-semibold text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-white/10 dark:hover:text-white"
+                        >
+                            30 ngày
+                        </button>
+                    </div>
+                    <Input v-model="startDate" type="date" class="w-[140px] text-xs dark:border-white/10 dark:bg-black/50" />
+                    <span class="hidden text-xs text-slate-500 dark:text-slate-400 sm:inline">→</span>
+                    <Input v-model="endDate" type="date" class="w-[140px] text-xs dark:border-white/10 dark:bg-black/50" />
+                    <Button variant="outline" size="sm" @click="applyFilter" class="font-semibold">
+                        Lọc
+                    </Button>
+                    <Button
+                        variant="secondary"
+                        size="sm"
+                        @click="recalculateMetrics"
+                        :disabled="isRecalculating"
+                        class="gap-1.5 font-semibold"
+                    >
+                        <RotateCcw :class="['size-3.5', isRecalculating && 'animate-spin']" />
+                        Tính lại
+                    </Button>
                 </div>
             </div>
-            <div class="flex flex-wrap items-center gap-2">
-                <div class="flex items-center gap-1 rounded-lg border border-border/70 bg-card p-1">
-                    <button
-                        type="button"
-                        @click="setQuickPreset(7)"
-                        class="rounded px-2.5 py-1 text-xs font-semibold text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                    >
-                        7 ngày
-                    </button>
-                    <button
-                        type="button"
-                        @click="setQuickPreset(30)"
-                        class="rounded px-2.5 py-1 text-xs font-semibold text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                    >
-                        30 ngày
-                    </button>
-                </div>
-                <Input v-model="startDate" type="date" class="w-[140px] text-xs" />
-                <span class="text-xs text-muted-foreground">đến</span>
-                <Input v-model="endDate" type="date" class="w-[140px] text-xs" />
-                <Button variant="outline" size="sm" @click="applyFilter" class="font-semibold">
-                    Lọc
-                </Button>
-                <Button
-                    variant="secondary"
-                    size="sm"
-                    @click="recalculateMetrics"
-                    :disabled="isRecalculating"
-                    class="gap-1.5 font-semibold"
-                >
-                    <RotateCcw :class="['size-3.5', isRecalculating && 'animate-spin']" />
-                    Tính lại
-                </Button>
-            </div>
-        </div>
+        </section>
 
         <!-- AI Insights & Advisor Cards -->
         <div v-if="metrics.insights?.length" class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
