@@ -88,7 +88,7 @@ class ShiftClosing extends Model
 
     public function shift(): BelongsTo
     {
-        return $this->belongsTo(WorkShift::class, 'shift_id');
+        return $this->belongsTo(WorkShift::class, 'shift_id')->withoutGlobalScopes()->withTrashed();
     }
 
     public function cashier(): BelongsTo

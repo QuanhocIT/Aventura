@@ -1433,14 +1433,15 @@ onUnmounted(() =>
                                 <p class="truncate text-sm font-semibold">
                                     {{ closing.closing_date }}
                                 </p>
-                                <div class="mt-0.5 flex items-center gap-1.5">
+                                <div class="mt-0.5 flex flex-wrap items-center gap-1.5">
                                     <span
-                                        class="rounded border bg-slate-100 px-1.5 py-0.5 text-[9px] font-bold text-slate-500 dark:bg-slate-800 dark:text-slate-400"
+                                        v-if="closing.shift_code"
+                                        class="rounded border border-indigo-200 bg-indigo-50 px-1.5 py-0.5 text-[9px] font-bold text-indigo-700 dark:border-indigo-800 dark:bg-indigo-950 dark:text-indigo-300"
                                         >{{ closing.shift_code }}</span
                                     >
                                     <span
-                                        class="truncate text-xs font-medium text-slate-400"
-                                        >{{ closing.shift_name }}</span
+                                        class="truncate text-xs font-bold text-slate-800 dark:text-slate-200"
+                                        >{{ closing.shift_name || 'Ca làm việc' }}</span
                                     >
                                 </div>
                             </div>
@@ -1815,6 +1816,19 @@ onUnmounted(() =>
                                         <div
                                             class="space-y-2 text-xs font-semibold"
                                         >
+                                            <div
+                                                class="flex items-center gap-2 text-slate-800 dark:text-slate-200"
+                                            >
+                                                <Clock
+                                                    class="size-3.5 shrink-0 text-indigo-500"
+                                                />
+                                                <span
+                                                    >Ca làm việc:
+                                                    <strong class="font-bold text-indigo-700 dark:text-indigo-300">{{
+                                                        closing.shift_name
+                                                    }}</strong></span
+                                                >
+                                            </div>
                                             <div
                                                 class="flex items-center gap-2 text-slate-600 dark:text-slate-300"
                                             >
