@@ -20,8 +20,10 @@ import {
     Loader2,
     MapPin,
     ReceiptText,
+    RotateCcw,
     ShieldCheck,
     Store,
+    Trash2,
     TriangleAlert,
     Wallet,
     X,
@@ -164,8 +166,23 @@ type Preview = {
     closing_at: string;
 };
 
+type TrashedClosing = {
+    id: number;
+    closing_date: string;
+    closing_date_raw: string;
+    shift_name: string;
+    area_name: string;
+    cashier_name: string;
+    status: string;
+    gross_revenue: number;
+    trashed_at: string;
+    purge_at: string;
+};
+
 const props = defineProps<{
     closings: ShiftClosing[];
+    trashedClosings?: TrashedClosing[];
+    viewingTrash?: boolean;
     shifts: Shift[];
     areas?: Array<{ id: number; name: string }>;
     kpi: KPI;
@@ -617,7 +634,48 @@ function confirmClosing(closing: ShiftClosing) {
     );
 }
 
-// ── Expanded row ──────────────────────────────────────────────────────────────
+// ── Thùng rác ─────────────────────────────────────────────────────────────────
+
+const trashConfirmId = ref<number | null>(null);
+const trashLoading = ref(false);
+
+function trashClosing(closing: ShiftClosing) {
+    trashConfirmId.value = closing.id;
+}
+
+function confirmTrash() {
+    if (!trashConfirmId.value) {
+        return;
+    }
+
+    trashLoading.value = true;
+    router.post(
+        `/shift-closings/${trashConfirmId.value}/trash`,
+        {},
+        {
+            onSuccess: () => {
+                toast.success('Đã chuyển vào thùng rác. Sẽ tự xóa sau 7 ngày.');
+                trashConfirmId.value = null;
+            },
+            onError: () => toast.error('Có lỗi xảy ra.'),
+            onFinish: () => {
+                trashLoading.value = false;
+            },
+        },
+    );
+}
+
+function restoreClosing(id: number) {
+    router.post(
+        `/shift-closings/${id}/restore`,
+        {},
+        {
+            onSuccess: () => toast.success('Đã khôi phục phiếu chốt ca.'),
+            onError: () => toast.error('Có lỗi xảy ra.'),
+        },
+    );
+}
+
 
 const expandedId = ref<number | null>(null);
 
@@ -1276,6 +1334,23 @@ onUnmounted(() =>
                             >
                         </button>
                     </div>
+                    <!-- Nút Thùng rác (tách riêng để nổi bật hơn) -->
+                    <Link
+                        href="/shift-closings/trash"
+                        :class="[
+                            'ml-1 inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-[10px] font-bold whitespace-nowrap transition-colors',
+                            viewingTrash
+                                ? 'border-red-200 bg-red-50 text-red-700 shadow-sm dark:border-red-900/30 dark:bg-red-950/40 dark:text-red-300'
+                                : 'border-slate-200 text-slate-400 hover:border-red-200 hover:text-red-500 dark:border-slate-700 dark:text-slate-500 dark:hover:text-red-400',
+                        ]"
+                    >
+                        <Trash2 class="size-3" />
+                        Thùng rác
+                        <span
+                            v-if="(trashedClosings?.length ?? 0) > 0"
+                            class="inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-red-100 px-1 text-[9px] font-black text-red-600 dark:bg-red-950/80 dark:text-red-300"
+                        >{{ trashedClosings?.length }}</span>
+                    </Link>
                 </div>
 
                 <!-- Empty State -->
@@ -1831,6 +1906,19 @@ onUnmounted(() =>
                                                         />
                                                         Yêu cầu đối soát lại
                                                         (Khiếu nại)
+                                                    </Button>
+                                                </div>
+                                            </template>
+                                            <template v-if="isManagerRole && !viewingTrash">
+                                                <div class="flex flex-col gap-2">
+                                                    <Button
+                                                        v-if="closing.status === 'draft'"
+                                                        @click.stop="trashClosing(closing)"
+                                                        variant="outline"
+                                                        class="flex h-8 items-center justify-center gap-1 border-slate-200 text-[10px] font-semibold text-slate-500 shadow-sm transition-transform hover:border-red-200 hover:text-red-500 active:scale-95"
+                                                    >
+                                                        <Trash2 class="size-3" />
+                                                        Vào thùng rác
                                                     </Button>
                                                 </div>
                                             </template>
@@ -3860,5 +3948,132 @@ onUnmounted(() =>
             </div>
             
         </Transition>
+
+        <!-- ── Trash Confirm Dialog ────────────────────────────────────────── -->
+        <Transition
+            enter-active-class="transition duration-200 ease-out"
+            enter-from-class="opacity-0"
+            enter-to-class="opacity-100"
+            leave-active-class="transition duration-150 ease-in"
+            leave-from-class="opacity-100"
+            leave-to-class="opacity-0"
+        >
+            <div
+                v-if="trashConfirmId"
+                class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs"
+                @click.self="trashConfirmId = null"
+            >
+                <Card class="flex w-full max-w-sm animate-in flex-col overflow-hidden shadow-2xl duration-150 zoom-in-95 fade-in">
+                    <CardHeader class="flex flex-row items-center gap-3 border-b pb-3">
+                        <div class="flex h-10 w-10 items-center justify-center rounded-2xl bg-red-50 text-red-600 dark:bg-red-950/60 dark:text-red-400">
+                            <Trash2 class="size-5" />
+                        </div>
+                        <div>
+                            <CardTitle class="text-base text-red-600">Chuyển vào thùng rác?</CardTitle>
+                            <CardDescription>Phiếu nháp sẽ bị ẩn khỏi danh sách và tự động xóa sau <strong>7 ngày</strong>.</CardDescription>
+                        </div>
+                    </CardHeader>
+                    <div class="flex justify-end gap-2 p-4">
+                        <Button
+                            variant="outline"
+                            @click="trashConfirmId = null"
+                            class="h-9 text-xs font-semibold"
+                        >Huỷ</Button>
+                        <Button
+                            @click="confirmTrash"
+                            :disabled="trashLoading"
+                            class="flex h-9 items-center gap-1.5 bg-red-600 text-xs font-semibold text-white hover:bg-red-700 active:scale-95"
+                        >
+                            <Loader2 v-if="trashLoading" class="size-4 animate-spin" />
+                            <Trash2 v-else class="size-3.5" />
+                            Xác nhận vào thùng rác
+                        </Button>
+                    </div>
+                </Card>
+            </div>
+        </Transition>
+
+    </Teleport>
+
+    <!-- ── Trash Panel (hiển thị khi viewingTrash = true) ─────────────────── -->
+    <Teleport to="body" v-if="viewingTrash">
+        <div class="fixed inset-0 z-40 bg-black/50 backdrop-blur-xs" />
+        <div class="fixed inset-x-4 top-20 bottom-8 z-50 mx-auto flex max-w-3xl flex-col overflow-hidden rounded-2xl border border-red-100 bg-white shadow-2xl dark:border-red-900/30 dark:bg-slate-900">
+            <!-- Header -->
+            <div class="flex items-center justify-between gap-3 border-b border-red-100 bg-red-50 px-5 py-3.5 dark:border-red-900/30 dark:bg-red-950/30">
+                <div class="flex items-center gap-2.5">
+                    <Trash2 class="size-5 text-red-600 dark:text-red-400" />
+                    <div>
+                        <p class="text-sm font-bold text-red-700 dark:text-red-300">Thùng Rác — Phiếu Chốt Ca Nháp</p>
+                        <p class="text-[11px] text-red-500 dark:text-red-400">Các phiếu dưới đây sẽ tự xóa vĩnh viễn sau 7 ngày kể từ khi bị xóa</p>
+                    </div>
+                </div>
+                <Link
+                    href="/shift-closings"
+                    class="rounded-lg p-1.5 text-red-400 hover:bg-red-100 hover:text-red-600 dark:hover:bg-red-900/40"
+                >
+                    <X class="size-4" />
+                </Link>
+            </div>
+
+            <!-- Empty -->
+            <div
+                v-if="!trashedClosings || trashedClosings.length === 0"
+                class="flex flex-1 flex-col items-center justify-center gap-3 text-center text-slate-500"
+            >
+                <div class="flex h-14 w-14 items-center justify-center rounded-2xl border border-slate-100 bg-slate-50 dark:border-slate-800 dark:bg-slate-800/50">
+                    <Trash2 class="size-7 opacity-30" />
+                </div>
+                <p class="font-bold text-slate-700 dark:text-slate-300">Thùng rác đang trống</p>
+                <p class="text-xs">Không có phiếu nháp nào trong thùng rác tháng này.</p>
+            </div>
+
+            <!-- List -->
+            <div v-else class="flex-1 overflow-y-auto">
+                <!-- Table header -->
+                <div class="grid grid-cols-[1.2fr_1fr_1.2fr_1fr_1fr_auto] gap-2 border-b border-slate-100 bg-slate-50/50 px-5 py-2.5 text-[10px] font-bold tracking-wider text-slate-500 uppercase dark:border-slate-800 dark:bg-slate-900/30">
+                    <span>Ngày / Ca</span>
+                    <span>Khu vực</span>
+                    <span>Thu ngân</span>
+                    <span>Xóa vào</span>
+                    <span>Tự xóa lúc</span>
+                    <span></span>
+                </div>
+                <div
+                    v-for="item in trashedClosings"
+                    :key="item.id"
+                    class="grid grid-cols-[1.2fr_1fr_1.2fr_1fr_1fr_auto] items-center gap-2 border-b border-slate-100/60 px-5 py-3 text-sm transition-colors hover:bg-red-50/30 dark:border-slate-800/50 dark:hover:bg-red-950/10"
+                >
+                    <div>
+                        <p class="font-semibold text-slate-800 dark:text-slate-100">{{ item.closing_date }}</p>
+                        <p class="text-[11px] text-slate-500">{{ item.shift_name }}</p>
+                    </div>
+                    <p class="text-xs text-slate-600 dark:text-slate-300">{{ item.area_name }}</p>
+                    <p class="text-xs text-slate-600 dark:text-slate-300">{{ item.cashier_name }}</p>
+                    <p class="text-xs text-red-500 dark:text-red-400">{{ item.trashed_at }}</p>
+                    <p class="text-xs font-semibold text-red-600 dark:text-red-400">{{ item.purge_at }}</p>
+                    <button
+                        v-if="isManagerRole"
+                        @click="restoreClosing(item.id)"
+                        class="flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1.5 text-[10px] font-bold text-slate-500 transition-colors hover:border-indigo-200 hover:text-indigo-600 dark:border-slate-700 dark:hover:border-indigo-700 dark:hover:text-indigo-400"
+                        title="Khôi phục phiếu này"
+                    >
+                        <RotateCcw class="size-3" />
+                        Khôi phục
+                    </button>
+                </div>
+            </div>
+
+            <!-- Footer -->
+            <div class="flex items-center justify-between border-t border-red-100 bg-red-50/40 px-5 py-3 dark:border-red-900/20 dark:bg-red-950/10">
+                <p class="text-[11px] text-slate-500 dark:text-slate-400">
+                    <span class="font-semibold text-red-600">{{ trashedClosings?.length ?? 0 }}</span> phiếu đang chờ xóa
+                </p>
+                <Link href="/shift-closings" class="inline-flex items-center gap-1.5 rounded-lg bg-slate-800 px-3 py-1.5 text-[11px] font-semibold text-white hover:bg-slate-700 dark:bg-slate-700 dark:hover:bg-slate-600">
+                    <X class="size-3" />
+                    Đóng thùng rác
+                </Link>
+            </div>
+        </div>
     </Teleport>
 </template>

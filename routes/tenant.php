@@ -543,7 +543,10 @@ Route::middleware(['auth', 'verified', 'tenant.subscription', 'tenant.ratelimit'
     Route::get('finance', [FinancialController::class, 'index'])->name('finance.index');
     Route::get('finance/ingredient-spend', [IngredientSpendController::class, 'index'])->name('finance.ingredient-spend.index');
     Route::post('finance/accounts', [FinancialController::class, 'storeAccount'])->name('finance.accounts.store');
+    Route::post('finance/entries', [FinancialController::class, 'storeEntry'])->name('finance.entries.store');
+    Route::get('finance/periods/{period}/checklist', [FinancialController::class, 'closeChecklist'])->name('finance.periods.checklist');
     Route::patch('finance/periods/{period}/close', [FinancialController::class, 'closePeriod'])->name('finance.periods.close');
+    Route::patch('finance/periods/{period}/reopen', [FinancialController::class, 'reopenPeriod'])->name('finance.periods.reopen');
     Route::post('finance/entries/{entry}/reverse', [FinancialController::class, 'reverseEntry'])->name('finance.entries.reverse');
     Route::get('financial-budgets', [FinancialBudgetController::class, 'index'])->name('financial-budgets.index');
     Route::post('financial-budgets', [FinancialBudgetController::class, 'store'])->name('financial-budgets.store');
@@ -551,6 +554,7 @@ Route::middleware(['auth', 'verified', 'tenant.subscription', 'tenant.ratelimit'
     Route::get('fixed-assets', [FixedAssetController::class, 'index'])->name('fixed-assets.index');
     Route::post('fixed-assets', [FixedAssetController::class, 'store'])->name('fixed-assets.store');
     Route::patch('fixed-assets/{asset}', [FixedAssetController::class, 'update'])->name('fixed-assets.update');
+    Route::post('fixed-assets/{asset}/dispose', [FixedAssetController::class, 'dispose'])->name('fixed-assets.dispose');
     Route::post('fixed-assets/{asset}/handovers', [FixedAssetController::class, 'storeHandover'])->name('fixed-assets.handovers.store');
     Route::post('fixed-asset-handovers/{handover}/accept', [FixedAssetController::class, 'acceptHandover'])->name('fixed-asset-handovers.accept');
     Route::post('fixed-asset-handovers/{handover}/reject', [FixedAssetController::class, 'rejectHandover'])->name('fixed-asset-handovers.reject');
@@ -565,6 +569,8 @@ Route::middleware(['auth', 'verified', 'tenant.subscription', 'tenant.ratelimit'
         Route::post('/import', [BankReconciliationController::class, 'import'])->name('import');
         Route::post('/sync-sepay', [BankReconciliationController::class, 'syncSepay'])->name('sync-sepay');
         Route::patch('/lines/{line}/match', [BankReconciliationController::class, 'match'])->name('lines.match');
+        Route::patch('/lines/{line}/unmatch', [BankReconciliationController::class, 'unmatch'])->name('lines.unmatch');
+        Route::post('/lines/{line}/adjustment', [BankReconciliationController::class, 'createAdjustment'])->name('lines.adjustment');
     });
 
     // Expenses / OPEX Tracker
@@ -591,7 +597,9 @@ Route::middleware(['auth', 'verified', 'tenant.subscription', 'tenant.ratelimit'
     Route::prefix('debts')->name('debts.')->group(function () {
         Route::get('/', [DebtController::class, 'index'])->name('index');
         Route::post('/payables/{payable}/pay', [DebtController::class, 'paySupplier'])->name('payables.pay');
+        Route::post('/payables/{payable}/write-off', [DebtController::class, 'writeOffPayable'])->name('payables.write-off');
         Route::post('/receivables/{receivable}/collect', [DebtController::class, 'collectCustomer'])->name('receivables.collect');
+        Route::post('/receivables/{receivable}/write-off', [DebtController::class, 'writeOffReceivable'])->name('receivables.write-off');
         Route::post('/customers/{customer}/credit', [DebtController::class, 'updateCustomerCredit'])->name('customers.credit');
     });
 
@@ -638,6 +646,10 @@ Route::middleware(['auth', 'verified', 'tenant.subscription', 'tenant.ratelimit'
     Route::post('shift-closings', [ShiftClosingController::class, 'store'])->name('shift-closings.store');
     Route::patch('shift-closings/{closing}/confirm', [ShiftClosingController::class, 'confirm'])->name('shift-closings.confirm');
     Route::patch('shift-closings/{closing}/dispute', [ShiftClosingController::class, 'dispute'])->name('shift-closings.dispute');
+    // Thùng rác: chỉ draft mới được trash; tự xóa sau 7 ngày bởi scheduler.
+    Route::get('shift-closings/trash', [ShiftClosingController::class, 'trashIndex'])->name('shift-closings.trash.index');
+    Route::post('shift-closings/{id}/trash', [ShiftClosingController::class, 'trash'])->name('shift-closings.trash');
+    Route::post('shift-closings/{id}/restore', [ShiftClosingController::class, 'restore'])->name('shift-closings.restore');
 
     // Cash Flow Management
     Route::get('cash-flow', [CashFlowController::class, 'index'])->name('cash-flow.index');

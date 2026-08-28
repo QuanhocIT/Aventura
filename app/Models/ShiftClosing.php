@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Models\Concerns\BelongsToRestaurant;
 use Carbon\Carbon;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
@@ -16,6 +17,11 @@ class ShiftClosing extends Model
 
     protected static function booted(): void
     {
+        // Mặc định ẩn các bản ghi đã chuyển vào thùng rác.
+        static::addGlobalScope('not_trashed', function (Builder $builder) {
+            $builder->whereNull('trashed_at');
+        });
+
         $lockCheck = function (self $model) {
             $employee = Employee::withoutGlobalScopes()
                 ->where('restaurant_id', $model->restaurant_id)
@@ -37,12 +43,33 @@ class ShiftClosing extends Model
         static::deleting($lockCheck);
     }
 
+    // ── Scopes thùng rác ──────────────────────────────────────────────────────
+
+    /** Chỉ lấy các bản ghi đang ở thùng rác. */
+    public function scopeTrashed(Builder $query): Builder
+    {
+        return $query->withoutGlobalScope('not_trashed')
+            ->whereNotNull('trashed_at');
+    }
+
+    /** Bao gồm cả trashed lẫn không (bỏ global scope). */
+    public function scopeWithTrashed(Builder $query): Builder
+    {
+        return $query->withoutGlobalScope('not_trashed');
+    }
+
+    public function isTrashed(): bool
+    {
+        return $this->trashed_at !== null;
+    }
+
     protected function casts(): array
     {
         return [
             'closing_date' => 'date',
             'period_start_at' => 'datetime',
             'closed_at' => 'datetime',
+            'trashed_at' => 'datetime',
             'expected_cash' => 'decimal:2',
             'cash_sales_amount' => 'decimal:2',
             'actual_cash' => 'decimal:2',

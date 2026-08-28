@@ -91,6 +91,7 @@ return function (Schedule $schedule): void {
     $schedule->command('dashboard:send-scheduled-reports')->dailyAt('07:30');
     $schedule->command('news:publish-scheduled')->everyFiveMinutes();
     $schedule->command('expenses:process-recurring')->dailyAt('00:05');
+    $schedule->command('finance:depreciate-assets')->dailyAt('23:50')->withoutOverlapping();
     $schedule->command('debts:send-reminders')->dailyAt('08:30');
     $schedule->call(function () {
         app(SupportPortalService::class)->evaluateAlerts();
@@ -116,6 +117,8 @@ return function (Schedule $schedule): void {
         ->name('operational-audit-sla-reminders');
     $schedule->command('system:audit-consistency')->dailyAt('03:00');
     $schedule->command('goals:sync')->hourly();
+    // Xóa vĩnh viễn các phiếu chốt ca nháp đã ở thùng rác ≥ 7 ngày.
+    $schedule->command('shift-closings:prune-trash')->dailyAt('01:30')->withoutOverlapping();
     $schedule->call(function (): void {
         app(ApprovalService::class)->autoEscalateOverdue();
     })->everyMinute()->name('approval-auto-escalation')->withoutOverlapping();

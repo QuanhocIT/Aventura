@@ -997,6 +997,105 @@ class ShiftClosingController extends Controller
         return back()->with('success', 'Đã đánh dấu tranh chấp.');
     }
 
+    // ── Thùng rác ─────────────────────────────────────────────────────────────
+
+    /**
+     * Chuyển một phiếu chốt ca nháp vào thùng rác.
+     * Chỉ owner/manager được phép. Chỉ áp dụng cho status = 'draft'.
+     * Phiếu sẽ bị xóa vĩnh viễn sau 7 ngày bởi scheduled command.
+     */
+    public function trash(Request $request, ShiftClosing $closing): RedirectResponse
+    {
+        abort_unless($request->user()->hasAnyRole(['owner', 'manager']), 403);
+        abort_unless($closing->status === 'draft', 422, 'Chỉ được chuyển phiếu nháp vào thùng rác.');
+        $this->authorizeClosingBranch($request->user(), $closing);
+
+        $closing->update([
+            'trashed_at' => now(),
+            'trashed_by' => $request->user()->id,
+        ]);
+
+        AuditLog::record($closing, 'trashed', [], ['trashed_at' => now()->toDateTimeString()]);
+
+        return back()->with('success', 'Đã chuyển phiếu nháp vào thùng rác. Sẽ tự xóa sau 7 ngày.');
+    }
+
+    /**
+     * Khôi phục phiếu nháp từ thùng rác về danh sách chính.
+     */
+    public function restore(Request $request, int $id): RedirectResponse
+    {
+        abort_unless($request->user()->hasAnyRole(['owner', 'manager']), 403);
+
+        $closing = ShiftClosing::withTrashed()
+            ->where('restaurant_id', $request->user()->restaurant_id)
+            ->findOrFail($id);
+
+        abort_unless($closing->isTrashed(), 422, 'Phiếu này không ở trong thùng rác.');
+        $this->authorizeClosingBranch($request->user(), $closing);
+
+        $closing->update([
+            'trashed_at' => null,
+            'trashed_by' => null,
+        ]);
+
+        AuditLog::record($closing, 'trash_restored', ['trashed_at' => $closing->getOriginal('trashed_at')], []);
+
+        return back()->with('success', 'Đã khôi phục phiếu chốt ca từ thùng rác.');
+    }
+
+    /**
+     * Danh sách thùng rác – trả về cùng view Index với flag viewingTrash = true.
+     */
+    public function trashIndex(Request $request): \Inertia\Response
+    {
+        $user = $request->user();
+        abort_unless(
+            $user->hasAnyRole(['owner', 'manager', 'accountant', 'super_admin']),
+            403,
+        );
+
+        $restaurantId = $user->restaurant_id;
+        $branchId = $this->tenantContext->activeBranchId();
+        $monthFilter = $request->input('month', today()->format('Y-m'));
+        [$year, $month] = explode('-', $monthFilter);
+
+        $trashed = ShiftClosing::trashed()
+            ->where('restaurant_id', $restaurantId)
+            ->with(['shift', 'cashier'])
+            ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
+            ->whereYear('closing_date', $year)
+            ->whereMonth('closing_date', $month)
+            ->latest('trashed_at')
+            ->get()
+            ->map(fn (ShiftClosing $c) => [
+                'id'             => $c->id,
+                'closing_date'   => $c->closing_date->format('d/m/Y'),
+                'closing_date_raw' => $c->closing_date->toDateString(),
+                'shift_name'     => $c->shift?->name ?? '—',
+                'area_name'      => $c->area_name ?? 'Khu vực chung',
+                'cashier_name'   => $c->cashier?->name ?? '—',
+                'status'         => $c->status,
+                'gross_revenue'  => (float) ($c->gross_revenue_amount ?? 0),
+                'trashed_at'     => $c->trashed_at?->format('H:i d/m/Y'),
+                'purge_at'       => $c->trashed_at?->addDays(7)->format('d/m/Y'),
+            ]);
+
+        return Inertia::render('shift-closings/Index', [
+            'closings'      => collect()->values(),
+            'trashedClosings' => $trashed->values(),
+            'shifts'        => collect(),
+            'areas'         => collect(),
+            'kpi'           => ['total_closings' => 0, 'total_gross' => 0, 'total_cash' => 0, 'total_transfer' => 0, 'total_difference' => 0],
+            'filters'       => ['status' => 'all', 'month' => $monthFilter],
+            'viewingTrash'  => true,
+            'canConfirm'    => false,
+            'isManager'     => $user->hasAnyRole(['owner', 'manager']),
+            'isOwner'       => $user->isOwner() || $user->isSuperAdmin(),
+            'cashControl'   => null,
+        ]);
+    }
+
     // ── Private helpers ───────────────────────────────────────────────────────
 
     private function calculateShiftRevenue(int $restaurantId, int $shiftId, string $date, ?int $branchId = null, ?CarbonInterface $closingAt = null, ?int $areaId = null): array
