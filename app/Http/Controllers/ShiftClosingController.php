@@ -130,8 +130,11 @@ class ShiftClosingController extends Controller
             'closing_date_raw' => $c->closing_date->toDateString(),
             'shift_name' => $c->shift?->name ?? '—',
             'shift_code' => $c->shift?->code ?? '',
-            'shift_start' => $c->shift?->start_time ?? '',
-            'shift_end' => $c->shift?->end_time ?? '',
+            'shift_start' => $c->shift?->start_time ? substr((string) $c->shift->start_time, 0, 5) : '',
+            'shift_end' => $c->shift?->end_time ? substr((string) $c->shift->end_time, 0, 5) : '',
+            'shift_time' => ($c->shift?->start_time && $c->shift?->end_time)
+                ? substr((string) $c->shift->start_time, 0, 5).' - '.substr((string) $c->shift->end_time, 0, 5)
+                : '',
             'period_start_at' => $c->period_start_at?->format('H:i d/m/Y'),
             'area_name' => $c->area_name ?? ($c->area?->name ?? 'Khu vực chung'),
             'order_count' => (int) $c->order_count,

@@ -56,6 +56,7 @@ type ShiftClosing = {
     shift_code: string;
     shift_start: string;
     shift_end: string;
+    shift_time?: string;
     period_start_at: string | null;
     area_name?: string;
     order_count?: number;
@@ -1394,8 +1395,8 @@ onUnmounted(() =>
                         class="hidden gap-2.5 border-b border-slate-100 bg-slate-50/50 px-5 py-3 text-[10px] font-bold tracking-wider text-slate-500 uppercase lg:grid dark:border-slate-800 dark:bg-slate-900/30"
                         :class="
                             isManagerRole
-                                ? 'grid-cols-[auto_1.1fr_1.1fr_1fr_1.1fr_1.1fr_1fr_1fr_1.2fr_1fr_1fr_auto]'
-                                : 'grid-cols-[auto_1.5fr_1.5fr_1.2fr_1fr_1fr_auto]'
+                                ? 'grid-cols-[auto_1.4fr_1.3fr_1fr_1.1fr_1.1fr_1fr_1fr_1.2fr_1fr_1fr_auto]'
+                                : 'grid-cols-[auto_1.8fr_1.5fr_1.2fr_1fr_1fr_auto]'
                         "
                     >
                         <div></div>
@@ -1423,8 +1424,8 @@ onUnmounted(() =>
                             class="grid cursor-pointer grid-cols-[auto_1fr_auto] items-center gap-3 px-4 py-4 transition hover:bg-slate-50/60 lg:gap-2.5 lg:px-5 dark:hover:bg-slate-900/30"
                             :class="
                                 isManagerRole
-                                    ? 'lg:grid-cols-[auto_1.1fr_1.1fr_1fr_1.1fr_1.1fr_1fr_1fr_1.2fr_1fr_1fr_auto]'
-                                    : 'lg:grid-cols-[auto_1.5fr_1.5fr_1.2fr_1fr_1fr_auto]'
+                                    ? 'lg:grid-cols-[auto_1.4fr_1.3fr_1fr_1.1fr_1.1fr_1fr_1fr_1.2fr_1fr_1fr_auto]'
+                                    : 'lg:grid-cols-[auto_1.8fr_1.5fr_1.2fr_1fr_1fr_auto]'
                             "
                             @click="toggleExpand(closing.id)"
                         >
@@ -1439,27 +1440,34 @@ onUnmounted(() =>
                             />
 
                             <!-- Ngày / Ca -->
-                            <div class="min-w-0">
-                                <p class="truncate text-sm font-semibold">
+                            <div class="min-w-0 overflow-hidden">
+                                <p class="truncate text-sm font-extrabold text-slate-900 dark:text-slate-100">
                                     {{ closing.closing_date }}
                                 </p>
-                                <div class="mt-0.5 flex flex-wrap items-center gap-1.5">
+                                <div class="mt-0.5 flex flex-wrap items-center gap-1.5 min-w-0">
                                     <span
-                                        v-if="closing.shift_code"
-                                        class="rounded border border-indigo-200 bg-indigo-50 px-1.5 py-0.5 text-[9px] font-bold text-indigo-700 dark:border-indigo-800 dark:bg-indigo-950 dark:text-indigo-300"
+                                        v-if="closing.shift_code && !closing.shift_code.startsWith('SHIFT_')"
+                                        class="max-w-[85px] truncate rounded border border-indigo-200 bg-indigo-50 px-1.5 py-0.5 text-[9px] font-bold text-indigo-700 dark:border-indigo-800 dark:bg-indigo-950 dark:text-indigo-300"
+                                        :title="closing.shift_code"
                                         >{{ closing.shift_code }}</span
                                     >
                                     <span
-                                        class="truncate text-xs font-bold text-slate-800 dark:text-slate-200"
+                                        class="truncate text-xs font-bold text-indigo-600 dark:text-indigo-400"
                                         >{{ closing.shift_name || 'Ca làm việc' }}</span
+                                    >
+                                    <span
+                                        v-if="closing.shift_time"
+                                        class="text-[11px] font-semibold text-slate-500 dark:text-slate-400"
+                                        >({{ closing.shift_time }})</span
                                     >
                                 </div>
                             </div>
 
                             <!-- Khu vực -->
-                            <div class="hidden items-center lg:flex">
+                            <div class="hidden items-center lg:flex min-w-0 overflow-hidden">
                                 <span
-                                    class="inline-flex items-center rounded-lg border border-indigo-200/60 bg-indigo-50/70 px-2.5 py-1 text-xs font-bold text-indigo-700 dark:border-indigo-900/40 dark:bg-indigo-950/50 dark:text-indigo-300"
+                                    class="max-w-full truncate inline-flex items-center rounded-lg border border-indigo-200/60 bg-indigo-50/70 px-2.5 py-1 text-xs font-bold text-indigo-700 dark:border-indigo-900/40 dark:bg-indigo-950/50 dark:text-indigo-300"
+                                    :title="closing.area_name || 'Khu vực chung'"
                                 >
                                     {{ closing.area_name || 'Khu vực chung' }}
                                 </span>
@@ -1836,7 +1844,7 @@ onUnmounted(() =>
                                                     >Ca làm việc:
                                                     <strong class="font-bold text-indigo-700 dark:text-indigo-300">{{
                                                         closing.shift_name
-                                                    }}</strong></span
+                                                    }} {{ closing.shift_time ? `(${closing.shift_time})` : '' }}</strong></span
                                                 >
                                             </div>
                                             <div
