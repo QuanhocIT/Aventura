@@ -14,10 +14,13 @@ import {
     CreditCard,
     Wallet,
     KeyRound,
+    Sparkles,
+    RefreshCw,
 } from 'lucide-vue-next';
 import { computed, ref, onUnmounted } from 'vue';
 import ProfileController from '@/actions/App/Http/Controllers/Settings/ProfileController';
 import SecurityController from '@/actions/App/Http/Controllers/Settings/SecurityController';
+import DeleteUser from '@/components/DeleteUser.vue';
 import InputError from '@/components/InputError.vue';
 import PasswordInput from '@/components/PasswordInput.vue';
 import TwoFactorRecoveryCodes from '@/components/TwoFactorRecoveryCodes.vue';
@@ -340,6 +343,8 @@ const updatePin = () => {
                     </Form>
                 </CardContent>
             </Card>
+
+            <DeleteUser />
         </div>
 
         <!-- TAB: Security -->

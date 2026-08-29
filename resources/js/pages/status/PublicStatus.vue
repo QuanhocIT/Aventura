@@ -10,6 +10,7 @@ import {
     ShieldAlert,
 } from 'lucide-vue-next';
 import { onMounted, ref } from 'vue';
+import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import GuestLayout from '@/layouts/GuestLayout.vue';

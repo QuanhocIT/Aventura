@@ -30,8 +30,11 @@ const props = defineProps<{
             <p class="text-sm font-semibold text-primary">AVENTURA POS</p>
             <h1 class="mt-2 text-2xl font-bold">Kích hoạt tài khoản</h1>
             <p class="mt-2 text-sm text-muted-foreground">
-                Xin chào {{ props.employeeName }}. Hãy đặt mật khẩu riêng để hoàn tất kích hoạt
-                tài khoản{{ props.jobTitle ? ` ${props.jobTitle}` : '' }} với email {{ props.email }}.
+                Xin chào {{ props.employeeName }}. Hãy đặt mật khẩu riêng để
+                hoàn tất kích hoạt tài khoản{{
+                    props.jobTitle ? ` ${props.jobTitle}` : ''
+                }}
+                với email {{ props.email }}.
             </p>
         </div>
 

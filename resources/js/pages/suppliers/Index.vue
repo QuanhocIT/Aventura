@@ -30,6 +30,7 @@ import {
     Users,
     Info,
     ClipboardList,
+    CreditCard,
     Building,
     ChevronLeft,
     ChevronRight,
@@ -3711,8 +3712,11 @@ onUnmounted(() => {
                                             class="border-emerald-250 inline-flex items-center rounded border bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400"
                                         >
                                             {{
-                                                log.transfer_kind === 'controlled'
-                                                    ? transferStatusLabel(log.status)
+                                                log.transfer_kind ===
+                                                'controlled'
+                                                    ? transferStatusLabel(
+                                                          log.status,
+                                                      )
                                                     : 'Hoàn tất'
                                             }}
                                         </span>

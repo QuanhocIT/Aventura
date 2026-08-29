@@ -122,10 +122,7 @@ const staticPlans = [
             'Email Báo cáo tự động',
             'AI Tư vấn chiến lược',
         ],
-        unsupportedFeatures: [
-            'AI Dự báo Tồn kho',
-            'Truy cập API',
-        ],
+        unsupportedFeatures: ['AI Dự báo Tồn kho', 'Truy cập API'],
         isRecommended: true,
     },
     {
@@ -165,8 +162,7 @@ const planNotes: Record<string, string> = {
     free: 'Gói cơ bản, trải nghiệm POS miễn phí.',
     starter: 'Đầy đủ vận hành: bếp, QR, chấm công, tồn kho.',
     pro: 'Nâng cao toàn diện: AI, nhân sự, báo cáo, chống gian lận.',
-    enterprise:
-        'Giải pháp doanh nghiệp: AI dự báo, API không giới hạn.',
+    enterprise: 'Giải pháp doanh nghiệp: AI dự báo, API không giới hạn.',
 };
 
 const ALL_FEATURES = [

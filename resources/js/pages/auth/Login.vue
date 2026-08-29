@@ -442,18 +442,21 @@ const maxDiscountPercent = computed(() => {
                 class="relative z-10 mt-6 flex flex-col items-center gap-2 text-center text-sm text-muted-foreground"
             >
                 <p v-if="canRegister">
-                Chưa có tài khoản?
-                <TextLink
-                    :href="
-                        register.url({
-                            query: { plan: selectedPlan, cycle: selectedCycle },
-                        })
-                    "
-                    :tabindex="6"
-                    class="font-bold text-primary underline underline-offset-4 transition-colors hover:text-primary/80 dark:text-primary"
-                >
-                    Đăng ký miễn phí
-                </TextLink>
+                    Chưa có tài khoản?
+                    <TextLink
+                        :href="
+                            register.url({
+                                query: {
+                                    plan: selectedPlan,
+                                    cycle: selectedCycle,
+                                },
+                            })
+                        "
+                        :tabindex="6"
+                        class="font-bold text-primary underline underline-offset-4 transition-colors hover:text-primary/80 dark:text-primary"
+                    >
+                        Đăng ký miễn phí
+                    </TextLink>
                 </p>
             </div>
         </div>
@@ -468,9 +471,7 @@ const maxDiscountPercent = computed(() => {
                 alt=""
                 class="pointer-events-none absolute inset-0 size-full object-cover opacity-75"
             />
-            <div
-                class="pointer-events-none absolute inset-0 bg-zinc-950/55"
-            />
+            <div class="pointer-events-none absolute inset-0 bg-zinc-950/55" />
 
             <!-- Header (top) -->
             <div

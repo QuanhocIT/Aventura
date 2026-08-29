@@ -1,11 +1,6 @@
 <script setup lang="ts">
 import { Head, router, useForm, usePage } from '@inertiajs/vue3';
-import {
-    X,
-    Eye,
-    Upload,
-    FileText,
-} from 'lucide-vue-next';
+import { X, Eye, Upload, FileText } from 'lucide-vue-next';
 import { computed, onMounted, onUnmounted, ref } from 'vue';
 import { toast } from 'vue-sonner';
 import BackButton from '@/components/BackButton.vue';
@@ -83,16 +78,12 @@ const submitWorkflow = () => {
         formData.append('invoice_file', workflowForm.invoice_file);
     }
 
-    router.post(
-        updateStatus.url(selectedOrder.value.id),
-        formData as any,
-        {
-            onSuccess: () => {
-                showWorkflowModal.value = false;
-                toast.success('Đã cập nhật trạng thái vận đơn thành công.');
-            },
+    router.post(updateStatus.url(selectedOrder.value.id), formData as any, {
+        onSuccess: () => {
+            showWorkflowModal.value = false;
+            toast.success('Đã cập nhật trạng thái vận đơn thành công.');
         },
-    );
+    });
 };
 
 const printOrderSlip = () => {
@@ -187,7 +178,11 @@ const printOrderSlip = () => {
     <div class="mx-auto max-w-7xl space-y-6 px-6 py-8 text-slate-100">
         <!-- Header -->
         <div class="border-b border-slate-800 pb-6">
-            <BackButton fallback-href="/supplier/dashboard" label="Trang chủ" class="mb-3" />
+            <BackButton
+                fallback-href="/supplier/dashboard"
+                label="Trang chủ"
+                class="mb-3"
+            />
             <h1
                 class="bg-gradient-to-r from-emerald-400 to-teal-300 bg-clip-text text-3xl font-extrabold tracking-tight text-transparent"
             >
@@ -367,237 +362,242 @@ const printOrderSlip = () => {
 
         <!-- Detail Modal -->
         <Teleport to="body">
-        <div
-            v-if="showDetailModal"
-            class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
-        >
             <div
-                class="w-full max-w-xl animate-in overflow-hidden rounded-2xl border border-slate-800 bg-slate-900 shadow-2xl duration-150 zoom-in-95 fade-in"
+                v-if="showDetailModal"
+                class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
             >
                 <div
-                    class="flex items-center justify-between border-b border-slate-800 bg-slate-950 px-6 py-4"
+                    class="w-full max-w-xl animate-in overflow-hidden rounded-2xl border border-slate-800 bg-slate-900 shadow-2xl duration-150 zoom-in-95 fade-in"
                 >
-                    <div>
-                        <h3 class="text-lg font-bold text-slate-200">
-                            Chi tiết đơn đặt hàng PO
-                        </h3>
-                        <p class="mt-0.5 text-[10px] text-slate-500">
-                            Mã đơn: {{ selectedOrder?.po_number }}
-                        </p>
-                    </div>
-                    <button
-                        @click="showDetailModal = false"
-                        class="rounded-md p-1 text-slate-400 transition-colors hover:bg-slate-800 hover:text-slate-200"
-                    >
-                        <X class="h-5 w-5" />
-                    </button>
-                </div>
-
-                <div class="space-y-4 p-6">
-                    <!-- Items table -->
                     <div
-                        class="border-slate-850 overflow-hidden rounded-xl border"
+                        class="flex items-center justify-between border-b border-slate-800 bg-slate-950 px-6 py-4"
                     >
-                        <table class="w-full text-xs text-slate-300">
-                            <thead
-                                class="border-slate-850 border-b bg-slate-950/40 text-[10px] text-slate-400 uppercase"
-                            >
-                                <tr>
-                                    <th class="px-4 py-2 text-left">
-                                        Tên nguyên liệu
-                                    </th>
-                                    <th class="px-4 py-2 text-center">
-                                        Số lượng
-                                    </th>
-                                    <th class="px-4 py-2 text-right">
-                                        Đơn giá niêm yết
-                                    </th>
-                                    <th class="px-4 py-2 text-right">
-                                        Thành tiền
-                                    </th>
-                                </tr>
-                            </thead>
-                            <tbody class="divide-slate-850 divide-y">
-                                <tr
-                                    v-for="item in selectedOrder?.items"
-                                    :key="item.id"
-                                    class="hover:bg-slate-900/10"
-                                >
-                                    <td
-                                        class="px-4 py-2.5 font-semibold text-slate-200"
-                                    >
-                                        {{ item.ingredient_name }}
-                                    </td>
-                                    <td
-                                        class="px-4 py-2.5 text-center font-bold text-emerald-400"
-                                    >
-                                        {{ item.quantity_ordered }}
-                                        {{ item.unit_symbol }}
-                                    </td>
-                                    <td
-                                        class="px-4 py-2.5 text-right text-slate-400"
-                                    >
-                                        {{
-                                            Number(
-                                                item.price_per_unit,
-                                            ).toLocaleString('vi-VN')
-                                        }}đ
-                                    </td>
-                                    <td
-                                        class="px-4 py-2.5 text-right font-semibold text-slate-200"
-                                    >
-                                        {{
-                                            Number(
-                                                item.quantity_ordered *
-                                                    item.price_per_unit,
-                                            ).toLocaleString('vi-VN')
-                                        }}đ
-                                    </td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
-
-                    <!-- Notes -->
-                    <div
-                        v-if="selectedOrder?.notes"
-                        class="border-slate-850 rounded-xl border bg-slate-950/40 p-3.5"
-                    >
-                        <label
-                            class="mb-1 block text-[10px] font-bold tracking-wider text-slate-500 uppercase"
-                            >Ghi chú từ nhà hàng</label
-                        >
-                        <p class="text-xs leading-relaxed text-slate-300">
-                            {{ selectedOrder.notes }}
-                        </p>
-                    </div>
-
-                    <div
-                        class="flex justify-end gap-2 border-t border-slate-800 pt-4"
-                    >
+                        <div>
+                            <h3 class="text-lg font-bold text-slate-200">
+                                Chi tiết đơn đặt hàng PO
+                            </h3>
+                            <p class="mt-0.5 text-[10px] text-slate-500">
+                                Mã đơn: {{ selectedOrder?.po_number }}
+                            </p>
+                        </div>
                         <button
-                            type="button"
-                            @click="printOrderSlip"
-                            class="rounded-lg border border-indigo-900 bg-indigo-950 px-4 py-2 text-sm font-semibold text-indigo-400 transition-colors hover:text-indigo-300"
-                        >
-                            In phiếu giao hàng
-                        </button>
-                        <button
-                            type="button"
                             @click="showDetailModal = false"
-                            class="rounded-lg border border-slate-800 px-4 py-2 text-sm font-semibold text-slate-400 transition-colors hover:text-slate-200"
+                            class="rounded-md p-1 text-slate-400 transition-colors hover:bg-slate-800 hover:text-slate-200"
                         >
-                            Đóng
+                            <X class="h-5 w-5" />
                         </button>
+                    </div>
+
+                    <div class="space-y-4 p-6">
+                        <!-- Items table -->
+                        <div
+                            class="border-slate-850 overflow-hidden rounded-xl border"
+                        >
+                            <table class="w-full text-xs text-slate-300">
+                                <thead
+                                    class="border-slate-850 border-b bg-slate-950/40 text-[10px] text-slate-400 uppercase"
+                                >
+                                    <tr>
+                                        <th class="px-4 py-2 text-left">
+                                            Tên nguyên liệu
+                                        </th>
+                                        <th class="px-4 py-2 text-center">
+                                            Số lượng
+                                        </th>
+                                        <th class="px-4 py-2 text-right">
+                                            Đơn giá niêm yết
+                                        </th>
+                                        <th class="px-4 py-2 text-right">
+                                            Thành tiền
+                                        </th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-slate-850 divide-y">
+                                    <tr
+                                        v-for="item in selectedOrder?.items"
+                                        :key="item.id"
+                                        class="hover:bg-slate-900/10"
+                                    >
+                                        <td
+                                            class="px-4 py-2.5 font-semibold text-slate-200"
+                                        >
+                                            {{ item.ingredient_name }}
+                                        </td>
+                                        <td
+                                            class="px-4 py-2.5 text-center font-bold text-emerald-400"
+                                        >
+                                            {{ item.quantity_ordered }}
+                                            {{ item.unit_symbol }}
+                                        </td>
+                                        <td
+                                            class="px-4 py-2.5 text-right text-slate-400"
+                                        >
+                                            {{
+                                                Number(
+                                                    item.price_per_unit,
+                                                ).toLocaleString('vi-VN')
+                                            }}đ
+                                        </td>
+                                        <td
+                                            class="px-4 py-2.5 text-right font-semibold text-slate-200"
+                                        >
+                                            {{
+                                                Number(
+                                                    item.quantity_ordered *
+                                                        item.price_per_unit,
+                                                ).toLocaleString('vi-VN')
+                                            }}đ
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <!-- Notes -->
+                        <div
+                            v-if="selectedOrder?.notes"
+                            class="border-slate-850 rounded-xl border bg-slate-950/40 p-3.5"
+                        >
+                            <label
+                                class="mb-1 block text-[10px] font-bold tracking-wider text-slate-500 uppercase"
+                                >Ghi chú từ nhà hàng</label
+                            >
+                            <p class="text-xs leading-relaxed text-slate-300">
+                                {{ selectedOrder.notes }}
+                            </p>
+                        </div>
+
+                        <div
+                            class="flex justify-end gap-2 border-t border-slate-800 pt-4"
+                        >
+                            <button
+                                type="button"
+                                @click="printOrderSlip"
+                                class="rounded-lg border border-indigo-900 bg-indigo-950 px-4 py-2 text-sm font-semibold text-indigo-400 transition-colors hover:text-indigo-300"
+                            >
+                                In phiếu giao hàng
+                            </button>
+                            <button
+                                type="button"
+                                @click="showDetailModal = false"
+                                class="rounded-lg border border-slate-800 px-4 py-2 text-sm font-semibold text-slate-400 transition-colors hover:text-slate-200"
+                            >
+                                Đóng
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>
-        </div>
         </Teleport>
 
         <!-- Workflow Update Modal -->
         <Teleport to="body">
-        <div
-            v-if="showWorkflowModal"
-            class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
-        >
             <div
-                class="w-full max-w-md animate-in overflow-hidden rounded-2xl border border-slate-800 bg-slate-900 shadow-2xl duration-150 zoom-in-95 fade-in"
+                v-if="showWorkflowModal"
+                class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
             >
                 <div
-                    class="flex items-center justify-between border-b border-slate-800 bg-slate-950 px-6 py-4"
+                    class="w-full max-w-md animate-in overflow-hidden rounded-2xl border border-slate-800 bg-slate-900 shadow-2xl duration-150 zoom-in-95 fade-in"
                 >
-                    <h3 class="text-lg font-bold text-slate-200">
-                        Cập nhật trạng thái vận đơn
-                    </h3>
-                    <button
-                        @click="showWorkflowModal = false"
-                        class="rounded-md p-1 text-slate-400 transition-colors hover:bg-slate-800 hover:text-slate-200"
-                    >
-                        <X class="h-5 w-5" />
-                    </button>
-                </div>
-
-                <form @submit.prevent="submitWorkflow" class="space-y-5 p-6">
-                    <div>
-                        <label
-                            class="mb-1.5 block text-xs font-semibold tracking-wider text-slate-400 uppercase"
-                            >Trạng thái lộ trình</label
-                        >
-                        <select
-                            v-model="workflowForm.status"
-                            required
-                            class="w-full rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 text-sm text-slate-200 focus:border-emerald-500 focus:outline-none"
-                        >
-                            <option value="preparing">
-                                Đang chuẩn bị hàng
-                            </option>
-                            <option value="shipping">Đang vận chuyển</option>
-                            <option value="delivered">
-                                Đã hạ hàng tại kho (Giao thành công)
-                            </option>
-                        </select>
-                    </div>
-
-                    <!-- Invoice Upload (when status is delivered) -->
                     <div
-                        v-if="workflowForm.status === 'delivered'"
-                        class="animate-in space-y-2 duration-200 fade-in slide-in-from-top-3"
+                        class="flex items-center justify-between border-b border-slate-800 bg-slate-950 px-6 py-4"
                     >
-                        <label
-                            class="block text-xs font-semibold tracking-wider text-slate-400 uppercase"
-                            >Đính kèm hóa đơn điện tử / hóa đơn giấy biên nhận
-                            <span class="text-rose-500">*</span></label
-                        >
-                        <div
-                            class="border-slate-850 relative flex flex-col items-center justify-center rounded-xl border border-dashed bg-slate-950/40 p-4 transition-colors hover:bg-slate-950/70"
-                        >
-                            <Upload class="mb-2 h-8 w-8 text-slate-500" />
-                            <span
-                                class="text-xs font-semibold text-slate-400"
-                                >{{
-                                    workflowForm.invoice_file
-                                        ? workflowForm.invoice_file.name
-                                        : 'Nhấp để chọn tệp hóa đơn giao hàng'
-                                }}</span
-                            >
-                            <span class="mt-1 text-[10px] text-slate-500"
-                                >Định dạng JPG, PNG, PDF tối đa 4MB.</span
-                            >
-                            <input
-                                type="file"
-                                @change="handleFileUpload"
-                                required
-                                class="absolute inset-0 h-full w-full cursor-pointer opacity-0"
-                            />
-                        </div>
-                    </div>
-
-                    <div
-                        class="mt-6 flex justify-end gap-2 border-t border-slate-800 pt-4"
-                    >
+                        <h3 class="text-lg font-bold text-slate-200">
+                            Cập nhật trạng thái vận đơn
+                        </h3>
                         <button
-                            type="button"
                             @click="showWorkflowModal = false"
-                            class="rounded-lg border border-slate-800 px-4 py-2 text-sm font-semibold text-slate-400 transition-colors hover:text-slate-200"
+                            class="rounded-md p-1 text-slate-400 transition-colors hover:bg-slate-800 hover:text-slate-200"
                         >
-                            Hủy bỏ
-                        </button>
-                        <button
-                            type="submit"
-                            :disabled="workflowForm.processing"
-                            class="rounded-lg bg-gradient-to-r from-emerald-600 to-teal-500 px-4 py-2 text-sm font-semibold text-white transition-all hover:from-emerald-500 hover:to-teal-400"
-                        >
-                            {{
-                                workflowForm.processing
-                                    ? 'Đang lưu...'
-                                    : 'Xác nhận cập nhật'
-                            }}
+                            <X class="h-5 w-5" />
                         </button>
                     </div>
-                </form>
+
+                    <form
+                        @submit.prevent="submitWorkflow"
+                        class="space-y-5 p-6"
+                    >
+                        <div>
+                            <label
+                                class="mb-1.5 block text-xs font-semibold tracking-wider text-slate-400 uppercase"
+                                >Trạng thái lộ trình</label
+                            >
+                            <select
+                                v-model="workflowForm.status"
+                                required
+                                class="w-full rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 text-sm text-slate-200 focus:border-emerald-500 focus:outline-none"
+                            >
+                                <option value="preparing">
+                                    Đang chuẩn bị hàng
+                                </option>
+                                <option value="shipping">
+                                    Đang vận chuyển
+                                </option>
+                                <option value="delivered">
+                                    Đã hạ hàng tại kho (Giao thành công)
+                                </option>
+                            </select>
+                        </div>
+
+                        <!-- Invoice Upload (when status is delivered) -->
+                        <div
+                            v-if="workflowForm.status === 'delivered'"
+                            class="animate-in space-y-2 duration-200 fade-in slide-in-from-top-3"
+                        >
+                            <label
+                                class="block text-xs font-semibold tracking-wider text-slate-400 uppercase"
+                                >Đính kèm hóa đơn điện tử / hóa đơn giấy biên
+                                nhận <span class="text-rose-500">*</span></label
+                            >
+                            <div
+                                class="border-slate-850 relative flex flex-col items-center justify-center rounded-xl border border-dashed bg-slate-950/40 p-4 transition-colors hover:bg-slate-950/70"
+                            >
+                                <Upload class="mb-2 h-8 w-8 text-slate-500" />
+                                <span
+                                    class="text-xs font-semibold text-slate-400"
+                                    >{{
+                                        workflowForm.invoice_file
+                                            ? workflowForm.invoice_file.name
+                                            : 'Nhấp để chọn tệp hóa đơn giao hàng'
+                                    }}</span
+                                >
+                                <span class="mt-1 text-[10px] text-slate-500"
+                                    >Định dạng JPG, PNG, PDF tối đa 4MB.</span
+                                >
+                                <input
+                                    type="file"
+                                    @change="handleFileUpload"
+                                    required
+                                    class="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+                                />
+                            </div>
+                        </div>
+
+                        <div
+                            class="mt-6 flex justify-end gap-2 border-t border-slate-800 pt-4"
+                        >
+                            <button
+                                type="button"
+                                @click="showWorkflowModal = false"
+                                class="rounded-lg border border-slate-800 px-4 py-2 text-sm font-semibold text-slate-400 transition-colors hover:text-slate-200"
+                            >
+                                Hủy bỏ
+                            </button>
+                            <button
+                                type="submit"
+                                :disabled="workflowForm.processing"
+                                class="rounded-lg bg-gradient-to-r from-emerald-600 to-teal-500 px-4 py-2 text-sm font-semibold text-white transition-all hover:from-emerald-500 hover:to-teal-400"
+                            >
+                                {{
+                                    workflowForm.processing
+                                        ? 'Đang lưu...'
+                                        : 'Xác nhận cập nhật'
+                                }}
+                            </button>
+                        </div>
+                    </form>
+                </div>
             </div>
-        </div>
         </Teleport>
     </div>
 </template>

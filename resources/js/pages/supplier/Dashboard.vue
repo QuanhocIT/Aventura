@@ -45,11 +45,15 @@ const props = defineProps<{
                         class="rounded border border-emerald-500/20 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-bold text-emerald-700 uppercase dark:text-emerald-400"
                         >Portal B2B</span
                     >
-                    <h1 class="text-2xl font-black text-slate-900 dark:text-slate-200">
+                    <h1
+                        class="text-2xl font-black text-slate-900 dark:text-slate-200"
+                    >
                         Chào mừng, {{ supplier.name }}
                     </h1>
                 </div>
-                <p class="text-sm leading-relaxed text-slate-600 dark:text-slate-400">
+                <p
+                    class="text-sm leading-relaxed text-slate-600 dark:text-slate-400"
+                >
                     Cổng kết nối chuỗi cung ứng trực tiếp với Aventura SaaS.
                     Theo dõi vận đơn, cập nhật giá bán thời gian thực.
                 </p>
@@ -276,7 +280,9 @@ const props = defineProps<{
                     >
                 </div>
 
-                <div class="dashboard-list-card__body divide-y divide-slate-800/50">
+                <div
+                    class="dashboard-list-card__body divide-y divide-slate-800/50"
+                >
                     <div
                         v-for="po in recentOrders"
                         :key="po.id"

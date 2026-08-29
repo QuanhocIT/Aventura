@@ -18,11 +18,7 @@ import {
 import { computed, ref, watch } from 'vue';
 import BackButton from '@/components/BackButton.vue';
 import { Button } from '@/components/ui/button';
-import {
-    Card,
-    CardHeader,
-    CardTitle,
-} from '@/components/ui/card';
+import { Card, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { confirmDialog } from '@/composables/useConfirm';
@@ -722,191 +718,193 @@ const getStatusLabel = (status: string) => {
 
         <!-- Create RFP Modal -->
         <Teleport to="body">
-        <div
-            v-if="showCreateModal"
-            class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-xs"
-        >
-            <Card
-                class="w-full max-w-2xl animate-in overflow-hidden shadow-2xl duration-150 zoom-in-95 fade-in"
+            <div
+                v-if="showCreateModal"
+                class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-xs"
             >
-                <CardHeader
-                    class="flex flex-row items-center justify-between border-b pb-4"
+                <Card
+                    class="w-full max-w-2xl animate-in overflow-hidden shadow-2xl duration-150 zoom-in-95 fade-in"
                 >
-                    <CardTitle class="text-lg font-bold"
-                        >Tạo yêu cầu chào thầu báo giá (RFP) mới</CardTitle
+                    <CardHeader
+                        class="flex flex-row items-center justify-between border-b pb-4"
                     >
-                    <Button
-                        variant="ghost"
-                        size="icon"
-                        @click="showCreateModal = false"
-                        class="h-8 w-8 text-muted-foreground"
+                        <CardTitle class="text-lg font-bold"
+                            >Tạo yêu cầu chào thầu báo giá (RFP) mới</CardTitle
+                        >
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            @click="showCreateModal = false"
+                            class="h-8 w-8 text-muted-foreground"
+                        >
+                            <X class="h-5 w-5" />
+                        </Button>
+                    </CardHeader>
+
+                    <form
+                        @submit.prevent="submitRfp"
+                        class="max-h-[80vh] space-y-4 overflow-y-auto p-6"
                     >
-                        <X class="h-5 w-5" />
-                    </Button>
-                </CardHeader>
-
-                <form
-                    @submit.prevent="submitRfp"
-                    class="max-h-[80vh] space-y-4 overflow-y-auto p-6"
-                >
-                    <div class="space-y-4">
-                        <div class="space-y-1.5">
-                            <Label
-                                class="text-xs font-semibold tracking-wider text-muted-foreground uppercase"
-                                >Tiêu đề yêu cầu thầu
-                                <span class="text-rose-500">*</span></Label
-                            >
-                            <Input
-                                v-model="rfpForm.title"
-                                required
-                                type="text"
-                                placeholder="Ví dụ: Cung ứng Thịt & Hải sản tươi sống tháng 7/2026"
-                            />
-                        </div>
-                        <div class="space-y-1.5">
-                            <Label
-                                class="text-xs font-semibold tracking-wider text-muted-foreground uppercase"
-                                >Mô tả chi tiết & Tiêu chí kỹ thuật</Label
-                            >
-                            <textarea
-                                v-model="rfpForm.description"
-                                rows="3"
-                                class="w-full rounded-xl border border-input bg-background px-3 py-2 text-sm focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:outline-none"
-                                placeholder="Mô tả tiêu chuẩn chất lượng, quy cách đóng gói, tần suất giao hàng..."
-                            ></textarea>
-                        </div>
-                        <div class="space-y-1.5">
-                            <Label
-                                class="text-xs font-semibold tracking-wider text-muted-foreground uppercase"
-                                >Thời hạn nộp hồ sơ thầu
-                                <span class="text-rose-500">*</span></Label
-                            >
-                            <Input
-                                v-model="rfpForm.due_date"
-                                required
-                                type="datetime-local"
-                            />
-                        </div>
-                    </div>
-
-                    <div class="mt-6 border-t pt-4">
-                        <div class="mb-3 flex items-center justify-between">
-                            <h4
-                                class="text-xs font-bold tracking-wider text-muted-foreground uppercase"
-                            >
-                                Danh mục mặt hàng cần chào giá
-                                <span class="text-rose-500">*</span>
-                            </h4>
-                            <Button
-                                type="button"
-                                variant="ghost"
-                                @click="addRfpItem"
-                                class="h-auto p-0 text-xs text-emerald-600 hover:text-emerald-700"
-                            >
-                                <Plus class="mr-1 h-4 w-4" /> Thêm mặt hàng
-                            </Button>
-                        </div>
-
-                        <!-- Dynamic Items Form -->
-                        <div class="space-y-3">
-                            <div
-                                v-for="(item, idx) in rfpForm.items"
-                                :key="idx"
-                                class="group relative grid grid-cols-12 gap-3 rounded-xl border border-border bg-muted/40 p-3"
-                            >
-                                <div class="col-span-5 space-y-1">
-                                    <Label
-                                        class="text-[10px] font-bold text-muted-foreground uppercase"
-                                        >Tên nguyên liệu</Label
-                                    >
-                                    <Input
-                                        v-model="item.ingredient_name"
-                                        required
-                                        type="text"
-                                        placeholder="Bột mì, Thịt bò Wagyu..."
-                                        class="h-8 text-xs"
-                                    />
-                                </div>
-                                <div class="col-span-3 space-y-1">
-                                    <Label
-                                        class="text-[10px] font-bold text-muted-foreground uppercase"
-                                        >Số lượng</Label
-                                    >
-                                    <Input
-                                        v-model="item.quantity_required"
-                                        required
-                                        type="number"
-                                        step="0.001"
-                                        class="h-8 text-xs"
-                                    />
-                                </div>
-                                <div class="col-span-3 space-y-1">
-                                    <Label
-                                        class="text-[10px] font-bold text-muted-foreground uppercase"
-                                        >Đơn vị</Label
-                                    >
-                                    <Input
-                                        v-model="item.unit_symbol"
-                                        required
-                                        type="text"
-                                        placeholder="kg, lít, hộp..."
-                                        class="h-8 text-xs"
-                                    />
-                                </div>
-                                <div
-                                    class="col-span-1 flex items-end justify-center pb-1.5"
+                        <div class="space-y-4">
+                            <div class="space-y-1.5">
+                                <Label
+                                    class="text-xs font-semibold tracking-wider text-muted-foreground uppercase"
+                                    >Tiêu đề yêu cầu thầu
+                                    <span class="text-rose-500">*</span></Label
                                 >
-                                    <Button
-                                        type="button"
-                                        variant="ghost"
-                                        size="icon"
-                                        :disabled="rfpForm.items.length === 1"
-                                        @click="removeRfpItem(idx)"
-                                        class="h-8 w-8 text-rose-500 hover:bg-rose-50 hover:text-rose-600 disabled:opacity-40"
+                                <Input
+                                    v-model="rfpForm.title"
+                                    required
+                                    type="text"
+                                    placeholder="Ví dụ: Cung ứng Thịt & Hải sản tươi sống tháng 7/2026"
+                                />
+                            </div>
+                            <div class="space-y-1.5">
+                                <Label
+                                    class="text-xs font-semibold tracking-wider text-muted-foreground uppercase"
+                                    >Mô tả chi tiết & Tiêu chí kỹ thuật</Label
+                                >
+                                <textarea
+                                    v-model="rfpForm.description"
+                                    rows="3"
+                                    class="w-full rounded-xl border border-input bg-background px-3 py-2 text-sm focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:outline-none"
+                                    placeholder="Mô tả tiêu chuẩn chất lượng, quy cách đóng gói, tần suất giao hàng..."
+                                ></textarea>
+                            </div>
+                            <div class="space-y-1.5">
+                                <Label
+                                    class="text-xs font-semibold tracking-wider text-muted-foreground uppercase"
+                                    >Thời hạn nộp hồ sơ thầu
+                                    <span class="text-rose-500">*</span></Label
+                                >
+                                <Input
+                                    v-model="rfpForm.due_date"
+                                    required
+                                    type="datetime-local"
+                                />
+                            </div>
+                        </div>
+
+                        <div class="mt-6 border-t pt-4">
+                            <div class="mb-3 flex items-center justify-between">
+                                <h4
+                                    class="text-xs font-bold tracking-wider text-muted-foreground uppercase"
+                                >
+                                    Danh mục mặt hàng cần chào giá
+                                    <span class="text-rose-500">*</span>
+                                </h4>
+                                <Button
+                                    type="button"
+                                    variant="ghost"
+                                    @click="addRfpItem"
+                                    class="h-auto p-0 text-xs text-emerald-600 hover:text-emerald-700"
+                                >
+                                    <Plus class="mr-1 h-4 w-4" /> Thêm mặt hàng
+                                </Button>
+                            </div>
+
+                            <!-- Dynamic Items Form -->
+                            <div class="space-y-3">
+                                <div
+                                    v-for="(item, idx) in rfpForm.items"
+                                    :key="idx"
+                                    class="group relative grid grid-cols-12 gap-3 rounded-xl border border-border bg-muted/40 p-3"
+                                >
+                                    <div class="col-span-5 space-y-1">
+                                        <Label
+                                            class="text-[10px] font-bold text-muted-foreground uppercase"
+                                            >Tên nguyên liệu</Label
+                                        >
+                                        <Input
+                                            v-model="item.ingredient_name"
+                                            required
+                                            type="text"
+                                            placeholder="Bột mì, Thịt bò Wagyu..."
+                                            class="h-8 text-xs"
+                                        />
+                                    </div>
+                                    <div class="col-span-3 space-y-1">
+                                        <Label
+                                            class="text-[10px] font-bold text-muted-foreground uppercase"
+                                            >Số lượng</Label
+                                        >
+                                        <Input
+                                            v-model="item.quantity_required"
+                                            required
+                                            type="number"
+                                            step="0.001"
+                                            class="h-8 text-xs"
+                                        />
+                                    </div>
+                                    <div class="col-span-3 space-y-1">
+                                        <Label
+                                            class="text-[10px] font-bold text-muted-foreground uppercase"
+                                            >Đơn vị</Label
+                                        >
+                                        <Input
+                                            v-model="item.unit_symbol"
+                                            required
+                                            type="text"
+                                            placeholder="kg, lít, hộp..."
+                                            class="h-8 text-xs"
+                                        />
+                                    </div>
+                                    <div
+                                        class="col-span-1 flex items-end justify-center pb-1.5"
                                     >
-                                        <X class="h-4 w-4" />
-                                    </Button>
-                                </div>
-                                <div class="col-span-11 space-y-1">
-                                    <Label
-                                        class="text-[10px] font-bold text-muted-foreground uppercase"
-                                        >Yêu cầu tiêu chuẩn kỹ thuật (Ghi
-                                        chú)</Label
-                                    >
-                                    <Input
-                                        v-model="item.notes"
-                                        type="text"
-                                        placeholder="Hàng loại 1, bảo quản mát dưới 4 độ, đóng khay xốp..."
-                                        class="h-8 text-xs"
-                                    />
+                                        <Button
+                                            type="button"
+                                            variant="ghost"
+                                            size="icon"
+                                            :disabled="
+                                                rfpForm.items.length === 1
+                                            "
+                                            @click="removeRfpItem(idx)"
+                                            class="h-8 w-8 text-rose-500 hover:bg-rose-50 hover:text-rose-600 disabled:opacity-40"
+                                        >
+                                            <X class="h-4 w-4" />
+                                        </Button>
+                                    </div>
+                                    <div class="col-span-11 space-y-1">
+                                        <Label
+                                            class="text-[10px] font-bold text-muted-foreground uppercase"
+                                            >Yêu cầu tiêu chuẩn kỹ thuật (Ghi
+                                            chú)</Label
+                                        >
+                                        <Input
+                                            v-model="item.notes"
+                                            type="text"
+                                            placeholder="Hàng loại 1, bảo quản mát dưới 4 độ, đóng khay xốp..."
+                                            class="h-8 text-xs"
+                                        />
+                                    </div>
                                 </div>
                             </div>
                         </div>
-                    </div>
 
-                    <div class="mt-6 flex justify-end gap-2 border-t pt-4">
-                        <Button
-                            type="button"
-                            variant="outline"
-                            @click="showCreateModal = false"
-                        >
-                            Hủy bỏ
-                        </Button>
-                        <Button
-                            type="submit"
-                            :disabled="rfpForm.processing"
-                            class="bg-emerald-600 text-white hover:bg-emerald-700"
-                        >
-                            {{
-                                rfpForm.processing
-                                    ? 'Đang gửi...'
-                                    : 'Đăng tải thầu RFP'
-                            }}
-                        </Button>
-                    </div>
-                </form>
-            </Card>
-        </div>
+                        <div class="mt-6 flex justify-end gap-2 border-t pt-4">
+                            <Button
+                                type="button"
+                                variant="outline"
+                                @click="showCreateModal = false"
+                            >
+                                Hủy bỏ
+                            </Button>
+                            <Button
+                                type="submit"
+                                :disabled="rfpForm.processing"
+                                class="bg-emerald-600 text-white hover:bg-emerald-700"
+                            >
+                                {{
+                                    rfpForm.processing
+                                        ? 'Đang gửi...'
+                                        : 'Đăng tải thầu RFP'
+                                }}
+                            </Button>
+                        </div>
+                    </form>
+                </Card>
+            </div>
         </Teleport>
     </div>
 </template>
